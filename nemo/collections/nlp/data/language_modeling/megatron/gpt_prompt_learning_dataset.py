@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import json
-from multiprocessing.sharedctypes import Value
 import numpy as np
 import torch
+
+from multiprocessing.sharedctypes import Value
 from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
@@ -88,19 +89,27 @@ class GPTPromptLearningDataset(Dataset):
             
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
+            prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
             prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
             input_example = prompt_template
 
-            assert sum(prompt_token_splits) == self.total_virtual_tokens, "Sum of prompt token splits must equal total number of prompt tokens"
+            assert sum(prompt_token_splits) == self.total_virtual_tokens, "Sum of prompt token split values must equal total number of prompt tokens"
             assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(prompt_token_splits), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
             # Format the input example according to the template
-            for field in doc.keys():
-                field_text = doc[field]
-                input_example = input_example.replace('{' + field + '}', field_text)
+            for field in prompt_template_fields:
+                if field in doc.keys():
+                    field_text = doc[field]
+                    input_example = input_example.replace('{' + field + '}', field_text)
 
-            # Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers
+                # If some fields from the template aren't present, e.g. {answer} during inference
+                # just remove that field from the template, leaving the space blank
+                else:
+                    input_example = input_example.replace('{' + field + '}', "")
+
             total_inserted_tokens = 0
+            
+            # Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers
             for idx in range(len(prompt_token_splits)):
                 split_start = total_inserted_tokens
                 split_end = total_inserted_tokens + prompt_token_splits[idx]

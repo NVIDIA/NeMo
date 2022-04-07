@@ -15,6 +15,7 @@
 from os import path
 from typing import Any, Optional, List, Union
 
+import re
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -152,10 +153,10 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.task_templates = {}
         task_id_num_to_name = {}
         task_id_num = 0
-
         for task in task_templates:
             self.task_templates[task.taskname] = {
                 "prompt_template": task.prompt_template,
+                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template)
                 "prompt_token_splits": task.prompt_token_splits,
                 "task_id_num": task_id_num
             }
@@ -532,37 +533,6 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return dataset, dataloader
 
-    def get_forward_output_only_func(self):
-        """
-        Used for generate method only for now.
-        """
-        def fwd_output_only_func(batch, model):
-            extra_arg = {}
-            (
-                tokens,
-                attention_mask,
-                position_ids,
-                task_ids,
-                set_inference_key_value_memory,
-                inference_max_sequence_len,
-            ) = batch
-
-            tokens = tokens.cuda()
-            attention_mask = attention_mask.cuda()
-            position_ids = position_ids.cuda()
-            task_ids = task_ids.cuda()
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-           
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
-            
-            def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
-
-            return output_tensor, id_func
-
-        return fwd_output_only_func
-
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],
@@ -617,8 +587,18 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids)
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None):# -> Any:
-        print("fake predict step")
+    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+        inference_config = self.get_inference_config()
+        if inference_config is None:
+            return None
+        else:
+            return generate(self, **inference_config)
+                
+    def set_inference_config(self, inference_config):
+        self._inference_config = inference_config
+
+    def get_inference_config(self):
+        return self._inference_config
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.
@@ -628,6 +608,37 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         used by internal code to bypass the input provided by the
         forward_step_func"""
         self.input_tensor = input_tensor
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only for now.
+        """
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+           
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+            
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
 
     @classmethod
     def list_available_models(cls):

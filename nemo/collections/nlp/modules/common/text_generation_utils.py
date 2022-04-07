@@ -71,7 +71,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         length_params['max_length'] = 1
         sampling_params['all_probs'] = True
         sampling_params["add_BOS"] = False
-        sampling_params['use_greedy'] = True
+        sampling_params['greedy'] = True
         response = generate(
             model,
             inputs=inputs,
