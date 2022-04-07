@@ -23,6 +23,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
     NLPDDPPlugin,
+    NLPSaveRestoreConnector,
     PipelineMixedPrecisionPlugin,
 )
 from nemo.core.config import hydra_runner
@@ -98,7 +99,10 @@ def main(cfg) -> None:
             t5_cfg.eval_languages = cfg.model.eval_languages
 
     model = MegatronT5GLUEModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
+        restore_path=cfg.model.restore_from_path,
+        trainer=trainer,
+        override_config_path=t5_cfg,
+        save_restore_connector=NLPSaveRestoreConnector(),
     )
 
     trainer.fit(model)
