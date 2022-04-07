@@ -42,6 +42,7 @@ class LinearAdapter(nn.Module):
             activation.inplace = True
 
         assert norm_position in ['pre', 'post']
+        self.norm_position = norm_position
 
         if norm_position == 'pre':
             self.module = nn.Sequential(
@@ -50,7 +51,6 @@ class LinearAdapter(nn.Module):
                 activation,
                 nn.Linear(dim, in_features, bias=False),
             )
-            self.module[-1].weight.data *= 0
 
         elif norm_position == 'post':
             self.module = nn.Sequential(
@@ -59,8 +59,18 @@ class LinearAdapter(nn.Module):
                 nn.Linear(dim, in_features, bias=False),
                 nn.LayerNorm(in_features),
             )
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Final layer initializations must be 0
+        if self.norm_position == 'pre':
+            self.module[-1].weight.data *= 0
+
+        elif self.norm_position == 'post':
             self.module[-1].weight.data *= 0
             self.module[-1].bias.data *= 0
+        pass
 
     def forward(self, x):
         return self.module(x)

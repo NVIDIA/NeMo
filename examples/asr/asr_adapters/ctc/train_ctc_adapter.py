@@ -27,7 +27,7 @@ python train_ctc_adapter.py \
     model.train_ds.batch_size=16 \
     model.validation_ds.manifest_filepath=<Path to manifest> \
     model.validation_ds.batch_size=16 \
-    model.optim.lr=0.01 \
+    model.optim.lr=0.5 \
     model.optim.weight_decay=0.0 \
     model.optim.sched.warmup_steps=1000 \
     trainer.max_steps=250 \
@@ -65,7 +65,7 @@ python train_ctc_adapter.py \
     model.optim.weight_decay=0 \
     model.optim.sched.warmup_steps=100 \
     trainer.max_steps=300 \
-    trainer.devices=1 \
+    trainer.devices=[1] \
     trainer.check_val_every_n_epoch=50 \
     exp_manager.create_wandb_logger=true \
     exp_manager.wandb_logger_kwargs.name="Conformer-MLS-Adapt-Tedlium" \
@@ -153,7 +153,7 @@ def main(cfg):
     # First, Freeze all the weights of the model (not just encoder, everything)
     model.freeze()
     # Activate dropout() and other modules that depend on train mode.
-    model.train()
+    model = model.train()
     # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
     model.unfreeze_enabled_adapters()
 

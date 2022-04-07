@@ -918,6 +918,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
+        for param_name, param in self.encoder.named_parameters():
+            if param.grad is not None:
+                print(param_name, param.grad.detach().mean())
+
     def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
             augment_filename(output, 'Encoder'), input_example=input_example, **kwargs,
