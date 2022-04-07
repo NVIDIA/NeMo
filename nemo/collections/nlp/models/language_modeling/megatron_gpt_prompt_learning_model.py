@@ -133,6 +133,7 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
                 f"\nvirtual prompt style '{cfg.virtual_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
 
         self._reduced_loss_buffer = []
+        self._inference_config = None
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -156,7 +157,7 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         for task in task_templates:
             self.task_templates[task.taskname] = {
                 "prompt_template": task.prompt_template,
-                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template)
+                "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
                 "prompt_token_splits": task.prompt_token_splits,
                 "task_id_num": task_id_num
             }
@@ -415,7 +416,7 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
             output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
             output_tensor, encoder_hidden_states = output
             loss = self.model.loss_func(loss_mask, output_tensor)
-            self.log('validation_loss', loss)
+            self.log('val_loss', loss)
 
             return loss
 

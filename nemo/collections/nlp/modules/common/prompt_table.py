@@ -30,11 +30,11 @@ __all__ = ['PromptTable']
 
 class PromptTable(NeuralModule, Exportable):
     def __init__(
-        self, existing_tasks, total_soft_tokens, hidden_size,
+        self, existing_tasks, total_virtual_tokens, hidden_size,
     ):
         super().__init__()
 
-        self.total_soft_tokens = total_soft_tokens
+        self.total_virtual_tokens = total_virtual_tokens
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
         self.task_id_num_to_name = {}
@@ -45,7 +45,7 @@ class PromptTable(NeuralModule, Exportable):
                 self.prompt_table[taskname] = PromptEmbedding(
                     init_from_prompt_text=False,
                     hidden_size=self.hidden_size,
-                    total_soft_tokens=self.total_soft_tokens,
+                    total_virtual_tokens=self.total_virtual_tokens,
                 )
 
     def forward(self, task_id_num, input_ids=None):
@@ -68,28 +68,28 @@ class PromptTable(NeuralModule, Exportable):
         del self.prompt_table[taskname]
 
     def init_prompt_from_random(self, taskname):
-        """Add new soft prompt to be tuned.
+        """Add new virtual prompt to be tuned.
            Intialize prompt weights using pytorch init method
 
         """
         # Initalize prompt embeddings from a pytorch random init method
         self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=False, hidden_size=self.hidden_size, total_soft_tokens=self.total_soft_tokens,
+            init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=self.total_virtual_tokens,
         )
 
     def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings):
-        """Add new soft prompt to be tuned.
+        """Add new virtual prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
         """
-        # Trim or iterate until num_text_tokens matches total_soft_tokens
+        # Trim or iterate until num_text_tokens matches total_virtual_tokens
         num_text_tokens = len(init_token_ids)
-        total_soft_tokens = self.total_soft_tokens
+        total_virtual_tokens = self.total_virtual_tokens
 
-        if num_text_tokens > total_soft_tokens:
-            init_token_ids = init_token_ids[:total_soft_tokens]
-        elif num_text_tokens < total_soft_tokens:
-            num_reps = math.ceil(total_soft_tokens / num_text_tokens)
+        if num_text_tokens > total_virtual_tokens:
+            init_token_ids = init_token_ids[:total_virtual_tokens]
+        elif num_text_tokens < total_virtual_tokens:
+            num_reps = math.ceil(total_virtual_tokens / num_text_tokens)
             init_token_ids = init_token_ids * num_reps
 
         # Set dictionary item keys and datatypes for broadcasting
@@ -97,7 +97,7 @@ class PromptTable(NeuralModule, Exportable):
         datatype = torch.int64
 
         # Broadcast int ids across gpus for tensor parallel
-        init_token_ids = init_token_ids[:total_soft_tokens]
+        init_token_ids = init_token_ids[:total_virtual_tokens]
         init_token_ids = {'text': torch.tensor(init_token_ids, dtype=torch.int64)}
         init_token_ids_b = tensor_parallel.broadcast_data(keys, init_token_ids, datatype)
         init_token_ids = init_token_ids_b['text'].long()
@@ -108,19 +108,19 @@ class PromptTable(NeuralModule, Exportable):
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            total_soft_tokens=self.total_soft_tokens,
+            total_virtual_tokens=self.total_virtual_tokens,
             word_embedding_weights=word_embedding_weights,
         )
 
-    def add_prompt_from_p_tuning_encoder(self, taskname, soft_prompt_embeddings):
+    def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings):
         """
-        Add soft prompts that have already been tuned using p-tuning. 
+        Add virtual prompts that have already been tuned using p-tuning. 
         """
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            total_soft_tokens=self.total_soft_tokens,
-            word_embedding_weights=soft_prompt_embeddings,
+            total_virtual_tokens=self.total_virtual_tokens,
+            word_embedding_weights=virtual_prompt_embeddings,
         )
 
 class PromptEmbedding(NeuralModule, Exportable):
@@ -131,7 +131,7 @@ class PromptEmbedding(NeuralModule, Exportable):
                                from from certain lm embeddings
                                corresponding to a prompt string
         hidden_size: hidden size should match lm embedding size
-        total_soft_tokens: length of prompt initalized from torch init method
+        total_virtual_tokens: length of prompt initalized from torch init method
         word_embedding_weights: token embedding vectors for text init option
         init_method: pytorch init method
         prompt_embedding_dropout_prob: dropout probablity
@@ -141,7 +141,7 @@ class PromptEmbedding(NeuralModule, Exportable):
         self,
         init_from_prompt_text,
         hidden_size,
-        total_soft_tokens,
+        total_virtual_tokens,
         word_embedding_weights=None,
         init_method=init.xavier_normal_,
         prompt_embedding_dropout_prob=0.0,
@@ -149,10 +149,10 @@ class PromptEmbedding(NeuralModule, Exportable):
         super().__init__()
 
         self.hidden_size = hidden_size
-        self.total_soft_tokens = total_soft_tokens
+        self.total_virtual_tokens = total_virtual_tokens
 
         # Randomly init token and position embeddings
-        self.prompt_embeddings = torch.nn.Embedding(self.total_soft_tokens, self.hidden_size)
+        self.prompt_embeddings = torch.nn.Embedding(self.total_virtual_tokens, self.hidden_size)
         init_method(self.prompt_embeddings.weight)
 
         # Set embedding weights to be embeddings from prompt tokens
@@ -160,7 +160,7 @@ class PromptEmbedding(NeuralModule, Exportable):
             self.prompt_embeddings.weight = nn.Parameter(word_embedding_weights)
 
         # Set fixed indicies for forward pass
-        self.register_buffer('indices', torch.LongTensor(list(range(self.total_soft_tokens))))
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
         self.embedding_dropout = torch.nn.Dropout(prompt_embedding_dropout_prob)
 
     def forward(self, input_ids=None):

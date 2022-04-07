@@ -16,7 +16,7 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPSoftPromptModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPPromptLearningModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -80,13 +80,13 @@ def main(cfg) -> None:
 
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
-        model = MegatronGPTPSoftPromptModel.restore_from(cfg.model.restore_path,
+        model = MegatronGPTPPromptLearningModel.restore_from(cfg.model.restore_path,
                                                          cfg.model, 
                                                          trainer=trainer, 
                                                          save_restore_connector=NLPSaveRestoreConnector()
         )
     else:
-        model = MegatronGPTPSoftPromptModel(cfg.model, trainer=trainer)
+        model = MegatronGPTPPromptLearningModel(cfg.model, trainer=trainer)
 
     trainer.fit(model)
 

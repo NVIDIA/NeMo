@@ -40,24 +40,24 @@ class PromptEncoder(NeuralModule, Exportable):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"output_embeds": NeuralType(('B', 'T', 'C'), ChannelType())}
 
-    def __init__(self, total_soft_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int):
+    def __init__(self, total_virtual_tokens: int, hidden_size: int, lstm_dropout: float, num_layers: int):
         """
         Initializes the PromptEncoder module.
         Args:
-            total_soft_tokens: the total number of vitural tokens
+            total_virtual_tokens: the total number of vitural tokens
             hidden_size: hidden dimension
             lstm_dropout: the dropout used for the LSTM
             num_layers: number of layers used in the LSTM
         """
         super().__init__()
         self.hidden_size = hidden_size
-        self.total_soft_tokens = total_soft_tokens
+        self.total_virtual_tokens = total_virtual_tokens
 
         # Set fixed indicies for forward pass
-        self.register_buffer('indices', torch.LongTensor(list(range(self.total_soft_tokens))))
+        self.register_buffer('indices', torch.LongTensor(list(range(self.total_virtual_tokens))))
 
         # embedding
-        self.embedding = torch.nn.Embedding(self.total_soft_tokens, self.hidden_size)
+        self.embedding = torch.nn.Embedding(self.total_virtual_tokens, self.hidden_size)
 
         # LSTM
         self.lstm_head = torch.nn.LSTM(
@@ -76,8 +76,8 @@ class PromptEncoder(NeuralModule, Exportable):
     def forward(self, taskname_embeddings) -> torch.Tensor:
         input_embeds = self.embedding(self.indices).unsqueeze(0)
         batch_size, task_seq_length, _ = taskname_embeddings.shape
-        input_embeds = input_embeds.expand(batch_size, self.total_soft_tokens, self.hidden_size).clone()
-        length = min(task_seq_length, self.total_soft_tokens)
+        input_embeds = input_embeds.expand(batch_size, self.total_virtual_tokens, self.hidden_size).clone()
+        length = min(task_seq_length, self.total_virtual_tokens)
 
         # Replace general input with task specific embeddings to specify the correct task
         input_embeds[:, 0:length, :] = taskname_embeddings[:, 0:length, :]
