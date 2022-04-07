@@ -132,8 +132,7 @@ class NormalizerWithAudio(Normalizer):
             len(text.split()) < 500
         ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
         original_text = text
-        if self.lang in ["en"]:
-            text = pre_process(text)
+        text = pre_process(text)  # to handle []
 
         text = text.strip()
         if not text:

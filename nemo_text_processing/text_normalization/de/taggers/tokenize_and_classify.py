@@ -22,7 +22,6 @@ from nemo_text_processing.text_normalization.de.taggers.fraction import Fraction
 from nemo_text_processing.text_normalization.de.taggers.measure import MeasureFst
 from nemo_text_processing.text_normalization.de.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.de.taggers.ordinal import OrdinalFst
-from nemo_text_processing.text_normalization.de.taggers.range import RangeFst
 from nemo_text_processing.text_normalization.de.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.de.taggers.time import TimeFst
 from nemo_text_processing.text_normalization.de.taggers.whitelist import WhiteListFst
@@ -130,10 +129,6 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electronic_graph, 1.1)
             )
-
-            if not deterministic:
-                range_graph = RangeFst(cardinal=self.cardinal, deterministic=deterministic).fst
-                classify |= pynutil.add_weight(range_graph, 1.0)
 
             classify |= pynutil.add_weight(word_graph, 100)
 
