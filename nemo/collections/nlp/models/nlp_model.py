@@ -55,7 +55,6 @@ class NLPModel(ModelPT, Exportable):
         nemo_file = None
         config_dict = None
         config_file = None
-        self.tokenizer = None
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
@@ -63,6 +62,8 @@ class NLPModel(ModelPT, Exportable):
             # Some models have their own tokenizer setup
             if not hasattr(self, 'tokenizer') and cfg.tokenizer.get('tokenizer_name'):
                 self.setup_tokenizer(cfg.tokenizer)
+            else:
+                self.tokenizer = None
             if cfg.get('tokenizer.vocab_file'):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
@@ -79,7 +80,8 @@ class NLPModel(ModelPT, Exportable):
             bert_model = get_lm_model(
                 config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
             )
-            if self.tokenizer is None:
+            # set the tokenizer if it is not initialized explicitly
+            if self.tokenizer is None and hasattr(bert_model, 'tokenizer'):
                 self.tokenizer = bert_model.tokenizer
             if cfg.language_model.get('downstream'):
                 cfg.language_model.downstream = True
