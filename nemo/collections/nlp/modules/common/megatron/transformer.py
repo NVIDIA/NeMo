@@ -78,6 +78,7 @@ class ParallelMLP(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         activation='gelu',
+        bias=True
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -93,6 +94,7 @@ class ParallelMLP(MegatronModule):
             init_method=init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            bias=bias
         )
 
         if activation == 'geglu':
@@ -105,6 +107,7 @@ class ParallelMLP(MegatronModule):
                 init_method=init_method,
                 skip_bias_add=True,
                 use_cpu_initialization=use_cpu_initialization,
+                bias=bias
             )
 
         self.bias_gelu_fusion = bias_gelu_fusion
@@ -126,6 +129,7 @@ class ParallelMLP(MegatronModule):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            bias=bias
         )
 
     def forward(self, hidden_states):
