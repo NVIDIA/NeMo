@@ -13,12 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM
@@ -45,7 +46,24 @@ class DialogueS2SGenerationModel(NLPModel):
         self.cfg = cfg
         self.data_prepared = False
 
-        self.setup_tokenizer(cfg.tokenizer)
+        if self.cfg.library == "huggingface":
+            self.setup_tokenizer(cfg.tokenizer)
+        elif self.cfg.library == "megatron":
+            # supporting MegatronT5Model in precision = fp16
+            t5_cfg = MegatronT5Model.restore_from(
+                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, return_config=True
+            )
+            # Override the T5 configuration with the one from the config file.
+            OmegaConf.set_struct(t5_cfg, True)
+            with open_dict(t5_cfg):
+                t5_cfg.masked_softmax_fusion = False
+                t5_cfg.precision = 16
+
+            language_model = MegatronT5Model.restore_from(
+                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, override_config_path=t5_cfg
+            )
+            self.tokenizer = language_model.tokenizer
+
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
@@ -54,12 +72,10 @@ class DialogueS2SGenerationModel(NLPModel):
             if self.cfg.language_model.lm_checkpoint:
                 self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
-            self.language_model = MegatronT5Model.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
-            self.language_model.freeze()
+            self.language_model = language_model
 
     def training_step(self, batch, batch_idx):
         input_ids, attn_masks, labels = batch
-
         loss = self(input_ids, attn_masks, labels)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss}
@@ -123,6 +139,15 @@ class DialogueS2SGenerationModel(NLPModel):
         if self.cfg.library == "huggingface":
             output = self.language_model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
             loss = output['loss']
+        elif self.cfg.library == "megatron":
+
+            labels = torch.where(labels != -100, labels, torch.zeros_like(labels))
+            decoder_attn_masks = torch.where(labels > 0, torch.ones_like(labels), torch.zeros_like(labels))
+
+            unmasked_unreduced_loss = self.language_model(
+                input_ids, labels[:, :-1], attention_masks, decoder_attn_masks[:, :-1], lm_labels=labels[:, 1:]
+            )
+            loss = self.language_model.loss_func(decoder_attn_masks[:, 1:], unmasked_unreduced_loss)
         return loss
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
@@ -184,7 +209,7 @@ class DialogueS2SGenerationModel(NLPModel):
             generated_tokens = self.language_model.generate(**param_dict)
 
         elif self.cfg.library == 'megatron':
-            raise ValueError("Megatron is not supported by DialogueS2SGenerationModel")
+            raise ValueError("Megatron Generation is not supported by DialogueS2SGenerationModel")
         generated_field = self.process_into_structured_fields(generated_tokens)
         ground_truth_field = self.process_into_structured_fields(labels)
 
