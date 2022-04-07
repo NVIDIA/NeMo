@@ -65,12 +65,11 @@ class LinearAdapter(nn.Module):
     def reset_parameters(self):
         # Final layer initializations must be 0
         if self.norm_position == 'pre':
-            self.module[-1].weight.data *= 0
+            self.module[-1].weight.data *= 1e-6
 
         elif self.norm_position == 'post':
-            self.module[-1].weight.data *= 0
+            self.module[-1].weight.data *= 1e-6
             self.module[-1].bias.data *= 0
-        pass
 
     def forward(self, x):
         return self.module(x)

@@ -178,7 +178,7 @@ class AdapterModuleMixin(ABC):
                         module.adapter_layer[name].train()
 
                         for pname, param in module.adapter_layer[name].named_parameters():
-                            param.requires_grad = True
+                            param.requires_grad_(True)
 
                         # unfreeze batch norm if any
                         for mname, module in module.adapter_layer[name].named_modules():

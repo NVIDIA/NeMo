@@ -48,30 +48,19 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 """
 
-python train_ctc_adapter.py \
+python eval_ctc_adapter.py \
     --config-path="../conf/" \
     --config-name="adapt_ctc.yaml" \
     model.pretrained_model=null \
-    model.nemo_model="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/mls/pretrained/Conformer-RNNT-SPE/stt_en_conformer_transducer_large_mls.nemo" \
-    model.adapter.adapter_name="tedlium" \
-    model.adapter.in_features=512 \
-    model.adapter.dim=32 \
-    model.adapter.norm_position=post \
-    model.train_ds.manifest_filepath=/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/tedlium/tedlium_v2/manifests/manifest_dev.json \
-    model.train_ds.batch_size=16 \
-    model.validation_ds.manifest_filepath="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/tedlium/tedlium_v2/manifests/manifest_test.json" \
-    model.validation_ds.batch_size=16 \
-    model.optim.lr=0.5 \
-    model.optim.weight_decay=0.001 \
-    model.optim.sched.warmup_steps=100 \
-    trainer.max_steps=300 \
+    model.nemo_model="/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/asr_adapters/ctc/nemo_experiments/CTC-Adapter/2022-04-07_02-10-30/checkpoints/CTC-Adapter.nemo" \
+    model.adapter.adapter_name=tedlium \
+    model.test_ds.manifest_filepath="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/tedlium/tedlium_v2/manifests/manifest_test.json" \
+    model.test_ds.batch_size=16 \
+    model.train_ds.manifest_filepath=null \
+    model.validation_ds.manifest_filepath=null \
     trainer.devices=[0] \
-    trainer.precision=32 \
-    trainer.check_val_every_n_epoch=50 \
-    exp_manager.create_wandb_logger=true \
-    exp_manager.wandb_logger_kwargs.name="Conformer-MLS-Adapt-Tedlium" \
-    exp_manager.wandb_logger_kwargs.project="Adapters-Local"
-
+    trainer.precision=32
+    
 """
 
 import pytorch_lightning as pl
@@ -131,41 +120,26 @@ def main(cfg):
         model = ASRModel.restore_from(cfg.model.nemo_model, override_config_path=model_cfg, trainer=trainer)
 
     # Setup model for finetuning (train and validation only)
-    cfg.model.train_ds = update_model_cfg(model.cfg.train_ds, cfg.model.train_ds)
-    cfg.model.validation_ds = update_model_cfg(model.cfg.validation_ds, cfg.model.validation_ds)
-    cfg.model.optim = update_model_cfg(model.cfg.optim, cfg.model.optim)
+    cfg.model.test_ds = update_model_cfg(model.cfg.test_ds, cfg.model.test_ds)
 
     # Call the dataloaders and optimizer + scheduler
-
-    # extra support for train_ds
-    # TODO: Fix pretrained checkpoints to not have this set to True by default.
-    cfg.model.train_ds.is_tarred = False
-
-    model.setup_training_data(cfg.model.train_ds)
-    model.setup_multiple_validation_data(cfg.model.validation_ds)
-    model.setup_optimization(cfg.model.optim)
+    model.setup_multiple_test_data(cfg.model.test_ds)
 
     # Setup adapters
     with open_dict(cfg.model.adapter):
-        adapter_name = cfg.model.adapter.pop("adapter_name")
-    model.add_adapter(adapter_name, cfg=cfg.model.adapter)
-
-    assert model.is_adapter_available()
+        adapter_name = cfg.model.adapter.pop("adapter_name", None)
 
     # Disable all other adapters, enable just the current adapter.
     model.set_enabled_adapters(enabled=False)  # disable all adapters prior to training
-    model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
+
+    if adapter_name is not None:
+        model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
 
     # First, Freeze all the weights of the model (not just encoder, everything)
     model.freeze()
-    # Activate dropout() and other modules that depend on train mode.
-    model = model.train()
-    model.spec_augmentation = None
-    # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
-    model.unfreeze_enabled_adapters()
 
     # Finally, train model
-    trainer.fit(model)
+    trainer.test(model)
 
 
 if __name__ == '__main__':
