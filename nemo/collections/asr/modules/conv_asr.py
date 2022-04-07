@@ -887,9 +887,10 @@ class ConvASREncoderAdapter(ConvASREncoder, AdapterModuleMixin):
             cfg['in_features'] = in_planes
             return cfg
         else:
-            raise ValueError(f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
-                             f"{OmegaConf.to_yaml(cfg)}")
-
+            raise ValueError(
+                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
+                f"{OmegaConf.to_yaml(cfg)}"
+            )
 
 
 @dataclass

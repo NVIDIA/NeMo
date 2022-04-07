@@ -15,7 +15,7 @@
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASREncoderAdapterModelMixin
 from nemo.collections.asr.parts.mixins.mixins import (
     ASRBPEMixin,
+    ASREncoderAdapterModelMixin,
     ASRModuleMixin,
     DiarizationMixin,
-    ASREncoderAdapterModelMixin,
 )

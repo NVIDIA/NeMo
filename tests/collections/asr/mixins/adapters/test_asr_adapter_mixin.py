@@ -14,7 +14,7 @@
 
 import pytest
 import torch
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import ASRModel, EncDecCTCModel
 from nemo.collections.asr.parts.submodules import adapter_modules
@@ -91,15 +91,12 @@ def model():
 
 
 def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
-    cfg = adapter_modules.LinearAdapterConfig(
-        in_features=in_features, dim=dim, norm_position=norm_pos
-    )
+    cfg = adapter_modules.LinearAdapterConfig(in_features=in_features, dim=dim, norm_position=norm_pos)
     cfg = OmegaConf.structured(cfg)
     return cfg
 
 
 class TestASRAdapterMixin:
-
     @pytest.mark.unit
     def test_asr_model_constructor(self, model):
         original_num_params = model.num_weights
@@ -112,9 +109,9 @@ class TestASRAdapterMixin:
     def test_linear_adapter_config(self):
         IGNORED_ARGS = ['_target_']
 
-        result = config_utils.assert_dataclass_signature_match(adapter_modules.LinearAdapter,
-                                                               adapter_modules.LinearAdapterConfig,
-                                                               ignore_args=IGNORED_ARGS)
+        result = config_utils.assert_dataclass_signature_match(
+            adapter_modules.LinearAdapter, adapter_modules.LinearAdapterConfig, ignore_args=IGNORED_ARGS
+        )
 
         signatures_match, cls_subset, dataclass_subset = result
 

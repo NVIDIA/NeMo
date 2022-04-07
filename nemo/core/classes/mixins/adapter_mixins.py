@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from abc import ABC
+from dataclasses import is_dataclass
 from typing import List, Optional
 
 import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
-from dataclasses import is_dataclass
 
 from nemo.utils import logging
 

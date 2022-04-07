@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import is_dataclass
 from typing import List, Optional
 
 from omegaconf import DictConfig, OmegaConf, open_dict
-from dataclasses import is_dataclass
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging

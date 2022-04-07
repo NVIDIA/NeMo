@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+
 from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules.jasper import jasper_activations
