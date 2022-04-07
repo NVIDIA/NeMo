@@ -42,20 +42,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from librosa.util import tiny
 from torch.autograd import Variable
+from torch_stft import STFT
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.utils import logging
-
-# TODO @blisc: Perhaps refactor instead of import guarding
-try:
-    from torch_stft import STFT
-except ModuleNotFoundError:
-    from nemo.utils.exceptions import CheckInstall
-
-    # fmt: off
-    class STFT(CheckInstall): pass
-    # fmt: on
 
 CONSTANT = 1e-5
 
@@ -178,8 +169,8 @@ class STFTExactPad(STFTPatch):
 
         if self.window is not None:
             window_sum = librosa.filters.window_sumsquare(
-                self.window,
-                magnitude.size(-1),
+                window=self.window,
+                n_frames=magnitude.size(-1),
                 hop_length=self.hop_length,
                 win_length=self.win_length,
                 n_fft=self.filter_length,
@@ -311,7 +302,8 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float
+            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+            dtype=torch.float,
         ).unsqueeze(0)
         self.register_buffer("fb", filterbanks)
 
