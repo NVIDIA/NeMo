@@ -82,6 +82,7 @@ class ParallelMLP(MegatronModule):
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
+        self.bias = bias
 
         if activation not in ['gelu', 'geglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu and geglu are supported.")
@@ -110,8 +111,13 @@ class ParallelMLP(MegatronModule):
                 bias=bias
             )
 
+        if bias_gelu_fusion and not bias:
+            raise ValueError(f"Cannot use bias_gelu_fusion without bias terms. Please set bias=True or bias_gelu_fusion=False.")
+
         self.bias_gelu_fusion = bias_gelu_fusion
+
         self.activation_func = F.gelu
+
         if activation == 'geglu':
             self.activation_func = 'geglu'  # Implemented using F.gelu
             if bias_gelu_fusion:
@@ -141,13 +147,19 @@ class ParallelMLP(MegatronModule):
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
         if self.activation == 'geglu':
-            intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
-                intermediate_parallel_2 + bias_parallel_2
-            )
+            if bias_parallel:
+                intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
+                    intermediate_parallel_2 + bias_parallel_2
+                )
+            else:
+                intermediate_parallel = F.gelu(intermediate_parallel) * intermediate_parallel_2
         elif self.bias_gelu_fusion and self.activation == 'gelu':
             intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
-            intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+            if bias_parallel:
+                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+            else:
+                intermediate_parallel = self.activation_func(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
