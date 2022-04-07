@@ -91,8 +91,8 @@ class AdapterModuleMixin(ABC):
 
         .. code::
 
-            model.set_enabled_adapters(enabled=False)
-            model.set_enabled_adapters(name=<some adapter name>, enabled=True)
+            module.set_enabled_adapters(enabled=False)
+            module.set_enabled_adapters(name=<some adapter name>, enabled=True)
 
         Args:
             name: Optional str. If a str name is given, the config will be updated to the value of `enabled`.
@@ -136,8 +136,8 @@ class AdapterModuleMixin(ABC):
 
         .. code::
 
-            model.freeze()
-            model.unfreeze_enabled_adapters()
+            module.freeze()  # only available to nemo.core.NeuralModule !
+            module.unfreeze_enabled_adapters()
 
         Args:
             freeze_batchnorm: An optional (and recommended) practice of freezing the updates to the moving average
