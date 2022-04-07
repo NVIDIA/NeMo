@@ -33,6 +33,7 @@ try:
     from apex.transformer.microbatches import ConstantNumMicroBatches
     from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
     from apex.transformer.utils import ensure_divisibility
+    import apex.transformer.pipeline_parallel.utils
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

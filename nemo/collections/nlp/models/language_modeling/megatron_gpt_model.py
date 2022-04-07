@@ -560,6 +560,30 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
+        # TODO: verify rampup batch schedule is consistent
+        # by verifying consistency for every step of training
+        if self.cfg.get('rampup_batch_size', None):
+            rampup_batch_size = self.cfg.rampup_batch_size
+            rampup_samples = rampup_batch_size[2]
+            num_microbatch_calculator = apex.transformer.pipeline_parallel.utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            consumed_samples = self.init_consumed_samples
+            step = 0
+            num_microbatches = None
+            num_microbatch_schedule = []  # only used for logging
+            while consumed_samples <= int(rampup_samples):
+                # simulate one training step
+                step += 1
+                consumed_samples = self.compute_consumed_samples(step)
+                num_microbatch_calculator.update(
+                    consumed_samples=consumed_samples, consistency_check=True,
+                )
+                if num_microbatch_calculator.num_micro_batches != num_microbatches:
+                    num_microbatches = num_microbatch_calculator.num_micro_batches
+                    num_microbatch_schedule.append(num_microbatches)
+            logging.info(f'The number of microbatches will change following this schedule: {num_microbatch_schedule}')
+            # Reset before training starts
+            num_microbatch_calculator.update(self.init_consumed_samples, consistency_check=False)
+
         if stage == 'predict':
             return
         else:
