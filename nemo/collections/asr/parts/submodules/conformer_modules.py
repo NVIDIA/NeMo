@@ -123,7 +123,10 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin):
 
         if self.is_adapter_available():
             for adapter_name in self.get_enabled_adapters():
-                x = x + self.adapter_layer[adapter_name](x)
+                y = x + self.adapter_layer[adapter_name](x)
+
+                print("diff", (x - y).abs()[0].mean())
+                x = y
 
         return x
 

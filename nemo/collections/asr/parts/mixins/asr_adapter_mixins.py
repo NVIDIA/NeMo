@@ -142,6 +142,8 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
                 self.cfg.adapters[name]['enabled'] = enabled
                 logging.info(f"Setting adapter '{name}' status : Enabled = {enabled}")
 
+            self._update_adapter_cfg(self.cfg.adapters)
+
             # Dispatch the call to the encoder.
             self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
