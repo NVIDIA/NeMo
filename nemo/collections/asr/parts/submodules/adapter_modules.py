@@ -12,15 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Optional
-
-import torch
 from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules.jasper import jasper_activations
 
 
 class LinearAdapter(nn.Module):
+    """
+    Simple Linear Feedforward Adapter module with LayerNorm and singe hidden layer with activation function.
+    Note: The adapter explicitly initializes its final layer with all zeros in order to avoid affecting the
+    original model when all adapters are disabled.
+
+    Args:
+        in_features: Input dimension of the module. Note that for adapters, input_dim == output_dim.
+        dim: Hidden dimension of the feed forward network.
+        activation: Str name for an activation function.
+        norm_position: Str, can be `pre` or `post`. Defaults to `post`. Determines whether the normalization
+            will occur in the first layer or the last layer. Certain architectures may prefer one over the other.
+    """
+
     def __init__(self, in_features, dim, activation: str = 'swish', norm_position="post"):
         super().__init__()
 
