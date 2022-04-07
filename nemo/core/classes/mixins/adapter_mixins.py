@@ -32,9 +32,9 @@ class AdapterModuleMixin(ABC):
 
     An Adapter module is any Pytorch nn.Module that possess a few properties :
 
-    - It's input and output dimension are the same, while the hidden dimension need not be the same.
-    - The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter
-        yields the original output.
+        -   It's input and output dimension are the same, while the hidden dimension need not be the same.
+        -   The final layer of the Adapter module is zero-initialized, so that the residual connection to the adapter
+                yields the original output.
 
     This mixin adds the following instance variables to the class this inherits it:
 
