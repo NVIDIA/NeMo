@@ -111,13 +111,19 @@ class ParallelMLP(MegatronModule):
             glu_activation_family = False
 
         if glu_activation_family and bias_gelu_fusion:
-            raise ValueError(f"Cannot use bias_gelu_fusion with {activation} activation. Please turn bias gelu fusion off.")
+            raise ValueError(
+                f"Cannot use bias_gelu_fusion with {activation} activation. Please turn bias gelu fusion off."
+            )
 
         if glu_activation_family and openai_gelu:
-            raise ValueError(f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off.")
+            raise ValueError(
+                f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off."
+            )
 
         if glu_activation_family and onnx_safe:
-            raise ValueError(f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off.")
+            raise ValueError(
+                f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
+            )
 
         self.bias_gelu_fusion = bias_gelu_fusion
 
