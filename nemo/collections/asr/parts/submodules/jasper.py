@@ -724,6 +724,8 @@ class JasperBlock(nn.Module, AdapterModuleMixin):
         else:
             padding_val = get_asymtric_padding(kernel_size[0], stride[0], dilation[0], future_context)
 
+        self.inplanes = inplanes
+        self.planes = planes
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode

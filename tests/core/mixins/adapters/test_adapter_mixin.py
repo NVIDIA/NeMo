@@ -12,16 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import os
-import shutil
-import tempfile
-
 import pytest
 import torch
-from omegaconf import DictConfig
 
-from nemo.collections.asr.models import ASRModel
 from nemo.core import NeuralModule
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
@@ -174,22 +167,3 @@ class TestAdapterMixin:
                 assert module.track_running_stats is False
 
         assert original_params > adapter_params
-
-    @pytest.mark.with_downloads()
-    @pytest.mark.unit
-    def test_constructor_pretrained(self):
-        # Check to/from config_dict:
-        cfg = ASRModel.from_pretrained('stt_en_citrinet_256', map_location='cpu', return_config=True)
-        cfg.encoder._target_ = cfg.encoder._target_ + 'Adapter'  # convension to load Adapter supported model.
-        model = ASRModel.from_pretrained('stt_en_citrinet_256', override_config_path=cfg)
-
-        assert isinstance(model, AdapterModuleMixin)
-        assert hasattr(model, 'encoder')
-        assert isinstance(model.encoder, AdapterModuleMixin)
-
-        model.add_adapter('adapter_0', cfg=get_adapter_cfg(in_features=cfg.encoder.jasper[0].filters, dim=5))
-        assert model.is_adapter_available()
-
-        model.freeze()
-        model.unfreeze_enabled_adapters()
-        assert model.num_weights < 1e5

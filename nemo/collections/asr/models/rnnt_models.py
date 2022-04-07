@@ -112,7 +112,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
-        # Setup encoder adapters (from EncoderAdapterModelMixin)
+        # Setup encoder adapters (from ASREncoderAdapterModelMixin)
         self.setup_encoder_adapters()
 
     def setup_optim_normalization(self):

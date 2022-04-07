@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from torch import nn as nn
 
 from nemo.collections.asr.parts.submodules.jasper import jasper_activations
@@ -62,3 +63,12 @@ class LinearAdapter(nn.Module):
 
     def forward(self, x):
         return self.module(x)
+
+
+@dataclass
+class LinearAdapterConfig:
+    in_features: int
+    dim: int
+    activation: str = 'swish'
+    norm_position: str = 'post'
+    _target_: str = "{0}.{1}".format(LinearAdapter.__module__, LinearAdapter.__name__)

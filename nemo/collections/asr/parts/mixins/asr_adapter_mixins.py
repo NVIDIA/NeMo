@@ -15,6 +15,7 @@
 from typing import List, Optional
 
 from omegaconf import DictConfig, OmegaConf, open_dict
+from dataclasses import is_dataclass
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
@@ -74,8 +75,15 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
         """
         self._check_valid_model_with_adapter_support()
 
-        # Update the model.cfg with information about the new adapter
-        with open_dict(self.cfg):
+        # Convert to DictConfig from dict or Dataclass
+        if is_dataclass(cfg):
+            cfg = OmegaConf.structured(cfg)
+
+        if not isinstance(cfg, DictConfig):
+            cfg = DictConfig(cfg)
+
+        # Update the model.cfg with information about the new adapter from cfg
+        with open_dict(cfg), open_dict(self.cfg):
             if 'adapters' not in self.cfg:
                 self.cfg.adapters = OmegaConf.create({})
 

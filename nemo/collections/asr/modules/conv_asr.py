@@ -857,23 +857,39 @@ class ConvASREncoderAdapter(ConvASREncoder, AdapterModuleMixin):
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
-        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: AdapterModuleMixin
+            cfg = self._update_adapter_cfg_input_dim(jasper_block, cfg)
             jasper_block.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([jasper_block.is_adapter_available() for jasper_block in self.encoder[:-1]])
+        return any([jasper_block.is_adapter_available() for jasper_block in self.encoder])
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
-        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: AdapterModuleMixin
             jasper_block.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         names = set([])
-        for jasper_block in self.encoder[:-1]:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: AdapterModuleMixin
             names.update(jasper_block.get_enabled_adapters())
 
         names = sorted(list(names))
         return names
+
+    def _update_adapter_cfg_input_dim(self, block: JasperBlock, cfg):
+        if 'in_features' in cfg:
+            in_planes = cfg['in_features']
+
+            if in_planes != block.planes:
+                logging.info(f"Updating Adapter input dim from {in_planes} to {block.planes}")
+                in_planes = block.planes
+
+            cfg['in_features'] = in_planes
+            return cfg
+        else:
+            raise ValueError(f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
+                             f"{OmegaConf.to_yaml(cfg)}")
+
 
 
 @dataclass

@@ -17,7 +17,8 @@ from typing import List, Optional
 
 import torch.nn as nn
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
+from dataclasses import is_dataclass
 
 from nemo.utils import logging
 
@@ -52,22 +53,35 @@ class AdapterModuleMixin(ABC):
 
         Args:
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
-            cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
+            cfg: A DictConfig or Dataclass that contains at the bare minimum `__target__` to instantiate a
+                new Adapter module.
         """
+        # Convert to DictConfig from dict or Dataclass
+        if is_dataclass(cfg):
+            cfg = OmegaConf.structured(cfg)
+
+        if not isinstance(cfg, DictConfig):
+            cfg = DictConfig(cfg)
+
+        # Add adapter_layer ModuleDict() if not present.
         if not hasattr(self, 'adapter_layer'):
             self.adapter_layer = nn.ModuleDict()
 
+        # Add adapter_cfg if it doesnt exist or hasnt been assigned yet.
         if not hasattr(self, 'adapter_cfg'):
             self.adapter_cfg = OmegaConf.create({})
 
+        # Assert that name is globally unique to all adapters.
         if name in self.adapter_layer:
             raise ValueError(f"Adapter with name `{name}` already exists !")
 
-        adapter_enabled = cfg.pop('enabled', True)
-        self.adapter_layer[name] = instantiate(cfg)
+        # Update internal config and instantiate the Adapter module
+        with open_dict(cfg), open_dict(self.adapter_cfg):
+            adapter_enabled = cfg.pop('enabled', True)
+            self.adapter_layer[name] = instantiate(cfg)
 
-        cfg['enabled'] = adapter_enabled
-        self.adapter_cfg[name] = cfg
+            cfg['enabled'] = adapter_enabled
+            self.adapter_cfg[name] = cfg
 
     def is_adapter_available(self) -> bool:
         """
