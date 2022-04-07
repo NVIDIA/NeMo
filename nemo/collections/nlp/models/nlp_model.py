@@ -65,9 +65,6 @@ class NLPModel(ModelPT, Exportable):
             if cfg.get('tokenizer.vocab_file'):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
-        # handles model parallel save and restore logic
-        self._save_restore_connector = NLPSaveRestoreConnector()
-
         if cfg.get('language_model') and not no_lm_init:
             if cfg.get('language_model.nemo_file'):
                 nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
@@ -96,6 +93,9 @@ class NLPModel(ModelPT, Exportable):
             else:
                 self.hidden_size = bert_model.config.hidden_size
         super().__init__(cfg, trainer)
+
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
         if cfg.get('language_model') and not no_lm_init:
             self.bert_model = bert_model
 
