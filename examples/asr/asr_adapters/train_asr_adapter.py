@@ -35,7 +35,6 @@ python train_asr_adapter.py \
     trainer.precision=32 \
     exp_manager.exp_dir=<Some directory for experiment manager>
 
-
 # Fine-tune a model
 
 While adaptation is very efficient for low-resource datasets, it imposes several restrictions -
@@ -87,7 +86,7 @@ def update_model_cfg(original_cfg, new_cfg):
     return new_cfg
 
 
-@hydra_runner(config_path="../conf", config_name="adapt_ctc.yaml")
+@hydra_runner(config_path="../conf", config_name="asr_adaptation.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
