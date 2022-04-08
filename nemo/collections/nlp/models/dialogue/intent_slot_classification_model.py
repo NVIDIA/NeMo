@@ -28,11 +28,9 @@ from nemo.collections.nlp.metrics.classification_report import ClassificationRep
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 

@@ -16,6 +16,7 @@
 import os
 
 import pandas as pd
+from distance import jaccard
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
@@ -73,7 +74,7 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
         elif dataset_split == "test":
             idxs = list(range(len(raw_examples)))
 
-        all_intents = sorted(list(set(raw_examples[i]['intent'] for i in range(len(raw_examples)))))
+        all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
         all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))
 
         for i in idxs:
@@ -89,10 +90,10 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
             slot_values = [raw_example['slot{}_values'.format(i)] for i in range(1, 3)]
             slot_questions = [raw_example['slot{}_values'.format(i)] for i in range(1, 3)]
 
-            for i in range(1, 3):
-                value = raw_example['slot{}'.format(i)]
+            for j in range(1, 3):
+                value = raw_example['slot{}'.format(j)]
                 if isinstance(value, str):
-                    system_utterance = system_utterance.replace('slot{}'.format(i), value)
+                    system_utterance = system_utterance.replace('slot{}'.format(j), value)
 
             valid_slots_ids = [i for i, slot in enumerate(slot_names) if isinstance(slot, str)]
             slot_names = [slot_names[i] for i in valid_slots_ids]
@@ -107,7 +108,7 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
                     "system_utterance": system_utterance,
                     "labels": {
                         "service": service,
-                        "intent": intent,
+                        "intent": intent_description,
                         "slots": {
                             slot: '' for slot in slot_names
                         },  # dataset does not contain ground truth slot values
