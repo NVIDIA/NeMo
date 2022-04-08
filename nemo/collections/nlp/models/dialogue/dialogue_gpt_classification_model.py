@@ -175,7 +175,8 @@ class DialogueGPTClassificationModel(NLPModel):
         )
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions.jsonl")
+        epoch_number = self.current_epoch if hasattr(self, 'current_epoch') else 0
+        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{epoch_number}.jsonl")
 
         DialogueClassificationMetrics.save_predictions(
             filename,
