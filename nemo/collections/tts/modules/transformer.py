@@ -135,8 +135,8 @@ class MultiHeadAttn(nn.Module):
         attn_score.mul_(self.scale)
 
         if attn_mask is not None:
-            attn_mask = attn_mask.unsqueeze(1).to(attn_score.dtype)
-            attn_mask = attn_mask.repeat(n_head, attn_mask.size(2), 1)
+            # attn_mask = attn_mask.unsqueeze(1).to(attn_score.dtype)
+            # attn_mask = attn_mask.repeat(n_head, attn_mask.size(2), 1)
             attn_score.masked_fill_(attn_mask.to(torch.bool), -float('inf'))
 
         attn_prob = F.softmax(attn_score, dim=2)
