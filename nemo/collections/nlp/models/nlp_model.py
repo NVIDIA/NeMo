@@ -29,7 +29,10 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTo
 from nemo.collections.nlp.modules import BertModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import MEGATRON_CONFIG_MAP
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
+    MEGATRON_CONFIG_MAP,
+    get_megatron_pretrained_bert_models,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT
@@ -58,19 +61,28 @@ class NLPModel(ModelPT, Exportable):
 
         # tokenizer needs to get initialized before the super.__init__()
         # as dataloaders and datasets need it to process the data
+        pretrain_model_name = ''
+        if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
+            pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
+        all_pretrained_megatron_bert_models = get_megatron_pretrained_bert_models()
+
         if cfg.get('tokenizer'):
             # Some models have their own tokenizer setup
-            if not hasattr(self, 'tokenizer') and cfg.tokenizer.get('tokenizer_name'):
+            if (
+                not hasattr(self, 'tokenizer')
+                and cfg.tokenizer.get('tokenizer_name')
+                and pretrain_model_name not in all_pretrained_megatron_bert_models
+            ):
                 self.setup_tokenizer(cfg.tokenizer)
-            if cfg.get('tokenizer.vocab_file'):
+            if cfg.get('tokenizer').get('vocab_file'):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
         if cfg.get('language_model') and not no_lm_init:
-            if cfg.get('language_model.nemo_file'):
+            if cfg.get('language_model').get('nemo_file'):
                 nemo_file = self.register_artifact('language_model.nemo_file', cfg.language_model.nemo_file)
-            if cfg.get('language_model.config'):
+            if cfg.get('language_model').get('config'):
                 config_dict = OmegaConf.to_container(cfg.language_model.config)
-            if cfg.get('language_model.config_file'):
+            if cfg.get('language_model').get('config_file'):
                 config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
             bert_model = get_lm_model(
                 config_file=config_file, config_dict=config_dict, vocab_file=vocab_file, trainer=trainer, cfg=cfg,
@@ -88,7 +100,11 @@ class NLPModel(ModelPT, Exportable):
             # register encoder config
             self.register_bert_model()
 
-            if cfg.tokenizer.get("library", "") == 'megatron':
+            if (
+                cfg.tokenizer is not None
+                and cfg.tokenizer.get("tokenizer_name", "") is not None
+                and "megatron" in cfg.tokenizer.get("tokenizer_name", "")
+            ) or pretrain_model_name in all_pretrained_megatron_bert_models:
                 self.hidden_size = bert_model.cfg.hidden_size
             else:
                 self.hidden_size = bert_model.config.hidden_size

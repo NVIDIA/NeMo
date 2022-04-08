@@ -38,7 +38,6 @@ model:
       vocab_file: null # path to vocab file
       tokenizer_model: null # only used if tokenizer is sentencepiece
       special_tokens: null
-      library: null # tokenizer library, used to identify Megatron model or not
 
   language_model:
     pretrained_model_name: bert-base-uncased
