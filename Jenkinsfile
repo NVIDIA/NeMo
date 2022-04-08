@@ -2528,11 +2528,10 @@ pipeline {
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
-            trainer.limit_val_batches=2 \
+            +trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
-            trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/t5_glue_results \
             model.restore_from_path=/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
             model.pipeline_model_parallel_size=1 \
@@ -2557,11 +2556,10 @@ pipeline {
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
-            trainer.limit_val_batches=2 \
+            +trainer.limit_val_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
-            trainer.gradient_clip_val=1.0 \
             exp_manager.exp_dir=examples/nlp/language_modeling/t5_xnli_results \
             model.restore_from_path=/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo \
             model.pipeline_model_parallel_size=1 \
