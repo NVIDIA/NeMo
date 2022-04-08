@@ -85,7 +85,7 @@ def getEuclideanDistance(specEmbA, specEmbB, device: torch.device = torch.device
 
     Returns:
         dis: (torch.tensor)
-            Euclidean distance values of the two set of spectral embedding vectors.
+            Euclidean distance values of the two sets of spectral embedding vectors.
     """
     specEmbA, specEmbB = specEmbA.to(device), specEmbB.to(device)
     A, B = specEmbA.unsqueeze(dim=1), specEmbB.unsqueeze(dim=0)
@@ -182,7 +182,7 @@ def kmeans_torch(
             the center shift values are bigger than this threshold, the iteration stops.
 
         iter_limit: (int)
-            The maximum number of iteration that is allowed by k-means algorithm.
+            The maximum number of iterations that is allowed by the k-means algorithm.
 
         device: (torch.device)
             Torch device variable
@@ -241,7 +241,7 @@ def getTheLargestComponent(affinity_mat, seg_index: int, device: torch.device):
             A square matrix (tensor) containing normalized cosine distance values
 
         seg_index: (int)
-            The segment index that is targeted to be explorerd.
+            The segment index that is targeted to be explored.
     Returns:
         connected_nodes: (torch.tensor)
             A tensor containing booleans that indicate whether the node is connected.
@@ -306,7 +306,7 @@ def getAffinityGraphMat(affinity_mat_raw, p_value: int):
 def getMinimumConnection(mat, max_N, n_list, device: torch.device):
     """
     Generate connections until fully connect all the nodes in the graph.
-    If graph is not fully connected, it might generate inaccurate results.
+    If the graph is not fully connected, it might generate inaccurate results.
     """
     p_value = torch.tensor(1)
     affinity_mat = getAffinityGraphMat(mat, p_value)
@@ -377,7 +377,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device: torch.devic
 
     Returns:
         fused_sim_d (torch.tensor):
-            This function generates an ffinity matrix that is obtained by calculating
+            This function generates an affinity matrix that is obtained by calculating
             the weighted sum of the affinity matrices from the different scales.
 
         base_scale_emb (torch.tensor):
@@ -552,17 +552,17 @@ def getEnhancedSpeakerCount(
 @torch.jit.script
 def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool = False):
     """
-    Estimate the number of speakers using eigen decomposition on the Laplacian Matrix.
+    Estimate the number of speakers using eigendecomposition on the Laplacian Matrix.
 
     Args:
         affinity_mat: (torch.tensor)
-            N by N affitnity matrix
+            N by N affinity matrix
 
         max_num_speaker: (int)
             Maximum number of clusters to consider for each session
 
         is_cuda: (bool)
-            If cuda available eigh decomposition would be computed on GPUs.
+            If cuda available eigendecomposition is computed on GPUs.
 
     Returns:
         num_of_spk: (torch.tensor)
@@ -705,7 +705,7 @@ class NMESC:
                 Default is True.
 
             fixed_thres: (float or None)
-                A fixed threshould which can be used instead of estimating the
+                A fixed threshold which can be used instead of estimating the
                 threshold with NME analysis. If fixed_thres is float,
                 it skips the NME analysis part.
 
