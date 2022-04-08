@@ -174,7 +174,7 @@ class TestExportable:
                 for idx, op in enumerate(onnx_model.graph.output[2:]):
                     assert op.name == "output-" + state_name + '-' + str(idx + 1)
 
-    # @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecCTCModel_adapted_export_to_onnx(self):
         model_config = DictConfig(
