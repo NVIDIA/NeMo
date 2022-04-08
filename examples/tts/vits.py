@@ -34,7 +34,7 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)
     if cfg.checkpoint_path is not None:
-        model.load_from_checkpoint(cfg.checkpoint_path)
+        model = VitsModel.load_from_checkpoint(cfg.checkpoint_path)
     trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])
     trainer.fit(model)
 

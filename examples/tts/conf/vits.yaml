@@ -6,14 +6,16 @@
 
 name: VITS
 
+# train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
+train_dataset: "raid/datasets/tts_data/train_manifest.json"
 
-train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
-validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
+# validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
+validation_datasets: "raid/datasets/tts_data/val_manifest.json"
 sup_data_path: null
 sup_data_types: null
 
-checkpoint_path: 'vits_full/VITS/2022-03-25_17-41-47/checkpoints/VITS--loss_gen_all\=37.8252-epoch\=7719-last.ckpt'
-# checkpoint_path: 'checkpoints/vits-epoch=7719.ckpt'
+# checkpoint_path: 'vits_full/VITS/2022-03-25_17-41-47/checkpoints/VITS--loss_gen_all\=37.8252-epoch\=7719-last.ckpt'
+checkpoint_path: 'checkpoint'
 
 honeme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
@@ -203,9 +205,9 @@ trainer:
   # gradient_clip_val: 1000.0
   checkpoint_callback: false # Provided by exp_manager
   logger: false # Provided by exp_manager
-  log_every_n_steps: 200
+  log_every_n_steps: 199
   flush_logs_every_n_steps: 1000
-  check_val_every_n_epoch: 5
+  check_val_every_n_epoch: 1
 
 exp_manager:
   exp_dir: ../exps/vits_full2
