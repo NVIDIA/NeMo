@@ -33,7 +33,7 @@ python train_asr_adapter.py \
     trainer.max_steps=300 \
     trainer.devices=1 \
     trainer.precision=32 \
-    exp_manager.exp_dir=<Some directory for experiment manager> \
+    exp_manager.exp_dir=<Some directory for experiment manager>
 
 
 # Fine-tune a model
