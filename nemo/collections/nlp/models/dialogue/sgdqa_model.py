@@ -19,10 +19,10 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 '''
 
 import os
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
@@ -34,7 +34,6 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
