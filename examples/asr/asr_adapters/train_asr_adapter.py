@@ -15,11 +15,11 @@
 """
 # Adapting the model
 
-python train_ctc_adapter.py \
-    --config-path="../conf/" \
-    --config-name="adapt_ctc.yaml" \
-    pretrained_model=null \
-    nemo_model=null \
+python train_asr_adapter.py \
+    --config-path="conf/" \
+    --config-name="asr_adaptation.yaml" \
+    model.pretrained_model=null \
+    model.nemo_model=null \
     model.adapter.adapter_name=<Unique adapter name> \
     model.adapter.in_features=<dimension of the layer outputs of the model> \
     model.adapter.dim=32 \
@@ -29,14 +29,27 @@ python train_ctc_adapter.py \
     model.validation_ds.batch_size=16 \
     model.optim.lr=0.5 \
     model.optim.weight_decay=0.0 \
-    model.optim.sched.warmup_steps=1000 \
-    trainer.max_steps=250 \
+    model.optim.sched.warmup_steps=100 \
+    trainer.max_steps=300 \
     trainer.devices=1 \
-    exp_manager.exp_dir=<Some directory for experiment manager>
+    trainer.precision=32 \
+    exp_manager.exp_dir=<Some directory for experiment manager> \
+
 
 # Fine-tune a model
 
-For documentation on fine-tuning this model, please visit -
+While adaptation is very efficient for low-resource datasets, it imposes several restrictions -
+
+- The vocabulary of the new dataset must be supported by the pre-existing vocabulary or tokenizer.
+    If tokens exist outside this scope, the adapter will have to learn UNK tokens (or fail entirely
+    for character based models).
+
+- As a consequence of the above, the language of the new dataset must be the same as the original model.
+    There is ongoing research to enable more sophisticated adapters for other languages.
+
+When adapters cannot be readily used due to the above limitations, fine-tuning may be a better alternative.
+
+For documentation on fine-tuning a model, please visit -
 https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.html#fine-tuning-configurations
 
 # Pretrained Models
@@ -46,26 +59,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 """
 
-"""
-
-python eval_ctc_adapter.py \
-    --config-path="../conf/" \
-    --config-name="adapt_ctc.yaml" \
-    model.pretrained_model=null \
-    model.nemo_model="/home/smajumdar/PycharmProjects/NeMo-som/examples/asr/asr_adapters/ctc/nemo_experiments/CTC-Adapter/2022-04-07_02-10-30/checkpoints/CTC-Adapter.nemo" \
-    model.adapter.adapter_name=tedlium \
-    model.test_ds.manifest_filepath="/home/smajumdar/PycharmProjects/nemo-eval/nemo_beta_eval/tedlium/tedlium_v2/manifests/manifest_test.json" \
-    model.test_ds.batch_size=16 \
-    model.train_ds.manifest_filepath=null \
-    model.validation_ds.manifest_filepath=null \
-    trainer.devices=[0] \
-    trainer.precision=32
-    
-"""
-
 import pytorch_lightning as pl
-
-import os
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
@@ -79,8 +73,6 @@ def update_encoder_config_to_support_adapter(model_cfg, new_cfg):
         if 'Adapter' not in model_cfg.encoder._target_:
             model_cfg.encoder._target_ = model_cfg.encoder._target_ + 'Adapter'
 
-        model_cfg.normalize_encoder_norm = new_cfg.model.get('normalize_encoder_norm', False)
-
 
 def update_model_cfg(original_cfg, new_cfg):
     with open_dict(new_cfg):
@@ -89,11 +81,9 @@ def update_model_cfg(original_cfg, new_cfg):
         for key in new_keys:
             if key not in original_cfg:
                 new_cfg.pop(key)
-                print("Removing unavailable key :", key)
+                print("Removing unavailable key from config :", key)
 
-        # print("Original config :", OmegaConf.to_yaml(original_cfg))
         new_cfg = OmegaConf.merge(original_cfg, new_cfg)
-        # print("Merged Config :", OmegaConf.to_yaml(new_cfg))
     return new_cfg
 
 
@@ -120,26 +110,37 @@ def main(cfg):
         model = ASRModel.restore_from(cfg.model.nemo_model, override_config_path=model_cfg, trainer=trainer)
 
     # Setup model for finetuning (train and validation only)
-    cfg.model.test_ds = update_model_cfg(model.cfg.test_ds, cfg.model.test_ds)
+    cfg.model.train_ds = update_model_cfg(model.cfg.train_ds, cfg.model.train_ds)
+    cfg.model.validation_ds = update_model_cfg(model.cfg.validation_ds, cfg.model.validation_ds)
 
     # Call the dataloaders and optimizer + scheduler
-    model.setup_multiple_test_data(cfg.model.test_ds)
+    model.setup_training_data(cfg.model.train_ds)
+    model.setup_multiple_validation_data(cfg.model.validation_ds)
+
+    # Setup optimizer
+    cfg.model.optim = update_model_cfg(model.cfg.optim, cfg.model.optim)
+    model.setup_optimization(cfg.model.optim)
 
     # Setup adapters
     with open_dict(cfg.model.adapter):
-        adapter_name = cfg.model.adapter.pop("adapter_name", None)
+        adapter_name = cfg.model.adapter.pop("adapter_name")
+
+    model.add_adapter(adapter_name, cfg=cfg.model.adapter)
+    assert model.is_adapter_available()
 
     # Disable all other adapters, enable just the current adapter.
     model.set_enabled_adapters(enabled=False)  # disable all adapters prior to training
-
-    if adapter_name is not None:
-        model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
+    model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
 
     # First, Freeze all the weights of the model (not just encoder, everything)
     model.freeze()
+    # Activate dropout() and other modules that depend on train mode.
+    model = model.train()
+    # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
+    model.unfreeze_enabled_adapters()
 
     # Finally, train model
-    trainer.test(model)
+    trainer.fit(model)
 
 
 if __name__ == '__main__':
