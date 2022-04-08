@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import hashlib
 import json
 import os
@@ -74,12 +75,30 @@ class NLPModel(ModelPT, Exportable):
                 and pretrain_model_name not in all_pretrained_megatron_bert_models
             ):
                 self.setup_tokenizer(cfg.tokenizer)
+            elif pretrain_model_name in all_pretrained_megatron_bert_models:
+                copy_cfg = copy.deepcopy(cfg)
+                bert_model = get_lm_model(
+                    config_file=config_file,
+                    config_dict=config_dict,
+                    vocab_file=vocab_file,
+                    trainer=trainer,
+                    cfg=copy_cfg,
+                )
+                # set the tokenizer if it is not initialized explicitly
+                if (
+                    (hasattr(self, 'tokenizer') and self.tokenizer is None) or not hasattr(self, 'tokenizer')
+                ) and hasattr(bert_model, 'tokenizer'):
+                    self.tokenizer = bert_model.tokenizer
             if (
                 cfg.get('tokenizer')
                 and hasattr(cfg.get('tokenizer'), 'vocab_file')
                 and cfg.get('tokenizer').get('vocab_file')
             ):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
+        super().__init__(cfg, trainer)
+
+        # handles model parallel save and restore logic
+        self._save_restore_connector = NLPSaveRestoreConnector()
 
         if cfg.get('language_model') and not no_lm_init:
             if cfg.get('language_model').get('nemo_file'):
@@ -96,8 +115,7 @@ class NLPModel(ModelPT, Exportable):
                 bert_model, 'tokenizer'
             ):
                 self.tokenizer = bert_model.tokenizer
-            if cfg.language_model.get('downstream'):
-                cfg.language_model.downstream = True
+
             # Required to pull up the config for MegatronBert models
             self.pretrained_model_name = cfg.language_model.pretrained_model_name
 
@@ -112,10 +130,7 @@ class NLPModel(ModelPT, Exportable):
                 self.hidden_size = bert_model.cfg.hidden_size
             else:
                 self.hidden_size = bert_model.config.hidden_size
-        super().__init__(cfg, trainer)
 
-        # handles model parallel save and restore logic
-        self._save_restore_connector = NLPSaveRestoreConnector()
         if cfg.get('language_model') and not no_lm_init:
             self.bert_model = bert_model
 
