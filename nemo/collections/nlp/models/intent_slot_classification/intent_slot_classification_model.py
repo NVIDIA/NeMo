@@ -16,7 +16,7 @@ import ntpath
 import os
 from typing import Dict, List, Optional
 
-import onnx
+
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -34,7 +34,6 @@ from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 
