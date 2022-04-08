@@ -46,7 +46,7 @@ class GlowTTSConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-@deprecated(version="1.8", explanation="GlowTTSModel will be removed. Use FastPitchModel instead.")
+@deprecated(version="1.9", explanation="GlowTTSModel will be removed. Use FastPitchModel instead.")
 class GlowTTSModel(SpectrogramGenerator):
     """
     GlowTTS model used to generate spectrograms from text
