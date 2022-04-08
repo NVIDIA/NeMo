@@ -56,8 +56,8 @@ model:
     # optimizer arguments
     # name will be merged with model config
     # betas will be merged with model config
-    lr: 0.01
-    weight_decay: 0
+    lr: 0.01  # LR depends on the scheduler used by the base model. Noam prefers 0.5, Cosine Annealing prefers 0.02
+    weight_decay: 0  # During adaptation, since training run is short, WD is not required. Can be set if needed.
 
     # scheduler setup
     sched:
@@ -65,7 +65,7 @@ model:
       # d_model will be merged with model config
       # scheduler config override
       # min_lr will be merged with model config
-      warmup_steps: 1000
+      warmup_steps: 1000  # Warmup steps should be set, and smaller than the trainer.max_steps set below.
       warmup_ratio: null
 
 trainer:
