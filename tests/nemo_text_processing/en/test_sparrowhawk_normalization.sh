@@ -46,10 +46,10 @@ testTNRange() {
   runtest $input
 }
 
-testTNRoman() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_roman.txt
-  runtest $input
-}
+#testTNRoman() {
+#  input=$PROJECT_DIR/en/data_text_normalization/test_cases_roman.txt
+#  runtest $input
+#}
 
 testTNElectronic() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_electronic.txt
