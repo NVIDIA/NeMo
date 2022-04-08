@@ -74,7 +74,11 @@ class NLPModel(ModelPT, Exportable):
                 and pretrain_model_name not in all_pretrained_megatron_bert_models
             ):
                 self.setup_tokenizer(cfg.tokenizer)
-            if cfg.get('tokenizer').get('vocab_file'):
+            if (
+                cfg.get('tokenizer')
+                and hasattr(cfg.get('tokenizer'), 'vocab_file')
+                and cfg.get('tokenizer').get('vocab_file')
+            ):
                 vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
 
         if cfg.get('language_model') and not no_lm_init:
