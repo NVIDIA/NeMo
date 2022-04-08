@@ -83,7 +83,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
             idxs = list(range(len(raw_examples['answers'])))
 
         if self.debug_mode:
-            idxs = idxs[:64]
+            idxs = idxs[:1000]
 
         for i in idxs:
             utterance = raw_examples['query'][str(i)]
