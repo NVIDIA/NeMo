@@ -102,7 +102,9 @@ class DialogueS2SGenerationModel(NLPModel):
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         epoch_number = self.current_epoch if hasattr(self, 'current_epoch') else 0
-        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{epoch_number}.jsonl")
+        filename = os.path.join(
+            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{epoch_number}.jsonl"
+        )
 
         DialogueGenerationMetrics.save_predictions(
             filename, generated_field, ground_truth_field, inputs,
@@ -123,7 +125,9 @@ class DialogueS2SGenerationModel(NLPModel):
         self.log('{}_ppl'.format(mode), ppl)
 
         if mode == 'val' and self.cfg.save_model:
-            filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(self.cfg.dataset.dialogues_example_dir, avg_loss, epoch_number)
+            filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(
+                self.cfg.dataset.dialogues_example_dir, avg_loss, epoch_number
+            )
             torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
