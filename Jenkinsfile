@@ -2001,6 +2001,24 @@ pipeline {
         sh "rm -rf examples/nlp/language_modeling/bert_index_mappings"
       }
     }
+    stage('L2: BioMegatron Bert NER Task') {
+      when {
+        anyOf {
+          branch 'r1.8.0'
+          changeRequest target: 'r1.8.0'
+        }
+      }
+      failFast true
+      steps {
+        sh "python examples/nlp/token_classification/token_classification_train.py \
+        exp_manager.exp_dir=examples/nlp/language_modeling/token_classification_results \
+        trainer.max_epochs=1 \
+        model.dataset.data_dir=/home/TestData/nlp/ner \
+        model.language_model.pretrained_model_name=biomegatron345m_biovocab_30k_cased \
+        model.tokenizer.tokenizer_name=null"
+        sh "rm -rf examples/nlp/language_modeling/token_classification_results"
+      }
+    }
     // stage('L2: Megatron P-Tuning GPT LM') {
     //   when {
     //     anyOf {
