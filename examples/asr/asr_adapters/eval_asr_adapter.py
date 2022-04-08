@@ -25,6 +25,7 @@ python eval_asr_adapter.py \
     model.test_ds.batch_size=16 \
     model.train_ds.manifest_filepath=null \
     model.validation_ds.manifest_filepath=null \
+    model.adapter.in_features=null \
     trainer.devices=1 \
     trainer.precision=32
 
