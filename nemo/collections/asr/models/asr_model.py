@@ -63,7 +63,15 @@ class ASRModel(ModelPT, ABC):
         return list_of_models
 
     def setup_optimization_flags(self):
-        if "skip_nan_grad" in self._cfg and self._cfg["skip_nan_grad"] is not None:
+        """
+        Utility method that must be explicitly called by the subclass in order to support optional optimization flags.
+        This method is the only valid place to access self.cfg prior to DDP training occurs.
+
+        The subclass may chose not to support this method, therefore all variables here must be checked via hasattr()
+        """
+        # Skip update if nan/inf grads appear on any rank.
+        self._skip_nan_grad = False
+        if "skip_nan_grad" in self._cfg and self._cfg["skip_nan_grad"]:
             self._skip_nan_grad = self._cfg["skip_nan_grad"]
 
     def on_after_backward(self):
