@@ -308,34 +308,37 @@ class VitsModel(TextToWaveform):
         y_hat_mel, y_hat_mel_lengths = self.audio_to_melspec_precessor(y_hat, y_hat_lengths)
 
         # plot audio once per epoch
-        if batch_idx == 0 and self.logger is not None and isinstance(self.logger, WandbLogger):
-            specs = []
-            audios = []
+        if batch_idx == 0:
+            logger = self.logger.experiment
+            # print(logger, self.logger)
+            if logger is not None and isinstance(self.logger, WandbLogger):
+                specs = []
+                audios = []
 
-            specs += [
-                wandb.Image(
-                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()), caption=f"val_mel_target",
-                ),
-                wandb.Image(
-                    plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
-                    caption=f"val_mel_predicted",
-                ),
-            ]
+                specs += [
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].cpu().numpy()), caption=f"val_mel_target",
+                    ),
+                    wandb.Image(
+                        plot_spectrogram_to_numpy(y_hat_mel[0, :, : y_hat_mel_lengths[0]].cpu().numpy()),
+                        caption=f"val_mel_predicted",
+                    ),
+                ]
 
-            audios += [
-                wandb.Audio(
-                    y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
-                    caption=f"val_wav_target",
-                    sample_rate=self.sample_rate,
-                ),
-                wandb.Audio(
-                    y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
-                    caption=f"val_wav_predicted",
-                    sample_rate=self.sample_rate,
-                ),
-            ]
+                audios += [
+                    wandb.Audio(
+                        y[0, : y_lengths[0]].data.cpu().to(torch.float).numpy(),
+                        caption=f"val_wav_target",
+                        sample_rate=self.sample_rate,
+                    ),
+                    wandb.Audio(
+                        y_hat[0, : y_hat_lengths[0]].data.cpu().to(torch.float).numpy(),
+                        caption=f"val_wav_predicted",
+                        sample_rate=self.sample_rate,
+                    ),
+                ]
 
-            self.logger.experiment.log({"specs": specs, "audios": audios})
+            logger.log({"specs": specs, "audios": audios})
 
     def _loader(self, cfg):
         try:
