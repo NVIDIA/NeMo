@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import json
+from multiprocessing.sharedctypes import Value
+
 import numpy as np
 import torch
-
-from multiprocessing.sharedctypes import Value
 from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
@@ -30,6 +30,7 @@ class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning GPT models.
     """
+
     def __init__(
         self,
         datasets,
@@ -60,7 +61,9 @@ class GPTPromptLearningDataset(Dataset):
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
         assert self.total_virtual_tokens > 0, "There should be at least one virtual prompt token"
-        assert self.total_virtual_tokens < max_seq_length, "virtual prompt tokens should not exceed max sequence length"
+        assert (
+            self.total_virtual_tokens < max_seq_length
+        ), "virtual prompt tokens should not exceed max sequence length"
 
         logging.info("Loading and tokenizing dataset ... ")
 
@@ -86,15 +89,19 @@ class GPTPromptLearningDataset(Dataset):
                 doc = json_line
             else:
                 doc = json.loads(json_line)
-            
+
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
             prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
             input_example = prompt_template
 
-            assert sum(prompt_token_splits) == self.total_virtual_tokens, "Sum of prompt token split values must equal total number of prompt tokens"
-            assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(prompt_token_splits), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
+            assert (
+                sum(prompt_token_splits) == self.total_virtual_tokens
+            ), "Sum of prompt token split values must equal total number of prompt tokens"
+            assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+                prompt_token_splits
+            ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
             # Format the input example according to the template
             for field in prompt_template_fields:
@@ -108,12 +115,12 @@ class GPTPromptLearningDataset(Dataset):
                     input_example = input_example.replace('{' + field + '}', "")
 
             total_inserted_tokens = 0
-            
+
             # Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers
             for idx in range(len(prompt_token_splits)):
                 split_start = total_inserted_tokens
                 split_end = total_inserted_tokens + prompt_token_splits[idx]
-                pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start: split_end])
+                pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
                 input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
                 total_inserted_tokens = split_end
 
@@ -156,7 +163,7 @@ class GPTPromptLearningDataset(Dataset):
             max_taskname_length = max(len(ids) for ids in taskname_ids)
             taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
             taskname_ids = torch.tensor(taskname_ids)
-            
+
         # Task ids are just used for a look up embeddings for prompt-table
         elif self.virtual_prompt_source == "prompt-table":
             taskname_ids = torch.tensor(taskname_ids)
@@ -218,5 +225,5 @@ class GPTPromptLearningDataset(Dataset):
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max + tokens_to_generate)
         input_ids = input_ids.cuda()
         input_ids = torch.cuda.LongTensor(input_ids)
-        
+
         return task_id_nums, (input_ids, input_lengths)

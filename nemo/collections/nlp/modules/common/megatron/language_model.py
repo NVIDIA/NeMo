@@ -307,6 +307,7 @@ class Embedding(MegatronModule):
                     flush=True,
                 )
 
+
 class TransformerLanguageModel(MegatronModule):
     """Transformer language model.
 
@@ -369,7 +370,7 @@ class TransformerLanguageModel(MegatronModule):
         self.add_pooler = add_pooler
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
-    
+
         if kv_channels is None:
 
             assert (

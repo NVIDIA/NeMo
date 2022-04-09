@@ -16,7 +16,10 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPromptLearningModel
+
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+    MegatronGPTPromptLearningModel,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
@@ -29,17 +32,13 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
+
 @hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
-    plugins = [
-        NLPDDPPlugin(
-            no_ddp_communication_hook=True,
-            find_unused_parameters=False,
-        )
-    ]
+    plugins = [NLPDDPPlugin(no_ddp_communication_hook=True, find_unused_parameters=False,)]
     if cfg.trainer.precision == 16:
         scaler = GradScaler(
             init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
@@ -66,15 +65,13 @@ def main(cfg) -> None:
     # load existing or init new soft prompt GPT model
     if cfg.model.get("restore_path", None):
         model = MegatronGPTPromptLearningModel.restore_from(
-            cfg.model.restore_path,
-            cfg.model,
-            trainer=trainer, 
-            save_restore_connector=NLPSaveRestoreConnector()
+            cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
         )
     else:
         model = MegatronGPTPromptLearningModel(cfg.model, trainer=trainer)
 
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()

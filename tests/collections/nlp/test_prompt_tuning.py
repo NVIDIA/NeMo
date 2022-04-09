@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import json
-import torch
 import os
 
 import pytest
+import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -24,12 +24,7 @@ from nemo.core import Dataset
 
 
 def get_prompt_tuning_dataset(
-    dataset_path,
-    tokenizer, 
-    virtual_prompt_source,
-    task_templates, 
-    total_virtual_tokens,
-    pseudo_tokens,
+    dataset_path, tokenizer, virtual_prompt_source, task_templates, total_virtual_tokens, pseudo_tokens,
 ):
     dataset = GPTPromptLearningDataset(
         datasets=[dataset_path],
@@ -45,10 +40,15 @@ def get_prompt_tuning_dataset(
 
     return dataset
 
+
 def create_temp_dataset():
-    example_dataset_a = [{'taskname': 'task name A', 'text': 'Test sentence one, Answer: ', 'answer': 'test'} for i in range(24)]
-    example_dataset_b = [{'taskname': 'task name B', 'question': 'This is a question', 'answer': 'test'} for i in range(13)]
-    example_dataset  = example_dataset_a + example_dataset_b
+    example_dataset_a = [
+        {'taskname': 'task name A', 'text': 'Test sentence one, Answer: ', 'answer': 'test'} for i in range(24)
+    ]
+    example_dataset_b = [
+        {'taskname': 'task name B', 'question': 'This is a question', 'answer': 'test'} for i in range(13)
+    ]
+    example_dataset = example_dataset_a + example_dataset_b
     temp_file_name = 'temp_dataset_file.jsonl'
 
     with open(temp_file_name, 'w') as temp:
@@ -57,21 +57,23 @@ def create_temp_dataset():
 
     return temp_file_name
 
+
 def get_task_templates():
     task_templates = {}
     task_templates['task name A'] = {
         "prompt_template": "<|VIRTUAL_PROMPT_0|>{text}{answer}",
         "prompt_template_fields": ['text', 'answer'],
         "prompt_token_splits": [10],
-        "task_id_num": 0
+        "task_id_num": 0,
     }
     task_templates['task name B'] = {
         "prompt_template": "<|VIRTUAL_PROMPT_0|>{question}<|VIRTUAL_PROMPT_1|>{answer}{extra}",
         "prompt_template_fields": ['question', 'answer'],
         "prompt_token_splits": [7, 3],
-        "task_id_num": 1
+        "task_id_num": 1,
     }
     return task_templates
+
 
 class TestMegatronGPTPromptLearningDataset:
     @pytest.mark.run_only_on('GPU')
@@ -88,21 +90,11 @@ class TestMegatronGPTPromptLearningDataset:
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path,
-            tokenizer, 
-            'prompt-table',
-            task_templates, 
-            total_virtual_tokens,
-            pseudo_tokens,
+            dataset_path, tokenizer, 'prompt-table', task_templates, total_virtual_tokens, pseudo_tokens,
         )
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path,
-            tokenizer, 
-            'prompt-encoder',
-            task_templates, 
-            total_virtual_tokens,
-            pseudo_tokens,
+            dataset_path, tokenizer, 'prompt-encoder', task_templates, total_virtual_tokens, pseudo_tokens,
         )
 
         print(type(dataset))
@@ -125,17 +117,12 @@ class TestMegatronGPTPromptLearningDataset:
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path,
-            tokenizer, 
-            'prompt-table',
-            task_templates, 
-            total_virtual_tokens,
-            pseudo_tokens,
+            dataset_path, tokenizer, 'prompt-table', task_templates, total_virtual_tokens, pseudo_tokens,
         )
 
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)
-        
+
         assert len(batch) == 6
 
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
@@ -164,12 +151,7 @@ class TestMegatronGPTPromptLearningDataset:
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
         dataset = get_prompt_tuning_dataset(
-            dataset_path,
-            tokenizer, 
-            'prompt-encoder',
-            task_templates, 
-            total_virtual_tokens,
-            pseudo_tokens,
+            dataset_path, tokenizer, 'prompt-encoder', task_templates, total_virtual_tokens, pseudo_tokens,
         )
 
         batch = [dataset[i] for i in range(8)]
@@ -180,7 +162,6 @@ class TestMegatronGPTPromptLearningDataset:
         _, _, _, _, _, taskname_ids = batch
 
         assert list(taskname_ids[0].numpy()) == tokenizer.text_to_ids("task name A")
-
 
         os.remove(dataset_path)
 

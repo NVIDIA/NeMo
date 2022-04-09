@@ -20,7 +20,9 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+    MegatronGPTPromptLearningModel,
+)
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
@@ -190,7 +192,7 @@ class RequestDataSet(Dataset):
         return self.sentences[idx]
 
 
-@hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
+@hydra_runner(config_path="conf", config_name="prompt_learning_megatron_gpt_inference")
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models

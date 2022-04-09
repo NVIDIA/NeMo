@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os import path
-from typing import Any, Optional, List, Union
-
 import re
+from os import path
+from typing import Any, List, Optional, Union
+
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
@@ -26,10 +26,7 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import (
-    PromptEncoder,
-    PromptTable
-)
+from nemo.collections.nlp.modules.common import PromptEncoder, PromptTable
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
@@ -52,6 +49,7 @@ from nemo.utils import logging
 try:
     from apex.transformer import tensor_parallel
     from apex.transformer import parallel_state
+
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -59,6 +57,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ['MegatronGPTPPromptLearningModel']
+
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
@@ -103,7 +102,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.total_virtual_tokens = self.cfg.total_virtual_tokens
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
-        
+
         # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
         self.prompt_table = PromptTable(
             existing_tasks=self.existing_tasks,
@@ -112,7 +111,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         # Load templates for assigning virtual prompt token positions
-        self.load_task_templates(self.cfg.task_templates) 
+        self.load_task_templates(self.cfg.task_templates)
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_token_base = cfg.pseudo_token_base
@@ -129,10 +128,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         elif self.virtual_prompt_style == 'p-tuning':
-            self.virtual_prompt_source = 'prompt-encoder'    
+            self.virtual_prompt_source = 'prompt-encoder'
         else:
             raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'" )
+                f"\nvirtual prompt style '{cfg.virtual_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+            )
 
         self._reduced_loss_buffer = []
         self._inference_config = None
@@ -161,9 +161,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 "prompt_template": task.prompt_template,
                 "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
                 "prompt_token_splits": task.prompt_token_splits,
-                "task_id_num": task_id_num
+                "task_id_num": task_id_num,
             }
-            
+
             task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
 
@@ -196,11 +196,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         Init the prompt encoder needed for p-tuning on a new task
         """
         self.prompt_encoder = PromptEncoder(
-                total_virtual_tokens=self.total_virtual_tokens,
-                hidden_size=self.hidden_size,
-                lstm_dropout=self.cfg.p_tuning.dropout,
-                num_layers=self.cfg.p_tuning.num_layers,
-            )
+            total_virtual_tokens=self.total_virtual_tokens,
+            hidden_size=self.hidden_size,
+            lstm_dropout=self.cfg.p_tuning.dropout,
+            num_layers=self.cfg.p_tuning.num_layers,
+        )
 
     def add_ptuned_prompts_to_prompt_table(self):
         """
@@ -218,7 +218,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
             virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
             self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, virtual_prompt_embeddings)
-            
+
         # Remove prompt encoder from model
         self.prompt_encoder = None
 
@@ -250,15 +250,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return tasks
 
     def forward(
-            self, 
-            input_ids, 
-            position_ids, 
-            attention_mask, 
-            taskname_ids, 
-            labels=None, 
-            inference=True, 
-            set_inference_key_value_memory=False, 
-            inference_max_sequence_len=None
+        self,
+        input_ids,
+        position_ids,
+        attention_mask,
+        taskname_ids,
+        labels=None,
+        inference=True,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
         """
         Special forward method for p-tuning/prompt-tuning pretrained
@@ -277,26 +277,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
             output = self.model.model(
-                input_ids=None, 
-                position_ids=None, 
-                encoder_input=encoder_input, 
-                attention_mask=attention_mask, 
+                input_ids=None,
+                position_ids=None,
+                encoder_input=encoder_input,
+                attention_mask=attention_mask,
                 labels=labels,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
-
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
                 output = self.model.model(
-                input_ids=None, 
-                position_ids=None, 
-                encoder_input=encoder_input, 
-                attention_mask=attention_mask, 
-                labels=labels,
-                set_inference_key_value_memory=set_inference_key_value_memory,
-                inference_max_sequence_len=inference_max_sequence_len,
-            )
+                    input_ids=None,
+                    position_ids=None,
+                    encoder_input=encoder_input,
+                    attention_mask=attention_mask,
+                    labels=labels,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
+                )
 
         return output
 
@@ -334,7 +333,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
-        #Create index template specifying where virtual token embeddings should be placed
+        # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
         virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
         virtual_token_index = virtual_token_index.expand(batch_size, self.total_virtual_tokens, embedding_size)
@@ -342,7 +341,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
         input_embeds = discrete_token_embeds
-       
+
         return input_embeds
 
     def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
@@ -380,7 +379,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
 
         # Only get needed virtual token embeddings from the prompt table according to virtual token ids
-        virtual_token_embeddings = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
+        virtual_token_embeddings = [
+            self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)
+        ]
         virtual_token_embeddings = torch.stack(virtual_token_embeddings)
 
         # Put virtual and discrete token embs in their correct locations for final output
@@ -413,7 +414,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, batch, batch_idx):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-        
+
         with torch.no_grad():
             output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
             output_tensor, encoder_hidden_states = output
@@ -424,7 +425,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def validation_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
-        
+
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
@@ -503,15 +504,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 pin_memory=True,
             )
 
-    def build_virtual_prompt_dataset(
-        self, 
-        dataset_paths, 
-        batch_size, 
-        drop_last, 
-        shuffle, 
-        num_workers, 
-        pin_memory
-    ):
+    def build_virtual_prompt_dataset(self, dataset_paths, batch_size, drop_last, shuffle, num_workers, pin_memory):
         dataset = GPTPromptLearningDataset(
             datasets=dataset_paths,
             tokenizer=self.tokenizer,
@@ -543,7 +536,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-    ): 
+    ):
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
@@ -590,7 +583,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         task_ids, processed_inputs = dataset.get_all_examples(tokens_to_generate=length_params['max_length'])
 
         # Call same generate code as in MegatronGPT
-        return megatron_gpt_generate(self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids)
+        return megatron_gpt_generate(
+            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
+        )
 
     def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
         inference_config = self.get_inference_config()
@@ -613,7 +608,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 "compute_logprob": inference_config["compute_logprob"],
             }
             return self.generate(batch, length_params, sampling_params)
-                
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -633,6 +628,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         Used for generate method only for now.
         """
+
         def fwd_output_only_func(batch, model):
             extra_arg = {}
             (
@@ -650,9 +646,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_ids = task_ids.cuda()
             extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
             extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-           
+
             output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
-            
+
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
 
@@ -663,5 +659,3 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     @classmethod
     def list_available_models(cls):
         pass
-
-    

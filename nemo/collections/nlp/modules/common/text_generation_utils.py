@@ -19,11 +19,7 @@ import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-)
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
 
 try:
@@ -40,6 +36,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ["get_computeprob_response", "generate"]
 
+
 def get_default_sampling_params():
     # default do greedy sampling
     sampling_params: SamplingParam = {
@@ -55,11 +52,13 @@ def get_default_sampling_params():
 
     return sampling_params
 
+
 def get_default_length_params():
     # default do greedy sampling
     length_params: LengthParam = {"min_length": 0, "max_length": 30}
 
     return length_params
+
 
 def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, task_ids=None):
     # reproduce the old compute_prob method
@@ -112,6 +111,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             raise NotImplementedError("unknown type is not implemented")
     else:
         raise NotImplementedError("unknown type is not implemented")
+
 
 def get_computeprob_response(tokenizer, response, inputs):
     compute_prob_response = {}
@@ -452,7 +452,7 @@ def generate(
         (
             context_length_tensor,
             context_tokens_tensor,
-            task_ids, 
+            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -673,7 +673,9 @@ def sample_sequence_batch(
                 if hasattr(model, 'pseudo_token_ids_start'):
                     pseudo_token_ids_start = model.pseudo_token_ids_start
                     new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
-                    tokens[:, :context_length][(tokens[:, :context_length] >= pseudo_token_ids_start)] = tokenizer.unk_id
+                    tokens[:, :context_length][
+                        (tokens[:, :context_length] >= pseudo_token_ids_start)
+                    ] = tokenizer.unk_id
 
                 # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens

@@ -34,14 +34,13 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate, 
+    generate,
     get_computeprob_response,
     get_default_length_params,
     get_default_sampling_params,
@@ -711,7 +710,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
         self.log('grad_norm', grad_norm, rank_zero_only=True)
-        
+
     def get_parameters(self):
         params = []
         for param_group in self._optimizer_param_groups:
@@ -724,7 +723,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-    ): 
+    ):
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():

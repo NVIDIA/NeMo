@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.init as init
@@ -22,11 +23,13 @@ from nemo.core.classes import Exportable, NeuralModule
 
 try:
     from apex.transformer import tensor_parallel
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 __all__ = ['PromptTable']
+
 
 class PromptTable(NeuralModule, Exportable):
     def __init__(
@@ -122,6 +125,7 @@ class PromptTable(NeuralModule, Exportable):
             total_virtual_tokens=self.total_virtual_tokens,
             word_embedding_weights=virtual_prompt_embeddings,
         )
+
 
 class PromptEmbedding(NeuralModule, Exportable):
     """Prompt embeddings
