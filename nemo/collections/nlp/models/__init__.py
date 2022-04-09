@@ -26,7 +26,7 @@ from nemo.collections.nlp.models.intent_slot_classification import (
     MultiLabelIntentSlotClassificationModel,
 )
 from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMModel
-from nemo.collections.nlp.models.language_modeling import MegatronGPTPPromptLearningModel
+from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
 from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel
 from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel

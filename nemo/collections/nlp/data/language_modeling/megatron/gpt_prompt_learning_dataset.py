@@ -57,10 +57,10 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.examples = []
 
-        assert min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
-        assert max_seq_length > 0, "Max sequence length should be greater than 0"
-        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
-        assert total_virtual_tokens < max_seq_length, "virtual prompt tokens should not exceed max sequence length"
+        assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
+        assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
+        assert self.total_virtual_tokens > 0, "There should be at least one virtual prompt token"
+        assert self.total_virtual_tokens < max_seq_length, "virtual prompt tokens should not exceed max sequence length"
 
         logging.info("Loading and tokenizing dataset ... ")
 

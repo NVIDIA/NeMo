@@ -20,7 +20,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPPromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import MegatronGPTPromptLearningModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
@@ -202,7 +202,7 @@ def main(cfg) -> None:
 
     # Load prompt tuned model, model_file must be provided in config
     if cfg.get('virtual_prompt_model', False):
-        model = MegatronGPTPPromptLearningModel.restore_from(cfg.model_file, trainer=trainer)
+        model = MegatronGPTPromptLearningModel.restore_from(cfg.model_file, trainer=trainer)
 
     # Or load regular GPT model
     elif cfg.model_file:
@@ -257,12 +257,16 @@ def main(cfg) -> None:
     )
 
     print("***************************")
-    print(response)
+    print(response['tokens'])
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
+    collate_fn = None
+    if cfg.get('virtual_prompt_model', False):
+        collate_fn = lambda x: list(x)
+
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=2)
+    request_dl = request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
 
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)

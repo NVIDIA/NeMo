@@ -45,6 +45,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import (
     SamplingParam,
     TextGeneration,
 )
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
@@ -59,7 +60,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronGPTPPromptLearningModel']
 
-class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
+class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
     Model class for prompt-tuning or p-tuning a pretrained Megatron GPT model. 
 
@@ -88,6 +89,7 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.model = MegatronGPTModel.restore_from(
             self.register_artifact('language_model_path', cfg.get('language_model_path', None)),
             trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
         )
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
@@ -436,7 +438,7 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style.lower() == "p-tuning" and self.cfg.p_tuning.save_tuned_prompts_to_prompt_table:
+        if self.virtual_prompt_style == "p-tuning" and self.cfg.p_tuning.save_tuned_prompts_to_prompt_table:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -444,22 +446,24 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         with open_dict(self.cfg):
             self.cfg.existing_tasks = self.existing_tasks + self.new_tasks
             self.cfg.new_tasks = []
+            self.cfg.virtual_prompt_style = 'inference'
 
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
-        if stage == 'predict':
+        if stage == 'predict' or self.virtual_prompt_style == 'inference':
+            self.freeze_existing_virtual_prompt_params()
             return
 
         self.setup_test_data()
         if stage == 'test':
             return
 
-        if self.virtual_prompt_style.lower() == 'prompt-tuning':
+        if self.virtual_prompt_style == 'prompt-tuning':
             self.init_new_prompts()
-        elif self.virtual_prompt_style.lower() == 'p-tuning':
+        elif self.virtual_prompt_style == 'p-tuning':
             self.init_prompt_encoder()
 
         self.setup_training_data()
@@ -593,7 +597,22 @@ class MegatronGPTPPromptLearningModel(MegatronBaseModel, TextGeneration):
         if inference_config is None:
             return None
         else:
-            return generate(self, **inference_config)
+            length_params: LengthParam = {
+                "max_length": inference_config["tokens_to_generate"],
+                "min_length": inference_config["min_tokens_to_generate"],
+            }
+
+            sampling_params: SamplingParam = {
+                "use_greedy": inference_config["greedy"],
+                "temperature": inference_config["temperature"],
+                "top_k": inference_config["top_k"],
+                "top_p": inference_config["top_p"],
+                "repetition_penalty": inference_config["repetition_penalty"],
+                "add_BOS": inference_config["add_BOS"],
+                "all_probs": inference_config["all_probs"],
+                "compute_logprob": inference_config["compute_logprob"],
+            }
+            return self.generate(batch, length_params, sampling_params)
                 
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
