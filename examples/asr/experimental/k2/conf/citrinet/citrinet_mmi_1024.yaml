@@ -447,11 +447,11 @@ model:
 
   graph_module_cfg:
     criterion_type: map
+    loss_type: mmi
     transcribe_training: false
     split_batch_size: 0
     backend_cfg:
       token_lm: ???
-      loss_type: mmi
       topo_type: default
       topo_with_self_loops: true
       intersect_pruned: false

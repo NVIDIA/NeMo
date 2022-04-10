@@ -25,7 +25,7 @@ from packaging.version import Version
 from pytorch_lightning.utilities.imports import package_available
 
 __K2_MINIMUM_MAJOR_VERSION = 1
-__K2_MINIMUM_MINOR_VERSION = 11
+__K2_MINIMUM_MINOR_VERSION = 14
 
 __K2_MINIMUM_VERSION = Version(f"{__K2_MINIMUM_MAJOR_VERSION}.{__K2_MINIMUM_MINOR_VERSION}")
 

@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from functools import lru_cache
+from typing import List, Union
+
+import torch
 
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
@@ -44,6 +47,7 @@ def build_topo(name: str, tokens: List[int], with_self_loops: bool = True) -> 'k
 def build_default_topo(tokens: List[int], with_self_loops: bool = True) -> 'k2.Fsa':
     """Build the default CTC topology.
     """
+    assert -1 not in tokens, "We assume -1 is ID of the final transition"
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
     num_states = len(tokens)
@@ -67,7 +71,8 @@ def build_compact_topo(tokens: List[int], with_self_loops: bool = True) -> 'k2.F
     """Build the compact CTC topology.
     See https://arxiv.org/abs/2110.03098
     """
-    assert 0 in tokens, "We assume 0 is ID of the blank symbol"
+    assert -1 not in tokens, "We assume -1 is ID of the final transition"
+    assert 0 in tokens, "We assume 1 is ID of the blank symbol"
 
     selfloops_shift = int(with_self_loops)
     blank_num = 1
@@ -91,6 +96,7 @@ def build_shared_blank_topo(tokens: List[int], with_self_loops: bool = True) -> 
     """Build the shared blank CTC topology.
     See https://github.com/k2-fsa/k2/issues/746#issuecomment-856421616
     """
+    assert -1 not in tokens, "We assume -1 is ID of the final transition"
     assert 0 in tokens, "We assume 0 is the ID of the blank symbol"
 
     tokens = tokens.copy()
@@ -122,6 +128,7 @@ def build_minimal_topo(tokens: List[int]) -> 'k2.Fsa':
     """Build the minimal topology.
     See https://arxiv.org/abs/2110.03098
     """
+    assert -1 not in tokens, "We assume -1 is ID of the final transition"
     assert 0 in tokens, "We assume 0 is ID of the blank symbol"
 
     num_tokens = len(tokens)
@@ -134,3 +141,41 @@ def build_minimal_topo(tokens: List[int]) -> 'k2.Fsa':
     ans = k2.Fsa.from_str(arcs, num_aux_labels=1)
     ans = k2.arc_sort(ans)
     return ans
+
+
+class RnntEmissionAdapterBuilder(object):
+    """TBD
+    """
+
+    def __init__(self, tokens: List[int]):
+        assert -1 not in tokens, "We assume -1 is ID of the final transition"
+        assert 0 in tokens, "We assume 0 is ID of the epsilon symbol"
+        assert 1 in tokens, "We assume 1 is ID of the blank symbol"
+
+        self.tokens = tokens
+
+    def __call__(self, adapter_lengths: Union[torch.Tensor, List[int]]) -> 'k2.Fsa':
+        # if you don't make adapter_lengths a list beforehand,
+        # "i" will be implicitly converted to int, and this will always be considered a cache miss
+        return k2.create_fsa_vec([self._build_single_adapter(i) for i in adapter_lengths.tolist()])
+
+    @lru_cache(maxsize=1024)
+    def _build_single_adapter(self, adapter_length: int) -> 'k2.Fsa':
+        assert adapter_length >= 1, "`adapter_length` cannot be less than one"
+
+        num_states = len(self.tokens)
+        blank_num = 1
+        first_eps_state = adapter_length + 1
+        final_state = adapter_length * 2 + 1
+        arcs = ""
+        for i in range(adapter_length):
+            for j in range(2, num_states):
+                arcs += f"{i} {i + 1} {self.tokens[j]} 0.0\n"
+            arcs += f"{i} {first_eps_state} {blank_num} 0.0\n"
+        arcs += f"{adapter_length} {first_eps_state} {blank_num} 0.0\n"
+        for i in range(first_eps_state, final_state):
+            arcs += f"{i} {i + 1 if i < final_state - 1 else 0} 0 0.0\n"
+            arcs += f"{i} {final_state} -1 0.0\n"
+        arcs += f"{final_state}"
+
+        return k2.arc_sort(k2.Fsa.from_str(arcs, acceptor=True))
