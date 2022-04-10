@@ -21,6 +21,7 @@ from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextXNLIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 
 try:
@@ -48,7 +49,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
-
+        self.init_global_step = 0
         if stage == 'predict':
             return
 
@@ -60,6 +61,63 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self.setup_test_data()
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
+
+    def _process_global_batch(self, global_batch):
+        """ Prepares the global batch for apex fwd/bwd functions.
+            Global batch is a list of micro batches.
+        """
+        text_enc_list = []
+        text_dec_list = []
+        labels_list = []
+        loss_mask_list = []
+        enc_mask_list = []
+        dec_mask_list = []
+
+        # Determine the maximum encoder and decoder sequence lengths amongst microbatches and pad each microbatch to the max seq length.
+        # NOTE: This should only happen for model finetuning where we pad dynamically. Training uses fixed training shapes.
+
+        max_enc_seq_lenth = max([micro_batch['text_enc'].shape[1] for micro_batch in global_batch])
+        max_dec_seq_lenth = max([micro_batch['text_dec'].shape[1] for micro_batch in global_batch])
+
+        for micro_batch in global_batch:
+            text_enc, text_dec, loss_mask, labels, enc_mask, dec_mask = self.process_micro_batch(micro_batch)
+            # Check if encoder sequence length < max encoder sequence length of the global batch and pad.
+            if text_enc.shape[1] < max_enc_seq_lenth:
+                text_enc = torch.nn.functional.pad(
+                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                enc_mask = torch.nn.functional.pad(
+                    enc_mask, (0, max_enc_seq_lenth - enc_mask.shape[1], 0, 0), 'constant', 0
+                )
+            if text_dec.shape[1] < max_dec_seq_lenth:
+                text_dec = torch.nn.functional.pad(
+                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                dec_mask = torch.nn.functional.pad(
+                    dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
+                )
+                labels = torch.nn.functional.pad(
+                    labels, (0, max_dec_seq_lenth - labels.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                loss_mask = torch.nn.functional.pad(
+                    loss_mask, (0, max_dec_seq_lenth - loss_mask.shape[1], 0, 0), 'constant', 0
+                )
+            text_enc_list.append(text_enc)
+            text_dec_list.append(text_dec)
+            labels_list.append(labels)
+            loss_mask_list.append(loss_mask)
+            enc_mask_list.append(enc_mask)
+            dec_mask_list.append(dec_mask)
+
+        # Concatenate to (num_microbatches x micro_batch_size x seq_len)
+        tokens_enc_tensor = torch.concat(text_enc_list, dim=0)
+        tokens_dec_tensor = torch.concat(text_dec_list, dim=0)
+        labels_tensor = torch.concat(labels_list, dim=0)
+        loss_mask_tensor = torch.concat(loss_mask_list, dim=0)
+        enc_mask_tensor = torch.concat(enc_mask_list, dim=0)
+        dec_mask_tensor = torch.concat(dec_mask_list, dim=0)
+
+        return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor
 
     def process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
@@ -93,7 +151,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 langs_list,
             )
 
-    def on_validation_model_eval(self):
+    def on_validation_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -102,9 +160,9 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_eval()
+        return super().on_validation_epoch_start()
 
-    def on_validation_model_train(self):
+    def on_validation_epoch_end(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -113,7 +171,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_train()
+        return super().on_validation_epoch_end()
 
     def inference_step(self, batch, batch_idx):
         batch_has_lang_information = len(batch[0]) == 7
@@ -127,7 +185,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             processed_batch = batch
 
         # Call parent validation step to get the loss.
-        loss = super().validation_step(processed_batch, batch_idx, reconfigure_microbatch_size=True)
+        loss = super().validation_step(processed_batch, batch_idx)
 
         # Remainder of the code is to run the decoding loop, and compute accuracies.
         if batch_has_lang_information:
@@ -175,7 +233,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             averaged_loss = super().test_epoch_end(outputs)
         accuracy = self.acc_metric.compute()
-        self.log(f'{mode}_loss', averaged_loss)
+        # Loss is logged in the parent epoch end class.
         self.log(f'{mode}_acc', accuracy['acc'])
         if hasattr(self.cfg, 'eval_languages'):
             for lang in self.cfg.eval_languages:
@@ -309,3 +367,15 @@ class MegatronT5GLUEModel(MegatronT5Model):
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Finished building GLUE/XNLI datasets.')
+
+    def on_train_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_validation_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_test_start(self) -> None:
+        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
