@@ -211,7 +211,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_full2_test
+  exp_dir: ../exps/vits_full2_logs
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -220,7 +220,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_full2_test
+    name: vits_full2_fixed
     project: ${name}
     entity: nvidia
   resume_if_exists: false

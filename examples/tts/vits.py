@@ -29,12 +29,11 @@ def main(cfg):
         scaler = GradScaler(enabled=True)
         plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
-    trainer = pl.Trainer(plugins=plugins, replace_sampler_ddp=False, **cfg.trainer)
-    # trainer = pl.Trainer(plugins=plugins, **cfg.trainer)
+    trainer = pl.Trainer(resume_from_checkpoint=cfg.checkpoint_path, plugins=plugins, replace_sampler_ddp=False, **cfg.trainer)
+    # trainer = pl.Trainer(plugins=plugins, **cfg.trainer) 
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)
-    if cfg.checkpoint_path is not None:
-        model = VitsModel.load_from_checkpoint(cfg.checkpoint_path)
+
     trainer.callbacks.extend([pl.callbacks.LearningRateMonitor(), LogEpochTimeCallback()])
     trainer.fit(model)
 
