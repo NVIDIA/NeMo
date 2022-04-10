@@ -202,7 +202,7 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores(
-        emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
+        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """TBD
         """
@@ -254,7 +254,7 @@ class MAPLoss(MLLoss):
         return total_loss, valid_mask
 
 
-class CtcMmiLoss(MLLoss, CtcK2Mixin):
+class CtcMmiLoss(MAPLoss, CtcK2Mixin):
     """TBD
     """
 

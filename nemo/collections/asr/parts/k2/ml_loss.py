@@ -96,7 +96,7 @@ class MLLoss(torch.nn.Module):
         return emissions_graphs, supervision_graphs, supervisions
 
     def _intersect_calc_scores(
-        emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
+        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """TBD
         """

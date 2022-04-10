@@ -22,7 +22,6 @@ from nemo.collections.asr.parts.k2.utils import (
     create_supervision,
     get_arc_weights,
     get_uniform_rnnt_prune_ranges,
-    invert_permutation,
     make_blank_first,
     make_non_pad_mask,
     make_non_pad_mask_3d,
