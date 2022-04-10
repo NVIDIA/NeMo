@@ -20,12 +20,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
-from nemo.collections.asr.parts.k2.utils import (
-    invert_permutation,
-    load_graph,
-    shift_labels_inpl,
-)
-from nemo.core.utils.k2_guard import k2  # import k2 from guard module
+from nemo.collections.asr.parts.k2.utils import invert_permutation, load_graph, shift_labels_inpl
 from nemo.utils import logging
 
 
@@ -64,8 +59,8 @@ class BaseDecoder(object):
         self.topo_with_self_loops = topo_with_self_loops
         self.pad_fsavec = self.topo_type == "ctc_compact"
         self.intersect_conf = intersect_conf
-        self.graph_compiler = None # expected to be initialized in child classes
-        self.base_graph = None # expected to be initialized in child classes
+        self.graph_compiler = None  # expected to be initialized in child classes
+        self.base_graph = None  # expected to be initialized in child classes
         self.decoding_graph = None
 
     def to(self, device: torch.device):
@@ -116,7 +111,7 @@ class BaseDecoder(object):
             shift_labels_inpl([lats], -1)
         self.decoding_graph = None
 
-        order = supervisions[:,0]
+        order = supervisions[:, 0]
         if return_lattices:
             lats = k2.index_fsa(lats, invert_permutation(order).to(device=log_probs.device))
             if self.blank != 0:
@@ -157,8 +152,10 @@ class BaseDecoder(object):
         return_ilabels: bool = False,
         output_aligned: bool = True,
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        log_probs, supervisions, targets, target_lengths = self._prepare_log_probs_and_targets(log_probs, log_probs_length, targets, target_lengths)
-        order = supervisions[:,0].to(dtype=torch.long)
+        log_probs, supervisions, targets, target_lengths = self._prepare_log_probs_and_targets(
+            log_probs, log_probs_length, targets, target_lengths
+        )
+        order = supervisions[:, 0].to(dtype=torch.long)
         self.decoding_graph = self.graph_compiler.compile(targets[order], target_lengths[order])
         return self._decode_impl(
             log_probs,
@@ -188,6 +185,7 @@ class CtcDecoder(BaseDecoder, CtcK2Mixin):
             num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
         )
         from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler
+
         self.graph_compiler = CtcTopologyCompiler(
             self.num_classes, self.topo_type, self.topo_with_self_loops, self.device
         )
@@ -223,7 +221,14 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
         self.predictor_window_size = predictor_window_size
         self.predictor_step_size = predictor_step_size
         from nemo.collections.asr.parts.k2.graph_compilers import RnntTopologyCompiler
-        self.graph_compiler = RnntTopologyCompiler(self.num_classes, self.topo_type, self.topo_with_self_loops, self.device, max_adapter_length=self.predictor_window_size)
+
+        self.graph_compiler = RnntTopologyCompiler(
+            self.num_classes,
+            self.topo_type,
+            self.topo_with_self_loops,
+            self.device,
+            max_adapter_length=self.predictor_window_size,
+        )
         self.base_graph = self.graph_compiler.base_graph
 
     def decode(

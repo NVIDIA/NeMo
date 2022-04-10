@@ -161,10 +161,10 @@ class ViterbiDecoderWithGraph(NeuralModule):
                 begin = batch_idx
                 end = min(begin + self.split_batch_size, batch_size)
                 log_probs_length_part = log_probs_length[begin:end]
-                log_probs_part = log_probs[begin:end, :log_probs_length_part.max()].contiguous()
+                log_probs_part = log_probs[begin:end, : log_probs_length_part.max()].contiguous()
                 if align:
                     target_length_part = target_length[begin:end]
-                    targets_part = targets[begin:end, :target_length_part.max()].contiguous()
+                    targets_part = targets[begin:end, : target_length_part.max()].contiguous()
                     predictions_part, probs_part = decode_func(
                         log_probs_part, log_probs_length_part, targets_part, target_length_part
                     )

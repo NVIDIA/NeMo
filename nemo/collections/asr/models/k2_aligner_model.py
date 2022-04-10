@@ -115,11 +115,34 @@ class AlignerWrapperModel(ASRModel):
             self.predictor_step_size = cfg.rnnt_cfg.get("predictor_step_size", 0)
 
             from nemo.collections.asr.parts.k2.utils import apply_rnnt_prune_ranges, get_uniform_rnnt_prune_ranges
-            self.prepare_pruned_outputs = lambda encoder_outputs, encoded_len, decoder_outputs, transcript_len: apply_rnnt_prune_ranges(encoder_outputs, decoder_outputs, get_uniform_rnnt_prune_ranges(encoded_len, transcript_len, self.predictor_window_size + 1, self.predictor_step_size, encoder_outputs.size(1)), self.predictor_window_size + 1)
+
+            self.prepare_pruned_outputs = lambda encoder_outputs, encoded_len, decoder_outputs, transcript_len: apply_rnnt_prune_ranges(
+                encoder_outputs,
+                decoder_outputs,
+                get_uniform_rnnt_prune_ranges(
+                    encoded_len,
+                    transcript_len,
+                    self.predictor_window_size + 1,
+                    self.predictor_step_size,
+                    encoder_outputs.size(1),
+                ),
+                self.predictor_window_size + 1,
+            )
 
             from nemo.collections.asr.parts.k2.classes import GraphModuleConfig
+
             self.graph_decoder = ViterbiDecoderWithGraph(
-                num_classes=self.blank_id, backend="k2", dec_type="topo_rnnt_ali", split_batch_size=self.decode_batch_size, graph_module_cfg=OmegaConf.structured(GraphModuleConfig(topo_type="minimal", predictor_window_size=self.predictor_window_size, predictor_step_size=self.predictor_step_size)),
+                num_classes=self.blank_id,
+                backend="k2",
+                dec_type="topo_rnnt_ali",
+                split_batch_size=self.decode_batch_size,
+                graph_module_cfg=OmegaConf.structured(
+                    GraphModuleConfig(
+                        topo_type="minimal",
+                        predictor_window_size=self.predictor_window_size,
+                        predictor_step_size=self.predictor_step_size,
+                    )
+                ),
             )
             # override decoder args if a config is provided
             decoder_module_cfg = cfg.get("decoder_module_cfg", None)
@@ -177,13 +200,21 @@ class AlignerWrapperModel(ASRModel):
 
         raise RuntimeError(f"Unsupported model type: {type(self._model)}")
 
-    def _rnnt_joint_pruned(self, encoder_outputs: torch.Tensor, encoded_len: torch.Tensor, decoder_outputs: torch.Tensor, transcript_len: torch.Tensor) -> torch.Tensor:
+    def _rnnt_joint_pruned(
+        self,
+        encoder_outputs: torch.Tensor,
+        encoded_len: torch.Tensor,
+        decoder_outputs: torch.Tensor,
+        transcript_len: torch.Tensor,
+    ) -> torch.Tensor:
         """TBD
         """
         encoder_outputs = self._model.joint.enc(encoder_outputs.transpose(1, 2))  # (B, T, H)
-        decoder_outputs = self._model.joint.pred(decoder_outputs.transpose(1, 2)) # (B, U, H)
+        decoder_outputs = self._model.joint.pred(decoder_outputs.transpose(1, 2))  # (B, U, H)
 
-        encoder_outputs_pruned, decoder_outputs_pruned = self.prepare_pruned_outputs(encoder_outputs, encoded_len, decoder_outputs, transcript_len)
+        encoder_outputs_pruned, decoder_outputs_pruned = self.prepare_pruned_outputs(
+            encoder_outputs, encoded_len, decoder_outputs, transcript_len
+        )
         res = self._model.joint.joint_net(encoder_outputs_pruned + decoder_outputs_pruned)
         # copied from model.joint.joint(...)
         if self._model.joint.log_softmax is None:
@@ -247,12 +278,19 @@ class AlignerWrapperModel(ASRModel):
         return predictions, probs
 
     def _predict_impl_rnnt_argmax(
-        self, encoded: torch.Tensor, encoded_len: torch.Tensor, transcript: torch.Tensor, transcript_len: torch.Tensor, sample_id: torch.Tensor
+        self,
+        encoded: torch.Tensor,
+        encoded_len: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_len: torch.Tensor,
+        sample_id: torch.Tensor,
     ) -> List[Tuple[int, 'FrameCtmUnit']]:
         """TBD
         """
-        
-        hypotheses = self._model.decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)[0]
+
+        hypotheses = self._model.decoding.rnnt_decoder_predictions_tensor(
+            encoded, encoded_len, return_hypotheses=True
+        )[0]
         results = []
         for s_id, hypothesis in zip(sample_id, hypotheses):
             pred_ids = hypothesis.y_sequence.tolist()
@@ -260,7 +298,7 @@ class AlignerWrapperModel(ASRModel):
             token_begin = hypothesis.timestep
             token_len = [j - i for i, j in zip(token_begin, token_begin[1:] + [len(hypothesis.alignments)])]
             # we have no token probabilities for the argmax rnnt setup
-            token_prob = [1.] * len(tokens)
+            token_prob = [1.0] * len(tokens)
             if self.word_output:
                 words = [w for w in self._model.decoding.decode_tokens_to_str(pred_ids).split(" ") if w != ""]
                 words, word_begin, word_len, word_prob = (
@@ -268,9 +306,16 @@ class AlignerWrapperModel(ASRModel):
                     if hasattr(self._model, "tokenizer")
                     else self._process_char_with_space_to_words(tokens, token_begin, token_len, token_prob, words)
                 )
-                results.append((s_id, [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(words, word_begin, word_len, word_prob)]))
+                results.append(
+                    (s_id, [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(words, word_begin, word_len, word_prob)])
+                )
             else:
-                results.append((s_id, [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(tokens, token_begin, token_len, token_prob)]))
+                results.append(
+                    (
+                        s_id,
+                        [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(tokens, token_begin, token_len, token_prob)],
+                    )
+                )
         return results
 
     def _process_tokens_to_words(
@@ -385,7 +430,10 @@ class AlignerWrapperModel(ASRModel):
         tokens = wer_module.decode_ids_to_tokens(pred_ids)
         token_len = (token_end - token_begin).tolist()
         token_begin = token_begin.tolist()
-        token_prob = [sum(prob_list[i:j]) / (j - i) for i, j in zip(non_blank_idx.tolist(), non_blank_idx[1:].tolist() + [len(pred)])]
+        token_prob = [
+            sum(prob_list[i:j]) / (j - i)
+            for i, j in zip(non_blank_idx.tolist(), non_blank_idx[1:].tolist() + [len(pred)])
+        ]
         if self.word_output:
             words = wer_module.decode_tokens_to_str(pred_ids).split(" ")
             words, word_begin, word_len, word_prob = (
@@ -396,7 +444,14 @@ class AlignerWrapperModel(ASRModel):
             return s_id, [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(words, word_begin, word_len, word_prob)]
         return s_id, [FrameCtmUnit(t, b, l, p) for t, b, l, p in zip(tokens, token_begin, token_len, token_prob)]
 
-    def _predict_impl_ctc(self, encoded: torch.Tensor, encoded_len: torch.Tensor, transcript: torch.Tensor, transcript_len: torch.Tensor, sample_id: torch.Tensor) -> List[Tuple[int, 'FrameCtmUnit']]:
+    def _predict_impl_ctc(
+        self,
+        encoded: torch.Tensor,
+        encoded_len: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_len: torch.Tensor,
+        sample_id: torch.Tensor,
+    ) -> List[Tuple[int, 'FrameCtmUnit']]:
         """TBD
         """
         log_probs = encoded
@@ -423,14 +478,25 @@ class AlignerWrapperModel(ASRModel):
             for s_id, pred, prob in zip(sample_id.tolist(), predictions, probs)
         ]
 
-    def _predict_impl_rnnt(self, encoded: torch.Tensor, encoded_len: torch.Tensor, transcript: torch.Tensor, transcript_len: torch.Tensor, sample_id: torch.Tensor) -> List[Tuple[int, 'FrameCtmUnit']]:
+    def _predict_impl_rnnt(
+        self,
+        encoded: torch.Tensor,
+        encoded_len: torch.Tensor,
+        transcript: torch.Tensor,
+        transcript_len: torch.Tensor,
+        sample_id: torch.Tensor,
+    ) -> List[Tuple[int, 'FrameCtmUnit']]:
         """TBD
         """
         if self.alignment_type == "argmax":
             return self._predict_impl_rnnt_argmax(encoded, encoded_len, transcript, transcript_len, sample_id)
         elif self.alignment_type == "forced":
             decoded = self._model.decoder(targets=transcript, target_length=transcript_len)[0]
-            log_probs = self._rnnt_joint_pruned(encoded, encoded_len, decoded, transcript_len) if self.predictor_window_size > 0 and self.predictor_window_size < transcript_len.max() else self._model.joint(encoder_outputs=encoded, decoder_outputs=decoded)
+            log_probs = (
+                self._rnnt_joint_pruned(encoded, encoded_len, decoded, transcript_len)
+                if self.predictor_window_size > 0 and self.predictor_window_size < transcript_len.max()
+                else self._model.joint(encoder_outputs=encoded, decoder_outputs=decoded)
+            )
             apply_log_softmax = True if self.log_softmax is None and encoded.is_cuda else self.log_softmax
             if apply_log_softmax:
                 log_probs = log_probs.log_softmax(dim=-1)

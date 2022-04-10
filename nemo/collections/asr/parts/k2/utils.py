@@ -82,11 +82,15 @@ def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
     return mask
 
 
-def make_non_pad_mask_3d(lengths_x: torch.Tensor, lengths_y: torch.Tensor, max_length_x: int, max_length_y: int) -> torch.Tensor:
+def make_non_pad_mask_3d(
+    lengths_x: torch.Tensor, lengths_y: torch.Tensor, max_length_x: int, max_length_y: int
+) -> torch.Tensor:
     """TBD
     """
     assert lengths_x.size() == lengths_y.size()
-    return make_non_pad_mask(lengths_x, max_length_x).unsqueeze(2) & make_non_pad_mask(lengths_y, max_length_y).unsqueeze(1)
+    return make_non_pad_mask(lengths_x, max_length_x).unsqueeze(2) & make_non_pad_mask(
+        lengths_y, max_length_y
+    ).unsqueeze(1)
 
 
 def ragged_to_tensor_2axes_simple(rt: k2.RaggedTensor) -> Optional[torch.Tensor]:
@@ -248,24 +252,45 @@ def get_tot_objf_and_finite_mask(tot_scores: torch.Tensor, reduction: str) -> Tu
     return tot_scores, finite_mask
 
 
-def get_uniform_rnnt_prune_ranges(encoded_lengths: torch.Tensor, target_lengths: torch.Tensor, window_size_with_blank: int, step: int = 1, max_seq_len: Optional[int] = None, begin_only: bool = False) -> torch.Tensor:
+def get_uniform_rnnt_prune_ranges(
+    encoded_lengths: torch.Tensor,
+    target_lengths: torch.Tensor,
+    window_size_with_blank: int,
+    step: int = 1,
+    max_seq_len: Optional[int] = None,
+    begin_only: bool = False,
+) -> torch.Tensor:
     """TBD
     """
     assert window_size_with_blank > 1
     assert step >= 1
     assert window_size_with_blank > step
     assert len(encoded_lengths) == len(target_lengths)
-    ranges_begin = torch.zeros((len(encoded_lengths), encoded_lengths.max() if max_seq_len is None else max(max_seq_len, encoded_lengths.max())), dtype=torch.long)
+    ranges_begin = torch.zeros(
+        (
+            len(encoded_lengths),
+            encoded_lengths.max() if max_seq_len is None else max(max_seq_len, encoded_lengths.max()),
+        ),
+        dtype=torch.long,
+    )
     for i in (target_lengths >= window_size_with_blank).nonzero(as_tuple=True)[0]:
         encoded_len = encoded_lengths[i]
         ranges_begin_raw = torch.arange(int((target_lengths[i] - window_size_with_blank) / step + 2)) * step
         ranges_begin_raw[-1] = target_lengths[i] - window_size_with_blank + 1
-        ranges_begin[i, :encoded_len] = torch.nn.functional.interpolate(ranges_begin_raw.reshape(1, 1, -1).to(dtype=torch.float), encoded_len, mode="nearest-exact").to(dtype=torch.long)
+        ranges_begin[i, :encoded_len] = torch.nn.functional.interpolate(
+            ranges_begin_raw.reshape(1, 1, -1).to(dtype=torch.float), encoded_len, mode="nearest-exact"
+        ).to(dtype=torch.long)
         ranges_begin[i, encoded_len:] = ranges_begin[i, encoded_len - 1]
-    return ranges_begin if begin_only else ranges_begin.unsqueeze(-1).repeat(1, 1, window_size_with_blank) + torch.arange(window_size_with_blank)
+    return (
+        ranges_begin
+        if begin_only
+        else ranges_begin.unsqueeze(-1).repeat(1, 1, window_size_with_blank) + torch.arange(window_size_with_blank)
+    )
 
 
-def apply_rnnt_prune_ranges(encoder_outputs: torch.Tensor, decoder_outputs: torch.Tensor, ranges: torch.Tensor, window_size_with_blank: int) -> Tuple[torch.Tensor, torch.Tensor]:
+def apply_rnnt_prune_ranges(
+    encoder_outputs: torch.Tensor, decoder_outputs: torch.Tensor, ranges: torch.Tensor, window_size_with_blank: int
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Prepare pruned encoder and decoder outputs according to the prune ranges.
     Based on k2.do_rnnt_pruning(...)
     """

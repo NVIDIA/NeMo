@@ -199,8 +199,10 @@ class EncDecK2RnntSeqModel(EncDecRNNTModel, ASRK2Mixin):
         loss_type = cfg.graph_module_cfg.get("loss_type", "rnnt")
         criterion_type = cfg.graph_module_cfg.get("criterion_type", "ml")
         if loss_type != "rnnt" or criterion_type != "ml":
-            raise ValueError(f"""Class {self.__class__.__name__} does not support 
-            `criterion_type`={criterion_type} with `loss_type`={loss_type}""")
+            raise ValueError(
+                f"""Class {self.__class__.__name__} does not support 
+            `criterion_type`={criterion_type} with `loss_type`={loss_type}"""
+            )
         super().__init__(cfg=cfg, trainer=trainer)
         self._init_k2()
 
@@ -250,8 +252,10 @@ class EncDecK2RnntSeqModelBPE(EncDecRNNTBPEModel, ASRK2Mixin):
         loss_type = cfg.graph_module_cfg.get("loss_type", "rnnt")
         criterion_type = cfg.graph_module_cfg.get("criterion_type", "ml")
         if loss_type != "rnnt" or criterion_type != "ml":
-            raise ValueError(f"""Class {self.__class__.__name__} does not support 
-            `criterion_type`={criterion_type} with `loss_type`={loss_type}""")
+            raise ValueError(
+                f"""Class {self.__class__.__name__} does not support 
+            `criterion_type`={criterion_type} with `loss_type`={loss_type}"""
+            )
         super().__init__(cfg=cfg, trainer=trainer)
         self._init_k2()
 

@@ -70,7 +70,14 @@ class MAPLoss(MLLoss):
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         boost_coeff: float = 0.0,
     ):
-        super().__init__(num_classes=num_classes, blank=blank, reduction=reduction, cfg=cfg, topo_type=topo_type, topo_with_self_loops=topo_with_self_loops)
+        super().__init__(
+            num_classes=num_classes,
+            blank=blank,
+            reduction=reduction,
+            cfg=cfg,
+            topo_type=topo_type,
+            topo_with_self_loops=topo_with_self_loops,
+        )
         if cfg is not None:
             token_lm = cfg.get("token_lm", token_lm)
             intersect_pruned = cfg.get("intersect_pruned", intersect_pruned)
@@ -81,7 +88,7 @@ class MAPLoss(MLLoss):
             self._intersect_calc_scores_impl_pruned if intersect_pruned else self._intersect_calc_scores_impl_exact_opt
         )
         self.intersect_conf = intersect_conf
-        self.graph_compiler = None # expected to be initialized in .update_graph(...)
+        self.graph_compiler = None  # expected to be initialized in .update_graph(...)
         if token_lm is None:
             logging.warning(
                 f"""token_lm is empty. 
@@ -194,7 +201,9 @@ class MAPLoss(MLLoss):
         else:
             return num_tot_scores, den_tot_scores, None, None
 
-    def _intersect_calc_scores(emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _intersect_calc_scores(
+        emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """TBD
         """
         boosted = self.boost_coeff != 0.0
@@ -202,7 +211,7 @@ class MAPLoss(MLLoss):
             dense_fsa_vec, supervision_graphs[0], supervision_graphs[1], boosted
         )
 
-        inverted_batch_order = invert_permutation(supervisions[:,0].to(dtype=torch.long))
+        inverted_batch_order = invert_permutation(supervisions[:, 0].to(dtype=torch.long))
         self.__batch_order = None
         tot_scores = (num_tot_scores - den_tot_scores)[inverted_batch_order]
         mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(tot_scores, self.reduction)
@@ -236,7 +245,9 @@ class MAPLoss(MLLoss):
 
             acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(acc_loss, self.reduction)
             valid_mask = mmi_valid_mask & acc_valid_mask
-            total_loss = self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask] - mmi_tot_scores[valid_mask]
+            total_loss = (
+                self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask] - mmi_tot_scores[valid_mask]
+            )
         else:
             valid_mask = mmi_valid_mask
             total_loss = -mmi_tot_scores[mmi_valid_mask]
@@ -260,7 +271,18 @@ class CtcMmiLoss(MLLoss, CtcK2Mixin):
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         boost_coeff: float = 0.0,
     ):
-        super().__init__(num_classes=num_classes, blank=blank, reduction=reduction, cfg=cfg, topo_type=topo_type, topo_with_self_loops=topo_with_self_loops, token_lm=token_lm, intersect_pruned=intersect_pruned, intersect_conf=intersect_conf, boost_coeff=boost_coeff)
+        super().__init__(
+            num_classes=num_classes,
+            blank=blank,
+            reduction=reduction,
+            cfg=cfg,
+            topo_type=topo_type,
+            topo_with_self_loops=topo_with_self_loops,
+            token_lm=token_lm,
+            intersect_pruned=intersect_pruned,
+            intersect_conf=intersect_conf,
+            boost_coeff=boost_coeff,
+        )
 
     def update_graph(self, graph: 'k2.Fsa'):
         self.lm_graph = graph
@@ -273,4 +295,5 @@ class CtcMmiLoss(MLLoss, CtcK2Mixin):
         if self.pad_fsavec:
             shift_labels_inpl([lm_graph], 1)
         from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
+
         self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph)

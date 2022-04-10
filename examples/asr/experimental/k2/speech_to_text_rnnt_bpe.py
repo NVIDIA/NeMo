@@ -66,8 +66,8 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.configs.k2_sequence_models_config import EncDecK2SeqModelConfig
 from nemo.collections.asr.models import EncDecK2RnntSeqModelBPE
+from nemo.collections.asr.models.configs.k2_sequence_models_config import EncDecK2SeqModelConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

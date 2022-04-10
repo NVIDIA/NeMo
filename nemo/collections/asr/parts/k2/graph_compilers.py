@@ -52,6 +52,7 @@ class CtcTopologyCompiler(object):
         self.topo_type = topo_type
         self.device = device
         from nemo.collections.asr.parts.k2.topologies import build_topo
+
         self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_self_loops)).to(
             self.device
         )
@@ -169,6 +170,7 @@ class RnntTopologyCompiler(CtcTopologyCompiler):
     ):
         super().__init__(num_classes + 1, topo_type, topo_with_self_loops, device)
         from nemo.collections.asr.parts.k2.topologies import RnntEmissionAdapterBuilder
+
         self.max_adapter_length = max_adapter_length
         self._builder = RnntEmissionAdapterBuilder(list(range(num_classes + 1)))
 
@@ -177,5 +179,9 @@ class RnntTopologyCompiler(CtcTopologyCompiler):
         supervision_graphs.labels = supervision_graphs.labels + 1
         supervision_graphs = k2.add_epsilon_self_loops(supervision_graphs)
 
-        adapters = self._builder(torch.where(target_lengths > self.max_adapter_length, self.max_adapter_length, target_lengths) if self.max_adapter_length > 0 and self.max_adapter_length < target_lengths.max() else target_lengths).to(device=self.device)
+        adapters = self._builder(
+            torch.where(target_lengths > self.max_adapter_length, self.max_adapter_length, target_lengths)
+            if self.max_adapter_length > 0 and self.max_adapter_length < target_lengths.max()
+            else target_lengths
+        ).to(device=self.device)
         return k2.intersect(adapters, supervision_graphs, treat_epsilons_specially=False)

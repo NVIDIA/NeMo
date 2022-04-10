@@ -62,7 +62,11 @@ class CtcK2Mixin(ABC):
     def _prepare_emissions_graphs(self, log_probs: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
         """TBD
         """
-        return prep_padded_densefsavec(log_probs, supervisions) if self.pad_fsavec else k2.DenseFsaVec(log_probs, supervisions)
+        return (
+            prep_padded_densefsavec(log_probs, supervisions)
+            if self.pad_fsavec
+            else k2.DenseFsaVec(log_probs, supervisions)
+        )
 
     def _normalize_gradients(self, log_probs: torch.Tensor, input_lengths: torch.Tensor) -> torch.Tensor:
         """PyTorch is doing the log-softmax normalization as part of the CTC computation.
@@ -70,7 +74,9 @@ class CtcK2Mixin(ABC):
         """
         return GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction != "sum" else "none")
 
-    def _extract_labels_and_probabilities(self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def _extract_labels_and_probabilities(
+        self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """TBD
         """
         shortest_paths = []
@@ -109,30 +115,48 @@ class RnntK2Mixin(CtcK2Mixin):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """TBD
         """
-        assert len(log_probs.size()) == 4 # B T U D
+        assert len(log_probs.size()) == 4  # B T U D
         B, T, U, D = log_probs.size()
         TU = T * U
 
         # save step indices if, as we assume, decoder output pruning has been applied
         if self.predictor_window_size > 0 and self.predictor_window_size < target_lengths.max():
             window_size_with_blank = self.predictor_window_size + 1
-            ranges_begin = get_uniform_rnnt_prune_ranges(input_lengths, target_lengths, window_size_with_blank, self.predictor_step_size, T, True)
-            step_sizes = ranges_begin[:,1:] - ranges_begin[:,:-1]
+            ranges_begin = get_uniform_rnnt_prune_ranges(
+                input_lengths, target_lengths, window_size_with_blank, self.predictor_step_size, T, True
+            )
+            step_sizes = ranges_begin[:, 1:] - ranges_begin[:, :-1]
             raw_step_indices = torch.where(step_sizes > 0)
             if self.predictor_step_size > 1:
-                raw_step_indices = torch.repeat_interleave(torch.stack(raw_step_indices).T, step_sizes[raw_step_indices], dim=0).T
+                raw_step_indices = torch.repeat_interleave(
+                    torch.stack(raw_step_indices).T, step_sizes[raw_step_indices], dim=0
+                ).T
                 raw_step_indices = (raw_step_indices[0], raw_step_indices[1])
             unique, count = torch.unique(raw_step_indices[0], return_counts=True)
             shift_mask = raw_step_indices[0].unsqueeze(0).repeat(len(unique), 1) == unique.unsqueeze(-1)
-            step_indices = (raw_step_indices[0], (torch.arange(ranges_begin.size(1)).unsqueeze(0).repeat(ranges_begin.size(0), 1) * window_size_with_blank)[(raw_step_indices[0], raw_step_indices[1] + 1)] + torch.cumsum(shift_mask, 1)[shift_mask] - 1)
+            step_indices = (
+                raw_step_indices[0],
+                (
+                    torch.arange(ranges_begin.size(1)).unsqueeze(0).repeat(ranges_begin.size(0), 1)
+                    * window_size_with_blank
+                )[(raw_step_indices[0], raw_step_indices[1] + 1)]
+                + torch.cumsum(shift_mask, 1)[shift_mask]
+                - 1,
+            )
             max_count = count.max()
             max_count_vec = torch.full((B,), max_count)
             max_count_vec[unique] -= count
             pad_indices_row = torch.repeat_interleave(torch.arange(B), max_count_vec)
             pad_unique = torch.unique(pad_indices_row)
             pad_shift_mask = pad_indices_row.unsqueeze(0).repeat(len(pad_unique), 1) == pad_unique.unsqueeze(-1)
-            pad_indices = (pad_indices_row, T * window_size_with_blank + max_count - torch.cumsum(pad_shift_mask, 1)[pad_shift_mask])
-            self.__step_indices = (torch.cat((step_indices[0], pad_indices[0])), torch.cat((step_indices[1], pad_indices[1])))
+            pad_indices = (
+                pad_indices_row,
+                T * window_size_with_blank + max_count - torch.cumsum(pad_shift_mask, 1)[pad_shift_mask],
+            )
+            self.__step_indices = (
+                torch.cat((step_indices[0], pad_indices[0])),
+                torch.cat((step_indices[1], pad_indices[1])),
+            )
             self.__supervisions_add = max_count - max_count_vec
         else:
             self.__step_indices = None
@@ -155,22 +179,31 @@ class RnntK2Mixin(CtcK2Mixin):
         """TBD
         """
         if self.__step_indices is None or self.__supervisions_add is None:
-            log_probs_eps = torch.cat((log_probs, torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device)), dim=2)
+            log_probs_eps = torch.cat(
+                (log_probs, torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device)), dim=2
+            )
         else:
-            mask = torch.zeros((log_probs.size(0), log_probs.size(1) + int(len(self.__step_indices[0]) / log_probs.size(0))), dtype=torch.bool)
+            mask = torch.zeros(
+                (log_probs.size(0), log_probs.size(1) + int(len(self.__step_indices[0]) / log_probs.size(0))),
+                dtype=torch.bool,
+            )
             mask[self.__step_indices] = True
             log_probs_eps = torch.zeros((mask.size(0), mask.size(1), log_probs.size(2) + 1), device=log_probs.device)
-            log_probs_eps[mask] = torch.tensor([0] + [torch.finfo(torch.float32).min] * log_probs.size(2), device=log_probs.device)
-            log_probs_eps[~mask] = torch.cat((torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device), log_probs), dim=2).view(-1, log_probs.size(-1) + 1)
-            input_lengths = supervisions[:,-1] + self.__supervisions_add[supervisions[:,0].to(dtype=torch.long)]
-            if not torch.all(input_lengths[:-1] - input_lengths[1:] >= 0): 
+            log_probs_eps[mask] = torch.tensor(
+                [0] + [torch.finfo(torch.float32).min] * log_probs.size(2), device=log_probs.device
+            )
+            log_probs_eps[~mask] = torch.cat(
+                (torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device), log_probs), dim=2
+            ).view(-1, log_probs.size(-1) + 1)
+            input_lengths = supervisions[:, -1] + self.__supervisions_add[supervisions[:, 0].to(dtype=torch.long)]
+            if not torch.all(input_lengths[:-1] - input_lengths[1:] >= 0):
                 # have to reorder supervisions inplace
                 order = torch.argsort(input_lengths, descending=True)
                 # the second column is assumed to be zero
-                supervisions[:,0] = supervisions[order,0]
-                supervisions[:,-1] = input_lengths[order]
+                supervisions[:, 0] = supervisions[order, 0]
+                supervisions[:, -1] = input_lengths[order]
             else:
-                supervisions[:,-1] = input_lengths
+                supervisions[:, -1] = input_lengths
             self.__step_indices = None
             self.__supervisions_add = None
         return k2.DenseFsaVec(log_probs_eps, supervisions)
@@ -180,8 +213,9 @@ class RnntK2Mixin(CtcK2Mixin):
         """
         return GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction == "mean" else "none")
 
-
-    def _extract_labels_and_probabilities(self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+    def _extract_labels_and_probabilities(
+        self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         """TBD
         """
         shortest_paths = []
