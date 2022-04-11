@@ -16,7 +16,6 @@
 import os
 
 import pandas as pd
-from distance import jaccard
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
@@ -76,7 +75,6 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
 
         all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
         all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))
-
         for i in idxs:
             raw_example = raw_examples[i]
             utterances = [raw_example['example_{}'.format(i)] for i in range(1, 4)]
