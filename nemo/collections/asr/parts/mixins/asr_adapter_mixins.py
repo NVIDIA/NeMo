@@ -17,11 +17,11 @@ from typing import List, Optional
 
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
 from nemo.utils import logging
 
 
-class ASREncoderAdapterModelMixin(AdapterModuleMixin):
+class ASREncoderAdapterModelMixin(AdapterModelPTMixin):
     """ ASR Adapter Mixin that can augment any Encoder module with Adapter module support.
 
     This mixin class should be used only with a top level ModelPT subclass, that includes an `encoder` submodule.
@@ -53,17 +53,7 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
         if not hasattr(self, 'encoder') or not isinstance(self.encoder, AdapterModuleMixin):
             return
 
-        # Test if `adapters` is part of the config (injected from previous Adapter additions)
-        if 'adapters' in self.cfg:
-            # Set the global config of adapters
-            self._update_adapter_cfg(self.cfg.adapters)
-
-            # Dispatch the call to the encoder, for every adapter contained in the config.
-            for adapter_name, adapter_cfg in self.cfg.adapters.items():
-                self.add_adapter(name=adapter_name, cfg=adapter_cfg)
-                logging.info(
-                    f"Finished setup of adapter : '{adapter_name}'. Enabled: {adapter_cfg.get('enabled', True)}."
-                )
+        super().setup_encoder_adapters()
 
     def add_adapter(self, name: str, cfg: DictConfig):
         """
@@ -73,28 +63,10 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
             cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
         """
-        self._check_valid_model_with_adapter_support()
-
-        # Convert to DictConfig from dict or Dataclass
-        if is_dataclass(cfg):
-            cfg = OmegaConf.structured(cfg)
-
-        if not isinstance(cfg, DictConfig):
-            cfg = DictConfig(cfg)
+        super().add_adapter(name=name, cfg=cfg)
 
         # Update the model.cfg with information about the new adapter from cfg
-        with open_dict(cfg), open_dict(self.cfg):
-            if 'adapters' not in self.cfg:
-                self.cfg.adapters = OmegaConf.create({})
-
-            if 'enabled' not in cfg:
-                cfg['enabled'] = True
-
-            self.cfg.adapters[name] = OmegaConf.create(cfg)
-
-            # Set the global config of adapters
-            self._update_adapter_cfg(self.cfg.adapters)
-
+        with open_dict(self.cfg):
             # Dispatch the call to the encoder.
             self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
 
@@ -106,8 +78,8 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
             bool, determining if any Adapter module has been instantiated. Returns true even if the adapters are
             enabled or disabled, false only if no adapters exist.
         """
-        self._check_valid_model_with_adapter_support()
-        return self.encoder.is_adapter_available()
+        config_contains_adapter = super().is_adapter_available()
+        return self.encoder.is_adapter_available() and config_contains_adapter
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         """
@@ -127,25 +99,10 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
                 If no name is given, then all adapters will be enabled/disabled.
             enabled: Bool, determines if the adapter(s) will be enabled/disabled.
         """
-        self._check_valid_model_with_adapter_support()
+        super().set_enabled_adapters(name=name, enabled=enabled)
 
-        # Update the adapter config with information about whether it is enabled/disabled.
-        with open_dict(self.cfg.adapters):
-            # If no name is provided, update all adapters.
-            if name is None:
-                for key in self.cfg.adapters.keys():
-                    self.cfg.adapters[key]['enabled'] = enabled
-                    logging.info(f"Setting adapter '{key}' status : Enabled = {enabled}")
-
-            else:
-                # Otherwise, update just the specified adapter.
-                self.cfg.adapters[name]['enabled'] = enabled
-                logging.info(f"Setting adapter '{name}' status : Enabled = {enabled}")
-
-            self._update_adapter_cfg(self.cfg.adapters)
-
-            # Dispatch the call to the encoder.
-            self.encoder.set_enabled_adapters(name=name, enabled=enabled)
+        # Dispatch the call to the encoder.
+        self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -154,9 +111,8 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
         Returns:
             A list of str names of each enabled adapter(s).
         """
-        self._check_valid_model_with_adapter_support()
-
-        enabled_adapters = self.encoder.get_enabled_adapters()
+        enabled_adapters = super().get_enabled_adapters()
+        enabled_adapters.extend(self.encoder.get_enabled_adapters())
         return enabled_adapters
 
     def _check_valid_model_with_adapter_support(self):
@@ -168,16 +124,3 @@ class ASREncoderAdapterModelMixin(AdapterModuleMixin):
 
         if not isinstance(self.encoder, AdapterModuleMixin):
             raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
-
-    def _update_adapter_cfg(self, cfg: DictConfig):
-        """
-        Utility method to recursively update all of the Adapter module configs with the provided config.
-        **Note**: It is not a (deep)copy, but a reference copy. Changes made to the config will be reflected to
-            adapter submodules, but it is still encouraged to explicitly update the adapter_cfg using this method.
-
-        Args:
-            cfg: DictConfig containing the value of `model.cfg.adapters`.
-        """
-        for module in self.modules():  # access PT subclass method via inheritance
-            if isinstance(module, AdapterModuleMixin):
-                module.adapter_cfg = cfg
