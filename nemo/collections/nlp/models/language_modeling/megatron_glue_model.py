@@ -47,7 +47,6 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):
-        import ipdb; ipdb.set_trace()
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
         self.init_global_step = 0
@@ -173,6 +172,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
+        # When running `trainer.validate()`, the training dataset is not available.
         else:
             logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
             _reconfigure_microbatch_calculator(
@@ -293,7 +293,8 @@ class MegatronT5GLUEModel(MegatronT5Model):
         # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.
         # The consequence of not doing this is that training loop will never run validation.
         # NOTE: Prog bar is also broken as a result of this.
-        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size) and check_validation_interval:
+        global_batch_size_per_data_parallel_rank = global_batch_size // parallel_state.get_data_parallel_world_size()
+        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_data_parallel_rank) and check_validation_interval:
             raise ValueError(
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
