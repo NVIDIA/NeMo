@@ -839,6 +839,7 @@ pipeline {
             model.dataset.dialogues_example_dir=design_zero_shot_intent_classification_outputs \
             model.dataset.task=design \
             model.dataset.prompt_template="This example is" \
+            model.library=megatron \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \
             model.train_ds.batch_size=2 \

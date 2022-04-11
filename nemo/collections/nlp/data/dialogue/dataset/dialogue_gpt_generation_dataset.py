@@ -47,9 +47,9 @@ class DialogueGPTGenerationDataset(Dataset):
 
     def remove_invalid_samples(self, features):
         valid_idxs = []
+        all_fields = self.input_label_type.split('+') + self.output_label_type.split('+')
         for i in range(len(features)):
             features[i].data["labels"]["utterance"] = features[i].data["utterance"]
-            all_fields = self.input_label_type.split('+') + self.output_label_type.split('+')
             all_fields_non_empty = True
             for field in all_fields:
                 if not features[i].data["labels"][field] or not features[i].data["labels"][field].strip():

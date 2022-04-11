@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
@@ -47,12 +48,22 @@ class ZeroShotIntentModel(TextClassificationModel):
         # cannot directly load as .nemo uses the pre-refactor model
         # therefore transfer its attributes over
 
-        if self.cfg.original_nemo_checkpoint is not None:
+        if self.cfg.library == 'megatron':
+            if self.cfg.original_nemo_checkpoint is not None:
+                original_model = ZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
+                self.classifier = original_model.classifier
+                self.bert_model = original_model.bert_model
+                self.loss = original_model.loss
+                self.classification_report = original_model.classification_report
+        elif self.cfg.library == "huggingface":
+            self.nli_model = AutoModelForSequenceClassification.from_pretrained('facebook/bart-large-mnli')
+            self.bert_model = self.nli_model.model
+            self.classifier = self.nli_model.classification_head
             original_model = ZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
-            self.classifier = original_model.classifier
-            self.bert_model = original_model.bert_model
             self.loss = original_model.loss
             self.classification_report = original_model.classification_report
+            self.tokenizer = AutoTokenizer.from_pretrained('facebook/bart-large-mnli')
+            self.tokenizer.max_seq_length = self.cfg.dataset.max_seq_length
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split) -> 'torch.utils.data.DataLoader':
         if self._cfg.dataset.task == "zero_shot":
@@ -80,6 +91,19 @@ class ZeroShotIntentModel(TextClassificationModel):
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False),
         )
+
+    def forward(self, input_ids, attention_mask, token_type_ids):
+        if self.cfg.library == 'megatron':
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+            if isinstance(hidden_states, tuple):
+                hidden_states = hidden_states[0]
+            logits = self.classifier(hidden_states=hidden_states)
+        elif self.cfg.library == 'huggingface':
+            output = self.nli_model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = output['logits']
+        return logits
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config:
@@ -188,11 +212,18 @@ class ZeroShotIntentModel(TextClassificationModel):
         output_logits = torch.cat([output['logits'] for output in outputs], dim=0)
         output_input_ids = torch.cat([output['input_ids'] for output in outputs], dim=0)
         output_labels = torch.cat([output['labels'] for output in outputs], dim=0)
-        entail_logits = output_logits[..., 1]
-        decoded_input_ids = [
-            self.tokenizer.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))
-        ]
-        utterance_candidate_pairs = [i.split(self.tokenizer.tokenizer.sep_token) for i in decoded_input_ids]
+
+        if self.cfg.library == 'huggingface':
+            entail_logits = output_logits[..., 2]
+            decoded_input_ids = [self.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))]
+            utterance_candidate_pairs = [i.split(self.tokenizer.sep_token) for i in decoded_input_ids]
+        elif self.cfg.library == 'megatron':
+            entail_logits = output_logits[..., 1]
+            decoded_input_ids = [
+                self.tokenizer.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))
+            ]
+            utterance_candidate_pairs = [i.split(self.tokenizer.tokenizer.sep_token) for i in decoded_input_ids]
+
         utterances = [i[0] for i in utterance_candidate_pairs]
         # account for uncased tokenization
         candidates = [

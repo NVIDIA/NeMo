@@ -43,7 +43,7 @@ class DialogueS2SGenerationModel(NLPModel):
 
         self.cfg = cfg
         self.data_prepared = False
-
+        self.epoch_number = 0
         if self.cfg.library == "huggingface":
             self.setup_tokenizer(cfg.tokenizer)
         elif self.cfg.library == "megatron":
@@ -101,9 +101,8 @@ class DialogueS2SGenerationModel(NLPModel):
             loss.append(output["loss"].item())
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        epoch_number = self.current_epoch if hasattr(self, 'current_epoch') else 0
         filename = os.path.join(
-            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{epoch_number}.jsonl"
+            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{self.epoch_number}.jsonl"
         )
 
         DialogueGenerationMetrics.save_predictions(
@@ -124,11 +123,13 @@ class DialogueS2SGenerationModel(NLPModel):
         self.log('{}_loss'.format(mode), avg_loss)
         self.log('{}_ppl'.format(mode), ppl)
 
-        if mode == 'val' and self.cfg.save_model:
-            filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(
-                self.cfg.dataset.dialogues_example_dir, avg_loss, epoch_number
-            )
-            torch.save(self.language_model.state_dict(), filename)
+        if mode == 'val':
+            self.epoch_number += 1
+            if self.cfg.save_model:
+                filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(
+                    self.cfg.dataset.dialogues_example_dir, avg_loss, self.epoch_number
+                )
+                torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
