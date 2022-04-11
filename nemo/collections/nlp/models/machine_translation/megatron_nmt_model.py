@@ -389,7 +389,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
             }
             global_batch.append(batch)
-        
+
         # Parent function will pad microbatches to the same length.
         return self._process_global_batch_without_megatron_batch_sampler(global_batch)
 
