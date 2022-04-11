@@ -788,7 +788,7 @@ def plot(
 
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, offset, duration)
-        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label/energy')
+        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label') # energy
 
     ax2.plot(np.arange(len_pred) * FRAME_LEN, pred, 'b', label='pred/neural')
     ax2.plot(np.arange(len_pred) * FRAME_LEN, prob, 'g--', label='speech prob')
@@ -1014,3 +1014,27 @@ def contruct_manfiest_eval(
             fout.flush()
 
     return aligned_vad_asr_output_manifest
+
+
+def write_ss2manifest(input_manifest, exp, output_manifest="generated_oracle_ss_manifest.json"):
+    results = []
+    for line in open(input_manifest, 'r', encoding='utf-8'):
+        sample = json.loads(line)
+        speech_segments = torch.load(sample[exp])
+        for i in speech_segments:
+            metadata = {
+                'audio_filepath': sample['audio_filepath'],
+                'offset': np.round(i[0], 4),
+                'duration': np.round(i[1]-i[0], 4),
+                'label': 'speech',
+                'text': '_',
+            }
+            results.append(metadata)
+            
+    with open(output_manifest, 'w', encoding='utf-8') as fout:
+        for res in results:
+            json.dump(res, fout)
+            fout.write('\n')
+            fout.flush()   
+  
+    return output_manifest
