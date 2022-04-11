@@ -164,7 +164,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
     def on_validation_epoch_end(self):
         app_state = AppState()
-        if hasattr(self._train_ds):
+        if hasattr(self, "_train_ds"):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
