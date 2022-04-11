@@ -29,7 +29,6 @@ from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.torch.tts_data_types import SpeakerID
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types.elements import (
     Index,
     LengthsType,
