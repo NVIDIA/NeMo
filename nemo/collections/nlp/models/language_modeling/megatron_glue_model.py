@@ -47,6 +47,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self.acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):
+        import ipdb; ipdb.set_trace()
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
         self.init_global_step = 0
@@ -357,12 +358,12 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds)
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
 
-        if stage != 'validation':
+        if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds)
                 logging.info(f'Length of test dataset: {len(self._test_ds)}')
 
-        if stage == 'validation' or stage == 'test':
+        if stage == 'validate' or stage == 'test':
             return
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
