@@ -804,6 +804,17 @@ pipeline {
             rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
+      }
+    }
+    stage('L2: Dialogue Zero Shot Classification') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
         stage('Intent classification using ZeroShotIntentModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
