@@ -418,7 +418,7 @@ class MegatronBertModel(NLPModel):
                 result.append(
                     PretrainedModelInfo(
                         pretrained_model_name=f"biomegatron345m_biovocab_{vocab_size}_{vocab}",
-                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}_{vocab}.nemo",
+                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}-{vocab}.nemo",
                         description="Megatron 345m parameters model with biomedical vocabulary ({vocab_size} size) {vocab}, pre-trained on PubMed biomedical text corpus.",
                     )
                 )
@@ -452,7 +452,10 @@ class MegatronBertModel(NLPModel):
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
         if nvidia_torch_version is not None:
             NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
-            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+            try:
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+            except Exception:
+                NVIDIA_TORCH_MINOR = 0
 
             # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
             if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):

@@ -18,7 +18,7 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
@@ -32,15 +32,8 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
-from pytorch_lightning.utilities.fetching import (
-    AbstractDataFetcher,
-    DataFetcher,
-    DataLoaderIterDataFetcher,
-    InterBatchParallelDataFetcher,
-)
-from pytorch_lightning.utilities.signature_utils import is_param_in_hook_signature
+from pytorch_lightning.utilities.fetching import DataFetcher
 from pytorch_lightning.utilities.types import _PATH
-from pytorch_lightning.utilities.warnings import rank_zero_warn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
 
@@ -310,6 +303,17 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         else:
             return super().save_to(model, save_path)
 
+    def modify_state_dict(self, conf, state_dict):
+        if conf.get('megatron_legacy', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('bert_model.language_model', 'bert_model.model.language_model')
+                new_key = new_key.replace('transformer', 'encoder')
+                new_key = new_key.replace('.attention.', '.self_attention.')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+        return state_dict
+
     def restore_from(
         self,
         calling_cls,
@@ -344,75 +348,15 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
-        cwd = os.getcwd()
-
-        if map_location is None:
-            if torch.cuda.is_available():
-                map_location = torch.device('cuda')
-            else:
-                map_location = torch.device('cpu')
-
-        app_state = AppState()
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
-                os.chdir(tmpdir)
-                if override_config_path is None:
-                    config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                else:
-                    # can be str path or OmegaConf / DictConfig object
-                    config_yaml = override_config_path
-                if not isinstance(config_yaml, (OmegaConf, DictConfig)):
-                    conf = OmegaConf.load(config_yaml)
-                else:
-                    conf = config_yaml
-                    if override_config_path is not None:
-                        # Resolve the override config
-                        conf = OmegaConf.to_container(conf, resolve=True)
-                        conf = OmegaConf.create(conf)
-                # If override is top level config, extract just `model` from it
-                if 'model' in conf:
-                    conf = conf.model
-
-                if return_config:
-                    instance = conf
-                    return instance
-                else:
-                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                        model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-                    else:
-                        model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-                OmegaConf.set_struct(conf, True)
-                os.chdir(cwd)
-                # get the class
-                calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
-                instance = instance.to(map_location)
-                # add load_state_dict override
-                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
-                if conf.get('megatron_legacy', False):
-                    new_state_dict = {}
-                    for key in state_dict.keys():
-                        new_key = key.replace('bert_model.language_model', 'bert_model.model.language_model')
-                        new_key = new_key.replace('transformer', 'encoder')
-                        new_key = new_key.replace('.attention.', '.self_attention.')
-                        new_state_dict[new_key] = state_dict[key]
-                    state_dict = new_state_dict
-                if conf.get('megatron_amp_O2', False):
-                    new_state_dict = {}
-                    for key in state_dict.keys():
-                        new_key = key.replace('model.', 'model.module.', 1)
-                        new_state_dict[new_key] = state_dict[key]
-                    state_dict = new_state_dict
-                instance.load_state_dict(state_dict, strict=strict)
-
-                logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
-                instance._set_model_restore_state(is_being_restored=False)
-            finally:
-                os.chdir(cwd)
-
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple):
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+        super().load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
 
@@ -679,33 +623,6 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             pass
 
 
-class GlobalBatchFitLoop(FitLoop):
-    """ Override PTL FitLoop. Used to select globa batch data fetcher."""
-
-    def __init__(self, min_epochs: int = 0, max_epochs: int = 1000,) -> None:
-        super().__init__(min_epochs, max_epochs)
-
-    def _select_data_fetcher(self) -> AbstractDataFetcher:
-        if self.trainer.sanity_checking:
-            return GlobalBatchDataFetcher()
-
-        training_step_fx = getattr(self.trainer.lightning_module, "training_step")
-        if self.trainer.training and is_param_in_hook_signature(training_step_fx, "dataloader_iter", explicit=True):
-            rank_zero_warn(
-                "Found `dataloader_iter` argument in the `training_step`. Note that the support for "
-                "this signature is experimental and the behavior is subject to change."
-            )
-            return DataLoaderIterDataFetcher()
-
-        elif self.trainer.training and os.getenv("PL_INTER_BATCH_PARALLELISM", "0") == "1":
-            # note: this is an experimental feature
-            if not self.trainer.training_type_plugin.on_gpu:
-                raise MisconfigurationException("Inter batch parallelism is available only when using Nvidia GPUs.")
-            return InterBatchParallelDataFetcher()
-
-        return GlobalBatchDataFetcher()
-
-
 class GlobalBatchDataFetcher(DataFetcher):
     """ Overrides PTL DataFetcher. Used to fetch global batches."""
 
@@ -715,14 +632,14 @@ class GlobalBatchDataFetcher(DataFetcher):
             logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
 
         super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
-        self.num_micro_batches = get_num_microbatches()
 
-    def _fetch_next_batch(self):
-        """ Fetches the next global batch which is a list of micro batches"""
-        with self.apply_profiler(f"get_{self.stage}_batch"):
-            with self.fetching_context():
-                data = self.on_fetch_start()
-                with self.apply_profiler(f"fetch_next_{self.stage}_batch"):
-                    batch = [next(self.dataloader_iter) for _ in range(self.num_micro_batches)]
-                self.fetched += 1
-                self.on_fetch_end(batch, data)
+    def _fetch_next_batch(self, iterator: Iterator) -> None:
+        start_output = self.on_fetch_start()
+        batch = [next(iterator) for _ in range(get_num_microbatches())]
+        self.fetched += 1
+        if not self.prefetch_batches and self._has_len:
+            # when we don't prefetch but the dataloader is sized, we use the length for `done`
+            dataloader = self.dataloader
+            assert isinstance(dataloader, Sized)  # `_has_len` is True
+            self.done = self.fetched >= len(dataloader)
+        self.on_fetch_end(batch, start_output)
