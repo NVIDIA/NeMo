@@ -165,13 +165,24 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
     def on_validation_epoch_end(self):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=self.cfg.data.train_ds.global_batch_size,
-            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if hasattr(self._train_ds):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
         return super().on_validation_epoch_end()
 
     def inference_step(self, batch, batch_idx):
