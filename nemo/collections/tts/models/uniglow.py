@@ -47,7 +47,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@deprecated(version="1.8", explanation="UniGlowModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
+@deprecated(version="1.9", explanation="UniGlowModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
 class UniGlowModel(GlowVocoder):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 
