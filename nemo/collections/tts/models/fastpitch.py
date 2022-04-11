@@ -71,6 +71,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
+            elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                raise ValueError("AudioToCharWithPriorAndPitchDataset class has been deprecated. Please use" \
+                " https://github.com/NVIDIA/NeMo/tree/main/examples/tts/conf/fastpitch_align_old.yaml as config_file" \
+                " to avoid using deprecated AudioToCharWithDursF0Dataset class and run into errors. Recommended usage: " \
+                "FastPitchModel.from_pretrained(\"tts_en_fastpitch\", override_config_path=\"/path/to/fastpitch_align_old.yaml\")")
             else:
                 raise ValueError(f"Unknown dataset class: {self.ds_class_name}")
 
@@ -173,13 +178,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if self.learn_alignment:
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
-            # TODO(Oktai15): remove it in 1.8.0 version
             if ds_class_name == "TTSDataset":
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
                 name='en',
@@ -207,7 +210,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             with eval_phon_mode:
                 tokens = self.parser(str_input)
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             tokens = self.parser(str_input)
 
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
@@ -265,7 +267,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            # TODO(Oktai15): remove it in 1.8.0 version
             if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
@@ -274,7 +275,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -350,7 +350,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -428,7 +427,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        # TODO(Oktai15): remove it in 1.8.0 version
         if cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
             phon_mode = contextlib.nullcontext()
             if hasattr(self.vocab, "set_phone_prob"):
@@ -442,7 +440,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                     text_tokenizer=self.vocab,
                 )
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             dataset = instantiate(cfg.dataset)
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
@@ -538,32 +535,3 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def forward_for_export(self, text, pitch, pace, speaker=None):
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, speaker=speaker)
-
-    @classmethod
-    def from_pretrained(
-        cls, 
-        model_name: str,
-        refresh_cache: bool = False,
-        override_config_path: Optional[str] = None,
-        map_location: Optional['torch.device'] = None,
-        strict: bool = True,
-        return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
-        save_restore_connector: SaveRestoreConnector = None,
-    ):
-        """Custom Fastpitch's load logic to support old checkpoint."""
-        if model_name == "tts_en_fastpitch":
-            logging.warning("Please use https://github.com/NVIDIA/NeMo/tree/main/examples/tts/conf/fastpitch_align_old.yaml \
-            as config_file to avoid using deprecated AudioToCharWithDursF0Dataset class and run into errors. \
-            Recommended usage: FastPitchModel.from_pretrained(\"tts_en_fastpitch\", override_config_path=\"/path/to/fastpitch_align_old.yaml\")")
-        model = super().from_pretrained(
-            model_name,
-            refresh_cache,
-            override_config_path,
-            map_location,
-            strict,
-            return_config,
-            trainer,
-            save_restore_connector,
-            )
-        return model
