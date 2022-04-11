@@ -46,7 +46,7 @@ class SqueezeWaveConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-@deprecated(version="1.8", explanation="SqueezeWaveModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
+@deprecated(version="1.9", explanation="SqueezeWaveModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
 class SqueezeWaveModel(GlowVocoder):
     """ SqueezeWave model that generates audio conditioned on mel-spectrogram
     """

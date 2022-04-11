@@ -55,7 +55,7 @@ class FastPitchHifiGanE2EConfig:
     pitch_predictor: Dict[Any, Any] = MISSING
 
 
-@deprecated(version="1.8", explanation="FastPitchHifiGanE2EModel will be removed.")
+@deprecated(version="1.9", explanation="FastPitchHifiGanE2EModel will be removed.")
 class FastPitchHifiGanE2EModel(TextToWaveform):
     """An end-to-end speech synthesis model based on FastPitch and HiFiGan that converts strings to audio without using
     the intermediate mel spectrogram representation.
