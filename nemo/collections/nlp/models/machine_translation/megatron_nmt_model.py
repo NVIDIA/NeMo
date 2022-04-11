@@ -21,6 +21,7 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
@@ -149,13 +150,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def training_step(self, batch, batch_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
+        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
         return super().training_step(batch, batch_idx)
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = [x.squeeze(dim=0) if x.ndim == 3 else x for x in batch]
-
+        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+        batch = self.process_global_batch_for_tarred_datasets(batch)
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_global_batch_for_tarred_datasets(batch)
@@ -375,16 +376,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
-        src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        batch = {
-            'text_enc': src_ids,
-            'text_dec': tgt_ids,
-            'labels': labels,
-            'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
-            'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-            'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-        }
-        return self._process_global_batch_without_megatron_batch_sampler(batch)
+        global_batch = []
+        for microbatch in batch:
+            # Convert each microbatch into a dictionary.
+            src_ids, src_mask, tgt_ids, tgt_mask, labels = microbatch
+            batch = {
+                'text_enc': src_ids,
+                'text_dec': tgt_ids,
+                'labels': labels,
+                'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
+                'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+                'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+            }
+            global_batch.append(batch)
+        
+        # Parent function will pad microbatches to the same length.
+        return self._process_global_batch_without_megatron_batch_sampler(global_batch)
 
     def build_train_valid_test_datasets(self):
         self._train_ds = MTEncDecModel._setup_dataset_from_config(
@@ -415,3 +422,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def list_available_models(self):
         pass
+
+    def on_train_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_validation_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_test_start(self) -> None:
+        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()

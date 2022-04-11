@@ -593,6 +593,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 dec_mask = torch.nn.functional.pad(
                     dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
                 )
+                labels = torch.nn.functional.pad(
+                    labels, (0, max_dec_seq_lenth - labels.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                loss_mask = torch.nn.functional.pad(
+                    loss_mask, (0, max_dec_seq_lenth - loss_mask.shape[1], 0, 0), 'constant', 0
+                )
             text_enc_list.append(text_enc)
             text_dec_list.append(text_dec)
             labels_list.append(labels)
