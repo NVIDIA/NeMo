@@ -614,7 +614,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_mask_tensor = torch.concat(enc_mask_list, dim=0)
         dec_mask_tensor = torch.concat(dec_mask_list, dim=0)
 
-        return tokens_enc_tensor, tokens_dec_tensor, loss_mask_tensor, labels_tensor, enc_mask_tensor, dec_mask_tensor
+        return {
+            'text_enc': tokens_enc_tensor,
+            'text_dec': tokens_dec_tensor,
+            'loss_mask': loss_mask_tensor,
+            'labels': labels_tensor,
+            'enc_mask': enc_mask_tensor,
+            'dec_mask': dec_mask_tensor,
+        }
 
     def process_global_batch(self, global_batch):
         return [
