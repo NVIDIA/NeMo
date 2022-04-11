@@ -16,6 +16,7 @@ import math
 from collections import OrderedDict
 
 import torch
+import torch.distributed
 import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
@@ -64,6 +65,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to True.
         conv_kernel_size (int): the size of the convolutions in the convolutional modules
             Defaults to 31.
+        conv_norm_type (str): the type of the normalization in the convolutional modules
+            Defaults to 'batch_norm'.
         dropout (float): the dropout rate used in all layers except the attention layers
             Defaults to 0.1.
         dropout_emb (float): the dropout rate used for the positional embeddings
@@ -72,14 +75,15 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
+        dev = next(self.parameters()).device
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
+        input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
         return tuple([input_example, input_example_length])
 
     @property
@@ -121,6 +125,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         untie_biases=True,
         pos_emb_max_len=5000,
         conv_kernel_size=31,
+        conv_norm_type='batch_norm',
         dropout=0.1,
         dropout_emb=0.1,
         dropout_att=0.0,
@@ -167,6 +172,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             pos_bias_u = None
             pos_bias_v = None
 
+        self.pos_emb_max_len = pos_emb_max_len
         if self_attention_model == "rel_pos":
             self.pos_enc = RelPositionalEncoding(
                 d_model=d_model,
@@ -192,6 +198,7 @@ class ConformerEncoder(NeuralModule, Exportable):
                 self_attention_model=self_attention_model,
                 n_heads=n_heads,
                 conv_kernel_size=conv_kernel_size,
+                conv_norm_type=conv_norm_type,
                 dropout=dropout,
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
@@ -205,31 +212,63 @@ class ConformerEncoder(NeuralModule, Exportable):
         else:
             self.out_proj = None
             self._feat_out = d_model
+        self.set_max_audio_length(self.pos_emb_max_len)
+        self.use_pad_mask = True
+
+    def set_max_audio_length(self, max_audio_length):
+        """ Sets maximum input length.
+            Pre-calculates internal seq_range mask.
+        """
+        self.max_audio_length = max_audio_length
+        device = next(self.parameters()).device
+        seq_range = torch.arange(0, self.max_audio_length, device=device)
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
+            self.register_buffer('seq_range', seq_range, persistent=False)
+        self.pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
     def forward(self, audio_signal, length=None):
+        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        return self.forward_for_export(audio_signal=audio_signal, length=length)
+
+    @typecheck()
+    def forward_for_export(self, audio_signal, length):
+        max_audio_length: int = audio_signal.size(-1)
+
+        if max_audio_length > self.max_audio_length:
+            self.set_max_audio_length(max_audio_length)
+
         if length is None:
-            length = torch.tensor(audio_signal.size(-1)).repeat(audio_signal.size(0)).to(audio_signal)
+            length = audio_signal.new_full(
+                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
+            )
+
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, ConvSubsampling):
             audio_signal, length = self.pre_encode(audio_signal, length)
         else:
             audio_signal = self.pre_encode(audio_signal)
-
         audio_signal, pos_emb = self.pos_enc(audio_signal)
-        bs, xmax, idim = audio_signal.size()
-
+        # adjust size
+        max_audio_length = audio_signal.size(1)
         # Create the self-attention and padding masks
-        pad_mask = self.make_pad_mask(length, max_time=xmax, device=audio_signal.device)
-        att_mask = pad_mask.unsqueeze(1).repeat([1, xmax, 1])
-        att_mask = att_mask & att_mask.transpose(1, 2)
+
+        pad_mask = self.make_pad_mask(max_audio_length, length)
+        att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
+        att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
         if self.att_context_size[0] >= 0:
             att_mask = att_mask.triu(diagonal=-self.att_context_size[0])
         if self.att_context_size[1] >= 0:
             att_mask = att_mask.tril(diagonal=self.att_context_size[1])
         att_mask = ~att_mask
-        pad_mask = ~pad_mask
+
+        if self.use_pad_mask:
+            pad_mask = ~pad_mask
+        else:
+            pad_mask = None
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
@@ -240,16 +279,26 @@ class ConformerEncoder(NeuralModule, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
         return audio_signal, length
 
-    @staticmethod
-    def make_pad_mask(seq_lens, max_time, device=None):
-        """Make masking for padding."""
-        bs = seq_lens.size(0)
-        seq_range = torch.arange(0, max_time, dtype=torch.int32)
-        seq_range_expand = seq_range.unsqueeze(0).expand(bs, max_time)
-        seq_lens = seq_lens.type(seq_range_expand.dtype).to(seq_range_expand.device)
-        seq_length_expand = seq_lens.unsqueeze(-1)
-        mask = seq_range_expand < seq_length_expand
+    def update_max_seq_length(self, seq_length: int, device):
+        # Find global max audio length across all nodes
+        if torch.distributed.is_initialized():
+            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
-        if device:
-            mask = mask.to(device)
+            # Update across all ranks in the distributed system
+            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+
+            seq_length = global_max_len.int().item()
+
+        if seq_length > self.max_audio_length:
+            self.set_max_audio_length(seq_length)
+
+    def make_pad_mask(self, max_audio_length, seq_lens):
+        """Make masking for padding."""
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        return mask
+
+    def enable_pad_mask(self, on=True):
+        # On inference, user may chose to disable pad mask
+        mask = self.use_pad_mask
+        self.use_pad_mask = on
         return mask

@@ -51,11 +51,14 @@ Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root
 
 .. code-block:: bash 
 
-  python examples/asr/vad_infer.py  --vad_model="vad_marblenet" --dataset=<FULL PATH OF MANIFEST TO BE PERFORMED INFERENCE ON> --out_dir='frame/demo' --time_length=0.63
+  python <NeMo-git-root>/examples/asr/speech_classification/vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
 
-Have a look at scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for posterior processing, postprocessing and threshold tuning.
 
-Posterior processing includes generating predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
+This script will perform vad frame-level prediction and will help you perform postprocessing and generate speech segments as well if needed.
+
+Have a look at configuration file ``<NeMo-git-root>/examples/asr/conf/VAD/vad_inference_postprocessing.yaml`` and scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for details regarding posterior processing, postprocessing and threshold tuning.
+
+Posterior processing includes generating predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
 
 For VAD postprocessing we introduce 
 

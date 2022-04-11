@@ -25,6 +25,7 @@ import tempfile
 import onnx
 import pytest
 import torch
+from omegaconf import OmegaConf
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.core.classes import typecheck
@@ -32,13 +33,16 @@ from nemo.core.classes import typecheck
 
 def get_pretrained_bert_345m_uncased_model():
     model_name = "megatron-bert-345m-uncased"
-    model = nemo_nlp.modules.get_lm_model(pretrained_model_name=model_name)
+    config = {"language_model": {"pretrained_model_name": model_name}, "tokenizer": {}}
+    omega_conf = OmegaConf.create(config)
+    model = nemo_nlp.modules.get_lm_model(cfg=omega_conf)
     if torch.cuda.is_available():
         model = model.cuda()
     return model
 
 
 class TestMegatron:
+    @pytest.mark.skip("This test was written for megatron-lm")
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_list_pretrained_models(self):
@@ -62,6 +66,7 @@ class TestMegatron:
     @pytest.mark.with_downloads()
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip("Megatron-LM BERT support deprecated. Supported in NeMo < 1.5")
     def test_onnx_export(self):
         model = get_pretrained_bert_345m_uncased_model()
         assert model

@@ -23,9 +23,12 @@ from typing import Optional, Union
 import torch
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 class SaveRestoreConnector:
@@ -45,18 +48,21 @@ class SaveRestoreConnector:
         Args:
             model: ModelPT object to be saved.
             save_path: Path to .nemo file where model instance should be saved
-		"""
+        """
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-            model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
-            model.to_config_file(path2yaml_file=config_yaml)
-            if hasattr(model, 'artifacts') and model.artifacts is not None:
-                self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                # We should not update self._cfg here - the model can still be in use
-                self._update_artifact_paths(model, path2yaml_file=config_yaml)
-            self._save_state_dict_to_disk(model.state_dict(), model_weights)
-            self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        if is_global_rank_zero():
+            with tempfile.TemporaryDirectory() as tmpdir:
+                config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+                model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                model.to_config_file(path2yaml_file=config_yaml)
+                if hasattr(model, 'artifacts') and model.artifacts is not None:
+                    self._handle_artifacts(model, nemo_file_folder=tmpdir)
+                    # We should not update self._cfg here - the model can still be in use
+                    self._update_artifact_paths(model, path2yaml_file=config_yaml)
+                self._save_state_dict_to_disk(model.state_dict(), model_weights)
+                self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+        else:
+            return
 
     def restore_from(
         self,
@@ -66,29 +72,30 @@ class SaveRestoreConnector:
         map_location: Optional[torch.device] = None,
         strict: bool = True,
         return_config: bool = False,
+        trainer: Trainer = None,
     ):
         """
-		Restores model instance (weights and configuration) into .nemo file
+        Restores model instance (weights and configuration) into .nemo file
 
-		Args:
-		restore_path: path to .nemo file from which model should be instantiated
-		override_config_path: path to a yaml config that will override the internal
-			config file or an OmegaConf / DictConfig object representing the model config.
-		map_location: Optional torch.device() to map the instantiated model to a device.
-			By default (None), it will select a GPU if available, falling back to CPU otherwise.
-		strict: Passed to load_state_dict. By default True
-		return_config: If set to true, will return just the underlying config of the restored
-			model as an OmegaConf DictConfig object without instantiating the model.
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
 
-		Example:
-			```
-			model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
-			assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
-			```
+        Example:
+            ```
+            model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+            ```
 
-		Returns:
-		An instance of type cls or its underlying config (if return_config is set).
-		"""
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
         # Get path where the command is executed - the artifacts will be "retrieved" there
         # (original .nemo behavior)
         cwd = os.getcwd()
@@ -99,6 +106,7 @@ class SaveRestoreConnector:
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
@@ -124,8 +132,7 @@ class SaveRestoreConnector:
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
-                    if app_state.model_parallel_rank is not None:
+                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -133,12 +140,20 @@ class SaveRestoreConnector:
                 os.chdir(cwd)
                 # get the class
                 calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
-                instance = calling_cls.from_config_dict(config=conf)
+                instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
-                instance.load_state_dict(
-                    self._load_state_dict_from_disk(model_weights, map_location=map_location), strict=strict
-                )
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
+                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+
+                if conf.get('megatron_amp_O2', False):
+                    new_state_dict = {}
+                    for key in state_dict.keys():
+                        new_key = key.replace('model.', 'model.module.', 1)
+                        new_state_dict[new_key] = state_dict[key]
+                    state_dict = new_state_dict
+                instance.load_state_dict(state_dict, strict=strict)
 
                 logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
                 instance._set_model_restore_state(is_being_restored=False)
@@ -222,31 +237,33 @@ class SaveRestoreConnector:
         return state_dict
 
     def register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
-        """ Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
-            when model.save_to("mymodel.nemo") is called.        
+        """
+        Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
+        when model.save_to("mymodel.nemo") is called.
 
-            How it works:
-            1. It always returns existing absolute path which can be used during Model constructor call
-                EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
-            2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
+        How it works:
+        1. It always returns existing absolute path which can be used during Model constructor call
+            EXCEPTION: src is None or "" in which case nothing will be done and src will be returned
+        2. It will add (config_path, model_utils.ArtifactItem()) pair to self.artifacts
 
-            If "src" is local existing path, then it will be returned in absolute path form.
-            elif "src" starts with "nemo_file:unique_artifact_name":
-                .nemo will be untarred to a temporary folder location and an actual existing path will be returned
-            else an error will be raised.
+        If "src" is local existing path, then it will be returned in absolute path form.
+        elif "src" starts with "nemo_file:unique_artifact_name":
+            .nemo will be untarred to a temporary folder location and an actual existing path will be returned
+        else an error will be raised.
 
-            WARNING: use .register_artifact calls in your models' constructors.
-            The returned path is not guaranteed to exist after you have exited your model's constuctor.
+        WARNING: use .register_artifact calls in your models' constructors.
+        The returned path is not guaranteed to exist after you have exited your model's constructor.
 
-            Args:
-                model: ModelPT object to register artifact for.
-                config_path (str): Artifact key. Usually corresponds to the model config.
-                src (str): Path to artifact.
-                verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return None even if 
-                                          src is not found. Defaults to True.
+        Args:
+            model: ModelPT object to register artifact for.
+            config_path (str): Artifact key. Usually corresponds to the model config.
+            src (str): Path to artifact.
+            verify_src_exists (bool): If set to False, then the artifact is optional and register_artifact will return
+                None even if src is not found. Defaults to True.
 
-            Returns:
-                str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model instnce life
+        Returns:
+            str: If src is not None or empty it always returns absolute path which is guaranteed to exists during model
+                instance life
         """
         app_state = AppState()
 
@@ -359,24 +376,35 @@ class SaveRestoreConnector:
                     OmegaConf.update(conf, conf_path, item.path)
                 else:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
-        app_state = AppState()
-        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, basename)
+        model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
-        with tarfile.open(filename, "w:gz") as tar:
+        dirname = os.path.dirname(filename)
+        os.makedirs(dirname, exist_ok=True)
+        with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
+        # we start with an assumption of uncompressed tar,
+        # which should be true for versions 1.7.0 and above
+        tar_header = "r:"
+        try:
+            tar_test = tarfile.open(path2file, tar_header)
+            tar_test.close()
+        except tarfile.ReadError:
+            # can be older checkpoint => try compressed tar
+            tar_header = "r:gz"
+        tar = tarfile.open(path2file, tar_header)
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder

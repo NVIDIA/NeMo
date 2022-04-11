@@ -304,7 +304,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
                         label = 0.0 if self.is_regression_task else self.cfg.labels[0]
                         entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
@@ -475,7 +475,6 @@ class EncDecClassificationModel(_EncDecBaseModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        self.training_step_end()
         audio_signal, audio_signal_len, labels, labels_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss_value = self.loss(logits=logits, labels=labels)
@@ -675,7 +674,6 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
-        self.training_step_end()
         audio_signal, audio_signal_len, targets, targets_len = batch
         logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
         loss = self.loss(preds=logits, labels=targets)

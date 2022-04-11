@@ -67,7 +67,7 @@ def tn_grammars(**kwargs):
 
 def export_grammars(output_dir, grammars):
     """
-    Exports tokenizer_and_classify and verbalize Fsts as OpenFst finite state archive (FAR) files. 
+    Exports tokenizer_and_classify and verbalize Fsts as OpenFst finite state archive (FAR) files.
 
     Args:
         output_dir: directory to export FAR files to. Subdirectories will be created for tagger and verbalizer respectively.
@@ -87,7 +87,9 @@ def export_grammars(output_dir, grammars):
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de", "ru"], type=str, default='en')
+    parser.add_argument(
+        "--language", help="language", choices=["en", "de", "es", "ru", 'fr', 'vi'], type=str, default='en'
+    )
     parser.add_argument(
         "--grammars", help="grammars to be exported", choices=["tn_grammars", "itn_grammars"], type=str, required=True
     )
@@ -107,7 +109,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    if args.language in ['ru', 'de'] and args.grammars == 'tn_grammars':
+    if args.language in ['ru', 'fr', 'vi'] and args.grammars == 'tn_grammars':
         raise ValueError('Only ITN grammars could be deployed in Sparrowhawk for the selected languages.')
 
     if args.language == 'en':
@@ -121,6 +123,17 @@ if __name__ == '__main__':
             ClassifyFst as TNClassifyFst,
         )
         from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'de':
+        from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+        from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.de.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
     elif args.language == 'ru':
         from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
@@ -128,11 +141,29 @@ if __name__ == '__main__':
         from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
-    elif args.language == 'de':
-        from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import (
+    elif args.language == 'es':
+        from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import (
             ClassifyFst as ITNClassifyFst,
         )
-        from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize import (
+        from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+        from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import (
+            ClassifyFst as TNClassifyFst,
+        )
+        from nemo_text_processing.text_normalization.es.verbalizers.verbalize import VerbalizeFst as TNVerbalizeFst
+    elif args.language == 'fr':
+        from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize import (
+            VerbalizeFst as ITNVerbalizeFst,
+        )
+    elif args.language == 'vi':
+        from nemo_text_processing.inverse_text_normalization.vi.taggers.tokenize_and_classify import (
+            ClassifyFst as ITNClassifyFst,
+        )
+        from nemo_text_processing.inverse_text_normalization.vi.verbalizers.verbalize import (
             VerbalizeFst as ITNVerbalizeFst,
         )
 

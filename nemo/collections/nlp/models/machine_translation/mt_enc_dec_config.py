@@ -65,6 +65,8 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     multilingual: Optional[bool] = False
     preproc_out_dir: Optional[str] = None
     retrieval: Optional[bool] = False
+    validate_input_ids: Optional[bool] = True
+    shared_embeddings: bool = False
 
     # network architecture configuration
     encoder_tokenizer: Any = MISSING
@@ -130,6 +132,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
         library='nemo',
         model_name=None,
         pretrained=False,
+        hidden_size=512,
         inner_size=2048,
         num_layers=6,
         num_attention_heads=8,
@@ -146,6 +149,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
     latent_size: int = -1  # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000
     recon_per_token: bool = True
+    log_timing: bool = True
 
     encoder: NeMoTransformerBottleneckEncoderConfig = NeMoTransformerBottleneckEncoderConfig(
         library='nemo',

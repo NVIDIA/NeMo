@@ -14,6 +14,7 @@
 
 import argparse
 import base64
+import csv
 import datetime
 import difflib
 import io
@@ -26,16 +27,15 @@ from collections import defaultdict
 
 import dash
 import dash_bootstrap_components as dbc
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table
 import diff_match_patch
 import editdistance
+import jiwer
 import librosa
 import numpy as np
 import soundfile as sf
 import tqdm
-from dash.dependencies import Input, Output
+from dash import dash_table, dcc, html
+from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from plotly import express as px
 from plotly import graph_objects as go
@@ -45,33 +45,32 @@ from plotly.subplots import make_subplots
 DATA_PAGE_SIZE = 10
 
 # operators for filtering items
-filter_operators = [
-    ['ge ', '>='],
-    ['le ', '<='],
-    ['lt ', '<'],
-    ['gt ', '>'],
-    ['ne ', '!='],
-    ['eq ', '='],
-    ['contains '],
-]
+filter_operators = {
+    '>=': 'ge',
+    '<=': 'le',
+    '<': 'lt',
+    '>': 'gt',
+    '!=': 'ne',
+    '=': 'eq',
+    'contains ': 'contains',
+}
 
 # parse table filter queries
 def split_filter_part(filter_part):
-    for operator_type in filter_operators:
-        for op in operator_type:
-            if op in filter_part:
-                name_part, value_part = filter_part.split(op, 1)
-                name = name_part[name_part.find('{') + 1 : name_part.rfind('}')]
-                value_part = value_part.strip()
-                v0 = value_part[0]
-                if v0 == value_part[-1] and v0 in ("'", '"', '`'):
-                    value = value_part[1:-1].replace('\\' + v0, v0)
-                else:
-                    try:
-                        value = float(value_part)
-                    except ValueError:
-                        value = value_part
-                return name, operator_type[0].strip(), value
+    for op in filter_operators:
+        if op in filter_part:
+            name_part, value_part = filter_part.split(op, 1)
+            name = name_part[name_part.find('{') + 1 : name_part.rfind('}')]
+            value_part = value_part.strip()
+            v0 = value_part[0]
+            if v0 == value_part[-1] and v0 in ("'", '"', '`'):
+                value = value_part[1:-1].replace('\\' + v0, v0)
+            else:
+                try:
+                    value = float(value_part)
+                except ValueError:
+                    value = value_part
+            return name, filter_operators[op], value
     return [None] * 3
 
 
@@ -86,23 +85,37 @@ def parse_args():
     parser.add_argument(
         '--disable-caching-metrics', action='store_true', help='disable caching metrics for errors analysis'
     )
+    parser.add_argument(
+        '--estimate-audio-metrics',
+        '-a',
+        action='store_true',
+        help='estimate frequency bandwidth and signal level of audio recordings',
+    )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
     args = parser.parse_args()
     print(args)
     return args
 
 
+# estimate frequency bandwidth of signal
+def eval_bandwidth(signal, sr, threshold=-50):
+    time_stride = 0.01
+    hop_length = int(sr * time_stride)
+    n_fft = 512
+    spectrogram = np.mean(
+        np.abs(librosa.stft(y=signal, n_fft=n_fft, hop_length=hop_length, window='blackmanharris')) ** 2, axis=1
+    )
+    power_spectrum = librosa.power_to_db(S=spectrogram, ref=np.max, top_db=100)
+    freqband = 0
+    for idx in range(len(power_spectrum) - 1, -1, -1):
+        if power_spectrum[idx] > threshold:
+            freqband = idx / n_fft * sr
+            break
+    return freqband
+
+
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching, vocab=None):
-    if not disable_caching:
-        pickle_filename = data_filename.split('.json')[0]
-        json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
-        timestamp = json_mtime.strftime('%Y%m%d_%H%M')
-        pickle_filename += '_' + timestamp + '.pkl'
-        if os.path.exists(pickle_filename):
-            with open(pickle_filename, 'rb') as f:
-                data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available = pickle.load(f)
-            return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
+def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None):
 
     if vocab is not None:
         # load external vocab
@@ -116,6 +129,31 @@ def load_data(data_filename, disable_caching, vocab=None):
                     # assume each line contains just a single word
                     word = line.strip()
                 vocabulary_ext[word] = 1
+
+    if not disable_caching:
+        pickle_filename = data_filename.split('.json')[0]
+        json_mtime = datetime.datetime.fromtimestamp(os.path.getmtime(data_filename))
+        timestamp = json_mtime.strftime('%Y%m%d_%H%M')
+        pickle_filename += '_' + timestamp + '.pkl'
+        if os.path.exists(pickle_filename):
+            with open(pickle_filename, 'rb') as f:
+                data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available = pickle.load(f)
+            if vocab is not None:
+                for item in vocabulary_data:
+                    item['OOV'] = item['word'] not in vocabulary_ext
+            if estimate_audio:
+                for item in data:
+                    signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
+                    bw = eval_bandwidth(signal, sr)
+                    item['freq_bandwidth'] = int(bw)
+                    item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
+            with open(pickle_filename, 'wb') as f:
+                pickle.dump(
+                    [data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available],
+                    f,
+                    pickle.HIGHEST_PROTOCOL,
+                )
+            return data, wer, cer, wmr, mwa, num_hours, vocabulary_data, alphabet, metrics_available
 
     data = []
     wer_dist = 0.0
@@ -137,9 +175,11 @@ def load_data(data_filename, disable_caching, vocab=None):
     with open(data_filename, 'r', encoding='utf8') as f:
         for line in tqdm.tqdm(f):
             item = json.loads(line)
-            num_words = len(item['text'].split())
+            if not isinstance(item['text'], str):
+                item['text'] = ''
             num_chars = len(item['text'])
             orig = item['text'].split()
+            num_words = len(orig)
             for word in orig:
                 vocabulary[word] += 1
             for char in item['text']:
@@ -149,7 +189,8 @@ def load_data(data_filename, disable_caching, vocab=None):
             if 'pred_text' in item:
                 metrics_available = True
                 pred = item['pred_text'].split()
-                word_dist = editdistance.eval(orig, pred)
+                measures = jiwer.compute_measures(item['text'], item['pred_text'])
+                word_dist = measures['substitutions'] + measures['insertions'] + measures['deletions']
                 char_dist = editdistance.eval(item['text'], item['pred_text'])
                 wer_dist += word_dist
                 cer_dist += char_dist
@@ -157,12 +198,10 @@ def load_data(data_filename, disable_caching, vocab=None):
                 cer_count += num_chars
 
                 sm.set_seqs(orig, pred)
-                num_matches = 0
                 for m in sm.get_matching_blocks():
                     for word_idx in range(m[0], m[0] + m[2]):
                         match_vocab[orig[word_idx]] += 1
-                        num_matches += 1
-                wmr_count += num_matches
+                wmr_count += measures['hits']
 
             data.append(
                 {
@@ -177,9 +216,22 @@ def load_data(data_filename, disable_caching, vocab=None):
             )
             if metrics_available:
                 data[-1]['pred_text'] = item['pred_text']
+                if num_words == 0:
+                    num_words = 1e-9
+                if num_chars == 0:
+                    num_chars = 1e-9
                 data[-1]['WER'] = round(word_dist / num_words * 100.0, 2)
                 data[-1]['CER'] = round(char_dist / num_chars * 100.0, 2)
-                data[-1]['WMR'] = round(num_matches / len(orig) * 100.0, 2)
+                data[-1]['WMR'] = round(measures['hits'] / num_words * 100.0, 2)
+                data[-1]['I'] = measures['insertions']
+                data[-1]['D'] = measures['deletions']
+                data[-1]['D-I'] = measures['deletions'] - measures['insertions']
+
+            if estimate_audio:
+                signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
+                bw = eval_bandwidth(signal, sr)
+                item['freq_bandwidth'] = int(bw)
+                item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
             for k in item:
                 if k not in data[-1]:
                     data[-1][k] = item[k]
@@ -263,7 +315,7 @@ def plot_word_accuracy(vocabulary_data):
 args = parse_args()
 print('Loading data...')
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
-    args.manifest, args.disable_caching_metrics, args.vocab
+    args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
 )
 print('Starting server...')
 app = dash.Dash(
@@ -273,29 +325,48 @@ app = dash.Dash(
     title=os.path.basename(args.manifest),
 )
 
-
-figure_duration = plot_histogram(data, 'duration', 'Duration (sec)')
-figure_num_words = plot_histogram(data, 'num_words', '#words')
-figure_num_chars = plot_histogram(data, 'num_chars', '#chars')
-figure_word_rate = plot_histogram(data, 'word_rate', '#words/sec')
-figure_char_rate = plot_histogram(data, 'char_rate', '#chars/sec')
+figures_labels = {
+    'duration': ['Duration', 'Duration, sec'],
+    'num_words': ['Number of Words', '#words'],
+    'num_chars': ['Number of Characters', '#chars'],
+    'word_rate': ['Word Rate', '#words/sec'],
+    'char_rate': ['Character Rate', '#chars/sec'],
+    'WER': ['Word Error Rate', 'WER, %'],
+    'CER': ['Character Error Rate', 'CER, %'],
+    'WMR': ['Word Match Rate', 'WMR, %'],
+    'I': ['# Insertions (I)', '#words'],
+    'D': ['# Deletions (D)', '#words'],
+    'D-I': ['# Deletions - # Insertions (D-I)', '#words'],
+    'freq_bandwidth': ['Frequency Bandwidth', 'Bandwidth, Hz'],
+    'level_db': ['Peak Level', 'Level, dB'],
+}
+figures_hist = {}
+for k in data[0]:
+    val = data[0][k]
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if k in figures_labels:
+            ylabel = figures_labels[k][0]
+            xlabel = figures_labels[k][1]
+        else:
+            title = k.replace('_', ' ')
+            title = title[0].upper() + title[1:].lower()
+            ylabel = title
+            xlabel = title
+        figures_hist[k] = [ylabel + ' (per utterance)', plot_histogram(data, k, xlabel)]
 
 if metrics_available:
-    figure_wer = plot_histogram(data, 'WER', 'WER, %')
-    figure_cer = plot_histogram(data, 'CER', 'CER, %')
-    figure_wmr = plot_histogram(data, 'WMR', 'WMR, %')
     figure_word_acc = plot_word_accuracy(vocabulary)
 
 stats_layout = [
-    dbc.Row(dbc.Col(html.H5(children='Global Statistics'), className='text-secondary'), className='mt-3'),
+    dbc.Row(dbc.Col(html.H5(children='Global Statistics'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
         [
-            dbc.Col(html.Div('Number of hours', className='text-secondary'), width=3, className='border-right'),
-            dbc.Col(html.Div('Number of utterances', className='text-secondary'), width=3, className='border-right'),
-            dbc.Col(html.Div('Vocabulary size', className='text-secondary'), width=3, className='border-right'),
+            dbc.Col(html.Div('Number of hours', className='text-secondary'), width=3, class_name='border-end'),
+            dbc.Col(html.Div('Number of utterances', className='text-secondary'), width=3, class_name='border-end'),
+            dbc.Col(html.Div('Vocabulary size', className='text-secondary'), width=3, class_name='border-end'),
             dbc.Col(html.Div('Alphabet size', className='text-secondary'), width=3),
         ],
-        className='bg-light mt-2 rounded-top border-top border-left border-right',
+        class_name='bg-light mt-2 rounded-top border-top border-start border-end',
     ),
     dbc.Row(
         [
@@ -306,12 +377,12 @@ stats_layout = [
                     style={'color': 'green', 'opacity': 0.7},
                 ),
                 width=3,
-                className='border-right',
+                class_name='border-end',
             ),
             dbc.Col(
                 html.H5(len(data), className='text-center p-1', style={'color': 'green', 'opacity': 0.7}),
                 width=3,
-                className='border-right',
+                class_name='border-end',
             ),
             dbc.Col(
                 html.H5(
@@ -320,7 +391,7 @@ stats_layout = [
                     style={'color': 'green', 'opacity': 0.7},
                 ),
                 width=3,
-                className='border-right',
+                class_name='border-end',
             ),
             dbc.Col(
                 html.H5(
@@ -331,7 +402,7 @@ stats_layout = [
                 width=3,
             ),
         ],
-        className='bg-light rounded-bottom border-bottom border-left border-right',
+        class_name='bg-light rounded-bottom border-bottom border-start border-end',
     ),
 ]
 if metrics_available:
@@ -339,21 +410,19 @@ if metrics_available:
         dbc.Row(
             [
                 dbc.Col(
-                    html.Div('Word Error Rate (WER), %', className='text-secondary'), width=3, className='border-right'
+                    html.Div('Word Error Rate (WER), %', className='text-secondary'), width=3, class_name='border-end'
                 ),
                 dbc.Col(
                     html.Div('Character Error Rate (CER), %', className='text-secondary'),
                     width=3,
-                    className='border-right',
+                    class_name='border-end',
                 ),
                 dbc.Col(
-                    html.Div('Word Match Rate (WMR), %', className='text-secondary'),
-                    width=3,
-                    className='border-right',
+                    html.Div('Word Match Rate (WMR), %', className='text-secondary'), width=3, class_name='border-end',
                 ),
                 dbc.Col(html.Div('Mean Word Accuracy, %', className='text-secondary'), width=3),
             ],
-            className='bg-light mt-2 rounded-top border-top border-left border-right',
+            class_name='bg-light mt-2 rounded-top border-top border-start border-end',
         ),
         dbc.Row(
             [
@@ -362,21 +431,21 @@ if metrics_available:
                         '{:.2f}'.format(wer), className='text-center p-1', style={'color': 'green', 'opacity': 0.7},
                     ),
                     width=3,
-                    className='border-right',
+                    class_name='border-end',
                 ),
                 dbc.Col(
                     html.H5(
                         '{:.2f}'.format(cer), className='text-center p-1', style={'color': 'green', 'opacity': 0.7}
                     ),
                     width=3,
-                    className='border-right',
+                    class_name='border-end',
                 ),
                 dbc.Col(
                     html.H5(
                         '{:.2f}'.format(wmr), className='text-center p-1', style={'color': 'green', 'opacity': 0.7},
                     ),
                     width=3,
-                    className='border-right',
+                    class_name='border-end',
                 ),
                 dbc.Col(
                     html.H5(
@@ -385,46 +454,35 @@ if metrics_available:
                     width=3,
                 ),
             ],
-            className='bg-light rounded-bottom border-bottom border-left border-right',
+            class_name='bg-light rounded-bottom border-bottom border-start border-end',
         ),
     ]
 stats_layout += [
-    dbc.Row(dbc.Col(html.H5(children='Alphabet'), className='text-secondary'), className='mt-3'),
+    dbc.Row(dbc.Col(html.H5(children='Alphabet'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
-        dbc.Col(html.Div('{}'.format(sorted(alphabet))),), className='mt-2 bg-light text-monospace rounded border'
+        dbc.Col(html.Div('{}'.format(sorted(alphabet))),), class_name='mt-2 bg-light font-monospace rounded border'
     ),
-    dbc.Row(dbc.Col(html.H5('Duration (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figure_duration),),),
-    dbc.Row(dbc.Col(html.H5('Number of words (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-words-graph', figure=figure_num_words),),),
-    dbc.Row(dbc.Col(html.H5('Number of characters (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='num-chars-graph', figure=figure_num_chars),),),
-    dbc.Row(dbc.Col(html.H5('Word rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='word-rate-graph', figure=figure_word_rate),),),
-    dbc.Row(dbc.Col(html.H5('Character rate (per utterance)'), className='text-secondary'), className='mt-3'),
-    dbc.Row(dbc.Col(dcc.Graph(id='char-rate-graph', figure=figure_char_rate),),),
 ]
+for k in figures_hist:
+    stats_layout += [
+        dbc.Row(dbc.Col(html.H5(figures_hist[k][0]), class_name='text-secondary'), class_name='mt-3'),
+        dbc.Row(dbc.Col(dcc.Graph(id='duration-graph', figure=figures_hist[k][1]),),),
+    ]
 
 if metrics_available:
     stats_layout += [
-        dbc.Row(dbc.Col(html.H5('WER (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='wer-graph', figure=figure_wer),),),
-        dbc.Row(dbc.Col(html.H5('CER (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='cer-graph', figure=figure_cer),),),
-        dbc.Row(dbc.Col(html.H5('WMR (per utterance)'), className='text-secondary'), className='mt-3'),
-        dbc.Row(dbc.Col(dcc.Graph(id='wmr-graph', figure=figure_wmr),),),
-        dbc.Row(dbc.Col(html.H5('Word accuracy distribution'), className='text-secondary'), className='mt-3'),
+        dbc.Row(dbc.Col(html.H5('Word accuracy distribution'), class_name='text-secondary'), class_name='mt-3'),
         dbc.Row(dbc.Col(dcc.Graph(id='word-acc-graph', figure=figure_word_acc),),),
     ]
 
 wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
-if args.vocab is not None:
+if 'OOV' in vocabulary[0]:
     wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
 if metrics_available:
     wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
 
 stats_layout += [
-    dbc.Row(dbc.Col(html.H5('Vocabulary'), className='text-secondary'), className='mt-3'),
+    dbc.Row(dbc.Col(html.H5('Vocabulary'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
         dbc.Col(
             dash_table.DataTable(
@@ -442,11 +500,42 @@ stats_layout += [
                 sort_by=[{'column_id': 'word', 'direction': 'asc'}],
                 style_cell={'maxWidth': 0, 'textAlign': 'left'},
                 style_header={'color': 'text-primary'},
+                css=[{'selector': '.dash-filter--case', 'rule': 'display: none'},],
             ),
         ),
-        className='m-2',
+        class_name='m-2',
     ),
+    dbc.Row(dbc.Col([html.Button('Download Vocabulary', id='btn_csv'), dcc.Download(id='download-vocab-csv'),]),),
 ]
+
+
+@app.callback(
+    Output('download-vocab-csv', 'data'),
+    [Input('btn_csv', 'n_clicks'), State('wordstable', 'sort_by'), State('wordstable', 'filter_query')],
+    prevent_initial_call=True,
+)
+def download_vocabulary(n_clicks, sort_by, filter_query):
+    vocabulary_view = vocabulary
+    filtering_expressions = filter_query.split(' && ')
+    for filter_part in filtering_expressions:
+        col_name, op, filter_value = split_filter_part(filter_part)
+
+        if op in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
+            vocabulary_view = [x for x in vocabulary_view if getattr(operator, op)(x[col_name], filter_value)]
+        elif op == 'contains':
+            vocabulary_view = [x for x in vocabulary_view if filter_value in str(x[col_name])]
+
+    if len(sort_by):
+        col = sort_by[0]['column_id']
+        descending = sort_by[0]['direction'] == 'desc'
+        vocabulary_view = sorted(vocabulary_view, key=lambda x: x[col], reverse=descending)
+
+    with open('sde_vocab.csv', encoding='utf-8', mode='w', newline='') as fo:
+        writer = csv.writer(fo)
+        writer.writerow(vocabulary_view[0].keys())
+        for item in vocabulary_view:
+            writer.writerow([str(item[k]) for k in item])
+    return dcc.send_file("sde_vocab.csv")
 
 
 @app.callback(
@@ -461,10 +550,8 @@ def update_wordstable(page_current, sort_by, filter_query):
 
         if op in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             vocabulary_view = [x for x in vocabulary_view if getattr(operator, op)(x[col_name], filter_value)]
-            print(len(vocabulary_view), len(vocabulary))
         elif op == 'contains':
             vocabulary_view = [x for x in vocabulary_view if filter_value in str(x[col_name])]
-            print(len(vocabulary_view), len(vocabulary))
 
     if len(sort_by):
         col = sort_by[0]['column_id']
@@ -479,7 +566,7 @@ def update_wordstable(page_current, sort_by, filter_query):
 
 
 samples_layout = [
-    dbc.Row(dbc.Col(html.H5('Data'), className='text-secondary'), className='mt-3'),
+    dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
         dbc.Col(
             dash_table.DataTable(
@@ -503,7 +590,11 @@ samples_layout = [
                     'height': 'auto',
                     'whiteSpace': 'normal',
                 },
-                css=[{'selector': '.dash-spreadsheet-menu', 'rule': 'position:absolute; bottom:-36px'}],
+                css=[
+                    {'selector': '.dash-spreadsheet-menu', 'rule': 'position:absolute; bottom: 8px'},
+                    {'selector': '.dash-filter--case', 'rule': 'display: none'},
+                    {'selector': '.column-header--hide', 'rule': 'display: none'},
+                ],
             ),
         )
     ),
@@ -513,9 +604,9 @@ samples_layout = [
             dbc.Col(
                 html.Div(children=k.replace('_', ' ')),
                 width=2,
-                className='mt-1 bg-light text-monospace text-break small rounded border',
+                class_name='mt-1 bg-light font-monospace text-break small rounded border',
             ),
-            dbc.Col(html.Div(id='_' + k), className='mt-1 bg-light text-monospace text-break small rounded border'),
+            dbc.Col(html.Div(id='_' + k), class_name='mt-1 bg-light font-monospace text-break small rounded border'),
         ]
     )
     for k in data[0]
@@ -526,9 +617,9 @@ if metrics_available:
         dbc.Row(
             [
                 dbc.Col(
-                    html.Div(children='diff'),
+                    html.Div(children='text diff'),
                     width=2,
-                    className='mt-1 bg-light text-monospace text-break small rounded border',
+                    class_name='mt-1 bg-light font-monospace text-break small rounded border',
                 ),
                 dbc.Col(
                     html.Iframe(
@@ -536,16 +627,16 @@ if metrics_available:
                         sandbox='',
                         srcDoc='',
                         style={'border': 'none', 'width': '100%', 'height': '100%'},
-                        className='bg-light text-monospace text-break small',
+                        className='bg-light font-monospace text-break small',
                     ),
-                    className='mt-1 bg-light text-monospace text-break small rounded border',
+                    class_name='mt-1 bg-light font-monospace text-break small rounded border',
                 ),
             ]
         )
     ]
 samples_layout += [
-    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), className='mt-3 '),
-    dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), className='mt-3'),
+    dbc.Row(dbc.Col(html.Audio(id='player', controls=True),), class_name='mt-3 '),
+    dbc.Row(dbc.Col(dcc.Graph(id='signal-graph')), class_name='mt-3'),
 ]
 
 
@@ -646,7 +737,7 @@ def plot_signal(idx, data):
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     try:
         filename = data[idx[0]]['audio_filepath']
-        audio, fs = librosa.load(filename, sr=None)
+        audio, fs = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             audio = audio[
                 int(data[idx[0]]['offset'] * fs) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * fs)
@@ -656,7 +747,7 @@ def plot_signal(idx, data):
         n_fft = 512
         # linear scale spectrogram
         s = librosa.stft(y=audio, n_fft=n_fft, hop_length=hop_length)
-        s_db = librosa.power_to_db(np.abs(s) ** 2, ref=np.max, top_db=100)
+        s_db = librosa.power_to_db(S=np.abs(s) ** 2, ref=np.max, top_db=100)
         figs.add_trace(
             go.Scatter(
                 x=np.arange(audio.shape[0]) / fs,
@@ -698,7 +789,7 @@ def update_player(idx, data):
         raise PreventUpdate
     try:
         filename = data[idx[0]]['audio_filepath']
-        signal, sr = librosa.load(filename, sr=None)
+        signal, sr = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             signal = signal[
                 int(data[idx[0]]['offset'] * sr) : int((data[idx[0]]['offset'] + data[idx[0]]['duration']) * sr)

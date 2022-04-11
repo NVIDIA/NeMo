@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import math
+import random
 
 import librosa
 import numpy as np
@@ -41,22 +42,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from librosa.util import tiny
 from torch.autograd import Variable
+from torch_stft import STFT
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.common.parts.patch_utils import stft_patch
 from nemo.utils import logging
-
-# TODO @blisc: Perhaps refactor instead of import guarding
-try:
-    from torch_stft import STFT
-except ModuleNotFoundError:
-    from nemo.utils.exceptions import CheckInstall
-
-    # fmt: off
-    class STFT(CheckInstall): pass
-    # fmt: on
-
 
 CONSTANT = 1e-5
 
@@ -179,8 +169,8 @@ class STFTExactPad(STFTPatch):
 
         if self.window is not None:
             window_sum = librosa.filters.window_sumsquare(
-                self.window,
-                magnitude.size(-1),
+                window=self.window,
+                n_frames=magnitude.size(-1),
                 hop_length=self.hop_length,
                 win_length=self.win_length,
                 n_fft=self.filter_length,
@@ -228,19 +218,26 @@ class FilterbankFeatures(nn.Module):
         max_duration=16.7,
         frame_splicing=1,
         exact_pad=False,
-        stft_exact_pad=False,  # TODO: Remove this in 1.1.0
-        stft_conv=False,  # TODO: Remove this in 1.1.0
         pad_value=0,
         mag_power=2.0,
         use_grads=False,
+        rng=None,
+        nb_augmentation_prob=0.0,
+        nb_max_freq=4000,
+        # Deprecated arguments; kept for config compatibility
+        stft_exact_pad=False,  # TODO: Remove this in 1.1.0
+        stft_conv=False,  # TODO: Remove this in 1.1.0
     ):
         super().__init__()
         if stft_conv or stft_exact_pad:
             logging.warning(
-                "Using torch_stft is deprecated and will be removed in 1.1.0. Please set stft_conv and stft_exact_pad "
-                "to False for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
+                "Using torch_stft is deprecated and has been removed. The values have been forcibly set to False "
+                "for FilterbankFeatures and AudioToMelSpectrogramPreprocessor. Please set exact_pad to True "
                 "as needed."
             )
+            stft_conv = False
+            stft_exact_pad = False
+
         if (exact_pad or stft_exact_pad) and n_window_stride % 2 == 1:
             raise NotImplementedError(
                 f"{self} received exact_pad == True, but hop_size was odd. If audio_length % hop_size == 0. Then the "
@@ -289,7 +286,7 @@ class FilterbankFeatures(nn.Module):
             window_fn = torch_windows.get(window, None)
             window_tensor = window_fn(self.win_length, periodic=False) if window_fn else None
             self.register_buffer("window", window_tensor)
-            self.stft = lambda x: stft_patch(
+            self.stft = lambda x: torch.stft(
                 x,
                 n_fft=self.n_fft,
                 hop_length=self.hop_length,
@@ -309,7 +306,8 @@ class FilterbankFeatures(nn.Module):
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sample_rate, self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq), dtype=torch.float
+            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+            dtype=torch.float,
         ).unsqueeze(0)
         self.register_buffer("fb", filterbanks)
 
@@ -332,6 +330,13 @@ class FilterbankFeatures(nn.Module):
         self.use_grads = use_grads
         if not use_grads:
             self.forward = torch.no_grad()(self.forward)
+        self._rng = random.Random() if rng is None else rng
+        self.nb_augmentation_prob = nb_augmentation_prob
+        if self.nb_augmentation_prob > 0.0:
+            if nb_max_freq >= sample_rate / 2:
+                self.nb_augmentation_prob = 0.0
+            else:
+                self._nb_max_fft_bin = int((nb_max_freq / sample_rate) * n_fft)
 
         # log_zero_guard_value is the the small we want to use, we support
         # an actual number, or "tiny", or "eps"
@@ -344,6 +349,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"fmin: {lowfreq}")
         logging.debug(f"fmax: {highfreq}")
         logging.debug(f"using grads: {use_grads}")
+        logging.debug(f"nb_augmentation_prob: {nb_augmentation_prob}")
 
     def log_zero_guard_value_fn(self, x):
         if isinstance(self.log_zero_guard_value, str):
@@ -401,6 +407,11 @@ class FilterbankFeatures(nn.Module):
                 x = torch.view_as_real(x)
             x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
+        if self.training and self.nb_augmentation_prob > 0.0:
+            for idx in range(x.shape[0]):
+                if self._rng.random() < self.nb_augmentation_prob:
+                    x[idx, self._nb_max_fft_bin :, :] = 0.0
+
         # get power spectrum
         if self.mag_power != 1.0:
             x = x.pow(self.mag_power)
@@ -428,7 +439,7 @@ class FilterbankFeatures(nn.Module):
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)
         mask = torch.arange(max_len).to(x.device)
-        mask = mask.expand(x.size(0), max_len) >= seq_len.unsqueeze(1)
+        mask = mask.repeat(x.size(0), 1) >= seq_len.unsqueeze(1)
         x = x.masked_fill(mask.unsqueeze(1).type(torch.bool).to(device=x.device), self.pad_value)
         del mask
         pad_to = self.pad_to

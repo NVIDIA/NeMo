@@ -68,7 +68,10 @@ def main():
         help="Path to the training file, it can be a text file or JSON manifest",
     )
     parser.add_argument(
-        "--nemo_model_file", required=True, type=str, help="The path of the '.nemo' file of the ASR model"
+        "--nemo_model_file",
+        required=True,
+        type=str,
+        help="The path of the '.nemo' file of the ASR model or name of a pretrained model",
     )
     parser.add_argument(
         "--kenlm_model_file", required=True, type=str, help="The path to store the KenLM binary model file"
@@ -82,7 +85,14 @@ def main():
 
     """ TOKENIZER SETUP """
     logging.info(f"Loading nemo model '{args.nemo_model_file}' ...")
-    model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
+
+    if args.nemo_model_file.endswith('.nemo'):
+        model = nemo_asr.models.ASRModel.restore_from(args.nemo_model_file, map_location=torch.device('cpu'))
+    else:
+        logging.warning(
+            "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
+        )
+        model = nemo_asr.models.ASRModel.from_pretrained(args.nemo_model_file, map_location=torch.device('cpu'))
 
     encoding_level = kenlm_utils.SUPPORTED_MODELS.get(type(model).__name__, None)
     if not encoding_level:

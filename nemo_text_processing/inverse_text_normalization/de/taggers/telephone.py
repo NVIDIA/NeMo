@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, insert_space
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space, insert_space
 
 try:
     import pynini
@@ -27,15 +26,17 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers, e.g. 
-        null vier eins eins eins zwei drei vier eins zwei drei vier -> { number_part: "(0411) 1234-1234" }
+        null vier eins eins eins zwei drei vier eins zwei drei vier -> tokens { name: "(0411) 1234-1234" }
+    
+    Args:
+        tn_cardinal_tagger: TN Cardinal Tagger
     """
 
-    def __init__(self):
-        super().__init__(name="telephone", kind="classify")
-        # country code, number_part, extension
+    def __init__(self, tn_cardinal_tagger: GraphFst, deterministic: bool = True):
+        super().__init__(name="telephone", kind="classify", deterministic=deterministic)
         separator = pynini.accep(" ")  # between components
-        zero = pynini.invert(pynini.string_file(get_abs_path("data/numbers/zero.tsv")))
-        digit = (pynini.invert(pynini.string_file(get_abs_path("data/numbers/digit.tsv"))) | zero).optimize()
+        digit = pynini.union(*list(map(str, range(1, 10)))) @ tn_cardinal_tagger.two_digit_non_zero
+        zero = pynini.cross("0", "null")
 
         number_part = (
             pynutil.delete("(")
@@ -52,8 +53,7 @@ class TelephoneFst(GraphFst):
             + pynini.closure(digit + insert_space, 3, 3)
             + digit
         )
-        number_part = pynutil.insert("number_part: \"") + pynini.invert(number_part) + pynutil.insert("\"")
+        graph = convert_space(pynini.invert(number_part))
+        final_graph = pynutil.insert("name: \"") + graph + pynutil.insert("\"")
 
-        graph = number_part
-        final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

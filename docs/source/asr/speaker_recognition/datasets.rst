@@ -34,8 +34,13 @@ First we prepare scp file(s) containing absolute paths to all the wav files requ
     !head -n 3 data/train_all.scp
 
 
-Since we created the scp file for the train, we use `scp_to_manifest.py` to convert this scp file to a manifest file and then optionally split the files to train \& dev for evaluating the models while training by using the --split flag. 
-We wont be needing the --split option for the test folder. Accordingly please mention the id number, which is the field num separated by / to be considered as the speaker label.
+Based on the created scp file, we use `scp_to_manifest.py` script to convert it to a manifest file. This script takes three optional arguments:
+
+* id: This value is used to assign speaker label to each audio file. This is the field number separated by `/` from the audio file path. For example if all audio file paths follow the convention of path/to/speaker_folder/unique_speaker_label/file_name.wav, by picking `id=3 or id=-2` script picks unique_speaker_label as label for that utterance.
+* split: Optional argument to split the manifest in to train and dev json files
+* create_chunks: Optional argument to randomly spit each audio file in to chunks of 1.5 sec, 2 sec and 3 sec for robust training of speaker embedding extractor model.
+
+
 After the download and conversion, your data folder should contain directories with manifest files as:
     
 * `data/<path>/train.json`

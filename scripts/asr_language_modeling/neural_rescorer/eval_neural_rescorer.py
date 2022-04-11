@@ -73,7 +73,7 @@ class BeamScoresDataset(torch.utils.data.Dataset):
         self.data = pd.read_csv(data_path, delimiter="\t", header=None)
         self.tokenizer = tokenizer
         self.ground_truths = []
-        with open(manifest_path, 'r') as f_orig:
+        with open(manifest_path, 'r', encoding='utf-8') as f_orig:
             for line in f_orig:
                 item = json.loads(line)
                 self.ground_truths.append(item['text'])
@@ -126,7 +126,7 @@ def linear_search_wer(
         param_name: the name of the parameter to be used in the figure
 
     Output:
-        (best coefficient found, best WER achived)
+        (best coefficient found, best WER achieved)
     """
     scale = scores1.mean().abs().item() / scores2.mean().abs().item()
     left = coef_range[0] * scale
@@ -321,7 +321,7 @@ def main():
     new_scores_flatten = new_scores.flatten()
     if args.scores_output_file is not None:
         logging.info(f'Saving the candidates with their new scores at `{args.scores_output_file}`...')
-        with open(args.scores_output_file, "w") as fout:
+        with open(args.scores_output_file, "w", encoding='utf-8') as fout:
             for sample_id in range(len(dataset)):
                 fout.write(f"{dataset.data[0][sample_id]}\t{new_scores_flatten[sample_id]}\n")
 

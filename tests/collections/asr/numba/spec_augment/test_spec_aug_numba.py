@@ -21,13 +21,13 @@ from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 
-def get_cfg(seed=0, dtype='float32'):
+def get_cfg(seed=0, dtype='float32', **kwargs):
     # fmt: off
-    cfg = OmegaConf.create(
-        dict(b=2, f=80, t=20, device='cuda',
-             freq_masks=2, time_masks=2, freq_width=27, time_width=0.05, mask_value=0.0,
-             seed=seed, dtype=dtype)
-    )
+    default = dict(b=2, f=80, t=20, device='cuda',
+                  freq_masks=2, time_masks=2, freq_width=27, time_width=0.05, mask_value=0.0,
+                  seed=seed, dtype=dtype)
+    default.update(**kwargs)
+    cfg = OmegaConf.create(default)
     # fmt: on
     return cfg
 
@@ -163,10 +163,37 @@ class TestSpecAugmentNumba:
             for f_start, f_len in zip(data['freq_starts'][bidx], data['freq_lengths'][bidx]):
                 freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value, bidx=bidx)
 
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.parametrize('dtype', ['float16', 'float32'])
+    def test_spec_aug_kernel_large_batch(self, dtype):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+        # Change max threads per block temporarily
+        original_buffer = spec_aug_numba.MAX_THREAD_BUFFER
+        spec_aug_numba.MAX_THREAD_BUFFER = 4
+
+        cfg = get_cfg(seed=0, dtype=dtype)
+        cfg.freq_masks = 2
+        cfg.time_masks = 10
+        cfg.b = spec_aug_numba.MAX_THREAD_BUFFER + 1
+
+        data = prepare_data(**cfg)
+
+        launch_kernel(data, cfg)
+        x, x_len, sh = data['x'], data['x_len'], data['sh']
+
+        # Assert freq masks are correct
+        for bidx in range(sh[0]):
+            for f_start, f_len in zip(data['freq_starts'][bidx], data['freq_lengths'][bidx]):
+                freq_mask_check(x, x_len, f_start, f_len, mask_value=cfg.mask_value, bidx=bidx)
+
         # Assert time masks are correct
         for bidx in range(sh[0]):
             for t_start, t_len in zip(data['time_starts'][bidx], data['time_lengths'][bidx]):
                 time_mask_check(x, x_len, t_start, t_len, mask_value=cfg.mask_value, bidx=bidx)
+
+        spec_aug_numba.MAX_THREAD_BUFFER = original_buffer
 
     @pytest.mark.unit
     @pytest.mark.run_only_on('GPU')

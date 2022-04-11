@@ -9,19 +9,25 @@ Documentation section for speaker related tasks can be found at:
 |:------------------------------:|:---------------------:|:--------------------------------------:|
 | [speakerverification_speakernet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet) |        xvector        |                  1.96                  |
 |           [ecapa_tdnn](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.92                  |
+|           [titanet_large](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)           | channel-<br>attention |                  0.66                  |
 
 ## Training
 Speaker Recognition models can be trained in a similar way as other models in NeMo using train and dev manifest files. Steps on how to create manifest files for voxceleb are provided below.
-We provide two model configurations based on xvector and modified ecapa_tdnn, with pretrained models provided for each of them. 
+We provide three model configurations based on TitaNet, SpeakerNet and modified ECAPA_TDNN, with pretrained models provided for each of them. 
 
 For training speakernet (x-vector) model:
+For training titanet_large (channel-attention) model:
+```bash
+python speaker_reco.py --config_path='conf' --config_name='titanet_large.yaml' 
+```
+
 ```bash
 python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_verification_3x2x256.yaml' 
 ```
 
 For training ecapa_tdnn (channel-attention) model:
 ```bash
-python speaker_reco.py --config_path='conf' --config_name='SpeakerNet_ECAPA.yaml' 
+python speaker_reco.py --config_path='conf' --config_name='ecapa_tdnn.yaml' 
 ```
 For step by step tutorial see [notebook](https://github.com/NVIDIA/NeMo/blob/main/tutorials/speaker_tasks/Speaker_Recognition_Verification.ipynb).
 
@@ -38,7 +44,7 @@ We provide generic scripts for manifest file creation, embedding extraction, Vox
 We explain here the process for voxceleb EER calculation on voxceleb-O cleaned [trail file](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt)
 
 ### Manifest Creation
-We first generate manifest file to get embeddings, The embeddings are then used by `voxceleb_eval.py` script to get EER  
+We first generate manifest file to get embeddings. The embeddings are then used by `voxceleb_eval.py` script to get EER  
 
 ```bash
 # create list of files from voxceleb1 test folder (40 speaker test set)
@@ -48,12 +54,12 @@ python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb1_test
 ### Embedding Extraction 
 Now using the manifest file created, we can extract embeddings to `data` folder using:
 ```bash
-python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='speakerverification_speakernet' --embedding_dir='./'
+python extract_speaker_embeddings.py --manifest=voxceleb1_test_manifest.json --model_path='titanet_large' --embedding_dir='./'
 ```
 If you have a single file, you may also be using the following one liner to get embeddings for the audio file:
 
 ```python
-speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="speakerverification_speakernet")
+speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
 embs = speaker_model.get_embedding('audio_path')
 ```
 
@@ -64,12 +70,13 @@ python voxceleb_eval.py --trial_file='/path/to/trail/file' --emb='./embeddings/v
 The above command gives the performance of models on voxceleb-o cleaned trial file. 
 
 ### SpeakerID inference
+Using data from an enrollment set, one can infer labels on a test set using various backends such as cosine-similarity or a neural classifier.
 
-To infer speaker labels on a model trained with known speaker labels (or fine tuned using pretrained model)
+To infer speaker labels using cosine_similarity backend
 ```bash 
-python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest='/path/to/train/manifest/file'
---test_manifest='/path/to/test/manifest/file'
+python speaker_identification_infer.py data.enrollment_manifest=<path/to/enrollment_manifest> data.test_manifest=<path/to/test_manifest> backend.backend_model=cosine_similarity
 ``` 
+refer to conf/speaker_identification_infer.yaml for more options.
 
 ## Voxceleb Data Preparation
 

@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import pytorch_lightning as pl
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.data.text_normalization import constants
 from nemo.collections.nlp.models import DuplexDecoderModel, DuplexTaggerModel
@@ -38,7 +40,6 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
         model: A NLPModel that can either be a DuplexTaggerModel or a DuplexDecoderModel
     """
     assert model_name in MODEL_NAMES
-    logging.info(f'Model {model_name}')
 
     # Get configs for the corresponding models
     trainer_cfg = cfg.get(f'{model_name}_trainer')
@@ -46,19 +47,36 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
     pretrained_cfg = cfg.get(f'{model_name}_pretrained_model', None)
 
     trainer = pl.Trainer(**trainer_cfg)
-
     if not pretrained_cfg:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        logging.info(f'Initializing {model_name} model')
         if model_name == TAGGER_MODEL:
             model = DuplexTaggerModel(model_cfg, trainer=trainer)
         if model_name == DECODER_MODEL:
             model = DuplexDecoderModel(model_cfg, trainer=trainer)
-    else:
-        logging.info(f'Loading pretrained model {pretrained_cfg}')
+    elif os.path.exists(pretrained_cfg):
+        logging.info(f'Restoring pretrained {model_name} model from {pretrained_cfg}')
         if model_name == TAGGER_MODEL:
             model = DuplexTaggerModel.restore_from(pretrained_cfg)
         if model_name == DECODER_MODEL:
             model = DuplexDecoderModel.restore_from(pretrained_cfg)
+    else:
+        logging.info(f'Loading pretrained model {pretrained_cfg}')
+        if model_name == TAGGER_MODEL:
+            if pretrained_cfg not in DuplexTaggerModel.get_available_model_names():
+                raise (
+                    ValueError(
+                        f'{pretrained_cfg} not in the list of available Tagger models. Select from {DuplexTaggerModel.list_available_models()}'
+                    )
+                )
+            model = DuplexTaggerModel.from_pretrained(pretrained_cfg)
+        if model_name == DECODER_MODEL:
+            if pretrained_cfg not in DuplexDecoderModel.get_available_model_names():
+                raise (
+                    ValueError(
+                        f'{pretrained_cfg} not in the list of available Decoder models. Select from {DuplexDecoderModel.list_available_models()}'
+                    )
+                )
+            model = DuplexDecoderModel.from_pretrained(pretrained_cfg)
 
     # Set model.lang (if it is still None)
     if model.lang is None:
@@ -78,10 +96,5 @@ def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training:
         else:
             model.setup_validation_data(val_data_config=cfg.data.validation_ds)
 
-    logging.info(f'Model Device {model.device}')
+    logging.info(f'Model {model_name} -- Device {model.device}')
     return trainer, model
-
-
-def flatten(l):
-    """ flatten a list of lists """
-    return [item for sublist in l for item in sublist]

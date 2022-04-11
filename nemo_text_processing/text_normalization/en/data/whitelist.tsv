@@ -11,6 +11,10 @@ vs	versus
 dept.	department
 vol	volume
 vol.	volume
+bldg.	building
+Bldg.	Building
+apt.	apartment
+Apt.	Apartment
 Σ	sigma
 η	eta
 κ	kappa
@@ -21,7 +25,6 @@ vol.	volume
 δ	delta
 ι	iota
 _	underscore
-$	dollar sign
 %	percent sign
 &	ampersand
 *	asterisk
@@ -29,7 +32,6 @@ $	dollar sign
 /	slash
 =	equal sign
 ^	circumflex
-`	right single quote
 {	left brace
 |	vertical bar
 }	right brace
@@ -49,7 +51,6 @@ AAAW	a a a w
 AABA	a a b a
 AaB	a a b
 A. A. B.	a a b
-AAB-	a a b
 AAB	a a b
 AABC	a a b c
 Aabo	a a b o
@@ -115,7 +116,6 @@ ABMC	a b m c
 ABN	a b n
 ABN's	a b n's
 Abp	a b p
-ABP-	a b p
 ABP	a b p
 ABPD	a b p d
 ABPI	a b p i
@@ -126,7 +126,6 @@ ABPW	a b p w
 Abr	a b r
 ABR	a b r
 abv	a b v
-ABV-	a b v
 ABV	a b v
 ABW	a b w
 ABX	a b x
@@ -149,7 +148,6 @@ ACBL	a c b l
 ACBS	a c b s
 ACBSP	a c b s p
 ACCA	a c c a
-ACC-	a c c
 ACC	a c c
 ACCC	a c c c
 ACCJ	a c c j
@@ -187,14 +185,12 @@ acls	a c l s
 ACL's	a c l's
 ACLS	a c l s
 ACLU	a c l u
-ACM-	a c m
 ACM	a c m
 ACMI	a c m i
 ACMs	a c m's
 ACN	a c n
 ACO's	a c o's
 AcpA	a c p a
-ACP-	a c p
 ACP	a c p
 AcpB	a c p b
 ACPI	a c p i
@@ -233,7 +229,6 @@ Acy	a c y
 ADAA	a d a a
 A&D	a and d
 Adab	a d a b
-ADAC-	a d a c
 ADAC	a d a c
 A. D.	a d
 A.D.	a d
@@ -241,7 +236,6 @@ A.D.A.M.	adam
 AdaSL	a d a s l
 ADATA	a d a t a
 ADBAC	a d b a c
-ADB-	a d b
 ADB	a d b
 ADBGR	a d b g r
 ADBICA	a d b i c a
@@ -275,7 +269,6 @@ ADLs	a d l's
 A.D.M.A.C.	a d m a c
 adm	a d m
 Adm	a d m
-ADM-	a d m
 ADM	a d m
 ADMK	a d m k
 admn	a d m n
@@ -285,7 +278,6 @@ ADNEC	a d n e c
 ADNs	a d n's
 AdP	a d p
 A.D.P.	a d p
-ADP-	a d p
 ADP	a d p
 ADPCM	a d p c m
 ADPF	a d p f
@@ -297,7 +289,6 @@ ADRP	a d r p
 ADRs	a d r's
 ADSB	a d s b
 ADSL	a d s l
-ADSP-	a d s p
 ADSR	a d s r
 ADSRs	a d s r's
 ADSs	a d s's
@@ -326,7 +317,6 @@ aegte	a e g t e
 AEHL	a e h l
 AEIA	a e i a
 AEI	a e i
-AEIO-	a e i o
 AEIOU	a e i o u
 Aeka	a e k a
 AEK	a e k
@@ -345,7 +335,6 @@ AERN	a e r n
 Aert	a e r t
 AESA	a e s a
 Aes	a e's
-AES-	a e s
 AES	a e s
 aet	a e t
 AET	a e t
@@ -360,12 +349,10 @@ af	a f
 Af	a f
 A. F.	a f
 A.F.	a f
-AF-	a f
 AF	a f
 Afaf	a f a f
 AFAP	a f a p
 AFB	a f b
-AFCA-	a f c a
 AFCA	a f c a
 afc	a f c
 A.F.C.	a f c
@@ -383,7 +370,6 @@ Afe	a f e
 AFE	a f e
 Aff	a f f
 AFF	a f f
-AFFDL-	a f f d l
 AFG	a f g
 AFGM	a f g m
 AFH	a f h
@@ -395,7 +381,6 @@ Afiq	a f i q
 AFI's	a f i's
 AFJ	a f j
 A.F.L.	a f l
-AFL-	a f l
 AFL	a f l
 AFLEG	a f l e g
 AFLPA	a f l p a
@@ -403,7 +388,6 @@ AFLP	a f l p
 AFL's	a f l's
 AFLUA	a f l u a
 A. F.M.A.	a f m a
-AFM-	a f m
 AFM	a f m
 AFMC	a f m c
 AFMs	a f m's
@@ -442,7 +426,6 @@ AGCO	a g c o
 Agda	a g d a
 AGD	a g d
 A.G.E.	a g e
-AGF-	a g f
 AGF	a g f
 AG&G	a g and g
 agg	a g g
@@ -455,9 +438,7 @@ A.G.J.	a g j
 A. G. K.	a g k
 AGL	a g l
 agli	a g l i
-AGM-	a g m
 AGM	a g m
-AGMR-	a g m r
 Agn	a g n
 AgN	a g n
 AGN	a g n
@@ -470,7 +451,6 @@ AGPW	a g p w
 AGRs	a g r's
 AGS	a g s
 AGSM	a g s m
-AGSS-	a g s s
 Agsu	a g s u
 agt	a g t
 AGT	a g t
@@ -491,7 +471,6 @@ Ahe	a h e
 AHEC	a h e c
 AHF	a h f
 Ahirs	a h i r's
-AHJD-	a h j d
 Ahk	a h k
 AHL's	a h l's
 AHP	a h p
@@ -511,7 +490,6 @@ A.I.A.	a i a
 A&I	a and i
 A. I.	a i
 A.I.	a i
-AI-	a i
 AI	a i
 AIAP	a i a p
 Aias	a i a's
@@ -528,7 +506,6 @@ AICAR	a i c a r
 AICC	a i c c
 AICCCR	a i c c c r
 aici	a i c i
-AICL-	a i c l
 Aicme	a i c m e
 AICN	a i c n
 AICPA	a i c p a
@@ -540,12 +517,10 @@ AICUF	a i c u f
 AIDA	a i d a
 AIDN	a i d n
 AIEC	a i e c
-AIEE-	a i e e
 AIEE	a i e e
 Aiel	a i e l
 AIEP	a i e p
 AIFA	a i f a
-AIF-	a i f
 AIF	a i f
 AIFB	a i f b
 Aife	a i f e
@@ -561,7 +536,6 @@ AIHL	a i h l
 AIIMS	a i i m s
 Aija	a i j a
 Aik	a i k
-AIK-	a i k
 AIK	a i k
 AIKR	a i k r
 A.I.M.	a i m
@@ -601,11 +575,9 @@ A. J. P.	a j p
 A.J.P.	a j p
 AJPW	a j p w
 A.J.R.	a j r
-AJR-	a j r
 AJR	a j r
 Ajsa	a j s a
 A.J.S.	a j s
-AJS-	a j s
 AJS	a j s
 A. J. T.	a j t
 A.J.T.	a j t
@@ -622,13 +594,10 @@ aka.	a k a
 aka	a k a
 Aka.	a k a
 Aka	a k a
-AKA-	a k a
 AKA	a k a
 A&K	a and k
-ak-	a k
 A. K.	a k
 A.K.	a k
-AK-	a k
 AK	a k
 AKAP	a k a p
 AKAPs	a k a p's
@@ -643,14 +612,12 @@ AKG's	a k g's
 akh	a k h
 AKH	a k h
 AKHS	a k h s
-AKK-	a k k
 AKM	a k m
 AKN	a k n
 Akpa	a k p a
 AKP	a k p
 AKPD	a k p d
 AKQA	a k q a
-AKR-	a k r
 AKR	a k r
 A.K.S.	a k s
 AKS	a k s
@@ -671,9 +638,7 @@ Alh	a l h
 ALH	a l h
 A. L. M.	a l m
 A.L.P.	a l p
-ALP-	a l p
 ALPG	a l p g
-ALQ-	a l q
 ALR	a l r
 ALSC	a l s c
 ALSF	a l s f
@@ -686,6 +651,8 @@ ALWS	a l w s
 AMAA	a m a a
 A'ma	a m a
 A&M	a and m
+a.m.	a m
+a.m	a m
 A. M.	a m
 A.M.	a m
 AMAP	a m a p
@@ -695,9 +662,7 @@ amb	a m b
 Amb	a m b
 AMB	a m b
 AmBX	a m b x
-AMc-	a m c
 A.M.C.	a m c
-AMC-	a m c
 AMC	a m c
 AMC's	a m c's
 AMCs	a m c's
@@ -711,7 +676,6 @@ A.M.E.	a m e
 AMF	a m f
 AM&FM	a m and f m
 A. M. G.	a m g
-AMG-	a m g
 AMG	a m g
 AMGTV	a m g t v
 Amha	a m h a
@@ -723,7 +687,6 @@ A. M. K.	a m k
 A.M.K.	a m k
 AMK	a m k
 aml	a m l
-AML-	a m l
 AML	a m l
 Amli	a m l i
 AMLS	a m l s
@@ -738,7 +701,6 @@ AMN	a m n
 AMNH	a m n h
 AMNRL	a m n r l
 AM&O	a m and o
-AMPK-	a m p k
 AMPK	a m p k
 AMPL	a m p l
 AMP's	a m p's
@@ -750,19 +712,16 @@ AMREF	a m r e f
 AMSA	a m s a
 A&M's	a and m's
 Ams'	a m's
-AMS-	a m s
 amsl	a m s l
 AMSO's	a m s o's
 AMSRS	a m s r s
 AMS's	a m s's
 AMSS	a m s s
-AMSU-	a m s u
 AMSU	a m s u
 Amta	a m t a
 amt	a m t
 Amt	a m t
 A.M.T.	a m t
-AMT-	a m t
 AMT	a m t
 AMTB	a m t b
 AMTPAT	a m t p a t
@@ -773,7 +732,6 @@ AMU	a m u
 AMU's	a m u's
 A.M.V.M.	a m v m
 AMW	a m w
-AMX-	a m x
 AMX	a m x
 AMYF	a m y f
 A. N.	a n
@@ -798,7 +756,6 @@ ANGPTL	a n g p t l
 ANGRAU	a n g r a u
 Angti	a n g t i
 Angu	a n g u
-Angul-	a n g u l
 Anhe	a n h e
 ANI	a n i
 ANL	a n l
@@ -846,7 +803,6 @@ Aoko	a o k o
 AOKP	a o k p
 Aola	a o l a
 Aol	a o l
-AOL-	a o l
 AOL	a o l
 AOL's	a o l's
 AOLTV	a o l t v
@@ -878,7 +834,6 @@ APB	a p b
 APBL	a p b l
 APCA	a p c a
 Apc	a p c
-APC-	a p c
 APC	a p c
 APCCR	a p c c r
 APCh	a p c h
@@ -887,7 +842,6 @@ APCRDA	a p c r d a
 APC's	a p c's
 APCs	a p c's
 APDA	a p d a
-APD-	a p d
 APD	a p d
 APDM	a p d m
 APEGBC	a p e g b c
@@ -908,7 +862,6 @@ APHL	a p h l
 Apiao	a p i a o
 Api	a p i
 APi	a p i
-API-	a p i
 API	a p i
 Apic	a p i c
 APICv	a p i c v
@@ -924,7 +877,6 @@ APM	a p m
 APML	a p m l
 APMR	a p m r
 APMSO	a p m s o
-APN-	a p n
 APN	a p n
 A.P.N.C.	a p n c
 Apphttp	a p p h t t p
@@ -942,12 +894,9 @@ APRST	a p r s t
 A&P's	a and p's
 Aps	a p's
 APs	a p's
-APS-	a p s
 APS	a p s
 APSF	a p s f
 APSL	a p s l
-APSU-	a p s u
-APTA-	a p t a
 APTA	a p t a
 AP&T	a p and t
 APW	a p w
@@ -960,7 +909,6 @@ AQI	a q i
 Aql	a q l
 AQP	a q p
 Aqr	a q r
-AQS-	a q s
 A&R	a and r
 ARA	a r a
 A. R.	a r
@@ -985,8 +933,6 @@ Arnd	a r n d
 ARNG	a r n g
 ARNT	a r n t
 A.R.P.	a r p
-ARPP-	a r p p
-ARQ-	a r q
 ARQ	a r q
 ARTL	a r t l
 A.R.U.	a r u
@@ -1052,7 +998,6 @@ ASML	a s m l
 ASMPH	a s m p h
 ASMSU	a s m s u
 Asn	a s n
-ASN-	a s n
 ASN	a s n
 Aso	a s o
 ASO	a s o
@@ -1060,7 +1005,6 @@ ASP	a s p
 ASPCA	a s p c a
 Aspe	a s p e
 ASPTS	a s p t s
-ASQ-	a s q
 Asr	a s r
 ASR	a s r
 Assn	a s s n
@@ -1079,18 +1023,15 @@ ASTM	a s t m
 ASTR	a s t r
 Astt	a s t t
 A.S.U.	a s u
-ASU-	a s u
 ASU	a s u
 A.S.V.	a s v
 ASV	a s v
 Aswa	a s w a
-ASW-	a s w
 ASW	a s w
 ASX	a s x
 A&T	a and t
 atac	a t a c
 Atac	a t a c
-ATAC-	a t a c
 Atad	a t a d
 Ata's	a t a's
 Atas	a t a's
@@ -1103,12 +1044,10 @@ atc	a t c
 A.T.C.	a t c
 ATC	a t c
 atcc	a t c c
-ATCC-	a t c c
 ATCC	a t c c
 ATCDE	a t c d e
 ATCL	a t c l
 ATDC	a t d c
-ATF-	a t f
 ATF	a t f
 Atg	a t g
 ATG	a t g
@@ -1144,17 +1083,14 @@ Atm	a t m
 ATM	a t m
 ATMs	a t m's
 ATN	a t n
-ATO-	a t o
 ATO	a t o
 Atos	a t o's
 ATO's	a t o's
 ATOs	a t o's
 ATOS	a t o s
-ATP-	a t p
 ATP	a t p
 atpB	a t p b
 A.T.Q.	a t q
-ATR-	a t r
 ATR	a t r
 atri	a t r i
 Atri	a t r i
@@ -1168,7 +1104,6 @@ ATSDR	a t s d r
 AT&SF	a t and s f
 ATSF	a t s f
 ATSIC	a t s i c
-AT&T-	a t and t
 AT&T	a t and t
 attd	a t t d
 ATTESA	a t t e s a
@@ -1179,7 +1114,6 @@ ATTWI	a t t w i
 ATTWX's	a t t w x's
 ATU's	a t u's
 atv	a t v
-ATV-	a t v
 ATV	a t v
 ATV's	a t v's
 ATVs	a t v's
@@ -1199,7 +1133,6 @@ AVAC	a v a c
 A. V.	a v
 A.V.	a v
 AVCA	a v c a
-AVC-	a v c
 AVC	a v c
 AVCHD	a v c h d
 AVCs	a v c's
@@ -1215,7 +1148,6 @@ Avn	a v n
 AVN	a v n
 Avo	a v o
 AvP	a v p
-AVP-	a v p
 AVP	a v p
 AVR	a v r
 AVRs	a v r's
@@ -1267,7 +1199,6 @@ AYK	a y k
 AYP	a y p
 A. Z.	a z
 A.Z.	a z
-AZD-	a z d
 AZE	a z e
 Azg	a z g
 Azi	a z i
@@ -1301,8 +1232,6 @@ BAe	b a e
 BAE	b a e
 BAFA	b a f a
 BAF	b a f
-BAPED-	b a p e d
-BAPH-	b a p h
 B.A.R.	b a r
 BARV	b a r v
 BASCA	b a s c a
@@ -1319,15 +1248,12 @@ B&B	b and b
 bb	b b
 B. B.	b b
 B.B.	b b
-BB-	b b
 BB	b b
 BBB	b b b
 bbc	b b c
 B.B.C.	b b c
-BBC-	b b c
 BBC	b b c
 BBCBBC	b b c b b c
-BBCH-	b b c h
 BB&CI	b b and c i
 BBC&PJR	b b c and p j r
 BBC's	b b c's
@@ -1343,7 +1269,6 @@ BBI	b b i
 BBK	b b k
 BBKL	b b k l
 BBLB	b b l b
-BBL-	b b l
 BBL	b b l
 BBM	b b m
 BBMP	b b m p
@@ -1369,7 +1294,6 @@ BBWA	b b w a
 BBWR's	b b w r's
 BBYA	b b y a
 BBYO	b b y o
-BCA-	b c a
 BCA	b c a
 BCAD	b c a d
 BCAM	b c a m
@@ -1379,8 +1303,6 @@ BCB	b c b
 bc	b c
 B. C.	b c
 B.C.	b c
-BC-	b c
-BC,	b c
 BC	b c
 BCCA	b c c a
 BCC	b c c
@@ -1392,8 +1314,6 @@ BCC's	b c c's
 BCDA	b c d a
 BCD	b c d
 BCEA	b c e a
-BCE-	b c e
-BCE,	b c e
 BCE	b c e
 BCE's	b c e's
 BCF	b c f
@@ -1404,8 +1324,6 @@ BCHR's	b c h r's
 BCHS	b c h s
 BCI	b c i
 B. C. J.	b c j
-bcl-	b c l
-Bcl-	b c l
 BCL	b c l
 BCLR	b c l r
 BCMA	b c m a
@@ -1417,19 +1335,16 @@ BCN	b c n
 BCN's	b c n's
 BCP	b c p
 BCPM	b c p m
-BCR-	b c r
 BCR	b c r
 BCRF's	b c r f's
 B.C.'s	b c's
 BC's	b c's
 BCs	b c's
-BCS-	b c s
 BCS	b c s
 BCSC	b c s c
 BCSic	b c s i c
 BCSN	b c s n
 BCT	b c t
-BCTC-	b c t c
 BCTC	b c t c
 BCU	b c u
 BCYP	b c y p
@@ -1438,7 +1353,6 @@ BDA	b d a
 bd	b d
 B. D.	b d
 B.D.	b d
-BD-	b d
 BD	b d
 BDBL	b d b l
 BDC	b d c
@@ -1452,7 +1366,6 @@ BDI	b d i
 BDJ	b d j
 BDK	b d k
 BDK's	b d k's
-BDM-	b d m
 BDMI	b d m i
 BDN	b d n
 BDNF	b d n f
@@ -1485,7 +1398,6 @@ Beis	b e i's
 bej	b e j
 B.E.M.	b e m
 BEMs	b e m's
-BEP-	b e p
 BEP	b e p
 Ber	b e r
 BER	b e r
@@ -1495,7 +1407,6 @@ BES	b e s
 B.F.A.	b f a
 BFA	b f a
 bf	b f
-Bf-	b f
 B. F.	b f
 B.F.	b f
 BF	b f
@@ -1537,9 +1448,7 @@ BGH	b g h
 B. G. J. S.	b g j s
 BGL	b g l
 BglII	b g l i i
-BGM-	b g m
 BGM	b g m
-BGP-	b g p
 BGP	b g p
 BGRA	b g r a
 BGR	b g r
@@ -1588,7 +1497,6 @@ BIH	b i h
 B.I.O.L.A.	b i o l a
 B. J.	b j
 B.J.	b j
-BJC-	b j c
 BJCC	b j c c
 BJCP	b j c p
 BJD	b j d
@@ -1606,7 +1514,6 @@ BJU	b j u
 BJY	b j y
 B.K.A.	b k a
 B&K	b and k
-BKB-	b k b
 B. K.	b k
 B.K.	b k
 BKCa	b k c a
@@ -1624,7 +1531,6 @@ BKTV	b k t v
 BKV	b k v
 B. L.	b l
 B.L.	b l
-BL-	b l
 BL	b l
 BLC	b l c
 BLCC	b l c c
@@ -1632,15 +1538,11 @@ BLCN	b l c n
 ble	b l e
 bleg	b l e g
 blev	b l e v
-BLG-	b l g
 BLG	b l g
-BLH-	b l h
 bli	b l i
 BLI	b l i
 Blla	b l l a
-BLL-	b l l
 BLL	b l l
-BLM-	b l m
 BLM	b l m
 BLMC	b l m c
 BLOU's	b l o u's
@@ -1653,7 +1555,6 @@ BLS	b l s
 BLT	b l t
 BLTF	b l t f
 BLTs	b l t's
-BLTTA-	b l t t a
 BLV	b l v
 BMAA	b m a a
 B.M.A.	b m a
@@ -1683,21 +1584,17 @@ BMIT	b m i t
 BMJ	b m j
 BMK	b m k
 BMKG	b m k g
-BMML-	b m m l
 BMMO	b m m o
 BMNA	b m n a
 BMNH	b m n h
 BMNP	b m n p
 BMO	b m o
-BMP-	b m p
 BMP	b m p
 BMPs	b m p's
-BMR-	b m r
 BMR	b m r
 BMRs	b m r's
 BMSA	b m s a
 B.M.S.	b m s
-BMS-	b m s
 BMS	b m s
 bmt	b m t
 B. M. T.	b m t
@@ -1711,7 +1608,6 @@ B. M. W.	b m w
 BMW	b m w
 BMW M	b m w
 BMW's	b m w's
-BMX-	b m x
 BMX	b m x
 BNA	b n a
 B&N	b and n
@@ -1733,7 +1629,6 @@ BNIC	b n i c
 BNL	b n l
 BNO	b n o
 BNP	b n p
-BNPH-	b n p h
 BNR	b n r
 BNRC	b n r c
 BNS	b n s
@@ -1744,14 +1639,12 @@ BNU	b n u
 BNY	b n y
 BNZ	b n z
 Boac	b o a c
-BOAC-	b o a c
 BOAC	b o a c
 B&O	b and o
 B. O.	b o
 B.O.	b o
 Boc	b o c
 BoC	b o c
-BOC-	b o c
 BOC	b o c
 BOCs	b o c's
 BOCS	b o c s
@@ -1772,7 +1665,6 @@ BPC	b p c
 BPD	b p d
 BPER	b p e r
 B.P.H.	b p h
-BPH-	b p h
 BPI	b p i
 BPJ	b p j
 BPK	b p k
@@ -1800,7 +1692,6 @@ BPY	b p y
 B&Q	b and q
 BQB	b q b
 B. Q.	b q
-BQM-	b q m
 BRAC's	b r a c's
 BRAM	b r a m
 BRBDP	b r b d p
@@ -1822,7 +1713,6 @@ BRK	b r k
 BRL	b r l
 BRM	b r m
 BRMS	b r m s
-Brn-	b r n
 BRN	b r n
 BRNC	b r n c
 Brne	b r n e
@@ -1846,7 +1736,6 @@ brzy	b r z y
 Brzyk	b r z y k
 BSAA	b s a a
 B.S.A.	b s a
-BSA-	b s a
 BSA	b s a
 BSAC	b s a c
 BsaL	b s a l
@@ -1858,13 +1747,11 @@ B.'s	b's
 Bs	b's
 B. S.	b s
 B.S.	b s
-BS-	b s
 BS	b s
 B.S.C.	b s c
 BSC	b s c
 BSCL	b s c l
 bsd	b s d
-BSD-	b s d
 BSD	b s d
 BSDE	b s d e
 BSE	b s e
@@ -1872,12 +1759,10 @@ BSET	b s e t
 BSFA	b s f a
 BSF	b s f
 BSG	b s g
-BSh-	b s h
 BSH	b s h
 BSIB	b s i b
 BSI	b s i
 BSK	b s k
-BSL-	b s l
 BSL	b s l
 BSM	b s m
 BSME	b s m e
@@ -1890,22 +1775,18 @@ BSPP	b s p p
 BSR	b s r
 BSRN	b s r n
 BSS	b s s
-BST-	b s t
 BSU	b s u
 BSV	b s v
 BSX	b s x
 BTA	b t a
 BTAF	b t a f
-BTB-	b t b
 BTB	b t b
 BTBD	b t b d
 bt	b t
 B. T.	b t
 B.T.	b t
-BT-	b t
 BT	b t
 BTCA	b t c a
-BTC-	b t c
 BTC	b t c
 BTCC	b t c c
 BTD	b t d
@@ -1920,7 +1801,6 @@ BTNK	b t n k
 BTOB	b t o b
 BTO	b t o
 BTP	b t p
-BTR-	b t r
 BTRC	b t r c
 BTRDA	b t r d a
 Btry	b t r y
@@ -1976,7 +1856,6 @@ Bxa	b x a
 BX	b x
 Bxe	b x e
 BXML	b x m l
-BxPC-	b x p c
 BYA's	b y a's
 BYB	b y b
 B. Y.	b y
@@ -2021,7 +1900,6 @@ Caat	c a a t
 CAAT	c a a t
 C. A.	c a
 C.A.	c a
-CA-	c a
 CA	c a
 C&A	c and a
 CAC	c a c
@@ -2070,27 +1948,20 @@ CBCA	c b c a
 cb	c b
 C. B.	c b
 C.B.	c b
-CB-	c b
 CB	c b
 cbc	c b c
-CBC-	c b c
 CBC	c b c
 CB&CNS	c b and c n s
 CBC's	c b c's
 CBCS	c b c s
-CBCV-	c b c v
 CBDA	c b d a
 CBD	c b d
 CBDs	c b d's
 C.B.E.	c b e
 CBE	c b e
 CBEF	c b e f
-CBERS-	c b e r s
 CBE's	c b e's
-CBF-	c b f
 CBF	c b f
-CBFT-	c b f t
-CBFX-	c b f x
 CBGB	c b g b
 CBGB's	c b g b's
 CBGBs	c b g b's
@@ -2106,19 +1977,13 @@ CBKMT	c b k m t
 CBKRT	c b k r t
 CBL	c b l
 CBL's	c b l's
-CBM-	c b m
 CBM	c b m
-CBME-	c b m e
 CBMS	c b m s
-CBMT-	c b m t
 CBN	c b n
 CBN's	c b n's
 CBNT	c b n t
-CBO-	c b o
 CBO	c b o
-CBON-	c b o n
 CBOT	c b o t
-CBP-	c b p
 CBP	c b p
 CBPE	c b p e
 CB&Q	c b and q
@@ -2126,10 +1991,8 @@ CBR	c b r
 CBRE	c b r e
 CBRN	c b r n
 CBRNE	c b r n e
-CBSA-	c b s a
 CBSA	c b s a
 CBs	c b's
-CBS-	c b s
 CBS	c b s
 C.B.S.E.	c b s e
 CBSE	c b s e
@@ -2139,19 +2002,15 @@ CBTC	c b t c
 CBTU	c b t u
 CBU	c b u
 CBUT	c b u t
-CBV-	c b v
 CBV	c b v
 CBWT	c b w t
 CBX	c b x
-CBY-	c b y
-CBYT-	c b y t
 CBYT	c b y t
 CBZH	c b z h
 'c	c
 CcaA	c c a a
 CCAA	c c a a
 CCAAT	c c a a t
-CCAB-	c c a b
 cca	c c a
 Cca	c c a
 CCA	c c a
@@ -2168,7 +2027,6 @@ C. C.	c c
 C.C.	c c
 CCCE	c c c e
 CCCF	c c c f
-CCCP-	c c c p
 CCCP	c c c p
 CCC's	c c c's
 CCDB	c c d b
@@ -2246,7 +2104,6 @@ CCT	c c t
 CCTF	c c t f
 CCTRN	c c t r n
 CCTT	c c t t
-CCTV-	c c t v
 CCTV	c c t v
 CCUA	c c u a
 CCU	c c u
@@ -2255,7 +2112,6 @@ CCV	c c v
 CCVG	c c v g
 C. C. W.	c c w
 CCWD	c c w d
-CDAC-	c d a c
 CDA	c d a
 CDAT	c d a t
 CDB	c d b
@@ -2263,12 +2119,10 @@ CDBS	c d b s
 CDCA	c d c a
 C&D	c and d
 cdc	c d c
-CDC-	c d c
 CDC	c d c
 cd	c d
 C. D.	c d
 C.D.	c d
-CD-	c d
 CD	c d
 CDC's	c d c's
 CDDB	c d d b
@@ -2277,7 +2131,6 @@ CDE	c d e
 CDF	c d f
 CDFI	c d f i
 CDFW	c d f w
-CDG-	c d g
 CDH	c d h
 CDi	c d i
 CDI	c d i
@@ -2288,9 +2141,7 @@ CDKN	c d k n
 CDL	c d l
 CDLI	c d l i
 CDLS	c d l s
-CDMA-	c d m a
 CDMA	c d m a
-CDM-	c d m
 CDM	c d m
 cDNA	c d n a
 cdnas	c d n a s
@@ -2307,9 +2158,7 @@ CD&R	c d and r
 CDR	c d r
 cds	c d s
 CD's	c d's
-CDs,	c d's
 CDs	c d's
-CDS-	c d s
 CDS	c d s
 CDSG	c d s g
 CDSP	c d s p
@@ -2322,7 +2171,6 @@ CDTI	c d t i
 CDT's	c d t's
 CDTV	c d t v
 CDTV's	c d t v's
-CDU-	c d u
 CDU	c d u
 CDU's	c d u's
 CD&V	c d and v
@@ -2337,12 +2185,9 @@ C'e	c e
 Ce	c e
 C. E.	c e
 C.E.	c e
-CE,	c e
 CE	c e
 CECP	c e c p
 CEDA	c e d a
-Ced-	c e d
-CED-	c e d
 CEDO	c e d o
 CEDR	c e d r
 CEDS	c e d s
@@ -2411,44 +2256,34 @@ CFBG	c f b g
 CFBISD	c f b i s d
 CFB's	c f b's
 C&F	c and f
-CFC-	c f c
 CFC	c f c
 cf	c f
 C. F.	c f
 C.F.	c f
-CF-	c f
 CF	c f
-CFCF-	c f c f
 CFC's	c f c's
 CFDA	c f d a
 CFD	c f d
 C.F.E.	c f e
 CFE	c f e
-CFFB-	c f f b
 CFFC	c f f c
 C. F. F.	c f f
-CFF-	c f f
 CFF	c f f
 C. F. H.	c f h
 CFH	c f h
 CFHS	c f h s
 CFI	c f i
 CFIT	c f i t
-CFJC-	c f j c
 CFJL	c f j l
-CFJP-	c f j p
 CFJR	c f j r
 CFL	c f l
 CFL's	c f l's
 CFM	c f m
 CFMEU	c f m e u
 CFMI	c f m i
-CFMM-	c f m m
 CFND	c f n d
-CFNY-	c f n y
 CFNY	c f n y
 C.F.O.A.	c f o a
-CFOA-	c f o a
 CFO	c f o
 CFOP	c f o p
 CFOs	c f o's
@@ -2457,7 +2292,6 @@ CFPL	c f p l
 CFQ	c f q
 CFRB	c f r b
 C.F.R.	c f r
-CFR-	c f r
 CFR	c f r
 CFRP	c f r p
 CFS	c f s
@@ -2465,15 +2299,11 @@ CFSCI	c f s c i
 CFSP	c f s p
 CFTA	c f t a
 CFT	c f t
-CFTK-	c f t k
-CFTO-	c f t o
 CFTO	c f t o
 CFTR	c f t r
 CFTs	c f t's
-CFTU-	c f t u
 CFTXOP	c f t x o p
 CFU	c f u
-CFX-	c f x
 CFYN	c f y n
 CFZ	c f z
 CGA	c g a
@@ -2491,7 +2321,6 @@ CGE	c g e
 CGF	c g f
 CGFP	c g f p
 CGG	c g g
-CGI-	c g i
 CGI	c g i
 CGIL	c g i l
 CGKD	c g k d
@@ -2518,7 +2347,6 @@ C&H	c and h
 C.H.C.	c h c
 C. H.	c h
 C.H.	c h
-CHCH-	c h c h
 CHCO	c h c o
 CHD	c h d
 CHDK	c h d k
@@ -2534,7 +2362,6 @@ Chhu	c h h u
 Chirs	c h i r's
 CHISMS	c h i s m s
 CHISZ	c h i s z
-CHJX-	c h j x
 CHK	c h k
 CHL	c h l
 CHLR	c h l r
@@ -2542,7 +2369,6 @@ CHL's	c h l's
 C. H. M.	c h m
 CHM	c h m
 CHN	c h n
-CHP-	c h p
 CHP	c h p
 CHP'den	c h p d e n
 CHPs	c h p's
@@ -2561,10 +2387,7 @@ CHYR	c h y r
 CIAC	c i a c
 Cia	c i a
 C.I.A.	c i a
-CIA-	c i a
-CIA,	c i a
 CIA	c i a
-CIC-	c i c
 CIC	c i c
 ci	c i
 Ci	c i
@@ -2576,7 +2399,6 @@ CICL	c i c l
 C.I.C.M.	c i c m
 CICO	c i c o
 CIC's	c i c's
-CICT-	c i c t
 C.I.D.	c i d
 CIFF	c i f f
 CIFL	c i f l
@@ -2586,7 +2408,6 @@ cii	c i i
 CII	c i i
 CIID	c i i d
 CIJ	c i j
-CIK-	c i k
 CIKM	c i k m
 C.I.L.	c i l
 CIL	c i l
@@ -2597,8 +2418,6 @@ Cio	c i o
 C.I.O.	c i o
 CIO	c i o
 CIOs	c i o's
-CIOS-	c i o s
-CIOT-	c i o t
 CIOT	c i o t
 CIPCA	c i p c a
 Cip	c i p
@@ -2609,14 +2428,11 @@ CIPFA	c i p f a
 CIPM	c i p m
 CISA	c i s a
 CISC	c i s c
-cis-	c i s
 cis	c i s
 CIs	c i's
-CIS-	c i s
 CIS	c i s
 CITB	c i t b
 cit	c i t
-CIT-	c i t
 CIT	c i t
 CiTD	c i t d
 CITM	c i t m
@@ -2639,7 +2455,6 @@ Cixi	c i x i
 CIY	c i y
 CIZN	c i z n
 CJA	c j a
-CJAD-	c j a d
 CJBHL	c j b h l
 CJCA	c j c a
 CJCB	c j c b
@@ -2654,14 +2469,12 @@ CJFX	c j f x
 CJGC	c j g c
 CJGO	c j g o
 CJHL	c j h l
-CJIC-	c j i c
 CJK	c j k
 CJL	c j l
 CJLS	c j l s
 CJM	c j m
 CJNT	c j n t
 CJOC	c j o c
-CJOT-	c j o t
 CJP	c j p
 C. J. R.	c j r
 C.J.R.	c j r
@@ -2670,7 +2483,6 @@ CJSC	c j s c
 C. J. S.	c j s
 CJS	c j s
 CJT	c j t
-CJTF-	c j t f
 CJUF	c j u f
 CJWC	c j w c
 CKAC	c k a c
@@ -2681,15 +2493,10 @@ CK	c k
 CKD	c k d
 CKE	c k e
 CKLM	c k l m
-CKLN-	c k l n
 CKLQ	c k l q
 CKLW	c k l w
-CKND-	c k n d
-CKRY-	c k r y
 CKS	c k s
-CKSO-	c k s o
 CKSO	c k s o
-CKUE-	c k u e
 CKVL	c k v l
 C. K. W.	c k w
 CKWK	c k w k
@@ -2699,15 +2506,12 @@ CKY	c k y
 CLAC	c l a c
 CLA	c l a
 CLAS	c l a s
-CLB-	c l b
 CLBs	c l b's
 clc	c l c
-CLC-	c l c
 CLC	c l c
 cl	c l
 C. L.	c l
 C.L.	c l
-CL-	c l
 CL	c l
 CLCN	c l c n
 CLD	c l d
@@ -2719,7 +2523,6 @@ CLG	c l g
 CLHIA	c l h i a
 CLHS	c l h s
 CLI	c l i
-clk-	c l k
 CLK	c l k
 cllr	c l l r
 CLM	c l m
@@ -2737,7 +2540,6 @@ CLRK	c l r k
 CLSA	c l s a
 CLSC	c l s c
 CLs	c l's
-CLS-	c l s
 CLS	c l s
 CLT	c l t
 CLTD	c l t d
@@ -2755,7 +2557,6 @@ C.M.A.	c m a
 CMA	c m a
 CMAL	c m a l
 CMAP's	c m a p's
-CMAS-	c m a s
 CMAS	c m a s
 CMAT	c m a t
 C.M.B.	c m b
@@ -2763,13 +2564,10 @@ CMB	c m b
 CMCC	c m c c
 CMCCDI	c m c c d i
 C.M.C.	c m c
-CMC-	c m c
 CMC	c m c
-cm-	c m
 cm	c m
 C. M.	c m
 C.M.	c m
-CM-	c m
 CM	c m
 CMCs	c m c's
 CMCS	c m c s
@@ -2807,7 +2605,6 @@ CMP	c m p
 CMPS	c m p s
 CMPSO	c m p s o
 CMPV	c m p v
-CMQ-	c m q
 CMQ	c m q
 CMQT	c m q t
 C. M. R.	c m r
@@ -2824,14 +2621,12 @@ CMUCL	c m u c l
 CMU	c m u
 CMU's	c m u's
 CMV	c m v
-cmvIL-	c m v i l
 CMVM	c m v m
 CMVSS	c m v s s
 CMWF	c m w f
 CMXXII	c m x x i i
 CMYK	c m y k
 CNA	c n a
-CNBC-	c n b c
 CNBC	c n b c
 CNB	c n b
 CNC	c n c
@@ -2847,7 +2642,6 @@ CNE	c n e
 CNF	c n f
 CNFE	c n f e
 CNFK	c n f k
-CNG-	c n g
 CNG	c n g
 CNI	c n i
 CNJ	c n j
@@ -2857,7 +2651,6 @@ C. N. L.	c n l
 C.N.L.	c n l
 CNL	c n l
 CNMs	c n m's
-CNN-	c n n
 CNN	c n n
 CNO	c n o
 CNPC	c n p c
@@ -2891,24 +2684,20 @@ COA	c o a
 C&O	c and o
 C. O.	c o
 C.O.	c o
-CO-	c o
 Co.	company
 C.O.D.	c o d
 Col.	colonel
 C.O.M.L.	c o m l
 CPAC	c p a c
 CPA	c p a
-CPAP-	c p a p
 CPA's	c p a's
 CPB	c p b
 CPBL	c p b l
 C&P	c and p
-CPC-	c p c
 CPC	c p c
 cp	c p
 C. P.	c p
 C.P.	c p
-CP-	c p
 CP	c p
 CPC's	c p c's
 CPCs	c p c's
@@ -2926,7 +2715,6 @@ CPFO	c p f o
 CPG	c p g
 CPHC	c p h c
 CPH	c p h
-CPI-	c p i
 CPI	c p i
 CPIFL	c p i f l
 CPIM	c p i m
@@ -2952,7 +2740,6 @@ CPR	c p r
 CPRS	c p r s
 CPSA	c p s a
 CPSC	c p s c
-CPS-	c p s
 CPS	c p s
 CPSF	c p s f
 CPSK	c p s k
@@ -2962,7 +2749,6 @@ CPTA	c p t a
 CPT	c p t
 CPTM	c p t m
 CPUC	c p u c
-CPU-	c p u
 CPU	c p u
 CPUID	c p u i d
 CPUSA	c p u s a
@@ -2981,23 +2767,17 @@ CQDs	c q d's
 CQM	c q m
 CQO	c q o
 CQU	c q u
-CQW-	c q w
-CRABP-	c r a b p
 C. R. A.	c r a
 CRA	c r a
 C.R.A.Z.Y.	c r a z y
 CRBC	c r b c
 CRC	c r c
-cr-	c r
 cr	c r
-Cr-	c r
 C. R.	c r
 C.R.	c r
-CR-	c r
 CR	c r
 Cre	c r e
 CRE	c r e
-CRF-	c r f
 CRF	c r f
 CRG	c r g
 CRHK	c r h k
@@ -3007,13 +2787,11 @@ CRJ	c r j
 crk	c r k
 Crkva	c r k v a
 crkve	c r k v e
-CRL-	c r l
 CRL	c r l
 CRLs	c r l's
 crm	c r m
 CRM	c r m
 CRNA	c r n a
-CRN-	c r n
 CRN	c r n
 Crne	c r n e
 Crni	c r n i
@@ -3022,7 +2800,6 @@ CRP	c r p
 CRPF	c r p f
 CRRF	c r r f
 CRs	c r's
-CRS-	c r s
 CRS	c r s
 CRSP	c r s p
 CRST	c r s t
@@ -3056,7 +2833,6 @@ C.s	c's
 Cs	c's
 C. S.	c s
 C.S.	c s
-CS-	c s
 CS	c s
 CSC's	c s c's
 CSDA	c s d a
@@ -3088,22 +2864,18 @@ CSIR	c s i r
 CSIRO	c s i r o
 CSis	c s i's
 CSIs	c s i's
-CSIS-	c s i s
 CSIS	c s i s
 CSIU	c s i u
-CSKA-	c s k a
 CSKA	c s k a
 CSKA's	c s k a's
 CSK	c s k
 CSK's	c s k's
-CSL-	c s l
 CSL	c s l
 CSLI	c s l i
 CSM	c s m
 CSNB	c s n b
 CSNBX	c s n b x
 CSN	c s n
-CSNJ-	c s n j
 CSN's	c s n's
 CSOB	c s o b
 CSO	c s o
@@ -3160,7 +2932,6 @@ CTC	c t c
 ct	c t
 C. T.	c t
 C.T.	c t
-CT-	c t
 CT	c t
 CTD	c t d
 cte	c t e
@@ -3169,14 +2940,11 @@ CTEQ	c t e q
 CTF	c t f
 CTGF	c t g f
 CTI	c t i
-CTLA-	c t l a
 CTLA	c t l a
 CTL	c t l
-CTLL-	c t l l
 CTLLS	c t l l s
 CTLs	c t l's
 CTM	c t m
-CTMP-	c t m p
 CTN	c t n
 CTO	c t o
 CTP	c t p
@@ -3186,7 +2954,6 @@ Ctrip	c t r i p
 CTRL	c t r l
 CTRP	c t r p
 CTR's	c t r's
-CTS-	c t s
 CTS	c t s
 CTSD	c t s d
 CTSF	c t s f
@@ -3195,7 +2962,6 @@ CTUC	c t u c
 CTU	c t u
 CTUG	c t u g
 CTU's	c t u's
-CTVA-	c t v a
 CTVA	c t v a
 ctv	c t v
 CTV	c t v
@@ -3204,14 +2970,12 @@ CTX	c t x
 CTZ	c t z
 cu	c u
 C. U.	c u
-CU-	c u
 CU	c u
 C.U.L.	c u l
 C. U. S.	c u s
 C. U. T.	c u t
 CUW	c u w
 Cuyp	c u y p
-CVA-	c v a
 CVA	c v a
 CVAK	c v a k
 CVARG	c v a r g
@@ -3220,11 +2984,9 @@ C&V	c and v
 CVC	c v c
 cvcp	c v c p
 'cv	c v
-cv-	c v
 cv	c v
 C. V.	c v
 C.V.	c v
-CV-	c v
 CV	c v
 CVD	c v d
 CVEs	c v e's
@@ -3233,7 +2995,6 @@ CVI	c v i
 CVJM	c v j m
 CVM	c v m
 C.V.N.	c v n
-CVN-	c v n
 CVN	c v n
 C.V.O.	c v o
 CVO	c v o
@@ -3248,7 +3009,6 @@ CVT	c v t
 CVTs	c v t's
 CVV	c v v
 CVVHDF	c v v h d f
-CVW-	c v w
 CVW	c v w
 CVZ	c v z
 CWA	c w a
@@ -3282,8 +3042,6 @@ CWTS	c w t s
 CWUR	c w u r
 C. W. Y.	c w y
 CWYFL	c w y f l
-CXAM-	c x a m
-CXC-	c x c
 CXC	c x c
 CXCL	c x c l
 CXCR	c x c r
@@ -3296,7 +3054,6 @@ CYOG	c y o g
 CyP	c y p
 CYP	c y p
 Cyrl	c y r l
-Cys-	c y s
 Cys	c y's
 CYS	c y s
 CYSK	c y s k
@@ -3304,7 +3061,6 @@ CYSY	c y s y
 czci	c z c i
 cz	c z
 C.Z.	c z
-CZ-	c z
 CZ	c z
 CZE	c z e
 CZM	c z m
@@ -3330,8 +3086,6 @@ DBCS	d b c s
 db	d b
 D. B.	d b
 D.B.	d b
-DB-	d b
-DB,	d b
 DB	d b
 DBE	d b e
 DBI	d b i
@@ -3347,7 +3101,6 @@ DBS	d b s
 DBU	d b u
 DBYC	d b y c
 DBZ	d b z
-DCA-	d c a
 DCA	d c a
 DCAF	d c a f
 DCAM	d c a m
@@ -3361,12 +3114,10 @@ D&C	d and c
 dc	d c
 D. C.	d c
 D.C.	d c
-DC-	d c
 DC	d c
 DCE	d c e
 DCFC	d c f c
 DCF	d c f
-DCG-	d c g
 DCG	d c g
 DCH	d c h
 DCI	d c i
@@ -3378,12 +3129,10 @@ DCM	d c m
 DCMF	d c m f
 DCMI	d c m i
 DCMS	d c m s
-DCO-	d c o
 DCO	d c o
 DCom	d c o m
 DCOM	d c o m
 DCP	d c p
-DCR-	d c r
 DCR	d c r
 D.C.'s	d c's
 DC's	d c's
@@ -3401,13 +3150,11 @@ DCUs	d c u's
 DDA	d d a
 DDB	d d b
 D.D.C.	d d c
-DDC-	d d c
 DDC	d d c
 D&D	d and d
 D. D.	d d
 D.D.	d d
 DDF	d d f
-DDG-	d d g
 DDG	d d g
 DDHH	d d h h
 DDi	d d i
@@ -3421,7 +3168,6 @@ DDNOS	d d n o s
 Ddoc	d d o c
 DDO	d d o
 DDP	d d p
-DDR-	d d r
 DDR	d d r
 DDRMAX	d d r m a x
 DDSB	d d s b
@@ -3430,10 +3176,8 @@ DDS	d d s
 DDT	d d t
 DDTV	d d t v
 Ddu	d d u
-DDU-	d d u
 DDWFTTW	d d w f t t w
 DDX	d d x
-DEAE-	d e a e
 D.E.A.F.	d e a f
 Deah	d e a h
 DEA's	d e a's
@@ -3460,7 +3204,6 @@ dez	d e z
 Dez	d e z
 Dfa	d f a
 DFA	d f a
-DFB-	d f b
 DFB	d f b
 D.F.C.	d f c
 DFC	d f c
@@ -3522,7 +3265,6 @@ D&H	d and h
 dh	d h
 D. H.	d h
 D.H.	d h
-DH-	d h
 DH	d h
 DHEA	d h e a
 d'HEC	d h e c
@@ -3572,7 +3314,6 @@ Djam	d j a m
 dj	d j
 D. J.	d j
 D.J.	d j
-DJ-	d j
 DJ	d j
 DJ'ed	d j e d
 Djem	d j e m
@@ -3610,17 +3351,13 @@ DLD	d l d
 dl	d l
 D. L.	d l
 D.L.	d l
-DL-	d l
 DL	d l
 DLE	d l e
-DLEG-	d l e g
 D.L.F.	d l f
-DLF-	d l f
 DLF	d l f
 DLFN	d l f n
 DLG	d l g
 D. L. H.	d l h
-DLHS-	d l h s
 dlia	d l i a
 DLI	d l i
 DLJ	d l j
@@ -3632,9 +3369,7 @@ DLL's	d l l's
 DLLs	d l l's
 DLM	d l m
 DLMPST	d l m p s t
-DLNA-	d l n a
 dlo	d l o
-DLP-	d l p
 DLP	d l p
 DLPFC	d l p f c
 DLP's	d l p's
@@ -3643,18 +3378,15 @@ DLS	d l s
 DLSS	d l s s
 DLSU	d l s u
 DLSU's	d l s u's
-DLT-	d l t
 DLT	d l t
 DL&W	d l and w
 DLZ	d l z
 DMAA	d m a a
 DMA	d m a
-DMBA-	d m b a
 DMB	d m b
 DMBT	d m b t
 DMCA	d m c a
 DMCC	d m c c
-DMC-	d m c
 DMC	d m c
 DMCM	d m c m
 D.M.C.'s	d m c's
@@ -3663,7 +3395,6 @@ DMD	d m d
 DMDK	d m d k
 D. M.	d m
 D.M.	d m
-DM-	d m
 DM	d m
 DMDS	d m d s
 DMed	d m e d
@@ -3685,10 +3416,8 @@ DMRC	d m r c
 DMR	d m r
 DMRG	d m r g
 DMs	d m's
-DMS-	d m s
 DMS	d m s
 DMSII	d m s i i
-DMT-	d m t
 DMT	d m t
 DMTF	d m t f
 DMU	d m u
@@ -3698,7 +3427,6 @@ DMX	d m x
 DMZ	d m z
 Dna	d n a
 DnA	d n a
-DNA-	d n a
 DNA	d n a
 DNADTC	d n a d t c
 DNAITV	d n a i t v
@@ -3736,9 +3464,7 @@ DNS	d n s
 DNSS	d n s s
 DNT	d n t
 DNU	d n u
-DNV-	d n v
 DNVP	d n v p
-DNX-	d n x
 D.O.A.	d o a
 D.O.A.'s	d o a's
 DOAS	d o a s
@@ -3759,7 +3485,6 @@ D'oh	d o h
 DOJ	d o j
 DOJ's	d o j's
 dok	d o k
-Dok-	d o k
 Dok	d o k
 domt	d o m t
 Domt	d o m t
@@ -3782,15 +3507,11 @@ DPAA's	d p a a's
 DPA	d p a
 DPB	d p b
 DPD	d p d
-dp-	d p
 dp	d p
 D. P.	d p
 D.P.	d p
-DP-	d p
 DP	d p
-DPF-	d p f
 DPG	d p g
-DPJ-	d p j
 DPJ	d p j
 DPMA	d p m a
 DPM	d p m
@@ -3802,7 +3523,6 @@ DPP	d p p
 DPP's	d p p's
 DPPX	d p p x
 DPR	d p r
-DPRK-	d p r k
 DPRK	d p r k
 DPRK's	d p r k's
 DProf	d p r o f
@@ -3825,7 +3545,6 @@ DRBG	d r b g
 DRB's	d r b's
 DRCA	d r c a
 drc	d r c
-DRC-	d r c
 DRC	d r c
 DRDA	d r d a
 DRDC	d r d c
@@ -3847,7 +3566,6 @@ DRL	d r l
 DRLR	d r l r
 DRMC	d r m c
 D.R.M.	d r m
-DRM-	d r m
 DRM	d r m
 Drnis	d r n i's
 Dro	d r o
@@ -3862,11 +3580,9 @@ druj	d r u j
 DSA	d s a
 DsbA	d s b a
 DS&BB	d s and b b
-DSB-	d s b
 DSB	d s b
 DSBL	d s b l
 D.S.C.	d s c
-DSC-	d s c
 DSC	d s c
 D.S.C.H.	d s c h
 DSCM	d s c m
@@ -3881,9 +3597,7 @@ ds	d s
 Ds	d's
 D. S.	d s
 D.S.	d s
-DS-	d s
 DS	d s
-DSDS-	d s d s
 DSDS	d s d s
 DSG	d s g
 DSGi	d s g i
@@ -3896,12 +3610,10 @@ DSIR	d s i r
 DSJ	d s j
 dsl	d s l
 D. S. L.	d s l
-DSL-	d s l
 DSL	d s l
 DSLR	d s l r
 DSMB	d s m b
 D.S.M.	d s m
-DSM-	d s m
 DSM	d s m
 DSMs	d s m's
 dsn	d s n
@@ -3911,7 +3623,6 @@ D.S.O.	d s o
 DSO	d s o
 DSPA	d s p a
 DSP	d s p
-DSR-	d s r
 DSR	d s r
 DS's	d s's
 DSS	d s s
@@ -3923,7 +3634,6 @@ DSW	d s w
 DSX	d s x
 DSZG	d s z g
 D.T.A.	d t a
-DTA-	d t a
 DTA	d t a
 DTC	d t c
 DTC's	d t c's
@@ -3955,7 +3665,6 @@ DTRA	d t r a
 DTR	d t r
 DTRS	d t r s
 DTs	d t's
-DTS-	d t s
 DTS	d t s
 DTT	d t t
 D.T.U.	d t u
@@ -3966,7 +3675,6 @@ D.U.	d u
 dva	d v a
 Dva	d v a
 DVA	d v a
-DVB-	d v b
 DVB	d v b
 DVBE	d v b e
 DVBIC	d v b i c
@@ -3974,15 +3682,12 @@ DVC	d v c
 DVCs	d v c's
 DVCS	d v c s
 dvd	d v d
-DVD-	d v d
-DVD,	d v d
 DVD	d v d
 DVD's	d v d's
 DVDs	d v d's
 dv	d v
 D. V.	d v
 D.V.	d v
-DV-	d v
 DV	d v
 dve	d v e
 dvfb	d v f b
@@ -3996,7 +3701,6 @@ Dvin	d v i n
 Dvir	d v i r
 DVLA	d v l a
 DVLA's	d v l a's
-DVL-	d v l
 DVL	d v l
 DVM	d v m
 DVP	d v p
@@ -4012,13 +3716,11 @@ DVWK	d v w k
 Dwa	d w a
 DWA	d w a
 D&W	d and w
-DWDM-	d w d m
 D. W.	d w
 D.W.	d w
 Dwedw	d w e d w
 DWET	d w e t
 DWF	d w f
-DWGD-	d w g d
 DWG	d w g
 D.W.H.	d w h
 Dwi	d w i
@@ -4034,19 +3736,15 @@ DWS	d w s
 DWT	d w t
 DWTS	d w t s
 dwur	d w u r
-DWWX-	d w w x
 dxa	d x a
 DXA	d x a
 dx	d x
 D.X.	d x
-DX-	d x
 DX	d x
-DXED-	d x e d
 DXED	d x e d
 DXers	d x e r's
 DXII	d x i i
 DXK	d x k
-DXP-	d x p
 DXR	d x r
 DXZ	d x z
 Dydd	d y d d
@@ -4093,7 +3791,6 @@ EAI	e a i
 EAIE	e a i e
 E. A. J.	e a j
 EAMs	e a m's
-EAP-	e a p
 EAP	e a p
 E.A.R.L.	e a r l
 E.A.R.T.H.	e a r t h
@@ -4112,7 +3809,6 @@ Ebn	e b n
 EBNF	e b n f
 EBOV	e b o v
 E&BR	e and b r
-EBR-	e b r
 EBR	e b r
 Ebru	e b r u
 EBS	e b s
@@ -4123,11 +3819,9 @@ EBV	e b v
 E.B.W.	e b w
 EBWs	e b w's
 EBZR	e b z r
-ECAC-	e c a c
 ECAC	e c a c
 ECA	e c a
 ECAR	e c a r
-ECB,	e c b
 ECB	e c b
 ECBJ	e c b j
 ECBL	e c b l
@@ -4144,7 +3838,6 @@ ec	e c
 Ec	e c
 E. C.	e c
 E.C.	e c
-EC-	e c
 EC	e c
 ece	e c e
 Ece	e c e
@@ -4200,7 +3893,6 @@ E. C. T.	e c t
 ECT	e c t
 ECTLO	e c t l o
 ECTN	e c t n
-Ecto-	e c t o
 ECTS	e c t s
 ECV	e c v
 ECVs	e c v's
@@ -4221,7 +3913,6 @@ EDI	e d i
 EDK	e d k
 EDL	e d l
 EDMA	e d m a
-EDM-	e d m
 EDM	e d m
 EDMs	e d m's
 EDMW	e d m w
@@ -4238,7 +3929,6 @@ EDSC	e d s c
 eds	e d s
 Eds	e d's
 E. D. S.	e d s
-EDS-	e d s
 EDS	e d s
 EDSP	e d s p
 EDTA	e d t a
@@ -4288,7 +3978,6 @@ ef	e f
 Ef	e f
 E. F.	e f
 E.F.	e f
-EF-	e f
 EF	e f
 E. F. J.	e f j
 E. F. K.	e f k
@@ -4320,7 +4009,6 @@ EGBA	e g b a
 EGBT	e g b t
 EGC	e g c
 EGD	e g d
-EGF-	e g f
 EGF	e g f
 egfl	e g f l
 EGFL	e g f l
@@ -4356,8 +4044,6 @@ EHR	e h r
 EHS	e h s
 EHSH	e h s h
 Ehttp	e h t t p
-EHV-	e h v
-EIA-	e i a
 EIA	e i a
 EIC	e i c
 EiCs	e i c's
@@ -4410,7 +4096,6 @@ EKNU	e k n u
 Ekow	e k o w
 eks	e k s
 Eks	e k's
-EKS-	e k s
 EKS	e k s
 E. K. U.	e k u
 EKU	e k u
@@ -4424,7 +4109,6 @@ ELV	e l v
 EMA	e m a
 EMAS	e m a s
 Embd	e m b d
-EMB-	e m b
 EMB	e m b
 eMC	e m c
 EMC	e m c
@@ -4439,13 +4123,10 @@ E. M.	e m
 E.M.	e m
 EMF	e m f
 Emge	e m g e
-EMG-	e m g
 EMG	e m g
-EML-	e m l
 EMLL	e m l l
 E.M.M.	e m m
 EMNLP	e m n l p
-EMP-	e m p
 EMP	e m p
 emra	e m r a
 EMR	e m r
@@ -4507,11 +4188,9 @@ Eora	e o r a
 EOR	e o r
 Eorl	e o r l
 Eors	e o r's
-EOS-	e o s
 EOSHD	e o s h d
 EOTC	e o t c
 EOTDC	e o t d c
-EOT-	e o t
 EOU	e o u
 E.O.W.	e o w
 E&P	e and p
@@ -4522,8 +4201,6 @@ ep	e p
 Ep	e p
 E. P.	e p
 E.P.	e p
-EP-	e p
-EP,	e p
 EP	e p
 EPF	e p f
 EPFL	e p f l
@@ -4540,7 +4217,6 @@ EPI	e p i
 E.P.J.	e p j
 EPL	e p l
 EPLF	e p l f
-EPM-	e p m
 EPM	e p m
 EPOC	e p o c
 ePO	e p o
@@ -4561,7 +4237,6 @@ EPZ	e p z
 EQAO	e q a o
 eq	e q
 Eq	e q
-EQ-	e q
 EQ	e q
 EQG	e q g
 EQN	e q n
@@ -4600,7 +4275,6 @@ ERW	e r w
 ES3	e s three
 Esa	e s a
 E.S.A.	e s a
-ESA-	e s a
 ESA	e s a
 Esam	e s a m
 Esa's	e s a's
@@ -4634,7 +4308,6 @@ ESPC	e s p c
 ESPD	e s p d
 ESP	e s p
 espn	e s p n
-ESPN,	e s p n
 ESPN	e s p n
 ESPNhttp	e s p n h t t p
 ESPN's	e s p n's
@@ -4648,11 +4321,9 @@ Esra	e s r a
 ESRB	e s r b
 ESRC	e s r c
 Esref	e s r e f
-ESR-	e s r
 ESR	e s r
 ESRF	e s r f
 Esri	e s r i
-ESRI-	e s r i
 ESRI	e s r i
 ESSR	e s s r
 estd	e s t d
@@ -4702,7 +4373,6 @@ ets	e t s
 Ets	e t's
 ET's	e t's
 ETs	e t's
-ETS-	e t s
 ETS	e t s
 ett	e t t
 Ett	e t t
@@ -4718,14 +4388,12 @@ EUBs	e u b's
 EUBS	e u b s
 EUCAP	e u c a p
 EUCE	e u c e
-EUC-	e u c
 EUC	e u c
 EUCOM's	e u c o m's
 EUDEC	e u d e c
 EUD	e u d
 E. U.	e u
 E.U.	e u
-EU-	e u
 EU	e u
 eup	e u p
 EUP	e u p
@@ -4759,7 +4427,6 @@ E.V.O.L.	e v o l
 EVP	e v p
 EVR	e v r
 EVs	e v's
-EVS-	e v s
 EVS	e v s
 evv	e v v
 EVV	e v v
@@ -4768,7 +4435,6 @@ EWD	e w d
 EWEB	e w e b
 E. W.	e w
 E.W.	e w
-EWF-	e w f
 EWF	e w f
 EWF's	e w f's
 Ewha	e w h a
@@ -4780,7 +4446,6 @@ EWO	e w o
 EWOs	e w o's
 EWP	e w p
 EW's	e w's
-EWS-	e w s
 EWS	e w s
 EWTN	e w t n
 Ewu	e w u
@@ -4811,7 +4476,6 @@ eyu	e y u
 Ezaa	e z a a
 ez	e z
 Ez	e z
-EZ-	e z
 EZ	e z
 Ezh	e z h
 EZH	e z h
@@ -4824,7 +4488,6 @@ Ezy	e z y
 Faaa	f a a a
 faa	f a a
 Faa	f a a
-FAA-	f a a
 FAA	f a a
 faama	f a a m a
 FAANP	f a a n p
@@ -4843,7 +4506,6 @@ fa	f a
 Fa	f a
 F. A.	f a
 F.A.	f a
-FA-	f a
 FA	f a
 Faf	f a f
 FAFG	f a f g
@@ -4853,7 +4515,6 @@ F. A. G.	f a g
 F.A.H.	f a h
 fai	f a i
 Fai	f a i
-FAI-	f a i
 FAI	f a i
 FAIM	f a i m
 FAIP	f a i p
@@ -4890,15 +4551,12 @@ FBD	f b d
 FBFA	f b f a
 F. B.	f b
 F.B.	f b
-FB-	f b
 FB	f b
 F.B.G.s	f b g's
 F.B.I.	f b i
-FBI-	f b i
 FBI	f b i
 FBI's	f b i's
 FBK	f b k
-FBLA-	f b l a
 FBL	f b l
 FBMW	f b m w
 FBN	f b n
@@ -4934,7 +4592,6 @@ FCI	f c i
 FCIP	f c i p
 FCK	f c k
 FCL	f c l
-FCN-	f c n
 FCNM	f c n m
 FCNZ	f c n z
 FCO	f c o
@@ -4948,7 +4605,6 @@ FCS	f c s
 FCT	f c t
 FCU	f c u
 FCUL	f c u l
-FCV-	f c v
 FCV	f c v
 F. C. W.	f c w
 FCW	f c w
@@ -4964,7 +4620,6 @@ FDE	f d e
 F. D.	f d
 F.D.	f d
 FDFL	f d f l
-FDGB-	f d g b
 FDGB	f d g b
 FDG	f d g
 FDICs	f d i c's
@@ -4979,7 +4634,6 @@ FDMNES	f d m n e s
 FDNY	f d n y
 FDP	f d p
 FDP's	f d p's
-FDQ,	f d q
 FDR	f d r
 FDU	f d u
 F. E.	f e
@@ -5002,13 +4656,11 @@ FFDO	f f d o
 ff	f f
 F. F.	f f
 F.F.	f f
-FF-	f f
 FF	f f
 FFF	f f f
 FFG	f f g
 FFH	f f h
 FFI	f f i
-FFK-	f f k
 FFK	f f k
 FFL	f f l
 FFL's	f f l's
@@ -5041,7 +4693,6 @@ FGS	f g s
 FGU	f g u
 FGV	f g v
 F. H. A.	f h a
-FHA-	f h a
 FHA	f h a
 FHAR	f h a r
 F. H. C.	f h c
@@ -5086,7 +4737,6 @@ FIJL	f i j l
 FIK	f i k
 F.I.M.	f i m
 FIM	f i m
-FIMI-	f i m i
 FIMI	f i m i
 Fio	f i o
 FiO	f i o
@@ -5124,7 +4774,6 @@ FLETC	f l e t c
 fl	f l
 F. L.	f l
 F.L.	f l
-FL-	f l
 FL	f l
 FLH	f l h
 fli	f l i
@@ -5160,7 +4809,6 @@ FMF	f m f
 fm	f m
 F. M.	f m
 F.M.	f m
-FM-	f m
 FM	f m
 FMH	f m h
 FMHS	f m h s
@@ -5180,7 +4828,6 @@ FMRP	f m r p
 FMRU	f m r u
 FM's	f m's
 FMs	f m's
-FMS-	f m s
 FMS	f m s
 FMSF's	f m s f's
 FMSO	f m s o
@@ -5210,18 +4857,15 @@ FNSEA	f n s e a
 FNU	f n u d s a
 FOF	f o f
 F. O.	f o
-FPA-	f p a
 FPA	f p a
 FPB	f p b
 FPC	f p c
 FPCP	f p c p
 F.P.D.	f p d
-FPD-	f p d
 FPDs	f p d's
 fp	f p
 F. P.	f p
 F.P.	f p
-FP-	f p
 FP	f p
 FPGA	f p g a
 FPGAs	f p g a's
@@ -5239,11 +4883,9 @@ F.P.R.	f p r
 FPR	f p r
 FPSC	f p s c
 fps	f p s
-FPS-	f p s
 FPS	f p s
 FPSO	f p s o
 FPSs	f p s's
-FPTP-	f p t p
 FPTP	f p t p
 FPU	f p u
 FQAD	f q a d
@@ -5264,7 +4906,6 @@ F.R.D.	f r d
 fr	f r
 F. R.	f r
 F.R.	f r
-FR-	f r
 FR	f r
 FRFS	f r f s
 FRFT	f r f t
@@ -5294,7 +4935,6 @@ FRWT	f r w t
 Frwydr	f r w y d r
 FSA	f s a
 FSB	f s b
-FSC-	f s c
 FSC	f s c
 FSCS	f s c s
 FSE	f s e
@@ -5372,7 +5012,6 @@ FTUC	f t u c
 Ftuh	f t u h
 FTU's	f t u's
 FTV	f t v
-FVA-	f v a
 F. V. B.	f v b
 F. V.	f v
 F.V.	f v
@@ -5466,7 +5105,6 @@ GBIB	g b i b
 GBIF	g b i f
 GBI	g b i
 GBK	g b k
-GBLA-	g b l a
 GBL	g b l
 GBMA	g b m a
 G. B. M.	g b m
@@ -5475,7 +5113,6 @@ GBP	g b p
 GBR	g b r
 GB's	g b's
 GBS	g b s
-GBV-	g b v
 GBV	g b v
 GBX	g b x
 GBYLA	g b y l a
@@ -5512,7 +5149,6 @@ GCOEC	g c o e c
 GCOS	g c o s
 GCPD	g c p d
 GCPH	g c p h
-GCR-	g c r
 GCR	g c r
 GCRIO	g c r i o
 GCSE	g c s e
@@ -5520,7 +5156,6 @@ GCSEs	g c s e's
 GC&SF	g c and s f
 GCS	g c s
 GCSI	g c s i
-GCT-	g c t
 GCU	g c u
 GCV	g c v
 GCVO	g c v o
@@ -5543,12 +5178,10 @@ G.D.	g d
 GD	g d
 GDI	g d i
 G.D.L.	g d l
-GDNFR-	g d n f r
 GDN	g d n
 G.D.O.D.	g d o d
 Gdow	g d o w
 G.D.P.	g d p
-GDP-	g d p
 GDP	g d p
 GDPs	g d p's
 gdr	g d r
@@ -5568,7 +5201,6 @@ GEGB	g e g b
 ge	g e
 G. E.	g e
 G.E.	g e
-GE-	g e
 GE	g e
 GEHA	g e h a
 GEHX	g e h x
@@ -5594,7 +5226,6 @@ GFF	g f f
 G. F.	g f
 G.F.	g f
 GFM	g f m
-GFP-	g f p
 GFP	g f p
 G. F. R.	g f r
 GFR	g f r
@@ -5651,7 +5282,6 @@ GLA	g l a
 GLB	g l b
 GLBT	g l b t
 GLBTQ	g l b t q
-GLC-	g l c
 GLC	g l c
 G&L	g and l
 G. L.	g l
@@ -5667,17 +5297,13 @@ GLM	g l m
 glnA	g l n a
 G.L.O.R.Y.	g l o r y
 Glos	g l o's
-GLP-	g l p
 GLRS	g l r s
 GLS	g l s
 GLT	g l t
 GLVC	g l v c
-GLX-	g l x
 GLX	g l x
-GLYX-	g l y x
 GMAC	g m a c
 gma	g m a
-GMA-	g m a
 GMA	g m a
 GMAM	g m a m
 GMA's	g m a's
@@ -5700,7 +5326,6 @@ GMG	g m g
 gm	g m
 G. M.	g m
 G.M.	g m
-GM-	g m
 GM	g m
 GMG's	g m g's
 gmin	g m i n
@@ -5745,12 +5370,10 @@ G.O.	g o
 G.O.O.D.	g o o d
 GOPB	g o p b
 G.O.P.	g o p
-GOP-	g o p
 GOP	g o p
 GOPIO	g o p i o
 GOP's	g o p's
 GOQ	g o q
-GPA-	g p a
 GPA	g p a
 GPB	g p b
 G.P.C.	g p c
@@ -5767,7 +5390,6 @@ GPG	g p g
 gp	g p
 G. P.	g p
 G.P.	g p
-GP-	g p
 GP	g p
 GPGPU	g p g p u
 GPI	g p i
@@ -5777,7 +5399,6 @@ GPL	g p l
 GPMGs	g p m g's
 G.P.O.	g p o
 GPO	g p o
-GPOPS-	g p o p s
 GPP	g p p
 GPRA	g p r a
 GPRF	g p r f
@@ -5785,7 +5406,6 @@ GPR	g p r
 GPRs	g p r's
 GPRS	g p r s
 GPSC	g p s c
-GPS-	g p s
 GPS	g p s
 GPT	g p t
 GPU	g p u
@@ -5809,7 +5429,6 @@ GRC	g r c
 GRCs	g r c's
 GRDA	g r d a
 GRDC	g r d c
-GRDF-	g r d f
 G.R.D.	g r d
 GRD	g r d
 gre	g r e
@@ -5820,13 +5439,11 @@ GRG	g r g
 gr	g r
 G. R.	g r
 G.R.	g r
-GR-	g r
 GR	g r
 GRK	g r k
 G.R.L.	g r l
 GRL	g r l
 GRMG	g r m g
-GRM-	g r m
 GRM	g r m
 GRO	g r o
 GRP	g r p
@@ -5853,32 +5470,26 @@ GSE	g s e
 GSFC	g s f c
 GSF	g s f
 G&S	g and s
-GSG-	g s g
 GSG	g s g
 Gs	g's
 G. S.	g s
 G.S.	g s
-GS-	g s
 GS	g s
 GSHD	g s h d
-GSh-	g s h
 GSH	g s h
 GSI	g s i
 GSIs	g s i's
 GSIS	g s i s
-GSK-	g s k
 GSK	g s k
 GSL	g s l
 GSLV	g s l v
 GSMA	g s m a
-GSM-	g s m
 GSM	g s m
 GSNAS	g s n a s
 G. S. N.	g s n
 GSN	g s n
 GSNM	g s n m
 GSN's	g s n's
-GSOC-	g s o c
 GSO	g s o
 GSOM's	g s o m's
 GSOp	g s o p
@@ -5887,12 +5498,10 @@ G. S. P.	g s p
 GSP	g s p
 GSR	g s r
 GSSE	g s s e
-GSS-	g s s
 GSS	g s s
 GSSP	g s s p
 GSTA	g s t a
 G.S.T.	g s t
-GST-	g s t
 GST	g s t
 GSU	g s u
 GSUSA	g s u s a
@@ -5916,7 +5525,6 @@ GTFU	g t f u
 gt	g t
 G. T.	g t
 G.T.	g t
-GT-	g t
 GT	g t
 G. T. H.	g t h
 GTi	g t i
@@ -5927,7 +5535,6 @@ GTMO	g t m o
 G. T. O.	g t o
 GTO	g t o
 GTPBP	g t p b p
-GTP-	g t p
 GTP	g t p
 GTPR	g t p r
 GTRA	g t r a
@@ -5939,9 +5546,7 @@ GTSV	g t s v
 GTT	g t t
 GTTP	g t t p
 GTU	g t u
-GTV-	g t v
 GTV	g t v
-GTW-	g t w
 GTW	g t w
 GTW's	g t w's
 GTX	g t x
@@ -5960,7 +5565,6 @@ GVHSS	g v h s s
 GVJZ	g v j z
 GVK	g v k
 GvpA	g v p a
-GVP-	g v p
 GVP	g v p
 GVRD	g v r d
 GVSU	g v s u
@@ -5995,7 +5599,6 @@ G. W. S.	g w s
 GWS	g w s
 GWU	g w u
 GXG	g x g
-GX-	g x
 GX	g x
 GXP	g x p
 GYAN's	g y a n's
@@ -6003,7 +5606,6 @@ GYC	g y c
 GYF	g y f
 Gy	g y
 G. Y.	g y
-GY-	g y
 GY	g y
 Gyn	g y n
 GYN	g y n
@@ -6013,7 +5615,6 @@ Gyu	g y u
 GZA	g z a
 GZ	g z
 GZR	g z r
-GZSZ-	g z s z
 HAFV	h a f v
 H. A.	h a
 H.A.	h a
@@ -6032,7 +5633,6 @@ H. B.	h b
 H.B.	h b
 HB	h b
 HBI	h b i
-HBK-	h b k
 HBK	h b k
 HBLX	h b l x
 HBMP	h b m p
@@ -6059,7 +5659,6 @@ HCCB	h c c b
 HCCC	h c c c
 HCC	h c c
 HCDCH	h c d c h
-HCD-	h c d
 HCE	h c e
 HCEs	h c e's
 HCF	h c f
@@ -6091,14 +5690,12 @@ HCT	h c t
 HCTV's	h c t v's
 HCUP	h c u p
 HCV	h c v
-HCVHDB-	h c v h d b
 Hcy	h c y
 HDAC	h d a c
 Hdad	h d a d
 hDAF	h d a f
 HDA	h d a
 HDB	h d b
-HDBK-	h d b k
 HDCAM	h d c a m
 HDC	h d c
 HDCP	h d c p
@@ -6112,13 +5709,11 @@ HDG	h d g
 hd	h d
 H. D.	h d
 H.D.	h d
-HD-	h d
 HD	h d
 hdh	h d h
 HDi	h d i
 HDI	h d i
 HDLC	h d l c
-HDL-	h d l
 HDL	h d l
 HDLS	h d l s
 HDM	h d m
@@ -6158,7 +5753,6 @@ HGF	h g f
 hg	h g
 H. G.	h g
 H.G.	h g
-HG-	h g
 HG	h g
 HGH	h g h
 HGNC	h g n c
@@ -6188,7 +5782,6 @@ H.H.T.	h h t
 H. I.	h i
 H.I.	h i
 H.I.V.E.	h i v e
-HIV-	h i v
 HIV	h i v
 HIY	h i y
 Hizb	h i z b
@@ -6196,14 +5789,12 @@ hja	h j a
 HJC	h j c
 H. J.	h j
 H.J.	h j
-HJ-	h j
 HJ	h j
 HJK	h j k
 H.J.M.	h j m
 HJN	h j n
 H. J. R.	h j r
 H.J.R.	h j r
-HJT-	h j t
 H. J. W.	h j w
 HJW	h j w
 HKAA	h k a a
@@ -6218,7 +5809,6 @@ HKFC	h k f c
 H&K	h and k
 H. K.	h k
 H.K.	h k
-HK-	h k
 HK	h k
 H. K. J.	h k j
 HKK	h k k
@@ -6227,17 +5817,13 @@ HKN	h k n
 H.K.P.	h k p
 HKP	h k p
 HKSAR	h k s a r
-HKSCS-	h k s c s
 HK's	h k's
-HKTB-	h k t b
 HKT	h k t
 HKTWU	h k t w u
 HKU	h k u
 Hla	h l a
-HLA-	h l a
 HLA	h l a
 HLBN	h l b n
-HLD-	h l d
 HLE	h l e
 HLH	h l h
 H. L.	h l
@@ -6254,7 +5840,6 @@ hlutr	h l u t r
 HLV	h l v
 Hly	h l y
 HMAC	h m a c
-HMA-	h m a
 HMA	h m a
 Hman	h m a n
 H.M.A.S.	h m a s
@@ -6270,22 +5855,18 @@ HME	h m e
 HMEL	h m e l
 HMF	h m f
 HMGA	h m g a
-HMG-	h m g
 HMG	h m g
 HMGIC	h m g i c
 HMGN	h m g n
 H&M	h and m
-HMH-	h m h
 HMH	h m h
 hm	h m
 H. M.	h m
 H.M.	h m
-HM-	h m
 HM	h m
 HMI	h m i
 HMIS	h m i s
 HMMC	h m m c
-HMM-	h m m
 HMM	h m m
 HMMWV	h m m w v
 HMN	h m n
@@ -6303,14 +5884,11 @@ H.M.S.	h m s
 HMS	h m s
 HMSN	h m s n
 H.M.S.O.	h m s o
-HMSO,	h m s o
 HMSO	h m s o
-HNF-	h n f
 H. N.	h n
 H.N.	h n
 HNI	h n i
 HNK	h n k
-HNL-	h n l
 HNL	h n l
 HNLMS	h n l m s
 HNMT	h n m t
@@ -6319,13 +5897,11 @@ HNO	h n o
 HNS	h n s
 H. O.	h o
 H.O.	h o
-HPA-	h p a
 HPA	h p a
 H.P.B.	h p b
 hpc	h p c
 HPC	h p c
 HPCT	h p c t
-HPDD-	h p d d
 H. P. D.	h p d
 HPD	h p d
 HPE	h p e
@@ -6333,7 +5909,6 @@ HPH	h p h
 hp	h p
 H. P.	h p
 H.P.	h p
-HP-	h p
 HP	h p
 HPI	h p i
 HPLC	h p l c
@@ -6349,7 +5924,6 @@ HPV	h p v
 HQAA	h q a a
 HQDA	h q d a
 H.Q.	h q
-HQ-	h q
 HQ	h q
 HRG	h r g
 H&R	h and r
@@ -6357,7 +5931,6 @@ H.R.H.	h r h
 HRH	h r h
 H. R.	h r
 H.R.	h r
-HR-	h r
 HR	h r
 HRK	h r k
 HRL	h r l
@@ -6396,13 +5969,11 @@ hs	h s
 Hs	h's
 H. S.	h s
 H.S.	h s
-HS-	h s
 HS	h s
 HSHS	h s h s
 hsi	h s i
 HSJ	h s j
 HSK	h s k
-HSL-	h s l
 HSL	h s l
 hSlo	h s l o
 H.S.M.	h s m
@@ -6427,18 +5998,15 @@ HST's	h s t's
 HSTs	h s t's
 HSTS	h s t s
 hsv	h s v
-HSV-	h s v
 HSV	h s v
 HSX	h s x
 HSY	h s y
 HSYK's	h s y k's
 HSZ	h s z
-HTA-	h t a
 HTA	h t a
 hTAS	h t a s
 HTAs	h t a's
 htc	h t c
-HTC-	h t c
 HTC	h t c
 HTC's	h t c's
 HTGL	h t g l
@@ -6446,14 +6014,12 @@ HTHC	h t h c
 ht	h t
 H. T.	h t
 H.T.	h t
-HT-	h t
 HT	h t
 HTIB	h t i b
 hti	h t i
 Htin	h t i n
 HTK	h t k
 HTLA	h t l a
-HTLV-	h t l v
 HTLV	h t l v
 HTML	h t m l
 HTM's	h t m's
@@ -6466,7 +6032,6 @@ HTR	h t r
 HTRs	h t r's
 HTS	h t s
 http	h t t p
-HTTP-	h t t p
 HTTP	h t t p
 https	h t t p s
 HTTPS	h t t p s
@@ -6479,7 +6044,6 @@ H. U.	h u
 HVC	h v c
 HVCs	h v c's
 hvcv	h v c v
-HVDC-	h v d c
 HVDC	h v d c
 hvem	h v e m
 Hvem	h v e m
@@ -6543,11 +6107,9 @@ I.A.M.	i a m
 IAO	i a o
 Iapa	i a p a
 IAPHC	i a p h c
-IAP-	i a p
 IAP	i a p
 iar	i a r
 Iar	i a r
-IAR-	i a r
 IAR	i a r
 IAST	i a s t
 IATA	i a t a
@@ -6587,7 +6149,6 @@ IBMA's	i b m a's
 IBMC	i b m c
 Ibm	i b m
 I.B.M.	i b m
-IBM-	i b m
 IBM	i b m
 IBM's	i b m's
 IBMXF	i b m x f
@@ -6630,7 +6191,6 @@ ICCEC	i c c e c
 ICCF	i c c f
 Icche	i c c h e
 I.C.C.	i c c
-ICC-	i c c
 ICC	i c c
 ICCID	i c c i d
 ICCI	i c c i
@@ -6639,14 +6199,11 @@ ICC's	i c c's
 ICCS	i c c s
 ICCW	i c c w
 ICDC	i c d c
-ICD-	i c d
 ICD	i c d
-ICDS-	i c d s
 ICDS	i c d s
 I.C.E.	i c e
 ICFF	i c f f
 icf	i c f
-ICF-	i c f
 ICF	i c f
 ICFR	i c f r
 ICG	i c g
@@ -6686,7 +6243,6 @@ ICRW	i c r w
 ICSA	i c s a
 ICSB	i c s b
 ICSC	i c s c
-ICSD-	i c s d
 ICSE	i c s e
 ICSG	i c s g
 ics	i c s
@@ -6728,7 +6284,6 @@ Iddaa	i d d a a
 Idd	i d d
 ID'd	i d d
 IDEF	i d e f
-IDEG-	i d e g
 IDE	i d e
 IDFA	i d f a
 IDFG	i d f g
@@ -6737,12 +6292,10 @@ IDFL	i d f l
 IDF's	i d f's
 IDG	i d g
 I. D. H.	i d h
-IDH-	i d h
 IDH	i d h
 id	i d
 I. D.	i d
 I.D.	i d
-ID-	i d
 ID	i d
 Idi	i d i
 Idir	i d i r
@@ -6772,7 +6325,6 @@ IDWO	i d w o
 IDW's	i d w's
 IDx	i d x
 IDX	i d x
-IEA-	i e a
 IEA	i e a
 I.E.M.	i e m
 IEM	i e m
@@ -6780,12 +6332,10 @@ I.E.S.	i e s
 IES	i e s
 i.e.	that is
 Ifa	i f a
-IFA-	i f a
 IFA	i f a
 IFBB	i f b b
 IFBC	i f b c
 I.F.B.	i f b
-IFCC-	i f c c
 IFCC	i f c c
 ifc	i f c
 IFC	i f c
@@ -6808,7 +6358,6 @@ IFLA	i f l a
 IFL	i f l
 IfM	i f m
 IFM	i f m
-IFN-	i f n
 IFN	i f n
 Ifni	i f n i
 IFNs	i f n's
@@ -6836,7 +6385,6 @@ IGC	i g c
 IGCP	i g c p
 IGCSE	i g c s e
 IGD	i g d
-IGF-	i g f
 IGF	i g f
 IGFI	i g f i
 IGFs	i g f's
@@ -6872,14 +6420,12 @@ IHOM	i h o m
 Ihor	i h o r
 IHPK	i h p k
 IHRC	i h r c
-IHSAA-	i h s a a
 IHSAA	i h s a a
 IHSA	i h s a
 IHS	i h s
 Iht	i h t
 IIA	i i a
 IIb	i i b
-IIB-	i i b
 IIB	i i b
 IIc	i i c
 IIDC	i i d c
@@ -6919,7 +6465,6 @@ IJHCD	i j h c d
 IJHL	i j h l
 ij	i j
 I. J.	i j
-IJ-	i j
 IJ	i j
 IJN	i j n
 Ijok	i j o k
@@ -6934,7 +6479,6 @@ IKCO	i k c o
 IKF	i k f
 Ikh	i k h
 I.K.	i k
-IKK-	i k k
 IKK	i k k
 IKL	i k l
 IKr	i k r
@@ -6975,14 +6519,11 @@ IMC	i m c
 imdb	i m d b
 IMDb.	i m d b
 IMDb	i m d b
-IMDB-	i m d b
-IMDB.	i m d b
 IMDB	i m d b
 IMD	i m d
 IMD's	i m d's
 ime	i m e
 IME	i m e
-IMF,	i m f
 IMF	i m f
 IMG	i m g
 I&M	i and m
@@ -6995,7 +6536,6 @@ Iml	i m l
 IMMEX	i m m e x
 Imm	i m m
 Imms'	i m m's
-IMMU-	i m m u
 imoa	i m o a
 IMO's	i m o's
 IMPA	i m p a
@@ -7008,7 +6548,6 @@ IMSLP	i m s l p
 iMSNs	i m s n's
 Imst	i m s t
 IMTA	i m t a
-IMT-	i m t
 IMT	i m t
 IMTV	i m t v
 IMUK	i m u k
@@ -7020,7 +6559,6 @@ INBA	i n b a
 INBF	i n b f
 inb	i n b
 incl	i n c l
-INCT-	i n c t
 INDC	i n d c
 ind	i n d
 Ind	i n d
@@ -7043,7 +6581,6 @@ INPE	i n p e
 InP	i n p
 INP	i n p
 INPP	i n p p
-INRA-	i n r a
 Inre	i n r e
 I.N.R.I.	i n r i
 INR	i n r
@@ -7062,7 +6599,6 @@ INXS	i n x s
 INXS's	i n x s's
 Ioba	i o b a
 IOCG	i o c g
-IOC-	i o c
 IOC	i o c
 IOCP	i o c p
 IODP	i o d p
@@ -7077,11 +6613,9 @@ Io.	i o
 Io	i o
 .IO	i o
 I/O	i o
-IO-	i o
 IO	i o
 Ioka	i o k a
 Iok	i o k
-IOK-	i o k
 IOL	i o l
 IoM	i o m
 IOM	i o m
@@ -7089,12 +6623,10 @@ IOPI	i o p i
 IOP	i o p
 IOPs	i o p's
 IORG	i o r g
-IOR-	i o r
 IOR	i o r
 IORM	i o r m
 IOSA	i o s a
 IOSB	i o s b
-iOS-	i o s
 iOS	i o s
 Io's	i o's
 I/Os	i o's
@@ -7130,7 +6662,6 @@ IPH	i p h
 ip	i p
 Ip	i p
 I.P.	i p
-IP-	i p
 IP	i p
 IPL	i p l
 IPMG	i p m g
@@ -7203,7 +6734,6 @@ ir	i r
 Ir	i r
 I. R.	i r
 I.R.	i r
-IR-	i r
 IR	i r
 IRIX	i r i x
 Irla	i r l a
@@ -7212,7 +6742,6 @@ IRM	i r m
 Irmis	i r m i's
 IRM's	i r m's
 IRNE	i r n e
-IRN-	i r n
 IRN	i r n
 iro	i r o
 Iro	i r o
@@ -7226,7 +6755,6 @@ IRRI	i r r i
 IRR	i r r
 IRs	i r's
 I.R.S.	i r s
-IRS-	i r s
 IRS	i r s
 IRSN	i r s n
 I.R.T.	i r t
@@ -7245,19 +6773,16 @@ ISBN	i s b n
 ISBNs	i s b n's
 ISBO	i s b o
 ISCB	i s c b
-ISCC-	i s c c
 ISCE	i s c e
 isCf	i s c f
 ISCI	i s c i
 iSC	i s c
 Isc	i s c
-ISC-	i s c
 ISC	i s c
 ISCM	i s c m
 ISCM's	i s c m's
 ISCP	i s c p
 ISDA	i s d a
-ISDB-	i s d b
 Isd	i s d
 ISD	i s d
 isdn	i s d n
@@ -7280,13 +6805,10 @@ Isl	i s l
 ISL	i s l
 ISMF	i s m f
 ISMIR	i s m i r
-ISMN-	i s m n
 ISMNs	i s m n's
-isn	i s n
 ISN	i s n
 ISNTUC	i s n t u c
 ISOGG	i s o g g
-ISO-	i s o
 ISO	i s o
 ISO's	i s o's
 I.S.P.C.K.	i s p c k
@@ -7308,7 +6830,6 @@ ISSF	i s s f
 iss	i s s
 Iss	i s's
 ISS	i s s
-ISSN-	i s s n
 ISSN	i s s n
 ISSNs	i s s n's
 ISSSSP	i s s s s p
@@ -7356,7 +6877,6 @@ itt	i t t
 ITT	i t t
 ITUC	i t u c
 Itu	i t u
-ITU-	i t u
 ITU	i t u
 ITV	i t v
 ITV's	i t v's
@@ -7366,7 +6886,6 @@ Itz	i t z
 IUB	i u b
 I.U.C.N.B.	i u c n b
 Iucn	i u c n
-IUCN-	i u c n
 IUCN	i u c n
 IUCN's	i u c n's
 IUD	i u d
@@ -7405,7 +6924,6 @@ IWGP	i w g p
 iwi	i w i
 iw	i w
 I. W.	i w
-IW-	i w
 IW	i w
 IWL	i w l
 IWMF	i w m f
@@ -7518,7 +7036,6 @@ JDI	j d i
 jd	j d
 J. D.	j d
 J.D.	j d
-JD-	j d
 JD	j d
 jdk	j d k
 JDK	j d k
@@ -7543,7 +7060,6 @@ JFH	j f h
 jf	j f
 J. F.	j f
 J.F.	j f
-JF-	j f
 JF	j f
 JFK	j f k
 JFN	j f n
@@ -7575,7 +7091,6 @@ J.H.H.	j h h
 jh	j h
 J. H.	j h
 J.H.	j h
-JH-	j h
 JH	j h
 JHL	j h l
 J. H. M.	j h m
@@ -7584,7 +7099,6 @@ JHs	j h's
 JHS	j h s
 JHSVs	j h s v's
 JHud	j h u d
-JHU-	j h u
 JHU	j h u
 J. I.	j i
 J.I.	j i
@@ -7659,9 +7173,7 @@ JMX	j m x
 JNA	j n a
 jnb	j n b
 JNF	j n f
-JNG-	j n g
 JNG	j n g
-JNIH-	j n i h
 JNI	j n i
 J. N.	j n
 J.N.	j n
@@ -7685,7 +7197,6 @@ JPH	j p h
 J&P	j and p
 jp	j p
 J.P.	j p
-JP-	j p
 JP	j p
 J.P.R.	j p r
 J.Q.	j q
@@ -7750,7 +7261,6 @@ JTA	j t a
 J.T.B.	j t b
 JTB	j t b
 JTC	j t c
-JTF-	j t f
 JTF	j t f
 JTG	j t g
 JTI	j t i
@@ -7760,7 +7270,6 @@ J.T.	j t
 JT	j t
 JT&KW	j t and k w
 JTL	j t l
-JTM-	j t m
 JTO	j t o
 JTR	j t r
 JTRO	j t r o
@@ -7779,7 +7288,6 @@ JVH	j v h
 J&V	j and v
 J. V.	j v
 J.V.	j v
-JV-	j v
 JV	j v
 JVM	j v m
 JVNW	j v n w
@@ -7792,7 +7300,6 @@ J. W. B.	j w b
 JWB	j w b
 J.W.C. U.S.	j w c u s
 JWHA	j w h a
-JWH-	j w h
 J.W.J.	j w j
 J. W.	j w
 J.W.	j w
@@ -7806,7 +7313,6 @@ JWS	j w s
 JWST	j w s t
 JWT	j w t
 jx	j x
-JX-	j x
 JX	j x
 J.X.W.P.	j x w p
 JYJ	j y j
@@ -7820,7 +7326,6 @@ JYP	j y p
 J. Y. S.	j y s
 J. Z.	j z
 J.Z.	j z
-JZ-	j z
 JZ	j z
 K.A.A.	k a a
 K. A.	k a
@@ -7834,9 +7339,7 @@ KBCI	k b c i
 KBC	k b c
 KBCO	k b c o
 KBD	k b d
-KBEH-	k b e h
 KBE	k b e
-KBEV-	k b e v
 KBFC	k b f c
 KBFL	k b f l
 KBFR	k b f r
@@ -7851,19 +7354,15 @@ KBKR	k b k r
 KBKS	k b k s
 KBKW	k b k w
 KBL	k b l
-KBMT-	k b m t
 KBMT	k b m t
 KBND	k b n d
-KBNZ-	k b n z
 KBNZ	k b n z
 KBO	k b o
 KBRC	k b r c
 KBR	k b r
-KBSC-	k b s c
 KBS	k b s
 KBSN	k b s n
 KCB	k c b
-KCBS-	k c b s
 KCBS	k c b s
 KCCC	k c c c
 KCCI	k c c i
@@ -7875,8 +7374,6 @@ KCD	k c d
 KCED	k c e d
 KCET	k c e t
 KCG	k c g
-KCGW-	k c g w
-KCHK-	k c h k
 KCHS	k c h s
 K.C.I.E.	k c i e
 K. C.	k c
@@ -7886,8 +7383,6 @@ KCKM	k c k m
 KCLU	k c l u
 K.C.M.G.	k c m g
 KCMG	k c m g
-KCMO-	k c m o
-KCMU-	k c m u
 KCNA	k c n a
 KCNH	k c n h
 KCNJ	k c n j
@@ -7906,7 +7401,6 @@ KCRC	k c r c
 KCRH	k c r h
 KCR	k c r
 KCRW	k c r w
-KCSD-	k c s d
 KCSD	k c s d
 KCSG	k c s g
 K.C.S.I.	k c s i
@@ -7932,22 +7426,17 @@ KDCO	k d c o
 KDDG	k d d g
 KDDI	k d d i
 KDD	k d d
-KDE-	k d e
 KDE	k d e
-KDEX-	k d e x
 KDFW	k d f w
 KDFX	k d f x
 K. D. G.	k d g
 KDGS	k d g s
 KDHS	k d h s
-KDIS-	k d i s
-KDKA-	k d k a
 KDKA	k d k a
 K&D	k and d
 kd	k d
 K. D.	k d
 K.D.	k d
-KD-	k d
 KD	k d
 KDP	k d p
 KDPM	k d p m
@@ -7956,7 +7445,6 @@ K. D.'s	k d's
 K.D.'s	k d's
 KDS	k d s
 ke	k e
-Ke-	k e
 Ke	k e
 K. E.	k e
 K.E.	k e
@@ -7973,9 +7461,7 @@ kfc	k f c
 K.F.C.	k f c
 KFC	k f c
 KFC's	k f c's
-KFDI-	k f d i
 KFD	k f d
-KFDM-	k f d m
 KFDM	k f d m
 KFEM	k f e m
 KFFL	k f f l
@@ -7984,9 +7470,7 @@ KFI	k f i
 KFJB	k f j b
 K.F.	k f
 KFLX	k f l x
-KFMB-	k f m b
 KFMB's	k f m b's
-KFMG-	k f m g
 KFMJ	k f m j
 K. F. M.	k f m
 K.F.M.	k f m
@@ -8000,35 +7484,25 @@ KFRG	k f r g
 KFRH	k f r h
 KFRO	k f r o
 KFSD	k f s d
-KFSN-	k f s n
 KFSN	k f s n
 KFST	k f s t
-KFTA-	k f t a
 KFT	k f t
-KFTL-	k f t l
 KFTL	k f t l
-KFUK-	k f u k
-KFUM-	k f u m
 KFUM's	k f u m's
 KFVD	k f v d
 KFV	k f v
 KFWB	k f w b
 KFXO	k f x o
-KFYO-	k f y o
 KFYO's	k f y o's
-KFYR-	k f y r
 KGA	k g a
 K.G.B.	k g b
-KGB-	k g b
 KGB	k g b
-KGBX-	k g b x
 KGC	k g c
 KGPH	k g p h
 KGP	k g p
 KGRI	k g r i
 kgr	k g r
 KGRK	k g r k
-KGS-	k g s
 KGS	k g s
 kgt	k g t
 KGT	k g t
@@ -8043,12 +7517,9 @@ KGW	k g w
 KHHZ	k h h z
 KHI	k h i
 Khizr	k h i z r
-KHJ-	k h j
 KHJ	k h j
-Kh-	k h
 K. H.	k h
 K.H.	k h
-KH-	k h
 KH	k h
 KHK	k h k
 KHKV	k h k v
@@ -8065,7 +7536,6 @@ Khri	k h r i
 Khru	k h r u
 KHRW	k h r w
 KHSAA	k h s a a
-KHSC-	k h s c
 KHS	k h s
 KHTL	k h t l
 KHTZ	k h t z
@@ -8102,7 +7572,6 @@ KKBL	k k b l
 KKBQ	k k b q
 KKCR	k k c r
 KKDA	k k d a
-KKDS-	k k d s
 K.K.E.	k k e
 KKE	k k e
 K. K.	k k
@@ -8117,7 +7586,6 @@ KKSF	k k s f
 KK's	k k's
 KKSY	k k s y
 KKT	k k t
-KKWB-	k k w b
 KLA	k l a
 KLBK	k l b k
 KLBM	k l b m
@@ -8144,30 +7612,24 @@ KLQT	k l q t
 KLRY	k l r y
 KLSC	k l s c
 KLSD	k l s d
-KLS-	k l s
 KLS	k l s
-KLSR-	k l s r
 KLSX	k l s x
 KLT	k l t
 KLX	k l x
 KMB	k m b
-KMCI-	k m c i
 KMC	k m c
-KMCX-	k m c x
 KMD	k m d
 KMGO	k m g o
 KMGT	k m g t
 KMIH	k m i h
 KMIR	k m i r
 KMITL	k m i t l
-KMJC-	k m j c
 KMJ	k m j
 K&M	k and m
 KMK	k m k
 km	k m
 K. M.	k m
 K.M.	k m
-KM-	k m
 KM	k m
 KMLA	k m l a
 KML	k m l
@@ -8180,9 +7642,7 @@ KMT	k m t
 KMTP	k m t p
 KMTV	k m t v
 KMVA	k m v a
-KMVQ-	k m v q
 KMXW	k m x w
-KMZG-	k m z g
 KMZ	k m z
 KNFM	k n f m
 KNHP	k n h p
@@ -8202,7 +7662,6 @@ KNRE	k n r e
 KNRS	k n r s
 KNS	k n s
 KNSM	k n s m
-KNST-	k n s t
 KNST	k n s t
 KNTH	k n t h
 K.N.T.	k n t
@@ -8211,11 +7670,8 @@ KNTU	k n t u
 KNVA's	k n v a's
 KNVB	k n v b
 KNVN	k n v n
-KNWA-	k n w a
-KNX-	k n x
 KNX	k n x
 KNXT	k n x t
-KNXV-	k n x v
 K.O.D.	k o d
 k'o	k o
 K. O.	k o
@@ -8225,18 +7681,14 @@ KOTD	k o t d
 K.O.T.	k o t
 KOWL	k o w l
 K. P. A. C.	k p a c
-KPAC-	k p a c
 KPAC	k p a c
 KPA	k p a
 KPAN	k p a n
 KPCC	k p c c
 KPC	k p c
 KPD	k p d
-KPDR-	k p d r
 KPE	k p e
-KPFT-	k p f t
 KPIF	k p i f
-KPI-	k p i
 KPI	k p i
 KPIs	k p i's
 K&P	k and p
@@ -8251,34 +7703,24 @@ KPM	k p m
 KPNA	k p n a
 KPNB	k p n b
 KPO	k p o
-KPPC-	k p p c
 Kppen	k p p e n
 KPPV	k p p v
-KPRC-	k p r c
 KPS	k p s
-KPSL-	k p s l
 kptm	k p t m
-KPTV-	k p t v
 KPTV	k p t v
 KPU	k p u
 KPVD	k p v d
 KPVX	k p v x
 KPWR	k p w r
 KPXE	k p x e
-KPXO-	k p x o
-KPZK-	k p z k
 KQA	k q a
-KQBU-	k q b u
-KQCD-	k q c d
 KQED	k q e d
-KQEG-	k q e g
 KQHN	k q h n
 KQKK	k q k k
 KQKS	k q k s
 KQLT	k q l t
 KQLZ	k q l z
 KQMO	k q m o
-KQRS-	k q r s
 KQV	k q v
 KQXR	k q x r
 KRBM	k r b m
@@ -8299,16 +7741,13 @@ KR	k r
 KRMT	k r m t
 Krne	k r n e
 KRNS	k r n s
-KRNV-	k r n v
 KRNV	k r n v
-KROQ-	k r o q
 KROQ	k r o q
 kroz	k r o z
 Kroz	k r o z
 KRPS	k r p s
 KRRT	k r r t
 K. R. S.	k r s
-KRS-	k r s
 KRS	k r s
 KRT	k r t
 Kru	k r u
@@ -8320,7 +7759,6 @@ KRZA	k r z a
 ksa	k s a
 KSA	k s a
 K. S. B.	k s b
-KSBW-	k s b w
 KSBW	k s b w
 KSBY	k s b y
 KSCB	k s c b
@@ -8329,7 +7767,6 @@ KSCO	k s c o
 KSC's	k s c's
 KSCS	k s c s
 KSDB	k s d b
-KSD-	k s d
 KSDO	k s d o
 KSEB	k s e b
 KSEG	k s e g
@@ -8352,13 +7789,11 @@ ks	k s
 K. S.	k s
 K.S.	k s
 KS	k s
-KSLA-	k s l a
 KSLC	k s l c
 KSL	k s l
 KSLM	k s l m
 KSLU	k s l u
 KSMB	k s m b
-KSNB-	k s n b
 KSNR	k s n r
 KSNV	k s n v
 KSP	k s p
@@ -8366,20 +7801,14 @@ KSPS	k s p s
 KSTE	k s t e
 KSTH	k s t h
 KST	k s t
-KSTP-	k s t p
 KSTP	k s t p
-KSTV-	k s t v
-KSU-	k s u
 KSU	k s u
 K.S.V.	k s v
 KSWD	k s w d
 KSWT	k s w t
-KSWW-	k s w w
 KSWW	k s w w
 KSYL	k s y l
-KSZE-	k s z e
 KSZR	k s z r
-KTAC-	k t a c
 Ktav	k t a v
 KTAV	k t a v
 KTBS	k t b s
@@ -8389,21 +7818,16 @@ KTCZ	k t c z
 KTDA	k t d a
 KTDD	k t d d
 KTE	k t e
-KTFA-	k t f a
 KTH	k t h
-KTHV-	k t h v
 KT&K	k t and k
 kt	k t
 K. T.	k t
 K.T.	k t
-KT-	k t
 KT	k t
 KTKZ	k t k z
 KTLA	k t l a
 K. T. M.	k t m
 KTM	k t m
-KTMS-	k t m s
-KTNE-	k t n e
 KTN	k t n
 KTOK	k t o k
 KTO	k t o
@@ -8417,9 +7841,7 @@ KTT	k t t
 KTTN	k t t n
 KTTV	k t t v
 KTU	k t u
-KTUL-	k t u l
 KTUM	k t u m
-KTUU-	k t u u
 KTVA	k t v a
 KTVK	k t v k
 KTVS	k t v s
@@ -8427,13 +7849,9 @@ KTVT	k t v t
 KTVU	k t v u
 KTVZ	k t v z
 KTWD's	k t w d's
-KTWN-	k t w n
 KTWO	k t w o
-KTXC-	k t x c
 KTX	k t x
 KTXL	k t x l
-KTXS-	k t x s
-KTZR-	k t z r
 Kuaa	k u a a
 Kud	k u d
 KUFM	k u f m
@@ -8459,7 +7877,6 @@ KVK	k v k
 K. V.	k v
 K.V.	k v
 KVLO	k v l o
-KVLY-	k v l y
 KVLY	k v l y
 KVM	k v m
 KVMRT	k v m r t
@@ -8495,17 +7912,12 @@ KWRU	k w r u
 KWSB	k w s b
 KWSX	k w s x
 KWU	k w u
-KWVE-	k w v e
 KWWL's	k w w l's
-KXAL-	k x a l
 KXAN	k x a n
 KXAS	k x a s
-KXHD-	k x h d
 KXI	k x i
-KXJB-	k x j b
 KXJB	k x j b
 KXKS	k x k s
-KXKW-	k x k w
 KX	k x
 KXLX	k x l x
 KXLY	k x l y
@@ -8518,20 +7930,17 @@ KXTX	k x t x
 KYAY	k y a y
 KYBE	k y b e
 KYEZ	k y e z
-KYLX-	k y l x
 KYNM	k y n m
 Kyse	k y s e
 KYSL	k y s l
 KYTC	k y t c
 kyt	k y t
 Kyt	k y t
-KYW-	k y w
 KYW	k y w
 kz	k z
 K. Z.	k z
 KZ	k z
 KZLZ	k z l z
-KZM-	k z m
 KZMP	k z m p
 KZMU	k z m u
 KZQX	k z q x
@@ -8545,7 +7954,6 @@ LBA	l b a
 LBCC	l b c c
 LBC	l b c
 LBC's	l b c's
-LBE-	l b e
 LBE	l b e
 LBF	l b f
 LBi	l b i
@@ -8577,7 +7985,6 @@ LCCN	l c c n
 LCCs	l c c's
 LCCS	l c c s
 LCDB	l c d b
-LCD-	l c d
 LCD	l c d
 LCDP	l c d p
 LC&DR	l c and d r
@@ -8591,7 +7998,6 @@ LCI	l c i
 LCIs	l c i's
 L. C.	l c
 L.C.	l c
-LC-	l c
 LC	l c
 LCL	l c l
 LCMC	l c m c
@@ -8606,11 +8012,9 @@ LCR	l c r
 LCSB	l c s b
 LCSC	l c s c
 LC's	l c's
-LCS-	l c s
 LCS	l c s
 LCSs	l c s's
 LCST	l c s t
-LCT-	l c t
 LCT	l c t
 LCTs	l c t's
 LCU	l c u
@@ -8635,7 +8039,6 @@ L.D.I.	l d i
 LDK	l d k
 L. D.	l d
 L.D.	l d
-LDL-	l d l
 LDL	l d l
 LDLR	l d l r
 LDM	l d m
@@ -8648,7 +8051,6 @@ LDV	l d v
 LEB	l e b
 L. E.	l e
 L.E.	l e
-LFA-	l f a
 LFA	l f a
 L.F.C.	l f c
 LFC	l f c
@@ -8679,19 +8081,15 @@ LFXA	l f x a
 LGA	l g a
 LGB	l g b
 LGBTI	l g b t i
-LGBT-	l g b t
 LGBT	l g b t
 LGBTQ	l g b t q
 LGC	l g c
-LGD-	l g d
 LGD	l g d
 LGI	l g i
 L. G.	l g
 L.G.	l g
-LG-	l g
 LG	l g
 LGMB	l g m b
-LGM-	l g m
 LGMs	l g m's
 LGN	l g n
 LGPL	l g p l
@@ -8725,7 +8123,6 @@ LHS	l h s
 LHW	l h w
 LHX	l h x
 LHY	l h y
-Li-	l i
 L. I.	l i
 L.I.	l i
 LJBL	l j b l
@@ -8753,9 +8150,9 @@ L.L.B.	l l b
 LLB	l l b
 LLCC	l l c c
 L.L.C.	l l c
-LLC-	l l c
 LLC	l l c
 LLD	l l d
+LL.D	l l d
 lle	l l e
 LLE	l l e
 LLHS	l l h s
@@ -8766,7 +8163,6 @@ LLLE	l l l e
 L. L.	l l
 L.L.	l l
 LL	l l
-LLL-	l l l
 LLL	l l l
 LLLP	l l l p
 LLM	l l m
@@ -8798,7 +8194,6 @@ LMHS	l m h s
 lm	l m
 L. M.	l m
 L.M.	l m
-LM-	l m
 LM	l m
 LMM	l m m
 LMP	l m p
@@ -8854,19 +8249,14 @@ LPFM	l p f m
 LPGA	l p g a
 LPG	l p g
 L.P.H.	l p h
-LPH-	l p h
 LPH	l p h
 LPI	l p i
-LPK-	l p k
 LPLA	l p l a
 L&P	l and p
-LPL-	l p l
 LPL	l p l
 lp	l p
 L. P.	l p
 L.P.	l p
-LP-	l p
-LP,	l p
 LP	l p
 L&PM	l and p m
 LPMN	l p m n
@@ -8891,7 +8281,6 @@ LRC	l r c
 L.R.C.P.	l r c p
 LRCP	l r c p
 LRDG	l r d g
-LRG-	l r g
 LRG	l r g
 lr	l r
 L. R.	l r
@@ -8905,7 +8294,6 @@ LRRI	l r r i
 LRRP	l r r p
 LRS	l r s
 LRTA	l r t a
-LRT-	l r t
 LRT	l r t
 LRTR	l r t r
 LRTs	l r t's
@@ -8915,12 +8303,10 @@ LSAC	l s a c
 LSA	l s a
 LSBC	l s b c
 LSB	l s b
-LSC-	l s c
 LSC	l s c
 LSCS	l s c s
 LSDHH	l s d h h
 L.S.D.	l s d
-LSD-	l s d
 LSD	l s d
 LSDP	l s d p
 LSDs	l s d's
@@ -8929,7 +8315,6 @@ LSF	l s f
 LSG	l s g
 LSH	l s h
 LSi	l s i
-LSI-	l s i
 LSI	l s i
 LSJ	l s j
 LSK	l s k
@@ -8948,7 +8333,6 @@ L. S. R.	l s r
 LSS	l s s
 LSSP	l s s p
 LSSR	l s s r
-LST-	l s t
 LST	l s t
 LSTM	l s t m
 LSTs	l s t's
@@ -8961,7 +8345,6 @@ LSWR	l s w r
 LTAF	l t a f
 L. T. B.	l t b
 LTB	l t b
-LTBP-	l t b p
 LTCF	l t c f
 LTCI	l t c i
 L. T. C.	l t c
@@ -8970,7 +8353,6 @@ LTC	l t c
 Ltda	l t d a
 LTDA	l t d a
 Ltd.	limited
-LTE-	l t e
 LTE	l t e
 LTFA	l t f a
 LTHS	l t h s
@@ -8997,7 +8379,6 @@ L. U.	l u
 lv	l v
 L. V.	l v
 L.V.	l v
-LV-	l v
 LV	l v
 LVMH	l v m h
 LWDB	l w d b
@@ -9026,7 +8407,6 @@ M.A.S.S.	m a s s
 M.B.A.	m b a
 M.B.B.S.	m b b s
 MBBS	m b b s
-MBC-	m b c
 MBC	m b c
 MBC's	m b c's
 MBDA	m b d a
@@ -9038,7 +8418,6 @@ Mbewu	m b e w u
 MBF	m b f
 MBFW	m b f w
 MBGN	m b g n
-MBH-	m b h
 MBH	m b h
 mbi	m b i
 MBI	m b i
@@ -9059,21 +8438,17 @@ mbr	m b r
 MBR	m b r
 MBSE	m b s e
 MBSI	m b s i
-MBS-	m b s
 MBS	m b s
 MBTI	m b t i
-MBT-	m b t
 MBT	m b t
 MBU's	m b u's
 MBX	m b x
 MCAF	m c a f
 MCAL	m c a l
 M.C.A.	m c a
-MCA-	m c a
 MCA	m c a
 MCA's	m c a's
 MCAS	m c a s
-MCB-	m c b
 MCB	m c b
 M. C. C.	m c c
 M.C.C.	m c c
@@ -9095,7 +8470,6 @@ MCG	m c g
 MCI	m c i
 MCJ	m c j
 MCLA	m c l a
-Mcl-	m c l
 MCL	m c l
 M. C.	m c
 M.C.	m c
@@ -9107,7 +8481,6 @@ MCO	m c o
 MCOT's	m c o t's
 MCPC	m c p c
 MCPI	m c p i
-MCP-	m c p
 MCP	m c p
 MCPON	m c p o n
 MCPP	m c p p
@@ -9118,7 +8491,6 @@ MCRP	m c r p
 MCSBA	m c s b a
 MCs	m c's
 M.C. S.	m c s
-MCS-	m c s
 MCS	m c s
 MCST	m c s t
 MCTFS	m c t f s
@@ -9134,11 +8506,9 @@ MCYO	m c y o
 MCZ	m c z
 MDAA	m d a a
 MDAH	m d a h
-mda-	m d a
 MDA	m d a
 mdb	m d b
 MDB	m d b
-MDC-	m d c
 MDC	m d c
 MDC's	m d c's
 MDCs	m d c's
@@ -9160,12 +8530,10 @@ MDJT's	m d j t's
 MDK	m d k
 mdla	m d l a
 MDL	m d l
-MDMA-	m d m a
 MDMA	m d m a
 md	m d
 M. D.	m d
 M.D.	m d
-MD-	m d
 MD	m d
 MDM	m d m
 MDNA	m d n a
@@ -9178,7 +8546,6 @@ MDPV	m d p v
 MDQ	m d q
 MDRC	m d r c
 mdr	m d r
-MDR-	m d r
 MDR	m d r
 MDT	m d t
 MDV	m d v
@@ -9236,7 +8603,6 @@ M&G	m and g
 M. G.	m g
 M.G.	m g
 M. G. M.	m g m
-MGM-	m g m
 MGM	m g m
 MGM's	m g m's
 MGMT	m g m t
@@ -9249,7 +8615,6 @@ Mha	m h a
 M.H.A.	m h a
 MHA	m h a
 MHB's	m h b's
-MHC-	m h c
 MHC	m h c
 MHCs	m h c's
 MHD	m h d
@@ -9302,7 +8667,6 @@ MKBHD	m k b h d
 MKB	m k b
 MKDE	m k d e
 MKE	m k e
-MKF-	m k f
 MKFM	m k f m
 MKG	m k g
 MKK	m k k
@@ -9313,7 +8677,6 @@ MKNG	m k n g
 MKP	m k p
 MKRN	m k r n
 MKs	m k's
-MKS-	m k s
 MKS	m k s
 MKT	m k t
 MKTO	m k t o
@@ -9323,7 +8686,6 @@ M.L.A.	m l a
 MLA	m l a
 MLANA	m l a n a
 MLAs	m l a's
-MLB-	m l b
 MLB	m l b
 MLBPA	m l b p a
 MLCA	m l c a
@@ -9363,7 +8725,6 @@ M. L. S.	m l s
 M.L.S.	m l s
 MLS	m l s
 MLT	m l t
-MLW-	m l w
 MLW	m l w
 MLWS	m l w s
 MM&A	m m and a
@@ -9376,7 +8737,6 @@ M.M.	m m
 MMSA	m m s a
 M&M's	m and m's
 M. M. S.	m m s
-MMS-	m m s
 MMS	m m s
 MMST	m m s t
 MMTB's	m m t b's
@@ -9390,15 +8750,12 @@ MNC	m n c
 MNCPPC	m n c p p c
 MNCs	m n c's
 MNDM	m n d m
-MND-	m n d
 MNDNR	m n d n r
 MNDO	m n d o
 MNDR	m n d r
 M&NF	m and n f
-MNF-	m n f
 MNF	m n f
 MNG	m n g
-MNI-	m n i
 MNI	m n i
 MNLA	m n l a
 MNLA's	m n l a's
@@ -9438,7 +8795,6 @@ MPBN	m p b n
 MPBu	m p b u
 MPCA	m p c a
 MPCI	m p c i
-MPC-	m p c
 MPC	m p c
 MPD	m p d
 MPE	m p e
@@ -9477,11 +8833,9 @@ MPSF	m p s f
 M.P.'s	m p's
 MP's	m p's
 MPs	m p's
-MPS-	m p s
 MPS	m p s
 MPThe	m p t h e
 MPT	m p t
-MPTP-	m p t p
 Mpu	m p u
 MPU	m p u
 MPV	m p v
@@ -9497,7 +8851,6 @@ MRBs	m r b's
 MRCB	m r c b
 MRCK	m r c k
 MRCM	m r c m
-MRC-	m r c
 MRC	m r c
 M.R.C.S.	m r c s
 MRCS	m r c s
@@ -9525,7 +8878,6 @@ MRT	m r t
 MRTs	m r t's
 MRTS	m r t s
 MRTT	m r t t
-MRU-	m r u
 MRU	m r u
 MSAA	m s a a
 MSAC	m s a c
@@ -9536,10 +8888,8 @@ MSAW	m s a w
 MSB	m s b
 MSBO	m s b o
 MSBSD	m s b s d
-MSBS-	m s b s
 MSCC	m s c c
 M.S.C.	m s c
-MSC-	m s c
 MSC	m s c
 msd	m s d
 MSD	m s d
@@ -9588,18 +8938,15 @@ MSV	m s v
 MSVU	m s v u
 MSX	m s x
 MSY	m s y
-MSZ-	m s z
 MSZP	m s z p
 MTAC	m t a c
 Mta	m t a
 M.T.A.	m t a
-MTA-	m t a
 MTA	m t a
 MTA's	m t a's
 MTAs	m t a's
 MTBE	m t b e
 MTBI	m t b i
-MTB-	m t b
 MTB	m t b
 MTC	m t c
 MTDB	m t d b
@@ -9611,7 +8958,6 @@ MTHFR	m t h f r
 MTHL	m t h l
 MTIC	m t i c
 MTI	m t i
-MTIP-	m t i p
 MTJ	m t j
 MTK	m t k
 MTKO	m t k o
@@ -9630,16 +8976,13 @@ MTQ	m t q
 MTRCB	m t r c b
 MTRC	m t r c
 MTRJ	m t r j
-MTR-	m t r
 MTR	m t r
 M. T. S.	m t s
-MTS-	m t s
 MTS	m t s
 MTSU	m t s u
 MTTM	m t t m
 MTT	m t t
 MTU	m t u
-MTV-	m t v
 MTV	m t v
 MTVR	m t v r
 MTV's	m t v's
@@ -9647,7 +8990,6 @@ mtvU	m t v u
 MTVu	m t v u
 MTVU	m t v u
 MTY	m t y
-MTZ-	m t z
 MTZ	m t z
 MUKW	m u k w
 M. U.	m u
@@ -9662,7 +9004,6 @@ M. V. D.	m v d
 MVD	m v d
 MVH	m v h
 MVK	m v k
-MVL-	m v l
 M.V.M.	m v m
 MVM	m v m
 MVMs	m v m's
@@ -9670,7 +9011,6 @@ M. V.	m v
 M.V.	m v
 M.V.O.	m v o
 MVO	m v o
-MVP-	m v p
 MVP	m v p
 MVPs	m v p's
 MVPS	m v p s
@@ -9700,7 +9040,6 @@ myb	m y b
 myc	m y c
 Myc	m y c
 MYC	m y c
-MYCN-	m y c n
 MYCN	m y c n
 MyDD	m y d d
 M. Y.	m y
@@ -9729,13 +9068,11 @@ N. A.	n a
 N.A.	n a
 NBADL	n b a d l
 N.B.A.	n b a
-NBA-	n b a
 NBA	n b a
 N.B.A.'s	n b a's
 NBA's	n b a's
 NBAs	n b a's
 NBCC	n b c c
-NBC-	n b c
 NBC	n b c
 NBC's	n b c's
 NBCSN	n b c s n
@@ -9766,11 +9103,9 @@ NBTY	n b t y
 NBW	n b w
 NCAAs	n c a a's
 NCAM	n c a m
-NCA-	n c a
 NCA	n c a
 NCAP	n c a p
 NCBC	n c b c
-NCBI-	n c b i
 NCBI	n c b i
 NCCC	n c c c
 NCCF	n c c f
@@ -9844,7 +9179,6 @@ N.D.N.Y.	n d n y
 NDPH	n d p h
 NDPK	n d p k
 N.D.P.	n d p
-NDP-	n d p
 NDP	n d p
 NDP's	n d p's
 NDRC	n d r c
@@ -9892,7 +9226,6 @@ NFRS	n f r s
 NFS	n f s
 NGC	n g c
 Nge	n g e
-NGF-	n g f
 NGF	n g f
 N.G.L.	n g l
 N. G.	n g
@@ -9904,7 +9237,6 @@ NGRC	n g r c
 N.G.R.	n g r
 NGR	n g r
 NGRR	n g r r
-NGS-	n g s
 NGS	n g s
 NGSS	n g s s
 NGST	n g s t
@@ -9932,7 +9264,6 @@ NHPS	n h p s
 NHRA	n h r a
 NHRC	n h r c
 NHSCT	n h s c t
-NHS-	n h s
 NHS	n h s
 NHST	n h s t
 NHW	n h w
@@ -10016,9 +9347,7 @@ NNSA	n n s a
 NNSS	n n s s
 NNSU	n n s u
 NNSW	n n s w
-NNW-	n n w
 N.O.R.	n o r
-NPA-	n p a
 NPA	n p a
 NPBD	n p b d
 NPBL	n p b l
@@ -10027,7 +9356,6 @@ NPC	n p c
 NPCs	n p c's
 NPDC	n p d c
 NPD	n p d
-NPF-	n p f
 NPF	n p f
 NPF's	n p f's
 NPGL	n p g l
@@ -10045,14 +9373,12 @@ NPM	n p m
 NPMs	n p m's
 N. P.	n p
 N.P.	n p
-NP-	n p
 NP	n p
 NPO	n p o
 NPP	n p p
 NPP's	n p p's
 NPRL	n p r l
 NPRN	n p r n
-NPR-	n p r
 NPR	n p r
 NPRR	n p r r
 NPR's	n p r's
@@ -10089,13 +9415,11 @@ NRN	n r n
 nr	n r
 N. R.	n r
 N.R.	n r
-NSA-	n s a
+N.R.A.	n r a
 NSA	n s a
 NSAP	n s a p
 NSA's	n s a's
-NSB-	n s b
 NSB	n s b
-NSC-	n s c
 NSC	n s c
 NSD	n s d
 NSE	n s e
@@ -10119,7 +9443,6 @@ NSRL	n s r l
 NSR	n s r
 NSSCD	n s s c d
 NSSDC	n s s d c
-NSS-	n s s
 NSS	n s s
 NSTA	n s t a
 NST	n s t
@@ -10127,13 +9450,11 @@ NSU	n s u
 NSV	n s v
 NSVT	n s v t
 NSWBLF	n s w b l f
-NSWC-	n s w c
 NSWC	n s w c
 NSWCV	n s w c v
 NSWEC	n s w e c
 NSWGR	n s w g r
 N.S.W.	n s w
-NSW-	n s w
 NSW	n s w
 Nta	n t a
 NTA	n t a
@@ -10149,7 +9470,6 @@ NTKF	n t k f
 NTL	n t l
 N. T.	n t
 N.T.	n t
-NTRK-	n t r k
 NTR	n t r
 NTR's	n t r's
 NTSB	n t s b
@@ -10181,7 +9501,6 @@ N.V.	n v
 NWAFU	n w a f u
 nwa	n w a
 N.W.A.	n w a
-NWA-	n w a
 NWA	n w a
 NWA's	n w a's
 N.W.F.P.	n w f p
@@ -10199,7 +9518,6 @@ N.W.T.	n w t
 NWT	n w t
 nyc	n y c
 N.Y.C.	n y c
-NYC-	n y c
 NYC	n y c
 NYC's	n y c's
 N.Y. G.O.P.	n y g o p
@@ -10215,10 +9533,8 @@ NY's	n y's
 N.Y.S.	n y s
 N.Y.S.V.	n y s v
 N.Y.U.	n y u
-NYU-	n y u
 NYU	n y u
 NYU's	n y u's
-NYW&B-	n y w and b
 NYYC	n y y c
 NZAID	n z a i d
 NZAOD	n z a o d
@@ -10236,7 +9552,6 @@ NZL	n z l
 NZLP	n z l p
 N.Z.	n z
 NZPA	n z p a
-NZR-	n z r
 NZSAS	n z s a s
 NZ's	n z's
 NZS	n z s
@@ -10280,7 +9595,6 @@ O.J.	o j
 OJ	o j
 OJSC	o j s c
 OKBM	o k b m
-OKB-	o k b
 OKB	o k b
 OKC	o k c
 OK'd	o k d
@@ -10290,7 +9604,6 @@ oke	o k e
 Oke	o k e
 OKH	o k h
 O.K.I.	o k i
-OKK-	o k k
 OKK	o k k
 OKM	o k m
 O&K	o and k
@@ -10366,7 +9679,6 @@ OPB	o p b
 OPC	o p c
 OPCS	o p c s
 OPCW	o p c w
-OPD-	o p d
 OPD	o p d
 O.P.I.	o p i
 OPIRG	o p i r g
@@ -10409,7 +9721,6 @@ O.S.T.	o s t
 OSTP	o s t p
 OSTs	o s t's
 osv	o s v
-OSV-	o s v
 OSV	o s v
 OTB	o t b
 OTC	o t c
@@ -10421,13 +9732,11 @@ O.T.	o t
 OTP	o t p
 OTR	o t r
 OTs	o t's
-OTS-	o t s
 OTS	o t s
 Otu	o t u
 OTU	o t u
 otv	o t v
 O.U.	o u
-OU-	o u
 OU	o u
 OUP	o u p
 OUSA	o u s a
@@ -10445,7 +9754,6 @@ ov	o v
 Ov	o v
 O. V.	o v
 O.V.	o v
-OV-	o v
 OV	o v
 OVP	o v p
 OVS	o v s
@@ -10468,13 +9776,11 @@ P.A.M.	p a m
 pa	p a
 P. A.	p a
 P.A.	p a
-PA-	p a
 PA	p a
 PAQ	p a q
 P.A.R.	p a r
 P. A. S.	p a s
 PBAA	p b a a
-PBA-	p b a
 PBA	p b a
 PBA's	p b a's
 PBB	p b b
@@ -10492,17 +9798,14 @@ PBM	p b m
 PBMR	p b m r
 PBO	p b o
 pb	p b
-pB-	p b
 P. B.	p b
 P.B.	p b
-PB-	p b
 PB	p b
 PBP	p b p
 PBR	p b r
 PBS	p b s
 PBT	p b t
 PBX	p b x
-PBY-	p b y
 PBY	p b y
 P. C. A.	p c a
 PCA	p c a
@@ -10510,7 +9813,6 @@ PCB	p c b
 PCB's	p c b's
 PCBs	p c b's
 PCBS	p c b s
-PCC-	p c c
 PCC	p c c
 PCCS	p c c s
 PCCW	p c c w
@@ -10534,7 +9836,6 @@ PCH	p c h
 PCHR	p c h r
 PCIe	p c i e
 pci	p c i
-PCI-	p c i
 PCI	p c i
 PCJHL	p c j h l
 P. C. J.	p c j
@@ -10547,7 +9848,6 @@ PCMCIA	p c m c i a
 PCMNO	p c m n o
 PCM	p c m
 PCMS	p c m s
-PCNA-	p c n a
 PCNA	p c n a
 PCN	p c n
 PcoA	p c o a
@@ -10556,7 +9856,6 @@ PCO	p c o
 pc	p c
 P. C.	p c
 P.C.	p c
-PC-	p c
 PC	p c
 PCPFL	p c p f l
 PCP	p c p
@@ -10565,7 +9864,6 @@ PCRC	p c r c
 PCRE	p c r e
 PCRev	p c r e v
 PCRM	p c r m
-PCR-	p c r
 PCR	p c r
 PCSK	p c s k
 PCSOM	p c s o m
@@ -10588,13 +9886,11 @@ PDB	p d b
 pdbp	p d b p
 PDBsum	p d b s u m
 PDCI	p d c i
-PDC-	p d c
 PDC	p d c
 PDCPD	p d c p d
 PDC's	p d c's
 PDCs	p d c's
 PD&D	p d and d
-PDD-	p d d
 PDD	p d d
 PDE	p d e
 PDEs	p d e's
@@ -10603,12 +9899,10 @@ pdf	p d f
 PDF	p d f
 PDFs	p d f's
 PDFT	p d f t
-PDGF-	p d g f
 PDGF	p d g f
 PDG	p d g
 PDHJ	p d h j
 PDH	p d h
-PDI-	p d i
 PDI	p d i
 PDJ	p d j
 PDK	p d k
@@ -10618,9 +9912,7 @@ PDO	p d o
 P&D	p and d
 P. D.	p d
 P.D.	p d
-PD-	p d
 PD	p d
-PDP-	p d p
 PDP	p d p
 PDP's	p d p's
 PDPs	p d p's
@@ -10667,7 +9959,6 @@ P&H	p and h
 P. H.	p h
 P.H.	p h
 php	p h p
-PHP-	p h p
 PHP	p h p
 PHPs	p h p's
 P.I.D.E.	p i d e
@@ -10684,18 +9975,15 @@ P.J.K.	p j k
 pj	p j
 P. J.	p j
 P.J.	p j
-PJ-	p j
 PJ	p j
 PJ's	p j's
 PJs	p j's
 P.J.T.	p j t
 P. K.	p k
 P.K.	p k
-PK-	p k
 PK	p k
 PLCC	p l c c
 plc	p l c
-PLC-	p l c
 PLC	p l c
 PLC's	p l c's
 PLCs	p l c's
@@ -10703,13 +9991,10 @@ P.L.O.	p l o
 P. L.	p l
 P.L.	p l
 PLP	p l p
-PLX-	p l x
 PLX	p l x
 P. M. A.	p m a
-PMC-	p m c
 PMC	p m c
 PMG	p m g
-PML-	p m l
 PML	p m l
 PMLP	p m l p
 PMMA	p m m a
@@ -10721,10 +10006,10 @@ PMOI	p m o i
 PMO	p m o
 PMPC	p m p c
 PMPF	p m p f
-pm	p m
+p.m.	p m
+p.m	p m
 P. M.	p m
 P.M.	p m
-PM-	p m
 PM	p m
 PMP	p m p
 PMP's	p m p's
@@ -10771,7 +10056,6 @@ PNoy	p n o y
 pn	p n
 P. N.	p n
 P.N.	p n
-PN-	p n
 PN	p n
 PNP	p n p
 P.N.R.A.	p n r a
@@ -10788,7 +10072,6 @@ PPACA	p p a c a
 PPA	p p a
 PPBS	p p b s
 PPC	p p c
-PPD-	p p d
 PPD	p p d
 PPE	p p e
 PPF	p p f
@@ -10817,18 +10100,13 @@ PPTV	p p t v
 PPV	p p v
 PPVs	p p v's
 PPy	p p y
-PQBP-	p q b p
 PQDT	p q d t
-PQM-	p q m
-PQ-	p q
 PQ	p q
 PQQ	p q q
 PQ's	p q's
 PQS	p q s
-PRB-	p r b
 PRB	p r b
 PRCA	p r c a
-PRC-	p r c
 PRC	p r c
 PRCS	p r c s
 PRDM	p r d m
@@ -10838,23 +10116,19 @@ P.R.I.M.E.	p r i m e
 pr	p r
 P. R.	p r
 P.R.	p r
-PR-	p r
 PR	p r
 P.S.A.	p s a
 P.S.C.	p s c
 P.S.K.	p s k
-PSP-	p s p
 PSP	p s p
 P. s	p's
 P.'s	p's
-Ps-	p s
 Ps	p's
 P. S.	p s
 P.S.	p s
 PSQL	p s q l
 PSR	p s r
 PSRU	p s r u
-PSSA-	p s s a
 PSSA	p s s a
 PSSA's	p s s a's
 PSSAs	p s s a's
@@ -10880,7 +10154,6 @@ ptf	p t f
 PTF	p t f
 PTH	p t h
 Ptie	p t i e
-PTI-	p t i
 PTI	p t i
 PTI's	p t i's
 PTK	p t k
@@ -10895,11 +10168,9 @@ PTP	p t p
 pt	p t
 P. T.	p t
 P.T.	p t
-PT-	p t
 PT	p t
 PTSD	p t s d
 PTSE	p t s e
-PTS-	p t s
 PTS	p t s
 PTTGC	p t t g c
 PTTG	p t t g
@@ -10931,10 +10202,8 @@ PVL	p v l
 PVN	p v n
 PVO	p v o
 PVP	p v p
-Pv-	p v
 P. V.	p v
 P.V.	p v
-PV-	p v
 PV	p v
 pvr	p v r
 PVR	p v r
@@ -10957,7 +10226,6 @@ P.W.O.	p w o
 P&W	p and w
 P. W.	p w
 P.W.	p w
-PW-	p w
 PW	p w
 Pyi	p y i
 PYI	p y i
@@ -10971,7 +10239,6 @@ Pyu	p y u
 Pyw	p y w
 Pyx	p y x
 PZB	p z b
-PZL-	p z l
 PZL	p z l
 PZP	p z p
 P. Z.	p z
@@ -11029,14 +10296,11 @@ QRV	q r v
 QSAR	q s a r
 QSES	q s e s
 QSI	q s i
-QSK-	q s k
 QSL	q s l
 QSM	q s m
 QSO	q s o
 QST	q s t
 QSY	q s y
-QSZ-	q s z
-QTE-	q t e
 QVC	q v c
 QVD	q v d
 QVM	q v m
@@ -11065,7 +10329,6 @@ RBI	r b i
 RBIs	r b i's
 R. B. J.	r b j
 R.B.J.	r b j
-RBK-	r b k
 RBK	r b k
 R.B.L.	r b l
 RBL	r b l
@@ -11075,7 +10338,6 @@ RBM	r b m
 RBMY	r b m y
 RBO	r b o
 RBP	r b p
-R&B-	r and b
 R&B	r and b
 R. B.	r b
 R.B.	r b
@@ -11091,7 +10353,6 @@ RCAC	r c a c
 RCAF	r c a f
 rca	r c a
 R.C.A.	r c a
-RCA-	r c a
 RCA	r c a
 RCA's	r c a's
 RCBC	r c b c
@@ -11115,7 +10376,6 @@ rc	r c
 R. C.	r c
 R.C.	r c
 RCRD	r c r d
-RCR-	r c r
 RCR	r c r
 RCSB	r c s b
 RCS	r c s
@@ -11126,14 +10386,12 @@ RCTV	r c t v
 RCV	r c v
 RCW	r c w
 RDB	r d b
-RDC-	r d c
 RDC	r d c
 RDD	r d d
 RdE	r d e
 RDFC	r d f c
 RDF	r d f
 R.D.G.	r d g
-R&D-	r and d
 R&D	r and d
 R. D.	r d
 R.D.	r d
@@ -11171,7 +10429,6 @@ R&G	r and g
 R. G.	r g
 R.G.	r g
 RGR	r g r
-RGS-	r g s
 RGS	r g s
 RGS's	r g s's
 RGTP	r g t p
@@ -11211,7 +10468,6 @@ Rivu	r i v u
 RIXS	r i x s
 Rixt	r i x t
 RJB	r j b
-RJD-	r j d
 RJD	r j d
 RJE	r j e
 rjf	r j f
@@ -11228,12 +10484,10 @@ RJ's	r j's
 RJTD	r j t d
 R. K. B.	r k b
 RKD	r k d
-RKG-	r k g
 RKI	r k i
 RKKA	r k k a
 RKL	r k l
 R.K.O.	r k o
-RKO-	r k o
 RKO	r k o
 RKO's	r k o's
 R. K.	r k
@@ -11243,7 +10497,6 @@ RLM's	r l m's
 R. L.	r l
 R.L.	r l
 RL	r l
-RLS-	r l s
 RLV	r l v
 rly	r l y
 RMAF	r m a f
@@ -11289,7 +10542,6 @@ RMW	r m w
 RMX	r m x
 RNAO	r n a o
 rna	r n a
-RNA-	r n a
 RNA	r n a
 RNA's	r n a's
 RNAs	r n a's
@@ -11313,7 +10565,6 @@ RNPs	r n p's
 RNPS	r n p s
 R. N.	r n
 R.N.	r n
-RN-	r n
 RN	r n
 R.N.R.	r n r
 RNZ	r n z
@@ -11340,7 +10591,6 @@ RPE	r p e
 RPF	r p f
 RPGA	r p g a
 rpg	r p g
-RPG-	r p g
 RPG	r p g
 RPG's	r p g's
 RPGs	r p g's
@@ -11355,7 +10605,6 @@ RPO	r p o
 RPP	r p p
 R. P.	r p
 R.P.	r p
-RP-	r p
 RP	r p
 RPs	r p's
 R.P.S.	r p s
@@ -11365,7 +10614,6 @@ RPVE	r p v e
 RPV	r p v
 R. Q.	r q
 R.Q.	r q
-RQ-	r q
 RQW	r q w
 rra	r r a
 RRA	r r a
@@ -11388,7 +10636,6 @@ R&R	r and r
 rr	r r
 R. R.	r r
 R.R.	r r
-RR-	r r
 RR	r r
 RRR	r r r
 RRSR	r r s r
@@ -11405,7 +10652,6 @@ RSD	r s d
 RSE	r s e
 RSF	r s f
 RSFSR	r s f s r
-RSG-	r s g
 RSG	r s g
 RSHA	r s h a
 rsh	r s h
@@ -11442,11 +10688,9 @@ rs	r s
 Rs	r's
 R. S.	r s
 R.S.	r s
-RS-	r s
 RS	r s
 RSSI	r s s i
 R. S. S.	r s s
-RSS-	r s s
 RSS	r s s
 RSSSF	r s s s f
 RSTC	r s t c
@@ -11490,7 +10734,6 @@ RTL's	r t l's
 RTML	r t m l
 RTMP	r t m p
 RTM	r t m
-RTNDA-	r t n d a
 RTN	r t n
 RTO	r t o
 RTOs	r t o's
@@ -11501,10 +10744,8 @@ RTR	r t r
 rt	r t
 R. T.	r t
 R.T.	r t
-RT-	r t
 RT	r t
 rts	r t s
-RTS-	r t s
 RTS	r t s
 RTS's	r t s's
 RTTOV	r t t o v
@@ -11546,7 +10787,6 @@ RUV	r u v
 Ruwa	r u w a
 Ruy	r u y
 Ruyt	r u y t
-RVAH-	r v a h
 RVAR	r v a r
 Rvat	r v a t
 RVC	r v c
@@ -11569,7 +10809,6 @@ RV	r v
 rvs	r v s
 RVTD's	r v t d's
 RVU	r v u
-RVV-	r v v
 rwa	r w a
 Rwa	r w a
 RWA	r w a
@@ -11592,7 +10831,6 @@ R. W. S.	r w s
 RWS	r w s
 Rxa	r x a
 RXL	r x l
-RX-	r x
 RX	r x
 RZR	r z r
 rz	r z
@@ -11601,7 +10839,6 @@ RZ	r z
 RZS	r z s
 S.A.B.	s a b
 S.A.D.	s a d
-SAIC-	s a i c
 SAIC	s a i c
 Sa'id	s a i d
 S.A.I.	s a i
@@ -11626,7 +10863,6 @@ Sbai	s b a i
 S.B.A.	s b a
 SBA	s b a
 SBBK	s b b k
-SBB-	s b b
 SBB	s b b
 SBCM	s b c m
 SBCMT	s b c m t
@@ -11650,13 +10886,11 @@ SBOE	s b o e
 SBOL	s b o l
 SBOP	s b o p
 Sborz	s b o r z
-SBP-	s b p
 SBP	s b p
 SBRJ	s b r j
 sb	s b
 S. B.	s b
 S.B.	s b
-SB-	s b
 SB	s b
 SBSE	s b s e
 SBS	s b s
@@ -11667,7 +10901,6 @@ SBTU	s b t u
 Sbu	s b u
 SBU	s b u
 SBY	s b y
-SBZ-	s b z
 SBZ	s b z
 S.C.A.	s c a
 SCA	s c a
@@ -11690,7 +10923,6 @@ scry	s c r y
 sc	s c
 S. C.	s c
 S.C.	s c
-SC-	s c
 SC	s c
 S.C.S.C.	s c s c
 SC's	s c's
@@ -11728,13 +10960,11 @@ sde	s d e
 Sde	s d e
 SDF	s d f
 SDG&E	s d g and e
-SDHA-	s d h a
 SDHA	s d h a
 SDHC	s d h c
 SDHD	s d h d
 SDHHD	s d h h d
 SDH	s d h
-SDI,	s d i
 SDI	s d i
 SDJ	s d j
 sdk	s d k
@@ -11762,12 +10992,10 @@ ses	s e s
 Ses	s e's
 SEs	s e's
 S.E.S.	s e s
-SES-	s e s
 SES	s e s
 S.E.S.'s	s e s's
 S.E.X.	s e x
 Seyh	s e y h
-SFACS-	s f a c s
 sfadb	s f a d b
 SFA	s f a
 SFA's	s f a's
@@ -11791,7 +11019,6 @@ S. F. L.	s f l
 SFL	s f l
 sfn	s f n
 SFN	s f n
-SFOD-	s f o d
 SFOR	s f o r
 SFO	s f o
 SFPA	s f p a
@@ -11799,24 +11026,20 @@ SFPD	s f p d
 SFP	s f p
 SFRA	s f r a
 SFRJ	s f r j
-sFRP-	s f r p
 SFR	s f r
 'sf	s f
 sf	s f
 S. F.	s f
 S.F.	s f
-SF-	s f
 SF	s f
 SFSG	s f s g
 SFSR	s f s r
 sfs	s f s
 S.F.'s	s f's
-SFS-	s f s
 SFS	s f s
 SFSS	s f s s
 SFSU	s f s u
 SFU	s f u
-SFWA-	s f w a
 SFWA	s f w a
 SFX	s f x
 SFX's	s f x's
@@ -11833,13 +11056,11 @@ SGD	s g d
 SGE	s g e
 S. G. F.	s g f
 SGF	s g f
-SGH-	s g h
 SGH	s g h
 Sgip	s g i p
 SGI	s g i
 SGL	s g l
 sgml	s g m l
-SGML-	s g m l
 SGML	s g m l
 SGP	s g p
 SGRAM	s g r a m
@@ -11861,13 +11082,11 @@ SHBG	s h b g
 SHB	s h b
 SHBT	s h b t
 SHCA	s h c a
-Shch-	s h c h
 SHC	s h c
 SHG	s h g
 SHH	s h h
 S.H.I.E.L.D.'s	s h i e l d's
 S.H.I.E.L.	s h i e l
-SHL-	s h l
 SHL	s h l
 Shma	s h m a
 SHMD	s h m d
@@ -11902,12 +11121,10 @@ SJR's	s j r's
 S. J.	s j
 S.J.	s j
 SJ	s j
-SKB-	s k b
 SKB	s k b
 SKC	s k c
 SKD	s k d
 S. K. F.	s k f
-SKF-	s k f
 SKF	s k f
 SKG	s k g
 SKH	s k h
@@ -11918,7 +11135,6 @@ SKR	s k r
 SKSD	s k s d
 S. K.	s k
 S.K.	s k
-SK-	s k
 SK	s k
 S. K. S.	s k s
 S.L.A.A.'s	s l a a's
@@ -11927,10 +11143,8 @@ sla	s l a
 SLA	s l a
 SLAs	s l a's
 SLCO	s l c o
-SLC-	s l c
 SLC	s l c
 SLDL	s l d l
-SLD-	s l d
 SLD	s l d
 S.L.E.	s l e
 SLF	s l f
@@ -11952,7 +11166,6 @@ SLSF	s l s f
 SLSK	s l s k
 S. L.	s l
 S.L.	s l
-SL-	s l
 SL	s l
 SLS	s l s
 SLVR	s l v r
@@ -11966,7 +11179,6 @@ SME	s m e
 SME's	s m e's
 SMEs	s m e's
 SMF	s m f
-SMG-	s m g
 SMG	s m g
 SMHI	s m h i
 SMH	s m h
@@ -11984,7 +11196,6 @@ SMPSs	s m p s's
 SMPTE	s m p t e
 SMRJ	s m r j
 smr	s m r
-SMR-	s m r
 SMR	s m r
 S&M	s and m
 sm	s m
@@ -11994,7 +11205,6 @@ SM	s m
 S.M.'s	s m's
 SMs	s m s
 S.M.S.	s m s
-SMS.	s m s
 SMS	s m s
 SMS's	s m s's
 SMSU	s m s u
@@ -12013,11 +11223,9 @@ SNB	s n b
 SNCB	s n c b
 SNCC	s n c c
 SNCF	s n c f
-SNC-	s n c
 SNC	s n c
 SNDC	s n d c
 SND	s n d
-SNEP-	s n e p
 SNEP	s n e p
 SNESjr	s n e s j r
 SNES	s n e s
@@ -12025,9 +11233,7 @@ SNET	s n e t
 SNF	s n f
 SNFU	s n f u
 sngle	s n g l e
-SNGM-	s n g m
 SNG	s n g
-SNJ-	s n j
 SNK	s n k
 SNLA	s n l a
 SNL	s n l
@@ -12045,10 +11251,8 @@ SNRI	s n r i
 SNR	s n r
 SNSD's	s n s d's
 SnSe	s n s e
-sn-	s n
 S. N.	s n
 S.N.	s n
-SN-	s n
 SN	s n
 SNS	s n s
 S.O.E.	s o e
@@ -12070,7 +11274,6 @@ SPCK	s p c k
 S.P.C.	s p c
 SPC	s p c
 SPDI	s p d i
-SPD-	s p d
 SPD	s p d
 Spe	s p e
 SPE	s p e
@@ -12080,7 +11283,6 @@ SPFL	s p f l
 SPF	s p f
 SPG	s p g
 SPHL	s p h l
-SPH-	s p h
 SPH	s p h
 SPINE's	s p i n e's
 SPIN's	s p i n's
@@ -12089,10 +11291,8 @@ SPI	s p i
 S.P.I.T.	s p i t
 SPJA	s p j a
 SPK	s p k
-SPLA-	s p l a
 SPLA	s p l a
 SPLC	s p l c
-SPLM-	s p l m
 SPL	s p l
 SPME	s p m e
 SPML	s p m l
@@ -12120,11 +11320,9 @@ SPSA	s p s a
 SPSL	s p s l
 S. P.	s p
 S.P.	s p
-SP-	s p
 SP	s p
 SP's	s p's
 SPs	s p's
-SPS-	s p s
 SPS	s p s
 SPSS	s p s s
 SPTA	s p t a
@@ -12134,16 +11332,12 @@ SPUP	s p u p
 SPU	s p u
 SPUs	s p u's
 SPV	s p v
-SPX-	s p x
 SQA	s q a
 SQBB	s q b b
-SQI-	s q i
 SQI	s q i
 sql	s q l
-SQL-	s q l
 SQL	s q l
 SQM	s q m
-SQQ-	s q q
 sq	s q
 S. Q.	s q
 SQ	s q
@@ -12174,7 +11368,6 @@ SRGs	s r g's
 Srhir	s r h i r
 SRH	s r h
 S. R. J.	s r j
-SRK-	s r k
 SRK	s r k
 SRK's	s r k's
 SRLGs	s r l g's
@@ -12193,10 +11386,8 @@ SRR	s r r
 sr	s r
 S. R.	s r
 S.R.	s r
-SR-	s r
 SR	s r
 SRS	s r s
-SRT-	s r t
 SRT	s r t
 SRT's	s r t's
 Srul	s r u l
@@ -12205,7 +11396,6 @@ SRU's	s r u's
 SRV	s r v
 srx	s r x
 SRY	s r y
-SRZ-	s r z
 SSAA	s s a a
 SSAB	s s a b
 SSAC	s s a c
@@ -12217,7 +11407,6 @@ S.S.B.	s s b
 SSB	s s b
 SSCCC	s s c c c
 S.S.C.	s s c
-SSC-	s s c
 SSC	s s c
 SSCV	s s c v
 SSDB	s s d b
@@ -12230,7 +11419,6 @@ SSE	s s e
 SSFL	s s f l
 SSF	s s f
 SSGRC	s s g r c
-SSG-	s s g
 SSG	s s g
 SSHSA's	s s h s a's
 SSH	s s h
@@ -12244,9 +11432,7 @@ ssl	s s l
 SSL	s s l
 SSLT	s s l t
 SSME	s s m e
-SSM-	s s m
 SSM	s s m
-SSN-	s s n
 SSN	s s n
 SSOD	s s o d
 SSOF	s s o f
@@ -12274,11 +11460,8 @@ S. s	s's
 Ss	s's
 S. S.	s s
 S.S.	s s
-SS-	s s
 SSS	s s s
-SSTC-	s s t c
 SSTH	s s t h
-SSTL-	s s t l
 SSTL	s s t l
 SSTR	s s t r
 SST	s s t
@@ -12296,14 +11479,12 @@ ST&AJ	s t and a j
 S.T.A.L.K.E.R.	s t a l k e r
 S.T.A.T.U.S.	s t a t u s
 STB	s t b
-STCC-	s t c c
 STCC	s t c c
 S.T.C.	s t c
 STC	s t c
 STCW	s t c w
 STDP	s t d p
 STDs	s t d's
-STD-	s t d
 STD	s t d
 STF	s t f
 stfv	s t f v
@@ -12312,7 +11493,6 @@ STG	s t g
 STIs	s t i's
 STIS	s t i s
 STi	s t i
-STI-	s t i
 STI	s t i
 STK	s t k
 stl	s t l
@@ -12323,7 +11503,6 @@ STMIK	s t m i k
 STM's	s t m's
 STM	s t m
 STNS	s t n s
-STN-	s t n
 STN	s t n
 STPI	s t p i
 STPNS	s t p n s
@@ -12333,16 +11512,12 @@ S.T.R.I.D.E.	s t r i d e
 STRV	s t r v
 Stryj	s t r y j
 STRZ	s t r z
-St.	saint
 S&T	s and t
-STSAT-	s t s a t
 STScI	s t s c i
 ST's	s t's
-STS-	s t s
 STS	s t s
 S. T.	s t
 S.T.	s t
-ST-	s t
 STT	s t t
 STVL	s t v l
 STVS	s t v s
@@ -12361,7 +11536,6 @@ SUT	s u t
 Suu	s u u
 SUVF	s u v f
 SUVs	s u v's
-SUV-	s u v
 SUV	s u v
 SUWN	s u w n
 SUW	s u w
@@ -12393,7 +11567,6 @@ SVS	s v s
 sv	s v
 S. V.	s v
 S.V.	s v
-SV-	s v
 SV	s v
 SVTs	s v t's
 SVT	s v t
@@ -12407,7 +11580,6 @@ SWABC	s w a b c
 SWAC	s w a c
 S.W.A.	s w a
 SWC	s w c
-SWD-	s w d
 SWD	s w d
 S.W.E.A.T.	s w e a t
 Swe	s w e
@@ -12428,14 +11600,12 @@ SWPA	s w p a
 SWPL	s w p l
 SWP	s w p
 SwRI	s w r i
-SWR-	s w r
 SWR	s w r
 S&W	s and w
 SWS	s w s
 sw	s w
 S. W.	s w
 S.W.	s w
-SW-	s w
 SW	s w
 SWTPC	s w t p c
 SWT	s w t
@@ -12445,7 +11615,6 @@ SXN	s x n
 SXSW	s x s w
 sx	s x
 S.X.	s x
-SX-	s x
 SX	s x
 SXY	s x y
 SXZ	s x z
@@ -12461,7 +11630,6 @@ syv	s y v
 Syxx	s y x x
 SZA	s z a
 Szasz	s z a s z
-SZD-	s z d
 SZDSZ	s z d s z
 Szer	s z e r
 szkic	s z k i c
@@ -12494,7 +11662,6 @@ TBE	t b e
 TBF	t b f
 TBHS	t b h s
 TBI	t b i
-TBK-	t b k
 TBK	t b k
 TBL	t b l
 TBMA	t b m a
@@ -12504,13 +11671,11 @@ T.B.M.	t b m
 TBM	t b m
 TBNJ	t b n j
 TBN	t b n
-TBP-	t b p
 TBP	t b p
 TBSC	t b s c
 TBS	t b s
 T. B.	t b
 T.B.	t b
-TB-	t b
 TB	t b
 TBTG	t b t g
 TBT	t b t
@@ -12531,7 +11696,6 @@ TCE	t c e
 TCFAQ	t c f a q
 TCF	t c f
 TCGA	t c g a
-TCG-	t c g
 TCG	t c g
 TCHC	t c h c
 TCHRD	t c h r d
@@ -12546,16 +11710,13 @@ TCO	t c o
 TCPL	t c p l
 TCPMP	t c p m p
 TCP's	t c p's
-TCP-	t c p
 TCP	t c p
 TCR	t c r
 T. C. S.	t c s
 TCS	t c s
 tc	t c
-Tc-	t c
 T. C.	t c
 T.C.	t c
-TC-	t c
 TC	t c
 TCT	t c t
 TCU's	t c u's
@@ -12581,10 +11742,8 @@ TdIF	t d i f
 TDI	t d i
 TDK	t d k
 TDLAS	t d l a s
-TDMA-	t d m a
 TDMA	t d m a
 TDME	t d m e
-TDM-	t d m
 TDM	t d m
 TDO	t d o
 TDP	t d p
@@ -12628,7 +11787,6 @@ TFTC	t f t c
 tf	t f
 T. F.	t f
 T.F.	t f
-TF-	t f
 TF	t f
 TFTR	t f t r
 TFT	t f t
@@ -12642,7 +11800,6 @@ tge	t g e
 T.G.E.	t g e
 TGE	t g e
 tgf	t g f
-TGF-	t g f
 TGF	t g f
 TGG	t g g
 TGIF	t g i f
@@ -12657,12 +11814,9 @@ T.G.	t g
 TG	t g
 TGVs	t g v's
 tgv	t g v
-TGV-	t g v
 TGV	t g v
 THB	t h b
-THCD-	t h c d
 THCF	t h c f
-THC-	t h c
 THC	t h c
 T.H.E.M.	t h e m
 T.H.F.	t h f
@@ -12670,7 +11824,6 @@ THF	t h f
 THG	t h g
 THHK	t h h k
 T.H.I.N.K. B.I.G.	t h i n k b i g
-THJ-	t h j
 THLL	t h l l
 THL	t h l
 THMP	t h m p
@@ -12690,7 +11843,6 @@ T.H.	t h
 T.H.U.N.D.E.R.	t h u n d e r
 THW	t h w
 THX	t h x
-TIAA-	t i a a
 TIAA	t i a a
 T. I. A.	t i a
 TIFR	t i f r
@@ -12702,7 +11854,6 @@ tiv	t i v
 Tiv	t i v
 TIYM	t i y m
 Tiy's	t i y's
-TJD-	t j d
 TJFR	t j f r
 T.J.F.	t j f
 T. J. J.	t j j
@@ -12720,14 +11871,11 @@ TKAG	t k a g
 TKA's	t k a's
 TKA	t k a
 T. K. B.	t k b
-TKB-	t k b
-TKCA-	t k c a
 TKD	t k d
 TKE	t k e
 TKI	t k i
 tko	t k o
 Tko	t k o
-TKO-	t k o
 TKO	t k o
 TKP	t k p
 TK's	t k's
@@ -12735,7 +11883,6 @@ TKS	t k s
 tk	t k
 T. K.	t k
 T.K.	t k
-TK-	t k
 TK	t k
 TKT	t k t
 Tlas	t l a's
@@ -12764,14 +11911,11 @@ TLTB	t l t b
 tl	t l
 T. L.	t l
 T.L.	t l
-TL-	t l
 TL	t l
 Tluk	t l u k
 TLU's	t l u's
 Tluszcz	t l u s z c z
-TLV-	t l v
 TLV	t l v
-TMA-	t m a
 TMA	t m a
 TMBG	t m b g
 TMB	t m b
@@ -12806,7 +11950,6 @@ TMS	t m s
 tm	t m
 T. M.	t m
 T.M.	t m
-TM-	t m
 TM	t m
 T.M.T.	t m t
 TMT	t m t
@@ -12821,18 +11964,15 @@ tnbc	t n b c
 TNCA	t n c a
 TNCC	t n c c
 TNCDSB	t n c d s b
-TNC-	t n c
 TNC	t n c
 TNFA	t n f a
 TNFRSF	t n f r s f
 TNFSF	t n f s f
-TNF-	t n f
 TNF	t n f
 TNGHT	t n g h t
 TNG	t n g
 TNIP	t n i p
 TNI	t n i
-TNK-	t n k
 TNL	t n l
 TNMM	t n m m
 TNMS	t n m s
@@ -12847,19 +11987,15 @@ TNRIS	t n r i s
 TNRP	t n r p
 TNR	t n r
 TNSDL	t n s d l
-TNSTC-	t n s t c
 TNSTC	t n s t c
-TNS-	t n s
 TNS	t n s
 TNTAs	t n t a's
 tn	t n
 T. N.	t n
 T.N.	t n
-TN-	t n
 TN	t n
 TNT's	t n t's
 TNT	t n t
-TNX-	t n x
 T.O.'s	t o's
 T. O.	t o
 T.O.	t o
@@ -12871,14 +12007,11 @@ TOU	t o u
 TPAC	t p a c
 TPAO	t p a o
 tPA	t p a
-TPA-	t p a
 TPA	t p a
 TPB	t p b
-TPC-	t p c
 TPC	t p c
 TPEC	t p e c
 TPF	t p f
-TPG-	t p g
 TPG	t p g
 TPH	t p h
 TPI	t p i
@@ -12889,12 +12022,10 @@ TPO	t p o
 TPP	t p p
 tpr	t p r
 TPR	t p r
-TPS-	t p s
 TPS	t p s
 tp	t p
 T. P.	t p
 T.P.	t p
-TP-	t p
 TP	t p
 TPU	t p u
 TPVs	t p v's
@@ -12913,7 +12044,6 @@ T. R. B.	t r b
 TRB	t r b
 Trcek	t r c e k
 TRC	t r c
-TRDB-	t r d b
 TRD	t r d
 TRFA	t r f a
 TRF	t r f
@@ -12923,13 +12053,11 @@ TRH	t r h
 T.R.I.B.E.	t r i b e
 TRIZ	t r i z
 TrkA	t r k a
-TRL-	t r l
 TRL	t r l
 Trmcic	t r m c i c
 TRMM	t r m m
 T.R.M.P.A.	t r m p a
 T. R. M.	t r m
-TRM-	t r m
 tRNA	t r n a
 TRNC	t r n c
 TRPC	t r p c
@@ -12949,7 +12077,6 @@ TRSV	t r s v
 tr	t r
 T. R.	t r
 T.R.	t r
-TR-	t r
 TR	t r
 TRT	t r t
 T.R.U.	t r u
@@ -12965,13 +12092,10 @@ Tsa	t s a
 TSA	t s a
 TSB	t s b
 TSCC	t s c c
-TSC-	t s c
 TSC	t s c
 TSF	t s f
-TSG-	t s g
 TSG	t s g
 TSH	t s h
-TSIO-	t s i o
 TSI	t s i
 tsit	t s i t
 Tsiv	t s i v
@@ -12986,7 +12110,6 @@ Tso	t s o
 T.S.O.	t s o
 TSO	t s o
 TSP	t s p
-TSQ-	t s q
 TSRA	t s r a
 TSRTC	t s r t c
 tsr	t s r
@@ -12998,7 +12121,6 @@ TSTC	t s t c
 Ts	t's
 T. S.	t s
 T.S.	t s
-TS-	t s
 TS	t s
 TST	t s t
 tsus	t s u s
@@ -13023,7 +12145,6 @@ TTH	t t h
 TTI	t t i
 TTKG	t t k g
 TTKST	t t k s t
-TTL-	t t l
 TTL	t t l
 T.T.N.	t t n
 ttp	t t p
@@ -13031,10 +12152,8 @@ TTP	t t p
 TTR	t t r
 TTS	t t s
 T&T	t and t
-tt-	t t
 T. T.	t t
 T.T.	t t
-TT-	t t
 TT	t t
 TTU	t t u
 TTV	t t v
@@ -13048,7 +12167,6 @@ T'uqu	t u q u
 TUSCC	t u s c c
 TUSC	t u s c
 T.U.	t u
-TU-	t u
 TU	t u
 Tuzk	t u z k
 tvaan	t v a a n
@@ -13089,12 +12207,10 @@ TV's	t v's
 TVs	t v's
 TVS	t v s
 tVTA	t v t a
-TVT-	t v t
 TVT	t v t
 tv	t v
 T. V.	t v
 T.V.	t v
-TV-	t v
 TV	t v
 TVXQ's	t v x q's
 TVXQ	t v x q
@@ -13112,7 +12228,6 @@ TWI	t w i
 TWK	t w k
 T.W.P.	t w p
 TWP	t w p
-TWR-	t w r
 TWR	t w r
 TWTs	t w t's
 TWT	t w t
@@ -13132,7 +12247,6 @@ TXP	t x p
 TXTC	t x t c
 TXT	t x t
 T.X.	t x
-TX-	t x
 TX	t x
 TXU	t x u
 tya	t y a
@@ -13151,12 +12265,10 @@ UAAP's	u a a p's
 UAAP	u a a p
 UAB's	u a b's
 UAB	u a b
-UAC-	u a c
 UAC	u a c
 UADY	u a d y
 UAE's	u a e's
 U.A.E.	u a e
-UAE-	u a e
 UAE	u a e
 UAF	u a f
 UAHC	u a h c
@@ -13184,7 +12296,6 @@ UA	u a
 UAVs	u a v's
 UAV	u a v
 U.A.W.	u a w
-UAW-	u a w
 UAW	u a w
 Uba	u b a
 UBA	u b a
@@ -13210,7 +12321,6 @@ UBRE	u b r e
 UBRS	u b r s
 UB's	u b's
 UBS	u b s
-UB-	u b
 UB	u b
 UBU	u b u
 UBV	u b v
@@ -13227,7 +12337,6 @@ UCB	u c b
 UCCE	u c c e
 UCCJ	u c c j
 UCCS	u c c s
-UCC-	u c c
 UCC	u c c
 UCDA	u c d a
 UCDP	u c d p
@@ -13236,11 +12345,9 @@ UCF's	u c f's
 UCF	u c f
 UCG	u c g
 UCIEP	u c i e p
-UCISA-	u c i s a
 UCI's	u c i's
 UCI	u c i
 UCLA's	u c l a's
-UCLA-	u c l a
 UCLA	u c l a
 UCLH	u c l h
 UCL	u c l
@@ -13267,7 +12374,6 @@ UCTI	u c t i
 UCT	u c t
 Uc	u c
 U.C.	u c
-UC-	u c
 UC	u c
 Ucuncu	u c u n c u
 UCU	u c u
@@ -13287,7 +12393,6 @@ Udit	u d i t
 UDK	u d k
 UDN	u d n
 Udny	u d n y
-UDP-	u d p
 UDP	u d p
 UDRP	u d r p
 UDR	u d r
@@ -13339,7 +12444,6 @@ UFOs	u f o's
 Ufot	u f o t
 ufo	u f o
 Ufo	u f o
-UFO-	u f o
 UFO	u f o
 UFPE	u f p e
 UFPLS	u f p l s
@@ -13353,18 +12457,14 @@ UFS	u f s
 UFTP	u f t p
 UFT	u f t
 U. F.	u f
-UF-	u f
 UF	u f
 UFU	u f u
 UFW	u f w
 Uga	u g a
 UGA	u g a
 UGCCWA	u g c c w a
-UGC-	u g c
 UGC	u g c
-UGEED-	u g e e d
 Uge	u g e
-UGF-	u g f
 UGK	u g k
 UGME	u g m e
 Ugni	u g n i
@@ -13382,7 +12482,6 @@ UHMW	u h m w
 uhn	u h n
 UHOA	u h o a
 UHPT	u h p t
-UHP-	u h p
 UHP	u h p
 UHRA	u h r a
 UHRF	u h r f
@@ -13416,7 +12515,6 @@ UiTM	u i t m
 uit	u i t
 Uit	u i t
 UIT	u i t
-UI-	u i
 UI	u i
 UIV	u i v
 Uiy	u i y
@@ -13455,13 +12553,11 @@ u'k	u k
 uk	u k
 Uk	u k
 U.K.	u k
-UK-	u k
 UK	u k
 UKUP	u k u p
 UKVRN	u k v r n
 UKW	u k w
 Ukwu	u k w u
-ULC-	u l c
 ULC	u l c
 ULDB	u l d b
 ULEB	u l e b
@@ -13506,7 +12602,6 @@ UMN	u m n
 UMO	u m o
 UMPP	u m p p
 UMP's	u m p's
-Umptee-	u m p t e e
 Umri	u m r i
 UM's	u m's
 UMTS	u m t s
@@ -13533,14 +12628,12 @@ UNCMAC	u n c m a c
 UNCRO	u n c r o
 UNC's	u n c's
 UNCTAD	u n c t a d
-UNC-	u n c
 UNC	u n c
 UNCW	u n c w
 UNFCCC	u n f c c c
 UNFICYP	u n f i c y p
 UNFPA	u n f p a
 UNFP	u n f p
-UNF-	u n f
 UNF	u n f
 UNFWP	u n f w p
 UNGC	u n g c
@@ -13553,7 +12646,6 @@ UNL	u n l
 Unlu	u n l u
 UNLV	u n l v
 UNMCK	u n m c k
-UNMC-	u n m c
 UNMC	u n m c
 UNMEE's	u n m e e's
 UNMEE	u n m e e
@@ -13617,7 +12709,6 @@ UPDS	u p d s
 Upd	u p d
 UPD	u p d
 UPEC	u p e c
-UPFA-	u p f a
 UPFA	u p f a
 UPF's	u p f's
 Upf	u p f
@@ -13663,7 +12754,6 @@ uq	u q
 UQ	u q
 URAA	u r a a
 URAC	u r a c
-URAP-	u r a p
 URAP	u r a p
 URBACT	u r b a c t
 URBED	u r b e d
@@ -13699,7 +12789,6 @@ USAFE	u s a f e
 USAF	u s a f
 USAHA	u s a h a
 USAID's	u s a i d's
-USAID-	u s a i d
 USAID	u s a i d
 Usal	u s a l
 usan	u s a n
@@ -13716,18 +12805,14 @@ USATF	u s a t f
 USAT	u s a t
 usa	u s a
 .USA	u s a
-U.S.A..	u s a
 U.S.A.	u s a
 U.S.A	u s a
-USA-	u s a
-USA.	u s a
 USA	u s a
 USAya	u s a y a
 USBA	u s b a
 USBC's	u s b c's
 USBC	u s b c
 USBs	u s b's
-USB-	u s b
 USB	u s b
 USBWA	u s b w a
 USCCB	u s c c b
@@ -13746,11 +12831,9 @@ U.S.C.'s	u s c's
 USC's	u s c's
 USCT	u s c t
 U.S.C.	u s c
-USC-	u s c
 USC	u s c
 USDA's	u s d a's
 U.S.D.A.	u s d a
-USDA-	u s d a
 USDA	u s d a
 USDoE	u s d o e
 USDOJ	u s d o j
@@ -13772,7 +12855,6 @@ USFWS	u s f w s
 USFW	u s f w
 USGA	u s g a
 U.S.G.S.	u s g s
-USGS-	u s g s
 USGS	u s g s
 U.S. H.R.	u s h r
 UShs	u s h's
@@ -13789,9 +12871,7 @@ USJ	u s j
 USLES	u s l e s
 USLHE	u s l h e
 USLMRA	u s l m r a
-USLS-	u s l s
 USLTA	u s l t a
-USL-	u s l
 USL	u s l
 Uslu	u s l u
 Usmar	u s m a r
@@ -13828,7 +12908,6 @@ USPPD	u s p p d
 U.S.P.Q.	u s p q
 USPSA	u s p s a
 USPs	u s p's
-USPS-	u s p s
 USPS	u s p s
 USPTA	u s p t a
 USPTO	u s p t o
@@ -13844,6 +12923,7 @@ USSF's	u s s f's
 USSF	u s s f
 USSR's	u s s r's
 USSR	u s s r
+U.S.S.R	u s s r
 U.S.'s	u s's
 US's	u s's
 U.S.S.	u s s
@@ -13873,7 +12953,6 @@ Uta	u t a
 UTA	u t a
 UTB	u t b
 Utca	u t c a
-UTC-	u t c
 UTC	u t c
 Utd's	u t d's
 Utd	u t d
@@ -13881,7 +12960,6 @@ utea	u t e a
 UTEP	u t e p
 Utes	u t e's
 UTET	u t e t
-UTF-	u t f
 UTF	u t f
 Uth	u t h
 uti	u t i
@@ -13955,31 +13033,26 @@ UWSP's	u w s p's
 UWSU	u w s u
 UW's	u w's
 UWS	u w s
-UW-	u w
 UW	u w
 UWW	u w w
 VASP	v a s p
 VA's	v a's
 V. A.	v a
 V.A.	v a
-VA-	v a
 VA	v a
 V&A	v and a
 Vav	v a v
 VAV	v a v
-VAW-	v a w
 Vay	v a y
 VBA	v b a
 VBBS	v b b s
 VBE	v b e
-VBF-	v b f
 VBI	v b i
 VBM	v b m
 VBR	v b r
 vb	v b
 V. B.	v b
 V.B.	v b
-VB-	v b
 VB	v b
 VCA's	v c a's
 VCA	v c a
@@ -14007,10 +13080,8 @@ VCU	v c u
 vc	v c
 V. C.	v c
 V.C.	v c
-VC-	v c
 VC	v c
 VCXIV	v c x i v
-VCX-	v c x
 VCY	v c y
 VDAC	v d a c
 vda	v d a
@@ -14020,7 +13091,6 @@ VDC	v d c
 vdiq	v d i q
 VDJ	v d j
 VDL's	v d l's
-VDL-	v d l
 VDL	v d l
 vdm	v d m
 VDM	v d m
@@ -14031,19 +13101,13 @@ VDUP	v d u p
 VDU	v d u
 V. D.	v d
 V.D.	v d
-VD-	v d
 VD	v d
 VDV	v d v
 V. D. W.	v d w
-ve	v e
-Ve	v e
-V. E.	v e
-VE	v e
 vez	v e z
 Vez	v e z
 VEZ	v e z
 V.F.A.	v f a
-VFA-	v f a
 VFA	v f a
 VFC	v f c
 VFDS	v f d s
@@ -14056,7 +13120,6 @@ VFL	v f l
 VFMC	v f m c
 VFM	v f m
 vfp	v f p
-VFP-	v f p
 vfr	v f r
 VFR	v f r
 VF's	v f's
@@ -14066,13 +13129,10 @@ VFTX	v f t x
 VFU	v f u
 V. F.	v f
 V.F.	v f
-VF-	v f
 VF	v f
-VFW-	v f w
 VFW	v f w
 VFX	v f x
 VGA	v g a
-VGC-	v g c
 V'Ger	v g e r
 VGIK	v g i k
 VGKO	v g k o
@@ -14082,14 +13142,12 @@ VGMDB	v g m d b
 VGM	v g m
 VGo	v g o
 VGP	v g p
-Vgr-	v g r
 VGSCs	v g s c's
 VGSoM	v g s o m
 VGTU	v g t u
 VGU	v g u
 V. G.	v g
 V.G.	v g
-VG-	v g
 VG	v g
 VGV	v g v
 VGX	v g x
@@ -14103,7 +13161,6 @@ VHR	v h r
 VHSL	v h s l
 VHS	v h s
 V. H.	v h
-VH-	v h
 VH	v h
 V.I.C.'s	v i c's
 Vict	v i c t
@@ -14115,7 +13172,6 @@ Vij	v i j
 V.I.P.s	v i p's
 VIPs	v i p's
 V.I.P.	v i p
-VIP-	v i p
 VIP	v i p
 V. I.	v i
 V.I.	v i
@@ -14125,10 +13181,8 @@ VJs	v j's
 VJTF	v j t f
 V. J.	v j
 V.J.	v j
-VJ-	v j
 VJ	v j
 VKG	v k g
-VKh-	v k h
 VKIBC's	v k i b c's
 V. K. N.	v k n
 VKOS	v k o s
@@ -14149,7 +13203,6 @@ VLDL	v l d l
 vlei	v l e i
 VLE	v l e
 VLEX	v l e x
-VLF-	v l f
 VLF	v l f
 Vlijt	v l i j t
 VLN	v l n
@@ -14162,33 +13215,25 @@ V. L.	v l
 V.L.	v l
 VL	v l
 VMAs	v m a's
-VMAT-	v m a t
 VMAT	v m a t
-VMA-	v m a
 VMA	v m a
-VMBO-	v m b o
 VMCAS	v m c a s
 VMCM	v m c m
 VME	v m e
 VMFM	v m f m
-VMF-	v m f
 VMF	v m f
 VMG	v m g
 VMI's	v m i's
 VMI	v m i
 VMK	v m k
-VMM-	v m m
 VMM	v m m
-VMO-	v m o
 VMPS	v m p s
 VMS	v m s
 VMT	v m t
 vm	v m
 V. M.	v m
 V.M.	v m
-VM-	v m
 VM	v m
-VMX-	v m x
 VNAF	v n a f
 VNAV	v n a v
 VNCH	v n c h
@@ -14196,7 +13241,6 @@ VNC	v n c
 vner	v n e r
 V.N.E.	v n e
 VNI	v n i
-VNO-	v n o
 VNO	v n o
 VNPT	v n p t
 VNQDD	v n q d d
@@ -14208,7 +13252,6 @@ VNTR	v n t r
 VNU	v n u
 V. N.	v n
 V.N.	v n
-VN-	v n
 VN	v n
 V.O.	v o
 VO	v o
@@ -14216,7 +13259,6 @@ Vov	v o v
 VOX's	v o x's
 Voz	v o z
 VPAL	v p a l
-VPB-	v p b
 VPD	v p d
 VPH	v p h
 vpis	v p i s
@@ -14235,7 +13277,6 @@ VPS	v p s
 vpu	v p u
 V. P.	v p
 V.P.	v p
-VP-	v p
 VP	v p
 VQT	v q t
 vq	v q
@@ -14244,7 +13285,6 @@ vrak	v r a k
 VRA	v r a
 Vrba	v r b a
 Vrbuv	v r b u v
-VRB-	v r b
 VRD	v r d
 Vrej	v r e j
 vrem	v r e m
@@ -14272,14 +13312,12 @@ V&R	v and r
 vr	v r
 V. R.	v r
 V.R.	v r
-VR-	v r
 VR	v r
 VRV	v r v
 VSANs	v s a n's
 VSAN	v s a n
 VSAP's	v s a p's
 VSATs	v s a t's
-VSA-	v s a
 VSB's	v s b's
 VSB	v s b
 VSCP	v s c p
@@ -14317,7 +13355,6 @@ VTE	v t eL
 Vtic	v t i c
 VTi	v t i
 VTL	v t l
-VTM-	v t m
 VTM	v t m
 VTR	v t r
 VTSK	v t s k
@@ -14327,7 +13364,6 @@ VTU	v t u
 V&T	v and t
 VTVL	v t v l
 V.T.	v t
-VT-	v t
 VT	v t
 VTV	v t v
 Vuur	v u u r
@@ -14338,24 +13374,20 @@ VVD	v v d
 VVIPs	v v i p's
 VVI	v v i
 VVMC	v v m c
-VVN-	v v n
 VVO	v v o
 VVS	v v s
 VVT	v v t
 V. V.	v v
 V.V.	v v
 VV	v v
-VWI-	v w i
 VWM	v w m
 VWR	v w r
 VW's	v w's
 VWs	v w's
 VWS	v w s
-VW-	v w
 VW	v w
 VXL	v x l
 VXR	v x r
-VX-	v x
 VX	v x
 Vyg	v y g
 vyr	v y r
@@ -14371,7 +13403,6 @@ WAAI	w a a i
 WAAV	w a a v
 Waay	w a a y
 WABB	w a b b
-WABC-	w a b c
 WABC	w a b c
 WABD	w a b d
 WABG's	w a b g's
@@ -14383,7 +13414,6 @@ WAIO	w a i o
 W.A.J.	w a j
 Wakf	w a k f
 W.A.K.O.	w a k o
-WAKR-	w a k r
 wa'l	w a l
 WANFL	w a n f l
 WAOK	w a o k
@@ -14415,36 +13445,27 @@ WAWZ	w a w z
 WAYH	w a y h
 waza	w a z a
 Waza	w a z a
-WBAK-	w b a k
 WBAL's	w b a l's
-WBAL-	w b a l
 WBAM	w b a m
 WBA	w b a
 WBBL	w b b l
-WBBM-	w b b m
 WBBM	w b b m
 WBBP	w b b p
 WBCA	w b c a
-WBCN-	w b c n
 WBCN	w b c n
 W.B.C.	w b c
 WBC	w b c
 WBCY	w b c y
 WBEV	w b e v
 WBEZ	w b e z
-WBFF-	w b f f
 WBFJ	w b f j
 WBFO	w b f o
 WBF	w b f
-WBGU-	w b g u
 WBG	w b g
 WBHY	w b h y
 WBIC	w b i c
 WBIL	w b i l
-WBIR-	w b i r
 WBJEE	w b j e e
-WBKI-	w b k i
-WBKO-	w b k o
 WBKO	w b k o
 WBK	w b k
 WBLQ	w b l q
@@ -14455,7 +13476,6 @@ WBON	w b o n
 WBO	w b o
 WBQC	w b q c
 WBRC	w b r c
-WBRE-	w b r e
 WBRE	w b r e
 WBRO	w b r o
 WBRZ	w b r z
@@ -14466,39 +13486,28 @@ WBT's	w b t's
 WBT	w b t
 WBTW	w b t w
 WBTZ	w b t z
-WBUR-	w b u r
 WBUR	w b u r
 WBVE	w b v e
 WBV	w b v
 W. B.	w b
 W.B.	w b
-WB-	w b
 WB	w b
-WBWT-	w b w t
 WBXH	w b x h
 WBZB	w b z b
-WBZT-	w b z t
-WBZ-	w b z
 WBZ	w b z
 WCAA	w c a a
-WCAC-	w c a c
 WCAG	w c a g
-WCAU-	w c a u
 WCAU	w c a u
 WCA	w c a
 WCBA	w c b a
-WCBI-	w c b i
 WCBN	w c b n
 W&CBR	w and c b r
 WCBR	w c b r
-WCBS-	w c b s
 WCBS	w c b s
 WCB	w c b
 WCCES	w c c e s
 WCCG	w c c g
-WCCO-	w c c o
 WCCO	w c c o
-WCCP-	w c c p
 WCC's	w c c's
 WCC	w c c
 WCDA	w c d a
@@ -14525,7 +13534,6 @@ WCMH	w c m h
 WCMR	w c m r
 WCM	w c m
 WCNB	w c n b
-WCNG-	w c n g
 WCOZ	w c o z
 WCPO	w c p o
 WCPW	w c p w
@@ -14533,13 +13541,10 @@ WCRC	w c r c
 WCRE	w c r e
 WCRL	w c r l
 WCSA	w c s a
-WCSM-	w c s m
 WCSM	w c s m
 WCS	w c s
-WCSY-	w c s y
 WCTD	w c t d
 WCTG	w c t g
-WCTI-	w c t i
 W.C.T.U.	w c t u
 WCTU	w c t u
 WCTV	w c t v
@@ -14548,24 +13553,18 @@ WCTX	w c t x
 WCVB's	w c v b's
 WCVB	w c v b
 WCVE	w c v e
-WCVP-	w c v p
 WCWA	w c w a
 wc	w c
 W. C.	w c
 W.C.	w c
-WC-	w c
 WC	w c
 WCWC	w c w c
 WCW	w c w
-WCWW-	w c w w
 WCXR	w c x r
 WCYB	w c y b
 WCZE	w c z e
-WCZU-	w c z u
-WDAF-	w d a f
 WDAF	w d a f
 WDA	w d a
-WDCN-	w d c n
 WDC	w d c
 WDDM	w d d m
 WDFN	w d f n
@@ -14577,17 +13576,13 @@ WDIF	w d i f
 WDIG	w d i g
 WDIS	w d i s
 WDIV	w d i v
-WDJM-	w d j m
 WDJT	w d j t
 WDLA	w d l a
 WDL	w d l
-WDM-	w d m
 WDM	w d m
 WDNN	w d n n
 WDNS	w d n s
 WDNT	w d n t
-WDOD-	w d o d
-WDOK-	w d o k
 WDOK	w d o k
 WDO	w d o
 WDRE	w d r e
@@ -14596,7 +13591,6 @@ WDSE	w d s e
 WDSN	w d s n
 WDSO	w d s o
 WDSU	w d s u
-WDS-	w d s
 WDS	w d s
 WDTM	w d t m
 WDUQ	w d u q
@@ -14604,7 +13598,6 @@ WDVE	w d v e
 WDVR	w d v r
 W. D.	w d
 W.D.	w d
-WD-	w d
 WDWS	w d w s
 WDW	w d w
 WDXZ	w d x z
@@ -14613,27 +13606,22 @@ W. E. B.	w e b
 W.E.B.	w e b
 W. E. H.	w e h
 W.E.H.	w e h
-WEVD-	w e v d
 WEVD	w e v d
 WEVV	w e v v
 W. E.	w e
 W.E.	w e
 WEZQ	w e z q
-WFAA-	w f a a
 WFAA	w f a a
 WFAL	w f a l
 WFAN	w f a n
-WFBC-	w f b c
 WFB	w f b
 WFCA	w f c a
-WFCB-	w f c b
 WFC	w f c
 WFDC	w f d c
 WFDD	w f d d
 WFDF	w f d f
 WFDU	w f d u
 WFD	w f d
-WFFF-	w f f f
 WFGF	w f g f
 WFHE	w f h e
 W.F.H.	w f h
@@ -14641,17 +13629,13 @@ WFH	w f h
 WFIKKN	w f i k k n
 WFIL	w f i l
 WFIRST	w f i r s t
-WFLA-	w f l a
-WFLN-	w f l n
 WFL's	w f l's
 WFL	w f l
 WFLX	w f l x
-WFLZ-	w f l z
 WFMT	w f m t
 WFMU	w f m u
 W. F. M.	w f m
 WFM	w f m
-WFMZ-	w f m z
 WF&NW	w f and n w
 WFNZ	w f n z
 WFOY	w f o y
@@ -14660,7 +13644,6 @@ WFPF	w f p f
 WFPMA	w f p m a
 W.F.P.	w f p
 WFP	w f p
-WFRX-	w f r x
 WFSBP	w f s b p
 WFS	w f s
 WFTDA	w f t d a
@@ -14675,19 +13658,15 @@ W.F.	w f
 WF	w f
 WFWM	w f w m
 WFXR	w f x r
-WFXW-	w f x w
 wga	w g a
 WGA	w g a
-WGBH-	w g b h
 WGBH	w g b h
 WGBI	w g b i
 W. G. B.	w g b
 WGB	w g b
 WGCB	w g c b
 W.G.C.	w g c
-WGC-	w g c
 WGC	w g c
-WGEM-	w g e m
 WGEM	w g e m
 WGFT	w g f t
 WGGH	w g g h
@@ -14698,29 +13677,22 @@ WGI	w g i
 WGN's	w g n's
 WGNT	w g n t
 wgn	w g n
-WGN-	w g n
 WGN	w g n
 WGOK	w g o k
 WGO	w g o
 WGP	w g p
 WGPX	w g p x
-WGRM-	w g r m
 WGRP	w g r p
 WGRT	w g r t
 WGRV	w g r v
-WGRZ-	w g r z
 WGSA	w g s a
 WGSS	w g s s
-WGS-	w g s
 WGS	w g s
-WGTN-	w g t n
 WGUN	w g u n
-WGVU-	w g v u
 wg	w g
 W. G.	w g
 W.G.	w g
 WG	w g
-WGWG-	w g w g
 WGWW	w g w w
 WGZR	w g z r
 W.H.B.	w h b
@@ -14731,14 +13703,11 @@ W. H. C.	w h c
 W.H.C.	w h c
 WHC	w h c
 WHDG	w h d g
-WHDH-	w h d h
 WHDI	w h d i
 W.H.D.	w h d
-WHEC-	w h e c
 WHEC	w h e c
 WHFA	w h f a
 WHFM	w h f m
-WHFS-	w h f s
 WHFS	w h f s
 WHHS	w h h s
 W.H.H.	w h h
@@ -14748,12 +13717,9 @@ WHJY	w h j y
 WHKT	w h k t
 WHL's	w h l's
 WHL	w h l
-WHNE-	w h n e
 WHNO	w h n o
-WHP-	w h p
 WHP	w h p
 WHRC	w h r c
-WHSG-	w h s g
 WHSN	w h s n
 WHSS	w h s s
 W.H.S.	w h s
@@ -14765,35 +13731,27 @@ W. H.	w h
 W.H.	w h
 WH	w h
 Whyld	w h y l d
-WHYN-	w h y n
-WHYP-	w h y p
 WHYT	w h y t
 W.I.B.C.	w i b c
 Wica	w i c a
-WICA-	w i c a
 wici	w i c i
 WIC's	w i c's
 WICU	w i c u
 Wif	w i f
 WIF	w i f
-WIHB-	w i h b
 WIJD	w i j d
 Wijk	w i j k
-WIKQ-	w i k q
 WIP	w i p
 W.I.S.E.	w i s e
 W.I.T.C.H.	w i t c h
 Wiwa	w i w a
 W. I.	w i
 WIXY's	w i x y's
-WJAC-	w j a c
 WJAL	w j a l
 WJAR	w j a r
 wjaz	w j a z
-WJBB-	w j b b
 WJBC	w j b c
 WJBF	w j b f
-WJBK-	w j b k
 WJBK	w j b k
 WJBR	w j b r
 WJCI	w j c i
@@ -14808,10 +13766,8 @@ WJJZ	w j j z
 WJKA's	w j k a's
 WJKA	w j k a
 WJKS	w j k s
-WJLA-	w j l a
 WJLA	w j l a
 WJMK	w j m k
-WJMN-	w j m n
 WJM	w j m
 WJOI	w j o i
 WJRD	w j r d
@@ -14827,14 +13783,11 @@ WJ	w j
 WJXX	w j x x
 WJYL	w j y l
 WJYM	w j y m
-WJYS-	w j y s
 WJZA	w j z a
 WJZJ	w j z j
 WJZ	w j z
 WKAG	w k a g
-WKAQ-	w k a q
 WKAQ	w k a q
-WKAR-	w k a r
 WKAR	w k a r
 WKA	w k a
 WKBD	w k b d
@@ -14846,7 +13799,6 @@ WKDM	w k d m
 WKDN	w k d n
 WKDZ	w k d z
 WKFS	w k f s
-WKHG-	w k h g
 W.K.H.	w k h
 WKH	w k h
 WKIK	w k i k
@@ -14855,15 +13807,9 @@ WKKB	w k k b
 WKKD	w k k d
 WKKZ	w k k z
 WKLH	w k l h
-WKLK-	w k l k
-WKNA-	w k n a
 WKNDS	w k n d s
-WKNR-	w k n r
 WKN	w k n
 WKQI	w k q i
-WKQX-	w k q x
-WKRC-	w k r c
-WKRK-	w k r k
 WKRR	w k r r
 WKSE	w k s e
 WKSM	w k s m
@@ -14881,22 +13827,16 @@ WKY	w k y
 W.L.A.K.	w l a k
 WLB	w l b
 WLCH	w l c h
-WLDM-	w l d m
 W&LE	w and l e
 Wley	w l e y
-WLFM-	w l f m
 WLGH	w l g h
 WLH	w l h
-WLHZ-	w l h z
-WLIE-	w l i e
 WLII	w l i i
 WLIR	w l i r
-WLIX-	w l i x
 WLJY	w l j y
 WLKT	w l k t
 WLKY	w l k y
 WLLM	w l l m
-WLNE-	w l n e
 WLNP	w l n p
 WLNQ	w l n q
 WLNS	w l n s
@@ -14905,19 +13845,14 @@ WLPR	w l p r
 WLPWR	w l p w r
 wlrs	w l r s
 WLSG	w l s g
-WLS-	w l s
 WLS	w l s
 WLTM	w l t m
-WLTQ-	w l t q
 WLUK's	w l u k's
 WLUK	w l u k
-WLUP-	w l u p
 WLWC	w l w c
 W. L.	w l
 W.L.	w l
-WL-	w l
 WL	w l
-WLW-	w l w
 WLW	w l w
 WLYH's	w l y h's
 WLYN	w l y n
@@ -14925,25 +13860,19 @@ WLY	w l y
 WLZK	w l z k
 WMAC	w m a c
 WMAG	w m a g
-WMAN-	w m a n
 WMAP	w m a p
-WMAQ-	w m a q
 WMAQ	w m a q
-WMAR-	w m a r
 WMATA's	w m a t a's
 WMATA	w m a t a
 W.M.A.	w m a
 WMA	w m a
 WMAZ	w m a z
-WMBD-	w m b d
 WMBG	w m b g
 WMCAT	w m c a t
 WMCA	w m c a
-WMCT-	w m c t
 WMDB	w m d b
 WMDI	w m d i
 WMD	w m d
-WMEC-	w m e c
 WMEE	w m e e
 WMEN	w m e n
 WMET	w m e t
@@ -14962,17 +13891,14 @@ WMHT	w m h t
 WMIX	w m i x
 WMJR	w m j r
 WMJZ	w m j z
-WMKG-	w m k g
 WMKQ	w m k q
 WMKW	w m k w
 wml	w m l
 WMLW	w m l w
 WMLY	w m l y
-WMLZ-	w m l z
 WMMS	w m m s
 W. M. M.	w m m
 WMNF	w m n f
-WMNI-	w m n i
 WMN	w m n
 WMOB	w m o b
 WMO	w m o
@@ -14981,19 +13907,16 @@ WMRO	w m r o
 WMSG	w m s g
 W.M.S.	w m s
 WMS	w m s
-WMTL-	w m t l
 WMTS	w m t s
 WMT	w m t
 WMTW	w m t w
 WMUB	w m u b
 WMU	w m u
 WMVM	w m v m
-WMVP-	w m v p
 WMV	w m v
 W&M	w and m
 W. M.	w m
 W.M.	w m
-WM-	w m
 WM	w m
 WMWM	w m w m
 WMXB	w m x b
@@ -15008,12 +13931,10 @@ WNBL	w n b l
 WNBR	w n b r
 WNB	w n b
 WNCN	w n c n
-WNCT-	w n c t
 WNC	w n c
 WNCX	w n c x
 WND	w n d
 WNED	w n e d
-WNEG-	w n e g
 WNEL	w n e l
 WNEM	w n e m
 WNEP	w n e p
@@ -15022,8 +13943,6 @@ WNEW's	w n e w's
 WNEW	w n e w
 WNFM	w n f m
 WNGL	w n g l
-WNHC-	w n h c
-WNIC-	w n i c
 WNIT	w n i t
 WNJN	w n j n
 WNJO	w n j o
@@ -15033,7 +13952,6 @@ WNLO	w n l o
 WNLU	w n l u
 WNL	w n l
 WNMX	w n m x
-WNNS-	w n n s
 WNO	w n o
 WNPT	w n p t
 WNRN	w n r n
@@ -15042,7 +13960,6 @@ WNRV	w n r v
 WNSH	w n s h
 WNSR	w n s r
 WNTM	w n t m
-Wnt-	w n t
 WNT	w n t
 WNUA	w n u a
 WNUF	w n u f
@@ -15058,44 +13975,33 @@ WNYA	w n y a
 WNYC's	w n y c's
 WNYC	w n y c
 WNYM	w n y m
-WNYO-	w n y o
 WNY	w n y
-WNYW-	w n y w
-WNYZ-	w n y z
 WNYZ	w n y z
 wnzaa	w n z a a
 WOAA	w o a a
 WOAK	w o a k
 WOA	w o a
-WOBC-	w o b c
 WOC	w o c
 W&OD	w and o d
 W.O.G.	w o g
 WOGX's	w o g x's
 WOJG	w o j g
-WOKZ-	w o k z
 WOLH	w o l h
 WOOM	w o o m
 WOPC	w o p c
 Worh	w o r h
 WOSM	w o s m
-WOTM-	w o t m
 W. O.	w o
 W.O.	w o
 WOWOW	w o w o w
-WOXY-	w o x y
 WOXY	w o x y
 WOZN	w o z n
 WPAC	w p a c
-WPA-	w p a
 WPA	w p a
 WPBC	w p b c
-WPBF-	w p b f
 WPBSA	w p b s a
 WPBS	w p b s
 WPBT	w p b t
-WPCH-	w p c h
-WPCQ-	w p c q
 W. P. C.	w p c
 WPC	w p c
 WPDH	w p d h
@@ -15104,22 +14010,17 @@ WPFF	w p f f
 WPFL	w p f l
 WPF	w p f
 WPGC	w p g c
-WPGG-	w p g g
-WPHG-	w p h g
 WPHL	w p h l
 WPH	w p h
 WPIAL	w p i a l
 WPI	w p i
-WPIX-	w p i x
 WPIX	w p i x
 WPLA	w p l a
-WPLB-	w p l b
 WPLG	w p l g
 WPLS	w p l s
 WPMW	w p m w
 WPO	w p o
 WPPT	w p p t
-WPP-	w p p
 WPP	w p p
 WPRI	w p r i
 WPRO	w p r o
@@ -15136,24 +14037,18 @@ W. P. U.	w p u
 wp	w p
 W. P.	w p
 W.P.	w p
-WP-	w p
 WP	w p
 WPXN	w p x n
 WPYR	w p y r
 WQDE	w q d e
-WQDR-	w q d r
 WQHT	w q h t
-WQHU-	w q h u
 WQIV	w q i v
 WQLR	w q l r
-WQLT-	w q l t
 WQLZ	w q l z
 WQMS	w q m s
 WQOK	w q o k
-WQSJ-	w q s j
 WQSO	w q s o
 WQSX	w q s x
-WQVC-	w q v c
 WQ	w q
 WQXI	w q x i
 WQXR	w q x r
@@ -15162,10 +14057,8 @@ WRAT	w r a t
 WRBU	w r b u
 WRCB	w r c b
 WRCN	w r c n
-WRC-	w r c
 WRC	w r c
 WRDL	w r d l
-WRDW-	w r d w
 Wrec	w r e c
 WRFD	w r f d
 WRFK	w r f k
@@ -15173,14 +14066,11 @@ WRFM	w r f m
 WRFX	w r f x
 WRGO	w r g o
 WRGP	w r g p
-WRGT-	w r g t
 W. R. G.	w r g
 WRHA	w r h a
 WRHC	w r h c
 WRHI	w r h i
 W.R.I.	w r i
-WRJK-	w r j k
-WRJN-	w r j n
 WRKA	w r k a
 WRKO	w r k o
 WRKT	w r k t
@@ -15195,8 +14085,6 @@ WROK	w r o k
 WROO	w r o o
 WRPT	w r p t
 WRQQ	w r q q
-WRRK-	w r r k
-WRSW-	w r s w
 WRTA	w r t a
 WRTC	w r t c
 WRUV	w r u v
@@ -15206,7 +14094,6 @@ WRVS	w r v s
 WRWB	w r w b
 W. R.	w r
 W.R.	w r
-WR-	w r
 WR	w r
 W.R.W.	w r w
 WRXT	w r x t
@@ -15218,7 +14105,6 @@ WSAZ	w s a z
 WSBG	w s b g
 WSBM	w s b m
 WSBT	w s b t
-WSB-	w s b
 WSB	w s b
 WSCA's	w s c a's
 WSCR	w s c r
@@ -15229,10 +14115,8 @@ WSDG	w s d g
 WSDOT	w s d o t
 WSDP	w s d p
 WSDR	w s d r
-WSEE-	w s e e
 WSEG	w s e g
 WSEK	w s e k
-WSER-	w s e r
 WSE	w s e
 WSFA	w s f a
 WSFL	w s f l
@@ -15249,29 +14133,22 @@ WSIS	w s i s
 WSJM	w s j m
 WSJO	w s j o
 WSJ	w s j
-WSKG-	w s k g
-WSK-	w s k
 WSLU	w s l u
 WSL	w s l
-WSMG-	w s m g
 WSMK	w s m k
 W.S.M.	w s m
-WSM-	w s m
 WSM	w s m
 WSNJ	w s n j
 WSNS	w s n s
 WSNT	w s n t
 WSN	w s n
-WSNX-	w s n x
 WSOF	w s o f
 WSOPE	w s o p e
 WSOP's	w s o p's
-WSOP,	w s o p
 WSOP	w s o p
 WSORR	w s o r r
 WSO	w s o
 WSOY	w s o y
-WSPA-	w s p a
 WSPA	w s p a
 WSPC	w s p c
 WSPD	w s p d
@@ -15284,34 +14161,26 @@ WSRE's	w s r e's
 WSRF	w s r f
 WSSA	w s s a
 WSSCC	w s s c c
-WSSSA-	w s s s a
 WSSSA	w s s s a
 WSS	w s s
 WSTE	w s t e
-WSTR-	w s t r
 WSTR	w s t r
 WSUA	w s u a
 WSUD	w s u d
 WSUE	w s u e
 WSUS	w s u s
 WSU	w s u
-WSVF-	w s v f
 WSV	w s v
 WSVZ	w s v z
 WSWI	w s w i
 ws	w s
 W. S.	w s
 W.S.	w s
-WS-	w s
 WS	w s
 WSW	w s w
 WSYN	w s y n
 WSYX	w s y x
-WSYY-	w s y y
-WSZE-	w s z e
 WTAA	w t a a
-WTAB-	w t a b
-WTAE-	w t a e
 WTAE	w t a e
 WTAF	w t a f
 WTAG	w t a g
@@ -15328,7 +14197,6 @@ WTEL	w t e l
 WTEV's	w t e v's
 WTEV	w t e v
 WTF	w t f
-WTGB-	w t g b
 WTGB	w t g b
 WTHR's	w t h r's
 WTHS	w t h s
@@ -15338,27 +14206,18 @@ WTIX	w t i x
 WTKG	w t k g
 WTKO	w t k o
 WTKR	w t k r
-WTKS-	w t k s
 WTKS	w t k s
 WTLS	w t l s
 WTMA	w t m a
 WTNH	w t n h
-WTNO-	w t n o
 WTN	w t n
-WTOK-	w t o k
-WTOP-	w t o p
 WTOP	w t o p
 WTO's	w t o's
 WTOS	w t o s
 WTO	w t o
 WTPA	w t p a
-WTPL-	w t p l
-WTPM-	w t p m
 WTPQ	w t p q
-WTRF-	w t r f
 WTR	w t r
-WTSP-	w t s p
-WTSQ-	w t s q
 WTs	w t's
 WTS	w t s
 WTTF	w t t f
@@ -15367,11 +14226,9 @@ WTTs	w t t's
 WTT	w t t
 WTTW	w t t w
 WTTZ	w t t z
-WTVA-	w t v a
 WTVA	w t v a
 WTVC	w t v c
 WTVD	w t v d
-WTVF-	w t v f
 WTVI	w t v i
 WTVM	w t v m
 WTVU	w t v u
@@ -15380,7 +14237,6 @@ WTVX	w t v x
 WTWF	w t w f
 W. T.	w t
 W.T.	w t
-WT-	w t
 WT	w t
 WTX	w t x
 WUAB	w u a b
@@ -15401,29 +14257,21 @@ WUVC	w u v c
 wuv	w u v
 W. U.	w u
 Wuz	w u z
-WVAN-	w v a n
 WVa	w v a
 WVBX	w v b x
 WVCA	w v c a
-WVFJ-	w v f j
-WVIR-	w v i r
 WVIT	w v i t
-WVIZ-	w v i z
 WVJC	w v j c
 WVJP	w v j p
 WVLZ	w v l z
 WVNI	w v n i
-WVNS-	w v n s
 WVNY	w v n y
 W. V. O.	w v o
 WVO	w v o
 WVPA	w v p a
 WVPO	w v p o
-WVPX-	w v p x
 WVSSAC	w v s s a c
-WVST-	w v s t
 WVSU	w v s u
-WVTF-	w v t f
 WVTU's	w v t u's
 WVTU	w v t u
 WVUE	w v u e
@@ -15431,11 +14279,8 @@ WVU	w v u
 WVUW	w v u w
 W. V.	w v
 W.V.	w v
-WV-	w v
 WV	w v
-W-	w
 WWAA	w w a a
-WWAC-	w w a c
 WWAMI	w w a m i
 WWASP	w w a s p
 WWA	w w a
@@ -15444,24 +14289,19 @@ WWBZ	w w b z
 WWCD	w w c d
 WWC	w w c
 WWDB's	w w d b's
-WWDC-	w w d c
 WWDC	w w d c
 WWDR	w w d r
 WWD	w w d
-WWEN-	w w e n
 WWE's	w w e's
 Wwe	w w e
 WWE	w w e
 WWF's	w w f's
-WWF-	w w f
 WWF	w w f
 WWGC	w w g c
 WWHT	w w h t
 WWHW	w w h w
-WWIL-	w w i l
 WWIS	w w i s
 WWJP	w w j p
-WWJ-	w w j
 WWKB	w w k b
 WWKL	w w k l
 WWML	w w m l
@@ -15490,37 +14330,28 @@ WWWF	w w w f
 WWWQ's	w w w q's
 W. W.	w w
 W.W.	w w
-WW-	w w
 WW	w w
 WWW	w w w
 WWWW	w w w w
 WWYD	w w y d
 WXB	w x b
 WXCN	w x c n
-WXCY-	w x c y
 WXDU	w x d u
-WXEL-	w x e l
 WXEL	w x e l
-WXII-	w x i i
 WXIL	w x i l
 WXIN's	w x i n's
 WXIN	w x i n
 WXJM's	w x j m's
 WXJ	w x j
-WXL-	w x l
 WXN	w x n
 WXQW	w x q w
-WXRK-	w x r k
-WXSR-	w x s r
 WXTG	w x t g
-WXTH-	w x t h
 WXW	w x w
 wx	w x
 WX	w x
 W.Y.	w y
 WY	w y
 wyzc	w y z c
-WZBC-	w z b c
 WZBC	w z b c
 WZFG	w z f g
 WZFT	w z f t
@@ -15528,16 +14359,13 @@ WZGC	w z g c
 WZJQ	w z j q
 WZKC	w z k c
 WZLR	w z l r
-WZLX-	w z l x
 WZLX	w z l x
 WZRB	w z r b
 WZRD	w z r d
 WZST	w z s t
-WZT-	w z t
 W. Z.	w z
 WZ	w z
 WZX	w z x
-WZZM-	w z z m
 WZZM	w z z m
 WZZX	w z z x
 xbg	x b g
@@ -15557,16 +14385,13 @@ XCT	x c t
 XCVI	x c v i
 XCV	x c v
 X. C.	x c
-XC-	x c
 XC	x c
 XCX	x c x
 xda	x d a
 XDDM	x d d m
-XDE-	x d e
 XDH	x d h
 XDK	x d k
 XDRs	x d r's
-XDR-	x d r
 XDR	x d r
 XD's	x d's
 XDS	x d s
@@ -15578,20 +14403,16 @@ XFDL	x f d l
 XFD	x f d
 XFL	x f l
 XFM	x f m
-XFR-	x f r
 XFS	x f s
 XFU	x f u
 xf	x f
 X.F.	x f
-XF-	x f
 XF	x f
 XHVFC	x h v f c
 xh	x h
 X. H.	x h
 XH	x h
-XIX-	x i x
 XJD	x j d
-XJ-	x j
 XJ	x j
 XKE	x k e
 XKL	x k l
@@ -15601,10 +14422,8 @@ XL	x l
 XMB	x m b
 xmc	x m c
 xml	x m l
-XML-	x m l
 XML	x m l
 XMMS	x m m s
-XMM-	x m m
 XMPP	x m p p
 XMP	x m p
 XMRV	x m r v
@@ -15616,7 +14435,6 @@ XM	x m
 XN	x n
 xO	x o
 X.O.	x o
-XO-	x o
 XO	x o
 XPA	x p a
 XPD	x p d
@@ -15627,7 +14445,6 @@ XP's	x p's
 XPS	x p s
 XPT	x p t
 XPW	x p w
-XP-	x p
 XP	x p
 X.Q.	x q
 XQ	x q
@@ -15638,11 +14455,9 @@ XRD	x r d
 XRE	x r e
 XR	x r
 XSD	x s d
-xSi-	x s i
 XSi	x s i
 XSI	x s i
 XSLT	x s l t
-XSL-	x s l
 xsr	x s r
 XS	x s
 XTB	x t b
@@ -15652,7 +14467,6 @@ XTwas	x t w a's
 xt	x t
 XT	x t
 XVAS	x v a
-XV-	x v
 XV	x v
 XWA	x w a
 XWB	x w b
@@ -15669,17 +14483,14 @@ XYZ	x y z
 XZ	x z
 Y. A.	y a
 Y.A.	y a
-YA-	y a
 YBA	y b a
 YBL	y b l
 YBNL	y b n l
 YBN	y b n
 YBR	y b r
-YBT-	y b t
 YBX	y b x
 Y. B.	y b
 Y.B.	y b
-YB-	y b
 YB	y b
 YBYS	y b y s
 YCC	y c c
@@ -15693,7 +14504,6 @@ YCV	y c v
 yc	y c
 Y. C.	y c
 Y.C.	y c
-YC-	y c
 YC	y c
 YCYW	y c y w
 YDA	y d a
@@ -15702,7 +14512,6 @@ Yde	y d e
 YDG	y d g
 YdiB	y d i b
 YDK	y d k
-YDM-	y d m
 YDNC	y d n c
 yd	y d
 Y. D.	y d
@@ -15712,12 +14521,9 @@ Y.E.	y e
 YFCMD	y f c m d
 YFCs	y f c's
 YFCU	y f c u
-YFC-	y f c
 YFC	y f c
-YFD-	y f d
 yfle	y f l e
 YF&R	y f and r
-YF-	y f
 YF	y f
 YGB	y g b
 YGEX	y g e x
@@ -15727,12 +14533,10 @@ YG's	y g's
 yg	y g
 Y. G.	y g
 Y.G.	y g
-YG-	y g
 YG	y g
 YHA	y h a
 YHWH	y h w h
 Y. H.	y h
-YH-	y h
 YH	y h
 YIF	y i f
 YIG	y i g
@@ -15742,7 +14546,6 @@ Y.I.	y i
 YJO	y j o
 yj	y j
 Y. J.	y j
-YJ-	y j
 YJ	y j
 Ykt	y k t
 Y. K.	y k
@@ -15752,21 +14555,17 @@ YKY	y k y
 Yle	y l e
 YLE	y l e
 YLF	y l f
-yl-	y l
 yl	y l
 Y. L.	y l
-YL-	y l
 YL	y l
 YMCA's	y m c a's
 Y.M.C.A.	y m c a
-YMCA.	y m c a
 YMCA	y m c a
 YMF	y m f
 Ymke	y m k e
 Y.M.M.	y m m
 YMM	y m m
 YMO	y m o
-YMS-	y m s
 ym	y m
 Y. M.	y m
 YM	y m
@@ -15781,7 +14580,6 @@ yn	y n
 Yn	y n
 Y. N.	y n
 Y.N.	y n
-YN-	y n
 YN	y n
 Y.O.	y o
 YO	y o
@@ -15794,11 +14592,9 @@ YPO	y p o
 Y.P.P.	y p p
 YPP	y p p
 Y.P.S.	y p s
-YPT-	y p t
 YPT	y p t
 YPU	y p u
 Y.P.	y p
-YP-	y p
 YP	y p
 Y. Q.	y q
 YQ	y q
@@ -15810,7 +14606,6 @@ YRK	y r k
 YRM	y r m
 YRT	y r t
 Y&R	y and r
-YSD-	y s d
 YSK'da	y s k d a
 YSK'ya	y s k y a
 YSK	y s k
@@ -15821,7 +14616,6 @@ YSU's	y s u's
 YSU	y s u
 Ys	y's
 Y.S.	y s
-YS-	y s
 YS	y s
 YSY	y s y
 yta	y t a
@@ -15835,8 +14629,6 @@ Y. T.	y t
 Y.T.	y t
 YT	y t
 Y. V.	y v
-YWCA-	y w c a
-YWCA.	y w c a
 YWCA	y w c a
 YWC	y w c
 Y. W.	y w
@@ -15893,11 +14685,8 @@ ZPAP	z p a p
 Zpav	z p a v
 ZPAV	z p a v
 ZPA	z p a
-ZPG-	z p g
 ZPK	z p k
-ZPU-	z p u
 Z.P.	z p
-ZP-	z p
 ZP	z p
 ZQ	z q
 ZRC	z r c
@@ -15912,7 +14701,6 @@ ZSL	z s l
 ZSO	z s o
 ZSSS	z s s s
 Zsuzsa	z s u z s a
-ZSU-	z s u
 ZTE	z t e
 ZWYCI	z w y c i
 Z.W.	z w

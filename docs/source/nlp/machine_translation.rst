@@ -19,7 +19,7 @@ Quick Start Guide
     MTEncDecModel.list_available_models()
 
     # Download and load the a pre-trained to translate from English to Spanish
-    model = MTEncDecModel.from_pretrained("nmt_en_es_transformer12x2")
+    model = MTEncDecModel.from_pretrained("nmt_en_es_transformer24x6")
 
     # Translate a sentence or list of sentences
     translations = model.translate(["Hello!"], source_lang="en", target_lang="es")
@@ -33,6 +33,30 @@ Available Models
 
    * - Model
      - Pretrained Checkpoint
+   * - *New Checkppoints*
+     - 
+   * - English -> German
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer24x6
+   * - German -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_de_en_transformer24x6
+   * - English -> Spanish
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_es_transformer24x6
+   * - Spanish -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_es_en_transformer24x6
+   * - English -> French
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_fr_transformer24x6
+   * - French -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_fr_en_transformer24x6
+   * - English -> Russian
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_ru_transformer24x6
+   * - Russian -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_ru_en_transformer24x6
+   * - English -> Chinese
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_zh_transformer24x6
+   * - Chinese -> English
+     - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_zh_en_transformer24x6
+   * - *Old Checkppoints*
+     -
    * - English -> German
      - https://ngc.nvidia.com/catalog/models/nvidia:nemo:nmt_en_de_transformer12x2
    * - German -> English
@@ -82,6 +106,8 @@ Data Cleaning, Normalization & Tokenization
 -------------------------------------------
 
 We recommend applying the following steps to clean, normalize, and tokenize your data. All pre-trained models released, apply these data pre-processing steps.
+
+#. Please take a look at a detailed notebook on best practices to pre-process and clean your datasets - NeMo/tutorials/nlp/Data_Preprocessing_and_Cleaning_for_NMT.ipynb
 
 #. Language ID filtering - This step filters out examples from your training dataset that aren't in the correct language. For example, 
    many datasets contain examples where source and target sentences are in the same language. You can use a pre-trained language ID 
@@ -305,7 +331,8 @@ Tarred datasets can be created in two ways:
          model.encoder_tokenizer.vocab_size=32000 \
          model.decoder_tokenizer.vocab_size=32000 \
          ~model.test_ds \
-         trainer.gpus=[0,1,2,3] \
+         trainer.devices=[0,1,2,3] \
+         trainer.accelerator='gpu' \
          +trainer.fast_dev_run=true \
          exp_manager=null \
 
@@ -388,7 +415,8 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
     python examples/nlp/machine_translation/enc_dec_nmt.py \
       -cn aayn_base \
       do_training=true \
-      trainer.gpus=8 \
+      trainer.devices=8 \
+      trainer.accelerator='gpu' \
       ~trainer.max_epochs \
       +trainer.max_steps=100000 \
       +trainer.val_check_interval=1000 \
@@ -435,6 +463,82 @@ To use other indexes, append the index:
   
 Multiple test datasets work exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
 
+Bottleneck Models and Latent Variable Models (VAE, MIM)
+-------------------------------------------------------
+
+NMT with bottleneck encoder architecture is also supported (i.e., fixed size bottleneck), along with the training of Latent Variable Models (currently VAE, and MIM).
+
+1. Supported  learning frameworks (**model.model_type**):
+    * NLL - Conditional cross entropy (the usual NMT loss)
+    * VAE - Variational Auto-Encoder (`paper <https://arxiv.org/pdf/1312.6114.pdf>`_)
+    * MIM - Mutual Information Machine (`paper <https://arxiv.org/pdf/2003.02645.pdf>`_)
+2. Supported encoder architectures (**model.encoder.arch**):
+    * seq2seq - the usual transformer encoder without a bottleneck
+    * bridge - attention bridge bottleneck (`paper <https://arxiv.org/pdf/1703.03130.pdf>`_)
+    * perceiver -  Perceiver bottleneck (`paper <https://arxiv.org/pdf/2103.03206.pdf>`_)
+
+
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **Parameter**                          | **Data Type**  | **Default**  | **Description**                                                                                       |
++========================================+================+==============+=======================================================================================================+
+| **model.model_type**                   | str            | ``nll``      | Learning (i.e., loss) type: nll (i.e., cross-entropy/auto-encoder), mim, vae (see description above)  |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.min_logv**                     | float          | ``-6``       | Minimal allowed log variance for mim                                                                  |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.latent_size**                  | int            | ``-1``       | Dimension of latent (projected from hidden) -1 will take value of hidden size                         |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model. non_recon_warmup_batches**    | bool           | ``200000``   | Warm-up steps for mim, and vae losses (anneals non-reconstruction part)                               |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model. recon_per_token**             | bool           | ``true``     | When false reconstruction is computed per sample, not per token                                       |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.arch**                 | str            | ``seq2seq``  | Supported architectures: ``seq2seq``, ``bridge``, ``perceiver`` (see description above).              |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.hidden_steps**         | int            | ``32``       | Fixed number of hidden steps                                                                          |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.hidden_blocks**        | int            | ``1``        | Number of repeat blocks (see classes for description)                                                 |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder. hidden_init_method**  | str            | ``default``  | See classes for available values                                                                      |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+
+
+Detailed description of config parameters:
+
+* **model.encoder.arch=seq2seq**
+    * *model.encoder.hidden_steps is ignored*
+    * *model.encoder.hidden_blocks is ignored*
+    * *model.encoder.hidden_init_method is ignored*
+* **model.encoder.arch=bridge**
+    * *model.encoder.hidden_steps:* input is projected to the specified fixed steps
+    * *model.encoder.hidden_blocks:* number of encoder blocks to repeat after attention bridge projection
+    * *model.encoder.hidden_init_method:*
+         *  enc_shared (default) - apply encoder to inputs, than attention bridge, followed by hidden_blocks number of the same encoder (pre and post encoders share parameters)
+         * identity - apply attention bridge to inputs, followed by hidden_blocks number of the same encoder
+         * enc - similar to enc_shared but the initial encoder has independent parameters
+* **model.encoder.arch=perceiver**
+    * *model.encoder.hidden_steps:* input is projected to the specified fixed steps
+    * *model.encoder.hidden_blocks:* number of cross-attention + self-attention blocks to repeat after initialization block (all self-attention and cross-attention share parameters)
+    * *model.encoder.hidden_init_method:*
+         * params (default) - hidden state is initialized with learned parameters followed by cross-attention with independent parameters
+         * bridge - hidden state is initialized with an attention bridge
+
+
+Training requires the use of the following script (instead of ``enc_dec_nmt.py``):
+
+.. code ::
+
+    python -- examples/nlp/machine_translation/enc_dec_nmt-bottleneck.py \
+          --config-path=conf \
+          --config-name=aayn_bottleneck \
+          ...
+          model.model_type=nll \
+          model.non_recon_warmup_batches=7500 \
+          model.encoder.arch=perceiver \
+          model.encoder.hidden_steps=32 \
+          model.encoder.hidden_blocks=2 \
+          model.encoder.hidden_init_method=params \
+          ...
+
+
 Model Inference
 ---------------
 
@@ -456,6 +560,102 @@ can be used to compute sacreBLEU scores.
 .. code ::
 
     cat test.en-es.translations | sacrebleu test.es
+
+Inference Improvements
+----------------------
+
+In practice, there are a few commonly used techniques at inference to improve translation quality. NeMo implements: 
+
+1) Model Ensembling
+2) Shallow Fusion decoding with transformer language models :cite:`nlp-machine_translation-gulcehre2015using`
+3) Noisy-channel re-ranking :cite:`nlp-machine_translation-yee2019simple`
+
+(a) Model Ensembling - Given many models trained with the same encoder and decoder tokenizer, it is possible to ensemble their predictions (by averaging probabilities at each step) to generate better translations.
+
+.. math::
+
+  P(y_t|y_{<t},x;\theta_{1} \ldots \theta_{k}) = \frac{1}{k} \sum_{i=1}^k P(y_t|y_{<t},x;\theta_{i})
+
+
+*NOTE*: It is important to make sure that all models being ensembled are trained with the same tokenizer.
+
+The inference script will ensemble all models provided via the `--model` argument as a comma separated string pointing to multiple model paths.
+
+For example, to ensemble three models /path/to/model1.nemo, /path/to/model2.nemo, /path/to/model3.nemo, run:
+
+.. code::
+
+    python examples/nlp/machine_translation/nmt_transformer_infer.py \
+      --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+      --srctext test.en \
+      --tgtout test.en-es.translations \
+      --batch_size 128 \
+      --source_lang en \
+      --target_lang es
+
+(b) Shallow Fusion Decoding with Transformer Language Models - Given a translation model or an ensemble ot translation models, it possible to combine the scores provided by the translation model(s) and a target-side language model.
+
+At each decoding step, the score for a particular hypothesis on the beam is given by the weighted sum of the translation model log-probabilities and lanuage model log-probabilities.
+
+.. math::
+   \mathcal{S}(y_{1\ldots n}|x;\theta_{s \rightarrow t},\theta_{t}) = \mathcal{S}(y_{1\ldots n - 1}|x;\theta_{s \rightarrow t},\theta_{t}) + \log P(y_{n}|y_{<n},x;\theta_{s \rightarrow t}) + \lambda_{sf} \log P(y_{n}|y_{<n};\theta_{t})
+
+Lambda controls the weight assigned to the language model. For now, the only family of language models supported are transformer language models trained in NeMo.
+
+*NOTE*: The transformer language model needs to be trained using the same tokenizer as the decoder tokenizer in the NMT system.
+
+For example, to ensemble three models /path/to/model1.nemo, /path/to/model2.nemo, /path/to/model3.nemo, with shallow fusion using an LM /path/to/lm.nemo
+
+.. code::
+
+    python examples/nlp/machine_translation/nmt_transformer_infer.py \
+      --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+      --lm_model /path/to/lm.nemo \
+      --fusion_coef 0.05 \
+      --srctext test.en \
+      --tgtout test.en-es.translations \
+      --batch_size 128 \
+      --source_lang en \
+      --target_lang es
+
+(c) Noisy Channel Re-ranking - Unlike ensembling and shallow fusion, noisy channel re-ranking only re-ranks the final candidates produced by beam search. It does so based on three scores 
+
+1) Forward (source to target) translation model(s) log-proabilities 
+2) Reverse (target to source) translation model(s) log-proabilities
+3) Language Model (target) log-proabilities
+
+.. math::
+  \argmax_{i} \mathcal{S}(y_i|x) = \log P(y_i|x;\theta_{s \rightarrow t}^{ens}) + \lambda_{ncr} \big( \log P(x|y_i;\theta_{t \rightarrow s}) + \log P(y_i;\theta_{t}) \big)
+
+
+To perform noisy-channel re-ranking, first generate a `.scores` file that contains log-proabilities from the forward translation model for each hypothesis on the beam.
+
+.. code::
+  python examples/nlp/machine_translation/nmt_transformer_infer.py \
+    --model /path/to/model1.nemo,/path/to/model2.nemo,/path/to/model3.nemo \
+    --lm_model /path/to/lm.nemo \
+    --write_scores \
+    --fusion_coef 0.05 \
+    --srctext test.en \
+    --tgtout test.en-es.translations \
+    --batch_size 128 \
+    --source_lang en \
+    --target_lang es
+
+This will generate a scores file test.en-es.translations.scores, which is provided as input to NeMo/examples/nlp/machine_translation/noisy_channel_reranking.py
+
+This script also requires a reverse (target to source) translation model and a target language model.
+
+.. code::
+
+    python noisy_channel_reranking.py \
+        --reverse_model=/path/to/reverse_model1.nemo,/path/to/reverse_model2.nemo \
+        --language_model=/path/to/lm.nemo \
+        --srctext=test.en-es.translations.scores \
+        --tgtout=test-en-es.ncr.translations \
+        --forward_model_coef=1.0 \
+        --reverse_model_coef=0.7 \
+        --target_lm_coef=0.05 \
 
 Pretrained Encoders
 -------------------

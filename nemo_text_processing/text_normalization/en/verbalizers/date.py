@@ -54,9 +54,6 @@ class DateFst(GraphFst):
         )
         day = day_cardinal @ ordinal.suffix
 
-        if not deterministic:
-            day |= day_cardinal
-
         month = pynutil.delete("month:") + delete_space + pynutil.delete("\"") + month + pynutil.delete("\"")
 
         year = (
@@ -72,6 +69,12 @@ class DateFst(GraphFst):
         graph_mdy = (
             month + pynini.closure(delete_extra_space + day, 0, 1) + pynini.closure(delete_extra_space + year, 0, 1)
         )
+        if not deterministic:
+            graph_mdy |= (
+                month
+                + pynini.closure(delete_extra_space + day_cardinal, 0, 1)
+                + pynini.closure(delete_extra_space + year, 0, 1)
+            )
 
         # day month year
         graph_dmy = (

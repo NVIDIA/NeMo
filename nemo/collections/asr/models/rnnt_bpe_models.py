@@ -14,7 +14,7 @@
 
 import copy
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -22,7 +22,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
-from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding
+from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER, RNNTBPEDecoding, RNNTBPEDecodingConfig
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -34,15 +34,142 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
     """Base class for encoder decoder RNNT-based models with subword tokenization."""
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
         Returns:
             List of available pre-trained models.
         """
-        result = []
-        return result
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_256",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_256/versions/1.6.0/files/stt_en_contextnet_256.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_512",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512/versions/1.6.0/files/stt_en_contextnet_512.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024/versions/1.6.0/files/stt_en_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_256_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_256_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_256_mls/versions/1.0.0/files/stt_en_contextnet_256_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_512_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_512_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_512_mls/versions/1.0.0/files/stt_en_contextnet_512_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_contextnet_1024_mls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_contextnet_1024_mls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_contextnet_1024_mls/versions/1.0.0/files/stt_en_contextnet_1024_mls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_small",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_small",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_small/versions/1.6.0/files/stt_en_conformer_transducer_small.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_medium",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_medium",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_medium/versions/1.6.0/files/stt_en_conformer_transducer_medium.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large/versions/1.6.0/files/stt_en_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_large_ls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large_ls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large_ls/versions/1.8.0/files/stt_en_conformer_transducer_large_ls.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_contextnet_1024/versions/1.4.0/files/stt_de_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_fr_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_fr_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_fr_contextnet_1024/versions/1.5/files/stt_fr_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_es_contextnet_1024",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_contextnet_1024",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_contextnet_1024/versions/1.8.0/files/stt_es_contextnet_1024.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_de_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_de_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_conformer_transducer_large/versions/1.5.0/files/stt_de_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_fr_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_fr_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_de_conformer_transducer_large/versions/1.5/files/stt_fr_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_es_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_conformer_transducer_large/versions/1.8.0/files/stt_es_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_enes_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_enes_conformer_transducer_large/versions/1.0.0/files/stt_enes_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_enes_contextnet_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_contextnet_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_enes_contextnet_large/versions/1.0.0/files/stt_enes_contextnet_large.nemo",
+        )
+        results.append(model)
+
+        return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -97,7 +224,10 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
     def change_vocabulary(
-        self, new_tokenizer_dir: str, new_tokenizer_type: str, decoding_cfg: Optional[DictConfig] = None
+        self,
+        new_tokenizer_dir: Union[str, DictConfig],
+        new_tokenizer_type: str,
+        decoding_cfg: Optional[DictConfig] = None,
     ):
         """
         Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
@@ -106,23 +236,36 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         model to learn capitalization, punctuation and/or special characters.
 
         Args:
-            new_tokenizer_dir: Directory path to tokenizer.
-            new_tokenizer_type: Type of tokenizer. Can be either `bpe` or `wpe`.
+            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
+            new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
             decoding_cfg: A config for the decoder, which is optional. If the decoding type
                 needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
 
         Returns: None
 
         """
-        if not os.path.isdir(new_tokenizer_dir):
-            raise NotADirectoryError(
-                f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-            )
+        if isinstance(new_tokenizer_dir, DictConfig):
+            if new_tokenizer_type == 'agg':
+                new_tokenizer_cfg = new_tokenizer_dir
+            else:
+                raise ValueError(
+                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                )
+        else:
+            new_tokenizer_cfg = None
 
-        if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-            raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+        if new_tokenizer_cfg is not None:
+            tokenizer_cfg = new_tokenizer_cfg
+        else:
+            if not os.path.isdir(new_tokenizer_dir):
+                raise NotADirectoryError(
+                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                )
 
-        tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
+                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+
+            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
@@ -132,7 +275,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
         joint_config = self.joint.to_config_dict()
         new_joint_config = copy.deepcopy(joint_config)
-        new_joint_config['vocabulary'] = ListConfig(list(vocabulary.keys()))
+        if self.tokenizer_type == "agg":
+            new_joint_config["vocabulary"] = ListConfig(vocabulary)
+        else:
+            new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
+
         new_joint_config['num_classes'] = len(vocabulary)
         del self.joint
         self.joint = EncDecRNNTBPEModel.from_config_dict(new_joint_config)
@@ -150,6 +297,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             # Assume same decoding config as before
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
@@ -163,7 +315,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
@@ -192,6 +346,11 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTBPEDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, tokenizer=self.tokenizer,
         )
@@ -205,7 +364,9 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
@@ -235,7 +396,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 return None
 
             shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
-            dataset = audio_to_text_dataset.get_tarred_bpe_dataset(
+            dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
                 shuffle_n=shuffle_n,
@@ -253,10 +414,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
 
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
+
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config['batch_size'],
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
             num_workers=config.get('num_workers', 0),
@@ -279,11 +445,21 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
+            'batch_size': batch_size,
             'shuffle': False,
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
+            'pin_memory': True,
+            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

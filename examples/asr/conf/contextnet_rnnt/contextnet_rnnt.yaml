@@ -3,30 +3,51 @@
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
+# It contains the default values for training a ContextNet ASR model, large size (~144M) with Transducer loss and sub-word encoding.
+
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 1K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# Here are the recommended configs for different variants of ContextNet, other parameters are the same as in this config file.
+#
+#  +-------------+---------+------------+
+#  | Model       | filters | time_masks |
+#  +=============+=========+============+
+#  | Small  (14M)|   256   |    2       |
+#  +-------------+---------+------------+
+#  | Medium (40M)|   512   |    5       |
+#  +-------------+---------+------------+
+#  | Large (145M)|   1024  |   10       |
+#  +-------------------------------------
+
 name: &name "ContextNet-8x-Stride-RNNT"
 
 model:
   sample_rate: &sample_rate 16000
-  compute_eval_loss: false  # eval samples can be very long and exhause memory. Disable computation of transducer loss during validation/testing with this flag.
+  compute_eval_loss: false  # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
 
   train_ds:
     manifest_filepath: ???
-    sample_rate: 16000
-    batch_size: 32
+    sample_rate: ${model.sample_rate}
+    batch_size: 16  # Can be increased if memory allows or when using smaller model
     trim_silence: false
     max_duration: 16.7
     shuffle: true
-    is_tarred: false
-    tarred_audio_filepaths: null
-    tarred_shard_strategy: "scatter"
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
-
+    # tarred datasets
+    is_tarred: false
+    tarred_audio_filepaths: null
+    tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
   validation_ds:
     manifest_filepath: ???
-    sample_rate: 16000
-    batch_size: 32
+    sample_rate: ${model.sample_rate}
+    batch_size: 8
     shuffle: false
     use_start_end_token: false
     num_workers: 16
@@ -34,22 +55,22 @@ model:
 
   test_ds:
     manifest_filepath: null
-    sample_rate: 16000
-    batch_size: 32
+    sample_rate: ${model.sample_rate}
+    batch_size: 8
     shuffle: false
     use_start_end_token: false
     num_workers: 16
     pin_memory: true
 
   model_defaults:
-    filters: 512
+    filters: 1024
     repeat: 5
     dropout: 0.1
     separable: true
     se: true
     se_context_size: -1
     kernel_size_factor: 1.0
-    # encoder / decoder values
+    # encoder / decoder / joint values
     enc_hidden: 640
     pred_hidden: 640
     joint_hidden: 640
@@ -60,7 +81,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate: ${model.sample_rate}
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -75,7 +96,7 @@ model:
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
     freq_masks: 2  # should be kept at 2
-    time_masks: 5  # can be 5 for small-med models, 10 for larger models.
+    time_masks: 10  # can be 5 for small-med models, 10 for larger models.
     freq_width: 27
     time_width: 0.05
 
@@ -379,7 +400,7 @@ model:
       pred_hidden: ${model.model_defaults.pred_hidden}
       pred_rnn_layers: 1  # only 1 layer LSTM networks are exportable.
       t_max: null  # Maximum possible target seq length used for Chrono Initialization - https://arxiv.org/abs/1804.11188. Disabled by default.
-      dropout: 0.0
+      dropout: 0.1
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
@@ -430,6 +451,7 @@ model:
     warprnnt_numba_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       fastemit_lambda: 0.001  # Values can be in range [1e-4, 1e-2]. Generally, 0.001 is good start.
+      clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:
     name: novograd
@@ -450,13 +472,14 @@ model:
       last_epoch: -1
 
 trainer:
-  gpus: 0 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1  # Should be set via SLURM variable `SLURM_JOB_NUM_NODES`
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
@@ -476,6 +499,7 @@ exp_manager:
     monitor: "val_wer"
     mode: "min"
     save_top_k: 3
+    always_save_nemo: true
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
@@ -483,10 +507,3 @@ exp_manager:
     entity: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

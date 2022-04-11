@@ -205,6 +205,35 @@ class NovogradParams(OptimizerParams):
     luc_eps: float = 1e-8
 
 
+@dataclass
+class AdafactorParams(OptimizerParams):
+    """
+    Configuration of the Adafactor optimizer.
+
+    It has been proposed  in "Adafactor: Adaptive Learning Rates with Sublinear Memory Cost"
+    (https://arxiv.org/abs/1804.04235)
+
+    Args:
+        lr (float, optional): learning rate (default: 1e-3)
+        beta1 (float, optional): coefficients used for computing
+            running averages of gradient and its square (default: None)
+        eps (Tuple [float, float] optional)
+        weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        scale_parameter (float, optional): scale parameter (default: False)
+        relative_step (bool, optional): whether to use relative step sizes (default: False)
+        warmup_init (bool, optional): whether to warmup the learning rate linearly (default: False)
+    """
+
+    beta1: float = None
+    eps: Tuple[float, float] = (1e-30, 1e-3)
+    clip_threshold: float = 1.0
+    decay_rate: float = 0.8
+    weight_decay: float = 0
+    scale_parameter: bool = True
+    relative_step: bool = False
+    warmup_init: bool = False
+
+
 def register_optimizer_params(name: str, optimizer_params: OptimizerParams):
     """
     Checks if the optimizer param name exists in the registry, and if it doesnt, adds it.
@@ -262,4 +291,5 @@ AVAILABLE_OPTIMIZER_PARAMS = {
     'adamw_params': AdamWParams,
     'rmsprop_params': RMSpropParams,
     'rprop_params': RpropParams,
+    'adafactor_params': AdafactorParams,
 }

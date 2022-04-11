@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.asr.data import audio_to_label
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 
 
 def get_classification_label_dataset(featurizer, config: dict) -> audio_to_label.AudioToClassificationLabelDataset:
@@ -54,8 +55,8 @@ def get_speech_label_dataset(featurizer, config: dict) -> audio_to_label.AudioTo
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        time_length=config.get('time_length', 0.31),
-        shift_length=config.get('shift_length', 0.01),
+        window_length_in_sec=config.get('window_length_in_sec', 0.31),
+        shift_length_in_sec=config.get('shift_length_in_sec', 0.01),
         normalize_audio=config.get('normalize_audio', False),
     )
     return dataset
@@ -110,20 +111,39 @@ def get_tarred_speech_label_dataset(
     Returns:
         An instance of TarredAudioToSpeechLabelDataset.
     """
-    dataset = audio_to_label.TarredAudioToSpeechLabelDataset(
-        audio_tar_filepaths=config['tarred_audio_filepaths'],
-        manifest_filepath=config['manifest_filepath'],
-        labels=config['labels'],
-        featurizer=featurizer,
-        shuffle_n=shuffle_n,
-        max_duration=config.get('max_duration', None),
-        min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', False),
-        time_length=config.get('time_length', 0.31),
-        shift_length=config.get('shift_length', 0.01),
-        normalize_audio=config.get('normalize_audio', False),
-        shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
-        global_rank=global_rank,
-        world_size=world_size,
-    )
-    return dataset
+    tarred_audio_filepaths = config['tarred_audio_filepaths']
+    manifest_filepaths = config['manifest_filepath']
+    datasets = []
+    tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
+    manifest_filepaths = convert_to_config_list(manifest_filepaths)
+
+    if len(manifest_filepaths) != len(tarred_audio_filepaths):
+        raise ValueError(
+            f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
+        )
+
+    for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
+        zip(tarred_audio_filepaths, manifest_filepaths)
+    ):
+        if len(tarred_audio_filepath) == 1:
+            tarred_audio_filepath = tarred_audio_filepath[0]
+        dataset = audio_to_label.TarredAudioToSpeechLabelDataset(
+            audio_tar_filepaths=tarred_audio_filepath,
+            manifest_filepath=manifest_filepath,
+            labels=config['labels'],
+            featurizer=featurizer,
+            shuffle_n=shuffle_n,
+            max_duration=config.get('max_duration', None),
+            min_duration=config.get('min_duration', None),
+            trim=config.get('trim_silence', False),
+            window_length_in_sec=config.get('window_length_in_sec', 8),
+            shift_length_in_sec=config.get('shift_length_in_sec', 0.075),
+            normalize_audio=config.get('normalize_audio', False),
+            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+
+        datasets.append(dataset)
+
+    return get_chain_dataset(datasets=datasets, ds_config=config)

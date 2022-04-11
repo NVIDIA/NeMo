@@ -1,0 +1,15 @@
+tám giờ~8h
+bảy giờ~7h
+bẩy giờ~7h
+hai mươi giờ~20h
+mười tám giờ~18h
+tám giờ bảy phút~8:07
+tám giờ hai mươi~8:20
+chín giờ rưỡi~9:30
+chín rưỡi~9:30
+năm giờ hai mươi phút ba lăm giây~5:20:35
+sáu giờ mười phút năm giây~6:10:05
+mười sáu giờ kém mười lăm~15:45
+hai mươi giờ kém bốn phút~19:56
+ba phút hai mươi giây~3:20s
+năm chín phút năm mươi chín giây~59:59s

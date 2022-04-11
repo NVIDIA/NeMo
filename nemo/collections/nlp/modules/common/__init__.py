@@ -18,15 +18,11 @@ from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface import (
     AlbertEncoder,
     BertEncoder,
+    CamembertEncoder,
     DistilBertEncoder,
     RobertaEncoder,
 )
-from nemo.collections.nlp.modules.common.lm_utils import (
-    get_lm_model,
-    get_megatron_lm_models_list,
-    get_pretrained_lm_models_list,
-)
-from nemo.collections.nlp.modules.common.megatron import MegatronBertEncoder
+from nemo.collections.nlp.modules.common.lm_utils import get_lm_model, get_pretrained_lm_models_list
 from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
 from nemo.collections.nlp.modules.common.sequence_regression import SequenceRegression
 from nemo.collections.nlp.modules.common.sequence_token_classifier import SequenceTokenClassifier

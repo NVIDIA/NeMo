@@ -95,11 +95,11 @@ class Tacotron2Model(SpectrogramGenerator):
         if self._parser is not None:
             return self._parser
         if self._validation_dl is not None:
-            return self._validation_dl.dataset.parser
+            return self._validation_dl.dataset.manifest_processor.parser
         if self._test_dl is not None:
-            return self._test_dl.dataset.parser
+            return self._test_dl.dataset.manifest_processor.parser
         if self._train_dl is not None:
-            return self._train_dl.dataset.parser
+            return self._train_dl.dataset.manifest_processor.parser
 
         # Else construct a parser
         # Try to get params from validation, test, and then train
@@ -122,7 +122,7 @@ class Tacotron2Model(SpectrogramGenerator):
         name = params.get('parser', None) or 'en'
         unk_id = params.get('unk_index', None) or -1
         blank_id = params.get('blank_index', None) or -1
-        do_normalize = params.get('normalize', None) or False
+        do_normalize = params.get('normalize', True)
         self._parser = parsers.make_parser(
             labels=self._cfg.labels, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
         )

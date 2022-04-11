@@ -41,6 +41,26 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType
 from nemo.utils import logging
 
 
+def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    for idx, hyp in enumerate(hypotheses):  # type: rnnt_utils.Hypothesis
+        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+
+        if hyp.dec_state is not None:
+            hyp.dec_state = _states_to_device(hyp.dec_state)
+
+    return hypotheses
+
+
+def _states_to_device(dec_state, device='cpu'):
+    if torch.is_tensor(dec_state):
+        dec_state = dec_state.to(device)
+
+    elif isinstance(dec_state, (list, tuple)):
+        dec_state = tuple(_states_to_device(dec_i, device) for dec_i in dec_state)
+
+    return dec_state
+
+
 class BeamRNNTInfer(Typing):
     """
     Beam Search implementation ported from ESPNet implementation -
@@ -161,6 +181,7 @@ class BeamRNNTInfer(Typing):
         return {
             "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
         }
 
     @property
@@ -263,7 +284,10 @@ class BeamRNNTInfer(Typing):
 
     @typecheck()
     def __call__(
-        self, encoder_output: torch.Tensor, encoded_lengths: torch.Tensor
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[List[Hypothesis]] = None,
     ) -> Union[Hypothesis, NBestHypotheses]:
         """Perform general beam search.
 
@@ -310,8 +334,16 @@ class BeamRNNTInfer(Typing):
                         if inseq.dtype != dtype:
                             inseq = inseq.to(dtype=dtype)
 
+                        # Extract partial hypothesis if exists
+                        partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
+
                         # Execute the specific search strategy
-                        nbest_hyps = self.search_algorithm(inseq, logitlen)  # sorted list of hypothesis
+                        nbest_hyps = self.search_algorithm(
+                            inseq, logitlen, partial_hypotheses=partial_hypothesis
+                        )  # sorted list of hypothesis
+
+                        # Prepare the list of hypotheses
+                        nbest_hyps = pack_hypotheses(nbest_hyps)
 
                         # Pack the result
                         if self.return_best_hypothesis:
@@ -339,7 +371,9 @@ class BeamRNNTInfer(Typing):
         else:
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
-    def greedy_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def greedy_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Greedy search implementation for transducer.
         Generic case when beam size = 1. Results might differ slightly due to implementation details
         as compared to `GreedyRNNTInfer` and `GreedyBatchRNNTInfer`.
@@ -363,6 +397,13 @@ class BeamRNNTInfer(Typing):
         hyp = Hypothesis(
             score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
         )
+
+        if partial_hypotheses is not None:
+            if len(partial_hypotheses.y_sequence) > 0:
+                hyp.y_sequence = [int(partial_hypotheses.y_sequence[-1].cpu().numpy())]
+                hyp.dec_state = partial_hypotheses.dec_state
+                hyp.dec_state = _states_to_device(hyp.dec_state, h.device)
+
         cache = {}
 
         # Initialize state and first token
@@ -414,9 +455,15 @@ class BeamRNNTInfer(Typing):
         # attach alignments to hypothesis
         hyp.alignments = alignments
 
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            hyp.y_sequence = hyp.y_sequence[1:]
+
         return [hyp]
 
-    def default_beam_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def default_beam_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Beam search implementation.
 
         Args:
@@ -446,6 +493,12 @@ class BeamRNNTInfer(Typing):
         # Initialize first hypothesis for the beam (blank)
         kept_hyps = [Hypothesis(score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=0)]
         cache = {}
+
+        if partial_hypotheses is not None:
+            if len(partial_hypotheses.y_sequence) > 0:
+                kept_hyps[0].y_sequence = [int(partial_hypotheses.y_sequence[-1].cpu().numpy())]
+                kept_hyps[0].dec_state = partial_hypotheses.dec_state
+                kept_hyps[0].dec_state = _states_to_device(kept_hyps[0].dec_state, h.device)
 
         if self.preserve_alignments:
             kept_hyps[0].alignments = [[]]
@@ -528,9 +581,17 @@ class BeamRNNTInfer(Typing):
                 if len(h.alignments[-1]) == 0:
                     del h.alignments[-1]
 
+        # Remove the original input label if partial hypothesis was provided
+        if partial_hypotheses is not None:
+            for hyp in kept_hyps:
+                if hyp.y_sequence[0] == partial_hypotheses.y_sequence[-1] and len(hyp.y_sequence) > 1:
+                    hyp.y_sequence = hyp.y_sequence[1:]
+
         return self.sort_nbest(kept_hyps)
 
-    def time_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def time_sync_decoding(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Time synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
 
@@ -542,6 +603,9 @@ class BeamRNNTInfer(Typing):
         """
         if self.preserve_alignments:
             raise NotImplementedError("`preseve_alignments` is not implemented for Time-Synchronous Decoding.")
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
@@ -645,7 +709,9 @@ class BeamRNNTInfer(Typing):
 
         return self.sort_nbest(B)
 
-    def align_length_sync_decoding(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def align_length_sync_decoding(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """Alignment-length synchronous beam search implementation.
         Based on https://ieeexplore.ieee.org/document/9053040
 
@@ -659,6 +725,9 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
             )
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         # Precompute some constants for blank position
         ids = list(range(self.vocab_size + 1))
@@ -715,7 +784,7 @@ class BeamRNNTInfer(Typing):
 
             for bid, hyp in enumerate(B):
                 u = len(hyp.y_sequence) - 1
-                t = i - u + 1
+                t = i - u
 
                 if t > (h_length - 1):
                     batch_removal_ids.append(bid)
@@ -824,7 +893,9 @@ class BeamRNNTInfer(Typing):
         else:
             return B
 
-    def modified_adaptive_expansion_search(self, h: torch.Tensor, encoded_lengths: torch.Tensor) -> List[Hypothesis]:
+    def modified_adaptive_expansion_search(
+        self, h: torch.Tensor, encoded_lengths: torch.Tensor, partial_hypotheses: Optional[Hypothesis] = None
+    ) -> List[Hypothesis]:
         """
         Based on/modified from https://ieeexplore.ieee.org/document/9250505
 
@@ -838,6 +909,9 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 "`preseve_alignments` is not implemented for Alignment-length Synchronous Decoding."
             )
+
+        if partial_hypotheses is not None:
+            raise NotImplementedError("`partial_hypotheses` support is not supported")
 
         h = h[0]  # [T, D]
 

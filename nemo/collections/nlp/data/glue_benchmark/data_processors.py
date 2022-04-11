@@ -30,6 +30,7 @@ __all__ = [
     'QnliProcessor',
     'RteProcessor',
     'WnliProcessor',
+    'XNLIProcessor',
 ]
 
 
@@ -44,6 +45,9 @@ class MrpcProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -62,6 +66,12 @@ class MrpcProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mrpc sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return "equivalent" if label == "1" else "not equivalent"
+
 
 class MnliProcessor(DataProcessor):
     """Processor for the MultiNLI data set (GLUE version)."""
@@ -73,6 +83,9 @@ class MnliProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -91,6 +104,42 @@ class MnliProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mnli hypothesis: {text_a} premise: {text_b}"
+
+    def label2string(self, label):
+        return label
+
+
+class XNLIProcessor(DataProcessor):
+    """Processor for the MultiNLI data set (GLUE version)."""
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
+
+    def get_labels(self):
+        """See base class."""
+        return ["contradiction", "entailment", "neutral"]
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            if i == 0:
+                continue
+            guid = "%s-%s" % (set_type, line[0])
+            text_a = line[6]
+            text_b = line[7]
+            label = line[1]
+            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+        return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"mnli hypothesis: {text_a} premise: {text_b}"
+
+    def label2string(self, label):
+        return label
+
 
 class MnliMismatchedProcessor(MnliProcessor):
     """Processor for the MultiNLI Mismatched data set (GLUE version)."""
@@ -98,6 +147,9 @@ class MnliMismatchedProcessor(MnliProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
 
 class ColaProcessor(DataProcessor):
@@ -110,6 +162,9 @@ class ColaProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -125,6 +180,13 @@ class ColaProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        assert text_b is None
+        return f"cola sentence: {text_a}"
+
+    def label2string(self, label):
+        return "acceptable" if label == "1" else "not acceptable"
+
 
 class Sst2Processor(DataProcessor):
     """Processor for the SST-2 data set (GLUE version)."""
@@ -136,6 +198,9 @@ class Sst2Processor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -153,6 +218,13 @@ class Sst2Processor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        assert text_b is None
+        return f"sst2 sentence: {text_a}"
+
+    def label2string(self, label):
+        return "positive" if label == "1" else "negative"
+
 
 class StsbProcessor(DataProcessor):
     """Processor for the STS-B data set (GLUE version)."""
@@ -164,6 +236,9 @@ class StsbProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -182,6 +257,12 @@ class StsbProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"stsb sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return '%.1f' % float(label)
+
 
 class QqpProcessor(DataProcessor):
     """Processor for the QQP data set (GLUE version)."""
@@ -193,6 +274,9 @@ class QqpProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -214,6 +298,12 @@ class QqpProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qqp question1: {text_a} question2: {text_b}"
+
+    def label2string(self, label):
+        return "duplicate" if label == "1" else "not_duplicate"
+
 
 class QnliProcessor(DataProcessor):
     """Processor for the QNLI data set (GLUE version)."""
@@ -225,6 +315,9 @@ class QnliProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -242,6 +335,12 @@ class QnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"qnli question: {text_a} sentence: {text_b}"
+
+    def label2string(self, label):
+        return label
 
 
 class RteProcessor(DataProcessor):
@@ -255,6 +354,9 @@ class RteProcessor(DataProcessor):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
+
     def get_labels(self):
         """See base class."""
         return ["entailment", "not_entailment"]
@@ -272,6 +374,12 @@ class RteProcessor(DataProcessor):
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
 
+    def get_t5_prompted_query(self, text_a, text_b):
+        return f"rte sentence1: {text_a} sentence2: {text_b}"
+
+    def label2string(self, label):
+        return label
+
 
 class WnliProcessor(DataProcessor):
     """Processor for the WNLI data set (GLUE version)."""
@@ -283,6 +391,9 @@ class WnliProcessor(DataProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_examples(self, file_path):
+        return self._create_examples(self._read_tsv(file_path), "example")
 
     def get_labels(self):
         """See base class."""
@@ -300,6 +411,12 @@ class WnliProcessor(DataProcessor):
             label = line[-1]
             examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
         return examples
+
+    def get_t5_prompted_query(self, text_a, text_b):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
+
+    def label2string(self, label):
+        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
 
 
 class InputExample(object):
@@ -321,3 +438,8 @@ class InputExample(object):
         self.text_a = text_a
         self.text_b = text_b
         self.label = label
+
+    def __repr__(self):
+        return (
+            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
+        )

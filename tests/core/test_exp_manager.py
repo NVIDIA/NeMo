@@ -36,7 +36,12 @@ class MyTestOptimizer(torch.optim.Optimizer):
         self._step = 0
         super().__init__(params, {})
 
-    def step(self, *args, **kwargs):
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
         for group in self.param_groups:
             for p in group['params']:
                 if self._step == 0:
@@ -46,7 +51,22 @@ class MyTestOptimizer(torch.optim.Optimizer):
                 else:
                     p.data = 0.01 * torch.ones(p.shape)
         self._step += 1
-        return None
+        return loss
+
+
+class DoNothingOptimizer(torch.optim.Optimizer):
+    def __init__(self, params):
+        self._step = 0
+        super().__init__(params, {})
+
+    @torch.no_grad()
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            with torch.enable_grad():
+                loss = closure()
+        self._step += 1
+        return loss
 
 
 class OnesDataset(torch.utils.data.Dataset):
@@ -65,6 +85,7 @@ class ExampleModel(ModelPT):
     def __init__(self, *args, **kwargs):
         cfg = OmegaConf.structured({})
         super().__init__(cfg)
+        pl.seed_everything(1234)
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
 
     def train_dataloader(self):
@@ -103,19 +124,24 @@ class ExampleModel(ModelPT):
         self.log("val_loss", torch.stack(loss).mean())
 
 
+class DoNothingModel(ExampleModel):
+    def configure_optimizers(self):
+        return DoNothingOptimizer(self.parameters())
+
+
 class TestExpManager:
     @pytest.mark.unit
     def test_omegaconf(self):
         """Ensure omegaconf raises an error when an unexcepted argument is passed"""
         with pytest.raises(OmegaConfBaseException):
-            exp_manager(pl.Trainer(), {"unused": 1})
+            exp_manager(pl.Trainer(accelerator='cpu'), {"unused": 1})
 
     @pytest.mark.unit
     def test_trainer_loggers(self, tmp_path):
         """ Test that a trainer with logger errors out with a number of arguments. Test that it works with
         create_tensorboard_logger set to False
         """
-        test_trainer = pl.Trainer()  # Should create logger and modelcheckpoint
+        test_trainer = pl.Trainer(accelerator='cpu')  # Should create logger and modelcheckpoint
 
         with pytest.raises(LoggerMisconfigurationError):  # Fails because exp_manager defaults to trainer
             exp_manager(test_trainer, {"exp_dir": str(tmp_path)})
@@ -131,14 +157,14 @@ class TestExpManager:
         assert Path("./lightning_logs/version_0").exists()
 
         # Check that a trainer without a logger gets a logger attached to it
-        test_trainer = pl.Trainer(logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', logger=False)
         log_dir = exp_manager(
             test_trainer,
             {"create_tensorboard_logger": True, "create_checkpoint_callback": False, "exp_dir": str(tmp_path)},
         )
         assert isinstance(test_trainer.logger, pl.loggers.TensorBoardLogger)
 
-        test_trainer = pl.Trainer(logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', logger=False)
         # Check that a create_wandb_logger=True errors out unless wandb_logger_kwargs is passed.
         with pytest.raises(ValueError):
             log_dir = exp_manager(
@@ -159,7 +185,7 @@ class TestExpManager:
                 "create_checkpoint_callback": False,
                 "exp_dir": str(tmp_path),
                 "create_wandb_logger": True,
-                "wandb_logger_kwargs": {"name": "", "project": ""},
+                "wandb_logger_kwargs": {"name": "", "project": "", "offline": True},
             },
         )
         assert isinstance(test_trainer.logger, pl.loggers.WandbLogger)
@@ -170,20 +196,20 @@ class TestExpManager:
         is error free if only one is asked to do so.
         """
         disable_tb_logger = {"create_tensorboard_logger": False}
-        test_trainer = pl.Trainer()  # Should create logger and modelcheckpoint
+        test_trainer = pl.Trainer(accelerator='cpu')  # Should create logger and modelcheckpoint
         with pytest.raises(CheckpointMisconfigurationError):  # Fails because both try to create modelcheckpoint
             exp_manager(test_trainer, disable_tb_logger)
 
         # Should succeed without error
         exp_manager(test_trainer, {"create_checkpoint_callback": False, "create_tensorboard_logger": False})
 
-        test_trainer_2 = pl.Trainer(checkpoint_callback=False)
+        test_trainer_2 = pl.Trainer(accelerator='cpu', enable_checkpointing=False)
         exp_manager(test_trainer_2, disable_tb_logger)  # Should succeed without error
 
     @pytest.mark.unit
     def test_default_log_dir(self):
         """Check the default of ./nemo_experiments/default/datetime works as intended"""
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
 
         log_dir = exp_manager(test_trainer, {"create_tensorboard_logger": False, "create_checkpoint_callback": False})
         assert (log_dir / "..").resolve() == Path("./nemo_experiments/default/").resolve()
@@ -197,14 +223,14 @@ class TestExpManager:
     def test_log_dir_overrides(self, monkeypatch, tmp_path):
         """Check a variety of trainer options with exp_manager"""
         # Checks that explicit_log_dir ignores exp_dir, name, and version
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test_log_dir_overrides")})
         assert log_dir.resolve() == (tmp_path / "test_log_dir_overrides").resolve()
         assert Path(tmp_path).exists()
         assert Path(tmp_path / "test_log_dir_overrides").exists()
 
         # Checks that exp_manager uses exp_dir, default name, and explicit version
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "version": 957})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "957").resolve()
         assert Path(tmp_path).exists()
@@ -212,7 +238,7 @@ class TestExpManager:
 
         monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
         # Checks that use_datetime_version False toggle works
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_0").resolve()
         assert Path(tmp_path).exists()
@@ -220,7 +246,7 @@ class TestExpManager:
 
         monkeypatch.delenv(NEMO_ENV_VARNAME_VERSION)
         # Checks that use_datetime_version False toggle works and version increments
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         log_dir = exp_manager(test_trainer, {"exp_dir": str(tmp_path / "test_no_name"), "use_datetime_version": False})
         assert log_dir.resolve() == (tmp_path / "test_no_name" / "default" / "version_1").resolve()
         assert Path(tmp_path).exists()
@@ -229,7 +255,7 @@ class TestExpManager:
     @pytest.mark.unit
     def test_resume(self, tmp_path):
         """ Tests the resume capabilities of exp_manager"""
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
 
         # Error because explicit_log_dir does not exist
         with pytest.raises(NotFoundError):
@@ -256,7 +282,7 @@ class TestExpManager:
             },
         )
 
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints").mkdir(parents=True)
         # Error because checkpoints do not exist in folder
         with pytest.raises(NotFoundError):
@@ -299,13 +325,17 @@ class TestExpManager:
             {"resume_if_exists": True, "explicit_log_dir": str(tmp_path / "test_resume" / "default" / "version_0")},
         )
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer._checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
 
         # Succeed again and make sure that run_0 exists and previous log files were moved
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False)
         exp_manager(test_trainer, {"resume_if_exists": True, "explicit_log_dir": str(log_dir)})
         checkpoint = Path(tmp_path / "test_resume" / "default" / "version_0" / "checkpoints" / "mymodel--last.ckpt")
-        assert Path(test_trainer.checkpoint_connector.resume_checkpoint_path).resolve() == checkpoint.resolve()
+        assert (
+            Path(test_trainer._checkpoint_connector.resume_from_checkpoint_fit_path).resolve() == checkpoint.resolve()
+        )
         prev_run_dir = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0")
         assert prev_run_dir.exists()
         prev_log = Path(tmp_path / "test_resume" / "default" / "version_0" / "run_0" / "lightning_logs.txt")
@@ -313,8 +343,8 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_1(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
             test_trainer,
             {"checkpoint_callback_params": {"save_best_model": True}, "explicit_log_dir": str(tmp_path / "test")},
         )
@@ -328,8 +358,10 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_save_best_model_2(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(test_trainer, {"explicit_log_dir": str(tmp_path / "test")},)
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer, {"explicit_log_dir": str(tmp_path / "test")},
+        )
         model = ExampleModel()
         test_trainer.fit(model)
 
@@ -340,8 +372,8 @@ class TestExpManager:
 
     @pytest.mark.unit
     def test_nemo_checkpoint_always_save_nemo(self, tmp_path):
-        test_trainer = pl.Trainer(checkpoint_callback=False, logger=False, max_epochs=4)
-        log_dir = exp_manager(
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
             test_trainer,
             {
                 "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
@@ -355,3 +387,56 @@ class TestExpManager:
 
         model = ExampleModel.restore_from(str(tmp_path / "test" / "checkpoints" / "default.nemo"))
         assert float(model(torch.tensor([1.0, 1.0], device=model.device))) == 0.0
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_make_checkpoint_dir(self, tmp_path):
+        test_trainer = pl.Trainer(
+            accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4, check_val_every_n_epoch=5
+        )
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_best_model": True, "always_save_nemo": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        assert Path(str(tmp_path / "test" / "checkpoints" / "default.nemo")).exists()
+
+    @pytest.mark.unit
+    def test_nemo_checkpoint_restore_model(self, tmp_path):
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=4)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": True},
+                "explicit_log_dir": str(tmp_path / "test"),
+            },
+        )
+        model = ExampleModel()
+        test_trainer.fit(model)
+
+        checkpoint = list(Path(str(tmp_path / "test" / "checkpoints")).glob("*.ckpt"))
+        # Make sure that only the best and last checkpoint is saved
+        assert len(checkpoint) == 2
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5
+
+        test_trainer = pl.Trainer(accelerator='cpu', enable_checkpointing=False, logger=False, max_epochs=5)
+        exp_manager(
+            test_trainer,
+            {
+                "checkpoint_callback_params": {"save_top_k": 1, "save_last": False},
+                "explicit_log_dir": str(tmp_path / "test"),
+                "resume_if_exists": True,
+                "resume_past_end": True,
+            },
+        )
+        model = DoNothingModel()
+        model.l1.weight = torch.nn.Parameter(torch.tensor((0.0, 0.0)).unsqueeze(0))
+        model.l1.bias = torch.nn.Parameter(torch.tensor(1.0))
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 1.0) < 1e-5
+
+        test_trainer.fit(model)
+        assert math.fabs(float(model(torch.tensor([1.0, 1.0], device=model.device))) - 0.03) < 1e-5

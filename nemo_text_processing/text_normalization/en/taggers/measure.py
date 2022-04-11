@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     NEMO_SPACE,
     SINGULAR_TO_PLURAL,
+    TO_LOWER,
     GraphFst,
     convert_space,
     delete_space,
@@ -60,6 +61,8 @@ class MeasureFst(GraphFst):
             cardinal_graph |= cardinal.range_graph
 
         graph_unit = pynini.string_file(get_abs_path("data/measurements.tsv"))
+        graph_unit |= pynini.compose(pynini.closure(TO_LOWER, 1) + pynini.closure(NEMO_ALPHA), graph_unit)
+
         graph_unit_plural = convert_space(graph_unit @ SINGULAR_TO_PLURAL)
         graph_unit = convert_space(graph_unit)
         optional_graph_negative = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
@@ -114,7 +117,7 @@ class MeasureFst(GraphFst):
         cardinal_dash_alpha = (
             pynutil.insert("cardinal { integer: \"")
             + cardinal_graph
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\" } units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
             + pynutil.insert("\"")
@@ -123,7 +126,7 @@ class MeasureFst(GraphFst):
         alpha_dash_cardinal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\"")
             + pynutil.insert(" cardinal { integer: \"")
             + cardinal_graph
@@ -150,7 +153,7 @@ class MeasureFst(GraphFst):
         alpha_dash_decimal = (
             pynutil.insert("units: \"")
             + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.cross('-', '')
+            + pynini.accep('-')
             + pynutil.insert("\"")
             + pynutil.insert(" decimal { ")
             + decimal.final_graph_wo_negative
@@ -168,6 +171,25 @@ class MeasureFst(GraphFst):
             + pynutil.insert("\" } preserve_order: true")
         )
 
+        math_operations = pynini.string_file(get_abs_path("data/math_operations.tsv"))
+        delimiter = pynini.accep(" ") | pynutil.insert(" ")
+
+        math = (
+            cardinal_graph
+            + delimiter
+            + math_operations
+            + delimiter
+            + cardinal_graph
+            + delimiter
+            + pynini.cross("=", "equals")
+            + delimiter
+            + cardinal_graph
+        )
+        math = (
+            pynutil.insert("units: \"math\" cardinal { integer: \"")
+            + math
+            + pynutil.insert("\" } preserve_order: true")
+        )
         final_graph = (
             subgraph_decimal
             | subgraph_cardinal
@@ -178,6 +200,7 @@ class MeasureFst(GraphFst):
             | alpha_dash_decimal
             | subgraph_fraction
             | address
+            | math
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

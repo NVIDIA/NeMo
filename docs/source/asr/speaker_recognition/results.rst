@@ -30,29 +30,31 @@ Where the model base class is the ASR model class of the original checkpoint, or
 Speaker Label Inference
 ------------------------
 
-Speaker label Inference, is to infer speaker labels from a pretrained speaker model with known speaker labels. We provide `speaker_reco_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
+The goal of speaker label inference is to infer speaker labels using a speaker model with known speaker labels from enrollment set. We provide `speaker_identification_infer.py` script for this purpose under `<NeMo_root>/examples/speaker_tasks/recognition` folder.
+Currently supported backends are cosine_similarity and neural classifier.
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
-Write audio files to a ``manifest.json`` file with lines as in format:
+The script takes two manifest files: 
 
-.. code-block:: json
-    
-    {"audio_filepath": "<absolute path to dataset>/audio_file.wav", "duration": "duration of file in sec", "label": "UNK"}
-      
-This python call will use the pretrain model and infer labels on provided test set using labels from trained manifest file
+* enrollment_manifest : This manifest contains enrollment data with known speaker labels.
+* test_manifest: This manifest contains test data for which we map speaker labels captured from enrollment manifest using one of provided backend
+
+sample format for each of these manifests is provided in `<NeMo_root>/examples/speaker_tasks/recognition/conf/speaker_identification_infer.yaml` config file.
+
+To infer speaker labels using cosine_similarity backend
 
 .. code-block:: bash
   
-    python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest='/path/to/train/manifest/file'
-    --test_manifest=/path/to/train/manifest/file' --batch_size=32
+    python speaker_identification_infer.py data.enrollment_manifest=<path/to/enrollment_manifest> data.test_manifest=<path/to/test_manifest> backend.backend_model=cosine_similarity
+
     
 Speaker Embedding Extraction
 -----------------------------
-Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unkown speakers). We provide two ways to do this:
+Speaker Embedding Extraction, is to extract speaker embeddings for any wav file (from known or unknown speakers). We provide two ways to do this:
 
-* single python liner for extracting embeddings from a single file 
-* python script for extracting embeddings from a bunch of files provided through manifest file
+* single Python liner for extracting embeddings from a single file 
+* Python script for extracting embeddings from a bunch of files provided through manifest file
 
 For extracting embeddings from a single file:
 
@@ -63,7 +65,7 @@ For extracting embeddings from a single file:
 
 For extracting embeddings from a bunch of files:
 
-The audio files should be 16KHz monochannel wav files.
+The audio files should be 16KHz mono channel wav files.
 
 Write audio files to a ``manifest.json`` file with lines as in format:
 
@@ -76,27 +78,39 @@ This python call will download best pretrained model from NGC and writes embeddi
 .. code-block:: bash
   
     python examples/speaker_tasks/recognition/extract_speaker_embeddings.py --manifest=manifest.json
+  
+Speaker Verification Inference
+------------------------------
+
+Speaker Verification is a task of verifying if two utterances are from the same speaker or not.
+
+We provide a helper function to verify the audio files and return True if two provided audio files are from the same speaker, False otherwise.
+
+The audio files should be 16KHz mono channel wav files.
+
+.. code-block:: python
+
+  speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
+  decision = speaker_model.verify_speakers('path/to/one/audio_file','path/to/other/audio_file')
 
 
 NGC Pretrained Checkpoints
 --------------------------
 
 The SpeakerNet-ASR collection has checkpoints of several models trained on various datasets for a variety of tasks.
-`Speaker_Recognition <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerrecognition_speakernet>`_ and `Speaker_Verification <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet>`_ model cards on NGC contain more information about each of the checkpoints available.
+`TitaNet <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large>`_ , `ECAPA_TDNN <https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn>`_ and `Speaker_Verification <https://ngc.nvidia.com/catalog/models/nvidia:nemo:speakerverification_speakernet>`_ model cards on NGC contain more information about each of the checkpoints available.
 
-The tables below list the SpeakerNet models available from NGC, and the models can be accessed via the
+The tables below list the speaker embedding extractor models available from NGC, and the models can be accessed via the
 :code:`from_pretrained()` method inside the EncDecSpeakerLabelModel Model class.
 
-.. note:: While loading, remember to use EncDecSpeakerLabelModel for recognition tasks and ExtractSpeakerEmbeddingsModel while extracting embeddings.
-
-In general, you can load any of these models with code in the following format.
+In general, you can load any of these models with code in the following format:
 
 .. code-block:: python
 
   import nemo.collections.asr as nemo_asr
   model = nemo_asr.models.<MODEL_CLASS_NAME>.from_pretrained(model_name="<MODEL_NAME>")
 
-Where the model name is the value under "Model Name" entry in the tables below.
+where the model name is the value under "Model Name" entry in the tables below.
 
 If you would like to programatically list the models available for a particular base class, you can use the
 :code:`list_available_models()` method.

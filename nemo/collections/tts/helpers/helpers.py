@@ -43,7 +43,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from enum import Enum
-from typing import Dict, Sequence
+from typing import Dict, Optional, Sequence
 
 import librosa
 import matplotlib.pylab as plt
@@ -76,6 +76,32 @@ class OperationMode(Enum):
     training = 0
     validation = 1
     infer = 2
+
+
+def get_batch_size(train_dataloader):
+    if train_dataloader.batch_size is not None:
+        return train_dataloader.batch_size
+    elif train_dataloader.batch_sampler is not None:
+        if train_dataloader.batch_sampler.micro_batch_size is not None:
+            return train_dataloader.batch_sampler.micro_batch_size
+        else:
+            raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+    else:
+        raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
+
+
+def get_num_workers(trainer):
+    if trainer.accelerator is None:
+        return trainer.num_gpus or 1
+    elif trainer.accelerator == "ddp_cpu":
+        return trainer.num_processes * trainer.num_nodes
+    elif trainer.accelerator == "ddp":
+        return trainer.num_gpus * trainer.num_nodes
+    else:
+        logging.warning(
+            f"The lightning trainer received accelerator: {trainer.accelerator}. We " "recommend to use 'ddp' instead."
+        )
+        return trainer.num_gpus * trainer.num_nodes
 
 
 def binarize_attention(attn, in_len, out_len):
@@ -112,9 +138,9 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     return torch.from_numpy(attn_out).to(attn.get_device())
 
 
-def get_mask_from_lengths(lengths, max_len=None):
-    if not max_len:
-        max_len = torch.max(lengths).item()
+def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
+    if max_len is None:
+        max_len = lengths.max()
     ids = torch.arange(0, max_len, device=lengths.device, dtype=torch.long)
     mask = (ids < lengths.unsqueeze(1)).bool()
     return mask
@@ -292,6 +318,21 @@ def plot_alignment_to_numpy(alignment, info=None):
         xlabel += '\n\n' + info
     plt.xlabel(xlabel)
     plt.ylabel('Encoder timestep')
+    plt.tight_layout()
+
+    fig.canvas.draw()
+    data = save_figure_to_numpy(fig)
+    plt.close()
+    return data
+
+
+def plot_pitch_to_numpy(pitch, ylim_range=None):
+    fig, ax = plt.subplots(figsize=(12, 3))
+    plt.plot(pitch)
+    if ylim_range is not None:
+        plt.ylim(ylim_range)
+    plt.xlabel("Frames")
+    plt.ylabel("Pitch")
     plt.tight_layout()
 
     fig.canvas.draw()

@@ -17,7 +17,7 @@ from typing import Any, Callable, List, Optional
 
 from omegaconf import MISSING
 
-from nemo.collections.asr.models.configs import ctc_models_config as ctc_cfg
+from nemo.collections.asr.models.configs import asr_models_config as ctc_cfg
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     SpectrogramAugmentationConfig,
@@ -174,13 +174,11 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     labels: List[str] = MISSING
 
     # Dataset configs
-    train_ds: ctc_cfg.EncDecCTCDatasetConfig = ctc_cfg.EncDecCTCDatasetConfig(
+    train_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(
         manifest_filepath=None, shuffle=True, trim_silence=True
     )
-    validation_ds: ctc_cfg.EncDecCTCDatasetConfig = ctc_cfg.EncDecCTCDatasetConfig(
-        manifest_filepath=None, shuffle=False
-    )
-    test_ds: ctc_cfg.EncDecCTCDatasetConfig = ctc_cfg.EncDecCTCDatasetConfig(manifest_filepath=None, shuffle=False)
+    validation_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    test_ds: ctc_cfg.ASRDatasetConfig = ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
 
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
@@ -262,13 +260,13 @@ class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
     # Note: Autocomplete for users wont work without these overrides
     # But practically it is not needed since python will infer at runtime
 
-    # def set_train_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
+    # def set_train_ds(self, cfg: Optional[ctc_cfg.ASRDatasetConfig] = None):
     #     super().set_train_ds(cfg)
     #
-    # def set_validation_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
+    # def set_validation_ds(self, cfg: Optional[ctc_cfg.ASRDatasetConfig] = None):
     #     super().set_validation_ds(cfg)
     #
-    # def set_test_ds(self, cfg: Optional[ctc_cfg.EncDecCTCDatasetConfig] = None):
+    # def set_test_ds(self, cfg: Optional[ctc_cfg.ASRDatasetConfig] = None):
     #     super().set_test_ds(cfg)
 
     def _finalize_cfg(self):

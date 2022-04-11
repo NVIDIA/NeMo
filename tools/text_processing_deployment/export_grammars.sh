@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 # Copyright 2015 and onwards Google, Inc.
 #
@@ -13,9 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#!/bin/bash
-
-# This script compiles and exports WFST-grammars from nemo_text_processing, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker, 
+# This script compiles and exports WFST-grammars from nemo_text_processing, builds C++ production backend Sparrowhawk (https://github.com/google/sparrowhawk) in docker,
 # plugs grammars into Sparrowhawk and returns prompt inside docker.
 # For inverse text normalization run:
 #       bash export_grammars.sh --GRAMMARS=itn_grammars --LANGUAGE=en
@@ -32,10 +32,10 @@
 
 GRAMMARS="itn_grammars" # tn_grammars
 INPUT_CASE="cased" # lower_cased, only for tn_grammars
-LANGUAGE="en" # language, 'en' supports both TN and ITN, {'de', 'ru'} supports ITN only
+LANGUAGE="en" # language, {'en', 'es', 'de'} supports both TN and ITN, {'ru', 'fr'} supports ITN only
 MODE="export"
-CACHE_DIR="None" # path to cache dir with .far files (to speed the export)
 OVERWRITE_CACHE="True" # Set to False to re-use .far files
+FORCE_REBUILD="False" # Set to True to re-build docker file
 
 for ARG in "$@"
 do
@@ -48,21 +48,30 @@ do
     fi
 done
 
+
+CACHE_DIR=${LANGUAGE}
 echo "GRAMMARS = $GRAMMARS"
 echo "MODE = $MODE"
 echo "LANGUAGE = $LANGUAGE"
 echo "INPUT_CASE = $INPUT_CASE"
 echo "CACHE_DIR = $CACHE_DIR"
 echo "OVERWRITE_CACHE = $OVERWRITE_CACHE"
+echo "FORCE_REBUILD = $FORCE_REBUILD"
+
 
 if [[ ${OVERWRITE_CACHE,,} == "true" ]]; then
   OVERWRITE_CACHE="--overwrite_cache "
+  python3 pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1
   else OVERWRITE_CACHE=""
 fi
 
-python pynini_export.py --output_dir=. --grammars=${GRAMMARS} --input_case=${INPUT_CASE} --language=${LANGUAGE} --cache_dir=${CACHE_DIR} ${OVERWRITE_CACHE}|| exit 1
+if [[ ${FORCE_REBUILD,,} == "true" ]]; then
+  FORCE_REBUILD="--no-cache"
+  else FORCE_REBUILD=""
+fi
+
 find . -name "Makefile" -type f -delete
-bash docker/build.sh $FORCE
+bash docker/build.sh $FORCE_REBUILD
 
 if [[ $MODE == "test" ]]; then
   MODE=${MODE}_${GRAMMARS}

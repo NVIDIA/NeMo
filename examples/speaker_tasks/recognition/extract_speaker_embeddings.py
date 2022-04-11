@@ -54,14 +54,7 @@ except ImportError:
 
 def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
     test_config = OmegaConf.create(
-        dict(
-            manifest_filepath=manifest_file,
-            sample_rate=16000,
-            labels=None,
-            batch_size=batch_size,
-            shuffle=False,
-            time_length=20,
-        )
+        dict(manifest_filepath=manifest_file, sample_rate=16000, labels=None, batch_size=batch_size, shuffle=False,)
     )
 
     speaker_model.setup_test_data(test_config)
@@ -83,7 +76,7 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
 
     all_embs = np.asarray(all_embs)
     all_embs = embedding_normalize(all_embs)
-    with open(manifest_file, 'r') as manifest:
+    with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
@@ -110,7 +103,7 @@ def main():
     parser.add_argument(
         "--model_path",
         type=str,
-        default='speakerverification_speakernet',
+        default='titanet_large',
         required=False,
         help="path to .nemo speaker verification model file to extract embeddings, if not passed SpeakerNet-M model would be downloaded from NGC and used to extract embeddings",
     )
@@ -130,15 +123,15 @@ def main():
     elif args.model_path.endswith('.ckpt'):
         speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(checkpoint_path=args.model_path)
     else:
-        speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="speakerverification_speakernet")
-        logging.info(f"using pretrained speaker verification model from NGC")
+        speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name="titanet_large")
+        logging.info(f"using pretrained titanet_large speaker model from NGC")
 
     device = 'cuda'
     if not torch.cuda.is_available():
         device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
 
-    get_embeddings(speaker_model, args.manifest, batch_size=64, embedding_dir=args.embedding_dir, device=device)
+    get_embeddings(speaker_model, args.manifest, batch_size=1, embedding_dir=args.embedding_dir, device=device)
 
 
 if __name__ == '__main__':

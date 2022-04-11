@@ -17,10 +17,8 @@ from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_decoder import HuggingFaceDecoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_encoder import HuggingFaceEncoderModule
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
 from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
 
@@ -83,7 +81,7 @@ def get_nemo_transformer(
                 attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
                 attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
                 hidden_act=cfg.get('hidden_act', 'relu'),
-                mask_future=cfg.get('mask_future', False),
+                mask_future=cfg.get('mask_future', True),
                 pre_ln=cfg.get('pre_ln', False),
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
                 num_token_types=cfg.get('num_token_types', 2),
@@ -157,18 +155,22 @@ def get_megatron_transformer(
     config_dict: Optional[Union[dict, DictConfig]] = None,
     encoder: bool = True,
     checkpoint_file: str = None,
-) -> MegatronEncoderModule:
+) -> None:
 
-    vocab_file = config_dict.pop('vocab_file', None)
-    if encoder:
-        model = MegatronEncoderModule(
-            model_name=model_name,
-            pretrained=pretrained,
-            config_dict=config_dict,
-            checkpoint_file=checkpoint_file,
-            vocab_file=vocab_file,
-        )
-    else:
-        raise ValueError('Megatron decoders are not currently supported.')
+    raise ValueError(
+        "megatron-lm bert encoders are deprecated in NeMo 1.5.0. Please use NeMo 1.4.0 until megatron bert support is added again."
+    )
 
-    return model
+    # vocab_file = config_dict.pop('vocab_file', None)
+    # if encoder:
+    #     model = MegatronEncoderModule(
+    #         model_name=model_name,
+    #         pretrained=pretrained,
+    #         config_dict=config_dict,
+    #         checkpoint_file=checkpoint_file,
+    #         vocab_file=vocab_file,
+    #     )
+    # else:
+    #     raise ValueError('Megatron decoders are not currently supported.')
+
+    # return model

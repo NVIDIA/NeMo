@@ -16,7 +16,7 @@ from abc import ABC
 from typing import Any, Dict, Optional
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.core.neural_types import ChannelType, EncodedRepresentation, MaskType, NeuralType
 
 __all__ = ['DecoderModule']
 
@@ -29,8 +29,9 @@ class DecoderModule(NeuralModule, ABC):
         return {
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "decoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
             "encoder_embeddings": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True),
+            "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "decoder_mems": NeuralType(('B', 'D', 'T', 'D'), EncodedRepresentation(), optional=True),
         }
 
     @property
