@@ -95,6 +95,35 @@ pipeline {
       }
     }
 
+    stage('L2: ASR dev run') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('ASR Adapters') {
+          steps {
+            sh 'python examples/asr/asr_adapters/train_asr_adapter.py \
+            model.pretrained_model="stt_en_conformer_ctc_small" \
+            model.adapter.adapter_name="an4" \
+            model.adapter.in_features=256 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.max_steps=5 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results'
+            sh 'rm -rf examples/asr/speech_to_text_adapters_results'
+          }
+        }
+
+      }
+    }
+
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
