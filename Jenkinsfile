@@ -804,17 +804,6 @@ pipeline {
             rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
-      }
-    }
-    stage('L2: Dialogue Zero Shot Classification') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
         stage('Intent classification using ZeroShotIntentModel') {
           steps {
             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
@@ -872,6 +861,7 @@ pipeline {
             python dialogue.py \
             do_training=False \
             model.dataset.data_dir=/home/TestData/nlp/design_dataset \
+            model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \
             model.dataset.dialogues_example_dir=design_zero_shot_intent_classification_bart_outputs \
             model.dataset.task=design \
             model.dataset.prompt_template="This example is related to" \
@@ -902,7 +892,6 @@ pipeline {
             rm -rf design_dialogue_nearest_neighbour_classification_outputs && TRANSFORMERS_OFFLINE=1'
           }
         }
-
       }
     }
     stage('L2: Dialogue Generation') {
