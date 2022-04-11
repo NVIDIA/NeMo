@@ -14,12 +14,10 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALNUM,
     NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
     NEMO_SIGMA,
-    NEMO_SPACE,
     GraphFst,
     convert_space,
 )
