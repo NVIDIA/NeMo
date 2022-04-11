@@ -95,7 +95,7 @@ pipeline {
       }
     }
 
-    stage('L2: ASR dev run') {
+    stage('L2: ASR Adapters') {
       when {
         anyOf {
           branch 'main'
