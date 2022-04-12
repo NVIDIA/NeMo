@@ -104,15 +104,16 @@ def kmeans_plusplus_torch(
 ):
     """
     Choose initial centroids for initializing k-means algorithm. The performance of
-    the k-means algorithm can vary significantly by the initial centroids. To alleviate
-    this problem, the k-means++ algorithm chooses the initial centroid based on the
-    probability proportional to the distance from the formally chosen centroids. The
-    centroids selected by k-means++ algorithm improve the chance of getting more
-    accurate and stable clustering results. The overall implementation of k-means++
-    algorithm is inspired by numpy based k-means++ implementation in:
+    k-means algorithm can vary significantly by the initial centroids. To alleviate
+    this problem, k-means++ algorithm chooses initial centroids based on the probability
+    proportional to the distance from the formally chosen centroids. The centroids
+    selected by k-means++ algorithm improve the chance of getting more accurate and
+    stable clustering results. The overall implementation of k-means++ algorithm is
+    inspired by the numpy based k-means++ implementation in:
         https://github.com/scikit-learn/scikit-learn
-    Originally, the implementation of the k-means++ algorithm is based on the
-    following article:
+
+    Originally, the implementation of the k-means++ algorithm in scikit-learn is based
+    on the following research article:
         Arthur, David, and Sergei Vassilvitskii. k-means++: The advantages of careful
         seeding. Proceedings of the eighteenth annual ACM-SIAM symposium on Discrete
         algorithms, Society for Industrial and Applied Mathematics (2007)
@@ -192,8 +193,8 @@ def kmeans_torch(
     device: torch.device = torch.device('cpu'),
 ):
     """
-    Run k-means algorithm on the given set of spectral embeddings X. The threshold and
-    iter_limit variables are set to show the best performance on speaker diarization
+    Run k-means algorithm on the given set of spectral embeddings in X. The threshold
+    and iter_limit variables are set to show the best performance on speaker diarization
     tasks. The overall implementation of k-means algorithm is inspired by the k-means
     algorithm implemented in https://github.com/scikit-learn/scikit-learn.
 
@@ -817,8 +818,8 @@ class NMESC:
 
         The recommended NME_mat_size is 250~750.
         However, if there are speakers who speak for very short period of time in the recording,
-        this subsampling might make the system miss the underrepresented speaker.
-        Use this with caution.
+        this subsampling might make the system miss underrepresented speakers.
+        Use this variable with caution.
 
         Args:
             NME_mat_size: (int)
