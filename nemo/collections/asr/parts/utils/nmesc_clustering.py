@@ -235,7 +235,7 @@ def kmeans_torch(
     iter_count = 0
     selected_cluster_indices = torch.zeros(input_size).int()
 
-    while True:
+    for iter_count in range(iter_limit):
         euc_dist = getEuclideanDistance(X, centers, device=device)
 
         if len(euc_dist.shape) <= 1:
@@ -254,17 +254,12 @@ def kmeans_torch(
 
             centers[index] = chosen_indices.mean(dim=0)
 
-        center_shift = torch.sum(torch.sqrt(torch.sum((centers - center_inits) ** 2, dim=1)))
-
-        # Increase iter_count
-        iter_count += 1
+        # Calculate the delta from center_inits to centers
+        center_delta_pow = torch.pow((centers - center_inits), 2)
+        center_shift_pow = torch.pow(torch.sum(torch.sqrt(torch.sum(center_delta_pow, dim=1))), 2)
 
         # If the cluster centers are not changing significantly, stop the loop.
-        if center_shift ** 2 < threshold:
-            break
-
-        # If iteration goes over limit, stop the loop.
-        if iter_limit > 0 and iter_count >= iter_limit:
+        if center_shift_pow < threshold:
             break
 
     return selected_cluster_indices
