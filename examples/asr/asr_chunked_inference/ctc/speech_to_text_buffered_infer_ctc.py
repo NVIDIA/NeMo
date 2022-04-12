@@ -32,7 +32,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchVAD
 from nemo.utils import logging
-
+import numpy as np
 can_gpu = torch.cuda.is_available()
 
 

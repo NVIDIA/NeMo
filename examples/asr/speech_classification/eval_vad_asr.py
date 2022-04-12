@@ -100,26 +100,13 @@ def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
     lang_model = lang + "-" + model
     return lang_model_table.get(lang_model, None)
 
-    # return {
-    #     'english':  (False, False, True, "/home/fjia/models/english/Citrinet_Aug_1024_Gamma_0-25_NeMo_ASRSET_2.0_e200.nemo"),
-    #     'mandarin': (True, True, False, "stt_zh_citrinet_1024_gamma_0_25"), # test 5000
-    #     'french':   (False, False, False, "stt_fr_citrinet_1024_gamma_0_25"), # test 2320
-    #     'german':   (False, False, False, "stt_de_citrinet_1024"), #dev 15845 test 15854
-    #     'spanish-nr_citrinet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/finetuning_with_augmentation/stt_es_citrinet_1024_gamma_0_25.nemo"), 
-    #     'spanish-nr_conformer_ctc':  (False, False, True, "/home/fjia/models/jagadeesh_nr/finetuning_with_augmentation/stt_es_conformer_ctc_large.nemo"), 
-    #     'spanish-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/finetuning_with_augmentation/stt_es_conformer_transducer_large.nemo"), 
-    #     'spanish-nr_contextnet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/finetuning_with_augmentation/stt_es_contextnet_1024.nemo"), 
-    #     'russian':  (False, False, False, "stt_ru_quartznet15x5"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint
-    # }[lang]
-
 def main():
     # langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    # vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
-    # langs = ['english']
     vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
+    # langs = ['english']
     db_list = [0,5,10,15,20,'clean']
-    models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] # no russian citrinet now
-    langs = ['spanish', 'english']
+    models = ['citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] # no russian citrinet now
+    langs = ['spanish', ]
 
     subset="test"
     single= True

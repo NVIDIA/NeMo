@@ -105,7 +105,7 @@ def main(cfg):
     vad_model.eval()
 
     if not os.path.exists(cfg.frame_out_dir):
-        os.mkdir(cfg.frame_out_dir)
+        os.makedirs(cfg.frame_out_dir, exist_ok=True)
     else:
         logging.warning(
             "Note frame_out_dir exists. If new file has same name as file inside existing folder, it will append result to existing file and might cause mistakes for next steps."
