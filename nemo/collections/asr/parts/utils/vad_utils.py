@@ -97,7 +97,7 @@ def prepare_manifest(config: dict) -> str:
 def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
     """
     Used by prepare_manifest.
-    Given a list of files, write them to manifest for dataloader with restrictions.
+    Given a list of files, split them with maximum split_duration and write them to the manifest.
     Args:
         files (dict) : file to be processed
         args_func:
