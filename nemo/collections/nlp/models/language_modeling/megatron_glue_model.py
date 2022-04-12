@@ -27,6 +27,7 @@ from nemo.utils import AppState, app_state, logging
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -196,6 +197,20 @@ class MegatronT5GLUEModel(MegatronT5Model):
 
         return super().on_validation_epoch_end()
 
+    def training_step(self, batch, batch_idx):
+        micro_batch_size = batch[0]['text_enc'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.train_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size() * get_num_microbatches(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        return super().training_step(batch, batch_idx)
+
     def inference_step(self, batch, batch_idx):
         batch_has_lang_information = len(batch[0]) == 7
         # XNLI Batches have language information that need to be removed before calling the parent validation step.
@@ -215,7 +230,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size(),
+                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size() * get_num_microbatches(),
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
