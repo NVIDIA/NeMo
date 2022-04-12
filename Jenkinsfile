@@ -2229,8 +2229,8 @@ pipeline {
             model.existing_tasks=['rte'] \
             model.new_tasks=['boolq, intent_and_slot'] \
             model.virtual_prompt_style='prompt-tuning' \
-            model.prompt_learning.new_prompt_init_methods=['text, random'] \
-            model.prompt_learning.new_prompt_init_text=['some init text goes here, None'] \
+            model.prompt_tuning.new_prompt_init_methods=['text, random'] \
+            model.prompt_tuning.new_prompt_init_text=['some init text goes here, None'] \
             model.data.train_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_train.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_train.jsonl'] \
             model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_val.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_val.jsonl']"
 
