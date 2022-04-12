@@ -445,7 +445,7 @@ def generate(
             context_tokens_tensor, context_length_tensor = tokenize_batch(
                 tokenizer, inputs, tokens_to_generate, add_BOS
             )
-        if task_ids == None:
+        if task_ids is None:
             # Make a dummy tensor of -1s that won't be used during generation
             task_ids = torch.neg(torch.ones(context_tokens_tensor.size(0)))
 
