@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ from parameterized import parameterized
 from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
-class TestBoundary:
-
+class TestRange:
     normalizer_en = (
         Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE
@@ -33,7 +32,8 @@ class TestBoundary:
         else None
     )
 
-    @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_boundary.txt'))
+    # address is tagged by the measure class
+    @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_range.txt'))
     @pytest.mark.skipif(
         not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
     )
@@ -45,6 +45,6 @@ class TestBoundary:
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=30, punct_post_process=False
+                test_input, n_tagged=30, punct_post_process=False,
             )
             assert expected in pred_non_deterministic
