@@ -85,7 +85,7 @@ def main(cfg) -> None:
     )
     model.freeze()
     trainer.validate(model)
-    if hasattr(cfg.data, 'test_ds'):
+    if hasattr(cfg.model.data, 'test_ds'):
         trainer.test(model)
 
 
