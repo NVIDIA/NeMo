@@ -177,6 +177,120 @@ class ParallelMLP(MegatronModule):
         return output, output_bias
 
 
+class ParallelChunkedCrossAttention(MegatronModule):
+    """Parallel chunked cross-attention layer abstract class.
+
+    Self-attention layer takes input with size [b, s, h]
+    and returns output of the same size.
+    """
+
+    def __init__(
+        self,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        num_attention_heads,
+        hidden_size,
+        attention_type=AttnType.self_attn,
+        attn_mask_type=AttnMaskType.padding,
+        precision=16,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        use_cpu_initialization=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
+        megatron_legacy=False,
+        chunk_size=64,  # each chunk, how many tokens
+    ):
+        super(ParallelAttention, self).__init__()
+        self.cross_attention = ParallelAttention(
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+            layer_number=layer_number,
+            num_attention_heads=num_attention_heads,
+            hidden_size=hidden_size,
+            attention_type=attention_type,
+            attn_mask_type=attn_mask_type,
+            precision=precision,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            use_cpu_initialization=use_cpu_initialization,
+            masked_softmax_fusion=masked_softmax_fusion,
+            attention_dropout=attention_dropout,
+            megatron_legacy=megatron_legacy,
+        )
+        self.chunk_size = chunk_size
+
+    def forward(
+        self,
+        hidden_states,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        encoder_output=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        context=None,
+        pos_emb=None,
+    ):
+        # hidden_states is assumed to have dimension [batch, token length, dimension]
+        # derive variables
+        # context is assumed to have dimension [batch, num_chunks, num_neighbors, context_token_len, dimension]
+        chunk_size = self.chunk_size
+
+        b, n, num_chunks, num_retrieved = hidden_states.shape[0], hidden_states.shape[-2], *context.shape[-4:-2]
+
+        # if sequence length less than chunk size, do an early return
+
+        if n < self.chunk_size:
+            return torch.zeros_like(hidden_states)
+
+        # causal padding
+        causal_padding = chunk_size - 1
+
+        x = F.pad(hidden_states, (0, 0, -causal_padding, causal_padding), value = 0.)
+
+        # remove sequence which is ahead of the neighbors retrieved (during inference)
+
+        seq_index = (n // chunk_size) * chunk_size
+        x, x_remainder = x[:, :seq_index], x[:, seq_index:]
+
+        seq_remain_len = x_remainder.shape[-2]
+
+        # take care of rotary positional embedding
+        # make sure queries positions are properly shifted to the future
+
+        q_pos_emb, k_pos_emb = pos_emb
+        # currently implementation is broken
+        # q need to extend to causal_padding, and just do
+        # q_pos_emb = F.pad(q_pos_emb, (0, 0, -causal_padding, 0), value = 0.)
+        q_pos_emb = F.pad(q_pos_emb, (0, 0, -causal_padding, causal_padding), value = 0.)
+
+        k_pos_emb = repeat(k_pos_emb, 'b h n d -> b h (r n) d', r = num_retrieved)
+        pos_emb = (q_pos_emb, k_pos_emb)
+
+        # reshape so we have chunk to chunk attention, without breaking causality
+
+        x = rearrange(x, 'b (k n) d -> (b k) n d', k = num_chunks)
+        context = rearrange(context, 'b k r n d -> (b k) (r n) d')
+
+        if exists(context_mask):
+            context_mask = rearrange(context_mask, 'b k r n -> (b k) (r n)')
+
+        # cross attention
+
+        out = self.cross_attn(x, context = context, mask = context_mask, pos_emb = pos_emb)
+
+        # reshape back to original sequence
+
+        out = rearrange(out, '(b k) n d -> b (k n) d', b = b)
+
+        # pad back to original, with 0s at the beginning (which will be added to the residual and be fine)
+
+        out = F.pad(out, (0, 0, causal_padding, -causal_padding + seq_remain_len), value = 0.)
+        return out
+
+
 class ParallelAttention(MegatronModule):
     """Parallel self-attention layer abstract class.
 
