@@ -13,11 +13,7 @@
 # limitations under the License.
 
 """Transformer based language model."""
-import math
-
 import torch
-import torch.nn as nn
-import torch.nn.init as init
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer

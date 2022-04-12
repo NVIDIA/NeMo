@@ -18,7 +18,6 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
 from nemo.core.classes import Exportable, NeuralModule
 
 try:
@@ -169,7 +168,7 @@ class PromptEmbedding(NeuralModule, Exportable):
 
     def forward(self, input_ids=None):
         # Just get embeddings and dropout
-        if input_ids == None:
+        if input_ids is None:
             prompt_embeddings = self.prompt_embeddings(self.indices)
         else:
             prompt_embeddings = self.prompt_embeddings(input_ids)

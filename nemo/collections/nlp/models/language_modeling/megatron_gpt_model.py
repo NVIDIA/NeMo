@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 from omegaconf.dictconfig import DictConfig
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
@@ -723,7 +722,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         inputs: Union[List[str], torch.Tensor, List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-    ):
+    ) -> OutputType:
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():

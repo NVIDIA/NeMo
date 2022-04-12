@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import json
-from multiprocessing.sharedctypes import Value
 
-import numpy as np
 import torch
 from tqdm import tqdm
 

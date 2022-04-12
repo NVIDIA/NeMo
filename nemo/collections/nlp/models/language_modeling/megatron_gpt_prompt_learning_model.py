@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import re
-from os import path
 from typing import Any, List, Optional, Union
 
 import torch
@@ -27,27 +26,18 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_da
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common import PromptEncoder, PromptTable
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-    TextGeneration,
-)
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
 
 try:
-    from apex.transformer import tensor_parallel
     from apex.transformer import parallel_state
 
     HAVE_APEX = True
@@ -56,7 +46,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-__all__ = ['MegatronGPTPPromptLearningModel']
+__all__ = ['MegatronGPTPromptLearningModel']
 
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):

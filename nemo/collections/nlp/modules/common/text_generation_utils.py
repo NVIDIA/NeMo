@@ -34,7 +34,13 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ["get_default_sampling_params", "get_default_length_params", "megatron_gpt_generate", "get_computeprob_response", "generate"]
+__all__ = [
+    "get_default_sampling_params",
+    "get_default_length_params",
+    "megatron_gpt_generate",
+    "get_computeprob_response",
+    "generate",
+]
 
 
 def get_default_sampling_params():
@@ -293,7 +299,6 @@ def receive_generate_info():
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
     torch.distributed.broadcast(task_ids, 0)
-
 
     return (
         context_length_tensor,
