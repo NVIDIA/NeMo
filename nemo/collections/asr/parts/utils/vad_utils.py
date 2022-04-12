@@ -233,7 +233,7 @@ def generate_overlap_vad_seq(
         out_dir (str): directory of generated predictions.
         num_workers(float): number of process for multiprocessing
     Returns:
-        overlap_out_dir(str): directory of generate predictions.
+        overlap_out_dir(str): directory of the generated predictions.
     """
 
     p = multiprocessing.Pool(processes=num_workers)
