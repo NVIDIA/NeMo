@@ -28,10 +28,11 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.utils import logging
+from nemo.utils import logging, AppState
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -151,12 +152,28 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def training_step(self, batch, batch_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=batch['text_enc'].size(0),
+            micro_batch_size=batch['text_enc'].size(0),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
         return super().training_step(batch, batch_idx)
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
         batch = self.process_global_batch_for_tarred_datasets(batch)
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=batch['text_enc'].size(0),
+            micro_batch_size=batch['text_enc'].size(0),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_global_batch_for_tarred_datasets(batch)

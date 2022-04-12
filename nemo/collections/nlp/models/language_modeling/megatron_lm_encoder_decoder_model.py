@@ -468,7 +468,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
-            import ipdb; ipdb.set_trace()
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
