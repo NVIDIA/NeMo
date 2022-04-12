@@ -192,7 +192,7 @@ class RequestDataSet(Dataset):
         return self.sentences[idx]
 
 
-@hydra_runner(config_path="conf", config_name="prompt_learning_megatron_gpt_inference")
+@hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
     # trainer required for restoring model parallel models
@@ -259,7 +259,7 @@ def main(cfg) -> None:
     )
 
     print("***************************")
-    print(response['tokens'])
+    print(response)
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
@@ -268,7 +268,7 @@ def main(cfg) -> None:
         collate_fn = lambda x: list(x)
 
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
+    request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
 
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)

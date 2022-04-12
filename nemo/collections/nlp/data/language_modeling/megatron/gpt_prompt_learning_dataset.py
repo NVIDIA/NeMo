@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ __all__ = ['GPTPromptLearningDataset']
 
 class GPTPromptLearningDataset(Dataset):
     """
-    The dataset class for prompt-tuning or p-tuning GPT models.
+    The dataset class for prompt-tuning or p-tuning pretrained GPT models.
     """
 
     def __init__(
@@ -80,6 +80,16 @@ class GPTPromptLearningDataset(Dataset):
             raise ValueError("Datasets must be a list of dicts or a list of filepath strings")
 
     def load_data(self, dataset):
+        """
+        Loads a dataset by filling in the task templates specified in the config file
+        with the information from each training/inference example. Converts all input 
+        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
+        the task templates with the actual virtual prompt token ids. 
+
+        params:
+            dataset: A list of json objects or a dictionary objects each
+                     containing the information needed for a training example
+        """
         skipped = 0
 
         for json_line in tqdm(dataset):

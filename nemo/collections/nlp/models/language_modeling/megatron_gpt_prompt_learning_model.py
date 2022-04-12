@@ -223,7 +223,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.prompt_encoder = None
 
     def freeze_existing_virtual_prompt_params(self):
-        """Freeze params of existing virtual prompts that should not be tuned more
+        """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
         for taskname in self.prompt_table.prompt_table.keys():
@@ -303,8 +303,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         Replaces the virtual tokens in the input_ids with embeddings 
         calculated from either the 'prompt_table' or 'prompt_encoder'. 
-        The virtual token placeholders have the token_id 
-        `self.pseudo_token_id`.
+        The virtual token placeholders have token_ids listed in
+        `self.pseudo_token_ids`.
 
         params:
             input_ids: the input token ids
@@ -346,10 +346,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def embed_input_inference(self, input_ids: Tensor, taskname_ids: Tensor):
         """
-        Replaces the virtual tokens in the input_ids with embeddings 
-        calculated from either the 'prompt_table' or 'prompt_encoder'. 
-        The virtual token placeholders have the token_id 
-        `self.pseudo_token_id`.
+        Replaces the virtual tokens in the input_ids with embeddings the 
+        'prompt_table' only. The virtual token placeholders each have their
+        own unique token_id within `self.pseudo_token_ids` to facilitate 
+        placing the virtual tokens in their correct locations at each 
+        decoding time step. 
 
         params:
             input_ids: the input token ids
@@ -581,6 +582,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             add_eos=False,
         )
         task_ids, processed_inputs = dataset.get_all_examples(tokens_to_generate=length_params['max_length'])
+        self.model.model.parallel_output = False
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(

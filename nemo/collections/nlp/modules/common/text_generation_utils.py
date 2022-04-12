@@ -34,7 +34,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ["get_computeprob_response", "generate"]
+__all__ = ["get_default_sampling_params", "get_default_length_params", "megatron_gpt_generate", "get_computeprob_response", "generate"]
 
 
 def get_default_sampling_params():
@@ -74,7 +74,6 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
         response = generate(
             model,
             inputs=inputs,
-            task_ids=task_ids,
             tokens_to_generate=length_params['max_length'],
             all_probs=sampling_params['all_probs'],
             temperature=sampling_params['temperature'],
@@ -84,6 +83,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             greedy=sampling_params['use_greedy'],
             repetition_penalty=sampling_params['repetition_penalty'],
             min_tokens_to_generate=length_params['min_length'],
+            task_ids=task_ids,
         )
         compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
         return compute_prob_response
@@ -93,7 +93,6 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
             output = generate(
                 model,
                 inputs=inputs,
-                task_ids=task_ids,
                 tokens_to_generate=length_params['max_length'],
                 all_probs=sampling_params['all_probs'],
                 temperature=sampling_params['temperature'],
@@ -103,6 +102,7 @@ def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_para
                 greedy=sampling_params['use_greedy'],
                 repetition_penalty=sampling_params['repetition_penalty'],
                 min_tokens_to_generate=length_params['min_length'],
+                task_ids=task_ids,
             )
             return output
         elif isinstance(inputs[0], dict):
@@ -233,6 +233,7 @@ def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
 def send_generate_info(
     context_tokens_tensor,
     context_length_tensor,
+    task_ids,
     tokens_to_generate,
     all_probs,
     temperature,
@@ -264,6 +265,7 @@ def send_generate_info(
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(task_ids, 0)
 
 
 def receive_generate_info():
@@ -290,6 +292,8 @@ def receive_generate_info():
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(task_ids, 0)
+
 
     return (
         context_length_tensor,
@@ -393,7 +397,6 @@ def synced_generate(
 def generate(
     model,
     inputs=None,
-    task_ids=None,
     tokens_to_generate=0,
     all_probs=False,
     temperature=1.0,
@@ -403,12 +406,12 @@ def generate(
     greedy=False,
     repetition_penalty=1.0,
     min_tokens_to_generate=0,
+    task_ids=None,
 ) -> OutputType:
     """
     Args:
         model (NLPModel): text generative model
         inputs (Union[tuple, List[str]]): if it is a tuple, it is assumed to be (context_tokens_tensor, context_length_tensor). Otherwise it it a list of prompt text strings
-        task_ids (Tensor): TODO (optional, used for generating with p-tuned/prompt-tuned models)
         tokens_to_generate (int): The maximum length of the tokens to be generated.
         all_probs (bool): Return the log prob for all the tokens
         temperature (float): sampling temperature
@@ -418,6 +421,7 @@ def generate(
         greedy (bool):  Whether or not to use sampling ; use greedy decoding otherwise
         repetition_penalty (float): The parameter for repetition penalty. 1.0 means no penalty
         min_tokens_to_generate (int): The minimum length of the tokens to be generated
+        task_ids (Tensor): used to specify that task when generating with p-tuned/prompt-tuned models (optional)
     Returns:
         OutputType: It generates the output in a dictionary type. It has the following keys:
             sentences: List[str], output sentences
@@ -436,9 +440,14 @@ def generate(
             context_tokens_tensor, context_length_tensor = tokenize_batch(
                 tokenizer, inputs, tokens_to_generate, add_BOS
             )
+        if task_ids == None:
+            # Make a dummy tensor of -1s that won't be used during generation
+            task_ids = torch.neg(torch.ones(context_tokens_tensor.size(0)))
+
         send_generate_info(
             context_tokens_tensor,
             context_length_tensor,
+            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -535,7 +544,7 @@ def forward_step(model, batch, tensor_shape):
     if hasattr(model, 'prompt_table'):
         forward_model = model
 
-    # Should to call GPTModel's forward method
+    # Should call GPTModel's forward method
     else:
         forward_model = model.model
 
@@ -629,12 +638,14 @@ def sample_sequence_batch(
                 [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
             )
             len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
-            if task_ids[0] == None:
-                batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
-                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
-            else:
+
+            # Only prompt learning models will have a prompt table, and require task ids
+            if hasattr(model, 'prompt_table'):
                 batch = [tokens2use, attention_mask_repeat, positions2use, task_ids, setkey_value_array, len_array]
                 tensor_shape = [tokens2use.shape[1], micro_batch_size, model.model.cfg.hidden_size]
+            else:
+                batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
 
@@ -670,7 +681,7 @@ def sample_sequence_batch(
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
                 # Replace special soft prompt token ids with unk token ids
-                if hasattr(model, 'pseudo_token_ids_start'):
+                if hasattr(model, 'prompt_table'):
                     pseudo_token_ids_start = model.pseudo_token_ids_start
                     new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
                     tokens[:, :context_length][
