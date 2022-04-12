@@ -94,7 +94,7 @@ def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
         'spanish-nr_conformer_ctc':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_ctc_large.nemo"), 
         'spanish-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_transducer_large.nemo"), 
         'spanish-nr_contextnet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_contextnet_1024.nemo"), 
-        'russian':  (False, False, False, "stt_ru_quartznet15x5"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint  
+        'russian-citrinet':  (False, False, False, "/home/fjia/models/vitaly/ru_model/CitriNet-1024-8x-Stride-Gamma-0.25.nemo"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint  
     }
     
     lang_model = lang + "-" + model
@@ -102,11 +102,13 @@ def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
 
 def main():
     # langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
-    # langs = ['english']
+    # vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
+    # models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] # no russian citrinet now
     db_list = [0,5,10,15,20,'clean']
-    models = ['citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] # no russian citrinet now
+    
     langs = ['spanish', ]
+    vad_exps = ["novad", "oracle_vad",] 
+    models = ['nr_conformer_transducer']
 
     subset="test"
     single= True
@@ -138,7 +140,7 @@ def main():
                         input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
 
                     if vad_exp =="novad":
-                        novad_output_manifest= f"{final_output_folder}/{lang}/asr_novad_output_manifest_{db}.json"
+                        novad_output_manifest= f"{final_output_folder}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
                         if use_model_path:
                             os.system(f'python ../transcribe_speech.py \
                                 model_path={asr_model} \
