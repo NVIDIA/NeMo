@@ -26,7 +26,7 @@ except (ImportError, ModuleNotFoundError):
 
 def bias_dropout_add(x, bias, residual, prob, training):
     # type: (Tensor, Tensor, Tensor, float, bool) -> Tensor
-    if bias:
+    if bias is not None:
         x = x + bias
     out = torch.nn.functional.dropout(x, p=prob, training=training)
     out = residual + out
