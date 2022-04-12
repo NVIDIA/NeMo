@@ -22,10 +22,16 @@ from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionP
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin, NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin
+from nemo.collections.nlp.parts.nlp_overrides import (
+    GradScaler,
+    MegatronHalfPrecisionPlugin,
+    NLPDDPPlugin,
+    NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -127,7 +133,7 @@ def main(cfg) -> None:
             pretrained_cfg.attention_dropout = cfg.model.attention_dropout
 
             # Override precision
-            pretrained_cfg.precision = cfg.model.precision # Set above from trainer.precision
+            pretrained_cfg.precision = cfg.model.precision  # Set above from trainer.precision
 
             # Override data and global/micro batch size.
             pretrained_cfg.train_ds = cfg.model.train_ds
@@ -138,7 +144,9 @@ def main(cfg) -> None:
             pretrained_cfg.global_batch_size = cfg.model.global_batch_size
 
             # Class target for the new class being restored.
-            pretrained_cfg.target = "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
+            pretrained_cfg.target = (
+                "nemo.collections.nlp.models.machine_translation.megatron_nmt_model.MegatronNMTModel"
+            )
 
             # Optimizer overrides.
             pretrained_cfg.optim = cfg.model.optim

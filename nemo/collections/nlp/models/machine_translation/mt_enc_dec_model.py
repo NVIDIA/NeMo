@@ -134,7 +134,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             special_tokens=self.special_tokens,
             encoder_sentencepiece_legacy=False,
-            decoder_sentencepiece_legacy=False
+            decoder_sentencepiece_legacy=False,
         )
         self.encoder_tokenizer, self.decoder_tokenizer = encoder_tokenizer, decoder_tokenizer
 
@@ -528,7 +528,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             special_tokens=special_tokens,
             use_fast=False,
             r2l=encoder_r2l,
-            legacy=encoder_sentencepiece_legacy
+            legacy=encoder_sentencepiece_legacy,
         )
 
         decoder_tokenizer = get_nmt_tokenizer(
@@ -540,7 +540,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             special_tokens=special_tokens,
             use_fast=False,
             r2l=decoder_r2l,
-            legacy=decoder_sentencepiece_legacy
+            legacy=decoder_sentencepiece_legacy,
         )
 
         # validate no token is negative for sentencepiece tokenizers

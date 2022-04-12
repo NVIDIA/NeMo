@@ -21,14 +21,14 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.utils import logging, AppState
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -206,7 +206,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             if hasattr(self.decoder_tokenizer, 'special_token_to_id'):
                 pred = [id for id in pred if id not in self.decoder_tokenizer.special_token_to_id.values()]
                 label = [id for id in label if id not in self.decoder_tokenizer.special_token_to_id.values()]
-            
+
             if hasattr(self.encoder_tokenizer, 'special_token_to_id'):
                 input = [id for id in input if id not in self.encoder_tokenizer.special_token_to_id.values()]
 
