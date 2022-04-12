@@ -47,6 +47,7 @@ except ImportError:
 This file contains all the utility functions required for voice activity detection. 
 """
 
+
 def prepare_manifest(config: dict) -> str:
     """
     Perform VAD on long audio snippet might cause CUDA out of memory issue. 
@@ -774,7 +775,7 @@ def vad_tune_threshold_on_dev(
             if type(param[i]) == np.float64 or type(param[i]) == np.int64:
                 param[i] = float(param[i])
         try:
-            # Generate speech segments by performing binarization on the VAD prediction according to param. 
+            # Generate speech segments by performing binarization on the VAD prediction according to param.
             # Filter speech segments according to param and write the result to rttm-like table.
             vad_table_dir = generate_vad_segment_table(
                 vad_pred, param, shift_length_in_sec=shift_length_in_sec, num_workers=num_workers
