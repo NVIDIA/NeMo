@@ -152,11 +152,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def training_step(self, batch, batch_idx):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+        batch = self.process_global_batch_for_tarred_datasets(batch)
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0),
+            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
             micro_batch_size=batch['text_enc'].size(0),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
@@ -170,13 +171,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0),
+            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
             micro_batch_size=batch['text_enc'].size(0),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = super().validation_step(batch, batch_idx)
-        tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask = self.process_global_batch_for_tarred_datasets(batch)
+        tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
             enc_mask,

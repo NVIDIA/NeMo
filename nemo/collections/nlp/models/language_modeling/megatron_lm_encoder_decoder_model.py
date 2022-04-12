@@ -805,7 +805,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
+    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, tokenizer=None):
+        # If classes that inherit from this class are using a different tokenizer,
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
         app_state = AppState()
         global_batch_per_gpu = tokens_enc.size(0)
         num_micro_batches_before_decode = get_num_microbatches()
@@ -819,7 +821,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         predicted_tokens_dec = (
-            torch.LongTensor([self.tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(tokens_enc.device)
+            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(tokens_enc.device)
         )
         encoder_seq_length = tokens_enc.size(1)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
@@ -828,7 +830,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
-            dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
+            dec_mask = predicted_tokens_dec != tokenizer.pad_id
 
             batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
