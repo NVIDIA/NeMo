@@ -22,7 +22,7 @@ from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, app_state, logging
 
 try:
     from apex.transformer import parallel_state
@@ -162,6 +162,17 @@ class MegatronT5GLUEModel(MegatronT5Model):
         )
         return super().on_validation_epoch_start()
 
+    def on_test_epoch_start(self):
+        app_state = AppState()
+        _reconfigure_microbatch_calculator(
+            rank=app_state.global_rank,
+            rampup_batch_size=None,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        )
+        return super().on_test_epoch_start()
+
     def on_validation_epoch_end(self):
         app_state = AppState()
         if hasattr(self, "_train_ds"):
@@ -196,6 +207,18 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             processed_batch = batch
 
+        micro_batch_size = processed_batch[0]['text_enc'].size(0)
+
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
         # Call parent validation step to get the loss.
         loss = super().validation_step(processed_batch, batch_idx)
 
