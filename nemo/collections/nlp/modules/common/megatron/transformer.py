@@ -28,7 +28,6 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -84,8 +83,8 @@ class ParallelMLP(MegatronModule):
         self.activation = activation
         self.bias = bias
 
-        if activation not in ['gelu', 'geglu']:
-            raise ValueError(f"Activation {activation} not supported. Only gelu and geglu are supported.")
+        if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
+            raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
 
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
@@ -98,17 +97,35 @@ class ParallelMLP(MegatronModule):
             bias=bias
         )
 
-        if activation == 'geglu':
-            # Separate linear layer for GEGLU activation.
+        if activation in ['geglu', 'reglu', 'swiglu']:
+            # Separate linear layer for *GLU activations.
             # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
             self.dense_h_to_4h_2 = tensor_parallel.ColumnParallelLinear(
                 hidden_size,
-                ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+                ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
                 gather_output=False,
                 init_method=init_method,
                 skip_bias_add=True,
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias
+            )
+            glu_activation_family = True
+        else:
+            glu_activation_family = False
+
+        if glu_activation_family and bias_gelu_fusion:
+            raise ValueError(
+                f"Cannot use bias_gelu_fusion with {activation} activation. Please turn bias gelu fusion off."
+            )
+
+        if glu_activation_family and openai_gelu:
+            raise ValueError(
+                f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off."
+            )
+
+        if glu_activation_family and onnx_safe:
+            raise ValueError(
+                f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
             )
 
         if bias_gelu_fusion and not bias:
@@ -116,16 +133,16 @@ class ParallelMLP(MegatronModule):
 
         self.bias_gelu_fusion = bias_gelu_fusion
 
-        self.activation_func = F.gelu
-
-        if activation == 'geglu':
-            self.activation_func = 'geglu'  # Implemented using F.gelu
-            if bias_gelu_fusion:
-                logging.warning("Bias Gelu Fusion is not supported for GEGLU activation. Running with pytorch F.gelu")
-        if openai_gelu:
+        if activation in ["gelu", "geglu"]:
+            self.activation_func = F.gelu
+        elif openai_gelu:
             self.activation_func = openai_gelu
         elif onnx_safe:
             self.activation_func = erf_gelu
+        elif activation == "reglu":
+            self.activation_func = F.relu
+        elif activation == "swiglu":
+            self.activation_func = F.silu
 
         # Project back to h.
         self.dense_4h_to_h = tensor_parallel.RowParallelLinear(
@@ -143,12 +160,10 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.activation == 'geglu':
+        if self.activation in ['geglu', 'reglu', 'swiglu']:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
-
-        if self.activation == 'geglu':
             if bias_parallel:
-                intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
+                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
                     intermediate_parallel_2 + bias_parallel_2
                 )
             else:
@@ -189,6 +204,7 @@ class ParallelAttention(MegatronModule):
         masked_softmax_fusion=True,
         attention_dropout=0.1,
         megatron_legacy=False,
+        bias=True
     ):
         super(ParallelAttention, self).__init__()
 
@@ -222,15 +238,16 @@ class ParallelAttention(MegatronModule):
                 gather_output=False,
                 init_method=init_method,
                 use_cpu_initialization=use_cpu_initialization,
+                bias=bias
             )
         else:
             assert attention_type == AttnType.cross_attn
             self.query = tensor_parallel.ColumnParallelLinear(
-                hidden_size, projection_size, gather_output=False, init_method=init_method
+                hidden_size, projection_size, gather_output=False, init_method=init_method, bias=bias
             )
 
             self.key_value = tensor_parallel.ColumnParallelLinear(
-                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method
+                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method, bias=bias
             )
 
         coeff = None
@@ -264,6 +281,7 @@ class ParallelAttention(MegatronModule):
             init_method=output_layer_init_method,
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
+            bias=bias
         )
 
         # Inference key-value memory
@@ -555,6 +573,7 @@ class ParallelTransformerLayer_(MegatronModule):
         attention_dropout=0.1,
         activation='gelu',
         megatron_legacy=False,
+        bias=True
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -566,6 +585,10 @@ class ParallelTransformerLayer_(MegatronModule):
 
         self.layer_number = layer_number
         self.layer_type = layer_type
+        self.bias = bias
+
+        if not bias and bias_dropout_fusion:
+            raise ValueError('bias_dropout_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.')
 
         # if true apply residual connection post layer norm (like original bert)
         self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm
@@ -591,6 +614,7 @@ class ParallelTransformerLayer_(MegatronModule):
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
+            bias=bias
         )
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
@@ -615,6 +639,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
+                bias=bias
             )
             # Layernorm on the attention output.
             self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
@@ -630,6 +655,7 @@ class ParallelTransformerLayer_(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
+            bias=bias
         )
 
     def forward(
@@ -678,8 +704,11 @@ class ParallelTransformerLayer_(MegatronModule):
         else:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
 
+        if attention_bias is not None:
+            attention_bias = attention_bias.expand_as(residual)
+
         layernorm_input = bias_dropout_add_func(
-            attention_output, attention_bias.expand_as(residual), residual, self.hidden_dropout
+            attention_output, attention_bias, residual, self.hidden_dropout
         )
 
         # Layer norm post the self attention.
@@ -695,8 +724,11 @@ class ParallelTransformerLayer_(MegatronModule):
             else:
                 residual = layernorm_input
 
+            if attention_bias is not None:
+                attention_bias = attention_bias.expand_as(residual)
+
             layernorm_input = bias_dropout_add_func(
-                attention_output, attention_bias.expand_as(residual), residual, self.hidden_dropout
+                attention_output, attention_bias, residual, self.hidden_dropout
             )
 
             # Layer norm post the decoder attention
@@ -711,7 +743,10 @@ class ParallelTransformerLayer_(MegatronModule):
         else:
             residual = layernorm_input
 
-        output = bias_dropout_add_func(mlp_output, mlp_bias.expand_as(residual), residual, self.hidden_dropout)
+        if mlp_bias is not None:
+            mlp_bias = mlp_bias.expand_as(residual)
+
+        output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
 
         if get_key_value:
             output = [output, presents]
@@ -800,6 +835,7 @@ class ParallelTransformer(MegatronModule):
         activation='gelu',
         model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
+        bias=True
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -854,6 +890,7 @@ class ParallelTransformer(MegatronModule):
                 onnx_safe=onnx_safe,
                 activation=activation,
                 megatron_legacy=megatron_legacy,
+                bias=bias
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
