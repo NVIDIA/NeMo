@@ -23,6 +23,7 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin, NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin
 from nemo.core.config import hydra_runner
@@ -85,7 +86,7 @@ def main(cfg) -> None:
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
 
-    if hasattr(cfg.model, 'pretrained_model_path'):
+    if hasattr(cfg.model, 'pretrained_model_path') and cfg.model.pretrained_model_path is not None:
         if not hasattr(cfg.model, 'pretrained_model_type'):
             raise ValueError(f"Pretrained model type must be in [T5, BART].")
 
@@ -95,7 +96,9 @@ def main(cfg) -> None:
                 cfg.model.pretrained_model_path, trainer=trainer, return_config=True
             )
         else:
-            raise NotImplementedError("BART not implemented yet.")
+            pretrained_cfg = MegatronBARTModel.restore_from(
+                cfg.model.pretrained_model_path, trainer=trainer, return_config=True
+            )
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.masked_softmax_fusion = False
