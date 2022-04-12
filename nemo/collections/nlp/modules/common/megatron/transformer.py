@@ -20,6 +20,7 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
+    dropout_add,
     bias_dropout_add,
     bias_dropout_add_fused_inference,
     bias_dropout_add_fused_train,
@@ -700,13 +701,15 @@ class ParallelTransformerLayer_(MegatronModule):
         # trigerring the fusion kernel. For now, we use two
         # different nn.functional routines to account for varying
         # dropout semantics during training and inference phases.
-        if self.bias_dropout_fusion:
+        if self.bias and self.bias_dropout_fusion:
             if self.training:
                 bias_dropout_add_func = bias_dropout_add_fused_train
             else:
                 bias_dropout_add_func = bias_dropout_add_fused_inference
-        else:
+        elif self.bias and not self.bias_dropout_fusion:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
+        else:
+            bias_dropout_add_func = dropout_add
 
         if attention_bias is not None:
             attention_bias = attention_bias.expand_as(residual)
