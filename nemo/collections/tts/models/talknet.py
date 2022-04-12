@@ -414,3 +414,16 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         model.add_module('_pitch_model', TalkNetPitchModel.from_pretrained(model_name, *args, **kwargs))
         model.add_module('_durs_model', TalkNetDursModel.from_pretrained(model_name, *args, **kwargs))
         return model
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Stopgap measure to keep old checkpoints working before full model deprecation.
+
+        This override fiddles with the state_dict in order to keep functionality from old checkpoints after the
+        switch from torch_stft. It will be removed when this model is deprecated.
+        """
+        if 'preprocessor.featurizer.stft.forward_basis' in state_dict:
+            window_dim = state_dict['preprocessor.featurizer.stft.forward_basis'].shape[-1]
+            state_dict['preprocessor.featurizer.window'] = torch.hann_window(window_dim)
+            del state_dict['preprocessor.featurizer.stft.forward_basis']
+            del state_dict['preprocessor.featurizer.stft.inverse_basis']
+        super().load_state_dict(state_dict, strict=strict)

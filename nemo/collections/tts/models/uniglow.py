@@ -264,3 +264,16 @@ class UniGlowModel(GlowVocoder):
         audio = split_view(audio, self._cfg.uniglow.n_group, 1).permute(0, 2, 1)
         upsample_factor = audio.shape[2] // spec.shape[2]
         return upsample_factor
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Stopgap measure to keep old checkpoints working before full model deprecation.
+
+        This override fiddles with the state_dict in order to keep functionality from old checkpoints after the
+        switch from torch_stft. It will be removed when this model is deprecated.
+        """
+        if 'audio_to_melspec_precessor.stft.forward_basis' in state_dict:
+            window_dim = state_dict['audio_to_melspec_precessor.stft.forward_basis'].shape[-1]
+            state_dict['audio_to_melspec_precessor.window'] = torch.hann_window(window_dim)
+            del state_dict['audio_to_melspec_precessor.stft.forward_basis']
+            del state_dict['audio_to_melspec_precessor.stft.inverse_basis']
+        super().load_state_dict(state_dict, strict=strict)
