@@ -2291,17 +2291,35 @@ pipeline {
         }
       }
       failFast true
-      steps{
-        sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-            --model_file \
-            /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file \
-            /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo \
-            --tensor_model_parallel_size \
-            2 \
-            --target_tensor_model_parallel_size \
-            1"
-          sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo"
+      parallel{
+        stage('Reduce Num Partitions (2 to 1)'){
+          steps{
+            sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+                --model_file \
+                /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+                --target_file \
+                /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo \
+                --tensor_model_parallel_size \
+                2 \
+                --target_tensor_model_parallel_size \
+                1"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
+          }
+        }
+        stage('Increase Num Partitions (2 to 4)'){
+          steps{
+            sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+                --model_file \
+                /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+                --target_file \
+                /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo \
+                --tensor_model_parallel_size \
+                2 \
+                --target_tensor_model_parallel_size \
+                4"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
+          }
+        }        
       }
     }
     stage('L2: Megatron T5 Pretraining and Resume Training TP=2') {
