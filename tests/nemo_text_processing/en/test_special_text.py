@@ -20,7 +20,7 @@ from parameterized import parameterized
 from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
-class TestBoundary:
+class TestSpecialText:
 
     normalizer_en = (
         Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
