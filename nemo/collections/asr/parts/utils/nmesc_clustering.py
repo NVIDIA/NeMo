@@ -35,7 +35,7 @@ from collections import Counter
 from typing import Dict, List
 
 import torch
-from torch.linalg import eigh as eigh
+from torch.linalg import eigh
 
 
 @torch.jit.script
@@ -529,7 +529,6 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     new_emb_np = torch.vstack(new_emb_list)
     return new_emb_np
 
-
 def getEnhancedSpeakerCount(
     emb: torch.Tensor,
     cuda: bool,
@@ -697,7 +696,7 @@ class SpectralClustering:
         Calculate eigenvalues and eigenvectors to extract spectral embeddings.
 
         Args:
-            affinity (torch.Tensor):
+            affinity (torch.tensor):
                 Affinity matrix input
             cuda (torch.bool):
                 Use cuda for spectral clustering if cuda=True
@@ -728,8 +727,8 @@ class NMESC:
     convert the rest of values to 0.
 
     p_value can be also tuned on a development set without performing
-    NME-analysis. This will brings about significantly faster clustering speed,
-    but the optimized performance is limited to the development set.
+    NME-analysis. Fixing p_value brings about significantly faster clustering
+    speed, but the performance is limited to the development set.
 
     References:
         Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization
