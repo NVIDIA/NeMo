@@ -17,6 +17,7 @@ from math import ceil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from nemo.collections.common.losses.cross_entropy import NLLLoss
+from nemo.core.neural_types.elements import LogprobsType
 
 import numpy as np
 import torch
@@ -84,10 +85,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Neural types of a :meth:`forward` method output."""
-        return {
-            "punct_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
-            "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
-        }
+        if(self.log_softmax):
+            return {
+                "punct_logits": NeuralType(('B', 'T', 'C'), LogprobsType()),
+                "capit_logits": NeuralType(('B', 'T', 'C'), LogprobsType()),
+            }
+        else:
+            return {
+                "punct_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
+                "capit_logits": NeuralType(('B', 'T', 'C'), LogitsType()),
+            }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         """Initializes BERT Punctuation and Capitalization model."""
@@ -99,6 +106,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.label_ids_are_set: bool = False
         self.punct_label_ids: Optional[Dict[str, int]] = None
         self.capit_label_ids: Optional[Dict[str, int]] = None
+        
+        if(cfg.get("log_softmax")):
+            self.log_softmax = cfg.get("log_softmax")
+        else:
+            self.log_softmax = False
+            
+        self.log_softmax: bool = cfg.get("use_logsoftmax")
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
@@ -107,7 +121,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             hidden_size=self.hidden_size,
             num_classes=len(self.punct_label_ids),
             activation=cfg.punct_head.activation,
-            log_softmax=True,
+            log_softmax=self.log_softmax,
             dropout=cfg.punct_head.fc_dropout,
             num_layers=cfg.punct_head.num_fc_layers,
             use_transformer_init=cfg.punct_head.use_transformer_init,
@@ -117,13 +131,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             hidden_size=self.hidden_size,
             num_classes=len(self.capit_label_ids),
             activation=cfg.capit_head.activation,
-            log_softmax=True,
+            log_softmax=self.log_softmax,
             dropout=cfg.capit_head.fc_dropout,
             num_layers=cfg.capit_head.num_fc_layers,
             use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
-        self.loss = NLLLoss(logits_ndim=3)
+        if(self.log_softmax):
+            self.loss = NLLLoss(logits_ndim=3)
+        else:
+            self.loss = CrossEntropyLoss(logits_ndim=3)
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
     @typecheck()
@@ -898,8 +915,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
             stm = self._remove_margins(stm, margin, keep_left=first, keep_right=last)
             for b_probs, logits in [(b_punct_probs, pl), (b_capit_probs, cl)]:
-                p = self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm]
+                if(self.log_softmax):
+                    p = self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm]
+                else:
+                    p = torch.nn.functional.softmax(
+                        self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
+                    )
                 b_probs.append(p.detach().cpu().numpy())
+                    
         return b_punct_probs, b_capit_probs, new_start_word_ids
 
     @staticmethod
@@ -929,7 +952,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return pred, acc_prob
 
     @staticmethod
-    def _update_accumulated_probabilities(acc_prob: np.ndarray, update: np.ndarray) -> np.ndarray:
+    def _update_accumulated_probabilities(log_softmax: bool, acc_prob: np.ndarray, update: np.ndarray) -> np.ndarray:
         """
         Args:
             acc_prob: numpy array of shape ``[A, L]``
@@ -937,7 +960,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob = np.concatenate([acc_prob + update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
+        if(log_softmax):
+            acc_prob = np.concatenate([acc_prob + update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
+        else:
+            acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
+            
         return acc_prob
 
     def _apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
@@ -1097,7 +1124,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(
                                 all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i]),
                             )
-                            acc_probs[q_i] = self._update_accumulated_probabilities(acc_probs[q_i], b_probs_i)
+                            acc_probs[q_i] = self._update_accumulated_probabilities(self.log_softmax, acc_probs[q_i], b_probs_i)
             for all_preds, acc_probs in [(all_punct_preds, acc_punct_probs), (all_capit_preds, acc_capit_probs)]:
                 for q_i, (pred, prob) in enumerate(zip(all_preds, acc_probs)):
                     if prob is not None:
