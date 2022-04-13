@@ -78,7 +78,7 @@ Example evaluation run on (cleaned) `Google's text normalization dataset <https:
 .. code::
 
     python clean_eval_data.py --input=<INPUT_TEXT_FILE>
-    python run_evaluation.py --input=./en_with_types/output-00001-of-00100 <--language LANGUAGE> [--cat CLASS_CATEGORY] [--filter]
+    python run_evaluate.py --input=./en_with_types/output-00001-of-00100 <--language LANGUAGE> [--cat CLASS_CATEGORY] [--filter]
 
 Supported Languages
 -------------------

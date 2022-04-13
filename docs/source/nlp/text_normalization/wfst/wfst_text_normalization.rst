@@ -77,7 +77,7 @@ Example evaluation run on `Google's text normalization dataset <https://www.kagg
 
 .. code::
 
-    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 --language=en [--cat CLASS_CATEGORY] [--input_case INPUT_CASE]
+    python run_evaluate.py  --input=./en_with_types/output-00001-of-00100 --language=en [--cat CLASS_CATEGORY] [--input_case INPUT_CASE]
  
 
 Audio-based Text Normalization
