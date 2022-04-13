@@ -226,7 +226,7 @@ class TestNeuralTypeCheckSystem:
         class MultipleMixedOutputTypes(Typing):
             @property
             def output_types(self):
-                return {"y": NeuralType(('B',), ElementType()), "z": [NeuralType(('B',), ElementType())]}
+                return {"y": NeuralType(('B',), ElementType()), "zs": [NeuralType(('B',), ElementType())]}
 
             @typecheck()
             def __call__(self, x):
@@ -273,7 +273,7 @@ class TestNeuralTypeCheckSystem:
         class MultipleMixedOutputTypes(Typing):
             @property
             def output_types(self):
-                return {"y": NeuralType(('B',), ElementType()), "z": [NeuralType(('B',), ElementType())]}
+                return {"ys": NeuralType(('B',), ElementType()), "z": [NeuralType(('B',), ElementType())]}
 
             @typecheck()
             def __call__(self, x):
