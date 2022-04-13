@@ -272,6 +272,7 @@ class UniGlowModel(GlowVocoder):
         switch from torch_stft. It will be removed when this model is deprecated.
         """
         if 'audio_to_melspec_precessor.stft.forward_basis' in state_dict:
+            logging.warning("Loading old checkpoint, defaulting to hann window.")
             window_dim = state_dict['audio_to_melspec_precessor.stft.forward_basis'].shape[-1]
             state_dict['audio_to_melspec_precessor.window'] = torch.hann_window(window_dim)
             del state_dict['audio_to_melspec_precessor.stft.forward_basis']

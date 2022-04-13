@@ -30,6 +30,7 @@ from nemo.core import Exportable
 from nemo.core.classes import ModelPT, PretrainedModelInfo, typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, RegressionValuesType, TokenIndex
+from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
 
@@ -422,6 +423,7 @@ class TalkNetSpectModel(SpectrogramGenerator, Exportable):
         switch from torch_stft. It will be removed when this model is deprecated.
         """
         if 'preprocessor.featurizer.stft.forward_basis' in state_dict:
+            logging.warning("Loading old checkpoint, defaulting to hann window.")
             window_dim = state_dict['preprocessor.featurizer.stft.forward_basis'].shape[-1]
             state_dict['preprocessor.featurizer.window'] = torch.hann_window(window_dim)
             del state_dict['preprocessor.featurizer.stft.forward_basis']
