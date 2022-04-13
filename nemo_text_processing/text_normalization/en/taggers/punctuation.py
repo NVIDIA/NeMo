@@ -17,6 +17,7 @@ import sys
 from unicodedata import category
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -41,12 +42,11 @@ class PunctuationFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
-
         s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
 
-        punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
-        punct_unicode.remove('[')
-        punct_unicode.remove(']')
+        punct_unicode = [
+            chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P") and chr(i) not in "[]"
+        ]
         punct = pynini.union(*s) | pynini.union(*punct_unicode)
 
         emphasis = (
