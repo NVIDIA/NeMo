@@ -111,8 +111,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.log_softmax = cfg.get("log_softmax")
         else:
             self.log_softmax = False
-            
-        self.log_softmax: bool = cfg.get("use_logsoftmax")
+        
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
