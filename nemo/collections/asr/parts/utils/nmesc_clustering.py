@@ -529,6 +529,7 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     new_emb_np = torch.vstack(new_emb_list)
     return new_emb_np
 
+
 def getEnhancedSpeakerCount(
     emb: torch.Tensor,
     cuda: bool,
