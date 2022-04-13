@@ -60,6 +60,9 @@ def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
 @torch.jit.script
 def ScalerMinMax(X: torch.Tensor):
     """
+    Min-max scale the input affinity matrix X, which will lead to a dynamic range of
+    [0, 1].
+
     Args:
         X: (torch.tensor)
             Matrix containing cosine similarity values among embedding vectors (N x N)
@@ -462,11 +465,11 @@ def getLaplacian(X: torch.Tensor):
 
 
 @torch.jit.script
-def eigDecompose(laplacian: torch.Tensor, is_cuda: bool, device: torch.device = torch.device('cpu')):
+def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')):
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
     """
-    if is_cuda:
+    if cuda:
         if device is None:
             device = torch.cuda.current_device()
         laplacian = laplacian.float().to(device)
@@ -540,8 +543,8 @@ def getEnhancedSpeakerCount(
     emb (torch.Tensor):
         The input embedding from the embedding extractor.
 
-    cuda (bool):
-        Use cuda for the operations if cuda=True.
+    cuda= (bool):
+        Use cuda for the operations if cuda==True.
 
     random_test_count (int):
         Number of trials of the enhanced counting with randomness.
@@ -585,7 +588,7 @@ def getEnhancedSpeakerCount(
 
 
 @torch.jit.script
-def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, is_cuda: bool = False):
+def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda: bool = False):
     """
     Estimate the number of speakers using eigendecomposition on the Laplacian Matrix.
 
@@ -596,7 +599,7 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, is_c
         max_num_speaker: (int)
             Maximum number of clusters to consider for each session
 
-        is_cuda: (bool)
+        cuda: (bool)
             If cuda available eigendecomposition is computed on GPUs.
 
     Returns:
@@ -610,7 +613,7 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, is_c
             The gap between the lambda values from eigendecomposition
     """
     laplacian = getLaplacian(affinity_mat)
-    lambdas, _ = eigDecompose(laplacian, is_cuda)
+    lambdas, _ = eigDecompose(laplacian, cuda)
     lambdas = torch.sort(lambdas)[0]
     lambda_gap = getLamdaGaplist(lambdas)
     num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
@@ -748,7 +751,7 @@ class NMESC:
                 threshold with NME analysis. If fixed_thres is float,
                 it skips the NME analysis part.
 
-            cuda: (bool)
+            cuda (bool)
                 Use cuda for Eigen decomposition if cuda=True.
 
             NME_mat_size: (int)
@@ -888,6 +891,7 @@ def COSclustering(
 ):
     """
     Clustering method for speaker diarization based on cosine similarity.
+    NME-SC part is converted to torch.tensor based operations in NeMo 1.9.
 
     Args:
         uniq_embs_and_timestamps: (dict)
@@ -916,7 +920,7 @@ def COSclustering(
         max_rp_threshold: (float)
             Limits the range of parameter search.
             Clustering performance can vary depending on this range.
-            Default is 0.25.
+            Default is 0.15.
 
         sparse_search_volume: (int)
             Number of p_values we search during NME analysis.
