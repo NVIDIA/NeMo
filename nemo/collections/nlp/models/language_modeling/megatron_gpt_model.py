@@ -726,23 +726,12 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
+            def dummy():
+                return
 
-            class RequestDataSet(Dataset):
-                def __init__(self, sentences):
-                    super().__init__()
-                    self.sentences = sentences
-
-                def __len__(self):
-                    return len(self.sentences)
-
-                def __getitem__(self, idx):
-                    return self.sentences[idx]
-
-            # TODO, this is a little hacky. need to handle this nicely in the future
-            # run empty predict to initialize the DDP
-            ds = RequestDataSet([""])
-            request_dl = DataLoader(dataset=ds, batch_size=1)
-            self.trainer.predict(self, request_dl)
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
 
         # set the default sampling params if it is None.
         # default do greedy sampling

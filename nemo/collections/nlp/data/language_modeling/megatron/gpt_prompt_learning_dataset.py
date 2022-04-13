@@ -104,34 +104,11 @@ class GPTPromptLearningDataset(Dataset):
             prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
             input_example = prompt_template
 
-            assert (
-                sum(prompt_token_splits) == self.total_virtual_tokens
-            ), "Sum of prompt token split values must equal total number of prompt tokens"
-            assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
-                prompt_token_splits
-            ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
-
+            self._input_sanity_checks(prompt_token_splits, prompt_template, prompt_template_fields, doc)
+            
             # Format the input example according to the template
-            for field in prompt_template_fields:
-                if field in doc.keys():
-                    field_text = doc[field]
-                    input_example = input_example.replace('{' + field + '}', field_text)
-
-                # If some fields from the template aren't present, e.g. {answer} during inference
-                # just remove that field from the template, leaving the space blank
-                else:
-                    input_example = input_example.replace('{' + field + '}', "")
-
-            total_inserted_tokens = 0
-
-            # Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers
-            for idx in range(len(prompt_token_splits)):
-                split_start = total_inserted_tokens
-                split_end = total_inserted_tokens + prompt_token_splits[idx]
-                pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
-                input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
-                total_inserted_tokens = split_end
-
+            input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
+            input_example = self._insert_virtual_token_placeholders(input_example, prompt_token_splits)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default
@@ -140,7 +117,11 @@ class GPTPromptLearningDataset(Dataset):
             if self.add_eos:
                 input_ids = input_ids + [self.tokenizer.eos_id]
 
-            # Skip example if the final length doesn't fit length requirements
+            # Try to truncate input text to fit into the max sequence length
+            if len(input_ids) > self.max_seq_length:
+                input_ids = self._truncate_input(input_ids, taskname, doc)
+
+            # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
                 if self.virtual_prompt_source == "prompt-encoder":
                     taskname_id = self.tokenizer.text_to_ids(taskname)
@@ -153,7 +134,75 @@ class GPTPromptLearningDataset(Dataset):
             else:
                 skipped += 1
 
-        logging.info(f'Skipped {skipped} sentences, sequence length too long or too short')
+        logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
+
+    def _input_sanity_checks(self, prompt_token_splits, prompt_template, prompt_template_fields, doc):
+        # Check if input example has fields not present in template
+        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
+        assert (
+            len(keys_not_in_template) == 0
+        ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
+
+        assert (
+            sum(prompt_token_splits) == self.total_virtual_tokens
+        ), "Sum of prompt token split values must equal total number of prompt tokens"
+
+        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+            prompt_token_splits
+        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
+    
+    def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
+        """ Format the input example according to the template """
+        for field in prompt_template_fields:
+            if field in doc.keys():
+                field_text = doc[field]
+                input_example = input_example.replace('{' + field + '}', field_text)
+
+            # If some fields from the template aren't present, e.g. {answer} during inference
+            # just remove that field from the template, leaving the space blank
+            else:
+                input_example = input_example.replace('{' + field + '}', "")
+
+        return input_example
+
+    def _insert_virtual_token_placeholders(self, input_example, prompt_token_splits):
+        """ Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers """
+        total_inserted_tokens = 0
+
+        for idx in range(len(prompt_token_splits)):
+            split_start = total_inserted_tokens
+            split_end = total_inserted_tokens + prompt_token_splits[idx]
+            pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
+            input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+            total_inserted_tokens = split_end
+
+        return input_example
+
+    def _truncate_input(self, input_ids, taskname, doc):
+        """ Try to truncate input text to fit into the max sequence length """
+        truncation_field = self.task_templates[taskname]['truncate_field']
+        logging.info(f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'")
+
+        # Truncate the text ids in this part of input to try and fit max sequence length 
+        if truncation_field is not None and truncation_field in doc.keys():
+            truncation_length = len(input_ids) - self.max_seq_length
+            field_text = doc[truncation_field]
+
+            # Add leading space to text if there is a space before it in the template
+            prompt_template = self.task_templates[taskname]["prompt_template"]
+            field_text_start = prompt_template.find("{" + truncation_field + "}")
+            if field_text_start != 0 and prompt_template[field_text_start - 1] == " ":
+                field_text = " " + field_text
+
+            # Truncate field text
+            field_text_ids = self.tokenizer.text_to_ids(field_text)
+            truncated_text_ids = field_text_ids[:-min(truncation_length, len(field_text_ids))]
+
+            # Replace original text ids with truncated text ids
+            field_start, field_end = find_subsequence_location(input_ids, field_text_ids)
+            input_ids = input_ids[:field_start] + truncated_text_ids + input_ids[field_end + 1:]
+
+        return input_ids
 
     def __len__(self):
         return len(self.examples)
@@ -235,3 +284,36 @@ class GPTPromptLearningDataset(Dataset):
         input_ids = torch.cuda.LongTensor(input_ids)
 
         return task_id_nums, (input_ids, input_lengths)
+
+
+def find_subsequence_location(sequence, subsequence):
+    """ Finds the start and end index of the first occurance 
+        of a given subsequence within a larger list. Returns 
+        the two indices corresponding to the postition of 
+        the first and last token of the subseqeunce.
+        Assumes subsequence is known to be in sequence. 
+    """
+    assert len(sequence) >= len(subsequence), "subsequence too long"
+
+    start_idx = None
+    next_subseq_token = subsequence[0]
+    next_subsequence_idx = 1
+
+    for seq_idx, token in enumerate(sequence):
+        if token == next_subseq_token:
+            if start_idx is None:
+                start_idx = seq_idx
+
+            if next_subsequence_idx == len(subsequence):
+                end_idx = seq_idx
+                return start_idx, end_idx
+            else:
+                next_subseq_token = subsequence[next_subsequence_idx]
+                next_subsequence_idx += 1
+        else: 
+            start_idx = None
+            next_subseq_token = subsequence[0]
+            next_subsequence_idx = 1
+
+    raise ValueError("Subsequence not found in sequence")
+

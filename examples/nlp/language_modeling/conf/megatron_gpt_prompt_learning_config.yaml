@@ -47,23 +47,28 @@ model:
   total_virtual_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  batch_size: 16
+  batch_size: 8
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
   existing_tasks: ['boolq', 'intent_and_slot'] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ['rte'] # List of new tasknames to be prompt-tuned
 
-  task_templates: # Add more as needed
-  - taskname: 'boolq'
+  task_templates: # Add more/replace tasks as needed, these are just examples
+  - taskname: 'boolq' # The task name
     prompt_template: '<|VIRTUAL_PROMPT_0|> Passage: {passage} <|VIRTUAL_PROMPT_1|> \nQuestion: {question} \nAnswer: {answer}' # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
     prompt_token_splits: [80, 20] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+    truncate_field: 'passage' # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+
   - taskname: 'intent_and_slot'
     prompt_template: '<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}' 
     prompt_token_splits: [34, 33, 33]
+    truncate_field: null
+
   - taskname: 'rte'
     prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
     prompt_token_splits: [100]
+    truncate_field: null
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks

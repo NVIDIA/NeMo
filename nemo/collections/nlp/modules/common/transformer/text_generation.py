@@ -58,7 +58,7 @@ class TextGeneration:
         inputs: Union[List[str], Tuple[Tensor, Tensor], List[dict]],
         length_params: LengthParam,
         sampling_params: SamplingParam = None,
-    ):
+    ) -> OutputType:
         """
         Public method to generate text.
 

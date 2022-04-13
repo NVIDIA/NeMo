@@ -52,8 +52,8 @@ class PromptTable(NeuralModule, Exportable):
 
     def forward(self, task_id_num, input_ids=None):
         task_id_num = task_id_num.item()
-        taskname = self.task_id_num_to_name[task_id_num]
-        return self.prompt_table[taskname](input_ids)
+        tasknames = self.task_id_num_to_name[task_id_num]
+        return self.prompt_table[tasknames](input_ids)
 
     def remove_prompt(self, taskname):
         if taskname not in prompt_table:
