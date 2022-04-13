@@ -409,7 +409,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             global_batch.append(batch)
 
         # Parent function will pad microbatches to the same length.
-        return self._process_global_batch_without_megatron_batch_sampler(global_batch)
+        return self._process_global_batch_without_megatron_batch_sampler(global_batch, tokenizer=self.encoder_tokenizer)
 
     def build_train_valid_test_datasets(self):
         self._train_ds = MTEncDecModel._setup_dataset_from_config(

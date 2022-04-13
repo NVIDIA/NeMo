@@ -559,10 +559,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return tokens_enc, tokens_dec, loss_mask, labels, enc_mask, dec_mask
 
-    def _process_global_batch_without_megatron_batch_sampler(self, global_batch):
+    def _process_global_batch_without_megatron_batch_sampler(self, global_batch, tokenizer=None):
         """ Prepares the global batch for apex fwd/bwd functions.
             Global batch is a list of micro batches.
         """
+        tokenizer = self.tokenizer if tokenizer is None else tokenizer
         text_enc_list = []
         text_dec_list = []
         labels_list = []
@@ -581,20 +582,20 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # Check if encoder sequence length < max encoder sequence length of the global batch and pad.
             if text_enc.shape[1] < max_enc_seq_lenth:
                 text_enc = torch.nn.functional.pad(
-                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                    text_enc, (0, max_enc_seq_lenth - text_enc.shape[1], 0, 0), 'constant', tokenizer.pad_id
                 )
                 enc_mask = torch.nn.functional.pad(
                     enc_mask, (0, max_enc_seq_lenth - enc_mask.shape[1], 0, 0), 'constant', 0
                 )
             if text_dec.shape[1] < max_dec_seq_lenth:
                 text_dec = torch.nn.functional.pad(
-                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                    text_dec, (0, max_dec_seq_lenth - text_dec.shape[1], 0, 0), 'constant', tokenizer.pad_id
                 )
                 dec_mask = torch.nn.functional.pad(
                     dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
                 )
                 labels = torch.nn.functional.pad(
-                    labels, (0, max_dec_seq_lenth - labels.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                    labels, (0, max_dec_seq_lenth - labels.shape[1], 0, 0), 'constant', tokenizer.pad_id
                 )
                 loss_mask = torch.nn.functional.pad(
                     loss_mask, (0, max_dec_seq_lenth - loss_mask.shape[1], 0, 0), 'constant', 0
