@@ -135,7 +135,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
 
         if(self.log_softmax):
-            self.loss = NLLLoss(logits_ndim=3)
+            self.loss = NLLLoss(log_probs_ndim=3)
         else:
             self.loss = CrossEntropyLoss(logits_ndim=3)
         self.agg_loss = AggregatorLoss(num_inputs=2)
