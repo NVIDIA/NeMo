@@ -102,7 +102,7 @@ def kmeans_plusplus_torch(
     X: torch.Tensor,
     n_clusters: int,
     random_state: int,
-    n_local_trials: int = 20,
+    n_local_trials: int = 30,
     device: torch.device = torch.device('cpu'),
 ):
     """
@@ -193,6 +193,7 @@ def kmeans_torch(
     num_clusters: int,
     threshold: float = 1e-4,
     iter_limit: int = 15,
+    random_state: int = 0,
     device: torch.device = torch.device('cpu'),
 ):
     """
@@ -232,7 +233,7 @@ def kmeans_torch(
     input_size = X.shape[0]
 
     # Initialize the cluster centers with kmeans_plusplus algorithm.
-    plusplus_init_states = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=0, device=device)
+    plusplus_init_states = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=random_state, device=device)
     centers = plusplus_init_states[0]
 
     iter_count = 0
@@ -543,7 +544,7 @@ def getEnhancedSpeakerCount(
     emb (torch.Tensor):
         The input embedding from the embedding extractor.
 
-    cuda= (bool):
+    cuda (bool):
         Use cuda for the operations if cuda==True.
 
     random_test_count (int):
@@ -622,38 +623,91 @@ def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda
 
 @torch.jit.script
 class SpectralClustering:
+    """
+    Perform spectral clustering by calculating spectral embeddings then run k-means clustering
+    algorithm on the spectral embeddings.
+    """
+
     def __init__(
         self,
         n_clusters: int = 8,
         random_state: int = 0,
-        n_init: int = 10,
+        random_trial: int = 1,
         p_value: int = 10,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
         self.n_clusters = n_clusters
         self.random_state = random_state
-        self.n_init = n_init
+        self.random_trial = max(random_trial, 1)
         self.p_value = p_value
         self.cuda = cuda
         self.device = device
 
     def predict(self, X):
+        """
+        Call self.clusterSpectralEmbeddings() function to predict cluster labels.
+
+        Args:
+            X (torch.tensor):
+                Affinity matrix input
+
+        Returns:
+            labels (torch.tensor):
+                clustering label output
+        """
         if X.shape[0] != X.shape[1]:
             raise ValueError("The affinity matrix is not a square matrix.")
-        labels = self.clusterSpectralEmbeddings(X, n_init=self.n_init, cuda=self.cuda, device=self.device)
+        labels = self.clusterSpectralEmbeddings(X, cuda=self.cuda, device=self.device)
         return labels
 
-    def clusterSpectralEmbeddings(
-        self, affinity, n_init: int = 10, cuda: bool = False, device: torch.device = torch.device('cpu')
-    ):
-        spectral_emb = self.getSpectralEmbeddings(affinity, n_spks=self.n_clusters, drop_first=False, cuda=cuda)
-        labels = kmeans_torch(X=spectral_emb, num_clusters=self.n_clusters, device=device)
+    def clusterSpectralEmbeddings(self, affinity, cuda: bool = False, device: torch.device = torch.device('cpu')):
+        """
+        Perform k-means clustering on spectral embeddings. To alleviate the effect of randomness,
+        k-means clustering can be tried for self.random_trial times then labels are majority voted.
+        If speed is concern, self.random_trial should be set to 1.
+
+        Args:
+            affinity (torch.tensor):
+                Affinity matrix input
+            cuda (torch.bool):
+                Use cuda for spectral clustering if cuda=True
+            device (torch.device):
+                Torch device variable
+
+        Returns:
+            labels (torch.tensor):
+                clustering label output
+
+        """
+        spectral_emb = self.getSpectralEmbeddings(affinity, n_spks=self.n_clusters, cuda=cuda)
+        labels_set = []
+        for random_state_seed in range(self.random_state, self.random_state + self.random_trial):
+            _labels = kmeans_torch(
+                X=spectral_emb, num_clusters=self.n_clusters, random_state=random_state_seed, device=device
+            )
+            labels_set.append(_labels)
+        stacked_labels = torch.stack(labels_set)
+        label_index = torch.mode(torch.mode(stacked_labels, 0)[1])[0]
+        labels = stacked_labels[label_index]
         return labels
 
-    def getSpectralEmbeddings(
-        self, affinity_mat: torch.Tensor, n_spks: int = 8, drop_first: bool = True, cuda: bool = False
-    ):
+    def getSpectralEmbeddings(self, affinity_mat: torch.Tensor, n_spks: int = 8, cuda: bool = False):
+        """
+        Calculate eigenvalues and eigenvectors to extract spectral embeddings.
+
+        Args:
+            affinity (torch.Tensor):
+                Affinity matrix input
+            cuda (torch.bool):
+                Use cuda for spectral clustering if cuda=True
+            device (torch.device):
+                Torch device variable
+
+        Returns:
+            labels (torch.Tensor):
+                clustering label output
+        """
         laplacian = getLaplacian(affinity_mat)
         lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
         diffusion_map = diffusion_map_[:, :n_spks]
