@@ -16,8 +16,6 @@ import copy
 from math import ceil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
-from nemo.collections.common.losses.cross_entropy import NLLLoss
-from nemo.core.neural_types.elements import LogprobsType
 
 import numpy as np
 import torch
@@ -26,7 +24,7 @@ from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from tqdm import tqdm
 
-from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
+from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, NLLLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     BertPunctuationCapitalizationDataset,
@@ -50,7 +48,7 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LogitsType, NeuralType
+from nemo.core.neural_types import LogitsType, NeuralType, LogprobsType
 from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
