@@ -105,7 +105,7 @@ class GPTPromptLearningDataset(Dataset):
             input_example = prompt_template
 
             self._input_sanity_checks(prompt_token_splits, prompt_template, prompt_template_fields, doc)
-            
+
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
             input_example = self._insert_virtual_token_placeholders(input_example, prompt_token_splits)
@@ -150,7 +150,7 @@ class GPTPromptLearningDataset(Dataset):
         assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
             prompt_token_splits
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
-    
+
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
         for field in prompt_template_fields:
@@ -181,9 +181,11 @@ class GPTPromptLearningDataset(Dataset):
     def _truncate_input(self, input_ids, taskname, doc):
         """ Try to truncate input text to fit into the max sequence length """
         truncation_field = self.task_templates[taskname]['truncate_field']
-        logging.info(f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'")
+        logging.info(
+            f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
+        )
 
-        # Truncate the text ids in this part of input to try and fit max sequence length 
+        # Truncate the text ids in this part of input to try and fit max sequence length
         if truncation_field is not None and truncation_field in doc.keys():
             truncation_length = len(input_ids) - self.max_seq_length
             field_text = doc[truncation_field]
@@ -196,11 +198,11 @@ class GPTPromptLearningDataset(Dataset):
 
             # Truncate field text
             field_text_ids = self.tokenizer.text_to_ids(field_text)
-            truncated_text_ids = field_text_ids[:-min(truncation_length, len(field_text_ids))]
+            truncated_text_ids = field_text_ids[: -min(truncation_length, len(field_text_ids))]
 
             # Replace original text ids with truncated text ids
             field_start, field_end = find_subsequence_location(input_ids, field_text_ids)
-            input_ids = input_ids[:field_start] + truncated_text_ids + input_ids[field_end + 1:]
+            input_ids = input_ids[:field_start] + truncated_text_ids + input_ids[field_end + 1 :]
 
         return input_ids
 
@@ -310,10 +312,9 @@ def find_subsequence_location(sequence, subsequence):
             else:
                 next_subseq_token = subsequence[next_subsequence_idx]
                 next_subsequence_idx += 1
-        else: 
+        else:
             start_idx = None
             next_subseq_token = subsequence[0]
             next_subsequence_idx = 1
 
     raise ValueError("Subsequence not found in sequence")
-

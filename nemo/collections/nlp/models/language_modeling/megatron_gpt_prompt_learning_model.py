@@ -152,7 +152,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
                 "prompt_token_splits": task.prompt_token_splits,
                 "task_id_num": task_id_num,
-                "truncate_field": task.truncate_field
+                "truncate_field": task.truncate_field,
             }
 
             task_id_num_to_name[task_id_num] = task.taskname
@@ -532,6 +532,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # check whether the DDP is initialized
         if parallel_state.is_unitialized():
+
             def dummy():
                 return
 
