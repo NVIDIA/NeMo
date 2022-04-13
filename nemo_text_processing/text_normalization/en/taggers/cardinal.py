@@ -87,20 +87,15 @@ class CardinalFst(GraphFst):
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
 
-        no_comma_digit_format = pynini.closure(NEMO_DIGIT, 1, 4)
-        comma_digit_format = pynini.closure(NEMO_DIGIT, 1, 3) + pynini.closure(
-            pynutil.delete(",") + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT, 1
-        )
         self.graph = (
-            pynini.closure(NEMO_DIGIT, 1, 3) + pynini.closure(pynutil.delete(",") + NEMO_DIGIT ** 3)
-            | pynini.closure(NEMO_DIGIT ** 4)
+            pynini.closure(NEMO_DIGIT, 1, 3)
+            + (pynini.closure(pynutil.delete(",") + NEMO_DIGIT ** 3) | pynini.closure(NEMO_DIGIT ** 3))
         ) @ graph
 
         serial_graph = self.get_serial_graph()
         if deterministic:
             long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-            graph = self.graph @ graph
-            final_graph = plurals._priority_union(long_numbers, graph, NEMO_SIGMA).optimize() | serial_graph
+            final_graph = plurals._priority_union(long_numbers, self.graph, NEMO_SIGMA).optimize() | serial_graph
             cardinal_with_leading_zeros = pynini.compose(
                 pynini.accep("0") + pynini.closure(NEMO_DIGIT), self.single_digits_graph
             )
