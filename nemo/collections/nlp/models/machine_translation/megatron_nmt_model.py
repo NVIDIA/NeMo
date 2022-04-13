@@ -137,7 +137,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            MTEncDecModel.setup_pre_and_post_processing_utils(
+            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
                 self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library,
             )
             self.multilingual_ids = [None]
