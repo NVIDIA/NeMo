@@ -633,14 +633,34 @@ class SpectralClustering:
         n_clusters: int = 8,
         random_state: int = 0,
         random_trial: int = 1,
-        p_value: int = 10,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
+        """
+        Initialize the variables needed for spectral clustering and k-means++.
+
+        Args:
+            n_clusters (int):
+                Number of the estimated (or oracle) number of speakers
+
+            random_state (int):
+                Random seed that determines a random state of k-means initialization.
+
+            random_trial (int):
+                Number of trials with different random seeds for k-means initialization.
+                k-means++ algorithm is executed for multiple times then the final result
+                is obtained by taking a majority vote.
+
+            cuda (bool):
+                if cuda=True, spectral clustering is done on GPU.
+
+            device (torch.device):
+                Torch device variable
+
+        """
         self.n_clusters = n_clusters
         self.random_state = random_state
         self.random_trial = max(random_trial, 1)
-        self.p_value = p_value
         self.cuda = cuda
         self.device = device
 
@@ -664,8 +684,9 @@ class SpectralClustering:
     def clusterSpectralEmbeddings(self, affinity, cuda: bool = False, device: torch.device = torch.device('cpu')):
         """
         Perform k-means clustering on spectral embeddings. To alleviate the effect of randomness,
-        k-means clustering can be tried for self.random_trial times then labels are majority voted.
-        If speed is concern, self.random_trial should be set to 1.
+        k-means clustering is performed for (self.random_trial) times then the final labels are obtained
+        by taking a majority vote. If speed is the major concern, self.random_trial should be set to 1.
+        random_trial=30 is recommended to see an improved result.
 
         Args:
             affinity (torch.tensor):
