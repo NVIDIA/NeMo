@@ -16,6 +16,7 @@ import copy
 from math import ceil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+from nemo.collections.common.losses.cross_entropy import NLLLoss
 
 import numpy as np
 import torch
@@ -106,7 +107,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             hidden_size=self.hidden_size,
             num_classes=len(self.punct_label_ids),
             activation=cfg.punct_head.activation,
-            log_softmax=False,
+            log_softmax=True,
             dropout=cfg.punct_head.fc_dropout,
             num_layers=cfg.punct_head.num_fc_layers,
             use_transformer_init=cfg.punct_head.use_transformer_init,
@@ -116,13 +117,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             hidden_size=self.hidden_size,
             num_classes=len(self.capit_label_ids),
             activation=cfg.capit_head.activation,
-            log_softmax=False,
+            log_softmax=True,
             dropout=cfg.capit_head.fc_dropout,
             num_layers=cfg.capit_head.num_fc_layers,
             use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
-        self.loss = CrossEntropyLoss(logits_ndim=3)
+        self.loss = NLLLoss(logits_ndim=3)
         self.agg_loss = AggregatorLoss(num_inputs=2)
 
     @typecheck()
@@ -897,9 +898,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
             stm = self._remove_margins(stm, margin, keep_left=first, keep_right=last)
             for b_probs, logits in [(b_punct_probs, pl), (b_capit_probs, cl)]:
-                p = torch.nn.functional.softmax(
-                    self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
-                )
+                p = self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm]
                 b_probs.append(p.detach().cpu().numpy())
         return b_punct_probs, b_capit_probs, new_start_word_ids
 
@@ -938,7 +937,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
+        acc_prob = np.concatenate([acc_prob + update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
         return acc_prob
 
     def _apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
