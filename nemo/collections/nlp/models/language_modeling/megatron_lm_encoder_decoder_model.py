@@ -741,6 +741,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
+    # FIXME: fix use of decode method
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate):
         app_state = AppState()
         global_batch_per_gpu = tokens_enc.size(0)
