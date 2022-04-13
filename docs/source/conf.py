@@ -55,6 +55,9 @@ autodoc_mock_imports = [
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
     'apex',
+    'joblib',
+    'IPython',
+    'ipadic'
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -107,7 +110,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    "sphinx_book_theme",
+    # "sphinx_rtd_theme",
 ]
 
 bibtex_bibfiles = [
@@ -206,8 +209,9 @@ html_logo = os.path.join('nv_logo.png')
 html_title = 'NVIDIA NeMo'
 
 html_sidebars = {
-    '**': ['globaltoc.html', 'sourcelink.html', 'searchbox.html'],
+   '**': ['sidebar-logo.html', 'search-field.html', 'sbt-sidebar-nav.html'],
 }
+
 
 html_theme_options = {
     'logo_only': True,
@@ -216,15 +220,16 @@ html_theme_options = {
     # 'style_external_links': False,
     # 'style_nav_header_background': '#000000',
     # Toc options
-    # 'collapse_navigation': False,
+    'collapse_navigation': False,
     # 'sticky_navigation': False,
-    # 'navigation_depth': 10,
+    'navigation_depth': 10,
     # 'includehidden': False,
-    # 'titles_only': False,,
+    # 'titles_only': False,
     # Sphinx Book theme,
     'repository_url': 'https://github.com/NVIDIA/NeMo',
     'use_repository_button': True,
-
+    'show_navbar_depth': 1,
+    'show_toc_level': 10,
 }
 
 
