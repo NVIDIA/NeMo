@@ -30,7 +30,6 @@ from nemo.core import Exportable
 from nemo.core.classes import ModelPT, PretrainedModelInfo, typecheck
 from nemo.core.neural_types import MelSpectrogramType, NeuralType
 from nemo.core.neural_types.elements import LengthsType, MelSpectrogramType, RegressionValuesType, TokenIndex
-from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 
 
