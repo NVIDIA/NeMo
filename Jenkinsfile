@@ -772,6 +772,7 @@ pipeline {
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
             model.test_ds.batch_size=2 \
+            model.dataset.num_tasks=6 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
             trainer.devices=[0] \
