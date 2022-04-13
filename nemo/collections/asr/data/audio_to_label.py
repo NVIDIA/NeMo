@@ -133,17 +133,15 @@ def _fixed_seq_collate_fn(self, batch):
         if has_audio:
             sig_len = sig_len.item()
             chunck_len = sig_len - fixed_length
-
             if chunck_len < 0:
                 repeat = fixed_length // sig_len
                 rem = fixed_length % sig_len
                 sub = sig[-rem:] if rem > 0 else torch.tensor([])
                 rep_sig = torch.cat(repeat * [sig])
                 sig = torch.cat((rep_sig, sub))
+
             new_audio_lengths.append(torch.tensor(fixed_length))
-
             audio_signal.append(sig)
-
         tokens.append(tokens_i)
 
     if has_audio:
@@ -905,9 +903,9 @@ class _AudioTSVADDataset(Dataset):
         emb_dict: Dict,
         emb_seq: Dict,
         clus_label_dict: Dict,
+        soft_label_thres: float,
         featurizer,
-        subsample_rate=4,
-        max_spks=5,
+        max_spks: int,
     ):
         super().__init__()
         self.collection = TSVADSpeechLabel(
@@ -916,7 +914,6 @@ class _AudioTSVADDataset(Dataset):
             emb_seq=emb_seq,
             clus_label_dict=clus_label_dict,
             is_regression_task=False,
-            subsample_rate=subsample_rate,
             max_spks=max_spks,
         )
         self.featurizer = featurizer
@@ -925,10 +922,9 @@ class _AudioTSVADDataset(Dataset):
         self.clus_label_dict = clus_label_dict
         self.ROUND = 2
         self.decim = 10 ** self.ROUND
-        self.subsample_rate = subsample_rate
         self.max_spks = max_spks
         self.fr_per_sec = 100
-        self.soft_label_thres = 0.5
+        self.soft_label_thres = soft_label_thres
 
     def __len__(self):
         return len(self.collection)
@@ -960,8 +956,6 @@ class _AudioTSVADDataset(Dataset):
         base_scale_idx = max(self.emb_dict.keys())
         for stt, end, spk in zip(stt_list, end_list, speaker_list):
             spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
-            # except:
-                # import ipdb;ipdb.set_trace()
             stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
             target[stt_fr:end_fr, spk] = 1
         
@@ -972,7 +966,6 @@ class _AudioTSVADDataset(Dataset):
             label_vec = (soft_label_vec > self.soft_label_thres).int()
             seg_target.append(label_vec)
             seg_target_tensor = torch.stack(seg_target)
-        # import ipdb; ipdb.set_trace()
         return seg_target_tensor
 
     def parse_rttm(self, sample):
@@ -1049,7 +1042,13 @@ class _AudioTSVADDataset(Dataset):
         scale_n = len(self.emb_dict.keys())
 
         # avg_embs: scale_n x emb_dim x max_spks
-        avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        assert _avg_embs.shape[2] <= self.max_spks
+        if _avg_embs.shape[2] < self.max_spks:
+            avg_embs = torch.zeros(_avg_embs.shape[0], _avg_embs.shape[1], self.max_spks)
+            avg_embs[:, :, _avg_embs.shape[2]] = _avg_embs[:, :, :]
+        else:
+            avg_embs = _avg_embs
         
         feats = []
         for scale_index in range(scale_n):
@@ -1058,7 +1057,6 @@ class _AudioTSVADDataset(Dataset):
             feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
         feats_out= torch.stack(feats).permute(1, 0, 2)
         feats_len = feats_out.shape[0]
-        # import ipdb; ipdb.set_trace()
         return feats_out, feats_len, targets, avg_embs
 
     def __getitem__(self, index):
@@ -1074,7 +1072,13 @@ class _AudioTSVADDataset(Dataset):
         scale_n = len(self.emb_dict.keys())
 
         # avg_embs: scale_n x emb_dim x max_spks
-        avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+        assert _avg_embs.shape[2] <= self.max_spks
+        if _avg_embs.shape[2] < self.max_spks:
+            avg_embs = torch.zeros(_avg_embs.shape[0], _avg_embs.shape[1], self.max_spks)
+            avg_embs[:, :, _avg_embs.shape[2]] = _avg_embs[:, :, :]
+        else:
+            avg_embs = _avg_embs
         
         feats = []
         for scale_index in range(scale_n):
@@ -1124,8 +1128,8 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
         emb_dict: Dict,
         emb_seq: Dict,
         clus_label_dict: Dict,
+        soft_label_thres: float,
         featurizer,
-        subsample_rate,
         max_spks,
     ):
         super().__init__(
@@ -1133,8 +1137,8 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
             emb_dict=emb_dict,
             emb_seq=emb_seq,
             clus_label_dict=clus_label_dict,
+            soft_label_thres=soft_label_thres,
             featurizer=featurizer,
-            subsample_rate=subsample_rate,
             max_spks=max_spks,
         )
 

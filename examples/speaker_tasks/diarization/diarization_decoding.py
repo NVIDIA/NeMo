@@ -109,60 +109,102 @@ def get_overlap_stamps(cont_a, ovl_spk_idx):
             total_ovl_cont_list.extend(merge_stamps(ovl_cont_list))
     return total_ovl_cont_list
 
-def make_diar_lines(clus_test_label_list, preds, max_num_of_spks, threshold, max_overlap=2):
+def make_diar_lines(clus_test_label_list, preds, max_num_of_spks, threshold, use_clus_as_main, max_overlap=2):
     preds.squeeze(0)
     main_speaker_list = []
     ovl_spk_idx_list = [ [] for _ in range(max_num_of_spks) ]
-    for idx, label in enumerate(clus_test_label_list):
-        spk_for_seg = (preds[0, idx] > threshold).int().cpu().numpy().tolist()
-        sm_for_seg = preds[0, idx].cpu().numpy()
+    for seg_idx, label in enumerate(clus_test_label_list):
+        spk_for_seg = (preds[0, seg_idx] > threshold).int().cpu().numpy().tolist()
+        sm_for_seg = preds[0, seg_idx].cpu().numpy()
+        if use_clus_as_main:
+            main_spk_idx = int(label[2])
+        else:
+            main_spk_idx = np.argsort(preds[0, seg_idx].cpu().numpy())[::-1][0]
+        
         if sum(spk_for_seg) > 1:
             max_idx = np.argmax(sm_for_seg)
             spk_for_seg[max_idx] = 1
             idx_arr = np.argsort(sm_for_seg)[::-1]
             for ovl_spk_idx in idx_arr[:max_overlap].tolist():
-                if ovl_spk_idx != int(label[2]):
-                    ovl_spk_idx_list[ovl_spk_idx].append(idx)
-        main_speaker_list.append(f"{label[0]} {label[1]} speaker_{label[2]}")
+                # If the overlap speaker is not the main speaker, 
+                # add the segment index to the speaker's overlap list.
+                if ovl_spk_idx != int(main_spk_idx):
+                    ovl_spk_idx_list[ovl_spk_idx].append(seg_idx)
+                    # import ipdb; ipdb.set_trace()
+        main_speaker_list.append(f"{label[0]} {label[1]} speaker_{main_spk_idx}")
     return main_speaker_list, ovl_spk_idx_list
 
+def set_clustering_params(clustering_embedding, ts_vad_model, args):
+    clustering_embedding.cfg_base.diarizer = ts_vad_model.cfg.base.diarizer
+    clustering_embedding._cfg_tsvad.test_ds.manifest_filepath = args.manifest
+    clustering_embedding._cfg_tsvad.test_ds.emb_dir = args.embedding_dir
 
-# def decode_diarization(diar_decoder_model, args.manifest, batch_size=1, embedding_dir=args.embedding_dir, device=device)
-def decode_diarization(diar_decoder_model, max_num_of_spks, out_rttm_dir, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
-    test_config = OmegaConf.create(
-        dict(manifest_filepath=manifest_file, num_spks=max_num_of_spks, sample_rate=16000, labels=None, batch_size=batch_size, shuffle=False,)
-    )
+# def calculate_accuracy(preds, targets, signal_lengths):
+    # preds_list = [preds[k, :signal_lengths[k], :] for k in range(preds.shape[0])]
+    # targets_list = [targets[k, :signal_lengths[k], :] for k in range(targets.shape[0])]
+    # preds = torch.cat(preds_list, dim=0)
+    # targets = torch.cat(targets_list, dim=0)
 
-    diar_decoder_model.setup_test_data(test_config)
+
+def decode_diarization(diar_decoder_model, manifest_file, infer_batch_size=1, embedding_dir='./', device='cuda'):
+    # diar_decoder_model.
+    test_cfg = diar_decoder_model.cfg.test_ds
+    test_cfg.manifest_filepath = manifest_file
+    test_cfg.batch_size = infer_batch_size
+    diar_decoder_model.setup_test_data(test_cfg)
     diar_decoder_model = diar_decoder_model.to(device)
     diar_decoder_model.eval()
 
     all_embs = []
     out_embeddings = {}
     
-    preds_list = []
+    preds_list, scale_weights_list, signal_lengths_list= [], [], []
+
     length_list = []
     for test_batch in tqdm(diar_decoder_model.test_dataloader()):
         test_batch = [x.to(device) for x in test_batch]
         signals, signal_lengths, targets, ivectors = test_batch 
         # print(f"Batch size : {signals.shape[0]}")
         with autocast():
-            preds = diar_decoder_model.forward(input_signal=signals,
+            preds, scale_weights= diar_decoder_model.forward(input_signal=signals,
                                  input_signal_length=signal_lengths,
                                  ivectors=ivectors,
                                  targets=targets)
-        diar_decoder_model._accuracy(preds, targets) 
-        acc = diar_decoder_model._accuracy.compute()
+        diar_decoder_model._accuracy(preds, targets, signal_lengths) 
+        f1_score = diar_decoder_model._accuracy.compute()
         del test_batch
-        logging.info(f"------------ signal_lengths: {signal_lengths} Batch Test Inference F1 Acc. {acc}")
+        # logging.info(f"------------ signal_lengths: {signal_lengths} 
         # preds_list.append(preds)
         # length_list.append(preds.shape[1])
         preds_list.extend( list(torch.split(preds, 1)))
-    # import ipdb; ipdb.set_trace()
-    return preds_list
+        scale_weights_list.extend( list(torch.split(scale_weights, 1)))
+        signal_lengths_list.extend( list(torch.split(signal_lengths, 1)))
+        num_correct =  torch.sum(diar_decoder_model._accuracy.true.bool()) 
+        total_count = torch.prod(torch.tensor(diar_decoder_model._accuracy.targets.shape))
+        simple_acc = num_correct / total_count
+        logging.info(f"Batch Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
+        # import ipdb; ipdb.set_trace()
+    return preds_list, scale_weights_list, signal_lengths_list
 
-def diar_eval(manifest_file, max_num_of_spks, preds_list, clus_test_label_dict, threshold, infer_overlap, collar, ignore_overlap):
+def get_session_multiscale_weights(manifest_file, scale_weights_list, signal_lengths_list):
+    total_weights = []
+    session_scale_weight_dict = {}
+    with open(manifest_file, 'r', encoding='utf-8') as manifest:
+        for i, line in enumerate(manifest.readlines()):
+            line = line.strip()
+            dic = json.loads(line)
+            uniq_id = dic['audio_filepath'].split('/')[-1].split('.')[0]
+            length = signal_lengths_list[i].cpu().item()
+            # mean_scale_weights = torch.mean(scale_weights_list[i].squeeze(0), dim=0)
+            # print("NO_ trim mean_scale_weights:", mean_scale_weights)
+            mean_scale_weights = torch.mean(scale_weights_list[i].squeeze(0)[:length], dim=0)
+            print("YES trim mean_scale_weights:", mean_scale_weights)
+            # session_scale_weight_dict[uniq_id] = mean_scale_weights
+            session_scale_weight_dict[uniq_id] = mean_scale_weights.cpu().numpy()
+    return session_scale_weight_dict
 
+
+def diar_eval(manifest_file, max_num_of_spks, preds_list, clus_test_label_dict, threshold, infer_overlap, collar, ignore_overlap, use_clus_as_main=False):
     AUDIO_RTTM_MAP = audio_rttm_map(manifest_file)
     manifest_file_lengths_list = []
     all_hypothesis, all_reference = [], []
@@ -171,8 +213,6 @@ def diar_eval(manifest_file, max_num_of_spks, preds_list, clus_test_label_dict, 
     clus_labels_dict = {}
     with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
-            # if i != 0:
-                # continue
             line = line.strip()
             dic = json.loads(line)
             uniq_id = dic['audio_filepath'].split('/')[-1].split('.')[0]
@@ -183,19 +223,18 @@ def diar_eval(manifest_file, max_num_of_spks, preds_list, clus_test_label_dict, 
             clus_labels_dict[uniq_id] = only_label
             
             manifest_file_lengths_list.append(len(clus_test_label_list))
-            try:
-                lines, ovl_idx_list = make_diar_lines(clus_test_label_list, preds_list[i], max_num_of_spks, threshold)
-            except:
-                import ipdb; ipdb.set_trace()
+            lines, ovl_idx_list = make_diar_lines(clus_test_label_list, 
+                                                  preds_list[i], 
+                                                  max_num_of_spks, 
+                                                  threshold, 
+                                                  use_clus_as_main)
             cont_a = get_contiguous_stamps(lines)
-            labels = merge_stamps(cont_a)
+            maj_labels = merge_stamps(cont_a)
             ovl_labels = get_overlap_stamps(cont_a, ovl_idx_list)
             if infer_overlap:
-                total_labels = labels + ovl_labels
+                total_labels = maj_labels + ovl_labels
             else:
-                total_labels = labels
-            # import ipdb; ipdb.set_trace()
-            # labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+                total_labels = maj_labels
             hypothesis = labels_to_pyannote_object(total_labels, uniq_name=uniq_id)
             all_hypothesis.append([uniq_id, hypothesis])
 
@@ -213,18 +252,6 @@ def diar_eval(manifest_file, max_num_of_spks, preds_list, clus_test_label_dict, 
         ignore_overlap=ignore_overlap,
         )
     return score
-
-    # embedding_dir = os.path.join(embedding_dir, 'embeddings')
-    # if not os.path.exists(embedding_dir):
-        # os.makedirs(embedding_dir, exist_ok=True)
-
-    # prefix = manifest_file.split('/')[-1].rsplit('.', 1)[-2]
-
-    # name = os.path.join(embedding_dir, prefix)
-    # embeddings_file = name + '_embeddings.pkl'
-    # pkl.dump(out_embeddings, open(embeddings_file, 'wb'))
-    # logging.info("Saved embedding files to {}".format(embedding_dir))
-
 
 def main():
     parser = ArgumentParser()
@@ -257,11 +284,11 @@ def main():
     torch.set_grad_enabled(False)
 
     cfg = OmegaConf.load(args.config_file) 
-    # import ipdb; ipdb.set_trace()
     max_num_of_spks = 2
-    cfg.ts_vad_model.max_num_of_spks = max_num_of_spks
-    cfg.diarizer.clustering.parameters.max_num_speakers = max_num_of_spks
+    # cfg.diarizer.clustering_embedding
     clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_ts_vad_model=cfg.ts_vad_model)
+    clustering_embedding.run_clus_from_loaded_emb = True
+    clustering_embedding.cfg_base.ts_vad_model.base.diarizer.clustering.parameters.max_num_speakers = max_num_of_spks
     if args.model_path.endswith('.nemo'):
         logging.info(f"Using local speaker model from {args.model_path}")
         ts_vad_model = EncDecDiarLabelModel.restore_from(restore_path=args.model_path)
@@ -272,37 +299,37 @@ def main():
     if not torch.cuda.is_available():
         device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
-    clustering_embedding.cfg_base.diarizer.speaker_embeddings.model_path = "titanet_large"
-    # clustering_embedding.cfg_base.diarizer.clustering.parameters.max_num_speakers = 2
-    clustering_embedding.cfg_base.diarizer.oracle_vad=True
-    clustering_embedding.cfg_base.diarizer.collar=0.0
-    clustering_embedding.cfg_base.diarizer.ignore_overlap=False
-    clustering_embedding.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec=[1.5, 1.0, 0.5]
-    clustering_embedding.cfg_base.diarizer.speaker_embeddings.parameters.shift_length_in_sec=[0.75, 0.5, 0.25]
-    clustering_embedding.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33, 0.33, 0.33]
-    clustering_embedding._cfg_tsvad.test_ds.manifest_filepath = args.manifest
-    clustering_embedding._cfg_tsvad.test_ds.emb_dir = args.embedding_dir
+    
+    set_clustering_params(clustering_embedding, ts_vad_model, args)
+    # The first clustering
+    # clustering_embedding.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6] # DER NS2 spl1 0.0484
+    # clustering_embedding.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights = np.arange(1.1, 1.14, 0.01).tolist()
+    clustering_embedding.cfg_base.diarizer.speaker_embeddings.model_path = "/home/taejinp/Downloads/titanet-m.nemo"
     clustering_embedding.prepare_cluster_embs_infer()
-
-    # clustering_embedding = ClusterEmbedding(cfg_base=cfg)
-    # clustering_embedding.prepare_cluster_embs()
+    
+    # Move dictionaries containing embedding info to ts_vad_model
     ts_vad_model.get_emb_clus_infer(clustering_embedding)
-    out_rttm_dir = args.embedding_dir
-    preds_list = decode_diarization(ts_vad_model, max_num_of_spks, out_rttm_dir, args.manifest, batch_size=100, embedding_dir=args.embedding_dir, device=device)
+    # The first pass of dirization decoding for scale weights
+    preds_list, scale_weights_list, signal_lengths_list = decode_diarization(ts_vad_model, args.manifest, infer_batch_size=100, device=device)
+    use_clus_as_main=False
+
+    
+    print("======== Clustering Diar ReClus: threshold: 1.0")
+    score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold=1.0, infer_overlap=False, collar=0.25, ignore_overlap=True, use_clus_as_main=True)
+    score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold=1.0, infer_overlap=False, collar=0.0, ignore_overlap=False, use_clus_as_main=True)
+    
+    print("======== MS Diar Decoder: threshold: 1.0")
     der_list = []
-    thres_range = np.arange(0.0, 0.99, 0.05).tolist()
+    thres_range = np.arange(0.45, 0.86, 0.05).tolist()
+    # thres_range = [0.65]
     for threshold in thres_range:
-    # if True:
-        # threshold = 0.64
-        print("===================> threshold:", threshold)
-        score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=True, collar=0.25, ignore_overlap=True)
-        score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=True, collar=0.0, ignore_overlap=False)
+        print(f"===================> threshold: {threshold:.2f}")
+        score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=True, collar=0.25, ignore_overlap=True, use_clus_as_main=use_clus_as_main)
+        score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=True, collar=0.0, ignore_overlap=False, use_clus_as_main=use_clus_as_main)
         der_list.append(abs(score[0]))
-        # import ipdb; ipdb.set_trace()
+    print(f"best_thres: {thres_range[max_idx]:.2f} the best DER:  {der_list[max_idx]:.4f}")
+    score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=False, collar=0.25, ignore_overlap=True, use_clus_as_main=use_clus_as_main)
     max_idx = np.argmin(np.array(der_list))
-    print("best_thres:", thres_range[max_idx], "the best DER: ", der_list[max_idx])
-    print("Without overlap inference:")
-    score = diar_eval(args.manifest, max_num_of_spks, preds_list, ts_vad_model.clus_test_label_dict, threshold, infer_overlap=False, collar=0.0, ignore_overlap=False)
     
 if __name__ == '__main__':
     main()

@@ -50,6 +50,16 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging
 from torchmetrics import Metric
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map,
+    get_embs_and_timestamps,
+    get_uniqname_from_filepath,
+    parse_scale_configs,
+    perform_clustering,
+    score_labels,
+    segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest,
+)
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     LengthsType,
@@ -63,8 +73,7 @@ from nemo.core.neural_types.elements import ProbsType
 
 
 def sprint(*args):
-    # if False:
-    if True:
+    if False:
         print(*args)
     else:
         pass
@@ -126,26 +135,27 @@ class MultiBinaryAcc(Metric):
         self.false_negative_count = 0
         
 
-    def update(self, preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             min_len = min(preds.shape[1], targets.shape[1])
-            preds, targets = preds[:, :min_len, :], targets[:, :min_len, :]
-            self.true = preds.round().bool() == targets.round().bool()
-            self.false = preds.round().bool() != targets.round().bool()
-            self.positive = preds.round().bool() == 1
-            self.negative = preds.round().bool() == 0
-            self.positive_count = torch.sum(preds.round().bool() == True)
-            # self.true_positive_count += torch.sum(self.true == self.positive)
-            # self.false_positive_count += torch.sum(self.false == self.positive)
+            self.preds, self.targets = preds[:, :min_len, :], targets[:, :min_len, :]
+            # preds_list, targets_list = [], []
+            # preds_list = [preds[k, :signal_lengths[k], :] for k in range(preds.shape[0])]
+            # targets_list = [targets[k, :signal_lengths[k], :] for k in range(targets.shape[0])]
+            # self.preds = torch.cat(preds_list, dim=0)
+            # self.targets = torch.cat(targets_list, dim=0)
+            self.true = self.preds.round().bool() == self.targets.round().bool()
+            self.false = self.preds.round().bool() != self.targets.round().bool()
+            self.positive = self.preds.round().bool() == 1
+            self.negative = self.preds.round().bool() == 0
+            self.positive_count = torch.sum(self.preds.round().bool() == True)
             self.true_positive_count += torch.sum(torch.logical_and(self.true, self.positive))
             self.false_positive_count += torch.sum(torch.logical_and(self.false, self.positive))
-            # self.false_negative_count += torch.sum(self.false == self.negative)
             self.false_negative_count += torch.sum(torch.logical_and(self.false, self.negative))
-            self.correct_counts_k += torch.sum(preds.round().bool() == targets.round().bool())
-            self.total_counts_k += torch.prod(torch.tensor(targets.shape))
-            self.target_true += torch.sum(targets.round().bool()==True)
-            self.predicted_true += torch.sum(preds.round().bool()==False)
-            # print("correct_counts_k:", self.correct_counts_k, "self.total_counts_k", self.total_counts_k) 
+            self.correct_counts_k += torch.sum(self.preds.round().bool() == self.targets.round().bool())
+            self.total_counts_k += torch.prod(torch.tensor(self.targets.shape))
+            self.target_true += torch.sum(self.targets.round().bool()==True)
+            self.predicted_true += torch.sum(self.preds.round().bool()==False)
 
     def compute(self):
         self.precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count)
@@ -154,30 +164,38 @@ class MultiBinaryAcc(Metric):
         self.target_true_rate = self.target_true / self.total_counts_k
         # sprint("self.true_positive_count:", self.true_positive_count)
         # sprint("self.correct_counts_k:", self.correct_counts_k)
-        sprint("self.target_true:", self.target_true)
-        sprint("self.total_counts_k:", self.total_counts_k)
+        # sprint("self.target_true:", self.target_true)
+        # sprint("self.total_counts_k:", self.total_counts_k)
         # sprint("self.predicted_true:", self.predicted_true)
         self.f1_score = 2 * self.precision * self.recall / (self.precision + self.recall)
         self.f1_score = -1 if torch.isnan(self.f1_score) else self.f1_score
-        sprint("[Metric] self.recall:", self.recall)
-        sprint("[Metric] self.precision:", self.precision)
-        sprint("[Metric] self.infer_positive_rate:", self.infer_positive_rate)
-        sprint("[Metric] self.target_true_rate:", self.target_true_rate)
-        sprint("[Metric] self.f1_score:", self.f1_score)
+        print("[Metric] self.recall:", self.recall)
+        print("[Metric] self.precision:", self.precision)
+        # sprint("[Metric] self.infer_positive_rate:", self.infer_positive_rate)
+        # sprint("[Metric] self.target_true_rate:", self.target_true_rate)
+        print("[Metric] self.f1_score:", self.f1_score)
         return self.f1_score
 
 class ClusterEmbedding:
     def __init__(self, cfg_base: DictConfig, cfg_ts_vad_model: DictConfig,trainer: Trainer=None):
         self.cfg_base = cfg_base
         self._cfg_tsvad = cfg_ts_vad_model
-        self.max_num_of_spks = self.cfg_base.diarizer.clustering.parameters.max_num_speakers
+        try:
+            self.max_num_of_spks = int(self.cfg_base.diarizer.clustering.parameters.max_num_speakers)
+        except:
+            import ipdb; ipdb.set_trace()
+        self.scale_n = 1
         self.clus_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.clus_map_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
+        self.multiscale_weights_list = None
+        self.run_clus_from_loaded_emb = False
+        self.sd_model = None
     
     def prepare_cluster_embs_infer(self):
         self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict = self.run_clustering_diarizer(self._cfg_tsvad.test_ds.manifest_filepath,
                                                                self._cfg_tsvad.test_ds.emb_dir)
+
     def prepare_cluster_embs(self):
         """
         TSVAD
@@ -193,55 +211,13 @@ class ClusterEmbedding:
                                                                self._cfg_tsvad.test_ds.emb_dir)
 
 
-    # def prepare_split_manifest(self):
-        # new_path_train = self.get_split_manifest(self._cfg_tsvad.train_ds.manifest_filepath,
-                                                 # self._cfg_tsvad.train_ds.emb_dir)
-        # self._cfg_tsvad.train_ds.manifest_filepath = new_path_train
-        
-        # new_path_dev = self.get_split_manifest(self._cfg_tsvad.validation_ds.manifest_filepath,
-                                               # self._cfg_tsvad.validation_ds.emb_dir)
-        # self._cfg_tsvad.validation_ds.manifest_filepath = new_path_dev
-       
-        # new_path_test = self.get_split_manifest(self._cfg_tsvad.test_ds.manifest_filepath,
-                                                # self._cfg_tsvad.test_ds.emb_dir)
-        # self._cfg_tsvad.test_ds.manifest_filepath = new_path_test
-
-    # def get_split_manifest(self, org_manifest_filepath, emb_dir):
-        # manifest_name = os.path.basename(org_manifest_filepath).split('.')[0]
-        # _, json_lines_list = self.get_manifest_uniq_ids(org_manifest_filepath)
-        # output_json_list = []
-        # for json_dict in json_lines_list:
-            # split_json_list = self.get_manifest_with_split_stamps(json_dict, self._cfg_tsvad.split_length)
-            # output_json_list.extend(split_json_list)
-        # new_manifest_path = f'{emb_dir}/{manifest_name}_TSVAD_split.json'
-        # write_json_file(new_manifest_path, output_json_list)
-        # return new_manifest_path
     
-    # def get_manifest_with_split_stamps(self, meta, split_length):
-        # meta_list = []
-        # hop = split_length/2
-        # wav_path = meta['audio_filepath']
-        # if not os.path.exists(wav_path): 
-            # raise FileNotFoundError(f"File does not exist: {wav_path}")
-
-        # duration = float(subprocess.check_output("soxi -D {0}".format(wav_path), shell=True))
-        # audio_clip_N = math.floor((duration-split_length)/hop) + 1
-        # for i in range(audio_clip_N):
-            # meta_dict = copy.deepcopy(meta)
-            # meta_dict['offset'] = hop * i
-            # meta_dict['duration'] = float(split_length)
-            # meta_dict['text'] = "-"
-            # meta_list.append(meta_dict)
-            # # print(i,  meta_dict['offset'])
-            # assert (meta_dict['offset'] + meta_dict['duration']) <= duration
-        # return meta_list
-    
-    def assign_labels_to_longer_segs(self, scale_n, base_clus_label_dict, session_scale_mapping_dict):
-        new_clus_label_dict = {scale_index: {} for scale_index in range(scale_n)}
+    def assign_labels_to_longer_segs(self, base_clus_label_dict, session_scale_mapping_dict):
+        new_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
         for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
             base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
-            new_clus_label_dict[scale_n-1][uniq_id] = base_scale_clus_label
-            for scale_index in range(scale_n-1):
+            new_clus_label_dict[self.scale_n-1][uniq_id] = base_scale_clus_label
+            for scale_index in range(self.scale_n-1):
                 new_clus_label = []
                 assert uniq_scale_mapping_dict[scale_index].shape[0] == base_scale_clus_label.shape[0], "The number of base scale labels does not match the segment numbers in uniq_scale_mapping_dict"
                 max_index = max(uniq_scale_mapping_dict[scale_index])
@@ -260,16 +236,17 @@ class ClusterEmbedding:
         TSVAD
         Get an average embedding vector for each cluster (speaker).
         """
-        scale_n = len(emb_scale_seq_dict.keys())
-        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[scale_n-1].keys()}
-        emb_sess_avg_dict = {scale_index:{key: [] for key in emb_scale_seq_dict[scale_n-1].keys() } for scale_index in emb_scale_seq_dict.keys()}
+        self.scale_n = len(emb_scale_seq_dict.keys())
+        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys()}
+        all_scale_clus_label_dict  = {scale_index:{key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys() } for scale_index in emb_scale_seq_dict.keys()}
+        emb_sess_avg_dict = {scale_index:{key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys() } for scale_index in emb_scale_seq_dict.keys()}
         for line in clus_label:
             uniq_id = line.split()[0]
             label = int(line.split()[-1].split('_')[-1])
             stt, end = [round(float(x), 2) for x in line.split()[1:3]]
             base_clus_label_dict[uniq_id].append([stt, end, label])
         
-        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(scale_n, base_clus_label_dict, session_scale_mapping_dict)
+        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(base_clus_label_dict, session_scale_mapping_dict)
         dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
         for scale_index in emb_scale_seq_dict.keys():
             for uniq_id, emb_tensor in emb_scale_seq_dict[scale_index].items():
@@ -281,9 +258,6 @@ class ClusterEmbedding:
                 label_array = torch.Tensor(clus_label_list)
                 avg_embs = torch.zeros(dim, self.max_num_of_spks)
                 for spk_idx in spk_set:
-                    if len(label_array) != emb_tensor.shape[0]:
-                        # fisher-2004-wav-mixed/fe_03_00113_mixed.wav shows 2x segments and erroneous segmentations
-                        import ipdb; ipdb.set_trace()
                     selected_embs = emb_tensor[label_array == spk_idx]
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
                 inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
@@ -358,6 +332,7 @@ class ClusterEmbedding:
                 condA = set(uniq_id_list).issubset(set(emb_sess_avg_dict[base_scale_index].keys()))
                 condB = set(uniq_id_list).issubset(set(session_scale_mapping_dict.keys()))
                 isEmbReady = condA and condB
+
             except:
                 # import ipdb; ipdb.set_trace()
                 isEmbReady = False
@@ -371,14 +346,18 @@ class ClusterEmbedding:
             emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(out_dir, 
                                                                                                       speaker_mapping_dict, 
                                                                                                       session_scale_mapping_dict)
+            if self.run_clus_from_loaded_emb:
+                self.run_multiscale_clustering(manifest_filepath, emb_scale_seq_dict, out_dir)
         else:
             print("--- Embedding path does not exist")
+            # import ipdb; ipdb.set_trace()
             self.cfg_base.diarizer.manifest_filepath = manifest_filepath
             self.cfg_base.diarizer.out_dir = out_dir
-            sd_model = ClusteringDiarizer(cfg=self.cfg_base)
-            score = sd_model.diarize()
+            self.sd_model = ClusteringDiarizer(cfg=self.cfg_base)
+            score = self.sd_model.diarize(batch_size=self.cfg_base.batch_size)
+            # score = self.sd_model.diarize()
             metric, speaker_mapping_dict = score 
-            session_scale_mapping_dict = self.get_scale_map(sd_model.embs_and_timestamps)
+            session_scale_mapping_dict = self.get_scale_map(self.sd_model.embs_and_timestamps)
             emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(out_dir, 
                                                                                                       speaker_mapping_dict, 
                                                                                                       session_scale_mapping_dict)
@@ -389,6 +368,72 @@ class ClusterEmbedding:
         logging.info("Clustering results and rttm files test passed.")
         emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
+    
+    def extract_time_stamps(self, manifest_file):
+        self.time_stamps = {}
+        with open(manifest_file, 'r', encoding='utf-8') as manifest:
+            for i, line in enumerate(manifest.readlines()):
+                line = line.strip()
+                dic = json.loads(line)
+                uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
+                if uniq_name not in self.time_stamps:
+                    self.time_stamps[uniq_name] = []
+                start = dic['offset']
+                end = start + dic['duration']
+                stamp = '{:.3f} {:.3f} '.format(start, end)
+                self.time_stamps[uniq_name].append(stamp)
+        return self.time_stamps
+
+
+    def run_multiscale_clustering(self, manifest_filepath, emb_scale_seq_dict, out_dir):
+        # import ipdb; ipdb.set_trace() 
+        self.cfg_base.diarizer.out_dir = out_dir
+        if not self.sd_model:
+            self.sd_model = ClusteringDiarizer(cfg=self.cfg_base)
+        self.sd_model.AUDIO_RTTM_MAP = audio_rttm_map(manifest_filepath)
+        
+        if self.multiscale_weights_list:
+            self.sd_model.multiscale_args_dict['multiscale_weights'] = self.multiscale_weights_list
+        
+        # self.sd_model._out_dir = self.sd_model._diarizer_params.out_dir
+        self.sd_model._out_dir = out_dir
+        # if not os.path.exists(self.sd_model._out_dir):
+            # os.makedirs(self.sd_model._out_dir)
+
+        out_rttm_dir = os.path.join(self._cfg_tsvad.test_ds.emb_dir, 'pred_rttms')
+        # if not os.path.exists(out_rttm_dir):
+            # os.makedirs(out_rttm_dir)
+
+        # Segmentation
+        for scale_idx, (window, shift) in self.sd_model.multiscale_args_dict['scale_dict'].items():
+            subsegments_manifest_path = os.path.join(self._cfg_tsvad.test_ds.emb_dir, 'speaker_outputs', f'subsegments_scale{scale_idx}.json')
+            self.embeddings = emb_scale_seq_dict[scale_idx]
+            self.time_stamps = self.extract_time_stamps(subsegments_manifest_path)
+            self.sd_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+
+        self.embs_and_timestamps = get_embs_and_timestamps(
+            self.sd_model.multiscale_embeddings_and_timestamps, self.sd_model.multiscale_args_dict
+        )
+
+        # Clustering
+        all_reference, all_hypothesis = perform_clustering(
+            embs_and_timestamps=self.embs_and_timestamps,
+            AUDIO_RTTM_MAP=self.sd_model.AUDIO_RTTM_MAP,
+            out_rttm_dir=out_rttm_dir,
+            clustering_params=self.sd_model._cluster_params,
+        )
+
+        self.sd_model._diarizer_params.collar = 0.25
+        self.sd_model._diarizer_params.ignore_overlap = True
+        # Scoring
+        self.score = score_labels(
+            self.sd_model.AUDIO_RTTM_MAP,
+            all_reference,
+            all_hypothesis,
+            collar=self.sd_model._diarizer_params.collar,
+            ignore_overlap=self.sd_model._diarizer_params.ignore_overlap,
+        )
+
     
     def load_dict_from_pkl(self, out_dir): 
         with open(f'{out_dir}/{self.clus_emb_path}', 'rb') as handle:
@@ -440,6 +485,7 @@ class ClusterEmbedding:
         emb_sess_avg_dict, base_clus_label_dict = self.get_clus_emb(emb_scale_seq_dict, clus_label, speaker_mapping_dict, session_scale_mapping_dict)
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
+
 # class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel):
 class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
     """Encoder decoder class for speaker label models.
@@ -484,8 +530,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.loss = BCELoss()
         self.task = None
         self._accuracy = MultiBinaryAcc()
+        self._accuracy_test = MultiBinaryAcc()
+        self._accuracy_train = MultiBinaryAcc()
+        self._accuracy_val = MultiBinaryAcc()
         self.labels = None
-        # import ipdb; ipdb.set_trace()
 
     def multispeaker_loss(self):
         """
@@ -532,18 +580,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         isEmbReady = True
         if os.path.exists(f'{out_dir}/speaker_outputs/embeddings'):
             print(f"-- Embedding path exists {out_dir}/speaker_outputs/embeddings")
-            # try:
             emb_sess_avg_dict, session_scale_mapping_dict = self.load_dict_from_pkl(out_dir) 
             uniq_id_list, _ = self.get_manifest_uniq_ids(manifest_filepath)
             base_scale_index = max(emb_sess_avg_dict.keys())
             condA = set(uniq_id_list).issubset(set(emb_sess_avg_dict[base_scale_index].keys()))
             condB = set(uniq_id_list).issubset(set(session_scale_mapping_dict.keys()))
             isEmbReady = condA and condB
-            # except:
-                # import ipdb; ipdb.set_trace()
-                # isEmbReady = False
         else:
-            # import ipdb; ipdb.set_trace()
             isEmbReady = False
         
         if isEmbReady:    
@@ -597,26 +640,26 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             emb_dict=emb_dict,
             clus_label_dict=clus_label_dict,
             emb_seq=emb_seq,
+            soft_label_thres=config.soft_label_thres,
             featurizer=featurizer,
-            subsample_rate=config.sample_rate,
             max_spks=config.num_spks,
         )
-        s0 = dataset.item_sim(0)
-        s1 = dataset.item_sim(1)
+        # s0 = dataset.item_sim(0)
+        # s1 = dataset.item_sim(1)
+        # packed_batch = list(zip(s0, s1))
 
         collate_ds = dataset
         collate_fn = collate_ds.tsvad_collate_fn
-        packed_batch = list(zip(s0, s1))
         batch_size = config['batch_size']
-        _dataloader = torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=batch_size,
-            collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
-        )
+        # _dataloader = torch.utils.data.DataLoader(
+            # dataset=dataset,
+            # batch_size=batch_size,
+            # collate_fn=collate_fn,
+            # drop_last=config.get('drop_last', False),
+            # shuffle=shuffle,
+            # num_workers=config.get('num_workers', 0),
+            # pin_memory=config.get('pin_memory', False),
+        # )
         # ff, ffl, tt, iiv = next(iter(_dataloader))
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -665,26 +708,18 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
     @property
     def output_types(self):
-        return OrderedDict({"probs": NeuralType(('B', 'T', 'C'), LogprobsType())})
+        return OrderedDict(
+                {
+                "probs": NeuralType(('B', 'T', 'C'), LogprobsType()),
+                "scale_weights": NeuralType(('B', 'T', 'C'), ProbsType())
+                    }
+                )
     
     @typecheck()
     def forward(self, input_signal, input_signal_length, ivectors, targets):
         length=3000
-        sprint("EncDecDiarLabelModel.forward.. ")
-        print("self.tsvad.input_types:", self.tsvad.input_types)
-        # def forward(self, ms_embs, length, ms_avg_embs):
-        preds = self.tsvad(ms_embs=input_signal, length=input_signal_length, ms_avg_embs=ivectors, targets=targets)
-        return preds
-
-
-    # @typecheck()
-    # def forward(self, input_signal, input_signal_length, ivectors):
-        # length=3000
-        # sprint("EncDecDiarLabelModel.forward.. ")
-        # print("self.tsvad.input_types:", self.tsvad.input_types)
-        # # def forward(self, ms_embs, length, ms_avg_embs):
-        # preds = self.tsvad(ms_embs=input_signal, length=input_signal_length, ms_avg_embs=ivectors)
-        # return preds
+        preds, scale_weights = self.tsvad(ms_emb_seq=input_signal, length=input_signal_length, ms_avg_embs=ivectors, targets=targets)
+        return preds, scale_weights
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
@@ -692,7 +727,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         sprint("Running Training Step 1....")
         signals, signal_lengths, targets, ivectors = batch
         sprint("Running Training Step 2....")
-        preds = self.forward(input_signal=signals, 
+        preds, _ = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
                              ivectors=ivectors,
                              targets=targets)
@@ -703,30 +738,26 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         sprint("Running Training Step 4....")
-        # import ipdb; ipdb.set_trace()
         # sprint("preds:", preds)
         # sprint("target:", targets)
-        self._accuracy(preds, targets)
-        acc = self._accuracy.compute()
+        self._accuracy_train(preds, targets, signal_lengths)
+        acc = self._accuracy_train.compute()
         sprint("Running Training Step 5....")
-        self._accuracy.reset()
+        self._accuracy_train.reset()
         logging.info(f"Batch Train F1 Acc. {acc:.4f}, Train loss {loss_value:.4f}")
         return {'loss': loss_value}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         sprint("batch data size : ", len(batch), [x.shape for x in batch])
         signals, signal_lengths, targets, ivectors = batch
-        # preds = self.forward(input_signal=signals, 
-                             # input_signal_length=signal_lengths, 
-                             # ivectors=ivectors)
-        preds = self.forward(input_signal=signals, 
+        preds, _ = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
                              ivectors=ivectors,
                              targets=targets)
         loss_value = self.loss(logits=preds, labels=targets)
-        self._accuracy(preds, targets)
-        acc = self._accuracy.compute()
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        self._accuracy_val(preds, targets, signal_lengths)
+        acc = self._accuracy_val.compute()
+        correct_counts, total_counts = self._accuracy_val.correct_counts_k, self._accuracy_val.total_counts_k
         logging.info(f"Batch Val F1 Acc. {acc:.4f}, Val loss {loss_value:.4f}")
         return {
             'val_loss': loss_value,
@@ -740,10 +771,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         correct_counts = torch.stack([x['val_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x['val_total_counts'] for x in outputs]).sum(axis=0)
 
-        self._accuracy.correct_counts_k = correct_counts
-        self._accuracy.total_counts_k = total_counts
-        acc = self._accuracy.compute()
-        self._accuracy.reset()
+        self._accuracy_val.correct_counts_k = correct_counts
+        self._accuracy_val.total_counts_k = total_counts
+        acc = self._accuracy_val.compute()
+        self._accuracy_val.reset()
 
         logging.info(f"Total Val F1 Acc. {acc:.4f}, Val loss mean {val_loss_mean:.4f}")
         self.log('val_loss', val_loss_mean)
@@ -754,17 +785,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         signals, signal_lengths, targets, ivectors = batch
-        # preds = self.forward(input_signal=signals, 
-                             # input_signal_length=signal_lengths, 
-                             # ivectors=ivectors)
-        preds = self.forward(input_signal=signals, 
+        preds, _ = self.forward(input_signal=signals, 
                              input_signal_length=signal_lengths, 
                              ivectors=ivectors,
                              targets=targets)
         loss_value = self.loss(preds, targets)
-        self._accuracy(preds, targets)
-        acc = self._accuracy.compute()
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        self._accuracy_test(preds, targets, signal_lengths)
+        acc = self._accuracy_test.compute()
+        correct_counts, total_counts = self._accuracy_test.correct_counts_k, self._accuracy_test.total_counts_k
         logging.info(f"Batch Test F1 Acc. {acc}, Test loss {loss_value}")
         return {
             'test_loss': loss_value,
@@ -778,10 +806,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         correct_counts = torch.stack([x['test_correct_counts'] for x in outputs]).sum(axis=0)
         total_counts = torch.stack([x['test_total_counts'] for x in outputs]).sum(axis=0)
 
-        self._accuracy.correct_counts_k = correct_counts
-        self._accuracy.total_counts_k = total_counts
-        acc = self._accuracy.compute()
-        self._accuracy.reset()
+        self._accuracy_test.correct_counts_k = correct_counts
+        self._accuracy_test.total_counts_k = total_counts
+        acc = self._accuracy_test.compute()
+        self._accuracy_test.reset()
 
         logging.info(f"Total Test F1 Acc. {acc:.4f}, Test loss mean {val_loss_mean:.4f}")
         return {

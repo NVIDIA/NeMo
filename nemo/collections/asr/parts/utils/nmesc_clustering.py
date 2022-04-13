@@ -192,6 +192,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
     base_scale_idx = max(uniq_scale_dict.keys())
     base_scale_emb = np.array(uniq_scale_dict[base_scale_idx]['embeddings'])
     multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
+    # print("using multiscale_weights:", multiscale_weights)
     score_mat_list, repeated_mat_list = [], []
 
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)

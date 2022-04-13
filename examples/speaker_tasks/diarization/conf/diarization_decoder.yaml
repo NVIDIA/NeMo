@@ -28,7 +28,7 @@ diarizer: &diarizer
       pad_onset: 0.05 # Adding durations before each speech segment 
       pad_offset: -0.1 # Adding durations after each speech segment 
       min_duration_on: 0.2 # Threshold for small non_speech deletion
-      min_duration_off: 0.2 # Threshold for short speech segment deletion
+      in_duration_off: 0.2 # Threshold for short speech segment deletion
       filter_speech_first: True 
 
   speaker_embeddings:
@@ -42,7 +42,7 @@ diarizer: &diarizer
   clustering:
     parameters:
       oracle_num_speakers: True # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: 5 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      max_num_speakers: 2 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
@@ -58,7 +58,9 @@ ts_vad_model:
     num_workers: *num_workers
     batch_size: *global_bs
     diarizer: *diarizer
-  max_num_of_spks: &max_num_of_spks 5
+    soft_label_thres: &soft_label_thres 0.25
+  max_num_of_spks: &max_num_of_spks 2
+  scale_n: &scale_n 6
   subsample_rate: &subsample_rate 1
   split_length: 30
 
@@ -67,6 +69,7 @@ ts_vad_model:
     emb_dir: ???
     sample_rate: 16000
     num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
     labels: null
     batch_size: 2
     shuffle: True
@@ -76,6 +79,7 @@ ts_vad_model:
     emb_dir: ???
     sample_rate: 16000
     num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
     labels: null
     batch_size: 2
     shuffle: False
@@ -85,6 +89,7 @@ ts_vad_model:
     emb_dir: ???
     sample_rate: 16000
     num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
     labels: null
     batch_size: 2
     shuffle: False
@@ -103,15 +108,13 @@ ts_vad_model:
   
   tsvad_module:
     _target_: nemo.collections.asr.modules.tsvad_diarizer.TSVAD_module
-    feat_in: *n_mels
-    frame_splicing: 1
     num_spks: *max_num_of_spks
-    scale_n: 3
-    out_channels: [2,2,3,4]
-    lstm_hidden_size: 512
+    hidden_size: 512
     dropout_rate: 0.5
-    cnn_output_ch: 8
+    cnn_output_ch: 4
     emb_sizes: 192
+    scale_n: *scale_n
+    #out_channels: [2,2,3,4]
 
   loss:
     scale: 30

@@ -80,7 +80,7 @@ class BCELoss(Loss, Typing):
         # print("logits:", logits)
         # self.positive = torch.sum(logits.round().bool() == True)
         # self.total_counts_k = torch.prod(torch.tensor(labels.shape))
-        print("[LOSS] self.ground_truth_pos_rate:", self.ground_truth_pos_rate)
+        # print("[LOSS] self.ground_truth_pos_rate:", self.ground_truth_pos_rate)
         # return loss_f(logits, labels) + self.alpha * self.ground_truth_pos_rate
         return self.loss_f(logits, labels) 
 

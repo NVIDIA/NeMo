@@ -98,6 +98,9 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
             parameters.window_length_in_sec=[1.5,1.0,0.5]
             parameters.shift_length_in_sec=[0.75,0.5,0.25]
             parameters.multiscale_weights=[0.33,0.33,0.33]
+
+    In addition, you can also specify session-by-session multiscale weight. In this case, each dictionary key
+    points to different weights.
     """
     checkFloatConfig = [type(var) == float for var in (window_lengths_in_sec, shift_lengths_in_sec)]
     checkListConfig = [
@@ -178,7 +181,10 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
     for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
         embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
         for uniq_id in embeddings.keys():
-            embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights']
+            if uniq_id in multiscale_args_dict['multiscale_weights']:
+                embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][uniq_id]
+            else:
+                embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights']
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
                 'embeddings': embeddings[uniq_id],
