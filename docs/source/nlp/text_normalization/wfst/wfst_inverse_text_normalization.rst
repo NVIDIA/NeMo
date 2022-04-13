@@ -15,7 +15,7 @@ Quick Start Guide
     from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 
     # initialize inverse normalizer
-    inverse_normalizer = InverseNormalizer(lang="en")
+    inverse_normalizer = InverseNormalizer(lang="en", cache_dir="cache_dir")
 
     # try normalizer on a few examples
     print(inverse_normalizer.normalize("it costs one hundred and twenty three dollars"))
@@ -25,7 +25,7 @@ Quick Start Guide
     # >>> "in 1970"
 
 
-NeMo ITN :cite:`textprocessing-itn-zhang2021nemo` is based on WFST-grammars :cite:`textprocessing-itn-Mohri2009`. We also provide a deployment route to C++ using `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-itn-sparrowhawk` -- an open-source version of Google Kestrel :cite:`textprocessing-itn-ebden2015kestrel`.
+NeMo ITN :cite:`textprocessing-itn-zhang2021nemo` is based on WFST-grammars (:cite:`textprocessing-itn-mohri2005weighted`, :cite:`textprocessing-itn-mohri2009weighted`). We also provide a deployment route to C++ using `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-itn-sparrowhawk` -- an open-source version of Google Kestrel :cite:`textprocessing-itn-ebden2015kestrel`.
 See :doc:`Text Procesing Deployment <../tools/text_processing_deployment>` for details.
 
 .. note::
@@ -63,21 +63,11 @@ Example prediction run:
 
 .. code::
 
-    python run_prediction.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH> --language=<LANGUAGE> [--verbose]
+    python run_predict.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH> --language=<LANGUAGE> [--verbose]
 
 
 The input is expected to be lower-cased. Punctuation are outputted with separating spaces after semiotic tokens, e.g. `"i see, it is ten o'clock..."` -> `"I see, it is 10:00  .  .  ."`.
 Inner-sentence white-space characters in the input are not maintained. 
-
-
-
-Data Cleaning for Evaluation
-----------------------------------
-
-.. code::
-
-    python clean_eval_data.py  --input=<INPUT_TEXT_FILE>
-
 
 
 Evaluation
@@ -87,7 +77,8 @@ Example evaluation run on (cleaned) `Google's text normalization dataset <https:
 
 .. code::
 
-    python run_evaluation.py  --input=./en_with_types/output-00001-of-00100 <--language LANGUAGE> [--cat CLASS_CATEGORY] [--filter]
+    python clean_eval_data.py --input=<INPUT_TEXT_FILE>
+    python run_evaluation.py --input=./en_with_types/output-00001-of-00100 <--language LANGUAGE> [--cat CLASS_CATEGORY] [--filter]
 
 Supported Languages
 -------------------
