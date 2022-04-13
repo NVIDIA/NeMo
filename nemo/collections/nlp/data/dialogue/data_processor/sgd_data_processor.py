@@ -22,11 +22,13 @@ import collections
 import json
 import os
 import pickle
-from typing import Dict, List
+from typing import List
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
 from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.sgd.schema import Schema
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueSGDDataProcessor']
 
@@ -44,20 +46,11 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
     """Data Processor for SGD dialogues."""
 
     def __init__(
-        self,
-        task_name: str,
-        data_dir: str,
-        dialogues_example_dir: str,
-        tokenizer: object,
-        schemas: object,
-        schema_config: Dict[str, int],
-        subsample: bool = False,
-        cfg=None,
+        self, data_dir: str, dialogues_example_dir: str, tokenizer: object, cfg=None,
     ):
         """
         Constructs DialogueSGDDataProcessor
         Args:
-            task_name: task name, e.g. "sgd_single_domain"
             data_dir: path to data directory
             dialogues_example_dir: path to store processed dialogue examples
             tokenizer: tokenizer object
@@ -66,15 +59,28 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             subsample: whether to balance positive and negative samples in dataset
         """
         self.data_dir = data_dir
-
-        self._task_name = task_name
-        self.schemas = schemas
-        self.schema_config = schema_config
         self.cfg = cfg
 
-        train_file_range = FILE_RANGES[task_name]["train"]
-        dev_file_range = FILE_RANGES[task_name]["dev"]
-        test_file_range = FILE_RANGES[task_name]["test"]
+        self._task_name = self.cfg.task_name  # e.g. "sgd_single_domain"
+        self._subsample = self.cfg.subsample
+
+        all_schema_json_paths = []
+        for dataset_split in ['train', 'test', 'dev']:
+            all_schema_json_paths.append(os.path.join(self.cfg.data_dir, dataset_split, "schema.json"))
+        self.schemas = Schema(all_schema_json_paths)
+
+        self.schema_config = {
+            "MAX_NUM_CAT_SLOT": self.cfg.max_num_cat_slot,
+            "MAX_NUM_NONCAT_SLOT": self.cfg.max_num_noncat_slot,
+            "MAX_NUM_VALUE_PER_CAT_SLOT": self.cfg.max_value_per_cat_slot,
+            "MAX_NUM_INTENT": self.cfg.max_num_intent,
+            "NUM_TASKS": self.cfg.num_tasks,
+            "MAX_SEQ_LENGTH": self.cfg.max_seq_length,
+        }
+
+        train_file_range = FILE_RANGES[self._task_name]["train"]
+        dev_file_range = FILE_RANGES[self._task_name]["dev"]
+        test_file_range = FILE_RANGES[self._task_name]["test"]
 
         self._file_ranges = {
             "train": train_file_range,
@@ -89,7 +95,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         }
 
         self._tokenizer = tokenizer
-        self._subsample = subsample
+
         self._dialogues_example_dir = dialogues_example_dir
 
         self.dial_files = {}
@@ -97,17 +103,23 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         # slots_relation_list.np would contain the candidate list of slots for each (service, slot) which would be
         # looked into when a switch between two services happens in the dialogue and we can not find any value for a slot in the current user utterance.
         # This file would get generated from the dialogues in the training set.
-        self.slots_relation_file = os.path.join(dialogues_example_dir, f"{task_name}_train_slots_relation_list.np")
+        self.slots_relation_file = os.path.join(
+            dialogues_example_dir, f"{self._task_name}_train_slots_relation_list.np"
+        )
         for dataset in ["train", "dev", "test"]:
             # Process dialogue files
-            dial_file = f"{task_name}_{dataset}_examples.json"
+            dial_file = f"{self._task_name}_{dataset}_examples.json"
             dial_file = os.path.join(dialogues_example_dir, dial_file)
-            self.dial_files[(task_name, dataset)] = dial_file
+            self.dial_files[(self._task_name, dataset)] = dial_file
 
-            dialog_paths = DialogueSGDDataProcessor.get_dialogue_files(data_dir, dataset, task_name)
+            dialog_paths = DialogueSGDDataProcessor.get_dialogue_files(data_dir, dataset, self._task_name)
             dialogs = DialogueSGDDataProcessor.load_dialogues(dialog_paths)
             for dialog in dialogs:
                 self._seen_services[dataset].update(set(dialog['services']))
+
+        if is_global_rank_zero():
+            overwrite_dial_files = not self.cfg.use_cache
+            self.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
     def save_dialog_examples(self, overwrite_dial_files: bool):
         """

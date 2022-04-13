@@ -13,11 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-'''
-This file contains code artifacts adapted from the original implementation:
-https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/train_and_predict.py
-'''
-
 import collections
 import os
 import random
@@ -584,32 +579,12 @@ class DialogueGPTClassificationModel(NLPModel):
             return
 
         if self._cfg.dataset.task == 'sgd':
-            schema_config = {
-                "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
-                "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
-                "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
-                "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-                "NUM_TASKS": 1,
-                "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
-            }
-            all_schema_json_paths = []
-            for dataset_split in ['train', 'test', 'dev']:
-                all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-            schemas = Schema(all_schema_json_paths)
-
             self.dialogues_processor = DialogueSGDDataProcessor(
-                task_name=self._cfg.dataset.task_name,
                 data_dir=self._cfg.dataset.data_dir,
                 dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
                 tokenizer=self.tokenizer,
-                schemas=schemas,
-                schema_config=schema_config,
-                subsample=self._cfg.dataset.subsample,
                 cfg=self._cfg.dataset,
             )
-            if is_global_rank_zero():
-                overwrite_dial_files = not self._cfg.dataset.use_cache
-                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         elif self._cfg.dataset.task in ['assistant', "zero_shot"]:
             self.dialogues_processor = DialogueAssistantDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,

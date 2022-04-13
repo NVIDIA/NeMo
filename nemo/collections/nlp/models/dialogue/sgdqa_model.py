@@ -26,7 +26,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue import DialogueSGDBERTDataset, DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue import DialogueSGDBERTDataset, DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.sgd.evaluate import evaluate, get_in_domain_services
 from nemo.collections.nlp.data.dialogue.sgd.prediction_utils import write_predictions_to_file
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
@@ -35,11 +35,8 @@ from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['SGDQAModel']
-
-NUM_TASKS = 6  # number of multi-head tasks
 
 
 class SGDQAModel(NLPModel):
@@ -502,33 +499,13 @@ class SGDQAModel(NLPModel):
         """
         if self.data_prepared:
             return
-        schema_config = {
-            "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
-            "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
-            "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
-            "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-            "NUM_TASKS": NUM_TASKS,
-            "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
-        }
-        all_schema_json_paths = []
-        for dataset_split in ['train', 'test', 'dev']:
-            all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-        schemas = Schema(all_schema_json_paths)
 
         self.dialogues_processor = DialogueSGDDataProcessor(
-            task_name=self._cfg.dataset.task_name,
             data_dir=self._cfg.dataset.data_dir,
             dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
             tokenizer=self.tokenizer,
-            schemas=schemas,
-            schema_config=schema_config,
-            subsample=self._cfg.dataset.subsample,
             cfg=self._cfg.dataset,
         )
-
-        if is_global_rank_zero():
-            overwrite_dial_files = not self._cfg.dataset.use_cache
-            self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
 
         self.data_prepared = True
 
