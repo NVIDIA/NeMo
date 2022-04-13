@@ -201,6 +201,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
+        # Setup optional Optimization flags
+        self.setup_optimization_flags()
+
     @torch.no_grad()
     def transcribe(
         self,
@@ -259,9 +262,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -460,10 +463,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
                     * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
@@ -686,9 +694,15 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.decoder.vocabulary,
             'batch_size': batch_size,

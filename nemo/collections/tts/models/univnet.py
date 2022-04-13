@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import itertools
+from typing import Dict
 
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
 from nemo.collections.tts.data.datalayers import MelAudioDataset
@@ -26,11 +27,13 @@ from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, Genera
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
+from nemo.collections.tts.torch.data import VocoderDataset
+from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import compute_max_steps
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
 try:
@@ -39,16 +42,18 @@ except ModuleNotFoundError:
     HAVE_WANDB = False
 
 
-class UnivNetModel(Vocoder):
+class UnivNetModel(Vocoder, Exportable):
+    """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram."""
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
-        # use a different melspec extractor because:
-        # 1. we need to pass grads
-        # 2. we need remove fmax limitation
+        # We use separate preprocessor for training, because we need to pass grads and remove pitch fmax limitation
         self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.generator = instantiate(
             cfg.generator, n_mel_channels=cfg.preprocessor.nfilt, hop_length=cfg.preprocessor.n_window_stride
@@ -59,7 +64,7 @@ class UnivNetModel(Vocoder):
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
-        # reshape MRD resolutions hyperparameter and apply them to MRSTFT loss
+        # Reshape MRD resolutions hyperparameter and apply them to MRSTFT loss
         self.stft_resolutions = cfg.discriminator.mrd.resolutions
         self.fft_sizes = [res[0] for res in self.stft_resolutions]
         self.hop_sizes = [res[1] for res in self.stft_resolutions]
@@ -70,10 +75,13 @@ class UnivNetModel(Vocoder):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
-            self.input_as_mel = True
-        else:
-            self.input_as_mel = False
+        self.input_as_mel = False
+        if self._train_dl:
+            # TODO(Oktai15): remove it in 1.8.0 version
+            if isinstance(self._train_dl.dataset, MelAudioDataset):
+                self.input_as_mel = True
+            elif isinstance(self._train_dl.dataset, VocoderDataset):
+                self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
 
         self.automatic_optimization = False
 
@@ -89,24 +97,10 @@ class UnivNetModel(Vocoder):
         )
 
     def configure_optimizers(self):
-        self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        self.optim_d = instantiate(
-            self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),
-        )
+        optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
+        optim_d = instantiate(self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),)
 
-        return [self.optim_g, self.optim_d]
-
-    @property
-    def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
-        }
+        return [optim_g, optim_d]
 
     @typecheck()
     def forward(self, *, spec):
@@ -123,14 +117,11 @@ class UnivNetModel(Vocoder):
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx):
-        # if in finetune mode the mels are pre-computed using a
-        # spectrogram generator
         if self.input_as_mel:
+            # Pre-computed spectrograms will be used as input
             audio, audio_len, audio_mel = batch
-        # else, we compute the mel using the ground truth audio
         else:
             audio, audio_len = batch
-            # mel as input for generator
             audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
 
         audio = audio.unsqueeze(1)
@@ -138,8 +129,10 @@ class UnivNetModel(Vocoder):
         audio_pred = self.generator(x=audio_mel)
         audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
 
-        # train discriminator
-        self.optim_d.zero_grad()
+        optim_g, optim_d = self.optimizers()
+
+        # Train discriminator
+        optim_d.zero_grad()
         mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
         loss_disc_mpd, _, _ = self.discriminator_loss(
             disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
@@ -150,10 +143,10 @@ class UnivNetModel(Vocoder):
         )
         loss_d = loss_disc_mrd + loss_disc_mpd
         self.manual_backward(loss_d)
-        self.optim_d.step()
+        optim_d.step()
 
-        # train generator
-        self.optim_g.zero_grad()
+        # Train generator
+        optim_g.zero_grad()
         loss_sc, loss_mag = self.mrstft_loss(x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
         loss_sc = torch.stack(loss_sc).mean()
         loss_mag = torch.stack(loss_mag).mean()
@@ -164,7 +157,7 @@ class UnivNetModel(Vocoder):
         loss_gen_mrd, _ = self.generator_loss(disc_outputs=mrd_score_gen)
         loss_g = loss_gen_mrd + loss_gen_mpd + loss_mrstft
         self.manual_backward(loss_g)
-        self.optim_g.step()
+        optim_g.step()
 
         metrics = {
             "g_loss_sc": loss_sc,
@@ -177,7 +170,7 @@ class UnivNetModel(Vocoder):
             "d_loss_mrd": loss_disc_mrd,
             "d_loss": loss_d,
             "global_step": self.global_step,
-            "lr": self.optim_g.param_groups[0]['lr'],
+            "lr": optim_g.param_groups[0]['lr'],
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_mrstft_loss", loss_mrstft, prog_bar=True, logger=False, sync_dist=True)
@@ -191,7 +184,7 @@ class UnivNetModel(Vocoder):
             audio_mel, audio_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=audio_mel)
 
-        # perform bias denoising
+        # Perform bias denoising
         pred_denoised = self._bias_denoise(audio_pred, audio_mel).squeeze(1)
         pred_denoised_mel, _ = self.audio_to_melspec_precessor(pred_denoised, audio_len)
 
@@ -202,7 +195,7 @@ class UnivNetModel(Vocoder):
 
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
 
-        # plot audio once per epoch
+        # Plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             clips = []
             specs = []
@@ -261,7 +254,7 @@ class UnivNetModel(Vocoder):
             x = torch.istft(comp, n_fft=1024, hop_length=256, win_length=1024)
             return x
 
-        # create bias tensor
+        # Create bias tensor
         if self.stft_bias is None or self.stft_bias.shape[0] != audio.shape[0]:
             audio_bias = self(spec=torch.zeros_like(mel, device=mel.device))
             self.stft_bias, _ = stft(audio_bias)
@@ -301,6 +294,9 @@ class UnivNetModel(Vocoder):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
+    def setup_test_data(self, cfg):
+        pass
+
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         list_of_models = []
@@ -314,7 +310,7 @@ class UnivNetModel(Vocoder):
 
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_libritts_univnet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_univnet/versions/1.7.0/files/tts_en_libritts_univnet.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_libritts_univnet/versions/1.7.0/files/tts_en_libritts_multispeaker_univnet.nemo",
             description="This model is trained on all LibriTTS training data (train-clean-100, train-clean-360, and train-other-500) sampled at 22050Hz, and has been tested on generating English voices.",
             class_=cls,
         )
@@ -322,12 +318,38 @@ class UnivNetModel(Vocoder):
 
         return list_of_models
 
-    def input_example(self):
+    # Methods for model exportability
+    def _prepare_for_export(self, **kwargs):
+        if self.generator is not None:
+            try:
+                self.generator.remove_weight_norm()
+            except ValueError:
+                return
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+        }
+
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((1, self.cfg['preprocessor']['nfilt'], 96), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
         return ({'spec': mel},)
+
+    def forward_for_export(self, spec):
+        """
+        Runs the generator, for inputs and outputs see input_types, and output_types
+        """
+        return self.generator(x=spec)

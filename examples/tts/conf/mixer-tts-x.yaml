@@ -77,7 +77,7 @@ model:
 
   train_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.MixerTTSXDataset
       manifest_filepath: ${train_dataset}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -106,7 +106,7 @@ model:
 
   validation_ds:
     dataset:
-      _target_: nemo.collections.tts.torch.data.MixerTTSDataset
+      _target_: nemo.collections.tts.torch.data.MixerTTSXDataset
       manifest_filepath: ${validation_datasets}
       sample_rate: ${model.sample_rate}
       sup_data_path: ${sup_data_path}
@@ -228,10 +228,9 @@ trainer:
   max_epochs: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
-  checkpoint_callback: false # Provided by exp_manager
+  enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
   log_every_n_steps: 200
-  flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 1
 
 exp_manager:

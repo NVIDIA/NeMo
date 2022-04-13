@@ -821,7 +821,7 @@ def prepare_lr_scheduler(
         return None
 
     # Inject max_steps (effective or provided) into the scheduler config
-    if add_max_args_flag:
+    if add_max_args_flag and scheduler_config.get('name', '') != "ExponentialLR":
         scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config

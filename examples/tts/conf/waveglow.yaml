@@ -1,22 +1,32 @@
+# This config contains the default values for training WaveGlow model on LJSpeech dataset.
+# If you want to train model on other dataset, you can change config values according to your dataset.
+# Most dataset-specific arguments are in the head of the config file, see below.
+
 name: "WaveGlow"
-sample_rate: 22050
-n_fft: 1024
-n_mels: 80
-fmax: 8000
-pad_value: -11.52
+
 train_dataset: ???
 validation_datasets: ???
+
+# Default values for dataset with sample_rate=22050
+sample_rate: 22050
+n_mel_channels: 80
+n_window_size: 1024
+n_window_stride: 256
+n_fft: 1024
+lowfreq: 0
+highfreq: 8000
+window: hann
 
 model:
   sigma: 1.0
   train_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      _target_: "nemo.collections.tts.torch.data.VocoderDataset"
       manifest_filepath: ${train_dataset}
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
       n_segments: 16000
-      trim: false
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -25,12 +35,11 @@ model:
 
   validation_ds:
     dataset:
-      _target_: "nemo.collections.tts.data.datalayers.AudioDataset"
+      _target_: "nemo.collections.tts.torch.data.VocoderDataset"
       manifest_filepath: ${validation_datasets}
+      sample_rate: ${sample_rate}
       max_duration: null
       min_duration: 0.1
-      n_segments: -1
-      trim: false
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -39,28 +48,25 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    nfilt: ${n_mel_channels}
+    lowfreq: ${lowfreq}
+    highfreq: ${highfreq}
+    n_fft: ${n_fft}
+    # Changing these parameters are not recommended, because WaveGlow is currently hardcoded to these values
+    n_window_size: ${n_window_size}
+    n_window_stride: ${n_window_stride}
+    pad_to: 16
+    pad_value: -11.52
+    sample_rate: ${sample_rate}
+    window: ${window}
+    normalize: null
+    preemph: null
     dither: 0.0
-    nfilt: ${n_mels}
     frame_splicing: 1
-    highfreq: ${fmax}
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
-    lowfreq: 0
     mag_power: 1.0
-    n_fft: ${n_fft}
-
-    # Waveglow is currently hardcoded to these values for window size and stride
-    # Changing these parameters are not recommended
-    n_window_size: 1024
-    n_window_stride: 256
-
-    normalize: null
-    pad_to: 16
-    pad_value: ${pad_value}
-    preemph: null
-    sample_rate: ${sample_rate}
-    window: hann
 
   waveglow:
     _target_: nemo.collections.tts.modules.waveglow.WaveGlowModule
@@ -68,7 +74,7 @@ model:
     n_early_size: 2
     n_flows: 12
     n_group: 8
-    n_mel_channels: ${n_mels}
+    n_mel_channels: ${n_mel_channels}
     n_wn_channels: 256
     n_wn_layers: 8
     wn_kernel_size: 3
@@ -78,20 +84,27 @@ model:
     lr: 1e-4
 
 trainer:
-  gpus: 1 # number of gpus
-  max_epochs: ???
   num_nodes: 1
-  accelerator: ddp
+  devices: 1
+  accelerator: gpu
+  strategy: ddp
+  precision: 16
+  max_epochs: ???
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
-  flush_logs_every_n_steps: 1000
+  enable_checkpointing: False  # Provided by exp_manager
+  logger: false # Provided by exp_manager
   log_every_n_steps: 200
   check_val_every_n_epoch: 25
-  precision: 16
 
 exp_manager:
   exp_dir: null
   name: ${name}
-  create_tensorboard_logger: True
-  create_checkpoint_callback: True
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+    entity: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false

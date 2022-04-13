@@ -206,7 +206,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         trunc_l = time_unit - trunc
         all_len = 0
         data = []
-        for line in open(manifest_file, 'r'):
+        for line in open(manifest_file, 'r', encoding='utf-8'):
             file = json.loads(line)['audio_filepath']
             data.append(get_uniqname_from_filepath(file))
 
@@ -227,7 +227,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                     to_save = pred
                 all_len += len(to_save)
                 outpath = os.path.join(self._vad_dir, data[i] + ".frame")
-                with open(outpath, "a") as fout:
+                with open(outpath, "a", encoding='utf-8') as fout:
                     for f in range(len(to_save)):
                         fout.write('{0:0.4f}\n'.format(to_save[f]))
             del test_batch
@@ -341,7 +341,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 all_embs.extend(embs.cpu().detach().numpy())
             del test_batch
 
-        with open(manifest_file, 'r') as manifest:
+        with open(manifest_file, 'r', encoding='utf-8') as manifest:
             for i, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
@@ -366,7 +366,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             logging.info("Saved embedding files to {}".format(embedding_dir))
 
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
-        with open(manifest_filepath, 'w') as fp:
+        with open(manifest_filepath, 'w', encoding='utf-8') as fp:
             for audio_file in paths2audio_files:
                 audio_file = audio_file.strip()
                 entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
@@ -392,7 +392,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if paths2audio_files:
             if type(paths2audio_files) is list:
-                self._diarizer_params.manifest_filepath = os.path.json(self._out_dir, 'paths2audio_filepath.json')
+                self._diarizer_params.manifest_filepath = os.path.join(self._out_dir, 'paths2audio_filepath.json')
                 self.path2audio_files_to_manifest(paths2audio_files, self._diarizer_params.manifest_filepath)
             else:
                 raise ValueError("paths2audio_files must be of type list of paths to file containing audio file")

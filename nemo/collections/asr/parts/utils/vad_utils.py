@@ -59,7 +59,7 @@ def prepare_manifest(config):
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
     if type(config['input']) == str:
         input_list = []
-        with open(config['input'], 'r') as manifest:
+        with open(config['input'], 'r', encoding='utf-8') as manifest:
             for line in manifest.readlines():
                 input_list.append(json.loads(line.strip()))
     elif type(config['input']) == list:
@@ -83,7 +83,7 @@ def prepare_manifest(config):
         logging.info("The prepared manifest file exists. Overwriting!")
         os.remove(manifest_vad_input)
 
-    with open(manifest_vad_input, 'a') as fout:
+    with open(manifest_vad_input, 'a', encoding='utf-8') as fout:
         for res in results:
             for r in res:
                 json.dump(r, fout)
@@ -115,7 +115,7 @@ def write_vad_infer_manifest(file, args_func):
     try:
         sr = 16000
         x, _sr = librosa.load(filepath, sr=sr, offset=in_offset, duration=in_duration)
-        duration = librosa.get_duration(x, sr=sr)
+        duration = librosa.get_duration(y=x, sr=sr)
         left = duration
         current_offset = in_offset
 
@@ -160,8 +160,8 @@ def write_vad_infer_manifest(file, args_func):
 
     except Exception as e:
         err_file = "error.log"
-        with open(err_file, 'w') as fout:
-            fout.write(file + ":" + str(e))
+        with open(err_file, 'w', encoding='utf-8') as fout:
+            fout.write(filepath + ":" + str(e))
     return res
 
 
@@ -655,7 +655,7 @@ def vad_tune_threshold_on_dev(
         metric.reset()  # reset internal accumulator
 
         # save results for analysis
-        with open(result_file + ".txt", "a") as fp:
+        with open(result_file + ".txt", "a", encoding='utf-8') as fp:
             fp.write(f"{param}, {all_perf[str(param)] }\n")
 
         if score < min_score:
@@ -697,7 +697,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
     """
     groundtruth_RTTM_dict = {}
     if os.path.isfile(groundtruth_RTTM):
-        with open(groundtruth_RTTM, "r") as fp:
+        with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
             groundtruth_RTTM_files = fp.read().splitlines()
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
@@ -711,7 +711,7 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
 
     vad_pred_dict = {}
     if os.path.isfile(vad_pred):
-        with open(vad_pred, "r") as fp:
+        with open(vad_pred, "r", encoding='utf-8') as fp:
             vad_pred_files = fp.read().splitlines()
     elif os.path.isdir(vad_pred):
         vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
@@ -748,7 +748,7 @@ def plot(
     FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
-    dur = librosa.get_duration(audio, sr=sample_rate)
+    dur = librosa.get_duration(y=audio, sr=sample_rate)
 
     time = np.arange(offset, offset + dur, FRAME_LEN)
     frame = np.loadtxt(path2_vad_pred)
@@ -833,7 +833,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
     all_len = 0
 
     data = []
-    for line in open(manifest_vad_input, 'r'):
+    for line in open(manifest_vad_input, 'r', encoding='utf-8'):
         file = json.loads(line)['audio_filepath'].split("/")[-1]
         data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
@@ -857,7 +857,7 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
 
             all_len += len(to_save)
             outpath = os.path.join(out_dir, data[i] + ".frame")
-            with open(outpath, "a") as fout:
+            with open(outpath, "a", encoding='utf-8') as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
 
@@ -881,3 +881,113 @@ def init_vad_model(model_path):
         logging.info(f"Using NGC cloud VAD model {model_path}")
         vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
     return vad_model
+
+
+def stitch_segmented_asr_output(
+    segmented_output_manifest: str,
+    speech_segments_tensor_dir: str = "speech_segments",
+    stitched_output_manifest: str = "asr_stitched_output_manifest.json",
+) -> str:
+    """
+    Stitch the prediction of speech segments.
+    """
+    if not os.path.exists(speech_segments_tensor_dir):
+        os.mkdir(speech_segments_tensor_dir)
+
+    segmented_output = []
+    for line in open(segmented_output_manifest, 'r', encoding='utf-8'):
+        file = json.loads(line)
+        segmented_output.append(file)
+
+    with open(stitched_output_manifest, 'w', encoding='utf-8') as fout:
+        speech_segments = torch.Tensor()
+        all_pred_text = ""
+        if len(segmented_output) > 1:
+            for i in range(1, len(segmented_output)):
+                start, end = (
+                    segmented_output[i - 1]['offset'],
+                    segmented_output[i - 1]['offset'] + segmented_output[i - 1]['duration'],
+                )
+                new_seg = torch.tensor([start, end]).unsqueeze(0)
+                speech_segments = torch.cat((speech_segments, new_seg), 0)
+                pred_text = segmented_output[i - 1]['pred_text']
+                all_pred_text += pred_text
+                name = segmented_output[i - 1]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0]
+
+                if segmented_output[i - 1]['audio_filepath'] != segmented_output[i]['audio_filepath']:
+
+                    speech_segments_tensor_path = os.path.join(speech_segments_tensor_dir, name + '.pt')
+                    torch.save(speech_segments, speech_segments_tensor_path)
+                    meta = {
+                        'audio_filepath': segmented_output[i - 1]['audio_filepath'],
+                        'speech_segments_filepath': speech_segments_tensor_path,
+                        'pred_text': all_pred_text,
+                    }
+
+                    json.dump(meta, fout)
+                    fout.write('\n')
+                    fout.flush()
+                    speech_segments = torch.Tensor()
+                    all_pred_text = ""
+                else:
+                    all_pred_text += " "
+        else:
+            i = -1
+
+        start, end = segmented_output[i]['offset'], segmented_output[i]['offset'] + segmented_output[i]['duration']
+        new_seg = torch.tensor([start, end]).unsqueeze(0)
+        speech_segments = torch.cat((speech_segments, new_seg), 0)
+        pred_text = segmented_output[i]['pred_text']
+        all_pred_text += pred_text
+        name = segmented_output[i]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0]
+        speech_segments_tensor_path = os.path.join(speech_segments_tensor_dir, name + '.pt')
+        torch.save(speech_segments, speech_segments_tensor_path)
+
+        meta = {
+            'audio_filepath': segmented_output[i]['audio_filepath'],
+            'speech_segments_filepath': speech_segments_tensor_path,
+            'pred_text': all_pred_text,
+        }
+        json.dump(meta, fout)
+        fout.write('\n')
+        fout.flush()
+
+        logging.info(
+            f"Finish stitch segmented ASR output to {stitched_output_manifest}, the speech segments info has been stored in directory {speech_segments_tensor_dir}"
+        )
+        return stitched_output_manifest
+
+
+def contruct_manfiest_eval(
+    input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = "vad_asr_out.json"
+) -> str:
+
+    """
+    Generate aligned manifest for evaluation.
+    Because some pure noise samples might not appears in stitched_output_manifest.
+    """
+    stitched_output = dict()
+    for line in open(stitched_output_manifest, 'r', encoding='utf-8'):
+        file = json.loads(line)
+        stitched_output[file["audio_filepath"]] = file
+
+    out = []
+    for line in open(input_manifest, 'r', encoding='utf-8'):
+        file = json.loads(line)
+        sample = file["audio_filepath"]
+        if sample in stitched_output:
+            file["pred_text"] = stitched_output[sample]["pred_text"]
+            file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
+        else:
+            file["pred_text"] = ""
+            file["speech_segments_filepath"] = ""
+
+        out.append(file)
+
+    with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
+        for i in out:
+            json.dump(i, fout)
+            fout.write('\n')
+            fout.flush()
+
+    return aligned_vad_asr_output_manifest

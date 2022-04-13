@@ -1,4 +1,3 @@
-# @package _group_
 _target_: nemo.collections.tts.modules.univnet_modules.Generator
 noise_dim: 64
 channel_size: 16

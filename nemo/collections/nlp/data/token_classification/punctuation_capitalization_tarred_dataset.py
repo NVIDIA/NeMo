@@ -190,6 +190,7 @@ def process_fragment(
     )
     tmp_text.unlink()
     tmp_labels.unlink()
+    dataset.features_pkl.unlink()
     tar_ctr = 0
     current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
     current_num_batches = 0

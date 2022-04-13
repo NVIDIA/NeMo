@@ -930,9 +930,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
 
         master_device = is_global_rank_zero()
-        features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
+        self.features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
         features = None
-        if master_device and not (features_pkl.is_file() and use_cache):
+        if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
             res = self._read_dataset(text_file, labels_file, num_samples)
@@ -962,26 +962,26 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 progress_queue=tokenization_progress_queue,
                 n_jobs=n_jobs,
             )
-            features_pkl.parent.mkdir(parents=True, exist_ok=True)
-            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
+            self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
+            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), self.features_pkl.open("wb"))
             if self.verbose:
-                logging.info(f'Features saved to {features_pkl}')
+                logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
         if features is None:
-            features = pickle.load(open(features_pkl, 'rb'))
+            features = pickle.load(self.features_pkl.open('rb'))
             li = features[-2:]
             self._check_label_ids_loaded_from_pkl(
-                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file, features_pkl
+                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file
             )
             punct_label_ids, capit_label_ids = li[-2], li[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
-                logging.info(f'Features restored from {features_pkl}')
+                logging.info(f'Features restored from {self.features_pkl}')
             features = features[:-2]
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
@@ -1078,19 +1078,18 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f"Negative `num_samples` is for using all samples in a dataset."
             )
 
-    @staticmethod
     def _check_label_ids_loaded_from_pkl(
+        self,
         parameter_punct_label_ids: Dict[str, int],
         parameter_capit_label_ids: Dict[str, int],
         pkl_punct_label_ids: Any,
         pkl_capit_label_ids: Any,
         punct_label_vocab_file: Optional[Path],
         capit_label_vocab_file: Optional[Path],
-        features_file: Path,
     ) -> None:
         if not isinstance(pkl_punct_label_ids, dict):
             raise ValueError(
-                f"Punctuation label ids loaded from features file {features_file} has wrong type "
+                f"Punctuation label ids loaded from features file {self.features_pkl} has wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
         if parameter_punct_label_ids is not None:
@@ -1101,11 +1100,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
                     if punct_label_vocab_file is None
                     else f"Punctuation labels loaded from file {punct_label_vocab_file}",
-                    second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Punctuation label ids loaded from features file {self.features_pkl}",
                 )
         if not isinstance(pkl_capit_label_ids, dict):
             raise ValueError(
-                f"Capitalization label ids loaded from features file {features_file} has wrong type "
+                f"Capitalization label ids loaded from features file {self.features_pkl} has wrong type "
                 f"{type(pkl_capit_label_ids)}"
             )
         if parameter_capit_label_ids is not None:
@@ -1116,7 +1115,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
                     if capit_label_vocab_file is None
                     else f"Capitalization labels loaded from file {capit_label_vocab_file}",
-                    second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Capitalization label ids loaded from features file {self.features_pkl}",
                 )
 
     @staticmethod

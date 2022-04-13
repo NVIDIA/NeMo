@@ -213,6 +213,7 @@ class ConformerEncoder(NeuralModule, Exportable):
             self.out_proj = None
             self._feat_out = d_model
         self.set_max_audio_length(self.pos_emb_max_len)
+        self.use_pad_mask = True
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -233,7 +234,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
-    def forward_for_export(self, audio_signal, length=None):
+    def forward_for_export(self, audio_signal, length):
         max_audio_length: int = audio_signal.size(-1)
 
         if max_audio_length > self.max_audio_length:
@@ -254,6 +255,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         # adjust size
         max_audio_length = audio_signal.size(1)
         # Create the self-attention and padding masks
+
         pad_mask = self.make_pad_mask(max_audio_length, length)
         att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
@@ -262,7 +264,11 @@ class ConformerEncoder(NeuralModule, Exportable):
         if self.att_context_size[1] >= 0:
             att_mask = att_mask.tril(diagonal=self.att_context_size[1])
         att_mask = ~att_mask
-        pad_mask = ~pad_mask
+
+        if self.use_pad_mask:
+            pad_mask = ~pad_mask
+        else:
+            pad_mask = None
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
@@ -288,5 +294,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].repeat(seq_lens.size(0), 1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        return mask
+
+    def enable_pad_mask(self, on=True):
+        # On inference, user may chose to disable pad mask
+        mask = self.use_pad_mask
+        self.use_pad_mask = on
         return mask

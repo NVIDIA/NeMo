@@ -28,6 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 class SaveRestoreConnector:
@@ -105,6 +106,7 @@ class SaveRestoreConnector:
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
@@ -130,8 +132,7 @@ class SaveRestoreConnector:
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
-                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
+                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -142,7 +143,10 @@ class SaveRestoreConnector:
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+
                 if conf.get('megatron_amp_O2', False):
                     new_state_dict = {}
                     for key in state_dict.keys():
@@ -372,26 +376,35 @@ class SaveRestoreConnector:
                     OmegaConf.update(conf, conf_path, item.path)
                 else:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
-            with open(path2yaml_file, 'w') as fout:
+            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
-        app_state = AppState()
-        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, basename)
+        model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
         dirname = os.path.dirname(filename)
         os.makedirs(dirname, exist_ok=True)
-        with tarfile.open(filename, "w:gz") as tar:
+        with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
+        # we start with an assumption of uncompressed tar,
+        # which should be true for versions 1.7.0 and above
+        tar_header = "r:"
+        try:
+            tar_test = tarfile.open(path2file, tar_header)
+            tar_test.close()
+        except tarfile.ReadError:
+            # can be older checkpoint => try compressed tar
+            tar_header = "r:gz"
+        tar = tarfile.open(path2file, tar_header)
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder

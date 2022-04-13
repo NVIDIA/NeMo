@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
+import shutil
 import tarfile
+import tempfile
 import urllib.request
 from os import mkdir
 from os.path import dirname, exists, getsize, join
@@ -111,14 +113,27 @@ def test_data_dir():
     return test_data_dir_
 
 
-def extract_data_from_tar(test_dir, test_data_archive, url=None):
+def extract_data_from_tar(test_dir, test_data_archive, url=None, local_data=False):
     # Remove .data folder.
     if exists(test_dir):
-        rmtree(test_dir)
+        if not local_data:
+            rmtree(test_dir)
+        else:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                print("Copying local tarfile to temporary storage..")
+                shutil.copy2(test_data_archive, temp_dir)
+                print("Deleting test dir to cleanup old data")
+                rmtree(test_dir)
+                mkdir(test_dir)
+                print("Restoring local tarfile to test dir")
+                shutil.copy2(os.path.join(temp_dir, os.path.basename(test_data_archive)), test_data_archive)
+
     # Create one .data folder.
-    mkdir(test_dir)
+    if not exists(test_dir):
+        mkdir(test_dir)
+
     # Download (if required)
-    if url is not None:
+    if url is not None and not local_data:
         urllib.request.urlretrieve(url, test_data_archive)
 
     # Extract tar
@@ -160,6 +175,7 @@ def pytest_configure(config):
             )
 
     # Get size of remote test_data archive.
+    url = None
     if not config.option.use_local_test_data:
         try:
             url = __TEST_DATA_URL + __TEST_DATA_FILENAME
@@ -188,7 +204,7 @@ def pytest_configure(config):
                 )
             )
 
-            extract_data_from_tar(test_dir, test_data_archive, url=url)
+            extract_data_from_tar(test_dir, test_data_archive, url=url, local_data=config.option.use_local_test_data)
 
         else:
             print(
@@ -199,7 +215,7 @@ def pytest_configure(config):
 
     else:
         # untar local test data
-        extract_data_from_tar(test_dir, test_data_archive)
+        extract_data_from_tar(test_dir, test_data_archive, local_data=config.option.use_local_test_data)
 
     if config.option.relax_numba_compat is not None:
         from nemo.core.utils import numba_utils

@@ -76,7 +76,7 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
 
     all_embs = np.asarray(all_embs)
     all_embs = embedding_normalize(all_embs)
-    with open(manifest_file, 'r') as manifest:
+    with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)

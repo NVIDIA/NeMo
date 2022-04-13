@@ -27,17 +27,22 @@
 # Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
 # More info on how to use bucketing feature: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/datasets.html
 
+# If valid NVIDIA DALI version is installed, will also generate the corresponding DALI index files that need to be
+# supplied to the config in order to utilize webdataset for efficient large dataset handling.
+# NOTE: DALI + Webdataset is NOT compatible with Bucketing support !
+
 # Usage:
 1) Creating a new tarfile dataset
 
 python convert_to_tarred_audio_dataset.py \
     --manifest_path=<path to the manifest file> \
     --target_dir=<path to output directory> \
-    --num_shards=<number of tarfiles that will contain the audio>
+    --num_shards=<number of tarfiles that will contain the audio> \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
-    --shuffle --shuffle_seed=1
-    --sort_in_shards
+    --shuffle --shuffle_seed=1 \
+    --sort_in_shards \
+    --workers=-1
 
 
 2) Concatenating more tarfiles to a pre-existing tarred dataset
@@ -49,7 +54,8 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1 \
-    --sort_in_shards
+    --sort_in_shards \
+    --workers=-1 \
     --concat_manifest_paths \
     <space separated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
@@ -62,7 +68,8 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=16.7 \
     --min_duration=0.01 \
     --shuffle \
-    --sort_in_shards
+    --workers=-1 \
+    --sort_in_shards \
     --shuffle_seed=1 \
     --write_metadata
 
@@ -73,12 +80,20 @@ import json
 import os
 import random
 import tarfile
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List, Optional
 
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
+
+try:
+    import create_dali_tarred_dataset_index as dali_index
+
+    DALI_INDEX_SCRIPT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError, FileNotFoundError):
+    DALI_INDEX_SCRIPT_AVAILABLE = False
 
 parser = argparse.ArgumentParser(
     description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
@@ -134,6 +149,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--keep_files_together",
+    action='store_true',
+    help="Whether or not to keep entries from the same file (but different offsets) together when sorting before tarring/sharding.",
+)
+
+parser.add_argument(
     "--sort_in_shards",
     action='store_true',
     help="Whether or not to sort samples inside the shards based on their duration.",
@@ -165,6 +186,7 @@ class ASRTarredDatasetConfig:
     min_duration: Optional[float] = None
     shuffle_seed: Optional[int] = None
     sort_in_shards: bool = True
+    keep_files_together: bool = False
 
 
 @dataclass
@@ -242,10 +264,13 @@ class ASRTarredDatasetBuilder:
             os.makedirs(target_dir)
 
         # Read the existing manifest
-        entries, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
+        entries, total_duration, filtered_entries, filtered_duration = self._read_manifest(manifest_path, config)
 
         if len(filtered_entries) > 0:
             print(f"Filtered {len(filtered_entries)} files which amounts to {filtered_duration} seconds of audio.")
+        print(
+            f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
+        )
 
         if len(entries) == 0:
             print("No tarred dataset was created as there were 0 valid samples after filtering!")
@@ -253,7 +278,18 @@ class ASRTarredDatasetBuilder:
         if config.shuffle:
             random.seed(config.shuffle_seed)
             print("Shuffling...")
-            random.shuffle(entries)
+            if config.keep_files_together:
+                filename_entries = defaultdict(list)
+                for ent in entries:
+                    filename_entries[ent["audio_filepath"]].append(ent)
+                filenames = list(filename_entries.keys())
+                random.shuffle(filenames)
+                shuffled_entries = []
+                for filename in filenames:
+                    shuffled_entries += filename_entries[filename]
+                entries = shuffled_entries
+            else:
+                random.shuffle(entries)
 
         # Create shards and updated manifest entries
         print(f"Number of samples added : {len(entries)}")
@@ -266,6 +302,10 @@ class ASRTarredDatasetBuilder:
             start_idx = (len(entries) // config.num_shards) * i
             end_idx = start_idx + (len(entries) // config.num_shards)
             print(f"Shard {i} has entries {start_idx} ~ {end_idx}")
+            files = set()
+            for ent_id in range(start_idx, end_idx):
+                files.add(entries[ent_id]["audio_filepath"])
+            print(f"Shard {i} contains {len(files)} files")
             if i == config.num_shards - 1:
                 # We discard in order to have the same number of entries per shard.
                 print(f"Have {len(entries) - end_idx} entries left over that will be discarded.")
@@ -286,7 +326,7 @@ class ASRTarredDatasetBuilder:
         new_entries = [sample for manifest in new_entries_list for sample in manifest]
         del new_entries_list
 
-        print("Total number of files in manifest :", len(new_entries))
+        print("Total number of entries in manifest :", len(new_entries))
 
         # Write manifest
         new_manifest_path = os.path.join(target_dir, 'tarred_audio_manifest.json')
@@ -346,7 +386,7 @@ class ASRTarredDatasetBuilder:
         config = ASRTarredDatasetConfig(**(metadata.dataset_config))
 
         # Read the existing manifest (no filtering here)
-        base_entries, _, _ = self._read_manifest(base_manifest_path, config)
+        base_entries, _, _, _ = self._read_manifest(base_manifest_path, config)
         print(f"Read base manifest containing {len(base_entries)} samples.")
 
         # Precompute number of samples per shard
@@ -363,7 +403,7 @@ class ASRTarredDatasetBuilder:
 
         entries = []
         for new_manifest_idx in range(len(manifest_paths)):
-            new_entries, filtered_new_entries, filtered_duration = self._read_manifest(
+            new_entries, total_duration, filtered_new_entries, filtered_duration = self._read_manifest(
                 manifest_paths[new_manifest_idx], config
             )
 
@@ -372,6 +412,9 @@ class ASRTarredDatasetBuilder:
                     f"Filtered {len(filtered_new_entries)} files which amounts to {filtered_duration:0.2f}"
                     f" seconds of audio from manifest {manifest_paths[new_manifest_idx]}."
                 )
+            print(
+                f"After filtering, manifest has {len(entries)} files which amounts to {total_duration} seconds of audio."
+            )
 
             entries.extend(new_entries)
 
@@ -434,7 +477,7 @@ class ASRTarredDatasetBuilder:
         else:
             new_version = metadata.version + 1
 
-        print("Total number of files in manifest :", len(base_entries) + len(new_entries))
+        print("Total number of entries in manifest :", len(base_entries) + len(new_entries))
 
         new_manifest_path = os.path.join(target_dir, f'tarred_audio_manifest_version_{new_version}.json')
         with open(new_manifest_path, 'w') as m2:
@@ -477,6 +520,7 @@ class ASRTarredDatasetBuilder:
         """Read and filters data from the manifest"""
         # Read the existing manifest
         entries = []
+        total_duration = 0.0
         filtered_entries = []
         filtered_duration = 0.0
         with open(manifest_path, 'r') as m:
@@ -486,11 +530,12 @@ class ASRTarredDatasetBuilder:
                     config.min_duration is None or entry['duration'] >= config.min_duration
                 ):
                     entries.append(entry)
+                    total_duration += entry["duration"]
                 else:
                     filtered_entries.append(entry)
                     filtered_duration += entry['duration']
 
-        return entries, filtered_entries, filtered_duration
+        return entries, total_duration, filtered_entries, filtered_duration
 
     def _create_shard(self, entries, target_dir, shard_id, manifest_folder):
         """Creates a tarball containing the audio files from `entries`.
@@ -518,33 +563,26 @@ class ASRTarredDatasetBuilder:
             squashed_filename = f'{base}{ext}'
             if squashed_filename not in count:
                 tar.add(audio_filepath, arcname=squashed_filename)
+                to_write = squashed_filename
+                count[squashed_filename] = 1
+            else:
+                to_write = base + "-sub" + str(count[squashed_filename]) + ext
+                count[squashed_filename] += 1
+
+            new_entry = {
+                'audio_filepath': to_write,
+                'duration': entry['duration'],
+                'shard_id': shard_id,  # Keep shard ID for recordkeeping
+            }
 
             if 'label' in entry:
-                base, ext = os.path.splitext(squashed_filename)
-                # no suffix if it's single sample or starting sub parts, -sub1 for the second subpart -sub2 -sub3 ,etc.
-                if squashed_filename not in count:
-                    to_write = squashed_filename
-                    count[squashed_filename] = 1
-                else:
-                    to_write = base + "-sub" + str(count[squashed_filename]) + ext
-                    count[squashed_filename] += 1
+                new_entry['label'] = entry['label']
 
-                new_entry = {
-                    'audio_filepath': to_write,
-                    'duration': entry['duration'],
-                    'text': entry['text'],
-                    'label': entry['label'],
-                    'offset': entry['offset'],
-                    'shard_id': shard_id,  # Keep shard ID for recordkeeping
-                }
-            else:
-                count[squashed_filename] = 1
-                new_entry = {
-                    'audio_filepath': squashed_filename,
-                    'duration': entry['duration'],
-                    'text': entry['text'],
-                    'shard_id': shard_id,  # Keep shard ID for recordkeeping
-                }
+            if 'text' in entry:
+                new_entry['text'] = entry['text']
+
+            if 'offset' in entry:
+                new_entry['offset'] = entry['offset']
 
             new_entries.append(new_entry)
 
@@ -594,6 +632,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            keep_files_together=args.keep_files_together,
         )
         metadata.dataset_config = dataset_cfg
 
@@ -613,6 +652,7 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             min_duration=min_duration,
             shuffle_seed=args.shuffle_seed,
             sort_in_shards=args.sort_in_shards,
+            keep_files_together=args.keep_files_together,
         )
         builder.configure(config)
         builder.create_new_dataset(manifest_path=args.manifest_path, target_dir=target_dir, num_workers=args.workers)
@@ -650,6 +690,11 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             target_dir=target_dir,
             num_workers=args.workers,
         )
+
+    if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
+        print("Constructing DALI Tarfile Index - ", target_dir)
+        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=args.workers)
+        dali_index.main(index_config)
 
 
 if __name__ == "__main__":

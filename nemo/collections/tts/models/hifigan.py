@@ -25,12 +25,13 @@ from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.torch.data import VocoderDataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.lr_scheduler import CosineAnnealing, compute_max_steps
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
 try:
@@ -40,15 +41,17 @@ except ModuleNotFoundError:
 
 
 class HifiGanModel(Vocoder, Exportable):
+    """HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram."""
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        if isinstance(cfg, dict):
-            cfg = OmegaConf.create(cfg)
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
-        # use a different melspec extractor because:
-        # 1. we need to pass grads
-        # 2. we need remove fmax limitation
+        # We use separate preprocessor for training, because we need to pass grads and remove pitch fmax limitation
         self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.generator = instantiate(cfg.generator)
         self.mpd = MultiPeriodDiscriminator(debug=cfg.debug if "debug" in cfg else False)
@@ -62,10 +65,13 @@ class HifiGanModel(Vocoder, Exportable):
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
 
-        if self._train_dl and isinstance(self._train_dl.dataset, MelAudioDataset):
-            self.input_as_mel = True
-        else:
-            self.input_as_mel = False
+        self.input_as_mel = False
+        if self._train_dl:
+            # TODO(Oktai15): remove it in 1.8.0 version
+            if isinstance(self._train_dl.dataset, MelAudioDataset):
+                self.input_as_mel = True
+            elif isinstance(self._train_dl.dataset, VocoderDataset):
+                self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
 
         self.automatic_optimization = False
 
@@ -80,10 +86,7 @@ class HifiGanModel(Vocoder, Exportable):
             drop_last=self._train_dl.drop_last,
         )
 
-    def _get_warmup_steps(self, max_steps):
-        warmup_steps = self._cfg.sched.get("warmup_steps", None)
-        warmup_ratio = self._cfg.sched.get("warmup_ratio", None)
-
+    def _get_warmup_steps(self, max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
             raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
@@ -96,49 +99,47 @@ class HifiGanModel(Vocoder, Exportable):
         raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
 
     def configure_optimizers(self):
-        self.optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        self.optim_d = instantiate(
-            self._cfg.optim, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
-        )
+        optim_config = self._cfg.optim.copy()
 
-        if hasattr(self._cfg, 'sched'):
+        OmegaConf.set_struct(optim_config, False)
+        sched_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
+
+        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
+        optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
+
+        # Backward compatibility
+        if sched_config is None and 'sched' in self._cfg:
+            sched_config = self._cfg.sched
+
+        if sched_config is not None:
             max_steps = self._cfg.get("max_steps", None)
             if max_steps is None or max_steps < 0:
                 max_steps = self._get_max_steps()
 
-            warmup_steps = self._get_warmup_steps(max_steps)
+            warmup_steps = self._get_warmup_steps(
+                max_steps=max_steps,
+                warmup_steps=sched_config.get("warmup_steps", None),
+                warmup_ratio=sched_config.get("warmup_ratio", None),
+            )
 
-            self.scheduler_g = CosineAnnealing(
-                optimizer=self.optim_g, max_steps=max_steps, min_lr=self._cfg.sched.min_lr, warmup_steps=warmup_steps,
+            scheduler_g = CosineAnnealing(
+                optimizer=optim_g, max_steps=max_steps, min_lr=sched_config.min_lr, warmup_steps=warmup_steps,
             )  # Use warmup to delay start
             sch1_dict = {
-                'scheduler': self.scheduler_g,
+                'scheduler': scheduler_g,
                 'interval': 'step',
             }
 
-            self.scheduler_d = CosineAnnealing(
-                optimizer=self.optim_d, max_steps=max_steps, min_lr=self._cfg.sched.min_lr,
-            )
+            scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=sched_config.min_lr,)
             sch2_dict = {
-                'scheduler': self.scheduler_d,
+                'scheduler': scheduler_d,
                 'interval': 'step',
             }
 
-            return [self.optim_g, self.optim_d], [sch1_dict, sch2_dict]
+            return [optim_g, optim_d], [sch1_dict, sch2_dict]
         else:
-            return [self.optim_g, self.optim_d]
-
-    @property
-    def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-        }
-
-    @property
-    def output_types(self):
-        return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
-        }
+            return [optim_g, optim_d]
 
     @typecheck()
     def forward(self, *, spec):
@@ -155,25 +156,24 @@ class HifiGanModel(Vocoder, Exportable):
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx):
-        # if in finetune mode the mels are pre-computed using a
-        # spectrogram generator
         if self.input_as_mel:
+            # Pre-computed spectrograms will be used as input
             audio, audio_len, audio_mel = batch
-        # else, we compute the mel using the ground truth audio
         else:
             audio, audio_len = batch
-            # mel as input for generator
             audio_mel, _ = self.audio_to_melspec_precessor(audio, audio_len)
 
-        # mel as input for L1 mel loss
+        # Mel as input for L1 mel loss
         audio_trg_mel, _ = self.trg_melspec_fn(audio, audio_len)
         audio = audio.unsqueeze(1)
 
         audio_pred = self.generator(x=audio_mel)
         audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
 
-        # train discriminator
-        self.optim_d.zero_grad()
+        optim_g, optim_d = self.optimizers()
+
+        # Train discriminator
+        optim_d.zero_grad()
         mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
         loss_disc_mpd, _, _ = self.discriminator_loss(
             disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
@@ -184,10 +184,10 @@ class HifiGanModel(Vocoder, Exportable):
         )
         loss_d = loss_disc_msd + loss_disc_mpd
         self.manual_backward(loss_d)
-        self.optim_d.step()
+        optim_d.step()
 
-        # train generator
-        self.optim_g.zero_grad()
+        # Train generator
+        optim_g.zero_grad()
         loss_mel = F.l1_loss(audio_pred_mel, audio_trg_mel)
         _, mpd_score_gen, fmap_mpd_real, fmap_mpd_gen = self.mpd(y=audio, y_hat=audio_pred)
         _, msd_score_gen, fmap_msd_real, fmap_msd_gen = self.msd(y=audio, y_hat=audio_pred)
@@ -197,9 +197,9 @@ class HifiGanModel(Vocoder, Exportable):
         loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
         loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
         self.manual_backward(loss_g)
-        self.optim_g.step()
+        optim_g.step()
 
-        # run schedulers
+        # Run schedulers
         schedulers = self.lr_schedulers()
         if schedulers is not None:
             sch1, sch2 = schedulers
@@ -216,7 +216,7 @@ class HifiGanModel(Vocoder, Exportable):
             "d_loss_msd": loss_disc_msd,
             "d_loss": loss_d,
             "global_step": self.global_step,
-            "lr": self.optim_g.param_groups[0]['lr'],
+            "lr": optim_g.param_groups[0]['lr'],
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
@@ -230,7 +230,7 @@ class HifiGanModel(Vocoder, Exportable):
             audio_mel, audio_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
         audio_pred = self(spec=audio_mel)
 
-        # perform bias denoising
+        # Perform bias denoising
         pred_denoised = self._bias_denoise(audio_pred, audio_mel).squeeze(1)
         pred_denoised_mel, _ = self.audio_to_melspec_precessor(pred_denoised, audio_len)
 
@@ -241,7 +241,7 @@ class HifiGanModel(Vocoder, Exportable):
 
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
 
-        # plot audio once per epoch
+        # Plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
             clips = []
             specs = []
@@ -300,7 +300,7 @@ class HifiGanModel(Vocoder, Exportable):
             x = torch.istft(comp, n_fft=1024, hop_length=256, win_length=1024)
             return x
 
-        # create bias tensor
+        # Create bias tensor
         if self.stft_bias is None or self.stft_bias.shape[0] != audio.shape[0]:
             audio_bias = self(spec=torch.zeros_like(mel, device=mel.device))
             self.stft_bias, _ = stft(audio_bias)
@@ -340,6 +340,9 @@ class HifiGanModel(Vocoder, Exportable):
     def setup_validation_data(self, cfg):
         self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
 
+    def setup_test_data(self, cfg):
+        pass
+
     @classmethod
     def list_available_models(cls) -> 'Optional[Dict[str, str]]':
         list_of_models = []
@@ -370,8 +373,7 @@ class HifiGanModel(Vocoder, Exportable):
         return list_of_models
 
     def load_state_dict(self, state_dict, strict=True):
-        # override load_state_dict to give us some flexibility to be backward-compatible
-        # with old checkpoints
+        # Override load_state_dict to give us some flexibility to be backward-compatible with old checkpoints
         new_state_dict = {}
         num_resblocks = len(self.cfg['generator']['resblock_kernel_sizes'])
         for k, v in state_dict.items():
@@ -386,16 +388,25 @@ class HifiGanModel(Vocoder, Exportable):
             new_state_dict[new_k] = v
         super().load_state_dict(new_state_dict, strict=strict)
 
+    # Methods for model exportability
     def _prepare_for_export(self, **kwargs):
-        """
-        Override this method to prepare module for export. This is in-place operation.
-        Base version does common necessary module replacements (Apex etc)
-        """
         if self.generator is not None:
             try:
                 self.generator.remove_weight_norm()
             except ValueError:
                 return
+
+    @property
+    def input_types(self):
+        return {
+            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+        }
+
+    @property
+    def output_types(self):
+        return {
+            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+        }
 
     def input_example(self, max_batch=1, max_dim=256):
         """
@@ -404,7 +415,7 @@ class HifiGanModel(Vocoder, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=self.device, dtype=par.dtype)
         return ({'spec': mel},)
 
     def forward_for_export(self, spec):

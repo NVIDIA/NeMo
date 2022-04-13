@@ -19,25 +19,32 @@ ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
 
+# TODO: check if we need this for 22.03
+if [ "${NVIDIA_PYTORCH_VERSION}" = "22.01" ] || [ "${NVIDIA_PYTORCH_VERSION}" = "22.02" ] || [ "${NVIDIA_PYTORCH_VERSION}" = "22.03" ]
+
+then
+  echo 'Installing NeMo in NVIDIA PyTorch container:' ${NVIDIA_PYTORCH_VERSION} 'so will not install numba'
+else
+  if [ -x "$(command -v conda)" ]
+  then
+    NUMBA_VERSION=0.55
+    echo 'Installing numba=='${NUMBA_VERSION}
+    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+  fi
+fi
+
 echo 'Installing nemo and nemo_text_processing'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
     ${PIP} install --editable ".[all]"
 else
     rm -rf dist/
-    python setup.py bdist_wheel
+    ${PIP} install build
+    python -m build --no-isolation --wheel
     DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
     ${PIP} install "${DIST_FILE}[all]"
 fi
 
-echo 'Installing additional nemo_text_processing conda dependency'
+echo 'Installing additional nemo_text_processing dependency'
 bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
-
-if [ -x "$(command -v conda)" ]; then
-  # we need at least numba .53, and .54 breaks the PyTorch 21.06 container
-  echo 'Installing numba=0.53.1'
-  conda install -y -c numba numba=0.53.
-  # echo 'Attempting update to numba installation via conda'
-  # conda update -c numba numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
-fi
 
 echo 'All done!'

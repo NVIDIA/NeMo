@@ -19,14 +19,14 @@ from pathlib import Path
 from typing import List
 
 import regex
-import scipy.io.wavfile as wav
 from joblib import Parallel, delayed
 from normalization_helpers import LATIN_TO_RU, RU_ABBREVIATIONS
 from num2words import num2words
+from pydub import AudioSegment
+from pydub.utils import mediainfo
 from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.utils import model_utils
 
 try:
@@ -84,8 +84,13 @@ def process_audio(in_file: str, wav_file: str = None, cut_prefix: int = 0, sampl
         sample_rate: target sampling rate
     """
     try:
-        audio = AudioSegment.from_file(in_file, target_sr=sample_rate, offset=cut_prefix)
-        wav.write(wav_file, data=audio._samples, rate=sample_rate)
+        info = mediainfo(in_file)
+        sound = AudioSegment.from_file(in_file, start_second=cut_prefix)
+        if info["sample_rate"] != str(sample_rate):
+            sound = sound.set_frame_rate(sample_rate)
+        if info["channels"] != 1:
+            sound = sound.set_channels(1)
+        sound.export(wav_file, format="wav")
     except Exception as e:
         print(f'{in_file} skipped - {e}')
 

@@ -29,8 +29,9 @@ python speech_pre_training.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
-    trainer.gpus=-1 \
-    trainer.accelerator="ddp" \
+    trainer.devices=-1 \
+    trainer.accelerator="gpu" \
+    strategy="ddp"  \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
     model.optim.lr=0.001 \
@@ -49,7 +50,7 @@ When doing supervised fine-tuning from unsupervised pre-trained encoder, set fla
 """
 
 
-@hydra_runner(config_path="../conf/citrinet_ssl/", config_name="citrinet_ssl_1024")
+@hydra_runner(config_path="../conf/ssl/citrinet/", config_name="citrinet_ssl_1024")
 def main(cfg):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 

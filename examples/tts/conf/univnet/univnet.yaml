@@ -1,6 +1,29 @@
+# This config contains the default values for training UnivNet model on LJSpeech dataset.
+# If you want to train model on other dataset, you can change config values according to your dataset.
+# Most dataset-specific arguments are in the head of the config file, see below.
+
 name: "UnivNet"
+
 train_dataset: ???
 validation_datasets: ???
+
+# Default values for dataset with sample_rate=22050
+sample_rate: 22050
+n_mel_channels: 80
+n_window_size: 1024
+n_window_stride: 256
+n_fft: 1024
+lowfreq: 0
+highfreq: 8000
+window: hann
+
+train_n_segments: 8192
+train_max_duration: null
+train_min_duration: 0.75
+
+val_n_segments: 66048
+val_max_duration: null
+val_min_duration: 3
 
 defaults:
   - model/generator: c32
@@ -21,24 +44,24 @@ model:
       lrelu_slope: 0.2
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    nfilt: ${n_mel_channels}
+    lowfreq: ${lowfreq}
+    highfreq: ${highfreq}
+    n_fft: ${n_fft}
+    n_window_size: ${n_window_size}
+    n_window_stride: ${n_window_stride}
+    pad_to: 0
+    pad_value: -11.52
+    sample_rate: ${sample_rate}
+    window: ${window}
+    normalize: null
+    preemph: null
     dither: 0.0
     frame_splicing: 1
-    nfilt: 80
-    highfreq: 8000
     log: true
     log_zero_guard_type: clamp
     log_zero_guard_value: 1e-05
-    lowfreq: 0
     mag_power: 1.0
-    n_fft: 1024
-    n_window_size: 1024
-    n_window_stride: 256
-    normalize: null
-    pad_to: 0
-    pad_value: -11.52
-    preemph: null
-    sample_rate: 22050
-    window: hann
     use_grads: false
     exact_pad: true
 
@@ -52,14 +75,15 @@ model:
   denoise_strength: 0.0025
 
 trainer:
-  gpus: -1 # number of gpus
-  max_steps: ${model.max_steps}
   num_nodes: 1
-  accelerator: ddp
+  devices: 1
+  accelerator: gpu
+  strategy: ddp
+  precision: 32
+  max_steps: ${model.max_steps}
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
-  logger: False  # Provided by exp_manager
-  flush_logs_every_n_steps: 200
+  enable_checkpointing: False # Provided by exp_manager
+  logger: false # Provided by exp_manager
   log_every_n_steps: 100
   check_val_every_n_epoch: 10
 
@@ -67,13 +91,14 @@ exp_manager:
   exp_dir: null
   name: ${name}
   create_tensorboard_logger: true
-
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: val_loss
+    mode: min
   create_wandb_logger: false
   wandb_logger_kwargs:
     name: null
     project: null
-
-  create_checkpoint_callback: True
-  checkpoint_callback_params:
-    monitor: "val_loss"
-    mode: "min"
+    entity: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false

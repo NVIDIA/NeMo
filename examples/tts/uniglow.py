@@ -21,6 +21,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
+# TODO(Oktai15): remove this script in 1.8.0 version
 @hydra_runner(config_path="conf", config_name="uniglow")
 def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
