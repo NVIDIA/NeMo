@@ -14,6 +14,7 @@
 import io
 import os
 import json
+import pickle 
 
 from typing import Any, Dict, List, Optional, Union
 
@@ -906,6 +907,7 @@ class _AudioTSVADDataset(Dataset):
         soft_label_thres: float,
         featurizer,
         max_spks: int,
+        bi_ch_infer: bool,
     ):
         super().__init__()
         self.collection = TSVADSpeechLabel(
@@ -915,6 +917,7 @@ class _AudioTSVADDataset(Dataset):
             clus_label_dict=clus_label_dict,
             is_regression_task=False,
             max_spks=max_spks,
+            bi_ch_infer=bi_ch_infer,
         )
         self.featurizer = featurizer
         self.emb_dict = emb_dict
@@ -922,9 +925,14 @@ class _AudioTSVADDataset(Dataset):
         self.clus_label_dict = clus_label_dict
         self.ROUND = 2
         self.decim = 10 ** self.ROUND
-        self.max_spks = max_spks
         self.fr_per_sec = 100
         self.soft_label_thres = soft_label_thres
+        self.bi_ch_infer = bi_ch_infer
+        # if self.bi_ch_infer:
+            # self.max_spks = 10
+        # else:
+        self.max_spks = max_spks
+        
 
     def __len__(self):
         return len(self.collection)
@@ -932,32 +940,60 @@ class _AudioTSVADDataset(Dataset):
     def s2n(self, x):
         return round(float(x), self.ROUND)
     
-    def parse_rttm_multiscale(self, sample):
+    def parse_rttm_multiscale(self, sample, tup_spks=None):
+        base_scale_idx = max(self.emb_dict.keys())
         rttm_path = sample.rttm_file
         rttm_lines = self.read_rttm_file(rttm_path)
-        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
         uniq_id = self.get_uniq_id(rttm_path)
         sample_end = (sample.offset + sample.duration)
-        stt_list, end_list, speaker_list = [], [], []
-        for line in rttm_lines:
-            rttm = line.strip().split()
-            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
-            end_list.append(end)
-            stt_list.append(start)
-            speaker_list.append(speaker)
+        stt_list, end_list = [], []
+        speaker_list = []
+        if tup_spks:
+            mapping_dict = self.emb_dict[base_scale_idx][uniq_id]['mapping']
+            try:
+                inv_map = {v: k for k, v in mapping_dict.items()}
+                bi_ch_infer_spks = []
+                for spk_idx in tup_spks[0]:
+                    spk_str = f'speaker_{spk_idx}'
+                    if spk_str in inv_map:
+                        bi_ch_infer_spks.append(inv_map[spk_str])
+                # bi_ch_infer_spks = [inv_map[f'speaker_{spk_idx}'] for spk_idx in tup_spks[0]]
+                print("-=---- parse_rttm_multiscale(): Creating tuples... ", uniq_id, tup_spks, bi_ch_infer_spks)
+            except:
+                import ipdb; ipdb.set_trace()
+            for line in rttm_lines:
+                rttm = line.strip().split()
+                start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+                if speaker in bi_ch_infer_spks:
+                    end_list.append(end)
+                    stt_list.append(start)
+                    speaker_list.append(speaker)
+
+        else:
+            for line in rttm_lines:
+                rttm = line.strip().split()
+                start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+                end_list.append(end)
+                stt_list.append(start)
+                speaker_list.append(speaker)
 
         max_len = max(end_list)
         total_fr_len = int(max_len*self.decim)
-        spk_num = len(set(speaker_list))
+        sorted_speakers = sorted(list(set(speaker_list)))
+        spk_num = len(sorted_speakers)
+        # if not self.bi_ch_infer:
         assert spk_num <= self.max_spks
-        sample_stt = 0
+        # sample_stt = 0
         dur_fr = int(max_len * self.fr_per_sec)
         target = torch.zeros(dur_fr, self.max_spks)
-        base_scale_idx = max(self.emb_dict.keys())
         for stt, end, spk in zip(stt_list, end_list, speaker_list):
             spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
             stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
-            target[stt_fr:end_fr, spk] = 1
+            if tup_spks == None:
+                target[stt_fr:end_fr, spk] = 1
+            else:
+                idx = tup_spks[0].index(spk)
+                target[stt_fr:end_fr, idx] = 1
         
         seg_target = []
         for (seg_stt, seg_end, label_int) in self.clus_label_dict[uniq_id]:
@@ -1029,7 +1065,33 @@ class _AudioTSVADDataset(Dataset):
                 repeat_list.append(0)
         return repeat_list
     
-    def item_sim(self, index):
+    def get_filename(self, sample, tup_spks=None):
+        if tup_spks:
+            tup_str = f"{tup_spks[0][0]}_{tup_spks[0][1]}"
+            fn = sample.rttm_file.replace('.rttm', f'.msdd.{tup_str}.pkl')
+            # import ipdb; ipdb.set_trace()
+        else:
+            fn = sample.rttm_file.replace('.rttm', '.msdd.pkl')
+        return fn
+
+    def check_target_file(self, sample, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        # import ipdb; ipdb.set_trace()
+        return os.path.exists(fn)
+
+    def load_rttm_target_file(self, sample, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        with open(fn, 'rb') as handle:
+            targets = pickle.load(handle)
+        return targets, fn
+    
+    def save_rttm_target_file(self, sample, targets, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        with open(fn, 'wb') as handle:
+            pickle.dump(targets, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        return targets, fn
+    
+    def __getitem__(self, index):
         sample = self.collection[index]
 
         offset = sample.offset
@@ -1037,18 +1099,45 @@ class _AudioTSVADDataset(Dataset):
         if offset is None:
             offset = 0
         
-        targets = self.parse_rttm_multiscale(sample).float()
+        if self.bi_ch_infer:
+            if self.check_target_file(sample, self.collection[index].tup_spks):
+                targets, fn = self.load_rttm_target_file(sample, self.collection[index].tup_spks)
+                print(f"checked target EXISTS !file and loaded targets: \n      LOADING... :{fn}")
+            else:
+                targets = self.parse_rttm_multiscale(sample, self.collection[index].tup_spks)
+                targets, fn = self.save_rttm_target_file(sample, targets, self.collection[index].tup_spks)
+                print(f"checked target DOES NOT EXISTS file and generated targets: {fn}")
+        else:
+            if self.check_target_file(sample):
+                targets, fn = self.load_rttm_target_file(sample)
+                # print(f"checked target EXISTS !file and loaded targets: \n      LOADING... :{fn}")
+            else:
+                targets = self.parse_rttm_multiscale(sample)
+                targets, fn = self.save_rttm_target_file(sample, targets)
+                # print(f"checked target DOES NOT EXISTS file and generated targets: {fn}")
+        targets = targets.float()
+            # targets = self.parse_rttm_multiscale(sample).float()
         uniq_id = self.get_uniq_id(sample.rttm_file)
         scale_n = len(self.emb_dict.keys())
 
         # avg_embs: scale_n x emb_dim x max_spks
         _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
-        assert _avg_embs.shape[2] <= self.max_spks
-        if _avg_embs.shape[2] < self.max_spks:
-            avg_embs = torch.zeros(_avg_embs.shape[0], _avg_embs.shape[1], self.max_spks)
-            avg_embs[:, :, _avg_embs.shape[2]] = _avg_embs[:, :, :]
+
+        if self.bi_ch_infer:
+            try:
+                avg_embs = _avg_embs[:, : , self.collection[index].tup_spks[0]]
+            except:
+                tup = self.collection[index].tup_spks[0]
+                _max = _avg_embs.shape[-1]-1
+                # import ipdb; ipdb.set_trace()
+                avg_embs = _avg_embs[:, : , (min(_max, tup[0]), min(_max, tup[1]) ) ]
+
         else:
             avg_embs = _avg_embs
+        try:
+            assert avg_embs.shape[2] <= self.max_spks
+        except:
+            import ipdb; ipdb.set_trace()
         
         feats = []
         for scale_index in range(scale_n):
@@ -1058,14 +1147,97 @@ class _AudioTSVADDataset(Dataset):
         feats_out= torch.stack(feats).permute(1, 0, 2)
         feats_len = feats_out.shape[0]
         return feats_out, feats_len, targets, avg_embs
-
-    def __getitem__(self, index):
+    
+    def item_sim(self, index):
         sample = self.collection[index]
 
         offset = sample.offset
 
         if offset is None:
             offset = 0
+        if self.bi_ch_infer:
+            if self.check_target_file(sample, self.collection[index].tup_spks):
+                targets, fn = self.load_rttm_target_file(sample, self.collection[index].tup_spks)
+                print(f"checked target EXISTS !file and loaded targets: \n      LOADING... :{fn}")
+            else:
+                targets = self.parse_rttm_multiscale(sample, self.collection[index].tup_spks)
+                targets, fn = self.save_rttm_target_file(sample, targets, self.collection[index].tup_spks)
+                # import ipdb; ipdb.set_trace()
+                print(f"checked target DOES NOT EXISTS file and generated targets: {fn}")
+        else:
+            if self.check_target_file(sample):
+                targets, fn = self.load_rttm_target_file(sample)
+                print(f"checked target EXISTS !file and loaded targets: \n      LOADING... :{fn}")
+            else:
+                targets = self.parse_rttm_multiscale(sample)
+                targets, fn = self.save_rttm_target_file(sample, targets)
+                print(f"checked target DOES NOT EXISTS file and generated targets: {fn}")
+        targets = targets.float()
+        
+        uniq_id = self.get_uniq_id(sample.rttm_file)
+        scale_n = len(self.emb_dict.keys())
+
+        # avg_embs: scale_n x emb_dim x max_spks
+        _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+
+        if self.bi_ch_infer:
+            avg_embs = _avg_embs[:, : , self.collection[index].tup_spks[0]]
+
+        else:
+            avg_embs = _avg_embs
+        assert avg_embs.shape[2] <= self.max_spks
+        
+        feats = []
+        for scale_index in range(scale_n):
+            repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
+
+            feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
+        feats_out= torch.stack(feats).permute(1, 0, 2)
+        feats_len = feats_out.shape[0]
+        return feats_out, feats_len, targets, avg_embs
+    
+    # def __getitem__(self, index):
+        # sample = self.collection[index]
+
+        # offset = sample.offset
+
+        # if offset is None:
+            # offset = 0
+        
+        # if self.bi_ch_infer:
+            # targets = self.parse_rttm_multiscale(sample, self.collection[index].tup_spks).float()
+        # else:
+            # targets = self.parse_rttm_multiscale(sample).float()
+        # uniq_id = self.get_uniq_id(sample.rttm_file)
+        # scale_n = len(self.emb_dict.keys())
+
+        # # avg_embs: scale_n x emb_dim x max_spks
+        # _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+
+        # if self.bi_ch_infer:
+            # avg_embs = _avg_embs[:, : , self.collection[index].tup_spks[0]]
+
+        # else:
+            # avg_embs = _avg_embs
+        # assert avg_embs.shape[2] <= self.max_spks
+        
+        # feats = []
+        # for scale_index in range(scale_n):
+            # repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
+
+            # feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
+        # feats_out= torch.stack(feats).permute(1, 0, 2)
+        # feats_len = feats_out.shape[0]
+        # return feats_out, feats_len, targets, avg_embs
+
+    def getitem(self, index):
+        sample = self.collection[index]
+
+        offset = sample.offset
+
+        if offset is None:
+            offset = 0
+        
         # targets: feats_len x max_spks 
         targets = self.parse_rttm_multiscale(sample).float()
         uniq_id = self.get_uniq_id(sample.rttm_file)
@@ -1131,6 +1303,7 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
         soft_label_thres: float,
         featurizer,
         max_spks,
+        bi_ch_infer,
     ):
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -1140,6 +1313,7 @@ class AudioToSpeechTSVADDataset(_AudioTSVADDataset):
             soft_label_thres=soft_label_thres,
             featurizer=featurizer,
             max_spks=max_spks,
+            bi_ch_infer=bi_ch_infer,
         )
 
     def tsvad_collate_fn(self, batch):
