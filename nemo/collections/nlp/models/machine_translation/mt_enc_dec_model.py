@@ -133,8 +133,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
             decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
             special_tokens=self.special_tokens,
-            encoder_sentencepiece_legacy=False,
-            decoder_sentencepiece_legacy=False,
+            encoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False)
+            decoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
         )
         self.encoder_tokenizer, self.decoder_tokenizer = encoder_tokenizer, decoder_tokenizer
 
