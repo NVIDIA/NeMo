@@ -23,7 +23,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM
 
-from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
@@ -31,7 +31,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueS2SGenerationModel']
 
@@ -263,35 +262,14 @@ class DialogueS2SGenerationModel(NLPModel):
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, debug_mode=self.cfg.dataset.debug_mode
             )
         elif self._cfg.dataset.task == "sgd_generation":
-            schema_config = {
-                "MAX_NUM_CAT_SLOT": self._cfg.dataset.max_num_cat_slot,
-                "MAX_NUM_NONCAT_SLOT": self._cfg.dataset.max_num_noncat_slot,
-                "MAX_NUM_VALUE_PER_CAT_SLOT": self._cfg.dataset.max_value_per_cat_slot,
-                "MAX_NUM_INTENT": self._cfg.dataset.max_num_intent,
-                "NUM_TASKS": 1,
-                "MAX_SEQ_LENGTH": self._cfg.dataset.max_seq_length,
-            }
-            all_schema_json_paths = []
-            for dataset_split in ['train', 'test', 'dev']:
-                all_schema_json_paths.append(os.path.join(self._cfg.dataset.data_dir, dataset_split, "schema.json"))
-            schemas = Schema(all_schema_json_paths)
-
             self.dialogues_processor = DialogueSGDDataProcessor(
-                task_name=self._cfg.dataset.task_name,
                 data_dir=self._cfg.dataset.data_dir,
                 dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
                 tokenizer=self.tokenizer,
-                schemas=schemas,
-                schema_config=schema_config,
-                subsample=self._cfg.dataset.subsample,
                 cfg=self._cfg.dataset,
             )
-
-            if is_global_rank_zero():
-                overwrite_dial_files = not self._cfg.dataset.use_cache
-                self.dialogues_processor.save_dialog_examples(overwrite_dial_files=overwrite_dial_files)
         else:
-            raise ValueError("Only ms_marco supported for Dialogue GPT Generation Model")
+            raise ValueError("Only ms_marco and sgd_generation supported for Dialogue GPT Generation Model")
 
         self.data_prepared = True
 
