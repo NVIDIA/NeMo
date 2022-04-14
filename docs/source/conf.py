@@ -57,7 +57,7 @@ autodoc_mock_imports = [
     'apex',
     'joblib',
     'IPython',
-    'ipadic'
+    'ipadic',
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
