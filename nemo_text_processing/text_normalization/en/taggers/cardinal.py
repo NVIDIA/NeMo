@@ -14,7 +14,14 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_ALPHA,
+    NEMO_DIGIT,
+    NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
+    GraphFst,
+    insert_space,
+)
 from nemo_text_processing.text_normalization.en.taggers.date import get_four_digit_year_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
@@ -42,15 +49,18 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
 
         self.lm = lm
+        self.deterministic = deterministic
         # TODO replace to have "oh" as a default for "0"
         graph = pynini.Far(get_abs_path("data/numbers/cardinal_number_name.far")).get_fst()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
         ) @ graph
-        self.graph = (
+        graph = (
             pynini.closure(NEMO_DIGIT, 1, 3)
             + pynini.closure(pynini.closure(pynutil.delete(","), 0, 1) + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT)
         ) @ graph
+
+        self.graph = self.add_optional_and(graph)
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
@@ -108,3 +118,28 @@ class CardinalFst(GraphFst):
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()
+
+    def add_optional_and(self, graph):
+        not_quote = pynini.closure(NEMO_NOT_QUOTE)
+        no_thousand_million = pynini.difference(
+            not_quote, not_quote + pynini.union("thousand", "million") + not_quote
+        ).optimize()
+        integer = (
+            not_quote + pynutil.add_weight(pynini.cross("hundred ", "hundred and ") + no_thousand_million, -0.0001)
+        ).optimize()
+
+        no_hundred = pynini.difference(NEMO_SIGMA, not_quote + pynini.accep("hundred") + not_quote).optimize()
+        integer |= (
+            not_quote + pynutil.add_weight(pynini.cross("thousand ", "thousand and ") + no_hundred, -0.0001)
+        ).optimize()
+
+        if self.deterministic:
+            graph_with_and = pynini.compose(graph, integer).optimize() | pynutil.add_weight(graph, 0.0001)
+        else:
+            optional_and = (
+                pynini.closure(NEMO_NOT_QUOTE)
+                + pynini.closure(pynini.cross("hundred ", "hundred and ") | pynini.cross("hundred ", " "), 0, 1)
+                + pynini.closure(NEMO_NOT_QUOTE)
+            ).optimize()
+            graph_with_and = pynini.compose(graph, optional_and) | pynutil.add_weight(graph, 0.0001)
+        return graph_with_and

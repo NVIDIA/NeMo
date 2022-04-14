@@ -58,7 +58,9 @@ class SerialFst(GraphFst):
         num_graph = pynini.compose(NEMO_DIGIT ** (6, ...), cardinal.single_digits_graph).optimize()
         num_graph |= pynini.compose(NEMO_DIGIT ** (1, 5), cardinal.graph).optimize()
         # to handle numbers starting with zero
-        num_graph = plurals._priority_union(num_graph, cardinal.single_digits_graph, NEMO_SIGMA).optimize()
+        num_graph |= pynini.compose(
+            pynini.accep("0") + pynini.closure(NEMO_DIGIT), cardinal.single_digits_graph
+        ).optimize()
         # TODO: "#" doesn't work from the file
         symbols_graph = pynini.string_file(get_abs_path("data/whitelist_symbols.tsv")).optimize() | pynini.cross(
             "#", "hash"
@@ -81,38 +83,9 @@ class SerialFst(GraphFst):
             pynini.cdrewrite(pynutil.insert(" "), NEMO_ALPHA | symbols, digit_symbol, NEMO_SIGMA),
             pynini.cdrewrite(pynutil.insert(" "), digit_symbol, NEMO_ALPHA | symbols, NEMO_SIGMA),
         )
-        # graph_symbols_with_space = pynini.compose(
-        #     pynini.cdrewrite(pynutil.insert(" "), symbols, NEMO_ALPHA | digit_symbol, NEMO_SIGMA),
-        #     pynini.cdrewrite(pynutil.insert(" "), NEMO_ALPHA | digit_symbol, symbols, NEMO_SIGMA))
-        #
-        # graph_with_space = pynini.compose(graph_with_space, graph_symbols_with_space).optimize()
-
-        # # make sure at least one digit/symbol and letter is present
-        # not_space = pynini.closure(NEMO_NOT_SPACE)
-        # graph_with_space = pynini.compose(
-        #     (not_space + NEMO_ALPHA + not_space + digit_symbol + not_space)
-        #     | (not_space + digit_symbol + not_space + NEMO_ALPHA + not_space) | (not_space + symbols + NEMO_DIGIT + not_space) | | (not_space + NEMO_DIGIT + symbols + not_space),
-        #     graph_with_space,
-        # )
-
-        keep_space = pynini.accep(" ")
-        # serial_graph = pynini.compose(
-        #     graph_with_space,
-        #     pynini.closure(pynini.closure(NEMO_ALPHA, 1) + keep_space, 1)
-        #     + num_graph
-        #     + pynini.closure(keep_space + pynini.closure(NEMO_ALPHA) + pynini.closure(keep_space + num_graph, 0, 1)),
-        # )
-        # serial_graph |= pynini.compose(
-        #     graph_with_space,
-        #     num_graph
-        #     + keep_space
-        #     + pynini.closure(NEMO_ALPHA, 1)
-        #     + pynini.closure(keep_space + num_graph + pynini.closure(keep_space + pynini.closure(NEMO_ALPHA), 0, 1)),
-        # )
 
         # serial graph with delimiter
         delimiter = pynini.accep("-") | pynini.accep("/") | pynini.accep(" ")
-        # delimiter_optional = pynini.closure(delimiter, 0, 1)
         alphas = pynini.closure(NEMO_ALPHA, 1)
         letter_num = alphas + delimiter + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alphas
@@ -153,11 +126,7 @@ class SerialFst(GraphFst):
             + pynini.closure(delimiter + (serial_graph | num_graph | alphas))
         )
 
-        # from pynini.lib.rewrite import top_rewrites
-        # import pdb;
-        # pdb.set_trace()
         serial_graph |= pynini.compose(graph_with_space, serial_graph.optimize()).optimize()
-
         serial_graph = pynini.compose(pynini.closure(NEMO_NOT_SPACE, 2), serial_graph).optimize()
 
         self.graph = serial_graph.optimize()

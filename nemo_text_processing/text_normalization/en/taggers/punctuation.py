@@ -17,7 +17,6 @@ import sys
 from unicodedata import category
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, NEMO_SIGMA, GraphFst
-from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
     import pynini
