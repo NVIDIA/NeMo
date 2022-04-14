@@ -16,12 +16,12 @@ class TestEvaluationT5Config:
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
         
         trainer:
-          gpus: 8
+          devices: 8
           num_nodes: 1
-          accelerator: ddp
+          accelerator: gpu
           precision: bf16
           logger: False # logger provided by exp_manager
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           log_every_n_steps: 10
         

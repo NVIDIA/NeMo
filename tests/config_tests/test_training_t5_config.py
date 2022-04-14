@@ -17,20 +17,20 @@ class TestTrainingT5Config:
         
         trainer:
           num_nodes: 4
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
           max_time: "06:23:30:00"
           log_every_n_steps: 10
-          val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
-          limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          limit_test_batches: ${multiply:500, ${.accumulate_grad_batches}}
+          val_check_interval: 2000
+          limit_val_batches: 50
+          limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
         
@@ -53,17 +53,20 @@ class TestTrainingT5Config:
             always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
             save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
             filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${training.model.tensor_model_parallel_size}
+            model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
-            buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+            buffer_size: 5
         
         model:
           # model parallelism
           micro_batch_size: 64
+          global_batch_size: 2048 # will use more micro batches to reach global batch size
           tensor_model_parallel_size: 1
-          pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
+          pipeline_model_parallel_size: 1
+          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # rank at which decoder starts.
         
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -86,6 +89,8 @@ class TestTrainingT5Config:
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
           activation: 'gelu'
@@ -108,6 +113,7 @@ class TestTrainingT5Config:
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
         
           activations_checkpoint_method: null # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
@@ -130,7 +136,7 @@ class TestTrainingT5Config:
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
-            seq_length: ${training.model.seq_length}
+            seq_length: 512
             seq_length_dec: 128
             skip_warmup: True
             num_workers: 4
@@ -144,6 +150,7 @@ class TestTrainingT5Config:
             permutation: False
             whole_word_masking: True
             favor_longer_ngrams: False
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix: # Should be weight path weight path... for a blended dataset
               - .0333
               - ${data_dir}/my-t5_00_text_document
@@ -223,20 +230,20 @@ class TestTrainingT5Config:
         
         trainer:
           num_nodes: 20
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
           max_time: "14:23:30:00"
           log_every_n_steps: 10
-          val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
-          limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
-          limit_test_batches: ${multiply:500, ${.accumulate_grad_batches}}
+          val_check_interval: 2000
+          limit_val_batches: 50
+          limit_test_batches: 500
           accumulate_grad_batches: 1
           gradient_clip_val: 1.0
         
@@ -259,17 +266,20 @@ class TestTrainingT5Config:
             always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
             save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
             filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
-            model_parallel_size: ${training.model.tensor_model_parallel_size}
+            model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
           step_timing_kwargs:
             sync_cuda: True
-            buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+            buffer_size: 5
         
         model:
           # model parallelism
           micro_batch_size: 27
+          global_batch_size: 2160 # will use more micro batches to reach global batch size
           tensor_model_parallel_size: 2
-          pipeline_model_parallel_size: 1 # T5 PP is not supported yet. Use 1 for now.
+          pipeline_model_parallel_size: 1
+          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # rank at which decoder starts.
         
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -292,6 +302,8 @@ class TestTrainingT5Config:
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+          bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
           activation: 'gelu'
@@ -314,6 +326,7 @@ class TestTrainingT5Config:
           seed: 1234
           use_cpu_initialization: False # Init weights on the CPU (slow for large models)
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
         
           activations_checkpoint_method: null # 'uniform', 'block'
           activations_checkpoint_num_layers: 1
@@ -336,7 +349,7 @@ class TestTrainingT5Config:
           data:
             data_impl: mmap
             splits_string: "999982,9,9"
-            seq_length: ${training.model.seq_length}
+            seq_length: 512
             seq_length_dec: 128
             skip_warmup: True
             num_workers: 4
@@ -350,6 +363,7 @@ class TestTrainingT5Config:
             permutation: False
             whole_word_masking: True
             favor_longer_ngrams: False
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix: # Should be weight path weight path... for a blended dataset
               - .0333
               - ${data_dir}/my-t5_00_text_document

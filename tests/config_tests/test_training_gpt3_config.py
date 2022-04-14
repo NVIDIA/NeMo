@@ -14,12 +14,12 @@ class TestTrainingGPT3Config:
 
         trainer:
           num_nodes: 8
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 600000
@@ -87,6 +87,7 @@ class TestTrainingGPT3Config:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
+            delimiter: null # only used for tabular tokenizer
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -129,6 +130,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -205,12 +207,12 @@ class TestTrainingGPT3Config:
 
         trainer:
           num_nodes: 20
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 105000
@@ -278,6 +280,7 @@ class TestTrainingGPT3Config:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
+            delimiter: null # only used for tabular tokenizer
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -320,6 +323,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -395,13 +399,13 @@ class TestTrainingGPT3Config:
           dependency: "singleton"
 
         trainer:
-          gpus: 8
+          devices: 8
           num_nodes: 80
-          accelerator: ddp
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 105000
@@ -471,6 +475,7 @@ class TestTrainingGPT3Config:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
+            delimiter: null # only used for tabular tokenizer
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -513,6 +518,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -589,12 +595,12 @@ class TestTrainingGPT3Config:
 
         trainer:
           num_nodes: 80
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
@@ -662,6 +668,7 @@ class TestTrainingGPT3Config:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
+            delimiter: null # only used for tabular tokenizer
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -704,6 +711,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False # Reset position ids after end-of-document token
             reset_attention_mask: False # Reset attention mask after end-of-document token
             eod_mask_loss: False # Mask loss for the end of document tokens
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix: # Should be weight path weight path... for a blended dataset
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -780,12 +788,12 @@ class TestTrainingGPT3Config:
 
         trainer:
           num_nodes: 128
-          gpus: 8
-          accelerator: ddp
+          devices: 8
+          accelerator: gpu
           precision: bf16
           amp_backend: native
           logger: False # logger provided by exp_manager
-          checkpoint_callback: False
+          enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
           max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
@@ -853,6 +861,7 @@ class TestTrainingGPT3Config:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
+            delimiter: null # only used for tabular tokenizer
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -895,6 +904,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False # Reset position ids after end-of-document token
             reset_attention_mask: False # Reset attention mask after end-of-document token
             eod_mask_loss: False # Mask loss for the end of document tokens
+            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
             data_prefix: # Should be weight path weight path... for a blended dataset
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
