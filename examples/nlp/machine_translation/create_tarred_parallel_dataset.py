@@ -44,7 +44,9 @@ if __name__ == '__main__':
         '--encoder_tokenizer_r2l', action="store_true", help='Whether to return encoded sequence from right to left'
     )
     parser.add_argument(
-        '--encoder_tokenizer_legacy', action="store_true", help='Whether to use legacy tokenizer implementation of sentencepiece'
+        '--encoder_tokenizer_legacy',
+        action="store_true",
+        help='Whether to use legacy tokenizer implementation of sentencepiece',
     )
     parser.add_argument(
         '--decoder_tokenizer_model', type=str, default='None', help='Path to pre-trained decoder tokenizer model'
@@ -61,7 +63,9 @@ if __name__ == '__main__':
         '--decoder_tokenizer_r2l', action="store_true", help='Whether to return encoded sequence from right to left'
     )
     parser.add_argument(
-        '--decoder_tokenizer_legacy', action="store_true", help='Whether to use legacy tokenizer implementation of sentencepiece'
+        '--decoder_tokenizer_legacy',
+        action="store_true",
+        help='Whether to use legacy tokenizer implementation of sentencepiece',
     )
     parser.add_argument('--max_seq_length', type=int, default=512, help='Max Sequence Length')
     parser.add_argument('--min_seq_length', type=int, default=1, help='Min Sequence Length')

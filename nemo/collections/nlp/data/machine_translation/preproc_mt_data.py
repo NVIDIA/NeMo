@@ -324,7 +324,7 @@ class MTDataPreproc:
             tokenizer_model=encoder_tokenizer_model,
             bpe_dropout=encoder_bpe_dropout,
             r2l=encoder_r2l,
-            legacy=encoder_tokenizer_legacy
+            legacy=encoder_tokenizer_legacy,
         )
         decoder_tokenizer = get_nmt_tokenizer(
             library=decoder_tokenizer_name,
@@ -332,7 +332,7 @@ class MTDataPreproc:
             tokenizer_model=decoder_tokenizer_model,
             bpe_dropout=decoder_bpe_dropout,
             r2l=decoder_r2l,
-            legacy=decoder_tokenizer_legacy
+            legacy=decoder_tokenizer_legacy,
         )
 
         return encoder_tokenizer, decoder_tokenizer
