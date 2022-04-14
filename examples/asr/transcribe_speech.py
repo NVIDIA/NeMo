@@ -29,7 +29,7 @@ from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
-
+from nemo.collections.asr.metrics.wer import word_error_rate
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -93,6 +93,10 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+
+    # Evalaution transcribed result this need to merge with speech to text eval TODO
+    eval_wer: bool = False
+    use_cer: bool = False
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -226,13 +230,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         if cfg.audio_dir is not None:
             for idx, text in enumerate(transcriptions):
                 item = {'audio_filepath': filepaths[idx], 'pred_text': text}
+                if 'text' in item:
+                        item['wer'] = word_error_rate(hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer)
+
                 f.write(json.dumps(item) + "\n")
         else:
             with open(cfg.dataset_manifest, 'r') as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
                     item['pred_text'] = transcriptions[idx]
+                    if 'text' in item:
+                        item['wer'] = word_error_rate(hypotheses=[item["pred_text"]], references=[item["text"]], use_cer=cfg.use_cer)
+                        
                     f.write(json.dumps(item) + "\n")
+                    
 
     logging.info("Finished writing predictions !")
     return cfg

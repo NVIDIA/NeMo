@@ -222,7 +222,7 @@ def main():
                         stitched_output_manifest = stitch_segmented_asr_output(
                             segmented_output_manifest,
                             speech_segments_tensor_dir = lang +"/speech_segments",
-                            stitched_output_manifest = lang +"/asr_stitched_output_manifest.json",)
+                            stitched_output_manifest = stitched_output_manifest)
 
                         aligned_vad_asr_output_manifest = f"{final_output_folder}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
                         aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
