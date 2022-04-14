@@ -916,8 +916,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     p = self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm]
                 else:
                     p = torch.nn.functional.softmax(
-                        self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm],
-                        dim=-1,
+                        self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1
                     )
                 b_probs.append(p.detach().cpu().numpy())
 
@@ -1103,9 +1102,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
-                    input_ids=inp_ids.to(d),
-                    token_type_ids=inp_type_ids.to(d),
-                    attention_mask=inp_mask.to(d),
+                    input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
                 )
                 _res = self._transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
                     punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
@@ -1122,9 +1119,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             acc_probs[q_i] = b_probs_i
                         else:
                             all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(
-                                all_preds[q_i],
-                                acc_probs[q_i],
-                                start_word_id - len(all_preds[q_i]),
+                                all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i])
                             )
                             acc_probs[q_i] = self._update_accumulated_probabilities(
                                 self.log_softmax, acc_probs[q_i], b_probs_i
