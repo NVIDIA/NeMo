@@ -48,7 +48,7 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LogitsType, NeuralType, LogprobsType
+from nemo.core.neural_types import LogitsType, LogprobsType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationModel']
@@ -83,7 +83,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Neural types of a :meth:`forward` method output."""
-        if(self.log_softmax):
+        if self.log_softmax:
             return {
                 "punct_logits": NeuralType(('B', 'T', 'C'), LogprobsType()),
                 "capit_logits": NeuralType(('B', 'T', 'C'), LogprobsType()),
@@ -104,12 +104,12 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         self.label_ids_are_set: bool = False
         self.punct_label_ids: Optional[Dict[str, int]] = None
         self.capit_label_ids: Optional[Dict[str, int]] = None
-        
-        if(cfg.get("log_softmax")):
+
+        if cfg.get("log_softmax"):
             self.log_softmax = cfg.get("log_softmax")
         else:
             self.log_softmax = False
-        
+
         super().__init__(cfg=cfg, trainer=trainer)
         if not self.label_ids_are_set:
             self._set_label_ids()
@@ -134,7 +134,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             use_transformer_init=cfg.capit_head.use_transformer_init,
         )
 
-        if(self.log_softmax):
+        if self.log_softmax:
             self.loss = NLLLoss(log_probs_ndim=3)
         else:
             self.loss = CrossEntropyLoss(logits_ndim=3)
@@ -912,14 +912,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
             stm = self._remove_margins(stm, margin, keep_left=first, keep_right=last)
             for b_probs, logits in [(b_punct_probs, pl), (b_capit_probs, cl)]:
-                if(self.log_softmax):
+                if self.log_softmax:
                     p = self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm]
                 else:
                     p = torch.nn.functional.softmax(
-                        self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm], dim=-1,
+                        self._remove_margins(logits, margin, keep_left=first, keep_right=last)[stm],
+                        dim=-1,
                     )
                 b_probs.append(p.detach().cpu().numpy())
-                    
+
         return b_punct_probs, b_capit_probs, new_start_word_ids
 
     @staticmethod
@@ -957,11 +958,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        if(log_softmax):
+        if log_softmax:
             acc_prob = np.concatenate([acc_prob + update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
         else:
             acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
-            
+
         return acc_prob
 
     def _apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:
@@ -1102,7 +1103,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
-                    input_ids=inp_ids.to(d), token_type_ids=inp_type_ids.to(d), attention_mask=inp_mask.to(d),
+                    input_ids=inp_ids.to(d),
+                    token_type_ids=inp_type_ids.to(d),
+                    attention_mask=inp_mask.to(d),
                 )
                 _res = self._transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
                     punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
@@ -1119,9 +1122,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             acc_probs[q_i] = b_probs_i
                         else:
                             all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(
-                                all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i]),
+                                all_preds[q_i],
+                                acc_probs[q_i],
+                                start_word_id - len(all_preds[q_i]),
                             )
-                            acc_probs[q_i] = self._update_accumulated_probabilities(self.log_softmax, acc_probs[q_i], b_probs_i)
+                            acc_probs[q_i] = self._update_accumulated_probabilities(
+                                self.log_softmax, acc_probs[q_i], b_probs_i
+                            )
             for all_preds, acc_probs in [(all_punct_preds, acc_punct_probs), (all_capit_preds, acc_capit_probs)]:
                 for q_i, (pred, prob) in enumerate(zip(all_preds, acc_probs)):
                     if prob is not None:
