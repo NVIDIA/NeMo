@@ -2,6 +2,7 @@ from lm_eval.base import LM
 from lm_eval import utils
 import os
 import torch
+import logging
 import torch.nn.functional as F
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import Dataset, DataLoader
@@ -17,13 +18,21 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.utils.app_state import AppState
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
-from apex.transformer import tensor_parallel, parallel_state
 
+from apex.transformer import tensor_parallel, parallel_state
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+    forward_backward_pipelining_without_interleaving,
+)
+from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
+from apex.transformer.pipeline_parallel.utils import get_num_microbatches, _reconfigure_microbatch_calculator
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s')
+logger = logging.getLogger(__name__)
 
 class RequestDataset(Dataset):
     def __init__(self, requests, tokenizer) -> None:
@@ -50,8 +59,171 @@ class RequestDataset(Dataset):
 
 
 class EvalGPTModel(MegatronGPTModel):
+    @classmethod
+    def _bucketize_gpt_inference(cls, batch, use_soft_prompts=False):
+        batch_tokens, lens, tokens_to_generate, compute_logprobs = batch[:4]
+        batch_size = len(batch_tokens)
+        tokens_to_generate = tokens_to_generate[0]
+        batch_tokens = batch_tokens.tolist()
+
+        if use_soft_prompts:
+            prompt_tags = batch[4]
+
+        # unpad tokens
+        indxs = [index for index in range(batch_size)]
+        for lenn, index in zip(lens, indxs):
+            batch_tokens[index] = batch_tokens[index][:lenn]
+
+        # chunk tokens by same length
+        pre_buckets, lens = [], list(set(lens.tolist()))
+        for lenn in lens:
+            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
+
+        buckets, positions, bucket_prompt_tags = [], [], []
+
+        # get buckets and prompts initial positions
+        for bucket in pre_buckets:
+            buckets.append(torch.tensor([item[0] for item in bucket]).to(device='cuda'))
+            positions.append([item[1] for item in bucket])
+
+            # bucket prompt tags identically to their corresponding examples
+            if use_soft_prompts:
+                bucket_prompt_tags.append([prompt_tags[item[1]] for item in bucket])
+
+        # Flatten position list
+        positions = [item for sublist in positions for item in sublist]
+
+        # Form request
+        request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
+
+        return request, positions, tokens_to_generate, compute_logprobs[0]
+
+    def compute_logprobs(self, request, positions):
+        """
+            Only logprobs computation without generation tokens
+        Args:
+            request:
+                * tokens: List of "buckets" with unpadded tokens of the same length
+                * prompt_tags: List of "buckets" where each bucket contains the prompt_tag strings
+                                    specifying the prompt tag to use (optional)
+            positions: List with initial prompts positions
+        Returns:
+            response: A python list of tuples
+            (text, tokens, log_probs, offsets)
+            * text: string, inputted prompt + generated text by model
+            * tokens: list of tokens correspond to text
+            * log_probs: list of log_softmax's from output_tensor in respect to text tokens
+            * offsets: list of tokens start positions in text
+        """
+        app_state = AppState()
+
+        results = []
+        request_tokens = request["tokens"]
+        for idx, tokens in enumerate(request_tokens):
+            tokens_cut = tokens[:, :-1]
+            micro_batch_size = tokens_cut.shape[0]
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size,
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=1,
+            )
+            # For prompt tuned GPT models
+            if self.use_soft_prompts:
+                if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                    raise ValueError('compute_logprobs method is not yet supported for pipeline with soft prompts')
+                prompt_tags = request["prompt_tags"][idx]
+                prompt_tags_to_ids = dict(self.prompt_table)
+                prompt_ids = torch.tensor([prompt_tags_to_ids[tag] for tag in prompt_tags])
+            else:
+                prompt_ids = None
+
+            if self.use_soft_prompts:
+                batch_size = len(tokens_cut)
+                full_length = len(tokens_cut[0]) + self.num_prompt_tokens
+                # Get postion ids for text after soft prompt
+                position_ids = torch.arange(
+                    start=self.num_prompt_tokens, end=full_length, dtype=torch.long, device=self.device
+                )
+                position_ids = position_ids.unsqueeze(0).expand_as(tokens_cut).clone()
+                # Make attention mask starting with first token in soft prompt
+                attention_mask = torch.tril(
+                    torch.ones((batch_size, full_length, full_length), device=self.device)
+                ).view(batch_size, 1, full_length, full_length)
+                attention_mask = attention_mask < 0.5
+
+            else:
+                attention_mask, _, position_ids = get_ltor_masks_and_position_ids(
+                    data=tokens_cut,
+                    eod_token=self.tokenizer.eos_id,
+                    reset_position_ids=self.cfg.get('reset_position_ids', False),
+                    reset_attention_mask=self.cfg.get('reset_attention_mask', False),
+                    eod_mask_loss=self.cfg.get('eod_mask_loss', False),
+                )
+
+            # we repeat attention mask to work with apex fwd/bwd function
+            attention_mask_repeat = torch.concat([attention_mask for _ in range(micro_batch_size)])
+            if self.use_soft_prompts:
+                batch = [tokens_cut, attention_mask_repeat, position_ids, prompt_ids]
+            else:
+                batch = [tokens_cut, attention_mask_repeat, position_ids]
+            tensor_shape = [tokens_cut.shape[1], micro_batch_size, self.cfg.hidden_size]
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                output_tensor = forward_backward_pipelining_without_interleaving(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                )
+            else:
+                output_tensor = forward_backward_no_pipelining(
+                    forward_step_func=self.get_forward_output_only_func(),
+                    batch=batch,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                )
+
+            # get output tensor
+            if parallel_state.is_pipeline_last_stage():
+                output_tensor = output_tensor[0]['logits']
+                output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+
+            else:
+                output_tensor = torch.zeros(
+                    (tokens_cut.shape[0], tokens_cut.shape[1], self.padded_vocab_size), dtype=torch.float
+                ).cuda()
+
+            torch.distributed.broadcast(output_tensor, get_last_rank())
+
+            log_probs = []
+            for output in output_tensor:
+                probs = F.log_softmax(output, dim=1)
+                probs = probs[-len(tokens_cut[0]) :]
+                log_probs.append(probs)
+
+            for token, prob in zip(tokens, log_probs):
+                results.append((self.tokenizer.ids_to_text(token), self.tokenizer.ids_to_tokens(token), prob, [0]))
+
+        # offsets calculation
+        for item in results:
+            for index, token in enumerate(item[1]):
+                if index != len(item[1]) - 1:
+                    item[3].append(len(token) + item[3][-1])
+
+        # return prompts in order they were inputted
+        response = [0 for i in range(len(positions))]
+        for item, index in zip(results, positions):
+            response[index] = item
+
+        return response
+
     def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
+        request, positions, tokens_to_generate, compute_logprobs = EvalGPTModel._bucketize_gpt_inference(
             batch, False
         )
         response = self.compute_logprobs(request, positions)
@@ -125,7 +297,7 @@ def setup_trainer_and_model(args):
         )
 
     if args.nemo_model is not None:
-        logging.info(f"**** Loading checkpoint from {args.nemo_model}")
+        logger.info(f"**** Loading checkpoint from {args.nemo_model}")
         model = EvalGPTModel.restore_from(
             restore_path=args.nemo_model, trainer=trainer
         )
@@ -134,11 +306,11 @@ def setup_trainer_and_model(args):
             app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
             app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
 
-        logging.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
+        logger.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
         # inject model parallel rank
         checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
         model = EvalGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
-        
+
     model.freeze()
 
     return trainer, model
@@ -149,7 +321,7 @@ class NeMo_GPT3LM_TP_PP(LM):
         super().__init__()
 
         # get megatron
-        logging.info(f'**** Building GPT model ...')
+        logger.info(f'**** Building GPT model ...')
         self.trainer, self.gpt3 = setup_trainer_and_model(args)
         self.tokenizer = self.gpt3.tokenizer
         self.gpt3.eval()
