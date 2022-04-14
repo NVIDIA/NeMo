@@ -44,7 +44,6 @@ model:
   pseudo_token_base: 'PROMPT_' # pseudo prompt tokens
   virtual_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   encoder_seq_length: 2048 
-  total_virtual_tokens: 100 # Sum of tokens in prompt_token_splits must add to this number
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
   batch_size: 8
@@ -57,17 +56,20 @@ model:
   task_templates: # Add more/replace tasks as needed, these are just examples
   - taskname: 'boolq' # The task name
     prompt_template: '<|VIRTUAL_PROMPT_0|> Passage: {passage} <|VIRTUAL_PROMPT_1|> \nQuestion: {question} \nAnswer: {answer}' # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
-    prompt_token_splits: [80, 20] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+    total_virtual_tokens: 80 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+    virtual_token_splits: [60, 20] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
     truncate_field: 'passage' # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
 
   - taskname: 'intent_and_slot'
     prompt_template: '<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}' 
-    prompt_token_splits: [34, 33, 33]
+    total_virtual_tokens: 80 
+    virtual_token_splits: [34, 33, 13]
     truncate_field: null
 
   - taskname: 'rte'
     prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
-    prompt_token_splits: [100]
+    total_virtual_tokens: 100 
+    virtual_token_splits: [100]
     truncate_field: null
 
   prompt_tuning: # Prompt tunin specific params

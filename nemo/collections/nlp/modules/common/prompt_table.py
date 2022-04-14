@@ -32,23 +32,27 @@ __all__ = ['PromptTable']
 
 class PromptTable(NeuralModule, Exportable):
     def __init__(
-        self, existing_tasks, total_virtual_tokens, hidden_size,
+        self, existing_tasks, task_templates, task_id_num_to_name, hidden_size
     ):
         super().__init__()
 
-        self.total_virtual_tokens = total_virtual_tokens
+        self.task_templates = task_templates
         self.hidden_size = hidden_size
         self.prompt_table = torch.nn.ModuleDict()
         self.task_id_num_to_name = {}
 
         # Need to init prompt embeddings for each existing task before loading tuned weights
-        if existing_tasks and existing_tasks[0] != None:
+        if existing_tasks and existing_tasks[0] is not None:
             for taskname in existing_tasks:
+                total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
                 self.prompt_table[taskname] = PromptEmbedding(
                     init_from_prompt_text=False,
                     hidden_size=self.hidden_size,
-                    total_virtual_tokens=self.total_virtual_tokens,
+                    total_virtual_tokens=total_virtual_tokens,
                 )
+                
+        # Make sure tasknames and task id nums line up correctly in prompt table
+        self.task_id_num_to_name = task_id_num_to_name
 
     def forward(self, task_id_num, input_ids=None):
         task_id_num = task_id_num.item()
@@ -56,12 +60,12 @@ class PromptTable(NeuralModule, Exportable):
         return self.prompt_table[tasknames](input_ids)
 
     def remove_prompt(self, taskname):
-        if taskname not in prompt_table:
+        if taskname not in self.prompt_table:
             return
 
         # find the task_id_num assocaited with the tag to delete
         task_id_num = None
-        for key, value in task_id_num_to_name.items():
+        for key, value in self.task_id_num_to_name.items():
             if value == taskname:
                 task_id_num = key
                 break
@@ -69,24 +73,22 @@ class PromptTable(NeuralModule, Exportable):
         del self.task_id_num_to_name[task_id_num]
         del self.prompt_table[taskname]
 
-    def init_prompt_from_random(self, taskname):
+    def init_prompt_from_random(self, taskname, total_virtual_tokens):
         """Add new virtual prompt to be tuned.
            Intialize prompt weights using pytorch init method
-
         """
         # Initalize prompt embeddings from a pytorch random init method
         self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=self.total_virtual_tokens,
+            init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=total_virtual_tokens,
         )
 
-    def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings):
+    def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings, total_virtual_tokens):
         """Add new virtual prompt to be tuned.
            Intialize prompt weights from existing embeddings from specific vocab tokens.
 
         """
         # Trim or iterate until num_text_tokens matches total_virtual_tokens
         num_text_tokens = len(init_token_ids)
-        total_virtual_tokens = self.total_virtual_tokens
 
         if num_text_tokens > total_virtual_tokens:
             init_token_ids = init_token_ids[:total_virtual_tokens]
@@ -110,18 +112,18 @@ class PromptTable(NeuralModule, Exportable):
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            total_virtual_tokens=self.total_virtual_tokens,
+            total_virtual_tokens=total_virtual_tokens,
             word_embedding_weights=word_embedding_weights,
         )
 
-    def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings):
+    def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings, total_virtual_tokens):
         """
         Add virtual prompts that have already been tuned using p-tuning. 
         """
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,
             hidden_size=self.hidden_size,
-            total_virtual_tokens=self.total_virtual_tokens,
+            total_virtual_tokens=total_virtual_tokens,
             word_embedding_weights=virtual_prompt_embeddings,
         )
 

@@ -89,23 +89,23 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.float_type = self.model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.model.cfg.hidden_size
         self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
-        self.total_virtual_tokens = self.cfg.total_virtual_tokens
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
 
+        # Load templates for assigning virtual prompt token positions
+        self.load_task_templates(self.cfg.task_templates)
+        
         # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
         self.prompt_table = PromptTable(
             existing_tasks=self.existing_tasks,
-            total_virtual_tokens=self.total_virtual_tokens,
+            task_templates=self.task_templates,
+            task_id_num_to_name=self.task_id_num_to_name,
             hidden_size=self.hidden_size,
         )
 
-        # Load templates for assigning virtual prompt token positions
-        self.load_task_templates(self.cfg.task_templates)
-
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_token_base = cfg.pseudo_token_base
-        self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.total_virtual_tokens)]
+        self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.max_virtual_tokens)]
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
@@ -144,22 +144,34 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         the prompt template are specified. 
         """
         self.task_templates = {}
-        task_id_num_to_name = {}
+        self.task_id_num_to_name = {}
+        self.max_virtual_tokens = 0
+        
         task_id_num = 0
         for task in task_templates:
             self.task_templates[task.taskname] = {
                 "prompt_template": task.prompt_template,
                 "prompt_template_fields": re.findall("\{(.*?)\}", task.prompt_template),
-                "prompt_token_splits": task.prompt_token_splits,
-                "task_id_num": task_id_num,
                 "truncate_field": task.truncate_field,
+                "total_virtual_tokens": task.total_virtual_tokens,
+                "virtual_token_splits": task.virtual_token_splits,
+                "task_id_num": task_id_num,   
             }
-
-            task_id_num_to_name[task_id_num] = task.taskname
+            
+            self.max_virtual_tokens = max(self.max_virtual_tokens, task.total_virtual_tokens)
+            self.task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
-
-        # Make sure tasknames and task id nums line up correctly in prompt table
-        self.prompt_table.task_id_num_to_name = task_id_num_to_name
+            
+        # Check that all new tasks have the same total num virtual tokens
+        # Num virtual tokens for new tasks don't need to match num used for previously tuned tasks
+        if self.new_tasks:
+            new_task_name = self.new_tasks[0]
+            self.total_new_task_virtual_tokens = self.task_templates[new_task_name]["total_virtual_tokens"]
+            
+            assert (
+                all(self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens for taskname in self.new_tasks)
+            ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
+        
 
     def init_new_prompts(self):
         """
@@ -167,14 +179,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         for idx, taskname in enumerate(self.new_tasks):
             init_method = self.cfg.prompt_tuning.new_prompt_init_methods[idx].lower()
+            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
 
             if init_method == "text":
                 init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
                 init_text_ids = self.tokenizer.text_to_ids(init_text)
-                self.prompt_table.init_prompt_from_text(taskname, init_text_ids, self.word_embeddings)
+                self.prompt_table.init_prompt_from_text(taskname, init_text_ids, self.word_embeddings, total_virtual_tokens)
 
             elif init_method == 'random':
-                self.prompt_table.init_prompt_from_random(taskname)
+                self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
 
             else:
                 raise AttributeError(
@@ -186,8 +199,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         Init the prompt encoder needed for p-tuning on a new task
         """
+        # Total virtual tokens should be the same across all new tasks, so just need one
+        new_task = self.new_tasks[0]
+        total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
+        
         self.prompt_encoder = PromptEncoder(
-            total_virtual_tokens=self.total_virtual_tokens,
+            total_virtual_tokens=total_virtual_tokens,
             hidden_size=self.hidden_size,
             lstm_dropout=self.cfg.p_tuning.dropout,
             num_layers=self.cfg.p_tuning.num_layers,
@@ -208,7 +225,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             tokenized_taskname = torch.tensor(self.tokenizer.text_to_ids(taskname)).to(device)
             taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
             virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
-            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, virtual_prompt_embeddings)
+            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, virtual_prompt_embeddings, total_virtual_tokens)
 
         # Remove prompt encoder from model
         self.prompt_encoder = None
@@ -327,7 +345,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
         virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(batch_size, self.total_virtual_tokens, embedding_size)
+        virtual_token_index = virtual_token_index.expand(batch_size, self.total_new_task_virtual_tokens, embedding_size)
 
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
@@ -502,7 +520,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             tokenizer=self.tokenizer,
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
-            total_virtual_tokens=self.total_virtual_tokens,
             pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
@@ -554,7 +571,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             tokenizer=self.tokenizer,
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
-            total_virtual_tokens=self.total_virtual_tokens,
             pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
             max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),

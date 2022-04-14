@@ -35,7 +35,6 @@ class GPTPromptLearningDataset(Dataset):
         tokenizer,
         virtual_prompt_source: str,
         task_templates: dict,
-        total_virtual_tokens: int,
         pseudo_tokens,
         pad_token_id: str,
         max_seq_length: int,
@@ -46,7 +45,6 @@ class GPTPromptLearningDataset(Dataset):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
         self.task_templates = task_templates
-        self.total_virtual_tokens = total_virtual_tokens
         self.pseudo_tokens = pseudo_tokens
         self.pseudo_token_ids = set(self.tokenizer.tokens_to_ids(self.pseudo_tokens))
         self.pad_token_id = pad_token_id
@@ -58,11 +56,7 @@ class GPTPromptLearningDataset(Dataset):
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
-        assert self.total_virtual_tokens > 0, "There should be at least one virtual prompt token"
-        assert (
-            self.total_virtual_tokens < max_seq_length
-        ), "virtual prompt tokens should not exceed max sequence length"
-
+        
         logging.info("Loading and tokenizing dataset ... ")
 
         # Datasets is just a list of json dicts
@@ -101,14 +95,15 @@ class GPTPromptLearningDataset(Dataset):
             taskname = doc["taskname"]
             prompt_template = self.task_templates[taskname]["prompt_template"]
             prompt_template_fields = self.task_templates[taskname]["prompt_template_fields"]
-            prompt_token_splits = self.task_templates[taskname]["prompt_token_splits"]
+            total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
+            virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
             input_example = prompt_template
 
-            self._input_sanity_checks(prompt_token_splits, prompt_template, prompt_template_fields, doc)
+            self._input_sanity_checks(total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc)
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
-            input_example = self._insert_virtual_token_placeholders(input_example, prompt_token_splits)
+            input_example = self._insert_virtual_token_placeholders(input_example, virtual_token_splits)
             input_ids = self.tokenizer.text_to_ids(input_example)
 
             # Add BOS/EOS if desired, adds EOS by default
@@ -136,20 +131,29 @@ class GPTPromptLearningDataset(Dataset):
 
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
-    def _input_sanity_checks(self, prompt_token_splits, prompt_template, prompt_template_fields, doc):
+    def _input_sanity_checks(self, total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc):
+        # Sanity check amount of virtual token
+        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
+        assert (
+            total_virtual_tokens < self.max_seq_length
+        ), "virtual prompt tokens should not exceed max sequence length"
+
+        # Make sure virtual token splits add up to the total number of virtual tokens
+        assert (
+            sum(virtual_token_splits) == total_virtual_tokens
+        ), "Sum of prompt token split values must equal total number of prompt tokens"
+
+        # Make sure number of virtual prompt locations match the number of virtual prompt splits
+        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+            virtual_token_splits
+        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
+        
         # Check if input example has fields not present in template
         keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
-        assert (
-            sum(prompt_token_splits) == self.total_virtual_tokens
-        ), "Sum of prompt token split values must equal total number of prompt tokens"
-
-        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
-            prompt_token_splits
-        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """
@@ -165,13 +169,13 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_example
 
-    def _insert_virtual_token_placeholders(self, input_example, prompt_token_splits):
+    def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
         """ Insert the correct number of pseudo tokens at the <|virtual_PROMPT_n|> markers """
         total_inserted_tokens = 0
 
-        for idx in range(len(prompt_token_splits)):
+        for idx in range(len(virtual_token_splits)):
             split_start = total_inserted_tokens
-            split_end = total_inserted_tokens + prompt_token_splits[idx]
+            split_end = total_inserted_tokens + virtual_token_splits[idx]
             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
             input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
             total_inserted_tokens = split_end
