@@ -205,7 +205,9 @@ class MegatronT5GLUEModel(MegatronT5Model):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size() * get_num_microbatches(),
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
@@ -230,7 +232,9 @@ class MegatronT5GLUEModel(MegatronT5Model):
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=micro_batch_size * parallel_state.get_data_parallel_world_size() * get_num_microbatches(),
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
@@ -332,7 +336,10 @@ class MegatronT5GLUEModel(MegatronT5Model):
         # The consequence of not doing this is that training loop will never run validation.
         # NOTE: Prog bar is also broken as a result of this.
         global_batch_size_per_data_parallel_rank = global_batch_size // parallel_state.get_data_parallel_world_size()
-        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_data_parallel_rank) and check_validation_interval:
+        if (
+            self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_data_parallel_rank)
+            and check_validation_interval
+        ):
             raise ValueError(
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
