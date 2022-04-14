@@ -20,10 +20,10 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
-    dropout_add,
     bias_dropout_add,
     bias_dropout_add_fused_inference,
     bias_dropout_add_fused_train,
+    dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
