@@ -35,6 +35,7 @@ from nemo_text_processing.text_normalization.en.taggers.measure import MeasureFs
 from nemo_text_processing.text_normalization.en.taggers.money import MoneyFst
 from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+from nemo_text_processing.text_normalization.en.taggers.range import RangeFst as RangeFst
 from nemo_text_processing.text_normalization.en.taggers.roman import RomanFst
 from nemo_text_processing.text_normalization.en.taggers.telephone import TelephoneFst
 from nemo_text_processing.text_normalization.en.taggers.time import TimeFst
@@ -52,6 +53,7 @@ from nemo_text_processing.text_normalization.en.verbalizers.ordinal import Ordin
 from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFst as vRoman
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
+from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWord
 
 from nemo.utils import logging
 
@@ -67,7 +69,7 @@ except (ModuleNotFoundError, ImportError):
 class ClassifyFst(GraphFst):
     """
     Final class that composes all other classification grammars. This class can process an entire sentence including punctuation.
-    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    For deployment, this grammar will be compiled and exported to OpenFst Finite State Archive (FAR) File.
     More details to deployment at NeMo/tools/text_processing_deployment.
     
     Args:
@@ -146,30 +148,45 @@ class ClassifyFst(GraphFst):
             v_roman_graph = vRoman(deterministic=deterministic).fst
             v_abbreviation = vAbbreviation(deterministic=deterministic).fst
 
+            det_v_time_graph = vTime(deterministic=True).fst
+            det_v_date_graph = vDate(ordinal=vOrdinal(deterministic=True), deterministic=True).fst
+            time_final = pynini.compose(time_graph, det_v_time_graph)
+            date_final = pynini.compose(date_graph, det_v_date_graph)
+            range_graph = RangeFst(
+                time=time_final, date=date_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
+            ).fst
+            v_word_graph = vWord(deterministic=deterministic).fst
+
+            sem_w = 1
+            word_w = 100
+            punct_w = 2
             classify_and_verbalize = (
-                pynutil.add_weight(whitelist_graph, 1.01)
-                | pynutil.add_weight(pynini.compose(time_graph, v_time_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), 1.1)
-                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), 1.1)
-                | pynutil.add_weight(word_graph, 100)
-                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), 1.09)
+                pynutil.add_weight(whitelist_graph, sem_w)
+                | pynutil.add_weight(pynini.compose(time_graph, v_time_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(cardinal_graph, v_cardinal_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), sem_w)
+                | pynutil.add_weight(pynini.compose(money_graph, v_money_graph), sem_w)
+                | pynutil.add_weight(word_graph, word_w)
+                | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), sem_w - 0.01)
+                | pynutil.add_weight(pynini.compose(range_graph, v_word_graph), sem_w)
             ).optimize()
 
             if not deterministic:
                 roman_graph = RomanFst(deterministic=deterministic).fst
                 # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
-                classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), 100)
+                classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), word_w)
 
                 abbreviation_graph = AbbreviationFst(whitelist=whitelist, deterministic=deterministic).fst
-                classify_and_verbalize |= pynutil.add_weight(pynini.compose(abbreviation_graph, v_abbreviation), 100)
+                classify_and_verbalize |= pynutil.add_weight(
+                    pynini.compose(abbreviation_graph, v_abbreviation), word_w
+                )
 
-            punct_only = pynutil.add_weight(punct_graph, weight=2.1)
+            punct_only = pynutil.add_weight(punct_graph, weight=punct_w)
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct_only),
