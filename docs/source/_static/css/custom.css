@@ -27,15 +27,15 @@ h1
 h2
 {
 	color: #ffffff;
-	background-color: #76b900;
+	background-color: #ffffff;  /* #76b900 */
     Padding: 5px;
 }
 
 h3
 {
 	padding-top: 0px;
-	border-top: solid 3px #76b900;
-	border-bottom: solid 3px #76b900;
+	border-top: solid 3px #000000;  /* #76b900 */
+	border-bottom: solid 3px #000000;  /* #76b900 */
 }
 
 p
@@ -209,6 +209,6 @@ thead td
 
 /* Logo */
 .navbar-brand-box {
-    background-color: #FFFFFF;
+    background-color: #ffffff;
 }
 
