@@ -589,8 +589,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return encoder_tokenizer, decoder_tokenizer
 
-        return encoder_tokenizer, decoder_tokenizer
-
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_ds = MTEncDecModel._setup_dataset_from_config(
             cfg=train_data_config,
