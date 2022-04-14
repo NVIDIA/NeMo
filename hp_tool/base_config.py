@@ -159,7 +159,7 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
             gbs, tp, pp = 1792, 8, 32
         elif model_size_in_b <= 735:
             gbs, tp, pp = 1920, 8, 64
-        elif model - size_in_b <= 1100:
+        elif model_size_in_b <= 1100:
             gbs, tp, pp = 2048, 8, 128
         else:
             print("No GPT-3 model larger than 1.1T parameters is supported.")
@@ -170,11 +170,13 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
         elif model_size_in_b <= 4.0:
             gbs, tp, pp = 2160, 2, 1
         elif model_size_in_b <= 8.0:
-            gbs, tp, pp = 2160, 2, 1
+            gbs, tp, pp = 1920, 2, 1
         elif model_size_in_b <= 11.5:
-            gbs, tp, pp = 2160, 4, 1
+            gbs, tp, pp = 1920, 4, 1
+        elif model_size_in_b <= 25.9:
+            gbs, tp, pp = 1920, 8, 2
         else:
-            print("No T5 model larger than 11B parameters is supported.")
+            print("No T5 model larger than 25B parameters is supported.")
             raise ValueError
     else:
         raise NotImplementedError
@@ -219,21 +221,24 @@ def generate_base_config(
 
     # TRAINER
     base_cfg["trainer"]["precision"] = "bf16"
-    mbs = base_cfg["model"]["micro_batch_size"]
     seq_length = base_cfg["model"]["data"]["seq_length"]
     base_cfg["trainer"]["max_steps"] = int((num_tokens_in_b * 1e9) / (seq_length * gbs))
     base_cfg["trainer"]["max_time"] = (
         f"{int(max_training_days)}:"
-        f"{int(24 * (max_training_days - int(max_training_days))) - 1}:40:00"
+        f"{int(24 * (max_training_days - int(max_training_days))) - 1}:30:00"
     )
 
     # MODEL
-    layers, hs, att_heads, lr = utils.calculate_layers_hs_lr(model_size_in_b=model_size_in_b, model_name=model_name)
+    layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(model_size_in_b=model_size_in_b, model_name=model_name)
     base_cfg["model"]["num_layers"] = int(layers)
     base_cfg["model"]["global_batch_size"] = int(gbs)
     base_cfg["model"]["hidden_size"] = int(hs)
-    base_cfg["model"]["num_attention_heads"] = int(att_heads)
-    base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6)
+    base_cfg["model"]["num_attention_heads"] = int(att_h)
+    if ffn is not None:
+        base_cfg["model"]["ffn_hidden_size"] = int(ffn)
+    if kv is not None:
+        base_cfg["model"]["kv_channels"] = int(kv)
+    base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6) if model_name == "gpt3" else 0.015
     base_cfg["model"]["optim"]["lr"] = lr
     base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
     base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(

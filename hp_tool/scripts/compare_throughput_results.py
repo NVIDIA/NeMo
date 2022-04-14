@@ -16,20 +16,21 @@ def main(cfg):
     settings_cfg = hp_cfg.train_settings
     model_size = settings_cfg.model_size_in_b
     output_top_n = settings_cfg.output_top_n
-    candidate_logs = os.path.join(settings_cfg.candidate_logs, f"{model_size}b")
-    candidate_configs = os.path.join(settings_cfg.candidate_configs, f"{model_size}b")
-    final_result_logs = os.path.join(settings_cfg.final_result_logs, f"{model_size}b")
+
+    training_logs = os.path.join(settings_cfg.get("logs"), "training_logs")
+    candidate_configs = os.path.join(settings_cfg.get("logs"), "candidate_configs")
+    final_result_logs = os.path.join(settings_cfg.get("logs"), "final_result")
 
     min_avg_time = float("inf")
     result_models = []
-    dirs = os.listdir(candidate_logs)
+    dirs = os.listdir(training_logs)
     for candidate_dir in dirs:
         config_path = os.path.join(candidate_configs, f"{candidate_dir}.yaml")
         config = OmegaConf.load(config_path)
-        files = os.listdir(os.path.join(candidate_logs, candidate_dir))
+        files = os.listdir(os.path.join(training_logs, candidate_dir))
         for f in files:
             if f[:6] == "events":
-                event_file = os.path.join(candidate_logs, candidate_dir, f)
+                event_file = os.path.join(training_logs, candidate_dir, f)
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 try:

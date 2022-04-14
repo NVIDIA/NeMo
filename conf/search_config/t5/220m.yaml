@@ -8,6 +8,11 @@ train_settings:
   max_minutes_per_run: 20 # 20 minute default running time.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
+  seq_length: 512  # Sequence length for training GPT3 model.
+  vocab_size: 51200
+  #kv_channels: null
+  #ffn_size: null
+  #att_heads: null
   candidate_logs: ${base_results_dir}/candidate_logs
   candidate_configs: ${base_results_dir}/candidate_configs
   final_result_logs: ${base_results_dir}/result_logs

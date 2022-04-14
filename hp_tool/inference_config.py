@@ -5,20 +5,20 @@ import subprocess
 
 
 def search_inference_config(base_cfg, cfg):
-    hp_cfg = cfg.search_config
-    cluster_cfg = cfg.cluster
-    inference_settings_cfg = hp_cfg.inference_settings
+    hp_cfg = cfg.get("search_config")
+    cluster_cfg = cfg.get("cluster")
+    inference_settings_cfg = hp_cfg.get("inference_settings")
 
-    bignlp_hp_tool_path = cfg.bignlp_hp_tool_path
-    input_seq_len = inference_settings_cfg.input_seq_len
-    output_seq_len = inference_settings_cfg.output_seq_len
-    top_n = inference_settings_cfg.top_n
-    vocab_size = inference_settings_cfg.vocab_size
-    start_id = inference_settings_cfg.start_id
-    end_id = inference_settings_cfg.end_id
-    tensor_parallel_sizes = [str(x) for x in inference_settings_cfg.tensor_parallel_sizes]
-    pipeline_parallel_sizes = [str(x) for x in inference_settings_cfg.pipeline_parallel_sizes]
-    max_batch_sizes = [str(x) for x in inference_settings_cfg.max_batch_sizes]
+    bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    input_seq_len = inference_settings_cfg.get("input_seq_len")
+    output_seq_len = inference_settings_cfg.get("output_seq_len")
+    top_n = inference_settings_cfg.get("top_n")
+    vocab_size = inference_settings_cfg.get("vocab_size")
+    start_id = inference_settings_cfg.get("start_id")
+    end_id = inference_settings_cfg.get("end_id")
+    tensor_parallel_sizes = [str(x) for x in inference_settings_cfg.get("tensor_parallel_sizes")]
+    pipeline_parallel_sizes = [str(x) for x in inference_settings_cfg.get("pipeline_parallel_sizes")]
+    max_batch_sizes = [str(x) for x in inference_settings_cfg.get("max_batch_sizes")]
 
     inference_profile_path = os.path.join(
         bignlp_hp_tool_path,

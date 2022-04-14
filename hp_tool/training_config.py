@@ -45,7 +45,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
-                    num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["gpus"]
+                    num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
                     gbs = base_cfg["model"]["global_batch_size"]
                     att_heads = base_cfg["model"]["num_attention_heads"]
                     num_layers = base_cfg["model"]["num_layers"]
@@ -72,7 +72,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                     )
                     if new_cfg:  # Save candidate cfg.
                         file_name = (
-                            f"{model_size_in_b}b_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
+                            f"{model_name}_{model_size_in_b}b_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
                         )
                         results_cfgs[act].append(file_name)
                         with open(f"{base_dir}/{file_name}", "w") as f:
@@ -163,7 +163,9 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
         for config in cfg_list:
             conf = OmegaConf.load(f"{base_dir}/{config}")
             new_cfg = create_bignlp_config(cfg)
+            # Add the training config (conf) to the new_cfg.training, which is the bignlp-scripts format.
             new_cfg.training = conf
+            # Add cluster config to new_cfg.
             new_cfg.cluster = cfg.cluster
             job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path)
             if job_id is not None:
@@ -174,6 +176,13 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
 
 
 def create_bignlp_config(cfg):
+    """Creates a basic config for bignlp-scripts to train the model correctly.
+
+    Arguments:
+        cfg: OmegaConf, base configuration object.
+    Output:
+        new_cfg: OmegaConf, new config object ready for bignlp-scripts.
+    """
     results_dir = os.path.join(cfg.search_config.train_settings.logs, "training_logs")
     training_container = cfg.training_container
     data_dir = cfg.data_dir
@@ -193,7 +202,7 @@ def create_bignlp_config(cfg):
     training_config: gpt3/5b
     bignlp_path: /opt/bignlp/bignlp-scripts
     data_dir: {data_dir}
-    base_results_dir: {results_dir}/{model_size}b
+    base_results_dir: {results_dir}
     container_mounts:
       - {results_dir}:/opt/bignlp/bignlp-scripts/results
     container: {training_container}
@@ -238,7 +247,7 @@ def launch_throughput_measure(dependency_list, model_size, cfg):
 
     # Settings parameters
     train_settings = hp_cfg.get("train_settings")
-    final_log_dir = train_settings.get("final_result_logs")
+    final_log_dir = os.path.join(train_settings.get("logs"), "final_result")
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.

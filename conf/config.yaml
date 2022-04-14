@@ -13,7 +13,7 @@ bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  #
 base_results_dir: ${bignlp_hp_tool_path}/results
 data_dir: /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.03-py3
+training_container: nvcr.io/nvidian/bignlp-training:22.04.02-py
 container_mounts:
     - null
 

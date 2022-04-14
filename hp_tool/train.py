@@ -89,7 +89,7 @@ def run_training(cfg, bignlp_hp_tool_path):
     )
 
     nodes = train_cfg.trainer.num_nodes
-    ntasks_per_node = train_cfg.trainer.gpus
+    ntasks_per_node = train_cfg.trainer.devices
 
     # BCM parameters
     partition = cluster_cfg.partition
