@@ -34,7 +34,7 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--input", help="input file path", type=str)
     parser.add_argument(
-        "--language", help="language", choices=['en', 'de', 'es', 'ru', 'fr', 'vi'], default="en", type=str
+        "--lang", help="language", choices=['en', 'de', 'es', 'ru', 'fr', 'vi'], default="en", type=str
     )
     parser.add_argument(
         "--cat",
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Example usage:
     # python run_evaluate.py --input=<INPUT> --cat=<CATEGORY> --filter
     args = parse_args()
-    if args.language == 'en':
+    if args.lang == 'en':
         from nemo_text_processing.inverse_text_normalization.en.clean_eval_data import filter_loaded_data
     file_path = args.input
     inverse_normalizer = InverseNormalizer()
@@ -61,6 +61,9 @@ if __name__ == "__main__":
     training_data = load_files([file_path])
 
     if args.filter:
+        import pdb
+
+        pdb.set_trace()
         training_data = filter_loaded_data(training_data)
 
     if args.category is None:
