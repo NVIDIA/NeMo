@@ -1,0 +1,117 @@
+run:
+  name: 126m
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "1-12:00:00"
+  dependency: "singleton"
+
+trainer:
+  gpus: 8
+  num_nodes: 8
+  accelerator: ddp
+  precision: bf16
+  amp_backend: native
+  logger: False # logger provided by exp_manager
+  checkpoint_callback: False
+  replace_sampler_ddp: False
+  max_epochs: "null"
+  max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: 01:12:00:00 # days:hours:minutes:seconds
+  log_every_n_steps: 1
+  val_check_interval: ${multiply:2000, ${.accumulate_grad_batches}}
+  limit_val_batches: ${multiply:50, ${.accumulate_grad_batches}}
+  limit_test_batches: ${multiply:50, ${.accumulate_grad_batches}}
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+exp_manager:
+  explicit_log_dir: ${training.run.results_dir}
+  exp_dir: "null"
+  name: megatron_gpt
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: nemo_gpt_pretraining
+    name: dev
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 10
+    mode: min
+    always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
+    filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
+    model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
+  log_step_timing: True
+  step_timing_kwargs:
+    sync_cuda: True
+    buffer_size: ${multiply:100, ${training.trainer.accumulate_grad_batches}}
+
+model:
+  micro_batch_size: 4
+  global_batch_size: 256
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+  encoder_seq_length: 2048
+  max_position_embeddings: 2048
+  num_layers: 12
+  hidden_size: 768
+  ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
+  num_attention_heads: 12
+  init_method_std: 0.023  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+  hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
+  kv_channels: "null"  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if "null"
+  apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+  layernorm_epsilon: 1e-5
+  make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
+  pre_process: True # add embedding
+  post_process: True # add pooler
+  persist_layer_norm: True
+  gradient_as_bucket_view: True
+  activations_checkpoint_method: block
+  activations_checkpoint_num_layers: 0
+
+  tokenizer:
+    library: 'megatron'
+    type: 'GPT2BPETokenizer'
+    model: "null"
+    vocab_file: ${bignlp_path}/data_preparation/bpe/vocab.json
+    merge_file: ${bignlp_path}/data_preparation/bpe/merges.txt
+
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  hysteresis: 2
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+  megatron_amp_O2: True
+
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+
+  optim:
+    name: fused_adam
+    lr: 6e-4
+    weight_decay: 0.1 
+    betas: 
+    - 0.9
+    - 0.95
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 636
+      constant_steps: 100000
+      min_lr: 6e-5
+
+  data:
+    data_impl: mmap
+    splits_string: "90,5,5"
+    seq_length: 2048
+    skip_warmup: True
+    num_workers: 2
+    dataloader_type: single # cyclic
+    reset_position_ids: False # Reset position ids after end-of-document token
+    reset_attention_mask: False # Reset attention mask after end-of-document token
+    eod_mask_loss: False # Mask loss for the end of document tokens
+    data_prefix: # Should be weight path weight path... for a blended dataset
+      - 1.0
+      - ${data_dir}/my-gpt3_00_text_document
+

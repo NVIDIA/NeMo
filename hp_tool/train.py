@@ -73,19 +73,20 @@ def run_training(cfg, bignlp_hp_tool_path):
     name = run_cfg.name
     results_dir = run_cfg.results_dir
     time_limit = run_cfg.time_limit
-    
+
     if os.path.isdir(results_dir):
         return None
     else:
         os.makedirs(results_dir, exist_ok=True)
 
-    
-    # Shared between BCP and BCM 
+    # Shared between BCP and BCM
     scripts_dir = os.path.join(results_dir, "train_scripts")
     os.makedirs(scripts_dir, exist_ok=True)
     new_script_path = os.path.join(scripts_dir, f"{name}.sh")
     code_path = "/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_gpt.py"
-    train_cmd = f"PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
+    train_cmd = (
+        f"PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
+    )
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.gpus
@@ -102,7 +103,9 @@ def run_training(cfg, bignlp_hp_tool_path):
     # Process container-mounts.
     mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
     if container_mounts is not None:
-        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        assert isinstance(
+            container_mounts, omegaconf.listconfig.ListConfig
+        ), "container_mounts must be a list."
         for mount in container_mounts:
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}:{mount}"
@@ -128,9 +131,7 @@ def run_training(cfg, bignlp_hp_tool_path):
         partition=partition,
         account=account,
     )
-    job_id = subprocess.check_output(
-        [f"sbatch --parsable {new_script_path}"], shell=True
-    )
+    job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     dependency = job_id = job_id.decode("utf-8")
     print(f"Submitted Training script with job id: {dependency}")
     return dependency

@@ -16,17 +16,18 @@ def search_inference_config(base_cfg, cfg):
     vocab_size = inference_settings_cfg.vocab_size
     start_id = inference_settings_cfg.start_id
     end_id = inference_settings_cfg.end_id
-    tensor_parallel_sizes = [
-        str(x) for x in inference_settings_cfg.tensor_parallel_sizes
-    ]
-    pipeline_parallel_sizes = [
-        str(x) for x in inference_settings_cfg.pipeline_parallel_sizes
-    ]
+    tensor_parallel_sizes = [str(x) for x in inference_settings_cfg.tensor_parallel_sizes]
+    pipeline_parallel_sizes = [str(x) for x in inference_settings_cfg.pipeline_parallel_sizes]
     max_batch_sizes = [str(x) for x in inference_settings_cfg.max_batch_sizes]
 
-    inference_profile_path = os.path.join(bignlp_hp_tool_path, "BigNLP-Inference-Scripts/bignlp/infer_scripts/profile_model_with_random_weights.py")
+    inference_profile_path = os.path.join(
+        bignlp_hp_tool_path,
+        "BigNLP-Inference-Scripts/bignlp/infer_scripts/profile_model_with_random_weights.py",
+    )
     cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
-    navigator_config_path = os.path.join(bignlp_hp_tool_path, "BigNLP-Inference-Scripts/conf/inference/profile_offline.yaml")
+    navigator_config_path = os.path.join(
+        bignlp_hp_tool_path, "BigNLP-Inference-Scripts/conf/inference/profile_offline.yaml"
+    )
     model_spec_dir = os.path.join(bignlp_hp_tool_path, "tmp_test_model")
     if not os.path.isdir(model_spec_dir):
         os.mkdir(model_spec_dir)
@@ -39,9 +40,7 @@ def search_inference_config(base_cfg, cfg):
     model_spec["size_per_head"] = int(
         base_cfg["model"]["hidden_size"] / base_cfg["model"]["num_attention_heads"]
     )
-    model_spec["inter_size"] = int(
-        model_spec["size_per_head"] * model_spec["head_num"] * 4
-    )
+    model_spec["inter_size"] = int(model_spec["size_per_head"] * model_spec["head_num"] * 4)
     model_spec["tensor_para_size"] = 8  # Value is ignored, but field is necessary
     model_spec["vocab_size"] = vocab_size
     model_spec["start_id"] = start_id

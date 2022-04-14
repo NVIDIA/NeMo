@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - cluster: bcm
-  - search_config: 40b
+  - search_config: gpt3/126m
   - override hydra/job_logging: stdout
 
 hydra:
@@ -13,6 +13,9 @@ bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  #
 base_results_dir: ${bignlp_hp_tool_path}/results
 data_dir: /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 
-training_container: nvcr.io/nvidian/bignlp-training:22.02.05-py
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.03-py3
 container_mounts:
     - null
+
+# Do not modify the code below.
+search_config_value: ${hydra:runtime.choices.search_config}
