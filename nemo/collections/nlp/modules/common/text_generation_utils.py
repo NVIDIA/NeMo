@@ -414,10 +414,6 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
-        output_logits = output_logits
-        if all_probs:
-            full_logits = full_logits
-
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
