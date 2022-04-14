@@ -77,7 +77,7 @@ class PTuneTextClassificationModel(NLPModel, Exportable):
             model_name=cfg.tokenizer.type,
             tokenizer_model=self.register_artifact("tokenizer.model", cfg.tokenizer.model),
             vocab_file=self.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merges_file", cfg.tokenizer.merge_file),
+            merges_file=self.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file),
         )
 
         self.class_weights = None

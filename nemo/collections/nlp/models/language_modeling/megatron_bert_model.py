@@ -82,9 +82,9 @@ class MegatronBertModel(NLPModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
             model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self.cfg.tokenizer.model),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self.cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("tokenizer.merge_file", self.cfg.tokenizer.merge_file),
         )
 
         vocab_size = self.tokenizer.vocab_size
