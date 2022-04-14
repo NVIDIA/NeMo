@@ -1119,7 +1119,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             acc_probs[q_i] = b_probs_i
                         else:
                             all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(
-                                self.log_softmax, all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i])
+                                all_preds[q_i], acc_probs[q_i], start_word_id - len(all_preds[q_i])
                             )
                             acc_probs[q_i] = self._update_accumulated_probabilities(
                                 self.log_softmax, acc_probs[q_i], b_probs_i
