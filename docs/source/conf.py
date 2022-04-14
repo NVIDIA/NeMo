@@ -208,11 +208,6 @@ html_theme = "sphinx_book_theme"
 html_logo = os.path.join('nv_logo.png')
 html_title = 'NVIDIA NeMo'
 
-html_sidebars = {
-   '**': ['sidebar-logo.html', 'search-field.html', 'sbt-sidebar-nav.html'],
-}
-
-
 html_theme_options = {
     'logo_only': True,
     # 'display_version': True,
