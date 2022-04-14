@@ -60,7 +60,8 @@ class CardinalFst(GraphFst):
             + pynini.closure(pynini.closure(pynutil.delete(","), 0, 1) + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT)
         ) @ graph
 
-        self.graph = self.add_optional_and(graph)
+        self.graph = graph
+        self.graph_with_and = self.add_optional_and(graph)
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
@@ -95,7 +96,7 @@ class CardinalFst(GraphFst):
 
         if deterministic:
             long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-            final_graph = plurals._priority_union(long_numbers, self.graph, NEMO_SIGMA).optimize()  # | serial_graph
+            final_graph = plurals._priority_union(long_numbers, self.graph_with_and, NEMO_SIGMA).optimize()
             cardinal_with_leading_zeros = pynini.compose(
                 pynini.accep("0") + pynini.closure(NEMO_DIGIT), self.single_digits_graph
             )
@@ -103,12 +104,12 @@ class CardinalFst(GraphFst):
         else:
             leading_zeros = pynini.compose(pynini.closure(pynini.accep("0"), 1), self.single_digits_graph)
             cardinal_with_leading_zeros = (
-                leading_zeros + pynutil.insert(" ") + pynini.compose(pynini.closure(NEMO_DIGIT), self.graph)
+                leading_zeros + pynutil.insert(" ") + pynini.compose(pynini.closure(NEMO_DIGIT), self.graph_with_and)
             )
 
             # add small weight to non-default graphs to make sure the deterministic option is listed first
             final_graph = (
-                self.graph
+                self.graph_with_and
                 | pynutil.add_weight(self.single_digits_graph, 0.0001)
                 | get_four_digit_year_graph()  # allows e.g. 4567 be pronouced as forty five sixty seven
                 | pynutil.add_weight(single_digits_graph_with_commas, 0.0001)
@@ -134,12 +135,12 @@ class CardinalFst(GraphFst):
         ).optimize()
 
         if self.deterministic:
-            graph_with_and = pynini.compose(graph, integer).optimize() | pynutil.add_weight(graph, 0.0001)
+            graph_with_and = pynini.compose(graph, integer).optimize() | pynutil.add_weight(graph, 0.00001)
         else:
             optional_and = (
                 pynini.closure(NEMO_NOT_QUOTE)
                 + pynini.closure(pynini.cross("hundred ", "hundred and ") | pynini.cross("hundred ", " "), 0, 1)
                 + pynini.closure(NEMO_NOT_QUOTE)
             ).optimize()
-            graph_with_and = pynini.compose(graph, optional_and) | pynutil.add_weight(graph, 0.0001)
+            graph_with_and = pynini.compose(graph, optional_and) | pynutil.add_weight(graph, 0.00001)
         return graph_with_and
