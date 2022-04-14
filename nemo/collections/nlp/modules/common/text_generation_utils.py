@@ -58,8 +58,8 @@ def get_computeprob_response(tokenizer, response, inputs):
         new_token_ids.append(new_token_id)
         new_tokens.append(response['tokens'][batch_id][:token_len])
         new_texts.append(new_text)
-        log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
-        full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
+        log_probs.append(response['logprob'][batch_id][:token_len])
+        full_logprobs.append(response['full_logprob'][batch_id][:token_len])
         offsets.append(response['offsets'][batch_id][:-1])
     compute_prob_response['sentences'] = new_texts
     compute_prob_response['tokens'] = new_tokens
@@ -414,9 +414,9 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
-        output_logits = output_logits.cpu().numpy().tolist()
+        output_logits = output_logits
         if all_probs:
-            full_logits = full_logits.cpu().numpy().tolist()
+            full_logits = full_logits
 
         # offsets calculation
         all_offsets = []
@@ -504,8 +504,8 @@ def sample_sequence_batch(
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item()
 
-        if maxlen > model.cfg.encoder_seq_length:
-            maxlen = model.cfg.encoder_seq_length
+        if maxlen > model.cfg.encoder_seq_length + 1:
+            maxlen = model.cfg.encoder_seq_length + 1
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
