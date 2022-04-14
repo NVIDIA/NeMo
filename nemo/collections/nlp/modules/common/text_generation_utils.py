@@ -590,7 +590,7 @@ def sample_sequence_batch(
 ):
     # Importing here to avoid circular import errors
     from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
-    
+
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
     _reconfigure_microbatch_calculator(

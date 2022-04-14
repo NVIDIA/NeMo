@@ -56,7 +56,7 @@ class GPTPromptLearningDataset(Dataset):
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
-        
+
         logging.info("Loading and tokenizing dataset ... ")
 
         # Datasets is just a list of json dicts
@@ -99,7 +99,9 @@ class GPTPromptLearningDataset(Dataset):
             virtual_token_splits = self.task_templates[taskname]["virtual_token_splits"]
             input_example = prompt_template
 
-            self._input_sanity_checks(total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc)
+            self._input_sanity_checks(
+                total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc
+            )
 
             # Format the input example according to the template
             input_example = self._insert_text_in_template(input_example, prompt_template_fields, doc)
@@ -131,7 +133,9 @@ class GPTPromptLearningDataset(Dataset):
 
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
-    def _input_sanity_checks(self, total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc):
+    def _input_sanity_checks(
+        self, total_virtual_tokens, virtual_token_splits, prompt_template, prompt_template_fields, doc
+    ):
         # Sanity check amount of virtual token
         assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
         assert (
@@ -147,13 +151,12 @@ class GPTPromptLearningDataset(Dataset):
         assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
             virtual_token_splits
         ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
-        
+
         # Check if input example has fields not present in template
         keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
         assert (
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
-
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
         """ Format the input example according to the template """

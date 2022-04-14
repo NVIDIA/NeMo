@@ -61,14 +61,14 @@ class MegatronGenerate(Resource):
                 logging.error(f"The request key {key} is not allowed")
 
         sentences = request.get_json()["sentences"]
-        if isinstance(sentences, tuple): # Input can be text or tensor
+        if isinstance(sentences, tuple):  # Input can be text or tensor
             if len(sentences[0]) != len(sentences[1]) or sentences[0] > 128:
                 return "Maximum number of sentences is 128", 400
         elif len(sentences) > 128:
             return "Maximum number of sentences is 128", 400
-        
-        task_ids = None # Used for ptuned/prompt tuned models only
-        if "task_ids" in request.get_json(): 
+
+        task_ids = None  # Used for ptuned/prompt tuned models only
+        if "task_ids" in request.get_json():
             task_ids = request.get_json()["task_ids"]
             if not isinstance(sentences, tuple):
                 return "Input at 'sentences' must by a tuple of two tensors like:\

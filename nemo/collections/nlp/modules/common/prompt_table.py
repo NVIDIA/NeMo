@@ -31,9 +31,7 @@ __all__ = ['PromptTable']
 
 
 class PromptTable(NeuralModule, Exportable):
-    def __init__(
-        self, existing_tasks, task_templates, task_id_num_to_name, hidden_size
-    ):
+    def __init__(self, existing_tasks, task_templates, task_id_num_to_name, hidden_size):
         super().__init__()
 
         self.task_templates = task_templates
@@ -50,7 +48,7 @@ class PromptTable(NeuralModule, Exportable):
                     hidden_size=self.hidden_size,
                     total_virtual_tokens=total_virtual_tokens,
                 )
-                
+
         # Make sure tasknames and task id nums line up correctly in prompt table
         self.task_id_num_to_name = task_id_num_to_name
 

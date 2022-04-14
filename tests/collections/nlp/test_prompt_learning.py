@@ -90,13 +90,9 @@ class TestMegatronGPTPromptLearningDataset:
         pseudo_tokens = [pseudo_token_base + str(i) for i in range(max_virtual_tokens)]
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,
-        )
+        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,)
 
-        dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,
-        )
+        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,)
 
         print(type(dataset))
 
@@ -117,9 +113,7 @@ class TestMegatronGPTPromptLearningDataset:
         pseudo_tokens = [pseudo_token_base + str(i) for i in range(total_virtual_tokens)]
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,
-        )
+        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,)
 
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)
@@ -151,9 +145,7 @@ class TestMegatronGPTPromptLearningDataset:
         pseudo_tokens = [pseudo_token_base + str(i) for i in range(total_virtual_tokens)]
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(
-            dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,
-        )
+        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,)
 
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)

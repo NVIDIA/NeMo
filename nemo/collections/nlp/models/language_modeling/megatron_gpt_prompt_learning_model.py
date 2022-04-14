@@ -94,7 +94,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
-        
+
         # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
         self.prompt_table = PromptTable(
             existing_tasks=self.existing_tasks,
@@ -146,7 +146,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.task_templates = {}
         self.task_id_num_to_name = {}
         self.max_virtual_tokens = 0
-        
+
         task_id_num = 0
         for task in task_templates:
             self.task_templates[task.taskname] = {
@@ -155,23 +155,23 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 "truncate_field": task.truncate_field,
                 "total_virtual_tokens": task.total_virtual_tokens,
                 "virtual_token_splits": task.virtual_token_splits,
-                "task_id_num": task_id_num,   
+                "task_id_num": task_id_num,
             }
-            
+
             self.max_virtual_tokens = max(self.max_virtual_tokens, task.total_virtual_tokens)
             self.task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
-            
+
         # Check that all new tasks have the same total num virtual tokens
         # Num virtual tokens for new tasks don't need to match num used for previously tuned tasks
         if self.new_tasks:
             new_task_name = self.new_tasks[0]
             self.total_new_task_virtual_tokens = self.task_templates[new_task_name]["total_virtual_tokens"]
-            
-            assert (
-                all(self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens for taskname in self.new_tasks)
+
+            assert all(
+                self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens
+                for taskname in self.new_tasks
             ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
-        
 
     def init_new_prompts(self):
         """
@@ -184,7 +184,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             if init_method == "text":
                 init_text = self.cfg.prompt_tuning.new_prompt_init_text[idx]
                 init_text_ids = self.tokenizer.text_to_ids(init_text)
-                self.prompt_table.init_prompt_from_text(taskname, init_text_ids, self.word_embeddings, total_virtual_tokens)
+                self.prompt_table.init_prompt_from_text(
+                    taskname, init_text_ids, self.word_embeddings, total_virtual_tokens
+                )
 
             elif init_method == 'random':
                 self.prompt_table.init_prompt_from_random(taskname, total_virtual_tokens)
@@ -202,7 +204,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Total virtual tokens should be the same across all new tasks, so just need one
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
-        
+
         self.prompt_encoder = PromptEncoder(
             total_virtual_tokens=total_virtual_tokens,
             hidden_size=self.hidden_size,
@@ -226,7 +228,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             taskname_embeddings = self.word_embeddings(tokenized_taskname).unsqueeze(0)
             virtual_prompt_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings).squeeze(0)
             total_virtual_tokens = self.task_templates[taskname]["total_virtual_tokens"]
-            self.prompt_table.add_prompt_from_p_tuning_encoder(taskname, virtual_prompt_embeddings, total_virtual_tokens)
+            self.prompt_table.add_prompt_from_p_tuning_encoder(
+                taskname, virtual_prompt_embeddings, total_virtual_tokens
+            )
 
         # Remove prompt encoder from model
         self.prompt_encoder = None
@@ -345,7 +349,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
         virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
-        virtual_token_index = virtual_token_index.expand(batch_size, self.total_new_task_virtual_tokens, embedding_size)
+        virtual_token_index = virtual_token_index.expand(
+            batch_size, self.total_new_task_virtual_tokens, embedding_size
+        )
 
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
         discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
