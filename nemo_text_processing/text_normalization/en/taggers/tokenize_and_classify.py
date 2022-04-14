@@ -114,7 +114,7 @@ class ClassifyFst(GraphFst):
                 input_case=input_case, deterministic=deterministic, input_file=whitelist
             ).fst
             punct_graph = PunctuationFst(deterministic=deterministic).fst
-            serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic).fst
+            serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic).fst
 
             v_time_graph = vTimeFst(deterministic=deterministic).fst
             v_ordinal_graph = vOrdinalFst(deterministic=deterministic)

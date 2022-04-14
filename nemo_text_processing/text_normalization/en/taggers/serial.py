@@ -46,7 +46,7 @@ class SerialFst(GraphFst):
         lm: whether to use for hybrid LM
     """
 
-    def __init__(self, cardinal: GraphFst, deterministic: bool = True, lm: bool = False):
+    def __init__(self, cardinal: GraphFst, ordinal: GraphFst, deterministic: bool = True, lm: bool = False):
         super().__init__(name="integer", kind="classify", deterministic=deterministic)
 
         """
@@ -107,10 +107,8 @@ class SerialFst(GraphFst):
         serial_graph |= pynini.compose(NEMO_SIGMA + symbols + NEMO_SIGMA, num_graph + delimiter + num_graph)
 
         # exclude ordinal numbers from serial options
-        endings = ["rd", "th", "st", "nd"]
-        endings += [x.upper() for x in endings]
         serial_graph = pynini.compose(
-            pynini.difference(NEMO_SIGMA, pynini.closure(NEMO_DIGIT, 1) + pynini.union(*endings)), serial_graph
+            pynini.difference(NEMO_SIGMA, pynini.project(ordinal.graph, "input")), serial_graph
         ).optimize()
 
         serial_graph = pynutil.add_weight(serial_graph, 0.0001)

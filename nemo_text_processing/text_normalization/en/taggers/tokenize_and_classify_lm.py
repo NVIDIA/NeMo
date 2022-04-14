@@ -131,7 +131,7 @@ class ClassifyFst(GraphFst):
             whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=True).graph
-            serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic, lm=True).fst
+            serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic, lm=True).fst
 
             # VERBALIZERS
             cardinal = vCardinal(deterministic=True)

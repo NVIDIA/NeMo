@@ -111,6 +111,7 @@ class ClassifyFst(GraphFst):
             cardinal_graph = cardinal.fst
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=deterministic)
+            deterministic_ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
 
             decimal = DecimalFst(cardinal=cardinal, deterministic=deterministic)
@@ -129,7 +130,7 @@ class ClassifyFst(GraphFst):
             whitelist = WhiteListFst(input_case=input_case, deterministic=deterministic, input_file=whitelist)
             whitelist_graph = whitelist.graph
             punct_graph = PunctuationFst(deterministic=deterministic).graph
-            serial_graph = SerialFst(cardinal=cardinal, deterministic=deterministic).fst
+            serial_graph = SerialFst(cardinal=cardinal, ordinal=deterministic_ordinal, deterministic=deterministic).fst
 
             # VERBALIZERS
             cardinal = vCardinal(deterministic=deterministic)

@@ -15,7 +15,6 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
@@ -55,13 +54,6 @@ class CardinalFst(GraphFst):
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
         ) @ graph
-        graph = (
-            pynini.closure(NEMO_DIGIT, 1, 3)
-            + pynini.closure(pynini.closure(pynutil.delete(","), 0, 1) + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT)
-        ) @ graph
-
-        self.graph = graph
-        self.graph_with_and = self.add_optional_and(graph)
 
         graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
         graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
@@ -93,6 +85,14 @@ class CardinalFst(GraphFst):
             )
 
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
+
+        graph = (
+            pynini.closure(NEMO_DIGIT, 1, 3)
+            + (pynini.closure(pynutil.delete(",") + NEMO_DIGIT ** 3) | pynini.closure(NEMO_DIGIT ** 3))
+        ) @ graph
+
+        self.graph = graph
+        self.graph_with_and = self.add_optional_and(graph)
 
         if deterministic:
             long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
