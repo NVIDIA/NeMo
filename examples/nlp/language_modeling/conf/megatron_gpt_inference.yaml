@@ -24,7 +24,9 @@ model_file: null  # GPT nemo file path
 checkpoint_dir: null # checkpoint file dir. This is used to load the PTL checkpoint generated during the GPT training
 checkpoint_name: null # PTL checkpoint file name, only used for PTL checkpoint loading
 hparams_file: null # model configuration file, only used for PTL checkpoint loading
-prompts: ['', ''] # prompts for GPT inference
+prompts: # prompts for GPT inference
+  - "Q: How are you?"
+  - "Q: How big is the universe?"
 server: False  # whether launch the inference server
 port: 5555 # the port number for the inference server
  
