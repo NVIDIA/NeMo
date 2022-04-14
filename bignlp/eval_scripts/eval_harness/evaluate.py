@@ -13,14 +13,17 @@ import time
 from datetime import datetime
 import subprocess
 
-from lm_eval import models, tasks, evaluator, base, utils
-
-logger = logging.getLogger('__main__')
-
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+
+from importlib import reload
+reload(logging)
+from lm_eval import models, tasks, evaluator, base, utils
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s')
+logger = logging.getLogger(__name__)
+
 
 
 def parse_args(parser_main):
@@ -230,8 +233,6 @@ def main():
     if "nemo-gpt3" in args.model:
         assert args.device == 'cuda', "devices == 'cuda' are required to run nemo evaluations."
 
-    if args.model == "nemo-gpt3":
-        args.model = "nemo-gpt3-tp-pp"
 
     checkpoint_folder = args.checkpoint_folder
     checkpoint_name = args.checkpoint_name
