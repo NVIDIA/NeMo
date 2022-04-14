@@ -14,6 +14,7 @@ from bignlp.eval_scripts import evaluate_gpt, evaluate_t5
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
+omegaconf.OmegaConf.register_new_resolver("divide_floor", lambda x, y: int(math.floor(x / y)), replace=True)
 
 
 @hydra.main(config_path="conf", config_name="config")
