@@ -3,12 +3,14 @@ run:
   results_dir: ${base_results_dir}/${.name}
   time_limit: "7-00:00:00"
   dependency: "singleton"
+  preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
+  blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
 
 name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 8
+  num_nodes: 4
   devices: 8
   accelerator: gpu
   precision: bf16
@@ -64,18 +66,18 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
 
-  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12
   hidden_size: 768
-  ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
+  ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability in the attention layer.
-  kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -84,7 +86,7 @@ model:
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
-  activation: 'gelu'
+  activation: 'geglu'
 
   tokenizer:
     library: 'sentencepiece'

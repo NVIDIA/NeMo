@@ -75,13 +75,13 @@ def convert_args_to_hydra_train_args(args, prefix="training."):
     return hydra_train_args
 
 
-def generate_mt5_data_blend(cfg, alpha=0.3):
+def generate_mt5_data_blend(cfg):
     train_cfg = cfg.training
     if train_cfg.model.data.data_prefix is not None:
         return train_cfg.model.data.data_prefix
 
-    data_cfg = cfg.get("data_preparation")
-    data_dir = data_cfg.get("preprocessed_dir")
+    data_dir = train_cfg.run.get("preprocessed_dir")
+    alpha = train_cfg.run.get("blending_alpha")
 
     data_files = os.listdir(data_dir)
     lang_size = defaultdict(int)

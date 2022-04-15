@@ -1,7 +1,7 @@
 run:
-  name: mt5_3b
+  name: mt5_220m
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "18-00:00:00"
+  time_limit: "7-00:00:00"
   dependency: "singleton"
   preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
   blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
@@ -10,7 +10,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 20
+  num_nodes: 8
   devices: 8
   accelerator: gpu
   precision: bf16
@@ -19,8 +19,8 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "17:23:30:00"
+  max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: "06:23:30:00"
   log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
@@ -55,8 +55,8 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 24
-  tensor_model_parallel_size: 2
+  micro_batch_size: 32
+  tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -70,10 +70,10 @@ model:
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
-  num_layers: 24
-  hidden_size: 2048
-  ffn_hidden_size: 5120  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 32
+  num_layers: 8
+  hidden_size: 512
+  ffn_hidden_size: 1024  # Transformer FFN hidden size. 4 * hidden_size.
+  num_attention_heads: 6
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability in the attention layer.
@@ -132,7 +132,7 @@ model:
     seq_length: 512
     seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
@@ -141,7 +141,7 @@ model:
     mean_ngram_size: null
     geometric_dist: True
     permutation: False
-    whole_word_masking: True
+    whole_word_masking: False
     favor_longer_ngrams: False
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
