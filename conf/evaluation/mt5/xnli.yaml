@@ -25,8 +25,7 @@ exp_manager:
   create_checkpoint_callback: False
 
 model:
-  restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo # Path to a finetuned mt5 .nemo file
-  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+  restore_from_path: ??? # Path to a finetuned mT5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
@@ -35,8 +34,10 @@ model:
     test_ds:
       task_name: 'xnli'
       file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
-      batch_size: 32
+      global_batch_size: 32
+      micro_batch_size: 4
       shuffle: False
-      num_workers: 8
+      num_workers: 4
       pin_memory: True
       max_seq_length: 512
+      drop_last: False

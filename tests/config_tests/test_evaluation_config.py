@@ -33,20 +33,21 @@ class TestEvaluationT5Config:
           create_checkpoint_callback: False
         
         model:
-          restore_from_finetuned_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
-          tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+          restore_from_path: ??? # Path to a finetuned T5 .nemo file
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
         
           data:
             validation_ds:
               task_name: ${evaluation.run.task_name}
-              file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not evaluating MNLI
-              batch_size: 32
+              file_path: ${data_dir}/glue_data/${evaluation.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if '/raid/Data/GLUE/MNLI/dev_matched.tsv'
+              global_batch_size: 32
+              micro_batch_size: 4
               shuffle: False
               num_workers: 4
               pin_memory: True
               max_seq_length: 512
+              drop_last: False
         """
         expected = OmegaConf.create(s)
         assert expected == conf, f"conf/evaluation/t5/mnli_matched.yaml must be set to {expected} but it currently is {conf}."
