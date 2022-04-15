@@ -165,7 +165,7 @@ class ParallelMLP(MegatronModule):
 
         if self.activation in ['geglu', 'reglu', 'swiglu']:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
-            if bias_parallel:
+            if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
                     intermediate_parallel_2 + bias_parallel_2
                 )
@@ -174,7 +174,7 @@ class ParallelMLP(MegatronModule):
         elif self.bias_gelu_fusion and self.activation == 'gelu':
             intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
-            if bias_parallel:
+            if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
