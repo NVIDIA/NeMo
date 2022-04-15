@@ -430,8 +430,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def get_forward_output_only_func(self):
         def fwd_output_only_func(batch, model):
-            batch = [x.cuda(non_blocking=True) if x is not None else None for x in batch]
-            encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask, enc_input = batch
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            if len(batch) == 4:
+                encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
+                enc_input = None
+            elif len(batch) == 5:
+                encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask, enc_input = batch
+            else:
+                raise ValueError("wrong number of items in the batch")
             output = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask
@@ -766,7 +772,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != self.tokenizer.pad_id
 
-            batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask, encoder_input]
+            if encoder_input is not None:
+                batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask, encoder_input]
+            else:
+                batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=self.get_forward_output_only_func(),
