@@ -2585,6 +2585,7 @@ pipeline {
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
             +trainer.limit_val_batches=2 \
+            +trainer.limit_test_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
@@ -2613,6 +2614,7 @@ pipeline {
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
             +trainer.limit_val_batches=2 \
+            +trainer.limit_test_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
@@ -2624,12 +2626,12 @@ pipeline {
             model.data.train_ds.micro_batch_size=2 \
             model.data.validation_ds.global_batch_size=4 \
             model.data.validation_ds.micro_batch_size=2 \
+            model.data.test_ds.global_batch_size=4 \
+            model.data.test_ds.micro_batch_size=2 \
             model.data.train_ds.task_name=rte \
             model.data.train_ds.file_path=/home/TestData/nlp/megatron_t5/data/train_ci.tsv \
             model.data.validation_ds.task_name=xnli \
             model.data.validation_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv \
-            model.data.test_ds.global_batch_size=4 \
-            model.data.test_ds.micro_batch_size=2 \
             model.data.test_ds.task_name=xnli \
             model.data.test_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv \
             "
