@@ -2249,6 +2249,8 @@ pipeline {
         sh "rm -rf nemo_experiments"
         sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
         sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test.nemo"
+        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
+        sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test"
       }
     }
 

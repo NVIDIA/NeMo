@@ -48,6 +48,8 @@ class MegatronT5PTuneModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
+        
+        raise Exception("Please use NeMo r1.8.0 branch for T5 PTuning.")
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
