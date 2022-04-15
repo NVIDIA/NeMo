@@ -829,13 +829,7 @@ class TestOptimizersSchedulers:
                 weights_summary=None,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
-                max_epochs,
-                accumulate_grad_batches,
-                limit_train_batches,
-                devices,
-                dataset_len,
-                batch_size,
-                drop_last,
+                max_epochs, accumulate_grad_batches, limit_train_batches, devices, dataset_len, batch_size, drop_last,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(Callback())
@@ -890,13 +884,7 @@ class TestOptimizersSchedulers:
             dataset_len = random.randint(20, devices * 500)
             batch_size = random.randint(math.ceil(5.0 / devices), min(dataset_len // devices, 128))
             train(
-                max_epochs,
-                accumulate_grad_batches,
-                limit_train_batches,
-                devices,
-                batch_size,
-                dataset_len,
-                drop_last,
+                max_epochs, accumulate_grad_batches, limit_train_batches, devices, batch_size, dataset_len, drop_last,
             )
 
     @pytest.mark.unit
