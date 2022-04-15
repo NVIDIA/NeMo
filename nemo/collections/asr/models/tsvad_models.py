@@ -610,7 +610,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         super().__init__(cfg=self.cfg_ts_vad_model, trainer=trainer)
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
             self.bi_ch_infer = False
 
         self.preprocessor = EncDecDiarLabelModel.from_config_dict(self.cfg_ts_vad_model.preprocessor)
