@@ -214,7 +214,7 @@ class TestTrainingT5Config:
               - ${data_dir}/my-t5_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/t5/390m.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/training/t5/220.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_t5_config_3b(self):
         conf = OmegaConf.load('conf/training/t5/3b.yaml')
