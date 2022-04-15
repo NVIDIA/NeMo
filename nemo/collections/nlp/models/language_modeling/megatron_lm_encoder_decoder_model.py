@@ -50,12 +50,9 @@ try:
     )
     from apex.transformer.pipeline_parallel.utils import (
         get_num_microbatches,
+        _reconfigure_microbatch_calculator,
         get_micro_batch_size,
     )
-
-    # TODO: use this apex import once bug is fixed in apex in NGC container
-    # from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-    from nemo.collections.nlp.parts.utils_funcs import _reconfigure_microbatch_calculator
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
