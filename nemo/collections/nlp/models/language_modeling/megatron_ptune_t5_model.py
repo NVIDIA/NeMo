@@ -27,7 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
 )
-from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
+from nemo.collections.nlp.modules.common.t5_prompt_encoder import PromptEncoder
 from nemo.utils import logging
 
 try:
