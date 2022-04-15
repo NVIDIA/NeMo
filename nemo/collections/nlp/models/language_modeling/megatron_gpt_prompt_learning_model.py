@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -339,12 +339,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Get virtual token embeddings from the prompt table or prompt encoder
         if self.virtual_prompt_source == 'prompt-table':
-            virtual_token_embeddings = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
-            virtual_token_embeddings = torch.stack(virtual_token_embeddings)
+            virtual_token_embeds = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
+            virtual_token_embeds = torch.stack(virtual_token_embeds)
 
         elif self.virtual_prompt_source == 'prompt-encoder':
             taskname_embeddings = self.word_embeddings(taskname_ids)
-            virtual_token_embeddings = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
+            virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
@@ -353,8 +353,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             batch_size, self.total_new_task_virtual_tokens, embedding_size
         )
 
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
+
         # Insert virtual token embeddings where they belong amoung the discrete token embeddings
-        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeddings)
+        discrete_token_embeds.scatter_(1, virtual_token_index, virtual_token_embeds)
         input_embeds = discrete_token_embeds
 
         return input_embeds
@@ -395,13 +398,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
 
         # Only get needed virtual token embeddings from the prompt table according to virtual token ids
-        virtual_token_embeddings = [
+        virtual_token_embeds = [
             self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)
         ]
-        virtual_token_embeddings = torch.stack(virtual_token_embeddings)
+        virtual_token_embeds = torch.stack(virtual_token_embeds)
+
+        # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
+        discrete_token_embeds = discrete_token_embeds.type(virtual_token_embeds.dtype)
 
         # Put virtual and discrete token embs in their correct locations for final output
-        input_embeds = torch.where(virtual_token_locations, virtual_token_embeddings, discrete_token_embeds)
+        input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
     def training_step(self, batch, batch_idx):
@@ -660,7 +666,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return output_tensor, id_func
 
         return fwd_output_only_func
-
+    
     @classmethod
     def list_available_models(cls):
         pass
