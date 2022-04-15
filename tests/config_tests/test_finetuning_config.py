@@ -57,7 +57,7 @@ class TestFinetuningT5Config:
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          megatron_amp_O2: False # Enable O2 optimization for megatron amp
+          megatron_amp_O2: True # Enable O2 optimization for megatron amp
           resume_from_checkpoint: null
           hidden_dropout: 0.1 # Override dropout prob from pretraining
           attention_dropout: 0.1 # Override attention dropout prob from pretraining

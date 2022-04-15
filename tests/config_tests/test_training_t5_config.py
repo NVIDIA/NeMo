@@ -4,7 +4,7 @@ from omegaconf import OmegaConf
 class TestTrainingT5Config:
 
     def test_training_t5_config_220m(self):
-        conf = OmegaConf.load('conf/training/t5/220m.yaml')
+        conf = OmegaConf.load('conf/training/t5/390m.yaml')
         s = """
         run:
           name: t5_220m
@@ -73,7 +73,7 @@ class TestTrainingT5Config:
           pre_process: True # add embedding
           post_process: True # add pooler
         
-          megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+          megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
         
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -214,7 +214,7 @@ class TestTrainingT5Config:
               - ${data_dir}/my-t5_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/t5/220m.yaml must be set to {expected} but it currently is {conf}."
+        assert expected == conf, f"conf/training/t5/390m.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_t5_config_3b(self):
         conf = OmegaConf.load('conf/training/t5/3b.yaml')
@@ -286,7 +286,7 @@ class TestTrainingT5Config:
           pre_process: True # add embedding
           post_process: True # add pooler
         
-          megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+          megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
         
           seq_length: 512
           max_position_embeddings: ${.seq_length}

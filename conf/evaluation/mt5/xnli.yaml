@@ -27,7 +27,7 @@ exp_manager:
 model:
   restore_from_path: ??? # Path to a finetuned mT5 .nemo file
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  megatron_amp_O2: False # Enable O2 optimization for megatron amp
+  megatron_amp_O2: True # Enable O2 optimization for megatron amp
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
 
   data:

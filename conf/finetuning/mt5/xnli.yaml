@@ -6,6 +6,7 @@ run:
   model_train_name: mt5_220m
   task_name: "xnli"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  preprocessed_
 
 trainer:
   devices: 8
@@ -49,7 +50,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
   pipeline_model_parallel_size: 1
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  megatron_amp_O2: False # Enable O2 optimization for megatron amp
+  megatron_amp_O2: True # Enable O2 optimization for megatron amp
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
   resume_from_checkpoint: null
   hidden_dropout: 0.1 # Override dropout prob from pretraining
