@@ -178,7 +178,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(pynini.compose(date_graph, v_date_graph), sem_w - 0.01)
                 | pynutil.add_weight(pynini.compose(range_graph, v_word_graph), sem_w)
                 | pynutil.add_weight(
-                    pynini.compose(serial_graph, v_cardinal_graph), 1.1001
+                    pynini.compose(serial_graph, v_word_graph), 1.1001
                 )  # should be higher than the rest of the classes
             ).optimize()
 
