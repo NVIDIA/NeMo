@@ -398,9 +398,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         virtual_token_ids = torch.clamp(virtual_token_ids, min=0)
 
         # Only get needed virtual token embeddings from the prompt table according to virtual token ids
-        virtual_token_embeds = [
-            self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)
-        ]
+        virtual_token_embeds = [self.prompt_table(taskname_ids[i], virtual_token_ids[i]) for i in range(batch_size)]
         virtual_token_embeds = torch.stack(virtual_token_embeds)
 
         # Make sure discrete_token_embeds and virtual_token_embeds share the same dtype
@@ -666,7 +664,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return output_tensor, id_func
 
         return fwd_output_only_func
-    
+
     @classmethod
     def list_available_models(cls):
         pass
