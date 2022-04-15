@@ -23,7 +23,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Outp
 from nemo.utils import AppState
 
 try:
-    from apex.transformer import parallel_state
+    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
@@ -536,6 +536,7 @@ def sample_sequence_batch(
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
+                output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
@@ -719,6 +720,7 @@ def tab_sample_sequence_batch(
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
+                output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
