@@ -1,0 +1,76 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+import numpy as np
+from nemo.core.classes.dataset import Dataset
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_input_file
+from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder
+from typing import List
+
+
+__all__ = ['ThutmoseTaggerDataset', 'ThutmoseTaggerTestDataset']
+
+
+class ThutmoseTaggerDataset(Dataset):
+    """
+    Dataset as used by the ThutmoseTaggerModel for training, validation, and inference
+    pipelines.
+
+    Args:
+        input_file (str): path to tsv-file with data
+        example_builder: instance of BertExampleBuilder
+    """
+
+    def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
+        self.examples = read_input_file(example_builder, input_file, infer=False)
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx: int):
+        input_ids = np.array(self.examples[idx].features['input_ids'])
+        input_mask = np.array(self.examples[idx].features['input_mask'])
+        segment_ids = np.array(self.examples[idx].features['segment_ids'])
+        labels_mask = np.array(self.examples[idx].features['labels_mask'])
+        labels = np.array(self.examples[idx].features['labels'])
+        semiotic_classes = np.array(self.examples[idx].features['semiotic_classes'])
+        return input_ids, input_mask, segment_ids, labels_mask, labels, semiotic_classes
+
+
+class ThutmoseTaggerTestDataset(Dataset):
+    """
+    Dataset for inference pipeline.
+
+    Args:
+        sents: list of strings
+        example_builder: instance of BertExampleBuilder
+    """
+    def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:
+        self.examples = []
+        for source in sents:
+            example = example_builder.build_bert_example(
+                source, infer=True
+            )
+            assert(example is not None), "cannot build example from: " + source
+            self.examples.append(example)
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, idx: int):
+        input_ids = np.array(self.examples[idx].features['input_ids'])
+        input_mask = np.array(self.examples[idx].features['input_mask'])
+        segment_ids = np.array(self.examples[idx].features['segment_ids'])
+        return input_ids, input_mask, segment_ids
