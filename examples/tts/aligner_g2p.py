@@ -14,13 +14,21 @@
 """
 G2P disambiguation using an Aligner model's input embedding distances.
 
-Does not handle OOV.
+Does not handle OOV and leaves them as graphemes.
+
+Example:
+python aligner_g2p.py \
+    --model=<model_path> \
+    --manifest=<manifest_path> \
+    --out=<output_json_path> \
+    --verbose
 """
 
 import argparse
 import json
-import librosa
 import os
+
+import librosa
 import soundfile as sf
 import torch
 
@@ -38,20 +46,22 @@ def get_args():
         '--manifest',
         required=True,
         type=str,
-        help="Path to data manifest. Each entry should contain the path to the audio file as well as the text in graphemes."
+        help="Path to data manifest. Each entry should contain the path to the audio file as well as the text in graphemes.",
     )
     parser.add_argument(
-        '--out',
-        required=True,
-        type=str,
-        help="Path to output file where disambiguations will be written."
+        '--out', required=True, type=str, help="Path to output file where disambiguations will be written."
     )
     parser.add_argument(
         '--sr',
         required=False,
         default=22050,
         type=int,
-        help="Target sample rate to load the dataset. Should match what the model was trained on."
+        help="Target sample rate to load the dataset. Should match what the model was trained on.",
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help="If set to True, logs scores for each disambiguated word in disambiguation_logs.txt.",
     )
     args = parser.parse_args()
     return args
@@ -99,7 +109,7 @@ def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):
     return dist_sum / total_frames
 
 
-def disambiguate_candidates(aligner, text, spec, spec_len, device):
+def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None):
     """Retrieves and disambiguate all candidate sentences for disambiguation of a given text string.
 
     Assumes the text has no punctuation and has been normalized.
@@ -116,8 +126,9 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device):
     word_start_idx = 0
 
     for word in text.split():
-        print("-----------------")
-        print(word)
+        if log_file:
+            log_file.write(f"----------------\n{word}\n")
+
         # Retrieve the length of the word in the default G2P conversion
         g2p_default_len = len(aligner_g2p(word))
 
@@ -129,7 +140,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device):
 
             for pron in aligner_g2p.phoneme_dict[word]:
                 # Replace graphemes in the base G2P result with the current variant
-                candidate = base_g2p[:word_start_idx] + pron + base_g2p[word_start_idx + g2p_default_len:]
+                candidate = base_g2p[:word_start_idx] + pron + base_g2p[word_start_idx + g2p_default_len :]
                 candidate_tokens = aligner.tokenizer.encode_from_g2p(candidate)
 
                 word_candidates.append(candidate_tokens)
@@ -146,9 +157,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device):
             text_stack = []
             for i in range(num_candidates):
                 padded_tokens = general_padding(
-                    torch.tensor(word_candidates[i], device=device).long(),
-                    text_len[i],
-                    max_text_len
+                    torch.tensor(word_candidates[i], device=device).long(), text_len[i], max_text_len
                 )
                 text_stack.append(padded_tokens)
             text_in = torch.stack(text_stack)
@@ -161,7 +170,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device):
                 soft_attn, _ = aligner(spec=spec_in, spec_len=spec_len_in, text=text_in, text_len=text_len_in)
 
             # Need embedding distances and duration preds to calculate mean distance for just the one word
-            text_embeddings = aligner.embed(text_in).transpose(1,2)
+            text_embeddings = aligner.embed(text_in).transpose(1, 2)
             l2_dists = aligner.alignment_encoder.get_dist(keys=text_embeddings, queries=spec_in).sqrt()
 
             durations = aligner.alignment_encoder.get_durations(soft_attn, text_len_in, spec_len_in).int()
@@ -174,31 +183,36 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device):
                     l2_dists=l2_dists[i],
                     durs=durations[i],
                     start_token=word_start_idx + (1 if aligner.tokenizer.pad_with_space else 0),
-                    num_tokens=candidate_prons_and_lengths[i][1]
+                    num_tokens=candidate_prons_and_lengths[i][1],
                 )
-                print(f"{candidate_prons_and_lengths[i][0]} -- num tokens: {candidate_prons_and_lengths[i][1]} -- {candidate_mean_dist}")
+                if log_file:
+                    log_file.write(f"{candidate_prons_and_lengths[i][0]} -- {candidate_mean_dist}\n")
+
                 if candidate_mean_dist < min_dist:
                     min_dist = candidate_mean_dist
                     best_candidate = candidate_prons_and_lengths[i][0]
 
-            print("best candidate: ", best_candidate)
+            if log_file:
+                log_file.write(f"best candidate: {best_candidate}\n")
 
             result_g2p.append(' '.join(best_candidate))
         else:
             result_g2p.append(' '.join(aligner_g2p(word)))
 
         # Advance to phoneme index of next word
-        word_start_idx += g2p_default_len + 1    # +1 for space
+        word_start_idx += g2p_default_len + 1  # +1 for space
 
-    print('  '.join(result_g2p))
-    print(' '.join(base_g2p))
+    if log_file:
+        log_file.write(f"===\n{' '.join(result_g2p)}\n===\n")
 
     return result_g2p
 
 
-def disambiguate_dataset(aligner, manifest_path, out_path, sr, device):
+def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
     """Disambiguates the phonemes for all words with ambiguous pronunciations in the given manifest.
     """
+    log_file = open('disambiguation_logs.txt', 'w') if verbose else None
+
     with open(out_path, 'w') as f_out:
         with open(manifest_path, 'r') as f_in:
             count = 0
@@ -213,15 +227,17 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, device):
                 spec, spec_len = load_and_prepare_audio(aligner, audio_path, sr, device)
 
                 # Get pronunciation candidates and disambiguate
-                disambiguated_text = disambiguate_candidates(aligner, text, spec, spec_len, device)
+                disambiguated_text = disambiguate_candidates(aligner, text, spec, spec_len, device, log_file)
 
-                #TODO: Replace the following with an actual json write
-                f_out.write('  '.join(disambiguated_text))
-                f_out.write('\n')
+                entry['disambiguated_text'] = ' '.join(disambiguated_text)
+                f_out.write(f"{json.dumps(entry)}\n")
 
                 count += 1
-                if count >= 5:
-                    exit()
+                if count % 100 == 0:
+                    print(f"Finished {count} entries.")
+
+    print(f"Finished all entries, with a total of {count}.")
+    log_file.close()
 
 
 def main():
@@ -246,7 +262,7 @@ def main():
     # Disambiguation
     print("Beginning disambiguation...")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, device)
+    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, device, args.verbose)
 
 
 if __name__ == '__main__':
