@@ -14,7 +14,6 @@
 
 import os
 import pathlib
-from pathlib import Path
 
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
@@ -26,7 +25,6 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.data.glue_benchmark.gpt_ptune_dataset import TemplateProcessor, register_taskdata_processor
 from nemo.collections.nlp.models.language_modeling.megatron_ptune_gpt_model import MegatronGPTPTuneModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -45,7 +43,7 @@ def main(cfg) -> None:
         )
         register_taskdata_processor(processor_config.taskname, processor)
 
-    plugins = [NLPDDPPlugin(num_nodes=cfg.trainer.num_nodes)]
+    plugins = [NLPDDPPlugin()]
     if cfg.trainer.precision == 16:
         scaler = GradScaler(
             init_scale=cfg.model.get('native_amp_init_scale', 2 ** 32),
@@ -61,19 +59,10 @@ def main(cfg) -> None:
     exp_manager(trainer, cfg.exp_manager)
 
     # update resume from checkpoint found by exp_manager
-    resume_from_checkpoint = trainer.checkpoint_connector.resume_from_checkpoint_fit_path
-    if resume_from_checkpoint is not None:
-        # inject mp_rank into resume_from_checkpoint
-        if cfg.model.tensor_model_parallel_size is not None and cfg.model.tensor_model_parallel_size > 1:
-            mp_rank = compute_model_parallel_rank(trainer.local_rank, cfg.model.tensor_model_parallel_size)
-            resume_from_checkpoint = Path(resume_from_checkpoint)
-            resume_from_checkpoint = resume_from_checkpoint.parent.parent.joinpath(f'mp_rank_{mp_rank:02d}').joinpath(
-                resume_from_checkpoint.name
-            )
-            resume_from_checkpoint = str(resume_from_checkpoint)
-        logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
+    resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+    logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
-    trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
         if isinstance(callback, Timer):

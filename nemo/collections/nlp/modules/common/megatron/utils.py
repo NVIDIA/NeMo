@@ -15,17 +15,33 @@
 """Utilities for models."""
 
 import math
+from typing import Dict, List, Union
 
 import torch
 import torch.nn.functional as F
 
 try:
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
+    from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
+    from apex.transformer.pipeline_parallel.schedules.common import listify_model
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+
+class ApexGuardDefaults(object):
+    """
+    This class can be used to replace missing classes when apex is missing.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def __getattr__(self, item):
+        return None
 
 
 def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
@@ -229,9 +245,9 @@ def build_attention_mask_3d_causal(source_mask, target_mask):
     :param source_mask - True for non-masked, else masked [batch, src length]
     :param target_mask - True for non-masked, else masked [batch, tgt length]
     """
-    casual_mask = make_inference_history_mask_3d(target_mask)
+    causal_mask = make_inference_history_mask_3d(target_mask)
     mask = make_attention_mask_3d(source_mask, target_mask)
-    mask = mask * casual_mask
+    mask = mask * causal_mask
     # invert mask for Megatron
     return mask < 0.5
 
@@ -251,3 +267,30 @@ def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
         raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
 
     return mask
+
+
+def get_params_for_weight_decay_optimization(
+    model: Union[torch.nn.Module, List[torch.nn.Module]],
+) -> Dict[str, torch.nn.Parameter]:
+    """Divide params into with-weight-decay and without-weight-decay groups.
+
+    Layernorms and biases will have no weight decay but the rest will.
+    """
+    modules = listify_model(model)
+    weight_decay_params = {'params': []}
+    no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
+    for module in modules:
+        for module_ in module.modules():
+            if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
+                no_weight_decay_params['params'].extend(
+                    [p for p in list(module_._parameters.values()) if p is not None]
+                )
+            else:
+                weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n != 'bias']
+                )
+                no_weight_decay_params['params'].extend(
+                    [p for n, p in list(module_._parameters.items()) if p is not None and n == 'bias']
+                )
+
+    return weight_decay_params, no_weight_decay_params

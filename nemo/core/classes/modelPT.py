@@ -123,8 +123,8 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
-        self.trainer = trainer  # reference required for self.*_rank
-        self._trainer = self.trainer  # alias for backward compatibility
+        self.set_trainer(trainer)
+
         self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
@@ -1030,7 +1030,7 @@ class ModelPT(LightningModule, Model):
                         trainer = self.trainer
                         if (
                             hasattr(trainer, 'resume_from_checkpoint')
-                            and trainer.checkpoint_connector.resume_checkpoint_path is not None
+                            and trainer._checkpoint_connector.resume_checkpoint_path is not None
                         ):
                             logging.info(
                                 "Model training is being resumed via Pytorch Lightning.\n"
@@ -1201,8 +1201,7 @@ class ModelPT(LightningModule, Model):
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP to obtain accurate results.
                     "Following pattern should be used: "
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
-                    "trainer = Trainer(gpus=gpu)"
+                    "trainer = Trainer(devices=1, accelerator='gpu')" 
                     "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 
@@ -1224,7 +1223,7 @@ class ModelPT(LightningModule, Model):
         """
         self.trainer = trainer
         self._trainer = trainer
-        self.set_world_size(self._trainer)
+        self.set_world_size(trainer)
 
     def set_world_size(self, trainer: Trainer):
         """
@@ -1235,12 +1234,16 @@ class ModelPT(LightningModule, Model):
             trainer (Trainer): PyTorch Lightning Trainer object
         """
         # Update AppState with world information from trainer
-        if isinstance(trainer, Trainer):
-            app_state = AppState()
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
-        else:
-            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        self.world_size = 1
+
+        if trainer is not None:
+            if isinstance(trainer, Trainer):
+                if trainer.num_gpus and trainer.num_nodes:
+                    self.world_size = trainer.num_gpus * trainer.num_nodes
+            else:
+                logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        app_state = AppState()
+        app_state.world_size = self.world_size
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """

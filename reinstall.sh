@@ -19,7 +19,9 @@ ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools
 
-if [ "${NVIDIA_PYTORCH_VERSION}" = "22.01" ]
+# TODO: check if we need this for 22.03
+if [ "${NVIDIA_PYTORCH_VERSION}" = "22.01" ] || [ "${NVIDIA_PYTORCH_VERSION}" = "22.02" ] || [ "${NVIDIA_PYTORCH_VERSION}" = "22.03" ]
+
 then
   echo 'Installing NeMo in NVIDIA PyTorch container:' ${NVIDIA_PYTORCH_VERSION} 'so will not install numba'
 else
@@ -42,7 +44,7 @@ else
     ${PIP} install "${DIST_FILE}[all]"
 fi
 
-echo 'Installing additional nemo_text_processing conda dependency'
+echo 'Installing additional nemo_text_processing dependency'
 bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
 
 echo 'All done!'

@@ -16,20 +16,20 @@ import random
 
 import numpy as np
 import torch
-from apex.transformer.utils import ensure_divisibility
 
 from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import tensor_parallel
+    from apex.transformer.log_util import set_logging_level
     from apex.transformer.parallel_state import (
         get_pipeline_model_parallel_rank,
         set_pipeline_model_parallel_rank,
+        set_pipeline_model_parallel_split_rank,
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
     )
-    from apex.transformer.log_util import set_logging_level
     from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
     from apex.transformer.utils import ensure_divisibility
 
@@ -44,6 +44,7 @@ def initialize_model_parallel_for_nemo(
     local_rank,
     tensor_model_parallel_size=1,
     pipeline_model_parallel_size=1,
+    pipeline_model_parallel_split_rank=None,
     micro_batch_size=None,
     global_batch_size=None,
     seed=1234,
@@ -62,20 +63,22 @@ def initialize_model_parallel_for_nemo(
         app_state.pipeline_model_parallel_rank,
         app_state.model_parallel_size,
         app_state.data_parallel_size,
+        app_state.pipeline_model_parallel_split_rank,
     ) = fake_initialize_model_parallel(
         world_size=world_size,
         rank=global_rank,
         tensor_model_parallel_size_=tensor_model_parallel_size,
         pipeline_model_parallel_size_=pipeline_model_parallel_size,
+        pipeline_model_parallel_split_rank_=pipeline_model_parallel_split_rank,
     )
 
     # update apex.transformer globals
     set_tensor_model_parallel_world_size(app_state.tensor_model_parallel_size)
     set_tensor_model_parallel_rank(app_state.tensor_model_parallel_rank)
 
-    # pipeline model parallelism not implemented in NeMo yet
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
     set_pipeline_model_parallel_world_size(app_state.pipeline_model_parallel_size)
+    set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
 
     _set_random_seed(seed)
 
@@ -127,6 +130,7 @@ def fake_initialize_model_parallel(
     rank,
     tensor_model_parallel_size_,
     pipeline_model_parallel_size_,
+    pipeline_model_parallel_split_rank_=None,
     virtual_pipeline_model_parallel_size_=None,
 ):
     """
@@ -249,4 +253,10 @@ def fake_initialize_model_parallel(
     logging.info(f'All embedding group ranks: {all_pipeline_model_parallel_group_ranks}')
     logging.info(f'Rank {rank} has embedding rank: {embedding_rank}')
 
-    return tensor_model_parallel_rank, pipeline_model_parallel_rank, model_parallel_size, data_parallel_size
+    return (
+        tensor_model_parallel_rank,
+        pipeline_model_parallel_rank,
+        model_parallel_size,
+        data_parallel_size,
+        pipeline_model_parallel_split_rank_,
+    )

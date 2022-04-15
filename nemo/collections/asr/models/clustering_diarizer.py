@@ -18,7 +18,6 @@ import pickle as pkl
 import shutil
 import tarfile
 import tempfile
-from collections import defaultdict
 from copy import deepcopy
 from typing import List, Optional
 
@@ -326,12 +325,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
-        self.embeddings = defaultdict(list)
+        self.embeddings = {}
         self._speaker_model = self._speaker_model.to(self._device)
         self._speaker_model.eval()
         self.time_stamps = {}
 
-        all_embs = []
+        all_embs = torch.empty([0])
         for test_batch in tqdm(self._speaker_model.test_dataloader()):
             test_batch = [x.to(self._device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
@@ -339,7 +338,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape)
-                all_embs.extend(embs.cpu().detach().numpy())
+                all_embs = torch.cat((all_embs, embs.cpu().detach()), dim=0)
             del test_batch
 
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
@@ -347,7 +346,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 line = line.strip()
                 dic = json.loads(line)
                 uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
-                self.embeddings[uniq_name].extend([all_embs[i]])
+                if uniq_name in self.embeddings:
+                    self.embeddings[uniq_name] = torch.cat((self.embeddings[uniq_name], all_embs[i].view(1, -1)))
+                else:
+                    self.embeddings[uniq_name] = all_embs[i].view(1, -1)
                 if uniq_name not in self.time_stamps:
                     self.time_stamps[uniq_name] = []
                 start = dic['offset']
@@ -393,7 +395,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         if paths2audio_files:
             if type(paths2audio_files) is list:
-                self._diarizer_params.manifest_filepath = os.path.json(self._out_dir, 'paths2audio_filepath.json')
+                self._diarizer_params.manifest_filepath = os.path.join(self._out_dir, 'paths2audio_filepath.json')
                 self.path2audio_files_to_manifest(paths2audio_files, self._diarizer_params.manifest_filepath)
             else:
                 raise ValueError("paths2audio_files must be of type list of paths to file containing audio file")

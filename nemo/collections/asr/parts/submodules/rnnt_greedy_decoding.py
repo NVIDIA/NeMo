@@ -281,11 +281,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[])
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
 
         if partial_hypotheses is not None:
-            if len(partial_hypotheses.y_sequence) > 0:
-                hypothesis.y_sequence.append(partial_hypotheses.y_sequence[-1].cpu().numpy())
+            hypothesis.last_token = partial_hypotheses.last_token
+            if partial_hypotheses.dec_state is not None:
                 hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
                 hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
 
@@ -308,11 +308,10 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
                 # In the first timestep, we initialize the network with RNNT Blank
                 # In later timesteps, we provide previous predicted label as input.
-                last_label = (
-                    self._SOS
-                    if (hypothesis.y_sequence == [] and hypothesis.dec_state is None)
-                    else hypothesis.y_sequence[-1]
-                )
+                if hypothesis.last_token is None and hypothesis.dec_state is None:
+                    last_label = self._SOS
+                else:
+                    last_label = label_collate([[hypothesis.last_token]])
 
                 # Perform prediction network and joint network steps.
                 g, hidden_prime = self._pred_step(last_label, hypothesis.dec_state)
@@ -347,6 +346,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     hypothesis.score += float(v)
                     hypothesis.timestep.append(time_idx)
                     hypothesis.dec_state = hidden_prime
+                    hypothesis.last_token = k
 
                 # Increment token counter.
                 symbols_added += 1
@@ -358,10 +358,6 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # Unpack the hidden states
         hypothesis.dec_state = self.decoder.batch_select_state(hypothesis.dec_state, 0)
-
-        # Remove the original input label if partial hypothesis was provided
-        if partial_hypotheses is not None:
-            hypothesis.y_sequence = hypothesis.y_sequence[1:]
 
         return hypothesis
 
