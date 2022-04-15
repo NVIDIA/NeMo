@@ -408,7 +408,7 @@ class MegatronBertModel(NLPModel):
         for vocab in ['cased', 'uncased']:
             result.append(
                 PretrainedModelInfo(
-                    pretrained_model_name=f"megatron_bert_345m_{vocab}",
+                    pretrained_model_name=f"megatron-bert-345m-{vocab}",
                     location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",
                     description=f"345M parameter BERT Megatron model with {vocab} vocab.",
                 )
@@ -425,8 +425,8 @@ class MegatronBertModel(NLPModel):
         for vocab in ['cased', 'uncased']:
             result.append(
                 PretrainedModelInfo(
-                    pretrained_model_name=f"biomegatron345m{vocab}",
-                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",
+                    pretrained_model_name=f"biomegatron-bert-345m-{vocab}",
+                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m{vocab}/versions/1/files/BioMegatron345m{vocab.capitalize()}.nemo",
                     description=f"Megatron pretrained on {vocab} biomedical dataset PubMed with 345 million parameters.",
                 )
             )
