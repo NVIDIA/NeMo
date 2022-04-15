@@ -195,7 +195,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
 
         shutil.rmtree(self._vad_dir, ignore_errors=True)
-        os.makedirs(self._vad_dir)
+        os.makedirs(self._vad_dir, exist_ok=True)
 
         self._vad_model = self._vad_model.to(self._device)
         self._vad_model.eval()
