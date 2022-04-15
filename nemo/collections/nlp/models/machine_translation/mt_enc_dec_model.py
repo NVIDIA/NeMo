@@ -1056,8 +1056,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
-        inverse_normalizer = None,
-        normalizer = None,
+        inverse_normalizer=None,
+        normalizer=None,
     ) -> List[str]:
         """
         Calls the translate() method with the option of running ITN (inverse text-normalization) on the input adn TN (text-normalization) on the output.
