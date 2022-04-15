@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import Optional
 
 import numpy as np
@@ -29,6 +30,7 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_nearest_neighbour_datas
     DialogueNearestNeighbourDataset,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -106,6 +108,7 @@ class DialogueNearestNeighbourModel(NLPModel):
         input_ids, input_mask, labels = batch
         preds = []
         gts = []
+        inputs = []
         for i in range(input_ids.size(0)):
             output = self.forward(input_ids=input_ids[i], attention_mask=input_mask[i])
             sentence_embeddings = DialogueNearestNeighbourModel.mean_pooling(output, input_mask[i])
@@ -117,8 +120,9 @@ class DialogueNearestNeighbourModel(NLPModel):
 
             preds.append(input_ids[i, pred])
             gts.append(input_ids[i, gt])
+            inputs.append(input_ids[i, 0])
 
-        return {'preds': torch.stack(preds), 'labels': torch.stack(gts)}
+        return {'preds': torch.stack(preds), 'labels': torch.stack(gts), 'inputs': torch.stack(inputs)}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx):
         return self.validation_epoch_end(outputs)
@@ -129,13 +133,22 @@ class DialogueNearestNeighbourModel(NLPModel):
         """
         output_preds = torch.cat([output['preds'] for output in outputs], dim=0)
         output_labels = torch.cat([output['labels'] for output in outputs], dim=0)
+        inputs = torch.cat([output['inputs'] for output in outputs], dim=0)
 
         decoded_preds = self.tokenizer.tokenizer.batch_decode(output_preds, skip_special_tokens=True)
         decoded_labels = self.tokenizer.tokenizer.batch_decode(output_labels, skip_special_tokens=True)
+        decoded_inputs = self.tokenizer.tokenizer.batch_decode(inputs, skip_special_tokens=True)
 
         prompt_len = len(self.cfg.dataset.prompt_template.strip())
         predicted_labels = [i[prompt_len:].strip() for i in decoded_preds]
         ground_truth_labels = [i[prompt_len:].strip() for i in decoded_labels]
+
+        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
+        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
+
+        DialogueGenerationMetrics.save_predictions(
+            filename, predicted_labels, ground_truth_labels, decoded_inputs,
+        )
 
         label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}
         self.classification_report = ClassificationReport(

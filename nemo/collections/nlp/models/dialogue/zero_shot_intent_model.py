@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
@@ -31,6 +32,7 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
     calc_class_weights_from_dataloader,
 )
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models import TextClassificationModel
 from nemo.collections.nlp.models.zero_shot_intent_recognition.zero_shot_intent_model import ZeroShotIntentModel
 from nemo.core.classes.common import PretrainedModelInfo
@@ -227,14 +229,22 @@ class ZeroShotIntentModel(TextClassificationModel):
             entail_logits = output_logits[..., 2]
             decoded_input_ids = [self.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))]
             utterance_candidate_pairs = [i.split(self.tokenizer.sep_token) for i in decoded_input_ids]
+            utterances = [
+                i[0].replace(self.tokenizer.bos_token, '').replace(self.tokenizer.eos_token, '')
+                for i in utterance_candidate_pairs
+            ]
+
         elif self.cfg.library == 'megatron':
             entail_logits = output_logits[..., 1]
             decoded_input_ids = [
                 self.tokenizer.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))
             ]
             utterance_candidate_pairs = [i.split(self.tokenizer.tokenizer.sep_token) for i in decoded_input_ids]
+            utterances = [
+                i[0].replace(self.tokenizer.tokenizer.bos_token, '').replace(self.tokenizer.tokenizer.eos_token, '')
+                for i in utterance_candidate_pairs
+            ]
 
-        utterances = [i[0] for i in utterance_candidate_pairs]
         # account for uncased tokenization
         candidates = [
             i[1]
@@ -249,6 +259,7 @@ class ZeroShotIntentModel(TextClassificationModel):
 
         predicted_labels = []
         ground_truth_labels = []
+        utterances = []
         for utterance, idxs in utterance_to_idx.items():
             utterance_candidates = [candidates[idx] for idx in idxs]
             logits = [entail_logits[idx].item() for idx in idxs]
@@ -257,6 +268,14 @@ class ZeroShotIntentModel(TextClassificationModel):
             predicted_candidate = utterance_candidates[np.argmax(logits)]
             predicted_labels.append(predicted_candidate)
             ground_truth_labels.append(correct_candidate)
+            utterances.append(utterance)
+
+        os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
+        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
+
+        DialogueGenerationMetrics.save_predictions(
+            filename, predicted_labels, ground_truth_labels, utterances,
+        )
 
         label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}
         self.classification_report = ClassificationReport(
