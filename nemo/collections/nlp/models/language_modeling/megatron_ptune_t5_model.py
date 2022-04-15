@@ -210,7 +210,7 @@ class MegatronT5PTuneModel(MegatronBaseModel):
                     enc_input=encoder_input,
                 )
 
-        tokens_loss = output['tokens_loss']
+        tokens_loss = output
 
         loss = self.model.loss_func(loss_mask, tokens_loss)
         self.log('train_loss', loss)
@@ -243,7 +243,7 @@ class MegatronT5PTuneModel(MegatronBaseModel):
             tokens_enc=tokens_enc,
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
-            enc_input=encoder_input,
+            encoder_input=encoder_input,
         )
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
