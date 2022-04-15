@@ -64,7 +64,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         cfg = model_utils.maybe_update_config_version(cfg)
 

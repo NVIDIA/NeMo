@@ -127,7 +127,7 @@ class NLPDDPPlugin(DDPPlugin):
 
         Args:
             global_rank (int): the global process index.
-            world_size (int): the total number of GPUs, num_nodes * num_gpus
+            world_size (int): the total number of GPUs, num_nodes * num_devices
             is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
         """
         app_state = AppState()
