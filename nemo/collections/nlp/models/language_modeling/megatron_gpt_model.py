@@ -58,10 +58,11 @@ try:
         forward_backward_pipelining_without_interleaving,
     )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.utils import (
-        get_num_microbatches,
-        _reconfigure_microbatch_calculator,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    # TODO: use this apex import once bug is fixed in apex in NGC container
+    # from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from nemo.collections.nlp.parts.utils_funcs import _reconfigure_microbatch_calculator
     import apex.transformer.pipeline_parallel.utils
 
     HAVE_APEX = True

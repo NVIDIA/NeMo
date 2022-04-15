@@ -16,7 +16,7 @@ __all__ = ['list2str', 'tensor2list', 'plot_confusion_matrix', 'get_classificati
 
 import os
 import time
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -137,3 +137,94 @@ def is_last_rank():
 
 def get_last_rank():
     return torch.distributed.get_world_size() - 1
+
+
+# Temporarily putting microbatch calculators here instead of importing them from Apex.
+# This is due to a bug that was fixed here: https://github.com/NVIDIA/apex/commit/7d9038782b7a39c7dd05201e17586fd38b7a7c94
+# We can remove these once the above commit is available in the NGC PyTorch container.
+try:
+    import apex.transformer.pipeline_parallel.utils as apex_utils
+    from apex.transformer.pipeline_parallel.utils import _ensure_var_is_not_initialized
+    from apex.transformer.microbatches import ConstantNumMicroBatches, RampupBatchsizeNumMicroBatches
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
+def setup_microbatch_calculator(
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
+) -> None:
+    if not HAVE_APEX:
+        raise ImportError(
+            "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
+    _ensure_var_is_not_initialized(apex_utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num microbatches calculator')
+
+    apex_utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )
+
+
+def _reconfigure_microbatch_calculator(
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
+) -> None:
+    if not HAVE_APEX:
+        raise ImportError(
+            "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
+    apex_utils._GLOBAL_NUM_MICROBATCHES_CALCULATOR = build_num_microbatches_calculator(
+        rank, rampup_batch_size, global_batch_size, micro_batch_size, data_parallel_size
+    )
+
+
+def build_num_microbatches_calculator(
+    rank: int,
+    rampup_batch_size: Optional[List[int]],
+    global_batch_size: int,
+    micro_batch_size: int,
+    data_parallel_size: int,
+):
+    if not HAVE_APEX:
+        raise ImportError(
+            "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+        )
+    # Constant num micro-batches.
+    if rampup_batch_size is None:
+        num_microbatches_calculator = ConstantNumMicroBatches(global_batch_size, micro_batch_size, data_parallel_size)
+        if rank == 0:
+            logging.info("setting number of micro-batches to constant {}".format(num_microbatches_calculator.get()))
+
+    else:
+        assert len(rampup_batch_size) == 3, (
+            "expected the following "
+            "format: --rampup-batch-size <start batch size> "
+            "<batch size incerement> <ramp-up samples>"
+        )
+        start_batch_size = int(rampup_batch_size[0])
+        batch_size_increment = int(rampup_batch_size[1])
+        ramup_samples = int(rampup_batch_size[2])
+        if rank == 0:
+            logging.info(
+                "will use batch size rampup starting from global batch "
+                "size {} to global batch size {} with batch size increments "
+                "{} over {} samples.".format(start_batch_size, global_batch_size, batch_size_increment, ramup_samples),
+            )
+        num_microbatches_calculator = RampupBatchsizeNumMicroBatches(
+            start_batch_size,
+            batch_size_increment,
+            ramup_samples,
+            global_batch_size,
+            micro_batch_size,
+            data_parallel_size,
+        )
+
+    return num_microbatches_calculator
