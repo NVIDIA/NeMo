@@ -545,9 +545,11 @@ def switch(val1, val2, boolean):
 
 
 def forward_step(model, batch, tensor_shape):
+    # Importing here to avoid circular import errors
+    from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
 
     # Should call MegatronGPTPPromptLearningModel's forward method
-    if hasattr(model, 'prompt_table'):
+    if isinstance(model, MegatronGPTPromptLearningModel):
         forward_model = model
 
     # Should call GPTModel's forward method
