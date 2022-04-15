@@ -56,7 +56,7 @@ class ColumnLinear(tensor_parallel.ColumnParallelLinear):
     def forward(self, input_):
         world_size = get_tensor_model_parallel_world_size()
         if input_.requires_grad or world_size > 1:
-            return tensor_parallel.ColumnParallelLinear.forward(input_)
+            return tensor_parallel.ColumnParallelLinear.forward(self, input_)
 
         bias = self.bias if not self.skip_bias_add else None
         # Matrix multiply.
