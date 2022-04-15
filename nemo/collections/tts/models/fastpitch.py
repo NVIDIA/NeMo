@@ -16,7 +16,7 @@ from typing import Optional
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, open_dict, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
@@ -71,10 +71,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                raise ValueError("AudioToCharWithPriorAndPitchDataset class has been deprecated. Please use" \
-                " https://github.com/NVIDIA/NeMo/tree/main/examples/tts/conf/fastpitch_align_old.yaml as config_file" \
-                " to avoid using deprecated AudioToCharWithDursF0Dataset class and run into errors. Recommended usage: " \
-                "FastPitchModel.from_pretrained(\"tts_en_fastpitch\", override_config_path=\"/path/to/fastpitch_align_old.yaml\")")
+                logging.warning("AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for" \
+                " training or finetuning. Only inference is supported.")
+                default_tokenizer_yaml = self._get_default_text_tokenizer()
+                tokenizer_conf = OmegaConf.create(default_tokenizer_yaml)
+                self._setup_tokenizer(tokenizer_conf)
+                assert self.vocab is not None
+                input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
+                input_fft_kwargs["padding_idx"] = self.vocab.pad
             else:
                 raise ValueError(f"Unknown dataset class: {self.ds_class_name}")
 
@@ -121,6 +125,26 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.n_mel_channels,
         )
         self._input_types = self._output_types = None
+
+
+    def _get_default_text_tokenizer(self):
+        default_text_tokenizer = """
+            text_tokenizer:
+                _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+                punct: true
+                stresses: true
+                chars: true
+                apostrophe: true
+                pad_with_space: true
+                add_blank_at: true
+                g2p:
+                    _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
+                    phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
+                    heteronyms: "scripts/tts_dataset_files/heteronyms-030921"
+                    phoneme_probability: 0.5
+            """
+        return default_text_tokenizer
+
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -178,6 +202,12 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
             if ds_class_name == "TTSDataset":
+                self._parser = self.vocab.encode
+            elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                if self.vocab is None:
+                    default_tokenizer_yaml = self._get_default_text_tokenizer()
+                    tokenizer_conf = OmegaConf.create(default_tokenizer_yaml)
+                    self._setup_tokenizer(tokenizer_conf)
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
