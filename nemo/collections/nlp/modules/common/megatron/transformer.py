@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
 
 
 """ We use the following notation throughout this file:
@@ -58,7 +58,6 @@ class ColumnLinear(tensor_parallel.ColumnParallelLinear):
         if input_.requires_grad or world_size > 1:
             return tensor_parallel.ColumnParallelLinear.forward(self, input_)
 
-        bias = self.bias if not self.skip_bias_add else None
         # Matrix multiply.
         output = torch.matmul(input_, self.weight.t())
         if not self.skip_bias_add:
@@ -98,7 +97,7 @@ class ParallelMLP(MegatronModule):
         # Project to 4h.
         self.dense_h_to_4h = ColumnLinear(
             hidden_size,
-            ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+            ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
