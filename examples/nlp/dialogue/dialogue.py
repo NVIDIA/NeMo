@@ -136,7 +136,10 @@ def main(cfg: DictConfig) -> None:
 
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         if cfg.model.dataset.task == 'sgd':
-            model_class = SGDQAModel
+            if cfg.model.original_nemo_checkpoint is not None:
+                model_class = ZeroShotIntentModel
+            else:
+                model_class = SGDQAModel
         elif cfg.model.dataset.task in ['zero_shot', 'design']:
             model_class = ZeroShotIntentModel
         else:

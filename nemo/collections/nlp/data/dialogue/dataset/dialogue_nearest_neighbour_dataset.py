@@ -36,14 +36,27 @@ class DialogueNearestNeighbourDataset(Dataset):
         self.cfg = cfg
         self.tokenizer = tokenizer
         self.raw_features = dialogues_processor.get_dialog_examples(dataset_split)
+        self.max_n = self.find_max_n_candidates()
         self.examples = self._create_examples(self.raw_features)
+
+    def find_max_n_candidates(self):
+        max_n = 0
+        for idx in range(len(self.raw_features)):
+            ex = self.raw_features[idx].data
+            n = len(ex["possible_labels"]["intent"])
+            max_n = max(max_n, n)
+        return max_n
 
     def _create_examples(self, raw_features):
         """Creates examples for the training and dev sets."""
         examples = []
+        seen_utterances = set()
         for idx in range(len(raw_features)):
             ex = self.raw_features[idx].data
             user_utterance = ex["utterance"]
+            if user_utterance in seen_utterances:
+                continue
+            seen_utterances.add(user_utterance)
             intent = ex["labels"]["intent"]
             sentences = [user_utterance]
             labels = [-1]
@@ -52,6 +65,11 @@ class DialogueNearestNeighbourDataset(Dataset):
                 label = 1 if candidate_intent == intent else 0
                 labels.append(label)
                 sentences.append(text_b)
+
+            while self.max_n > len(labels) - 1:
+                labels.append(label)
+                sentences.append(text_b)
+
             encoded_input = self.tokenizer.tokenizer(
                 sentences,
                 padding='max_length',

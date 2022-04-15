@@ -25,7 +25,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor, Schema
+from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
@@ -34,7 +34,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = ['DialogueGPTClassificationModel']
 
@@ -587,7 +586,7 @@ class DialogueGPTClassificationModel(NLPModel):
             )
         elif self._cfg.dataset.task in ['assistant', "zero_shot"]:
             self.dialogues_processor = DialogueAssistantDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
             )
         elif self._cfg.dataset.task == 'design':
             self.dialogues_processor = DialogueDesignDataProcessor(

@@ -24,7 +24,7 @@ __all__ = ['DialogueAssistantDataProcessor']
 class DialogueAssistantDataProcessor(DialogueDataProcessor):
     """Data Processor for Assistant dialogues."""
 
-    def __init__(self, data_dir: str, tokenizer: object):
+    def __init__(self, data_dir: str, tokenizer: object, cfg):
         """
         Constructs DialogueAssistantDataProcessor
         Args:
@@ -33,7 +33,12 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
+        self.cfg = cfg
         self.intents = self.open_file("dict.intents.csv")
+        if self.cfg.preprocess_intent_function == 'remove_domain':
+            self.intents = [
+                DialogueAssistantDataProcessor.normalize_zero_shot_intent(intent) for intent in self.intents
+            ]
         self.slots = self.open_file("dict.slots.csv")
         (
             bio_slot_ids_to_unified_slot_ids,
@@ -44,6 +49,14 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         self.bio_slot_ids_to_unified_slot_ids = bio_slot_ids_to_unified_slot_ids
         self.services = sorted(list(set([intent.split('_')[0] for intent in self.intents])))
         self.empty_slot_id = [str(idx) for idx, slot_name in enumerate(self.slots) if slot_name == "O"][0]
+
+    @staticmethod
+    def normalize_zero_shot_intent(label):
+        label = label.split('.')[1]
+        if label == 'nomatch':
+            return 'no match'
+        else:
+            return label.replace('_', ' ')
 
     def open_file(self, filename):
         """

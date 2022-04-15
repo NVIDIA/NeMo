@@ -490,7 +490,7 @@ class IntentSlotClassificationModel(NLPModel):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, dataset_split='test')
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split: str):
-        data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer)
+        data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer, cfg=self.cfg.dataset)
 
         dataset = DialogueBERTDataset(
             dataset_split,

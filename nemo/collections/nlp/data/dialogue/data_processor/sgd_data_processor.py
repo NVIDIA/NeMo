@@ -17,11 +17,11 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/google-research/blob/master/schema_guided_dst/baseline/data_utils.py
 """
-
 import collections
 import json
 import os
 import pickle
+import re
 from typing import List
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
@@ -185,7 +185,6 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         with open(dial_file, "rb") as f:
             dial_examples = json.load(f)
             dial_examples = [DialogueInputExample(i) for i in dial_examples]
-
         if not os.path.exists(self.slots_relation_file):
             raise ValueError(
                 f"Slots relation file {self.slots_relation_file} does not exist. It is needed for the carry-over mechanism of state tracker for switches between services."
@@ -326,6 +325,26 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 state_update.pop(slot)
         return state_update
 
+    @staticmethod
+    def convert_camelcase_to_lower(label):
+        if label.lower() == "none":
+            return "none"
+        label = label.split("_")[0]
+        tokens = re.findall('[A-Z][^A-Z]*', label)
+        return ' '.join([token.lower() for token in tokens])
+
+    def preprocess_intent(self, intent, schemas, service):
+        if self.cfg.preprocess_intent_function == 'default':
+            return intent
+        elif self.cfg.preprocess_intent_function == 'lowercase':
+            return DialogueSGDDataProcessor.convert_camelcase_to_lower(intent)
+        elif self.cfg.preprocess_intent_function == 'description':
+            return schemas.get_service_schema(service).description
+        else:
+            raise ValueError(
+                'Only default, lowercase and description are allowed for model.dataset.preprocess_intent_function for SGD task'
+            )
+
     def _create_examples_from_turn(
         self,
         turn_id: int,
@@ -387,13 +406,16 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 "system_actions": system_frame["actions"] if system_frame is not None else None,
                 "labels": {
                     "service": service,
-                    "intent": intent,
+                    "intent": self.preprocess_intent(intent, schemas, service),
                     "slots": {slot: state[slot] for slot in state_update},
                 },
                 "label_positions": {"slots": {slot["slot"]: slot for slot in user_frames[service]["slots"]}},
                 "possible_labels": {
                     "service": schemas.services,
-                    "intent": schemas.get_service_schema(service).intents,
+                    "intent": [
+                        self.preprocess_intent(intent, schemas, service)
+                        for intent in schemas.get_service_schema(service).intents
+                    ],
                     "slots": {
                         slot: schemas.get_service_schema(service).get_categorical_slot_values(slot)
                         if slot in categorical_slots

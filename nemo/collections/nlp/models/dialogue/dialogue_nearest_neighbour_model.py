@@ -22,6 +22,7 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModel
 
+from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_nearest_neighbour_dataset import (
@@ -46,13 +47,22 @@ class DialogueNearestNeighbourModel(NLPModel):
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split) -> 'torch.utils.data.DataLoader':
         if self._cfg.dataset.task == "zero_shot":
-            self.data_processor = DialogueAssistantDataProcessor(self.cfg.data_dir, self.tokenizer)
+            self.data_processor = DialogueAssistantDataProcessor(
+                self.cfg.data_dir, self.tokenizer, cfg=self.cfg.dataset
+            )
         elif self._cfg.dataset.task == "design":
             self.data_processor = DialogueDesignDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
             )
+        elif self._cfg.dataset.task == 'sgd':
+            self.data_processor = DialogueSGDDataProcessor(
+                data_dir=self._cfg.dataset.data_dir,
+                dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
+            )
         else:
-            raise ValueError("Only zero_shot and design supported for Zero Shot Intent Model")
+            raise ValueError("Only zero_shot, design and sgd supported for Zero Shot Intent Model")
 
         dataset = DialogueNearestNeighbourDataset(
             dataset_split,
