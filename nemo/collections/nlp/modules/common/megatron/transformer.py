@@ -97,7 +97,7 @@ class ParallelMLP(MegatronModule):
         # Project to 4h.
         self.dense_h_to_4h = ColumnLinear(
             hidden_size,
-            ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
+            ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             gather_output=False,
             init_method=init_method,
             skip_bias_add=True,
@@ -109,7 +109,7 @@ class ParallelMLP(MegatronModule):
             # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
             self.dense_h_to_4h_2 = ColumnLinear(
                 hidden_size,
-                ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+                ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
                 gather_output=False,
                 init_method=init_method,
                 skip_bias_add=True,
