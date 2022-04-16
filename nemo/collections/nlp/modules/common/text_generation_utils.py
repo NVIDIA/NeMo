@@ -300,7 +300,7 @@ def synced_generate(
                 group = parallel_state.get_embedding_group()
                 full_logits = torch.empty(
                     tokens.size(0),
-                    context_length,
+                    context_length - 1,
                     model.padded_vocab_size,
                     dtype=torch.float32,
                     device=torch.device("cuda"),
