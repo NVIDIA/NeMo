@@ -339,7 +339,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         elif self.cfg.preprocess_intent_function == 'lowercase':
             return DialogueSGDDataProcessor.convert_camelcase_to_lower(intent)
         elif self.cfg.preprocess_intent_function == 'description':
-            return schemas.get_service_schema(service).description
+            return schemas.get_service_schema(service).intent_descriptions[intent]
         else:
             raise ValueError(
                 'Only default, lowercase and description are allowed for model.dataset.preprocess_intent_function for SGD task'
