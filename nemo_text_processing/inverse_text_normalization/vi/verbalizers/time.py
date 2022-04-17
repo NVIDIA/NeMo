@@ -35,8 +35,8 @@ class TimeFst(GraphFst):
     Finite state transducer for verbalizing time, e.g.
         time { hours: "3" } -> 3h
         time { hours: "12" minutes: "30" } -> 12:30
-        time { hours: "1" minutes: "12" second: "22"} -> 01:12:22
-        time { minutes: "36" second: "45"} -> 36:45s
+        time { hours: "1" minutes: "12" second: "22"} -> 1:12:22
+        time { minutes: "36" second: "45"} -> 36p45s
         time { hours: "2" zone: "gmt" } -> 2h gmt
     """
 
@@ -83,9 +83,9 @@ class TimeFst(GraphFst):
             hour + delete_space + pynutil.insert(":") + (minute @ add_leading_zero_to_double_digit) + optional_second
         )
         graph_ms = (
-            (minute @ add_leading_zero_to_double_digit)
+            minute
             + delete_space
-            + pynutil.insert(":")
+            + pynutil.insert("p")
             + (second @ add_leading_zero_to_double_digit)
             + pynutil.insert("s")
         )

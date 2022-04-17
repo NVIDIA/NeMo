@@ -26,21 +26,21 @@ except (ModuleNotFoundError, ImportError):
 class DateFst(GraphFst):
     """
     Finite state transducer for verbalizing date, e.g.
-        date { month: "1" year: "2012"} -> 1/2012
-        date { day: "5" month: "10" year: "2021" preserve_order: true } -> 5/10/2021
+        date { month: "1" year: "2012"} -> tháng 1 năm 2012
+        date { day: "5" month: "10" year: "2021" preserve_order: true } -> 5 tháng 10 năm 2021
     """
 
     def __init__(self):
         super().__init__(name="date", kind="verbalize")
-        month = (
-            pynutil.delete("month:")
+        day = (
+            pynutil.delete("day:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        day = (
-            pynutil.delete("day:")
+        month = (
+            pynutil.delete("month:")
             + delete_space
             + pynutil.delete("\"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
@@ -57,10 +57,10 @@ class DateFst(GraphFst):
 
         # (day) month year
         # day month
-        graph_dm = day + delete_space + pynutil.insert("/") + month
-        graph_dmy = graph_dm + delete_space + pynutil.insert("/") + year
+        graph_dm = day + delete_space + pynutil.insert(" tháng ") + month
+        graph_dmy = graph_dm + delete_space + pynutil.insert(" năm ") + year
         graph_m = pynutil.insert("tháng ") + month
-        graph_my = month + delete_space + pynutil.insert("/") + year
+        graph_my = pynutil.insert("tháng ") + month + delete_space + pynutil.insert(" năm ") + year
         graph_y = pynutil.insert("năm ") + year
 
         optional_preserve_order = pynini.closure(
