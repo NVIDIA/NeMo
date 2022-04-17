@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import GraphFst, convert_space
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, convert_space
 
 try:
     import pynini
@@ -28,13 +27,14 @@ except (ModuleNotFoundError, ImportError):
 class WhiteListFst(GraphFst):
     """
     Finite state transducer for classifying whitelisted tokens
-        e.g. misses -> tokens { name: "mrs." }
-    This class has highest priority among all classifier grammars. Whitelisted tokens are defined and loaded from "data/whitelist.tsv".
+        e.g. misses -> tokens { name: "Mrs." }
+    Args:
+        tn_whitelist_tagger: TN whitelist tagger
     """
 
-    def __init__(self):
-        super().__init__(name="whitelist", kind="classify")
+    def __init__(self, tn_whitelist_tagger: GraphFst, deterministic: bool = True):
+        super().__init__(name="whitelist", kind="classify", deterministic=deterministic)
 
-        whitelist = pynini.string_file(get_abs_path("data/whitelist.tsv")).invert()
+        whitelist = pynini.invert(tn_whitelist_tagger.graph)
         graph = pynutil.insert("name: \"") + convert_space(whitelist) + pynutil.insert("\"")
         self.fst = graph.optimize()

@@ -53,7 +53,7 @@ class MoneyFst(GraphFst):
         )
 
         integer_part = pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-        optional_add_and = pynini.closure(pynutil.insert(" und "), 0, 1)
+        optional_add_and = pynini.closure(pynutil.insert("und "), 0, 1)
 
         #  *** currency_maj
         graph_integer = integer_part + keep_space + maj

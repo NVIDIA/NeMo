@@ -75,6 +75,7 @@ def asr_model(test_data_dir):
 
 
 class TestEncDecCTCModel:
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, asr_model):
         asr_model.train()
@@ -84,6 +85,7 @@ class TestEncDecCTCModel:
         instance2 = EncDecCTCModelBPE.from_config_dict(confdict)
         assert isinstance(instance2, EncDecCTCModelBPE)
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_forward(self, asr_model):
         asr_model = asr_model.eval()
@@ -114,6 +116,7 @@ class TestEncDecCTCModel:
         diff = torch.max(torch.abs(logprobs_instance - logprobs_batch))
         assert diff <= 1e-6
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -127,6 +130,7 @@ class TestEncDecCTCModel:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact_spe(self, asr_model, test_data_dir):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -147,6 +151,30 @@ class TestEncDecCTCModel:
             assert new_model.tokenizer.tokenizer.vocab_size == 128
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
+    def test_save_restore_artifact_agg(self, asr_model, test_data_dir):
+        tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+        tok_en = {"dir": tokenizer_dir, "type": "wpe"}
+        # the below is really an english tokenizer but we pretend it is spanish
+        tok_es = {"dir": tokenizer_dir, "type": "wpe"}
+        tcfg = DictConfig({"type": "agg", "langs": {"en": tok_en, "es": tok_es}})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            asr_model.change_vocabulary(new_tokenizer_dir=tcfg, new_tokenizer_type="agg")
+
+            save_path = os.path.join(tmpdir, "ctc_agg.nemo")
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.AggregateTokenizer)
+
+            # should be double
+            assert new_model.tokenizer.tokenizer.vocab_size == 254
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
+
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
@@ -256,6 +284,8 @@ class TestEncDecCTCModel:
             'bos_id',
             'eos_id',
             'blank_index',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
@@ -288,6 +318,8 @@ class TestEncDecCTCModel:
             'blank_index',
             'global_rank',
             'world_size',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {

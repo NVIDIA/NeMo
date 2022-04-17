@@ -73,7 +73,6 @@ class TelephoneFst(GraphFst):
         number = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
 
         graph = country_code + pynini.accep(" ") + number
-        graph += pynutil.insert(" preserve_order: true")
-
-        final_graph = self.add_tokens(graph)
+        self.graph = graph
+        final_graph = self.add_tokens(self.graph + pynutil.insert(" preserve_order: true"))
         self.fst = final_graph.optimize()

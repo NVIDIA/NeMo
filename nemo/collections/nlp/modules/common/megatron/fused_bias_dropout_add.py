@@ -15,7 +15,22 @@
 
 
 import torch
-from apex._autocast_utils import _cast_if_autocast_enabled
+
+try:
+    from apex._autocast_utils import _cast_if_autocast_enabled
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+
+def dropout_add(x, bias, residual, prob, training):
+    # type: (Tensor, None, Tensor, float, bool) -> Tensor
+    if bias is not None:
+        raise ValueError(f"bias is expected to be None when using the bias_dropout function.")
+    out = torch.nn.functional.dropout(x, p=prob, training=training)
+    out = residual + out
+    return out
 
 
 def bias_dropout_add(x, bias, residual, prob, training):
@@ -34,9 +49,11 @@ def bias_dropout_add_fused_train_(
 
 
 def bias_dropout_add_fused_train(x, bias, residual, prob):
-    args = _cast_if_autocast_enabled(x, bias, residual, prob)
-    with torch.cuda.amp.autocast(enabled=False):
-        return bias_dropout_add_fused_train_(*args)
+    # re-enable torch grad to enable fused optimization.
+    with torch.enable_grad():
+        args = _cast_if_autocast_enabled(x, bias, residual, prob)
+        with torch.cuda.amp.autocast(enabled=False):
+            return bias_dropout_add_fused_train_(*args)
 
 
 @torch.jit.script

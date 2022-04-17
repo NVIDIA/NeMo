@@ -35,6 +35,7 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated
 
 
 @dataclass
@@ -46,6 +47,7 @@ class WaveglowConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
+@deprecated(version="1.8", explanation="UniGlowModel will be removed. Use WaveGlowModel or HifiGanModel instead.")
 class UniGlowModel(GlowVocoder):
     """Waveglow model used to convert betweeen spectrograms and audio"""
 

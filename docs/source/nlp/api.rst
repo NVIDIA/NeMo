@@ -14,7 +14,7 @@ Model Classes
 
 .. autoclass:: nemo.collections.nlp.models.PunctuationCapitalizationModel
     :show-inheritance:
-    :members: add_punctuation_capitalization, setup_training_data, setup_optimization, setup_validation_data, setup_test_data, multi_validation_epoch_end, register_artifact
+    :members:
 
 .. autoclass:: nemo.collections.nlp.models.TokenClassificationModel
     :show-inheritance:
@@ -40,10 +40,6 @@ Modules
 -------
 
 .. autoclass:: nemo.collections.nlp.modules.BertModule
-    :show-inheritance:
-    :members:
-
-.. autoclass:: nemo.collections.nlp.modules.MegatronBertEncoder
     :show-inheritance:
     :members:
 
@@ -79,4 +75,25 @@ Modules
 
 .. autofunction::  nemo.collections.nlp.modules.get_pretrained_lm_models_list
 
-.. autofunction::  nemo.collections.nlp.modules.get_megatron_lm_models_list
+.. autofunction::  nemo.collections.nlp.modules.common.megatron.get_megatron_lm_models_list
+
+Datasets
+--------
+
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset.BertPunctuationCapitalizationDataset
+    :show-inheritance:
+    :members:
+    :special-members: __getitem__
+
+.. autofunction:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.create_tarred_dataset
+
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset.BertPunctuationCapitalizationTarredDataset
+    :show-inheritance:
+    :members:
+    :special-members: __iter__
+    :exclude-members: reinforce_type
+
+.. autoclass:: nemo.collections.nlp.data.token_classification.punctuation_capitalization_infer_dataset.BertPunctuationCapitalizationInferDataset
+    :show-inheritance:
+    :members:
+    :special-members: __getitem__

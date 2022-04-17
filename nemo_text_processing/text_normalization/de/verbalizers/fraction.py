@@ -46,14 +46,12 @@ class FractionFst(GraphFst):
         super().__init__(name="fraction", kind="verbalize", deterministic=deterministic)
 
         optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + pynutil.delete(" "), 0, 1)
-        change_one = pynini.cdrewrite(pynini.cross("eins", "ein"), "[BOS]", "[EOS]", NEMO_SIGMA)
+        change_one = pynini.cdrewrite(
+            pynutil.add_weight(pynini.cross("eins", "ein"), weight=-0.0001), "[BOS]", "[EOS]", NEMO_SIGMA
+        )
         change_numerator_two = pynini.cdrewrite(pynini.cross("zweitel", "halbe"), "[BOS]", "[EOS]", NEMO_SIGMA)
-        integer = (
-            pynutil.delete("integer_part: \"") + pynini.closure(NEMO_NOT_QUOTE) @ change_one + pynutil.delete("\" ")
-        )
-        numerator = (
-            pynutil.delete("numerator: \"") + pynini.closure(NEMO_NOT_QUOTE) @ change_one + pynutil.delete("\" ")
-        )
+        integer = pynutil.delete("integer_part: \"") + change_one + pynutil.delete("\" ")
+        numerator = pynutil.delete("numerator: \"") + change_one + pynutil.delete("\" ")
         denominator = (
             pynutil.delete("denominator: \"")
             + pynini.closure(NEMO_NOT_QUOTE)
@@ -64,11 +62,8 @@ class FractionFst(GraphFst):
             @ change_numerator_two
             + pynutil.delete("\"")
         )
-        conjunction = pynutil.insert("und ")
-        if not deterministic:
-            conjunction = pynini.closure(conjunction, 0, 1)
 
-        integer = pynini.closure(integer + insert_space + conjunction, 0, 1)
+        integer += insert_space + pynini.closure(pynutil.insert("und ", weight=0.001), 0, 1)
 
         denominator_one_half = pynini.cdrewrite(pynini.cross("ein halbe", "ein halb"), "[BOS]", "[EOS]", NEMO_SIGMA)
 

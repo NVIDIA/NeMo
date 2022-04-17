@@ -38,7 +38,7 @@ class TestOrdinal:
 
     normalizer_with_audio = (
         NormalizerWithAudio(input_case='cased', lang='de', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if PYNINI_AVAILABLE
+        if PYNINI_AVAILABLE and CACHE_DIR
         else None
     )
 
@@ -49,5 +49,9 @@ class TestOrdinal:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, expected, test_input):
-        pred_non_deterministic = self.normalizer_with_audio.normalize(test_input, n_tagged=1000)
-        assert expected in pred_non_deterministic
+
+        if self.normalizer_with_audio:
+            pred_non_deterministic = self.normalizer_with_audio.normalize(
+                test_input, n_tagged=1000, punct_post_process=False
+            )
+            assert expected in pred_non_deterministic

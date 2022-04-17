@@ -86,6 +86,7 @@ class CardinalFst(GraphFst):
         graph_digit_no_one = pynini.string_file(get_abs_path("data/numbers/digit.tsv")).invert()
         graph_one = pynini.string_file(get_abs_path("data/numbers/ones.tsv")).invert()
         graph_digit = graph_digit_no_one | graph_one
+        self.digit = (graph_digit | graph_zero).optimize()
         graph_teen = pynini.string_file(get_abs_path("data/numbers/teen.tsv")).invert()
 
         graph_ties = pynini.string_file(get_abs_path("data/numbers/ties.tsv")).invert()
@@ -103,7 +104,7 @@ class CardinalFst(GraphFst):
 
         def hundred_non_zero():
             return (graph_digit_no_one + insert_space | pynini.cross("1", "ein ")) + pynutil.insert("hundert") + (
-                pynini.closure(insert_space + pynutil.insert(AND), 0, 1) + insert_space + tens_no_zero()
+                pynini.closure(insert_space + pynutil.insert(AND, weight=0.0001), 0, 1) + insert_space + tens_no_zero()
                 | pynutil.delete("00")
             ) | pynutil.delete("0") + tens_no_zero()
 
@@ -112,45 +113,35 @@ class CardinalFst(GraphFst):
                 insert_space + hundred_non_zero() | pynutil.delete("000")
             )
 
+        optional_plural_quantity_en = pynini.closure(pynutil.insert("en", weight=-0.0001), 0, 1)
+        optional_plural_quantity_n = pynini.closure(pynutil.insert("n", weight=-0.0001), 0, 1)
         graph_million = pynini.union(
-            hundred_non_zero() + insert_space + pynutil.insert("million") + pynini.closure(pynutil.insert("en"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("million") + optional_plural_quantity_en,
             pynutil.delete("000"),
         )
 
         graph_billion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("milliarde")
-            + pynini.closure(pynutil.insert("n"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("milliarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
 
         graph_trillion = pynini.union(
-            hundred_non_zero() + insert_space + pynutil.insert("billion") + pynini.closure(pynutil.insert("en"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("billion") + optional_plural_quantity_en,
             pynutil.delete("000"),
         )
 
         graph_quadrillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("billiarde")
-            + pynini.closure(pynutil.insert("n"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("billiarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
 
         graph_quintillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("trillion")
-            + pynini.closure(pynutil.insert("en"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("trillion") + optional_plural_quantity_en,
             pynutil.delete("000"),
         )
 
         graph_sextillion = pynini.union(
-            hundred_non_zero()
-            + insert_space
-            + pynutil.insert("trilliarde")
-            + pynini.closure(pynutil.insert("n"), 0, 1),
+            hundred_non_zero() + insert_space + pynutil.insert("trilliarde") + optional_plural_quantity_n,
             pynutil.delete("000"),
         )
         graph = pynini.union(
@@ -169,6 +160,14 @@ class CardinalFst(GraphFst):
             + thousand()
         )
 
+        fix_syntax = [
+            ("eins tausend", "ein tausend"),
+            ("eins millionen", "eine million"),
+            ("eins milliarden", "eine milliarde"),
+            ("eins billionen", "eine billion"),
+            ("eins billiarden", "eine billiarde"),
+        ]
+        fix_syntax = pynini.union(*[pynini.cross(*x) for x in fix_syntax])
         self.graph = (
             ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
@@ -176,6 +175,8 @@ class CardinalFst(GraphFst):
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
+            @ pynini.cdrewrite(pynini.cross("  ", " "), "", "", NEMO_SIGMA)
+            @ pynini.cdrewrite(fix_syntax, "[BOS]", "", NEMO_SIGMA)
         )
         self.graph |= graph_zero | pynini.cross("1", "eins")
 

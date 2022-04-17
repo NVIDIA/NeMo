@@ -22,11 +22,17 @@ NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py my_model.nemo
 Usage example for building *-averaged.nemo files for all results in sub-directories under current path:
 
 find . -name '*.nemo' | grep -v -- "-averaged.nemo" | xargs NeMo/scripts/checkpoint_averaging/checkpoint_averaging.py
+
+
+NOTE: if yout get the following error `AttributeError: Can't get attribute '???' on <module '__main__' from '???'>`
+      use --import_fname_list <FILE> with all files that contains missing classes.
 """
 
 import argparse
 import glob
+import importlib
 import os
+import sys
 
 import torch
 
@@ -43,7 +49,23 @@ def main():
         nargs='+',
         help='Input .nemo files (or folders who contains them) to parse',
     )
+    parser.add_argument(
+        '--import_fname_list',
+        type=str,
+        nargs='+',
+        default=[],
+        help='A list of Python file names to "from FILE import *" (Needed when some classes were defined in __main__ of a script)',
+    )
     args = parser.parse_args()
+
+    logging.info(
+        f"\n\nIMPORTANT: Use --import_fname_list for all files that contain missing classes (AttributeError: Can't get attribute '???' on <module '__main__' from '???'>)\n\n"
+    )
+
+    for fn in args.import_fname_list:
+        logging.info(f"Importing * from {fn}")
+        sys.path.insert(0, os.path.dirname(fn))
+        globals().update(importlib.import_module(os.path.splitext(os.path.basename(fn))[0]).__dict__)
 
     device = torch.device("cpu")
 
@@ -68,12 +90,15 @@ def main():
         # restore model from .nemo file path
         model_cfg = ModelPT.restore_from(restore_path=model_fname, return_config=True)
         classpath = model_cfg.target  # original class path
-        imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
+        imported_class = model_utils.import_class_by_path(classpath)
         logging.info(f"Loading model {model_fname}")
-        nemo_model = imported_class.restore_from(restore_path=model_fname, map_location=device)  # type: ASRModel
+        nemo_model = imported_class.restore_from(restore_path=model_fname, map_location=device)
 
+        # search for all checkpoints (ignore -last.ckpt)
         checkpoint_paths = [
-            os.path.join(model_folder_path, x) for x in os.listdir(model_folder_path) if x.endswith('.ckpt')
+            os.path.join(model_folder_path, x)
+            for x in os.listdir(model_folder_path)
+            if x.endswith('.ckpt') and not x.endswith('-last.ckpt')
         ]
         """ < Checkpoint Averaging Logic > """
         # load state dicts

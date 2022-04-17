@@ -1,3 +1,5 @@
+# TODO(Oktai15): remove this config in 1.8.0 version
+
 name: FastSpeech2_HiFiGAN_E2E
 
 # Dataset info
@@ -54,7 +56,7 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     dither: 0.0
-    nfilt: ${n_mels}
+    nfilt: ${model.n_mels}
     frame_splicing: 1
     highfreq: 8000
     log: true
@@ -117,12 +119,13 @@ model:
     apply_weight_init_conv_pre: true
 
 trainer:
-  gpus: 1 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: ???
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: False  # Provided by exp_manager
   log_every_n_steps: 200
   check_val_every_n_epoch: 25

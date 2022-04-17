@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import string
+import sys
 from copy import deepcopy
-from typing import List
+from unicodedata import category
 
 import regex as re
 from tqdm import tqdm
@@ -195,7 +196,7 @@ def remove_puncts(input_str):
     return input_str.translate(str.maketrans('', '', string.punctuation))
 
 
-def post_process_punct(input: str, nn_output: str):
+def post_process_punct(input: str, normalized_text: str):
     """
     Post-processing of the normalized output to match input in terms of spaces around punctuation marks.
     After NN normalization, Moses detokenization puts a space after
@@ -208,35 +209,52 @@ def post_process_punct(input: str, nn_output: str):
 
     Args:
         input: input text (original input to the NN, before normalization or tokenization)
-        nn_output: output text (output of the TN NN model)
+        normalized_text: output text (output of the TN NN model)
     """
     input = [x for x in input]
-    nn_output = [x for x in nn_output]
-    punct_marks = string.punctuation
-
-    try:
-        for punct in punct_marks:
-            if input.count(punct) != nn_output.count(punct):
-                continue
+    normalized_text = [x for x in normalized_text]
+    punct_default = [x for x in string.punctuation]
+    punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
+    punct_marks = set(punct_default + punct_unicode)
+    for punct in punct_marks:
+        try:
+            equal = True
+            if input.count(punct) != normalized_text.count(punct):
+                equal = False
             idx_in, idx_out = 0, 0
             while punct in input[idx_in:]:
+                idx_out = normalized_text.index(punct, idx_out)
                 idx_in = input.index(punct, idx_in)
-                idx_out = nn_output.index(punct, idx_out)
+
+                def _is_valid(idx_out, idx_in, normalized_text, input):
+                    """Check if previous or next word match (for cases when punctuation marks are part of
+                    semiotic token, i.e. some punctuation can be missing in the normalized text)"""
+                    return (idx_out > 0 and idx_in > 0 and normalized_text[idx_out - 1] == input[idx_in - 1]) or (
+                        idx_out < len(normalized_text) - 1
+                        and idx_in < len(input) - 1
+                        and normalized_text[idx_out + 1] == input[idx_in + 1]
+                    )
+
+                if not equal and not _is_valid(idx_out, idx_in, normalized_text, input):
+                    idx_in += 1
+                    continue
+
                 if idx_in > 0 and idx_out > 0:
-                    if nn_output[idx_out - 1] == " " and input[idx_in - 1] != " ":
-                        nn_output[idx_out - 1] = ""
+                    if normalized_text[idx_out - 1] == " " and input[idx_in - 1] != " ":
+                        normalized_text[idx_out - 1] = ""
 
-                    elif nn_output[idx_out - 1] != " " and input[idx_in - 1] == " ":
-                        nn_output[idx_out - 1] += " "
+                    elif normalized_text[idx_out - 1] != " " and input[idx_in - 1] == " ":
+                        normalized_text[idx_out - 1] += " "
 
-                if idx_in < len(input) - 1 and idx_out < len(nn_output) - 1:
-                    if nn_output[idx_out + 1] == " " and input[idx_in + 1] != " ":
-                        nn_output[idx_out + 1] = ""
-                    elif nn_output[idx_out + 1] != " " and input[idx_in + 1] == " ":
-                        nn_output[idx_out] = nn_output[idx_out] + " "
+                if idx_in < len(input) - 1 and idx_out < len(normalized_text) - 1:
+                    if normalized_text[idx_out + 1] == " " and input[idx_in + 1] != " ":
+                        normalized_text[idx_out + 1] = ""
+                    elif normalized_text[idx_out + 1] != " " and input[idx_in + 1] == " ":
+                        normalized_text[idx_out] = normalized_text[idx_out] + " "
                 idx_out += 1
                 idx_in += 1
-    except:
-        logging.warning(f"Skipping post-processing of {''.join(nn_output)}")
-    nn_output = "".join(nn_output)
-    return re.sub(r' +', ' ', nn_output)
+        except:
+            logging.debug(f"Skipping post-processing of {''.join(normalized_text)} for '{punct}'")
+
+    normalized_text = "".join(normalized_text)
+    return re.sub(r' +', ' ', normalized_text)

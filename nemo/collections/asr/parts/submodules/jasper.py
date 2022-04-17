@@ -35,7 +35,14 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {"hardtanh": nn.Hardtanh, "relu": nn.ReLU, "selu": nn.SELU, "swish": Swish, "silu": nn.SiLU}
+jasper_activations = {
+    "hardtanh": nn.Hardtanh,
+    "relu": nn.ReLU,
+    "selu": nn.SELU,
+    "swish": Swish,
+    "silu": nn.SiLU,
+    "gelu": nn.GELU,
+}
 
 
 def tds_uniform_(tensor, mode='fan_in'):
@@ -178,14 +185,16 @@ def _se_pool_step_script_infer(x: torch.Tensor, context_window: int, mask: torch
     """
     timesteps = x.shape[-1]
     if timesteps < context_window:
-        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).type(x.dtype)
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
     else:
-        x = x[:, :, :context_window]  # [B, C, context_window]
-        mask = mask[:, :, :context_window]  # [B, 1, context_window]
-
-        mask = mask.sum(dim=-1, keepdim=True).type(x.dtype)  # [B, C, 1]
-        y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
-        y = y / (mask + 1e-8)  # [B, C, 1]
+        # << During inference prefer to use entire context >>
+        # x = x[:, :, :context_window]  # [B, C, context_window]
+        # mask = mask[:, :, :context_window]  # [B, 1, context_window]
+        #
+        # mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
+        # y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
+        # y = y / (mask + 1e-8)  # [B, C, 1]
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
 
     return y
 
@@ -207,13 +216,13 @@ def _se_pool_step_script_train(x: torch.Tensor, context_window: int, mask: torch
     """
     timesteps = x.shape[-1]
     if timesteps < context_window:
-        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).type(x.dtype)
+        y = torch.sum(x, dim=-1, keepdim=True) / mask.sum(dim=-1, keepdim=True).to(x.dtype)
     else:
         start_idx = torch.randint(0, timesteps - context_window, size=[1], dtype=torch.int32)[0]
         x = x[:, :, start_idx : (start_idx + context_window)]  # [B, C, context_window]
         mask = mask[:, :, start_idx : (start_idx + context_window)]  # [B, 1, context_window]
 
-        mask = mask.sum(dim=-1, keepdim=True).type(x.dtype)  # [B, C, 1]
+        mask = mask.sum(dim=-1, keepdim=True).to(x.dtype)  # [B, C, 1]
         y = x.sum(dim=-1, keepdim=True)  # [B, 1, 1]
         y = y / (mask + 1e-8)  # [B, C, 1]
 
@@ -342,9 +351,13 @@ class MaskedConv1d(nn.Module):
 
     def forward(self, x, lens):
         if self.use_mask:
-            x, lens = self.update_masked_length(x, lens)
-        else:
-            lens = self.get_seq_len(lens)
+            # Generally will be called by ConvASREncoder, but kept as single gpu backup.
+            if x.size(2) > self.max_len:
+                self.update_masked_length(x.size(2), device=lens.device)
+            x = self.mask_input(x, lens)
+
+        # Update lengths
+        lens = self.get_seq_len(lens)
 
         # asymmtric pad if necessary
         if self.pad_layer is not None:
@@ -361,14 +374,19 @@ class MaskedConv1d(nn.Module):
 
         return out, lens
 
-    def update_masked_length(self, x, lens):
+    def update_masked_length(self, max_len, seq_range=None, device=None):
+        if seq_range is None:
+            self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
+            self.lens = self.lens.to(device)
+        else:
+            self.lens = seq_range
+            self.max_len = max_len
+
+    def mask_input(self, x, lens):
         max_len = x.size(2)
-        self.lens, self.max_len = _masked_conv_init_lens(self.lens, max_len, self.max_len)
-        self.lens = self.lens.to(lens.device)
-        mask = self.lens[:max_len].unsqueeze(0) < lens.unsqueeze(1)
+        mask = self.lens[:max_len].unsqueeze(0).to(lens.device) < lens.unsqueeze(1)
         x = x * mask.unsqueeze(1).to(device=x.device)
-        lens = self.get_seq_len(lens)
-        return x, lens
+        return x
 
 
 class GroupShuffle(nn.Module):
@@ -448,21 +466,21 @@ class SqueezeExcite(nn.Module):
         self.change_context_window(context_window=context_window)
 
         # Set default max sequence length
-        self.set_max_len(1)
+        self.set_max_len(16)
 
     def forward(self, x, lengths):
-        max_audio_length: int = x.size(-1)
-        if max_audio_length > self.max_len:
-            self.set_max_len(max_audio_length)
-
         return self.forward_for_export(x, lengths)
 
     def forward_for_export(self, x, lengths):
         # The use of negative indices on the transpose allow for expanded SqueezeExcite
+        max_len = x.shape[-1]
+        if max_len > self.max_len:
+            self.set_max_len(max_len)
+        dtype = x.dtype
         # Computes in float32 to avoid instabilities during training with AMP.
         with torch.cuda.amp.autocast(enabled=False):
             # Create sample mask - 1 represents value, 0 represents pad
-            mask = self.make_pad_mask(lengths, max_audio_length=x.shape[-1], device=x.device)
+            mask = self.make_pad_mask(lengths, max_audio_length=max_len, device=x.device)
             mask = ~mask  # 0 represents value, 1 represents pad
             x = x.float()  # For stable AMP, SE must be computed at fp32.
             x.masked_fill_(mask, 0.0)  # mask padded values explicitly to 0
@@ -471,12 +489,12 @@ class SqueezeExcite(nn.Module):
             y = self.fc(y)  # [B, 1, C]
             y = y.transpose(1, -1)  # [B, C, 1]
 
-        # Note: Keep for future, in case we improve WER from doing so.
-        # if self.context_window >= 0:
-        #     y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
+            # Note: Keep for future, in case we improve WER from doing so.
+            # if self.context_window >= 0:
+            #     y = F.interpolate(y, size=x.shape[-1], mode=self.interpolation_mode)
 
-        y = torch.sigmoid(y)
-        y = x * y
+            y = torch.sigmoid(y)
+            y = x * y
         return y, lengths
 
     def _se_pool_step(self, x, mask):
@@ -496,28 +514,29 @@ class SqueezeExcite(nn.Module):
                 y = _se_pool_step_script_infer(x, self.context_window, mask)
         return y
 
-    def set_max_len(self, max_len):
+    def set_max_len(self, max_len, seq_range=None):
         """ Sets maximum input length.
             Pre-calculates internal seq_range mask.
         """
         self.max_len = max_len
-        device = next(self.parameters()).device
-        seq_range = torch.arange(0, self.max_len, device=device)
-        self.register_buffer('seq_range', seq_range, persistent=False)
+        if seq_range is None:
+            device = next(self.parameters()).device
+            seq_range = torch.arange(0, self.max_len, device=device)
+        if hasattr(self, 'seq_range'):
+            self.seq_range = seq_range
+        else:
+            self.register_buffer('seq_range', seq_range, persistent=False)
 
     def make_pad_mask(self, seq_lens, max_audio_length, device=None):
         """Make masking for padding."""
         if device and self.seq_range.device != device:
             self.seq_range = self.seq_range.to(device)
-
         if self.seq_range.device != seq_lens.device:
             seq_lens = seq_lens.to(self.seq_range.device)
 
         mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)  # [B, T]; bool
         mask = mask.unsqueeze(1)  # [B, 1, T]
 
-        if device and mask.device != device:
-            mask = mask.to(device)
         return mask
 
     def change_context_window(self, context_window: int):

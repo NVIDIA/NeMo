@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.utils.data import ChainDataset
-
 from nemo.collections.asr.data import audio_to_label
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
+from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 
 
 def get_classification_label_dataset(featurizer, config: dict) -> audio_to_label.AudioToClassificationLabelDataset:
@@ -57,8 +55,8 @@ def get_speech_label_dataset(featurizer, config: dict) -> audio_to_label.AudioTo
         max_duration=config.get('max_duration', None),
         min_duration=config.get('min_duration', None),
         trim=config.get('trim_silence', False),
-        time_length=config.get('time_length', 0.31),
-        shift_length=config.get('shift_length', 0.01),
+        window_length_in_sec=config.get('window_length_in_sec', 0.31),
+        shift_length_in_sec=config.get('shift_length_in_sec', 0.01),
         normalize_audio=config.get('normalize_audio', False),
     )
     return dataset
@@ -138,8 +136,8 @@ def get_tarred_speech_label_dataset(
             max_duration=config.get('max_duration', None),
             min_duration=config.get('min_duration', None),
             trim=config.get('trim_silence', False),
-            time_length=config.get('time_length', 8),
-            shift_length=config.get('shift_length', 0.075),
+            window_length_in_sec=config.get('window_length_in_sec', 8),
+            shift_length_in_sec=config.get('shift_length_in_sec', 0.075),
             normalize_audio=config.get('normalize_audio', False),
             shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
             global_rank=global_rank,
@@ -148,7 +146,4 @@ def get_tarred_speech_label_dataset(
 
         datasets.append(dataset)
 
-    if len(datasets) > 1:
-        return ChainDataset(datasets)
-    else:
-        return datasets[0]
+    return get_chain_dataset(datasets=datasets, ds_config=config)

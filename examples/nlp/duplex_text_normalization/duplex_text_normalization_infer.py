@@ -89,9 +89,13 @@ def main(cfg: DictConfig) -> None:
 
         if lang == constants.ENGLISH:
             new_lines = normalizer_electronic.normalize_list(lines)
-            lines = [post_process_punct(input=lines[idx], nn_output=new_lines[idx]) for idx in range(lines)]
+            lines = [
+                post_process_punct(input=input_, normalized_text=norm_) for input_, norm_ in zip(lines, new_lines)
+            ]
             new_lines = normalizer_whitelist.normalize_list(lines)
-            lines = [post_process_punct(input=lines[idx], nn_output=new_lines[idx]) for idx in range(lines)]
+            lines = [
+                post_process_punct(input=input_, normalized_text=norm_) for input_, norm_ in zip(lines, new_lines)
+            ]
 
         def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
             """ Runs inference on a batch data without labels and saved predictions to a file. """
@@ -129,9 +133,9 @@ def main(cfg: DictConfig) -> None:
             if not done:
                 if lang == constants.ENGLISH:
                     new_input = normalizer_electronic.normalize(test_input, verbose=False)
-                    test_input = post_process_punct(input=test_input, nn_output=new_input)
+                    test_input = post_process_punct(input=test_input, normalized_text=new_input)
                     new_input = normalizer_whitelist.normalize(test_input, verbose=False)
-                    test_input = post_process_punct(input=test_input, nn_output=new_input)
+                    test_input = post_process_punct(input=test_input, normalized_text=new_input)
                 directions = []
                 inputs = []
                 if cfg.mode in ['itn', 'joint']:

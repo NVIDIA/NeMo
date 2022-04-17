@@ -74,7 +74,7 @@ are located in the remaining directories in an ``audio`` subdirectory.
 
    .. code-block:: bash
 
-     cd <nemo_root>/scripts
+     cd <nemo_root>/scripts/dataset_processing
      python fisher_audio_to_wav.py \
        --data_root=<fisher_root> --dest_root=<conversion_target_dir>
 
@@ -235,7 +235,7 @@ Conversion to Tarred Datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can easily convert your existing NeMo-compatible ASR datasets using the
-`conversion script here <https://github.com/NVIDIA/NeMo/blob/v1.0.2/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
+`conversion script here <https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
 
 .. code::
 
@@ -266,3 +266,58 @@ Note that file structures are flattened such that all audio files are at the top
 filenames are unique in the tarred dataset and the filepaths do not contain "-sub" and forward slashes in each ``audio_filepath`` are 
 simply converted to underscores. For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav`` 
 in the tarred dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.
+
+Bucketing Datasets
+------------------
+
+For training ASR models, audios with different lengths may be grouped into a batch. It would make it necessary to use paddings to make all the same length.
+These extra paddings is a significant source of computation waste. Splitting the training samples into buckets with different lengths and sampling from the same bucket for each batch would increase the computation efficicncy.
+It may result into training speeedup of more than 2X. To enable and use the bucketing feature, you need to create the bucketing version of the dataset by using `conversion script here <https://github.com/NVIDIA/NeMo/blob/v1.0.2/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
+You may use --buckets_num to specify the number of buckets (Recommened to use 4 to 8 buckets). It creates multiple tarred datasets, one per bucket, based on the audio durations. The range of [min_duration, max_duration) is split into equal sized buckets.
+
+
+To enable the bucketing feature in the dataset section of the config files, you need to pass the multiple tarred datasets as a list of lists.
+If user passes just a list of strings, then the datasets would simply get concatenated which would be different from bucketing.
+Here is an example for 4 buckets and 512 shards:
+
+.. code::
+
+    python speech_to_text_bpe.py
+    ...
+    model.train_ds.manifest_filepath=[[PATH_TO_TARS/bucket1/tarred_audio_manifest.json],
+    [PATH_TO_TARS/bucket2/tarred_audio_manifest.json],
+    [PATH_TO_TARS/bucket3/tarred_audio_manifest.json],
+    [PATH_TO_TARS/bucket4/tarred_audio_manifest.json]]
+    model.train_ds.tarred_audio_filepaths=[[PATH_TO_TARS/bucket1/audio__OP_0..511_CL_.tar],
+    [PATH_TO_TARS/bucket2/audio__OP_0..511_CL_.tar],
+    [PATH_TO_TARS/bucket3/audio__OP_0..511_CL_.tar],
+    [PATH_TO_TARS/bucket4/audio__OP_0..511_CL_.tar]]
+
+When bucketing is enabled, in each epoch, first all GPUs would use the first bucket, then go to the second bucket, and so on. It guarantees that all GPUs are using the same bucket at the same time. It reduces the number of paddings in each batch and speedup the training significantly without hurting the accuracy significantly.
+
+There are two types of batching:
+
+*  Fixed-size bucketing: all batches would have the same number of samples specified by train_ds.batch_size
+*  Adaptive-size bucketing: uses different batch sizes for each bucket.
+
+Adaptive-size bucketing helps to increase the GPU utilization and speedup the training.
+Batches sampled from buckets with smaller audio lengths can be larger which would increase the GPU utilization and speedup the training.
+You may use train_ds.bucketing_batch_size to enable the adaptive batching and specify the batch sizes for the buckets.
+When bucketing_batch_size is not set, train_ds.batch_size is going to be used for all buckets (fixed-size bucketing).
+
+bucketing_batch_size can be set as an integer or a list of integers to explicitly specify the batch size for each bucket.
+if bucketing_batch_size is set to be an integer, then linear scaling is being used to scale-up the batch sizes for batches with shorted audio size. For example, setting train_ds.bucketing_batch_size=8 for 4 buckets would use these sizes [32,24,16,8] for different buckets.
+When bucketing_batch_size is set, traind_ds.batch_size need to be set to 1.
+
+Training an ASR model on audios sorted based on length may affect the accuracy of the model. We introduced some strategies to mitigate it.
+We support three types of bucketing strategies:
+
+*   fixed_order: the same order of buckets are used for all epochs
+*   syned_randomized (default): each epoch would have a different order of buckets. Order of the buckets is shuffled every epoch.
+*   fully_randomized: similar to synced_randomized but each GPU has its own random order. So GPUs would not be synced.
+
+Tha parameter train_ds.bucketing_strategy can be set to specify one of these strategies. The recommended strategy is syned_randomized which gives the highest training speedup.
+The fully_randomized strategy would have lower speedup than synced_randomized but may give better accuracy.
+
+Bucketing may improve the training speed more than 2x but may affect the final accuracy of the model slightly. Training for more epochs and using 'synced_randomized' strategy help to fill this gap.
+Currently bucketing feature is just supported for tarred datasets.

@@ -88,7 +88,16 @@ Here, we list a collection of research articles that utilize the NeMo Toolkit. I
   <summary>2021</summary>
   
   * [BioMegatron: Larger Biomedical Domain Language Model  ](https://aclanthology.org/2020.emnlp-main.379/)
-  
+
+</details>
+
+## Neural Machine Translation
+
+<details>
+  <summary>2021</summary>
+
+  * [NVIDIA NeMo Neural Machine Translatio Systems for English-German and English-Russian News and Biomedical Tasks at WMT21](https://arxiv.org/pdf/2111.08634.pdf)
+
 </details>
 
 --------

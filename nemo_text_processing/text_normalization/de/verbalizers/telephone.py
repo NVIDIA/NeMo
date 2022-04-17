@@ -42,7 +42,8 @@ class TelephoneFst(GraphFst):
 
         number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
 
-        graph = country_code + pynini.accep(" ") + number_part
-        graph += delete_preserve_order
+        self.graph = country_code + pynini.accep(" ") + number_part
+
+        graph = self.graph + delete_preserve_order
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

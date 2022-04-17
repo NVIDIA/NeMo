@@ -19,7 +19,7 @@ from nemo.collections.tts.data.datalayers import preprocess_linear_specs_dataset
 
 sys.path.insert(0, '../')
 
-
+# TODO(Oktai15): remove this script when DegliModel will be removed
 def main():
     parser = argparse.ArgumentParser(
         description='Create dataset fitted for training and validating deep griffin iteration from wavefiles'

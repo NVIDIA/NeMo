@@ -117,11 +117,10 @@ def _fixed_seq_collate_fn(self, batch):
                 encoded tokens, and encoded tokens length.  This collate func
                 assumes the signals are 1d torch tensors (i.e. mono audio).
         """
-    fixed_length = self.featurizer.sample_rate * self.time_length
     _, audio_lengths, _, tokens_lengths = zip(*batch)
 
     has_audio = audio_lengths[0] is not None
-    fixed_length = int(min(fixed_length, max(audio_lengths)))
+    fixed_length = int(max(audio_lengths))
 
     audio_signal, tokens, new_audio_lengths = [], [], []
     for sig, sig_len, tokens_i, _ in batch:
@@ -134,15 +133,11 @@ def _fixed_seq_collate_fn(self, batch):
                 rem = fixed_length % sig_len
                 sub = sig[-rem:] if rem > 0 else torch.tensor([])
                 rep_sig = torch.cat(repeat * [sig])
-                signal = torch.cat((rep_sig, sub))
-                new_audio_lengths.append(torch.tensor(fixed_length))
-            else:
-                start_idx = torch.randint(0, chunck_len, (1,)) if chunck_len else torch.tensor(0)
-                end_idx = start_idx + fixed_length
-                signal = sig[start_idx:end_idx]
-                new_audio_lengths.append(torch.tensor(fixed_length))
+                sig = torch.cat((rep_sig, sub))
+            new_audio_lengths.append(torch.tensor(fixed_length))
 
-            audio_signal.append(signal)
+            audio_signal.append(sig)
+
         tokens.append(tokens_i)
 
     if has_audio:
@@ -156,44 +151,6 @@ def _fixed_seq_collate_fn(self, batch):
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
 
-def _sliced_seq_collate_fn(self, batch, masked=False):
-    """collate batch of audio sig, audio len, tokens, tokens len
-    Args:
-        batch (Optional[FloatTensor], Optional[LongTensor], LongTensor,
-            LongTensor):  A tuple of tuples of signal, signal lengths,
-            encoded tokens, and encoded tokens length.  This collate func
-            assumes the signals are 1d torch tensors (i.e. mono audio).
-        masked: Apply true lengths as input to speaker extractor for masking effect
-    """
-    slice_length = self.featurizer.sample_rate * self.time_length
-    _, audio_lengths, _, tokens_lengths = zip(*batch)
-    has_audio = audio_lengths[0] is not None
-
-    audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
-    for sig, sig_len, tokens_i, _ in batch:
-        if has_audio:
-            sig_len = sig_len.item()
-            if len(sig) < slice_length:
-                sig = repeat_signal(sig, sig_len, slice_length)
-            audio_signal.append(sig)
-            num_slices.append(1)
-            tokens.append(1)
-        if masked:
-            audio_lengths.append(int(sig_len))
-        else:
-            audio_lengths.append(int(slice_length))
-
-    if has_audio:
-        audio_signal = torch.stack(audio_signal)
-        audio_lengths = torch.tensor(audio_lengths)
-    else:
-        audio_signal, audio_lengths = None, None
-    tokens = torch.tensor(tokens)
-    tokens_lengths = torch.tensor(num_slices)  # each embedding length
-
-    return audio_signal, audio_lengths, tokens, tokens_lengths
-
-
 def _vad_frame_seq_collate_fn(self, batch):
     """collate batch of audio sig, audio len, tokens, tokens len
     Args:
@@ -203,10 +160,10 @@ def _vad_frame_seq_collate_fn(self, batch):
             assumes the signals are 1d torch tensors (i.e. mono audio).
             batch size equals to 1.
     """
-    slice_length = int(self.featurizer.sample_rate * self.time_length)
+    slice_length = int(self.featurizer.sample_rate * self.window_length_in_sec)
     _, audio_lengths, _, tokens_lengths = zip(*batch)
     slice_length = min(slice_length, max(audio_lengths))
-    shift = int(self.featurizer.sample_rate * self.shift_length)
+    shift = int(self.featurizer.sample_rate * self.shift_length_in_sec)
     has_audio = audio_lengths[0] is not None
 
     audio_signal, num_slices, tokens, audio_lengths = [], [], [], []
@@ -416,9 +373,9 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         trim (bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds)
+        window_length_in_sec (float): length of window/slice (in seconds)
             Use this for speaker recognition and VAD tasks.
-        shift_length (float): amount of shift of window for generating the frame for VAD task in a batch
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task in a batch
             Use this for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal.
             Defaults to False.
@@ -434,16 +391,17 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
-        time_length: Optional[float] = 8,
-        shift_length: Optional[float] = 1,
+        window_length_in_sec: Optional[float] = 8,
+        shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         is_regression_task: bool = False,
     ):
-        logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(shift_length))
-        self.time_length = time_length
-        self.shift_length = shift_length
+        self.window_length_in_sec = window_length_in_sec
+        self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
+
+        logging.debug("Window/slice length considered for collate func is {}".format(self.window_length_in_sec))
+        logging.debug("Shift length considered for collate func is {}".format(self.shift_length_in_sec))
 
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -457,9 +415,6 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
 
     def fixed_seq_collate_fn(self, batch):
         return _fixed_seq_collate_fn(self, batch)
-
-    def sliced_seq_collate_fn(self, batch):
-        return _sliced_seq_collate_fn(self, batch)
 
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)
@@ -518,8 +473,8 @@ class _TarredAudioLabelDataset(IterableDataset):
         trim(bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task
-        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        window_length_in_sec (float): length of slice/window (in seconds) # Pass this only for speaker recognition and VAD task
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
@@ -650,7 +605,7 @@ class _TarredAudioLabelDataset(IterableDataset):
                 self.iterator = iterator
                 self.collection = collection
                 self.file_occurence = file_occurence
-                self._iterable = None
+                self._iterable = self._internal_generator()
 
             def __iter__(self):
                 self._iterable = self._internal_generator()
@@ -843,8 +798,8 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         trim(bool): Whether to use trim silence from beginning and end
             of audio signal using librosa.effects.trim().
             Defaults to False.
-        time_length (float): time length of slice (in seconds) # Pass this only for speaker recognition and VAD task
-        shift_length (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
+        window_length_in_sec (float): time length of window/slice (in seconds) # Pass this only for speaker recognition and VAD task
+        shift_length_in_sec (float): amount of shift of window for generating the frame for VAD task. in a batch # Pass this only for VAD task during inference.
         normalize_audio (bool): Whether to normalize audio signal. Defaults to False.
         shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
             -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
@@ -873,17 +828,17 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim: bool = False,
-        time_length: Optional[float] = 8,
-        shift_length: Optional[float] = 1,
+        window_length_in_sec: Optional[float] = 8,
+        shift_length_in_sec: Optional[float] = 1,
         normalize_audio: bool = False,
         shard_strategy: str = "scatter",
         global_rank: int = 0,
         world_size: int = 0,
     ):
-        logging.info("Time length considered for collate func is {}".format(time_length))
-        logging.info("Shift length considered for collate func is {}".format(shift_length))
-        self.time_length = time_length
-        self.shift_length = shift_length
+        logging.info("Window/slice length considered for collate func is {}".format(window_length_in_sec))
+        logging.info("Shift length considered for collate func is {}".format(shift_length_in_sec))
+        self.window_length_in_sec = window_length_in_sec
+        self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
 
         super().__init__(

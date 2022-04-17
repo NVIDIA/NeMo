@@ -31,7 +31,7 @@ class ForwardSumLoss(Loss):
     @property
     def input_types(self):
         return {
-            "attn_logprob": NeuralType(('B', 'S', 'T', 'D'), LogprobsType()),
+            "attn_logprob": NeuralType(('B', 'S', 'T_spec', 'T_text'), LogprobsType()),
             "in_lens": NeuralType(tuple('B'), LengthsType()),
             "out_lens": NeuralType(tuple('B'), LengthsType()),
         }
@@ -73,8 +73,8 @@ class BinLoss(Loss):
     @property
     def input_types(self):
         return {
-            "hard_attention": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
-            "soft_attention": NeuralType(('B', 'S', 'T', 'D'), ProbsType()),
+            "hard_attention": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
+            "soft_attention": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
         }
 
     @property

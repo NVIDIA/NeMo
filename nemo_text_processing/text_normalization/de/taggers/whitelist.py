@@ -44,14 +44,14 @@ class WhiteListFst(GraphFst):
             whitelist = load_labels(file)
             if input_case == "lower_cased":
                 whitelist = [[x[0].lower()] + x[1:] for x in whitelist]
-            else:
-                whitelist = [(x, y) for x, y in whitelist]
             graph = pynini.string_map(whitelist)
             return graph
 
         graph = _get_whitelist_graph(input_case, get_abs_path("data/whitelist.tsv"))
         if not deterministic and input_case != "lower_cased":
-            graph |= _get_whitelist_graph("lower_cased", get_abs_path("data/whitelist.tsv"))
+            graph |= pynutil.add_weight(
+                _get_whitelist_graph("lower_cased", get_abs_path("data/whitelist.tsv")), weight=0.0001
+            )
 
         if input_file:
             whitelist_provided = _get_whitelist_graph(input_case, input_file)
@@ -64,5 +64,6 @@ class WhiteListFst(GraphFst):
             units_graph = _get_whitelist_graph(input_case, file=get_abs_path("data/measure/measurements.tsv"))
             graph |= units_graph
 
-        self.final_graph = convert_space(graph).optimize()
+        self.graph = graph
+        self.final_graph = convert_space(self.graph).optimize()
         self.fst = (pynutil.insert("name: \"") + self.final_graph + pynutil.insert("\"")).optimize()

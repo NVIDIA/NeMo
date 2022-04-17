@@ -18,10 +18,13 @@ from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.huggingface import (
     AlbertEncoder,
     BertEncoder,
+    CamembertEncoder,
     DistilBertEncoder,
     RobertaEncoder,
 )
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model, get_pretrained_lm_models_list
+from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
+from nemo.collections.nlp.modules.common.prompt_table import PromptTable
 from nemo.collections.nlp.modules.common.sequence_classifier import SequenceClassifier
 from nemo.collections.nlp.modules.common.sequence_regression import SequenceRegression
 from nemo.collections.nlp.modules.common.sequence_token_classifier import SequenceTokenClassifier

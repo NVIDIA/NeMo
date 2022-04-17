@@ -60,11 +60,6 @@ testITNMoney() {
   runtest $input
 }
 
-testITNWhitelist() {
-  input=$PROJECT_DIR/vi/data_inverse_text_normalization/test_cases_whitelist.txt
-  runtest $input
-}
-
 testITNTelephone() {
   input=$PROJECT_DIR/vi/data_inverse_text_normalization/test_cases_telephone.txt
   runtest $input

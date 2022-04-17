@@ -254,6 +254,8 @@ class TestEncDecCTCModel:
             'shuffle_n',
             'use_start_end_token',
             'use_start_end_token',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim'}
@@ -280,6 +282,8 @@ class TestEncDecCTCModel:
             'global_rank',
             'world_size',
             'use_start_end_token',
+            'bucketing_batch_size',
+            'bucketing_strategy',
         ]
 
         REMAP_ARGS = {

@@ -98,8 +98,34 @@ class Callback(pl.callbacks.Callback):
             logging.debug(f"drop_last: {module.drop_last}")
             logging.debug(f"{len(trainer.train_dataloader)}")
             logging.debug(f"{trainer.num_training_batches }")
+
+        self.assert_counts(trainer, module, count)
+
+    def assert_counts(self, trainer, module, count):
         assert trainer.global_step == count, f"{trainer.global_step} != {count} != {module.max_steps}"
         assert trainer.global_step == module.max_steps, f"{trainer.global_step} != {count} != {module.max_steps}"
+
+
+class SchedulerNoOpCallback(Callback):
+    def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx):
+        # pl_module.max_steps is "original" max steps without trainer extra steps.
+        if (trainer.global_step + 1) % 3 == 0 and (trainer.global_step + 1) < pl_module.max_steps:
+            schedulers = trainer.lr_schedulers
+
+            for scheduler in schedulers:
+                # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
+                # as well as update the optimizer lr in all param groups
+                scheduler['scheduler'].last_epoch -= 2
+                scheduler['scheduler'].step()
+
+            # Increase the max step count by 1
+            trainer.fit_loop.max_steps = trainer.fit_loop.max_steps + 1
+
+    def assert_counts(self, trainer, module, count):
+        num_skips = module.max_steps // 3
+        extra_steps = module.max_steps + num_skips
+        assert trainer.global_step == count, f"{trainer.global_step} != {count} != {extra_steps}"
+        assert trainer.global_step == extra_steps, f"{trainer.global_step} != {count} != {extra_steps}"
 
 
 class TestOptimizersSchedulers:
@@ -117,7 +143,11 @@ class TestOptimizersSchedulers:
                 if not torch.cuda.is_available():
                     continue
             opt_cls = optim.get_optimizer(opt_name)
-            opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+            if opt_name == 'adafactor':
+                # Adafactor's default mode uses relative_step without any lr.
+                opt = opt_cls(model.parameters())
+            else:
+                opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
 
             assert isinstance(opt, AVAILABLE_OPTIMIZERS[opt_name])
 
@@ -562,6 +592,30 @@ class TestOptimizersSchedulers:
 
         assert final_lr == self.MIN_LR
 
+        # Warmup + Constant steps available
+        policy = optim.lr_scheduler.CosineAnnealing(
+            opt, warmup_steps=3, constant_steps=2, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR
+        )
+        initial_lr = policy.get_last_lr()[0]
+
+        assert initial_lr < self.INITIAL_LR
+
+        for i in range(self.MAX_STEPS):
+            if i <= 3:
+                assert policy.get_last_lr()[0] <= self.INITIAL_LR + 1e-5
+            elif i > 3 and i <= 8:
+                assert policy.get_last_lr()[0] == policy._get_lr(i)[0]
+            else:
+                assert policy.get_last_lr()[0] == self.MIN_LR
+
+            opt.step()
+            policy.step()
+
+        policy.step()
+        final_lr = policy.get_last_lr()[0]
+
+        assert final_lr == self.MIN_LR
+
     @pytest.mark.unit
     def test_PolynomialDecayAnnealing(self):
         model = TempModel()
@@ -722,6 +776,42 @@ class TestOptimizersSchedulers:
         assert final_lr == self.MIN_LR
 
     @pytest.mark.unit
+    def test_CosineAnnealing_with_noop_steps(self):
+        model = TempModel()
+        opt_cls = optim.get_optimizer('novograd')
+        opt = opt_cls(model.parameters(), lr=self.INITIAL_LR)
+
+        # No warmup case
+        policy = optim.lr_scheduler.CosineAnnealing(opt, max_steps=self.MAX_STEPS, min_lr=self.MIN_LR)
+        initial_lr = policy.get_last_lr()[0]
+
+        assert initial_lr == self.INITIAL_LR
+
+        update_steps = 0
+        for i in range(self.MAX_STEPS):
+            assert policy.get_last_lr()[0] <= self.INITIAL_LR
+            opt.step()
+            policy.step()
+
+            # Perform a No-Op for scheduler every 2 steps
+            if i % 2 == 0:
+                policy.last_epoch -= 1
+            else:
+                update_steps += 1
+
+        policy.step()
+        update_steps += 1
+
+        assert update_steps < self.MAX_STEPS
+
+        final_lr = policy.get_last_lr()[0]
+        assert final_lr > self.MIN_LR
+
+        # update step = true number of updates performed after some number of skipped steps
+        true_end_lr = policy._get_lr(step=update_steps)[0]
+        assert final_lr == true_end_lr
+
+    @pytest.mark.unit
     @pytest.mark.run_only_on('CPU')
     def test_max_step_computation(self):
         def train(
@@ -729,11 +819,12 @@ class TestOptimizersSchedulers:
         ):
             trainer = pl.Trainer(
                 max_epochs=max_epochs,
-                accelerator="ddp_cpu",
+                strategy="ddp_spawn",
+                accelerator="cpu",
                 num_processes=num_processes,
                 accumulate_grad_batches=accumulate_grad_batches,
                 limit_train_batches=limit_train_batches,
-                checkpoint_callback=False,
+                enable_checkpointing=False,
                 progress_bar_refresh_rate=0,
                 weights_summary=None,
             )
@@ -807,3 +898,35 @@ class TestOptimizersSchedulers:
                 dataset_len,
                 drop_last,
             )
+
+    @pytest.mark.unit
+    @pytest.mark.run_only_on('CPU')
+    def test_max_step_computation_with_sched_no_ops(self):
+        def train(
+            max_steps, accumulate_grad_batches, limit_train_batches, num_processes, batch_size, dataset_len, drop_last
+        ):
+            trainer = pl.Trainer(
+                max_steps=max_steps,
+                strategy="ddp_spawn",
+                accelerator="cpu",
+                num_processes=num_processes,
+                accumulate_grad_batches=accumulate_grad_batches,
+                limit_train_batches=limit_train_batches,
+                enable_checkpointing=False,
+                progress_bar_refresh_rate=0,
+                weights_summary=None,
+            )
+            model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
+            trainer.callbacks.append(SchedulerNoOpCallback())
+            trainer.fit(model)
+
+        # This test will break once we and lightning upgrade to pytorch 1.7.0 due to a bug fix in pytorch 1.7.0
+        train(
+            max_steps=20,
+            accumulate_grad_batches=1,
+            limit_train_batches=1.0,
+            num_processes=4,
+            batch_size=60,
+            dataset_len=2000,
+            drop_last=True,
+        )

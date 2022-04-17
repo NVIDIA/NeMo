@@ -13,13 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+import sys
+from unicodedata import category
+
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, NEMO_SIGMA, GraphFst
 
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
-    PYNINI_AVAILABLE = False
+    PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
     PYNINI_AVAILABLE = False
 
@@ -37,9 +41,22 @@ class PunctuationFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
+        s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
 
-        s = "!#$%&\'()*+,-./:;<=>?@^_`{|}~\""
-        punct = pynini.union(*s)
+        punct_unicode = [
+            chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P") and chr(i) not in "[]"
+        ]
+        punct = pynini.union(*s) | pynini.union(*punct_unicode)
+
+        emphasis = (
+            pynini.accep("<")
+            + (
+                (pynini.closure(NEMO_NOT_SPACE - pynini.union("<", ">"), 1) + pynini.closure(pynini.accep("/"), 0, 1))
+                | (pynini.accep("/") + pynini.closure(NEMO_NOT_SPACE - pynini.union("<", ">"), 1))
+            )
+            + pynini.accep(">")
+        )
+        punct = plurals._priority_union(emphasis, punct, NEMO_SIGMA)
 
         self.graph = punct
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

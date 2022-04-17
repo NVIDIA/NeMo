@@ -15,14 +15,14 @@ pm	pikometer
 hm	hektometer
 ha	hektar
 mi	meile
-m²	quadrat meter
-km²	quadrat kilometer
-mm²	quadrat millimeter
-cm²	quadrat zentimeter
-m³	kubik meter
-km³	kubik kilometer
-mm³	kubik millimeter
-cm³	kubik zentimeter
+m²	quadrat meter	-0.0001
+km²	quadrat kilometer	-0.0001
+mm²	quadrat millimeter	-0.0001
+cm²	quadrat zentimeter	-0.0001
+m³	kubik meter	-0.0001
+km³	kubik kilometer	-0.0001
+mm³	kubik millimeter	-0.0001
+cm³	kubik zentimeter	-0.0001
 m2	quadrat meter
 km2	quadrat kilometer
 mm2	quadrat millimeter

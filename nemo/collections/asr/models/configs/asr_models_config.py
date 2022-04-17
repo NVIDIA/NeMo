@@ -56,6 +56,10 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     use_start_end_token: bool = False
     return_sample_id: Optional[bool] = False
 
+    # bucketing params
+    bucketing_strategy: str = "synced_randomized"
+    bucketing_batch_size: Optional[Any] = None
+
 
 @dataclass
 class EncDecCTCConfig(model_cfg.ModelConfig):

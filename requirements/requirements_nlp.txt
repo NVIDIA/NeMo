@@ -1,8 +1,6 @@
 boto3
 h5py
 matplotlib>=3.3.2
-sentencepiece
-youtokentome>=1.0.5
 numpy
 rapidfuzz
 gdown
@@ -10,8 +8,9 @@ inflect
 sacrebleu[ja]
 sacremoses>=0.0.43
 nltk>=3.6.5
-wordninja==2.0.0
 fasttext
 opencc
 pangu
 jieba
+ftfy
+flask_restful

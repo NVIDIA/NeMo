@@ -231,11 +231,26 @@ def pre_process(text: str) -> str:
 
     Returns: text with spaces around punctuation marks
     """
-    space_both = '*<=>^[]{}'
+    space_both = '[]'
     for punct in space_both:
         text = text.replace(punct, ' ' + punct + ' ')
 
-    text = text.replace('--', ' ' + '--' + ' ')
     # remove extra space
     text = re.sub(r' +', ' ', text)
     return text
+
+
+def check_installation():
+    try:
+        import pynini
+
+        PYNINI_AVAILABLE = True
+
+    except (ModuleNotFoundError, ImportError):
+        PYNINI_AVAILABLE = False
+    return PYNINI_AVAILABLE
+
+
+def get_installation_msg():
+    msg = "`pynini` is not installed ! \n Please run the `nemo_text_processing/setup.sh` script prior to usage of this toolkit."
+    return msg

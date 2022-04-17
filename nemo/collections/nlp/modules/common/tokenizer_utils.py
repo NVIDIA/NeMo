@@ -14,13 +14,14 @@
 
 import os.path
 from dataclasses import MISSING, dataclass
-from os import path
 from typing import Dict, List, Optional
 
 import nemo
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
+from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
@@ -82,12 +83,14 @@ def get_tokenizer(
     Args:
         tokenizer_name: sentencepiece or pretrained model from the hugging face list,
             for example: bert-base-cased
-            To see the list of all HuggingFace pretrained models, use: nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
+            To see the list of all HuggingFace pretrained models, use:
+            nemo_nlp.modules.common.get_huggingface_pretrained_lm_models_list()
         tokenizer_model: tokenizer model file of sentencepiece or youtokentome
         special_tokens: dict of special tokens
         vocab_file: path to vocab file
         use_fast: (only for HuggingFace AutoTokenizer) set to True to use fast HuggingFace tokenizer
-        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation procedure of BPE to help
+        bpe_dropout: (only supported by YTTM tokenizer) BPE dropout tries to corrupt the standard segmentation
+            procedure of BPE to help
             model better learn word compositionality and become robust to segmentation errors. 
             It has emperically been shown to improve inference time BLEU scores.
     """
@@ -98,7 +101,9 @@ def get_tokenizer(
 
     if 'megatron' in tokenizer_name:
         if not HAVE_APEX:
-            raise RuntimeError("Apex required to use megatron.")
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
         if vocab_file is None:
             vocab_file = nemo.collections.nlp.modules.common.megatron.megatron_utils.get_megatron_vocab_file(
                 tokenizer_name
@@ -118,9 +123,12 @@ def get_tokenizer(
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
+    elif tokenizer_name == 'regex':
+        return RegExTokenizer().load_tokenizer(tokenizer_model)
 
     logging.info(
-        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
+        f"special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
     return AutoTokenizer(
         pretrained_model_name=tokenizer_name,
@@ -141,6 +149,8 @@ def get_nmt_tokenizer(
     use_fast: Optional[bool] = False,
     bpe_dropout: Optional[float] = 0.0,
     r2l: Optional[bool] = False,
+    legacy: Optional[bool] = False,
+    delimiter: Optional[str] = None,
 ):
     """
     Args:
@@ -159,6 +169,9 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
+    if (library != 'byte-level') and (model_name is None and not os.path.isfile(tokenizer_model)):
+        raise ValueError("No Tokenizer path provided or file does not exist!")
+
     if library == 'yttm':
         logging.info(f'Getting YouTokenToMeTokenizer with model: {tokenizer_model} with r2l: {r2l}.')
         return YouTokenToMeTokenizer(model_path=tokenizer_model, bpe_dropout=bpe_dropout, r2l=r2l)
@@ -174,11 +187,14 @@ def get_nmt_tokenizer(
     elif library == 'sentencepiece':
         logging.info(f'Getting SentencePiece with model: {tokenizer_model}')
         return nemo.collections.common.tokenizers.sentencepiece_tokenizer.SentencePieceTokenizer(
-            model_path=tokenizer_model, special_tokens=special_tokens_dict
+            model_path=tokenizer_model, legacy=legacy
         )
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
-        return ByteLevelTokenizer()
+        return ByteLevelTokenizer(special_tokens_dict)
+    elif library == 'regex':
+        logging.info(f'Using regex tokenization')
+        return RegExTokenizer().load_tokenizer(tokenizer_model)
     elif library == 'megatron':
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]
@@ -186,6 +202,8 @@ def get_nmt_tokenizer(
             f'Getting Megatron tokenizer for pretrained model name: {model_name} and custom vocab file: {vocab_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
+    elif library == 'tabular':
+        return TabularTokenizer(vocab_file, delimiter=delimiter)
     else:
         raise NotImplementedError(
             'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'

@@ -9,7 +9,8 @@ runtest () {
   # read test file
   while read testcase; do
     IFS='~' read written spoken <<< $testcase
-    denorm_pred=$(echo $written | normalizer_main --config=sparrowhawk_configuration.ascii_proto 2>&1 | tail -n 1)
+    # replace non breaking space with breaking space
+    denorm_pred=$(echo $written | normalizer_main --config=sparrowhawk_configuration.ascii_proto 2>&1 | tail -n 1 | sed 's/\xC2\xA0/ /g')
 
     # trim white space
     spoken="$(echo -e "${spoken}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
@@ -20,8 +21,8 @@ runtest () {
   done < "$input"
 }
 
-testTNBoundary() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_boundary.txt
+testTNSpecialText() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_special_text.txt
   runtest $input
 }
 
@@ -39,6 +40,21 @@ testTNDecimal() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_decimal.txt
   runtest $input
 }
+
+testTNRange() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_range.txt
+  runtest $input
+}
+
+testTNSerial() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_serial.txt
+  runtest $input
+}
+
+#testTNRoman() {
+#  input=$PROJECT_DIR/en/data_text_normalization/test_cases_roman.txt
+#  runtest $input
+#}
 
 testTNElectronic() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_electronic.txt
@@ -61,7 +77,7 @@ testTNOrdinal() {
 }
 
 testTNTelephone() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_ordinal.txt
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_telephone.txt
   runtest $input
 }
 
@@ -80,8 +96,18 @@ testTNWhitelist() {
   runtest $input
 }
 
+testTNWord() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_word.txt
+  runtest $input
+}
+
 testTNAddress() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_address.txt
+  runtest $input
+}
+
+testTNMath() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_math.txt
   runtest $input
 }
 

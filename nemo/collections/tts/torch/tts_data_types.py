@@ -14,22 +14,24 @@
 
 
 class TTSDataType:
+    """Represent TTSDataType."""
+
     name = None
 
 
-class WithLens(TTSDataType):
-    """Represent that this TTSDataType returns lengths for data"""
+class WithLens:
+    """Represent that this data type also returns lengths for data."""
 
 
-class Audio(WithLens):
+class Audio(TTSDataType, WithLens):
     name = "audio"
 
 
-class Text(WithLens):
+class Text(TTSDataType, WithLens):
     name = "text"
 
 
-class LogMel(WithLens):
+class LogMel(TTSDataType, WithLens):
     name = "log_mel"
 
 
@@ -37,15 +39,15 @@ class Durations(TTSDataType):
     name = "durations"
 
 
-class DurationPrior(TTSDataType):
-    name = "duration_prior"
+class AlignPriorMatrix(TTSDataType):
+    name = "align_prior_matrix"
 
 
-class Pitch(WithLens):
+class Pitch(TTSDataType, WithLens):
     name = "pitch"
 
 
-class Energy(WithLens):
+class Energy(TTSDataType, WithLens):
     name = "energy"
 
 
@@ -53,10 +55,10 @@ class SpeakerID(TTSDataType):
     name = "speaker_id"
 
 
-class LMTokens:
+class LMTokens(TTSDataType):
     name = "lm_tokens"
 
 
 MAIN_DATA_TYPES = [Audio, Text]
-VALID_SUPPLEMENTARY_DATA_TYPES = [LogMel, Durations, DurationPrior, Pitch, Energy, SpeakerID, LMTokens]
+VALID_SUPPLEMENTARY_DATA_TYPES = [LogMel, Durations, AlignPriorMatrix, Pitch, Energy, SpeakerID, LMTokens]
 DATA_STR2DATA_CLASS = {d.name: d for d in MAIN_DATA_TYPES + VALID_SUPPLEMENTARY_DATA_TYPES}

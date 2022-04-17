@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -25,10 +26,10 @@ class BetaBinomialInterpolator:
         The implementation is taken from https://github.com/NVIDIA/DeepLearningExamples.
     """
 
-    def __init__(self, round_mel_len_to=100, round_text_len_to=20):
+    def __init__(self, round_mel_len_to=50, round_text_len_to=10, cache_size=500):
         self.round_mel_len_to = round_mel_len_to
         self.round_text_len_to = round_text_len_to
-        self.bank = functools.lru_cache(beta_binomial_prior_distribution)
+        self.bank = functools.lru_cache(maxsize=cache_size)(beta_binomial_prior_distribution)
 
     def round(self, val, to):
         return max(1, int(np.round((val + 1) / to))) * to
@@ -56,3 +57,29 @@ def beta_binomial_prior_distribution(phoneme_count, mel_count, scaling_factor=1.
         mel_i_prob = betabinom(phoneme_count, a, b).pmf(x)
         mel_text_probs.append(mel_i_prob)
     return np.array(mel_text_probs)
+
+
+def get_base_dir(paths):
+    def is_relative_to(path1, path2):
+        try:
+            path1.relative_to(path2)
+            return True
+        except ValueError:
+            return False
+
+    def common_path(path1, path2):
+        while path1 is not None:
+            if is_relative_to(path2, path1):
+                return path1
+            path1 = path1.parent if path1 != path1.parent else None
+        return None
+
+    base_dir = None
+    for p in paths:
+        audio_dir = Path(p).parent
+        if base_dir is None:
+            base_dir = audio_dir
+            continue
+        base_dir = common_path(base_dir, audio_dir)
+
+    return base_dir

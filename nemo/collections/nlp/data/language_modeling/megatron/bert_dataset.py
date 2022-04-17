@@ -14,6 +14,9 @@
 
 """BERT Style dataset."""
 
+import os
+from typing import Any, Optional
+
 import numpy as np
 import torch
 
@@ -24,22 +27,24 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_samples_mapping,
     truncate_segments,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 
 
 class BertDataset(torch.utils.data.Dataset):
     def __init__(
         self,
-        name,
-        indexed_dataset,
-        data_prefix,
-        num_epochs,
-        max_num_samples,
-        masked_lm_prob,
-        max_seq_length,
-        short_seq_prob,
-        seed,
-        binary_head,
-        tokenizer,
+        cfg: dict,
+        name: str,
+        indexed_dataset: MMapIndexedDataset,
+        data_prefix: str,
+        num_epochs: Optional[int],
+        max_num_samples: int,
+        masked_lm_prob: float,
+        max_seq_length: int,
+        short_seq_prob: float,
+        seed: int,
+        binary_head: bool,
+        tokenizer: Any,
     ):
 
         # Params to store.
@@ -52,6 +57,16 @@ class BertDataset(torch.utils.data.Dataset):
         # Dataset.
         self.indexed_dataset = indexed_dataset
 
+        # save index mappings to a configurable dir
+        self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
+
+        # create index_mapping_dir on rank 0
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                    os.makedirs(self.index_mapping_dir)
+            torch.distributed.barrier()
+
         # Build the samples mapping.
         self.samples_mapping = get_samples_mapping(
             self.indexed_dataset,
@@ -63,15 +78,16 @@ class BertDataset(torch.utils.data.Dataset):
             self.seed,
             self.name,
             self.binary_head,
+            index_mapping_dir=self.index_mapping_dir,
         )
 
         # Vocab stuff.
-        self.vocab_id_list = list(tokenizer.inv_vocab.keys())
-        self.vocab_id_to_token_dict = tokenizer.inv_vocab
-        self.cls_id = tokenizer.cls_id
-        self.sep_id = tokenizer.sep_id
-        self.mask_id = tokenizer.mask_id
-        self.pad_id = tokenizer.pad_id
+        self.vocab_id_list = list(tokenizer.ids_to_tokens.keys())
+        self.vocab_id_to_token_dict = tokenizer.ids_to_tokens
+        self.cls_id = tokenizer.cls_token_id
+        self.sep_id = tokenizer.sep_token_id
+        self.mask_id = tokenizer.mask_token_id
+        self.pad_id = tokenizer.pad_token_id
 
     def __len__(self):
         return self.samples_mapping.shape[0]

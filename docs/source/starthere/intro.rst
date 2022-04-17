@@ -134,6 +134,12 @@ Use this installation mode if you are contributing to NeMo.
 
 Docker containers
 ~~~~~~~~~~~~~~~~~
+To build a nemo container with Dockerfile from a branch,  please run 
+
+.. code-block:: bash
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest.
+
+
 If you chose to work with the ``main`` branch, we recommend using `NVIDIA's PyTorch container version 21.05-py3 <https://ngc.nvidia.com/containers/nvidia:pytorch/tags>`_, then install from GitHub.
 
 .. code-block:: bash

@@ -44,10 +44,12 @@ class TestExportable:
                 'decoder': DictConfig(self.decoder_dict),
             }
         )
-        model = EncDecCTCModel(cfg=model_config)
+        model = EncDecCTCModel(cfg=model_config).cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'qn.onnx')
-            model.export(output=filename)
+            model.export(
+                output=filename, check_trace=True,
+            )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
@@ -56,10 +58,12 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecClassificationModel_export_to_onnx(self, speech_classification_model):
-        model = speech_classification_model.train()
+        model = speech_classification_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'edc.onnx')
-            model.export(output=filename)
+            model.export(
+                output=filename, check_trace=True,
+            )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
@@ -68,7 +72,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecSpeakerLabelModel_export_to_onnx(self, speaker_label_model):
-        model = speaker_label_model.train()
+        model = speaker_label_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'sl.onnx')
             model.export(output=filename)
@@ -80,7 +84,7 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecCitrinetModel_export_to_onnx(self, citrinet_model):
-        model = citrinet_model.train()
+        model = citrinet_model.cuda()
         with tempfile.TemporaryDirectory() as tmpdir:
             filename = os.path.join(tmpdir, 'citri.onnx')
             model.export(output=filename)
@@ -92,13 +96,28 @@ class TestExportable:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    def test_ConformerModel_export_to_onnx(self, conformer_model):
+        model = conformer_model.cuda()
+        with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
+            filename = os.path.join(tmpdir, 'conf.onnx')
+            device = next(model.parameters()).device
+            input_example = torch.randn(4, model.encoder._feat_in, 777, device=device)
+            input_example_length = torch.full(size=(input_example.shape[0],), fill_value=777, device=device)
+            model.export(
+                output=filename, input_example=tuple([input_example, input_example_length]), check_trace=True,
+            )
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
     def test_EncDecCitrinetModel_limited_SE_export_to_onnx(self, citrinet_model):
-        model = citrinet_model.train()
+        model = citrinet_model.cuda()
         asr_module_utils.change_conv_asr_se_context_window(model, context_window=24, update_config=False)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with tempfile.TemporaryDirectory() as tmpdir, torch.cuda.amp.autocast():
             filename = os.path.join(tmpdir, 'citri_se.onnx')
-            model.export(output=filename, check_trace=True)
+            model.export(
+                output=filename, check_trace=True,
+            )
             onnx_model = onnx.load(filename)
             onnx.checker.check_model(onnx_model, full_check=True)  # throws when failed
             assert onnx_model.graph.input[0].name == 'audio_signal'
@@ -108,13 +127,12 @@ class TestExportable:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_EncDecRNNTModel_export_to_onnx(self, citrinet_rnnt_model):
-        citrinet_rnnt_model.freeze()
-        model = citrinet_rnnt_model.train()
+        model = citrinet_rnnt_model.cuda()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             fn = 'citri_rnnt.onnx'
             filename = os.path.join(tmpdir, fn)
-            model.export(output=filename, verbose=False, check_trace=True)
+            model.export(output=filename, verbose=False)
 
             encoder_filename = os.path.join(tmpdir, 'Encoder-' + fn)
             assert os.path.exists(encoder_filename)
@@ -374,7 +392,7 @@ def citrinet_model():
     modelConfig = DictConfig(
         {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
     )
-    citri_model = EncDecSpeakerLabelModel(cfg=modelConfig)
+    citri_model = EncDecCTCModel(cfg=modelConfig)
     return citri_model
 
 
@@ -469,3 +487,42 @@ def citrinet_rnnt_model():
     )
     citri_model = EncDecRNNTModel(cfg=modelConfig)
     return citri_model
+
+
+@pytest.fixture()
+def conformer_model():
+    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    encoder = {
+        'cls': 'nemo.collections.asr.modules.ConformerEncoder',
+        'params': {
+            'feat_in': 80,
+            'feat_out': -1,
+            'n_layers': 2,
+            'd_model': 256,
+            'subsampling': 'striding',
+            'subsampling_factor': 4,
+            'subsampling_conv_channels': 512,
+            'ff_expansion_factor': 4,
+            'self_attention_model': 'rel_pos',
+            'n_heads': 8,
+            'att_context_size': [-1, -1],
+            'xscaling': True,
+            'untie_biases': True,
+            'pos_emb_max_len': 500,
+            'conv_kernel_size': 31,
+            'dropout': 0.1,
+            'dropout_emb': 0.0,
+            'dropout_att': 0.1,
+        },
+    }
+
+    decoder = {
+        'cls': 'nemo.collections.asr.modules.ConvASRDecoder',
+        'params': {'feat_in': 256, 'num_classes': 1024, 'vocabulary': list(chr(i % 28) for i in range(0, 1024))},
+    }
+
+    modelConfig = DictConfig(
+        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+    )
+    conformer_model = EncDecCTCModel(cfg=modelConfig)
+    return conformer_model

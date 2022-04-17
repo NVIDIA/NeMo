@@ -37,19 +37,12 @@ class CardinalFst(GraphFst):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
         optional_sign = pynini.closure(pynini.cross("negative: \"true\" ", "minus "), 0, 1)
         self.optional_sign = optional_sign
-        if deterministic:
-            integer = pynini.closure(NEMO_NOT_QUOTE, 1)
-        else:
-            integer = (
-                pynini.closure(NEMO_NOT_QUOTE)
-                + pynini.closure(pynini.cross("hundert ", "hundert und "), 0, 1)
-                + pynini.closure(NEMO_NOT_QUOTE)
-            )
+        integer = pynini.closure(NEMO_NOT_QUOTE, 1)
 
         self.integer = pynutil.delete(" \"") + integer + pynutil.delete("\"")
 
         integer = pynutil.delete("integer:") + self.integer
-
-        self.numbers = optional_sign + integer
-        delete_tokens = self.delete_tokens(self.numbers)
+        self.numbers = integer
+        graph = optional_sign + self.numbers
+        delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

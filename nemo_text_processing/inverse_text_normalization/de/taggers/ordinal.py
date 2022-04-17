@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.de.graph_utils import NEMO_CHAR, GraphFst
-from nemo_text_processing.inverse_text_normalization.de.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
@@ -27,32 +26,23 @@ except (ImportError, ModuleNotFoundError):
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
-        e.g. dreizehnter -> ordinal { integer: "13" }
+        e.g. dreizehnter -> tokens { name: "13." }
 
     Args:
-        cardinal: CardinalFst
+        itn_cardinal_tagger: ITN Cardinal Tagger
+        tn_ordinal_verbalizer: TN Ordinal Verbalizer
     """
 
-    def __init__(self, cardinal: GraphFst):
-        super().__init__(name="ordinal", kind="classify")
+    def __init__(self, itn_cardinal_tagger: GraphFst, tn_ordinal_verbalizer: GraphFst, deterministic: bool = True):
+        super().__init__(name="ordinal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph_no_exception
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv"))
-        graph_ties = pynini.string_file(get_abs_path("data/ordinals/ties.tsv"))
-        graph_thousands = pynini.string_file(get_abs_path("data/ordinals/thousands.tsv"))
+        tagger = tn_ordinal_verbalizer.graph.invert().optimize()
 
-        suffixes = pynini.union("ten", "tem", "ter", "tes", "te")
+        graph = (
+            pynutil.delete("integer: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
+        ) @ itn_cardinal_tagger.graph
 
-        self.graph = (
-            (
-                pynini.closure(NEMO_CHAR)
-                + pynini.closure(pynini.union(graph_digit, graph_thousands, graph_ties), 0, 1)
-                + pynutil.delete(suffixes)
-            )
-            @ cardinal_graph
-        ).optimize()
+        final_graph = tagger @ graph + pynutil.insert(".")
 
-        graph = pynutil.insert("integer: \"") + self.graph + pynutil.insert("\"")
-        self.graph = self.graph.optimize()
-        final_graph = self.add_tokens(graph)
-        self.fst = final_graph.optimize()
+        graph = pynutil.insert("name: \"") + final_graph + pynutil.insert("\"")
+        self.fst = graph.optimize()

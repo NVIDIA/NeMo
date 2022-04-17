@@ -1,5 +1,6 @@
+null nulltel~0/0
 ein halb~1/2
-einhalb~1/2
+vier halbe~4/2
 ein drittel~1/3
 ein viertel~1/4
 ein fünftel~1/5
@@ -7,7 +8,7 @@ ein sechstel~1/6
 ein siebtel~1/7
 ein achtel~1/8
 zwei neuntel~2/9
-eineinhalb~1 1/2
+ein ein halb~1 1/2
 ein sechstel~1/6
 ein zehntel~1/10
 ein elftel~1/11
@@ -28,6 +29,6 @@ ein sechzigstel~1/60
 ein siebzigstel~1/70
 ein achtzigstel~1/80
 ein neunzigstel~1/90
-ein hundertstel~1/100
-einzweiundzwanzigstel~1/22
-minus einzweiundzwanzigstel~-1/22
+ein ein hundertstel~1/100
+ein zwei und zwanzigstel~1/22
+minus ein zwei und zwanzigstel~-1/22

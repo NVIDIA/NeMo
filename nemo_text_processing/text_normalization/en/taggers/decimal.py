@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, delete_extra_space, delete_space
-from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -38,17 +37,33 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         cardinal_up_to_hundred: cardinal FST
     """
     numbers = cardinal_up_to_hundred
-    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
+    suffix = pynini.union(
+        "million",
+        "billion",
+        "trillion",
+        "quadrillion",
+        "quintillion",
+        "sextillion",
+        pynini.cross("M", "million"),
+        pynini.cross("K", "thousand"),
+        pynini.cross("B", "billion"),
+    )
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
         + pynutil.insert("\"")
-        + delete_extra_space
+        + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynutil.insert("quantity: \"")
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    res |= (
+        decimal
+        + pynini.closure(pynutil.delete(" "), 0, 1)
+        + pynutil.insert("quantity: \"")
+        + (suffix | "thousand")
+        + pynutil.insert("\"")
+    )
     return res
 
 
@@ -64,21 +79,13 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph
+        cardinal_graph = cardinal.graph_with_and
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
             cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
 
-        graph_decimal = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_decimal |= pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+        self.graph = cardinal.single_digits_graph.optimize()
 
-        graph_decimal = (
-            pynini.cross("zero", "0")
-            | graph_decimal
-            | (graph_decimal | pynini.cross("o", "0"))
-            + pynini.closure(delete_space + (graph_decimal | pynini.cross("o", "0")), 1)
-        )
-        self.graph = pynini.invert(graph_decimal).optimize()
         if not deterministic:
             self.graph = self.graph | cardinal_graph
 
@@ -97,6 +104,26 @@ class DecimalFst(GraphFst):
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
             final_graph_wo_sign, cardinal_graph_hundred_component_at_least_one_none_zero_digit
         )
+
+        # reduce options for non_deterministic and allow either "oh" or "zero", but not combination
+        if not deterministic:
+            no_oh_zero = pynini.difference(
+                NEMO_SIGMA,
+                (NEMO_SIGMA + "oh" + NEMO_SIGMA + "zero" + NEMO_SIGMA)
+                | (NEMO_SIGMA + "zero" + NEMO_SIGMA + "oh" + NEMO_SIGMA),
+            ).optimize()
+            no_zero_oh = pynini.difference(
+                NEMO_SIGMA, NEMO_SIGMA + pynini.accep("zero") + NEMO_SIGMA + pynini.accep("oh") + NEMO_SIGMA
+            ).optimize()
+
+            self.final_graph_wo_negative |= pynini.compose(
+                self.final_graph_wo_negative,
+                pynini.cdrewrite(
+                    pynini.cross("integer_part: \"zero\"", "integer_part: \"oh\""), NEMO_SIGMA, NEMO_SIGMA, NEMO_SIGMA
+                ),
+            )
+            self.final_graph_wo_negative = pynini.compose(self.final_graph_wo_negative, no_oh_zero).optimize()
+            self.final_graph_wo_negative = pynini.compose(self.final_graph_wo_negative, no_zero_oh).optimize()
 
         final_graph = optional_graph_negative + self.final_graph_wo_negative
 
