@@ -45,9 +45,7 @@ class ElectronicFst(GraphFst):
             | pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
         )
 
-        symbols = pynini.string_file(
-            get_abs_path("data/electronic/symbols.tsv")
-        ).invert()
+        symbols = pynini.string_file(get_abs_path("data/electronic/symbols.tsv")).invert()
 
         accepted_username = alpha_num | symbols
         process_dot = pynini.cross("chấm", ".")
@@ -58,27 +56,15 @@ class ElectronicFst(GraphFst):
             + pynutil.insert('"')
         )
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
-        server = single_alphanum | pynini.string_file(
-            get_abs_path("data/electronic/server_name.tsv")
-        )
-        domain = single_alphanum | pynini.string_file(
-            get_abs_path("data/electronic/domain.tsv")
-        )
+        server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
+        domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
         multi_domain = (
-            pynini.closure(
-                process_dot + delete_extra_space + domain + delete_extra_space
-            )
+            pynini.closure(process_dot + delete_extra_space + domain + delete_extra_space)
             + process_dot
             + delete_extra_space
             + domain
         )
-        domain_graph = (
-            pynutil.insert('domain: "')
-            + server
-            + delete_extra_space
-            + multi_domain
-            + pynutil.insert('"')
-        )
+        domain_graph = pynutil.insert('domain: "') + server + delete_extra_space + multi_domain + pynutil.insert('"')
         graph = (
             username
             + delete_extra_space
@@ -90,19 +76,15 @@ class ElectronicFst(GraphFst):
 
         ############# url ###
         protocol_end = pynini.cross(pynini.union("w w w", "www"), "www")
-        protocol_start = (
-            pynini.cross("h t t p", "http") | pynini.cross("h t t p s", "https")
-        ) + pynini.cross(" hai chấm sẹc sẹc ", "://")
+        protocol_start = (pynini.cross("h t t p", "http") | pynini.cross("h t t p s", "https")) + pynini.cross(
+            " hai chấm sẹc sẹc ", "://"
+        )
         # .com,
         ending = (
             delete_extra_space
             + symbols
             + delete_extra_space
-            + (
-                domain
-                | pynini.closure(accepted_username + delete_extra_space)
-                + accepted_username
-            )
+            + (domain | pynini.closure(accepted_username + delete_extra_space) + accepted_username)
         )
 
         protocol = (

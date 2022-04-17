@@ -64,20 +64,11 @@ class DateFst(GraphFst):
         graph_dm = day + delete_space + pynutil.insert(" tháng ") + month
         graph_dmy = graph_dm + delete_space + pynutil.insert(" năm ") + year
         graph_m = pynutil.insert("tháng ") + month
-        graph_my = (
-            pynutil.insert("tháng ")
-            + month
-            + delete_space
-            + pynutil.insert(" năm ")
-            + year
-        )
+        graph_my = pynutil.insert("tháng ") + month + delete_space + pynutil.insert(" năm ") + year
         graph_y = pynutil.insert("năm ") + year
 
         optional_preserve_order = pynini.closure(
-            pynutil.delete("preserve_order:")
-            + delete_space
-            + pynutil.delete("true")
-            + delete_space
+            pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
             | pynutil.delete("field_order:")
             + delete_space
             + pynutil.delete('"')
@@ -86,11 +77,7 @@ class DateFst(GraphFst):
             + delete_space
         )
 
-        final_graph = (
-            (graph_y | graph_m | graph_dm | graph_dmy | graph_my)
-            + delete_space
-            + optional_preserve_order
-        )
+        final_graph = (graph_y | graph_m | graph_dm | graph_dmy | graph_my) + delete_space + optional_preserve_order
 
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()

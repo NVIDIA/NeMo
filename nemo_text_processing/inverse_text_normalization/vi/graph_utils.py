@@ -51,12 +51,7 @@ try:
     delete_hyphen = pynutil.delete(pynini.closure("-", 0, 1))
     insert_hyphen = pynutil.insert("-")
 
-    TO_LOWER = pynini.union(
-        *[
-            pynini.cross(x, y)
-            for x, y in zip(string.ascii_uppercase, string.ascii_lowercase)
-        ]
-    )
+    TO_LOWER = pynini.union(*[pynini.cross(x, y) for x, y in zip(string.ascii_uppercase, string.ascii_lowercase)])
     TO_UPPER = pynini.invert(TO_LOWER)
 
     PYNINI_AVAILABLE = True
@@ -120,9 +115,7 @@ def convert_space(fst) -> "pynini.FstLike":
 
     Returns output fst where breaking spaces are converted to non breaking spaces
     """
-    return fst @ pynini.cdrewrite(
-        pynini.cross(NEMO_SPACE, NEMO_NON_BREAKING_SPACE), "", "", NEMO_SIGMA
-    )
+    return fst @ pynini.cdrewrite(pynini.cross(NEMO_SPACE, NEMO_NON_BREAKING_SPACE), "", "", NEMO_SIGMA)
 
 
 class GraphFst:
@@ -142,13 +135,9 @@ class GraphFst:
         self._fst = None
         self.deterministic = deterministic
 
-        self.far_path = Path(
-            os.path.dirname(__file__) + "/grammars/" + kind + "/" + name + ".far"
-        )
+        self.far_path = Path(os.path.dirname(__file__) + "/grammars/" + kind + "/" + name + ".far")
         if self.far_exist():
-            self._fst = Far(
-                self.far_path, mode="r", arc_type="standard", far_type="default"
-            ).get_fst()
+            self._fst = Far(self.far_path, mode="r", arc_type="standard", far_type="default").get_fst()
 
     def far_exist(self) -> bool:
         """

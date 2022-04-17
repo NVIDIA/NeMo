@@ -37,14 +37,8 @@ class FractionFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="fraction", kind="verbalize")
-        optional_sign = pynini.closure(
-            pynini.cross('negative: "true"', "-") + delete_space, 0, 1
-        )
-        numerator = (
-            pynutil.delete('numerator: "')
-            + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete('"')
-        )
+        optional_sign = pynini.closure(pynini.cross('negative: "true"', "-") + delete_space, 0, 1)
+        numerator = pynutil.delete('numerator: "') + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete('"')
 
         denominator = (
             pynutil.insert("/")

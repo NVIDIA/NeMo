@@ -49,9 +49,7 @@ class TimeFst(GraphFst):
         graph_minutes_to = pynini.string_file(get_abs_path("data/time/minutes_to.tsv"))
         graph_hours = pynini.string_file(get_abs_path("data/time/hours.tsv"))
         graph_minutes = pynini.string_file(get_abs_path("data/time/minutes.tsv"))
-        time_zone_graph = pynini.invert(
-            pynini.string_file(get_abs_path("data/time/time_zone.tsv"))
-        )
+        time_zone_graph = pynini.invert(pynini.string_file(get_abs_path("data/time/time_zone.tsv")))
 
         graph_half = pynini.cross("rưỡi", "30")
         oclock = pynini.cross("giờ", "")
@@ -59,13 +57,7 @@ class TimeFst(GraphFst):
         optional_minute = pynini.closure(delete_space + minute, 0, 1)
         second = pynini.cross("giây", "")
 
-        final_graph_hour = (
-            pynutil.insert('hours: "')
-            + graph_hours
-            + pynutil.insert('"')
-            + delete_space
-            + oclock
-        )
+        final_graph_hour = pynutil.insert('hours: "') + graph_hours + pynutil.insert('"') + delete_space + oclock
         graph_minute = graph_minutes + optional_minute
         graph_second = graph_minutes + delete_space + second
         final_time_zone_optional = pynini.closure(
@@ -130,9 +122,7 @@ class TimeFst(GraphFst):
             + optional_minute
         )
 
-        final_graph = (
-            final_graph_hour | graph_hm | graph_hms
-        ) + final_time_zone_optional
+        final_graph = (final_graph_hour | graph_hm | graph_hms) + final_time_zone_optional
         final_graph |= graph_ms
         final_graph |= graph_time_to
 
