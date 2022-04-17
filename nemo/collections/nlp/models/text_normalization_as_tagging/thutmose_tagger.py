@@ -79,11 +79,13 @@ class ThutmoseTaggerModel(NLPModel):
 
         # setup to track metrics
         # we will have (len(self.semiotic_classes) + 1) labels, last one stands for WRONG
+        label_ids = self.semiotic_classes.copy()
+        label_ids["WRONG"] = len(self.semiotic_classes)
         self.classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=self.semiotic_classes, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
         )
         self.multiword_classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=self.semiotic_classes, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
         )
 
         self.hidden_size = cfg.hidden_size

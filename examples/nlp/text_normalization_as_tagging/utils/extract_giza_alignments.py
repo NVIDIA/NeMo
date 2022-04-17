@@ -158,7 +158,7 @@ def main() -> None:
     while True:
         n += 3
         if n % 10000 == 0:
-            print(n)
+            print(n, "lines processed")
         fline1 = f.readline().strip()
         fline2 = f.readline().strip()
         fline3 = f.readline().strip()
