@@ -15,8 +15,7 @@
 
 import numpy as np
 from nemo.core.classes.dataset import Dataset
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_input_file
-from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder
+from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder, read_input_file
 from typing import List
 
 

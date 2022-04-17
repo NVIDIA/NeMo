@@ -29,7 +29,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.nlp.data.text_normalization_as_tagging import bert_example, tagging_converter, tagging
+from nemo.collections.nlp.data.text_normalization_as_tagging import bert_example, tagging
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 
 __all__ = ['ThutmoseTaggerModel']
@@ -95,7 +95,7 @@ class ThutmoseTaggerModel(NLPModel):
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
         self.loss_eval_metric = CrossEntropyLoss(logits_ndim=3, reduction='none')
 
-        converter = tagging_converter.TaggingConverterTrivial()
+        converter = tagging.TaggingConverterTrivial()
 
         self.builder = bert_example.BertExampleBuilder(
             self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len, converter

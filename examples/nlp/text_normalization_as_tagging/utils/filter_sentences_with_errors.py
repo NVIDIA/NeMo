@@ -16,10 +16,9 @@
 This script is used to filter sentences containing bad examples from Google TN Dataset.
 """
 
-import os
 from argparse import ArgumentParser
 from os import listdir, mkdir
-from os.path import isfile, join
+from os.path import isfile, join, exists
 from typing import Set
 
 parser = ArgumentParser(description="Filter Google TN Dataset by error vocabulary")
@@ -53,7 +52,7 @@ def filter_file(inp_filename: str, out_filename: str, error_vcb: Set) -> None:
 
 
 def main() -> None:
-    if not os.path.exists(args.data_dir):
+    if not exists(args.data_dir):
         raise ValueError(f"Data dir {args.data_dir} does not exist")
 
     # load errors vocabulary

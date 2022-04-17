@@ -35,8 +35,7 @@ This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/lasertagger/blob/master/bert_example.py
 """
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import Tag, EditingTask
-from nemo.collections.nlp.data.text_normalization_as_tagging.tagging_converter import TaggingConverterTrivial
+from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import Tag, EditingTask, TaggingConverterTrivial
 from transformers import PreTrainedTokenizerBase
 from collections import OrderedDict
 from typing import List, Tuple, Dict, Optional, Union
@@ -292,3 +291,33 @@ class BertExampleBuilder(object):
             return self._tokenizer.pad_token_id
         except KeyError:
             return 0
+
+
+def read_input_file(
+    example_builder: 'BertExampleBuilder',
+    input_filename: str,
+    infer: bool = False
+) -> List['BertExample']:
+    """Reads in Tab Separated Value file and converts to training/inference-ready examples.
+
+    Args:
+        example_builder: Instance of BertExampleBuilder
+        input_filename: Path to the TSV input file.
+        infer: Whether test files or not.
+
+    Returns:
+        examples: List of converted examples(features and Editing Tasks)
+    """
+
+    examples = []
+    for i, (source, target, semiotic_info) in enumerate(yield_sources_and_targets(input_filename)):
+        if len(examples) % 1000 == 0:
+            logging.info("{} examples processed.".format(len(examples)))
+        example = example_builder.build_bert_example(
+            source, target, semiotic_info, infer
+        )
+        if example is None:
+            continue
+        examples.append(example)
+    logging.info(f'Done. {len(examples)} examples converted.')
+    return examples
