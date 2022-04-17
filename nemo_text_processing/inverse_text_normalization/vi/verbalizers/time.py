@@ -42,45 +42,55 @@ class TimeFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="time", kind="verbalize")
-        add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
+        add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (
+            pynutil.insert("0") + NEMO_DIGIT
+        )
         hour = (
             pynutil.delete("hours:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_DIGIT, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         minute = (
             pynutil.delete("minutes:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_DIGIT, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         second = (
             pynutil.delete("seconds:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_DIGIT, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         zone = (
             delete_space
             + insert_space
             + pynutil.delete("zone:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_CHAR - " ", 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         optional_zone = pynini.closure(zone, 0, 1)
         optional_second = pynini.closure(
-            delete_space + pynutil.insert(":") + (second @ add_leading_zero_to_double_digit), 0, 1
+            delete_space
+            + pynutil.insert(":")
+            + (second @ add_leading_zero_to_double_digit),
+            0,
+            1,
         )
 
         graph_h = hour + pynutil.insert("h")
         graph_hms = (
-            hour + delete_space + pynutil.insert(":") + (minute @ add_leading_zero_to_double_digit) + optional_second
+            hour
+            + delete_space
+            + pynutil.insert(":")
+            + (minute @ add_leading_zero_to_double_digit)
+            + optional_second
         )
         graph_ms = (
             minute

@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.vi.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space
+from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
+    NEMO_NOT_QUOTE,
+    GraphFst,
+    delete_space,
+)
 
 try:
     import pynini
@@ -31,32 +35,36 @@ class DecimalFst(GraphFst):
 
     def __init__(self):
         super().__init__(name="decimal", kind="verbalize")
-        optionl_sign = pynini.closure(pynini.cross("negative: \"true\"", "-") + delete_space, 0, 1)
+        optionl_sign = pynini.closure(
+            pynini.cross('negative: "true"', "-") + delete_space, 0, 1
+        )
         integer = (
             pynutil.delete("integer_part:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         optional_integer = pynini.closure(integer + delete_space, 0, 1)
         fractional = (
             pynutil.insert(".")
             + pynutil.delete("fractional_part:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
         optional_fractional = pynini.closure(fractional + delete_space, 0, 1)
         quantity = (
             pynutil.delete("quantity:")
             + delete_space
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
             + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynutil.delete("\"")
+            + pynutil.delete('"')
         )
-        optional_quantity = pynini.closure(pynutil.insert(" ") + quantity + delete_space, 0, 1)
+        optional_quantity = pynini.closure(
+            pynutil.insert(" ") + quantity + delete_space, 0, 1
+        )
         graph = optional_integer + optional_fractional + optional_quantity
         self.numbers = graph
         graph = optionl_sign + graph
