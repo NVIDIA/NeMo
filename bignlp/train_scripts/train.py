@@ -104,8 +104,8 @@ def run_training(cfg, hydra_args="", dependency=None):
     hydra_args = hydra_args.replace(" ", " \\\n  ")
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
-    nodes = train_cfg.trainer.num_nodes
-    ntasks_per_node = train_cfg.trainer.gpus
+    nodes = train_cfg.get("trainer").get("num_nodes")
+    ntasks_per_node = train_cfg.get("trainer").get("devices")
 
     # BCM parameters
     if cfg.cluster_type == "bcm":
