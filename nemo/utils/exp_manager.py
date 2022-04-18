@@ -219,9 +219,9 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Defaults to True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
-            - log_local_rank_0_only (bool): Whether to only log create log files only for local rank 0. Defaults to False.
+            - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
-            - log_global_rank_0_only (bool): Whether to only log create log files only for global rank 0. Defaults to False.
+            - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
                 Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
@@ -297,16 +297,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or (
         not cfg.log_local_rank_0_only and not cfg.log_global_rank_0_only
     ):
-        # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
+        # If NEMO_TESTING is set (debug mode) and neither log_local_rank_0_only and log_global_rank_0_only are set
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
     # Logs only on local rank 0
     elif local_rank == 0 and cfg.log_local_rank_0_only:
-        # If less than 256 ranks, try to save 1 log file per "machine"
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
+    # Logs only on global rank 0
     elif global_rank == 0 and cfg.log_global_rank_0_only:
-        # If running more than 256 ranks, only save 1 log file
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
 
