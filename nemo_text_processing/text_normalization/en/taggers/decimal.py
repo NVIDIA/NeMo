@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, delete_extra_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
 
 try:
     import pynini
@@ -37,17 +37,33 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         cardinal_up_to_hundred: cardinal FST
     """
     numbers = cardinal_up_to_hundred
-    suffix = pynini.union("million", "billion", "trillion", "quadrillion", "quintillion", "sextillion")
+    suffix = pynini.union(
+        "million",
+        "billion",
+        "trillion",
+        "quadrillion",
+        "quintillion",
+        "sextillion",
+        pynini.cross("M", "million"),
+        pynini.cross("K", "thousand"),
+        pynini.cross("B", "billion"),
+    )
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
         + pynutil.insert("\"")
-        + delete_extra_space
+        + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynutil.insert("quantity: \"")
         + suffix
         + pynutil.insert("\"")
     )
-    res |= decimal + delete_extra_space + pynutil.insert("quantity: \"") + (suffix | "thousand") + pynutil.insert("\"")
+    res |= (
+        decimal
+        + pynini.closure(pynutil.delete(" "), 0, 1)
+        + pynutil.insert("quantity: \"")
+        + (suffix | "thousand")
+        + pynutil.insert("\"")
+    )
     return res
 
 
@@ -63,7 +79,7 @@ class DecimalFst(GraphFst):
     def __init__(self, cardinal: GraphFst, deterministic: bool):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)
 
-        cardinal_graph = cardinal.graph
+        cardinal_graph = cardinal.graph_with_and
         cardinal_graph_hundred_component_at_least_one_none_zero_digit = (
             cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
