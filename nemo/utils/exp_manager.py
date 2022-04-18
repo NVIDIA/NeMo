@@ -287,7 +287,7 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer._default_root_dir = log_dir
 
-    if cfg.log_local_rank_0_only and cfg.log_global_rank_0_only:
+    if cfg.log_local_rank_0_only is True and cfg.log_global_rank_0_only is True:
         raise ValueError(
             f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
         )
@@ -297,11 +297,11 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
 
     # Handle logging to file
     # Logs local rank 0 only
-    if local_rank == 0 and cfg.log_local_rank_0_only and not nemo_testing:
+    if local_rank == 0 and cfg.log_local_rank_0_only is True and nemo_testing is False:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
     # Logs only on global rank 0
-    elif global_rank == 0 and cfg.log_global_rank_0_only and not nemo_testing:
+    elif global_rank == 0 and cfg.log_global_rank_0_only is True and not nemo_testing is False:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
     # Logs on all ranks.
