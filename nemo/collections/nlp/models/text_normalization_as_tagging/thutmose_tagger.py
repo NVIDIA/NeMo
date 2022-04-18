@@ -13,24 +13,28 @@
 # limitations under the License.
 
 from time import perf_counter
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.data.text_normalization_as_tagging import ThutmoseTaggerDataset, ThutmoseTaggerTestDataset
+from nemo.collections.nlp.data.text_normalization_as_tagging import (
+    ThutmoseTaggerDataset,
+    ThutmoseTaggerTestDataset,
+    bert_example,
+    tagging,
+)
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map, read_semiotic_classes
-from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
-from nemo.collections.nlp.data.text_normalization_as_tagging import bert_example, tagging
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 
 __all__ = ['ThutmoseTaggerModel']
 
@@ -116,20 +120,14 @@ class ThutmoseTaggerModel(NLPModel):
         Lightning calls this inside the training loop with the data from the training dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, segment_ids, labels_mask, labels, _ = batch
-        tag_logits = self.forward(input_ids=input_ids,
-                                  input_mask=input_mask,
-                                  segment_ids=segment_ids)
 
+        input_ids, input_mask, segment_ids, labels_mask, labels, _ = batch
+        tag_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
         loss = self.loss_fn(logits=tag_logits, labels=labels, loss_mask=labels_mask)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
-        return {
-            'loss': loss,
-            'lr': lr
-        }
-
+        return {'loss': loss, 'lr': lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
@@ -138,9 +136,7 @@ class ThutmoseTaggerModel(NLPModel):
         passed in as `batch`.
         """
         input_ids, input_mask, segment_ids, labels_mask, batch_labels, semiotic_classes = batch
-        tag_logits = self.forward(input_ids=input_ids,
-                                  input_mask=input_mask,
-                                  segment_ids=segment_ids)
+        tag_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
         tag_preds = torch.argmax(tag_logits, dim=2)
         # Update classification_report
         predictions, labels = tag_preds.tolist(), batch_labels.tolist()
@@ -159,7 +155,7 @@ class ThutmoseTaggerModel(NLPModel):
                     semiotic_predictions.append(cid)
                 else:
                     semiotic_predictions.append(self.classification_report.num_classes - 1)  # this stands for WRONG
-            assert (len(semiotic_labels) == len(semiotic_predictions))
+            assert len(semiotic_labels) == len(semiotic_predictions)
             self.classification_report(
                 torch.tensor(semiotic_predictions).to(self.device), torch.tensor(semiotic_labels).to(self.device)
             )
@@ -169,22 +165,24 @@ class ThutmoseTaggerModel(NLPModel):
             for cid, start, end in semiotic:
                 if cid == -1:
                     break
-                if len(set(label[start:end])) == 1:   # this is a trick to determine if label consists of a single replacement - it will be repeated for each input subtoken)
+                # this is a trick to determine if label consists of a single replacement
+                # - it will be repeated for each input subtoken
+                if len(set(label[start:end])) == 1:
                     continue
                 multiword_semiotic_labels.append(cid)
                 if prediction[start:end] == label[start:end]:
                     multiword_semiotic_predictions.append(cid)
                 else:
-                    multiword_semiotic_predictions.append(self.classification_report.num_classes - 1)  # this stands for WRONG
-            assert (len(multiword_semiotic_labels) == len(multiword_semiotic_predictions))
+                    # this stands for WRONG
+                    multiword_semiotic_predictions.append(self.classification_report.num_classes - 1)
+            assert len(multiword_semiotic_labels) == len(multiword_semiotic_predictions)
             self.multiword_classification_report(
-                torch.tensor(multiword_semiotic_predictions).to(self.device), torch.tensor(multiword_semiotic_labels).to(self.device)
+                torch.tensor(multiword_semiotic_predictions).to(self.device),
+                torch.tensor(multiword_semiotic_labels).to(self.device),
             )
 
         val_loss = self.loss_fn(logits=tag_logits, labels=batch_labels, loss_mask=labels_mask)
-        return {
-            'val_loss': val_loss
-        }
+        return {'val_loss': val_loss}
 
     def validation_epoch_end(self, outputs):
         """
@@ -208,7 +206,6 @@ class ThutmoseTaggerModel(NLPModel):
 
         self.classification_report.reset()
         self.multiword_classification_report.reset()
-
 
     def test_step(self, batch, batch_idx):
         """
@@ -247,18 +244,19 @@ class ThutmoseTaggerModel(NLPModel):
         batch = next(iter(infer_datalayer))
         input_ids, input_mask, segment_ids = batch
 
-        tag_logits = self.forward(input_ids=input_ids.to(self.device),
-                                  input_mask=input_mask.to(self.device),
-                                  segment_ids=segment_ids.to(self.device))
+        tag_logits = self.forward(
+            input_ids=input_ids.to(self.device),
+            input_mask=input_mask.to(self.device),
+            segment_ids=segment_ids.to(self.device),
+        )
 
         all_preds = []
         for i, sent in enumerate(sents):
-            example = self.builder.build_bert_example(
-                source=sent, infer=True
-            )
+            example = self.builder.build_bert_example(source=sent, infer=True)
             tag_preds = tensor2list(torch.argmax(tag_logits[i], dim=-1))
             example.features['labels'] = tag_preds
-            example.features['labels_mask'] = [0] + [1] * (len(tag_preds) - 2) + [0]  # this mask is required by get_token_labels
+            # this mask is required by get_token_labels
+            example.features['labels_mask'] = [0] + [1] * (len(tag_preds) - 2) + [0]
             labels = [self.id_2_tag[label_id] for label_id in example.get_token_labels()]
             prediction, inp_str, tag_str, tag_with_swap_str = example.editing_task.realize_output(labels)
             all_preds.append(prediction + "\t" + inp_str + "\t" + tag_str + "\t" + tag_with_swap_str)
@@ -297,10 +295,7 @@ class ThutmoseTaggerModel(NLPModel):
         start_time = perf_counter()
         logging.info(f'Creating {data_split} dataset')
         input_file = cfg.data_path
-        dataset = ThutmoseTaggerDataset(
-            input_file=input_file,
-            example_builder=self.builder
-        )
+        dataset = ThutmoseTaggerDataset(input_file=input_file, example_builder=self.builder)
         dl = torch.utils.data.DataLoader(
             dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=dataset.collate_fn
         )
@@ -328,7 +323,6 @@ class ThutmoseTaggerModel(NLPModel):
             drop_last=False,
             collate_fn=dataset.collate_fn,
         )
-
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

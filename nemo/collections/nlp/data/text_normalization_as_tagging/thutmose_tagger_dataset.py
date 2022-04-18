@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import numpy as np
-from nemo.core.classes.dataset import Dataset
-from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder, read_input_file
 from typing import List
 
+import numpy as np
+
+from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder, read_input_file
+from nemo.core.classes.dataset import Dataset
 
 __all__ = ['ThutmoseTaggerDataset', 'ThutmoseTaggerTestDataset']
 
@@ -56,13 +56,12 @@ class ThutmoseTaggerTestDataset(Dataset):
         sents: list of strings
         example_builder: instance of BertExampleBuilder
     """
+
     def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:
         self.examples = []
         for source in sents:
-            example = example_builder.build_bert_example(
-                source, infer=True
-            )
-            assert(example is not None), "cannot build example from: " + source
+            example = example_builder.build_bert_example(source, infer=True)
+            assert example is not None, "cannot build example from: " + source
             self.examples.append(example)
 
     def __len__(self):

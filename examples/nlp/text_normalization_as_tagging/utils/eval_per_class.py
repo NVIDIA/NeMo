@@ -24,9 +24,9 @@ USAGE Example:
 
 """
 
+from argparse import ArgumentParser
 from collections import Counter
 
-from argparse import ArgumentParser
 
 parser = ArgumentParser(description='Compare inference output with multi-reference, print report per class')
 parser.add_argument('--inference_file', type=str, required=True, help='Path to inference file 1')
@@ -47,7 +47,7 @@ if __name__ == '__main__':
     lines_infer = f_infer.readlines()
     f_ref.close()
     f_infer.close()
-    assert(len(lines_ref) == len(lines_infer)), "number of lines doesn't match"
+    assert len(lines_ref) == len(lines_infer), "number of lines doesn't match"
     for i in range(len(lines_infer)):
         _, inp_str, _, tag_with_swap_str = lines_infer[i].strip().split("\t")
         input_words = inp_str.split(" ")
@@ -63,7 +63,7 @@ if __name__ == '__main__':
                 predicted_words[k] = predicted_words[k].replace(">", "").replace("<", "")
 
         parts = lines_ref[i].strip().split("\t")
-        assert(len(parts) >= 3 and len(parts) <= 4), "bad format: " + lines_ref[i]
+        assert len(parts) >= 3 and len(parts) <= 4, "bad format: " + lines_ref[i]
         if len(parts) == 4:  # there are non-trivial semiotic spans
             spans = parts[3].split(";")
             for span in spans:
@@ -71,7 +71,7 @@ if __name__ == '__main__':
                 try:
                     sem, begin, end = span_parts[0].split(" ")
                 except Exception:
-                    print("error: ",  lines_ref[i])
+                    print("error: ", lines_ref[i])
                     continue
                 begin = int(begin)
                 end = int(end)
@@ -88,9 +88,15 @@ if __name__ == '__main__':
                         break
                 if not ok:
                     out_sem = open(args.output_file + "." + sem, "a", encoding="utf-8")
-                    out_sem.write("error: pred=" + " ".join(predicted_words[begin:end])
-                                  + "; inp=" + input_span
-                                  + "; ref=" + span + "\n")
+                    out_sem.write(
+                        "error: pred="
+                        + " ".join(predicted_words[begin:end])
+                        + "; inp="
+                        + input_span
+                        + "; ref="
+                        + span
+                        + "\n"
+                    )
                     out_sem.write("\tinput=" + " ".join(input_words) + "\n")
                     out_sem.write("\ttags=" + " ".join(predicted_tags) + "\n")
                     out_sem.write("\tpred=" + " ".join(predicted_words) + "\n")
@@ -99,10 +105,16 @@ if __name__ == '__main__':
 
     f_out.write("class\ttotal\tcorrect\terrors\taccuracy\n")
     for sem in total_count:
-        f_out.write(sem + "\t"
-                    + str(total_count[sem]) + "\t"
-                    + str(correct_count[sem]) + "\t"
-                    + str(total_count[sem] - correct_count[sem]) + "\t"
-                    + str(correct_count[sem] / total_count[sem]) + "\n")
-
+        f_out.write(
+            sem
+            + "\t"
+            + str(total_count[sem])
+            + "\t"
+            + str(correct_count[sem])
+            + "\t"
+            + str(total_count[sem] - correct_count[sem])
+            + "\t"
+            + str(correct_count[sem] / total_count[sem])
+            + "\n"
+        )
     f_out.close()

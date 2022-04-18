@@ -21,19 +21,27 @@ import glob
 import os
 from argparse import ArgumentParser
 from collections import Counter
+from typing import Dict, Optional, TextIO, Tuple
+
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import get_src_and_dst_for_alignment
 from nemo.utils import logging
-from typing import TextIO, Dict, Tuple, Optional
 
 parser = ArgumentParser(description="Produce data for the ThutmoseTaggerModel")
-parser.add_argument("--mode", required=True, type=str,
-                    help='Mode, one of ["get_replacement_vocab", "filter_by_vocab", "get_labeled_corpus"]')
-parser.add_argument("--data_dir", required=True, type=str,
-                    help='Path to data directory with files like output-00000-of-00100.tsv')
-parser.add_argument("--giza_dir", required=True, type=str,
-                    help='Path to directory with class folders like ordinal, date etc')
-parser.add_argument("--alignment_filename", required=True, type=str,
-                    help='Name of alignment file, like "itn.out", "itn.out.vocab2000"')
+parser.add_argument(
+    "--mode",
+    required=True,
+    type=str,
+    help='Mode, one of ["get_replacement_vocab", "filter_by_vocab", "get_labeled_corpus"]',
+)
+parser.add_argument(
+    "--data_dir", required=True, type=str, help='Path to data directory with files like output-00000-of-00100.tsv'
+)
+parser.add_argument(
+    "--giza_dir", required=True, type=str, help='Path to directory with class folders like ordinal, date etc'
+)
+parser.add_argument(
+    "--alignment_filename", required=True, type=str, help='Name of alignment file, like "itn.out", "itn.out.vocab2000"'
+)
 parser.add_argument("--out_filename", required=True, type=str, help='Output file')
 parser.add_argument("--vocab_filename", required=True, type=str, help='Vocab name')
 parser.add_argument("--lang", required=True, type=str, help="Language")
@@ -62,16 +70,18 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
                     words.append(written.casefold())
                     tags.append("<SELF>")
                     continue
-                src, dst, same_begin, same_end = get_src_and_dst_for_alignment(cls.casefold(), written, spoken,
-                                                                               args.lang)
+                src, dst, same_begin, same_end = get_src_and_dst_for_alignment(
+                    cls.casefold(), written, spoken, args.lang
+                )
                 same_from_begin = [] if same_begin == "" else same_begin.split(" ")
                 same_from_end = [] if same_end == "" else same_end.split(" ")
                 key = cls.casefold() + "\t" + src + "\t" + dst
                 if key in keys2replacements:
                     replacements = keys2replacements[key].split(" ")
                     spoken_words = dst.split(" ")
-                    for w, r in zip(same_from_begin + spoken_words + same_from_end,
-                                    same_from_begin + replacements + same_from_end):
+                    for w, r in zip(
+                        same_from_begin + spoken_words + same_from_end, same_from_begin + replacements + same_from_end
+                    ):
                         words.append(w)
                         if cls == "LETTERS" or cls == "PLAIN":
                             if w == r:
@@ -82,11 +92,13 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
                             tags.append("<SELF>")
                         else:
                             tags.append(r)
-                    semiotic_info.append(cls + " " + str(len(words)
-                                                         - len(spoken_words)
-                                                         - len(same_from_begin)
-                                                         - len(same_from_end))
-                                         + " " + str(len(words)))
+                    semiotic_info.append(
+                        cls
+                        + " "
+                        + str(len(words) - len(spoken_words) - len(same_from_begin) - len(same_from_end))
+                        + " "
+                        + str(len(words))
+                    )
                 else:
                     sent_is_ok = False
 
@@ -108,7 +120,7 @@ def process_file_tn(inputname: str, out: TextIO, keys2replacements: Dict[str, st
             else:
                 cls, written, spoken = line.strip().split("\t")
                 if spoken == "sil":
-                    if " " in written:     # this means there is an error in corpus, will lead to token number mismatch
+                    if " " in written:  # this means there is an error in corpus, will lead to token number mismatch
                         sent_is_ok = False
                     else:
                         words.append(written.casefold())
@@ -118,16 +130,18 @@ def process_file_tn(inputname: str, out: TextIO, keys2replacements: Dict[str, st
                     words.append(written.casefold())
                     tags.append("<SELF>")
                     continue
-                src, dst, same_begin, same_end = get_src_and_dst_for_alignment(cls.casefold(),
-                                                                               written, spoken, args.lang)
+                src, dst, same_begin, same_end = get_src_and_dst_for_alignment(
+                    cls.casefold(), written, spoken, args.lang
+                )
                 same_from_begin = [] if same_begin == "" else same_begin.split(" ")
                 same_from_end = [] if same_end == "" else same_end.split(" ")
                 key = cls.casefold() + "\t" + src + "\t" + dst
                 if key in keys2replacements:
                     replacements = keys2replacements[key].split(" ")
                     spoken_words = dst.split(" ")
-                    for w, r in zip(same_from_begin + replacements + same_from_end,
-                                    same_from_begin + spoken_words + same_from_end):
+                    for w, r in zip(
+                        same_from_begin + replacements + same_from_end, same_from_begin + spoken_words + same_from_end
+                    ):
                         words.append(w)
                         if cls == "LETTERS" or cls == "PLAIN":
                             if w == r:
@@ -138,11 +152,13 @@ def process_file_tn(inputname: str, out: TextIO, keys2replacements: Dict[str, st
                             tags.append("<SELF>")
                         else:
                             tags.append(r)
-                    semiotic_info.append(cls + " " + str(len(words)
-                                                         - len(replacements)
-                                                         - len(same_from_begin)
-                                                         - len(same_from_end))
-                                         + " " + str(len(words)))
+                    semiotic_info.append(
+                        cls
+                        + " "
+                        + str(len(words) - len(replacements) - len(same_from_begin) - len(same_from_end))
+                        + " "
+                        + str(len(words))
+                    )
                 else:
                     sent_is_ok = False
 
@@ -168,7 +184,7 @@ def get_replacement_vocab(tn: bool = False) -> None:
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     for fn in alignment_files:
         fn_parts = fn.split("/")
-        assert (len(fn_parts) >= 2)
+        assert len(fn_parts) >= 2
         semiotic_class = fn_parts[-2]
         class_vocab = Counter()
         with open(fn, "r", encoding="utf-8") as f:
@@ -179,7 +195,7 @@ def get_replacement_vocab(tn: bool = False) -> None:
                 src, dst, replacement, freq = t
                 inputs = src.split(" ")
                 replacements = replacement.split(" ")
-                assert (len(inputs) == len(replacements)), "mismatch in: " + line
+                assert len(inputs) == len(replacements), "mismatch in: " + line
                 for inp, rep in zip(inputs, replacements):
                     if inp == rep:  # skip same words
                         continue
@@ -210,7 +226,7 @@ def filter_by_vocab(tn: bool = False) -> None:
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     for fn in alignment_files:
         fn_parts = fn.split("/")
-        assert (len(fn_parts) >= 2)
+        assert len(fn_parts) >= 2
         semiotic_class = fn_parts[-2]
         out = open(args.giza_dir + "/" + semiotic_class + "/" + args.out_filename, "w", encoding="utf8")
         with open(fn, "r", encoding="utf-8") as f:
@@ -273,7 +289,7 @@ def main() -> None:
     elif args.mode == "get_labeled_corpus_tn":
         get_labeled_corpus(tn=True)
     else:
-        assert(False), "unknown mode"
+        assert False, "unknown mode"
 
 
 if __name__ == "__main__":

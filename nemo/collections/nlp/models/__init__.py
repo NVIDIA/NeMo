@@ -18,7 +18,6 @@ from nemo.collections.nlp.models.duplex_text_normalization import (
     DuplexTaggerModel,
     DuplexTextNormalizationModel,
 )
-from nemo.collections.nlp.models.text_normalization_as_tagging import ThutmoseTaggerModel
 from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel
 from nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model import GLUEModel
 from nemo.collections.nlp.models.information_retrieval import BertDPRModel, BertJointIRModel
@@ -32,5 +31,6 @@ from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text2sparql.text2sparql_model import Text2SparqlModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
+from nemo.collections.nlp.models.text_normalization_as_tagging import ThutmoseTaggerModel
 from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, TokenClassificationModel
 from nemo.collections.nlp.models.zero_shot_intent_recognition import ZeroShotIntentModel

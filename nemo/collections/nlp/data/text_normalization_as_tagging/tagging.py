@@ -37,8 +37,10 @@ https://github.com/google-research/lasertagger/blob/master/tagging.py
 
 import re
 from enum import Enum
+from typing import List, Tuple
+
 import nemo.collections.nlp.data.text_normalization_as_tagging.utils as utils
-from typing import Tuple, List
+
 
 """Classes representing a tag and a text editing task.
 
@@ -49,16 +51,16 @@ output text given the predicted tags.
 
 
 class SwapType(Enum):
-    """type of swap"""
+    """Type of swap"""
 
-    LONG_LEFT = 1   # token should be moved to the leftmost position of the whole semiotic span
-    LONG_RIGHT = 2   # token should be moved to the rightmost position of the whole semiotic span
+    LONG_LEFT = 1  # token should be moved to the leftmost position of the whole semiotic span
+    LONG_RIGHT = 2  # token should be moved to the rightmost position of the whole semiotic span
     SHORT_LEFT = 3  # token should be swapped with the left adjacent token
     SHORT_RIGHT = 4  # token should be swapped with the right adjacent token
 
 
 class Token:
-    """class for the output token"""
+    """Class for the output token"""
 
     def __init__(self, inp: str, tag: str, out: str) -> None:
         self.inp = inp
@@ -115,7 +117,7 @@ class Tag(object):
         """
         if '|' in tag:
             pos_pipe = tag.index('|')
-            tag_type, added_phrase = tag[:pos_pipe], tag[pos_pipe + 1:]
+            tag_type, added_phrase = tag[:pos_pipe], tag[pos_pipe + 1 :]
         else:
             tag_type, added_phrase = tag, ''
         try:
@@ -187,15 +189,14 @@ class EditingTask(object):
         last_self_token_id = -1
         for i in range(len(sequence)):
             if sequence[i].swap == SwapType.SHORT_LEFT or sequence[i - 1].swap == SwapType.SHORT_RIGHT:
-                out_tokens_with_swap[i - 1], out_tokens_with_swap[i] = out_tokens_with_swap[i],\
-                                                                       out_tokens_with_swap[i - 1]
+                out_tokens_with_swap[i - 1], out_tokens_with_swap[i] = (
+                    out_tokens_with_swap[i],
+                    out_tokens_with_swap[i - 1],
+                )
                 out_tags_with_swap[i - 1], out_tags_with_swap[i] = out_tags_with_swap[i], out_tags_with_swap[i - 1]
             if sequence[i].tag == "<SELF>":
                 last_self_token_id = i
-            if sequence[i].swap == SwapType.LONG_LEFT \
-                and last_self_token_id > -1 \
-                    and i - last_self_token_id >= 2:
-
+            if sequence[i].swap == SwapType.LONG_LEFT and last_self_token_id > -1 and i - last_self_token_id >= 2:
                 token = out_tokens_with_swap.pop(i)
                 tag = out_tags_with_swap.pop(i)
                 out_tokens_with_swap.insert(last_self_token_id + 1, token)
@@ -212,10 +213,12 @@ class EditingTask(object):
             else:
                 output_tokens.append(frag.strip().replace("_", ""))
 
-        return " ".join(output_tokens),\
-               " ".join(self.source_tokens),\
-               " ".join(out_tags_without_swap),\
-               output_tags_with_swap_str
+        return (
+            " ".join(output_tokens),
+            " ".join(self.source_tokens),
+            " ".join(out_tags_without_swap),
+            output_tags_with_swap_str,
+        )
 
 
 class TaggingConverterTrivial(object):
@@ -235,7 +238,9 @@ class TaggingConverterTrivial(object):
             List of tagging.Tag objects.
         """
         target_tokens = target.split(" ")
-        assert len(target_tokens) == len(task.source_tokens), "len mismatch: " + str(task.source_tokens) + "\n" + target
+        assert len(target_tokens) == len(task.source_tokens), (
+            "len mismatch: " + str(task.source_tokens) + "\n" + target
+        )
         tags = []
         for t in target_tokens:
             if t == "<SELF>":

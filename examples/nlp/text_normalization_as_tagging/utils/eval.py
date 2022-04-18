@@ -24,14 +24,19 @@ USAGE Example:
 
 """
 import re
+from argparse import ArgumentParser
+
 from nemo.collections.asr.metrics.wer import word_error_rate
 
-from argparse import ArgumentParser
 
 parser = ArgumentParser(description='Compare inference output with multi-reference')
 parser.add_argument('--inference_file', type=str, required=True, help='Path to inference file')
-parser.add_argument('--print_other_errors', type=bool, required=True,
-                    help='Whether to print other errors, if false only digit errors will be printed')
+parser.add_argument(
+    '--print_other_errors',
+    type=bool,
+    required=True,
+    help='Whether to print other errors, if false only digit errors will be printed',
+)
 parser.add_argument('--reference_file', type=str, required=True, help='Path to reference file')
 parser.add_argument('--output_file', type=str, required=True, help='Path to output file')
 args = parser.parse_args()
@@ -39,13 +44,13 @@ args = parser.parse_args()
 # Main code
 if __name__ == '__main__':
     inputs = []
-    references = []   # list(size=len(inputs)) of lists
+    references = []  # list(size=len(inputs)) of lists
     skip_ids = set()  # sentences ids to be skipped during evaluation
     with open(args.reference_file, "r", encoding="utf-8") as f:
         for line in f:
             multi_references = []
             parts = line.strip().split("\t")
-            assert(len(parts) >= 3 and len(parts) <= 4), "bad format: " + line
+            assert len(parts) >= 3 and len(parts) <= 4, "bad format: " + line
             words = parts[0].split()
             inputs.append(words)
             if len(parts) == 4:  # there are non-trivial semiotic spans
@@ -60,7 +65,7 @@ if __name__ == '__main__':
                     try:
                         sem, begin, end = span_parts[0].split(" ")
                     except Exception:
-                        print("error: ",  line)
+                        print("error: ", line)
                         continue
                     begin = int(begin)
                     end = int(end)
@@ -70,14 +75,17 @@ if __name__ == '__main__':
                             break
                         for tr_variant in span_parts[1:]:
                             multi_references_updated.append(
-                                ref + " "
+                                ref
+                                + " "
                                 + " ".join(inputs[-1][input_position:begin])  # copy needed words from input
-                                + " " + tr_variant)
+                                + " "
+                                + tr_variant
+                            )
                     multi_references = multi_references_updated[:]  # copy
                     multi_references_updated = []
                     input_position = end
                 for i in range(len(multi_references)):  # copy needed words from the input end
-                    multi_references[i] += " " + " ".join(inputs[-1][input_position:len(inputs[-1])])
+                    multi_references[i] += " " + " ".join(inputs[-1][input_position : len(inputs[-1])])
             # the last reference added is the actual one
             multi_references.append(parts[2])
             references.append(multi_references)
@@ -92,7 +100,7 @@ if __name__ == '__main__':
                 predictions.append(parts[0].casefold())
                 predicted_tags.append([])
                 continue
-            assert (len(parts) == 4), "bad format: " + line
+            assert len(parts) == 4, "bad format: " + line
             prediction, inp_str, tag_str, tags_with_swap_str = parts
             predictions.append(prediction.casefold())
             tags = tag_str.split(" ")
@@ -101,7 +109,7 @@ if __name__ == '__main__':
     sentences_with_errors_on_digits = 0
     correct_sentences_disregarding_space = 0
 
-    assert(len(inputs) == len(predictions) == len(references))
+    assert len(inputs) == len(predictions) == len(references)
 
     refs_for_wer = []
     preds_for_wer = []
@@ -137,12 +145,19 @@ if __name__ == '__main__':
 
     wer = word_error_rate(refs_for_wer, preds_for_wer)
     print("wer=", wer)
-    print("correct: ", correct_sentences_disregarding_space/(len(inputs) - len(skip_ids)),
-          correct_sentences_disregarding_space)
-    print("digit errors: ", sentences_with_errors_on_digits/(len(inputs) - len(skip_ids)),
-          sentences_with_errors_on_digits)
-    print("other errors: ", (len(inputs)
-                             - len(skip_ids)
-                             - correct_sentences_disregarding_space
-                             - sentences_with_errors_on_digits)/(len(inputs) - len(skip_ids)),
-          len(inputs) - len(skip_ids) - correct_sentences_disregarding_space - sentences_with_errors_on_digits)
+    print(
+        "correct: ",
+        correct_sentences_disregarding_space / (len(inputs) - len(skip_ids)),
+        correct_sentences_disregarding_space,
+    )
+    print(
+        "digit errors: ",
+        sentences_with_errors_on_digits / (len(inputs) - len(skip_ids)),
+        sentences_with_errors_on_digits,
+    )
+    print(
+        "other errors: ",
+        (len(inputs) - len(skip_ids) - correct_sentences_disregarding_space - sentences_with_errors_on_digits)
+        / (len(inputs) - len(skip_ids)),
+        len(inputs) - len(skip_ids) - correct_sentences_disregarding_space - sentences_with_errors_on_digits,
+    )

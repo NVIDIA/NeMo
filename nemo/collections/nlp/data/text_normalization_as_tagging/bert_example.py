@@ -34,11 +34,16 @@
 This file contains code artifacts adapted from the original implementation:
 https://github.com/google-research/lasertagger/blob/master/bert_example.py
 """
+import logging
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import Tag, EditingTask, TaggingConverterTrivial
-from transformers import PreTrainedTokenizerBase
 from collections import OrderedDict
-from typing import List, Tuple, Dict, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
+
+from transformers import PreTrainedTokenizerBase
+
+from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import EditingTask, Tag, TaggingConverterTrivial
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import yield_sources_and_targets
+
 
 """Build BERT Examples from source, target pairs.
    The difference from the original Lasertagger approach is that our target already consists of tags,
@@ -97,7 +102,7 @@ class BertExample(object):
                 ('segment_ids', segment_ids),
                 ('labels', labels),
                 ('labels_mask', labels_mask),
-                ('semiotic_classes', semiotic_classes)
+                ('semiotic_classes', semiotic_classes),
             ]
         )
         self._token_start_indices = token_start_indices
@@ -115,7 +120,8 @@ class BertExample(object):
         """
         pad_len = max_seq_length - len(self.features['input_ids'])
         self.features["semiotic_classes"].extend(
-            [(-1, -1, -1)] * (max_semiotic_length - len(self.features['semiotic_classes'])))
+            [(-1, -1, -1)] * (max_semiotic_length - len(self.features['semiotic_classes']))
+        )
         for key in self.features:
             if key == "semiotic_classes":
                 continue
@@ -142,13 +148,14 @@ class BertExample(object):
 class BertExampleBuilder(object):
     """Builder class for BertExample objects."""
 
-    def __init__(self,
-                 label_map: Dict[str, int],
-                 semiotic_classes: Dict[str, int],
-                 tokenizer: PreTrainedTokenizerBase,
-                 max_seq_length: int,
-                 converter: TaggingConverterTrivial
-                 ) -> None:
+    def __init__(
+        self,
+        label_map: Dict[str, int],
+        semiotic_classes: Dict[str, int],
+        tokenizer: PreTrainedTokenizerBase,
+        max_seq_length: int,
+        converter: TaggingConverterTrivial,
+    ) -> None:
         """Initializes an instance of BertExampleBuilder.
 
         Args:
@@ -168,11 +175,7 @@ class BertExampleBuilder(object):
         self._keep_tag_id = self._label_map['KEEP']
 
     def build_bert_example(
-        self,
-        source: str,
-        target: Optional[str] = None,
-        semiotic_info: Optional[str] = None,
-        infer: bool = False,
+        self, source: str, target: Optional[str] = None, semiotic_info: Optional[str] = None, infer: bool = False
     ) -> Optional[BertExample]:
         """Constructs a BERT Example.
 
@@ -214,21 +217,24 @@ class BertExampleBuilder(object):
             # translate class name to its id, translate coords from tokens to wordpieces
             semiotic_info_parts = semiotic_info.split(";")
             previous_end = 0
-            assert("PLAIN" in self._semiotic_classes)
+            assert "PLAIN" in self._semiotic_classes
             plain_cid = self._semiotic_classes["PLAIN"]
             for p in semiotic_info_parts:
                 if p == "":
                     break
                 c, start, end = p.split(" ")
-                assert(c in self._semiotic_classes)
+                assert c in self._semiotic_classes
                 cid = self._semiotic_classes[c]
                 start = int(start)
                 end = int(end)
-                assert(start < len(token_start_indices))
+                assert start < len(token_start_indices)
                 while previous_end < start:
                     subtoken_start = token_start_indices[previous_end]
-                    subtoken_end = token_start_indices[previous_end + 1] \
-                        if previous_end + 1 < len(token_start_indices) else len(tokens)
+                    subtoken_end = (
+                        token_start_indices[previous_end + 1]
+                        if previous_end + 1 < len(token_start_indices)
+                        else len(tokens)
+                    )
                     semiotic_classes.append((plain_cid, subtoken_start, subtoken_end))
                     previous_end += 1
                 subtoken_start = token_start_indices[start]
@@ -237,8 +243,11 @@ class BertExampleBuilder(object):
                 previous_end = end
             while previous_end < len(token_start_indices):
                 subtoken_start = token_start_indices[previous_end]
-                subtoken_end = token_start_indices[previous_end + 1] \
-                    if previous_end + 1 < len(token_start_indices) else len(tokens)
+                subtoken_end = (
+                    token_start_indices[previous_end + 1]
+                    if previous_end + 1 < len(token_start_indices)
+                    else len(tokens)
+                )
                 semiotic_classes.append((plain_cid, subtoken_start, subtoken_end))
                 previous_end += 1
         if len(input_ids) > self._max_seq_length or len(semiotic_classes) > self._max_semiotic_length:
@@ -294,9 +303,7 @@ class BertExampleBuilder(object):
 
 
 def read_input_file(
-    example_builder: 'BertExampleBuilder',
-    input_filename: str,
-    infer: bool = False
+    example_builder: 'BertExampleBuilder', input_filename: str, infer: bool = False
 ) -> List['BertExample']:
     """Reads in Tab Separated Value file and converts to training/inference-ready examples.
 
@@ -313,9 +320,7 @@ def read_input_file(
     for i, (source, target, semiotic_info) in enumerate(yield_sources_and_targets(input_filename)):
         if len(examples) % 1000 == 0:
             logging.info("{} examples processed.".format(len(examples)))
-        example = example_builder.build_bert_example(
-            source, target, semiotic_info, infer
-        )
+        example = example_builder.build_bert_example(source, target, semiotic_info, infer)
         if example is None:
             continue
         examples.append(example)

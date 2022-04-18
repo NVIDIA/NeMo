@@ -145,7 +145,7 @@ def input_preprocessing(sent: str, lang: str):
         # Greek letters processing
         for jx, tok in enumerate(sent):
             if tok in constants.EN_GREEK_TO_SPOKEN:
-                sent = sent[:jx] + constants.EN_GREEK_TO_SPOKEN[tok] + sent[jx + 1:]
+                sent = sent[:jx] + constants.EN_GREEK_TO_SPOKEN[tok] + sent[jx + 1 :]
 
     sent = convert_superscript(sent)
     sent = convert_fraction(sent)
@@ -230,9 +230,9 @@ def post_process_punct(input: str, normalized_text: str):
                     """Check if previous or next word match (for cases when punctuation marks are part of
                     semiotic token, i.e. some punctuation can be missing in the normalized text)"""
                     return (idx_out > 0 and idx_in > 0 and normalized_text[idx_out - 1] == input[idx_in - 1]) or (
-                            idx_out < len(normalized_text) - 1
-                            and idx_in < len(input) - 1
-                            and normalized_text[idx_out + 1] == input[idx_in + 1]
+                        idx_out < len(normalized_text) - 1
+                        and idx_in < len(input) - 1
+                        and normalized_text[idx_out + 1] == input[idx_in + 1]
                     )
 
                 if not equal and not _is_valid(idx_out, idx_in, normalized_text, input):

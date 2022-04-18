@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import os
+from typing import Tuple
 
 import pytorch_lightning as pl
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.models import ThutmoseTaggerModel
 from nemo.utils import logging
-from typing import Tuple
 
 __all__ = ['ITN_MODEL', 'MODEL_NAMES', 'instantiate_model_and_trainer']
 
@@ -27,8 +27,9 @@ ITN_MODEL = 'itn'
 MODEL_NAMES = [ITN_MODEL]
 
 
-def instantiate_model_and_trainer(cfg: DictConfig, model_name: str, do_training: bool) \
-        -> Tuple[pl.Trainer, ThutmoseTaggerModel]:
+def instantiate_model_and_trainer(
+    cfg: DictConfig, model_name: str, do_training: bool
+) -> Tuple[pl.Trainer, ThutmoseTaggerModel]:
     """ Function for instantiating a model and a trainer
     Args:
         cfg: The config used to instantiate the model and the trainer.

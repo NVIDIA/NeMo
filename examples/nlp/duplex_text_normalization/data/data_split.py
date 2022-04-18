@@ -92,7 +92,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--lang', type=str, default=constants.ENGLISH, choices=constants.SUPPORTED_LANGS, help='Language'
     )
-    parser.add_argument('--add_test_full', type=bool, default=False, help='If True, additional folder test_full will be created without truncation of files')
+    parser.add_argument(
+        '--add_test_full',
+        type=bool,
+        default=False,
+        help='If True, additional folder test_full will be created without truncation of files',
+    )
     args = parser.parse_args()
 
     # Create the output dir (if not exist)
@@ -146,4 +151,3 @@ if __name__ == '__main__':
                 output_f.write('<eos>\t<eos>\n')
 
             print(f'{cur_split}_sentences: {len(data)}')
-

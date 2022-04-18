@@ -17,32 +17,36 @@ This script can be used after GIZA++ alignment to extract final alignments for e
 """
 
 import re
-import numpy as np
 from argparse import ArgumentParser
 from typing import List, Tuple
+
+import numpy as np
 
 parser = ArgumentParser(description='Extract final alignments from GIZA++ alignments')
 parser.add_argument('--mode', type=str, required=True, help='tn or itn')
 parser.add_argument('--giza_dir', type=str, required=True, help='Path to folder with GIZA++ alignment')
-parser.add_argument('--giza_suffix', type=str, required=True,
-                    help='suffix of alignment files, e.g. \"Ahmm.5\", \"A3.final\" ')
+parser.add_argument(
+    '--giza_suffix', type=str, required=True, help='suffix of alignment files, e.g. \"Ahmm.5\", \"A3.final\"'
+)
 parser.add_argument('--out_filename', type=str, required=True, help='Output file')
 parser.add_argument('--lang', type=str, required=True, help="Language")
 args = parser.parse_args()
 
 
-def fill_alignment_matrix(fline2: str, fline3: str, gline2: str, gline3: str) \
-        -> Tuple[np.ndarray, List[str], List[str]]:
-    assert (fline2 is not None and gline2 is not None), "empty params"
-    assert (fline3 is not None and gline3 is not None), "empty params"
+def fill_alignment_matrix(
+    fline2: str, fline3: str, gline2: str, gline3: str
+) -> Tuple[np.ndarray, List[str], List[str]]:
+    assert fline2 is not None and gline2 is not None, "empty params"
+    assert fline3 is not None and gline3 is not None, "empty params"
     srctokens = gline2.split()
     dsttokens = fline2.split()
     pattern = r"([^ ]+) \(\{ ([^\(\{\}\)]*) \}\)"
     src2dst = re.findall(pattern, fline3.replace("({ })", "({  })"))
     dst2src = re.findall(pattern, gline3.replace("({ })", "({  })"))
-    assert (len(src2dst) == len(srctokens) + 1), "len(src2dst)=" + str(len(src2dst)) + "; len(srctokens)" + \
-                                                 str(len(srctokens)) + "\n" + gline2 + "\n" + fline3
-    assert (len(dst2src) == len(dsttokens) + 1)
+    assert len(src2dst) == len(srctokens) + 1, (
+        "len(src2dst)=" + str(len(src2dst)) + "; len(srctokens)" + str(len(srctokens)) + "\n" + gline2 + "\n" + fline3
+    )
+    assert len(dst2src) == len(dsttokens) + 1
     matrix = np.zeros((len(srctokens), len(dsttokens)))
     for i in range(1, len(src2dst)):
         token, to_str = src2dst[i]
@@ -81,11 +85,11 @@ def get_targets(matrix: np.ndarray, dsttokens: List[str]) -> List[str]:
         dstlist = []
         for j in range(last_covered_dst_id + 1, len(dsttokens)):
             # matrix[i][j] == 3: safe alignment point
-            if matrix[i][j] == 3 or \
-                (j == last_covered_dst_id + 1 and
-                    np.all(matrix[i, :] == 0) and  # if the whole line does not have safe points
-                    np.all(matrix[:, j] == 0)  # and the whole column does not have safe points, match them
-                 ):
+            if matrix[i][j] == 3 or (
+                j == last_covered_dst_id + 1
+                and np.all(matrix[i, :] == 0)  # if the whole line does not have safe points
+                and np.all(matrix[:, j] == 0)  # and the whole column does not have safe points, match them
+            ):
                 if len(targets) == 0:  # if this is first safe point, attach left unaligned columns to it, if any
                     for k in range(0, j):
                         if np.all(matrix[:, k] == 0):  # if column k does not have safe points
@@ -117,11 +121,9 @@ def get_targets_from_back(matrix: np.ndarray, dsttokens: List[str]) -> List[str]
     for i in range(len(matrix) - 1, -1, -1):
         dstlist = []
         for j in range(last_covered_dst_id - 1, -1, -1):
-            if matrix[i][j] == 3 or \
-                (j == last_covered_dst_id - 1 and
-                    np.all(matrix[i, :] == 0) and
-                    np.all(matrix[:, j] == 0)
-                 ):
+            if matrix[i][j] == 3 or (
+                j == last_covered_dst_id - 1 and np.all(matrix[i, :] == 0) and np.all(matrix[:, j] == 0)
+            ):
                 if len(targets) == 0:
                     for k in range(len(dsttokens) - 1, j, -1):
                         if np.all(matrix[:, k] == 0):
@@ -171,9 +173,9 @@ def main() -> None:
         if cache_key in cache:
             out.write(cache[cache_key] + "\n")
             continue
-        assert (fline1 != "" and gline1 != ""), "files do not match"
-        assert (fline2 != "" and gline2 != ""), "files do not match"
-        assert (fline3 != "" and gline3 != ""), "files do not match"
+        assert fline1 != "" and gline1 != "", "files do not match"
+        assert fline2 != "" and gline2 != "", "files do not match"
+        assert fline3 != "" and gline3 != "", "files do not match"
         try:
             matrix, srctokens, dsttokens = fill_alignment_matrix(fline2, fline3, gline2, gline3)
         except Exception:
@@ -192,8 +194,9 @@ def main() -> None:
             if check_monotonicity(matrix):
                 targets = get_targets(matrix, dsttokens)
                 targets_from_back = get_targets_from_back(matrix, dsttokens)
-                assert (len(targets) == len(srctokens)), "len(targets)=;" + str(len(targets)) + "; len(srctokens)=" \
-                                                         + str(len(srctokens))
+                assert len(targets) == len(srctokens), (
+                    "len(targets)=;" + str(len(targets)) + "; len(srctokens)=" + str(len(srctokens))
+                )
                 leftside_align = " ".join(targets)
                 rightside_align = " ".join(targets_from_back)
 
@@ -209,8 +212,17 @@ def main() -> None:
                 rightside_align = re.sub(r"([\d]) 10 0_", r"\g<1> <DELETE> 100_", rightside_align)
                 leftside_align = re.sub(r"([\d]) 10 0_", r"\g<1> <DELETE> 100_", leftside_align)
 
-                if srctokens[0] in ["ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
-                                    "ninety"]:
+                if srctokens[0] in [
+                    "ten",
+                    "twenty",
+                    "thirty",
+                    "forty",
+                    "fifty",
+                    "sixty",
+                    "seventy",
+                    "eighty",
+                    "ninety",
+                ]:
                     #  ten thousand sixty  _1 00 60_  =>  _10 0 60_
                     rightside_align = re.sub(r"^(_\d) 00 (\d)", r"\g<1>0 0 \g<2>", rightside_align)
                     leftside_align = re.sub(r"^(_\d) 00 (\d)", r"\g<1>0 0 \g<2>", leftside_align)
@@ -227,31 +239,46 @@ def main() -> None:
                 rightside_align = re.sub(r"1 1, (\d)", r"11 , \g<1>", rightside_align)
                 leftside_align = re.sub(r"1 1, (\d)", r"11 , \g<1>", leftside_align)
 
-                if re.match(r".+надцат", srctokens[0]) \
-                        or srctokens[0] in ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-                                            "seventeen", "eighteen", "nineteen"]:
+                if re.match(r".+надцат", srctokens[0]) or srctokens[0] in [
+                    "ten",
+                    "eleven",
+                    "twelve",
+                    "thirteen",
+                    "fourteen",
+                    "fifteen",
+                    "sixteen",
+                    "seventeen",
+                    "eighteen",
+                    "nineteen",
+                ]:
                     # "_1 <DELETE> 12 14_" -> "_11 <DELETE> 2 14_"
-                    rightside_align = re.sub(r"^(_1) (<DELETE>) ([\d])([\d])", r"\g<1>\g<3> \g<2> \g<4>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"^(_1) (<DELETE>) ([\d])([\d])", r"\g<1>\g<3> \g<2> \g<4>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"^(_1) (<DELETE>) ([\d])([\d])", r"\g<1>\g<3> \g<2> \g<4>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"^(_1) (<DELETE>) ([\d])([\d])", r"\g<1>\g<3> \g<2> \g<4>", leftside_align
+                    )
 
                     # "_1 10 10_" -> "_11 0 10_"
                     rightside_align = re.sub(r"^_1 ([\d])0 ([\d] ?[\d])", r"_1\g<1> 0 \g<2>", rightside_align)
                     leftside_align = re.sub(r"^_1 ([\d])0 ([\d] ?[\d])", r"_1\g<1> 0 \g<2>", leftside_align)
 
                     # "<DELETE> <DELETE> <DELETE> _11117_" => "_11 <DELETE> 1 17_"
-                    rightside_align = re.sub(r"^<DELETE> <DELETE> <DELETE> _111(1[\d]_)", r"_11 <DELETE> 1 \g<1>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"^<DELETE> <DELETE> <DELETE> _111(1[\d]_)", r"_11 <DELETE> 1 \g<1>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"^<DELETE> <DELETE> <DELETE> _111(1[\d]_)", r"_11 <DELETE> 1 \g<1>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"^<DELETE> <DELETE> <DELETE> _111(1[\d]_)", r"_11 <DELETE> 1 \g<1>", leftside_align
+                    )
 
                 if args.giza_dir.endswith("decimal") and args.lang == "ru":
                     # "_1 <DELETE> 0, 5_" => "_10 <DELETE> , 5_"      #десять целых и пять десятых
-                    rightside_align = re.sub(r"(\d) (<DELETE>) ([0123456789])(,) ([\d])",
-                                             r"\g<1>\g<3> \g<2> \g<4> \g<5>", rightside_align)
-                    leftside_align = re.sub(r"(\d) (<DELETE>) ([0123456789])(,) ([\d])",
-                                            r"\g<1>\g<3> \g<2> \g<4> \g<5>", leftside_align)
+                    rightside_align = re.sub(
+                        r"(\d) (<DELETE>) ([0123456789])(,) ([\d])", r"\g<1>\g<3> \g<2> \g<4> \g<5>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"(\d) (<DELETE>) ([0123456789])(,) ([\d])", r"\g<1>\g<3> \g<2> \g<4> \g<5>", leftside_align
+                    )
 
                 if args.giza_dir.endswith("decimal") and args.lang == "en":
                     # "_7 0. 7_" => _70 . 7_
@@ -266,94 +293,157 @@ def main() -> None:
                 if args.giza_dir.endswith("money"):
                     #  "1 <DELETE> <DELETE> <DELETE> 00__$<<"
                     #  => "100_ _$<< <DELETE> <DELETE> <DELETE>"  # сто долларов сэ ш а
-                    rightside_align = re.sub(r"([\d]) (<DELETE>) (<DELETE>) (<DELETE>) ([0]+_)(_\$<<)",
-                                             r"\g<1>\g<5> \g<6> \g<2> \g<3> \g<4>", rightside_align)
-                    leftside_align = re.sub(r"([\d]) (<DELETE>) (<DELETE>) (<DELETE>) ([0]+_)(_\$<<)",
-                                            r"\g<1>\g<5> \g<6> \g<2> \g<3> \g<4>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) (<DELETE>) (<DELETE>) (<DELETE>) ([0]+_)(_\$<<)",
+                        r"\g<1>\g<5> \g<6> \g<2> \g<3> \g<4>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) (<DELETE>) (<DELETE>) (<DELETE>) ([0]+_)(_\$<<)",
+                        r"\g<1>\g<5> \g<6> \g<2> \g<3> \g<4>",
+                        leftside_align,
+                    )
 
                     #  "3 <DELETE> <DELETE> <DELETE> <DELETE> 00__тыс.__$<<" => "300_ _тыс._ _$<< <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"_ <DELETE> <DELETE> <DELETE> <DELETE> (00?_)(_[^\d]+_)(_\$<<)",
-                                             r"\g<1> \g<2> \g<3> <DELETE> <DELETE>", rightside_align)
+                    rightside_align = re.sub(
+                        r"_ <DELETE> <DELETE> <DELETE> <DELETE> (00?_)(_[^\d]+_)(_\$<<)",
+                        r"\g<1> \g<2> \g<3> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
 
-                    leftside_align = re.sub(r"_ <DELETE> <DELETE> <DELETE> <DELETE> (00?_)(_[^\d]+_)(_\$<<)",
-                                            r"\g<1> \g<2> \g<3> <DELETE> <DELETE>", leftside_align)
+                    leftside_align = re.sub(
+                        r"_ <DELETE> <DELETE> <DELETE> <DELETE> (00?_)(_[^\d]+_)(_\$<<)",
+                        r"\g<1> \g<2> \g<3> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     #  "_2 <DELETE> 00__тыс.__долл._" => "_2 <DELETE> 00__тыс.__долл._"
-                    rightside_align = re.sub(r"([\d])_ <DELETE> (00?_)(_[^\d]+_)(_долл\._)", r"\g<1>\g<2> \g<3> \g<4>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"([\d])_ <DELETE> (00?_)(_[^\d]+_)(_долл\._)", r"\g<1>\g<2> \g<3> \g<4>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d])_ <DELETE> (00?_)(_[^\d]+_)(_долл\._)", r"\g<1>\g<2> \g<3> \g<4>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"([\d])_ <DELETE> (00?_)(_[^\d]+_)(_долл\._)", r"\g<1>\g<2> \g<3> \g<4>", leftside_align
+                    )
 
                     # "_1 <DELETE> <DELETE> <DELETE> <DELETE> 00000$_" => "_100 000 $_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (00)(000)(\$_)",
-                                             r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>", rightside_align)
-                    leftside_align = re.sub(r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (00)(000)(\$_)",
-                                            r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (00)(000)(\$_)",
+                        r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (00)(000)(\$_)",
+                        r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     # "3_ <DELETE> <DELETE> <DELETE> _$<<" => "3_ _$<< <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"(_) (<DELETE>) (<DELETE>) (<DELETE>) (_\$<<)",
-                                             r"\g<1> \g<5> \g<2> \g<3> \g<4>", rightside_align)
-                    leftside_align = re.sub(r"(_) (<DELETE>) (<DELETE>) (<DELETE>) (_\$<<)",
-                                            r"\g<1> \g<5> \g<2> \g<3> \g<4>", leftside_align)
+                    rightside_align = re.sub(
+                        r"(_) (<DELETE>) (<DELETE>) (<DELETE>) (_\$<<)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"(_) (<DELETE>) (<DELETE>) (<DELETE>) (_\$<<)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        leftside_align,
+                    )
 
                     # "3 <DELETE> <DELETE> <DELETE> _$" => "3 $_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (\$_)",
-                                             r"\g<1> \g<5> \g<2> \g<3> \g<4>", rightside_align)
-                    leftside_align = re.sub(r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (\$_)",
-                                            r"\g<1> \g<5> \g<2> \g<3> \g<4>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (\$_)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (\$_)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        leftside_align,
+                    )
 
                     # "3 <DELETE> <DELETE> <DELETE> _usd_" => "3 _usd_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (_usd_)",
-                                             r"\g<1> \g<5> \g<2> \g<3> \g<4>", rightside_align)
-                    leftside_align = re.sub(r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (_usd_)",
-                                            r"\g<1> \g<5> \g<2> \g<3> \g<4>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (_usd_)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]_?) (<DELETE>) (<DELETE>) (<DELETE>) (_usd_)",
+                        r"\g<1> \g<5> \g<2> \g<3> \g<4>",
+                        leftside_align,
+                    )
 
                     # "_5 <DELETE> <DELETE> 00000£_" => "_500 000 £_ <DELETE>"
-                    rightside_align = re.sub(r"([\d]) <DELETE> <DELETE> (00)(000)(£_)",
-                                             r"\g<1>\g<2> \g<3> \g<4> <DELETE>", rightside_align)
-                    leftside_align = re.sub(r"([\d]) <DELETE> <DELETE> (00)(000)(£_)",
-                                            r"\g<1>\g<2> \g<3> \g<4> <DELETE>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> (00)(000)(£_)", r"\g<1>\g<2> \g<3> \g<4> <DELETE>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> (00)(000)(£_)", r"\g<1>\g<2> \g<3> \g<4> <DELETE>", leftside_align
+                    )
 
                     # "_4 <DELETE> 00000€_" => "_400 000 €_"
-                    rightside_align = re.sub(r"([\d]) <DELETE> <DELETE> (00)(000)(€_)", r"\g<1>\g<2> \g<3> \g<4>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"([\d]) <DELETE> <DELETE> (00)(000)(€_)", r"\g<1>\g<2> \g<3> \g<4>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> (00)(000)(€_)", r"\g<1>\g<2> \g<3> \g<4>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> (00)(000)(€_)", r"\g<1>\g<2> \g<3> \g<4>", leftside_align
+                    )
 
                     # "_7 <DELETE> <DELETE> <DELETE> <DELETE> 000$_" => "_7 000 $_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (000)(\$_)",
-                                             r"\g<1> \g<2> \g<3> <DELETE> <DELETE> <DELETE>", rightside_align)
-                    leftside_align = re.sub(r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (000)(\$_)",
-                                            r"\g<1> \g<2> \g<3> <DELETE> <DELETE> <DELETE>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (000)(\$_)",
+                        r"\g<1> \g<2> \g<3> <DELETE> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) <DELETE> <DELETE> <DELETE> <DELETE> (000)(\$_)",
+                        r"\g<1> \g<2> \g<3> <DELETE> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     # "_2 5 <DELETE> 000€_" => "_2 5 000 €_"
                     rightside_align = re.sub(r"([\d]) <DELETE> (000)(€_)", r"\g<1> \g<2> \g<3>", rightside_align)
                     leftside_align = re.sub(r"([\d]) <DELETE> (000)(€_)", r"\g<1> \g<2> \g<3>", leftside_align)
 
                     # "1 <DELETE> <DELETE> <DELETE> <DELETE> 5000__$<<" => "15 000_ _$<< <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"(1) <DELETE> <DELETE> <DELETE> <DELETE> ([\d])(000_)(_\$<<)",
-                                             r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>", rightside_align)
-                    leftside_align = re.sub(r"(1) <DELETE> <DELETE> <DELETE> <DELETE> ([\d])(000_)(_\$<<)",
-                                            r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>", leftside_align)
+                    rightside_align = re.sub(
+                        r"(1) <DELETE> <DELETE> <DELETE> <DELETE> ([\d])(000_)(_\$<<)",
+                        r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"(1) <DELETE> <DELETE> <DELETE> <DELETE> ([\d])(000_)(_\$<<)",
+                        r"\g<1>\g<2> \g<3> \g<4> <DELETE> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     # "_3 0000 $_" => "_30 000 $_"
                     rightside_align = re.sub(r"([\d]) 0000 ([$€£]_)", r"\g<1>0 000 \g<2>", rightside_align)
                     leftside_align = re.sub(r"([\d]) 0000 ([$€£]_)", r"\g<1>0 000 \g<2>", leftside_align)
 
                     # "_5 0 <DELETE> 0 0 0__долларов__сша_" => "_50 000 _долларов__сша_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]) 0 <DELETE> 0 0 0__долларов__сша_",
-                                             r"\g<1>0 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>", rightside_align)
-                    leftside_align = re.sub(r"([\d]) 0 <DELETE> 0 0 0__долларов__сша_",
-                                            r"\g<1>0 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>", leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) 0 <DELETE> 0 0 0__долларов__сша_",
+                        r"\g<1>0 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) 0 <DELETE> 0 0 0__долларов__сша_",
+                        r"\g<1>0 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     # "_3 0 0 0 0 0__долларов__сша_" => "_300 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>"
-                    rightside_align = re.sub(r"([\d]) 0 0 0 0 0__долларов__сша_",
-                                             r"\g<1>00 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"([\d]) 0 0 0 0 0__долларов__сша_",
-                                            r"\g<1>00 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>", leftside_align)
-
-                    ## after fix
+                    rightside_align = re.sub(
+                        r"([\d]) 0 0 0 0 0__долларов__сша_",
+                        r"\g<1>00 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>",
+                        rightside_align,
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) 0 0 0 0 0__долларов__сша_",
+                        r"\g<1>00 000_ _долларов__сша_ <DELETE> <DELETE> <DELETE>",
+                        leftside_align,
+                    )
 
                     # "_1 <DELETE> 000000__£_" => "_1000000 <DELETE> _£_"
                     rightside_align = re.sub(r"_1 <DELETE> 000000_(_£)", r"_1000000_ <DELETE> \g<1>", rightside_align)
@@ -364,21 +454,24 @@ def main() -> None:
                     leftside_align = re.sub(r"_1 <DELETE> 000_(_£)", r"_1000_ <DELETE> \g<1>", leftside_align)
 
                     # "_5 <DELETE> 000000__иен_" => "_5 000000_ _иен_"
-                    rightside_align = re.sub(r"([\d]) <DELETE> 000000_(_[^\d])", r"\g<1> 000000_ \g<2>",
-                                             rightside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> 000000_(_[^\d])", r"\g<1> 000000_ \g<2>", rightside_align
+                    )
                     leftside_align = re.sub(r"([\d]) <DELETE> 000000_(_[^\d])", r"\g<1> 000000_ \g<2>", leftside_align)
 
                     # _5_ <DELETE> _m__£<< => "_5_ _m_ _£<<"
-                    rightside_align = re.sub(r"([\d]_) <DELETE> (_[mk]_)(_[^\d])", r"\g<1> \g<2> \g<3>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"([\d]_) <DELETE> (_[mk]_)(_[^\d])", r"\g<1> \g<2> \g<3>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]_) <DELETE> (_[mk]_)(_[^\d])", r"\g<1> \g<2> \g<3>", rightside_align
+                    )
+                    leftside_align = re.sub(r"([\d]_) <DELETE> (_[mk]_)(_[^\d])", r"\g<1> \g<2> \g<3>", leftside_align)
 
                     # "_3 <DELETE> 0__m__£<<" => "_30 _m_ _£<<"
-                    rightside_align = re.sub(r"([\d]) <DELETE> 0_(_[mk]_)(_[^\d])", r"\g<1>0 \g<2> \g<3>",
-                                             rightside_align)
-                    leftside_align = re.sub(r"([\d]) <DELETE> 0_(_[mk]_)(_[^\d])", r"\g<1>0 \g<2> \g<3>",
-                                            leftside_align)
+                    rightside_align = re.sub(
+                        r"([\d]) <DELETE> 0_(_[mk]_)(_[^\d])", r"\g<1>0 \g<2> \g<3>", rightside_align
+                    )
+                    leftside_align = re.sub(
+                        r"([\d]) <DELETE> 0_(_[mk]_)(_[^\d])", r"\g<1>0 \g<2> \g<3>", leftside_align
+                    )
 
                     # "_4 00 000000__долларов__сша_" => "_400 000000_ _долларов__сша_"
                     rightside_align = re.sub(r"([\d]) 00 000000_(_[^\d])", r"\g<1>00 000000_ \g<2>", rightside_align)
@@ -406,10 +499,12 @@ def main() -> None:
 
                 #  "_3 <DELETE> 0__september_ _2 014_" => "_30_ <DELETE> _september_ _2 014_"
                 #  "_3 <DELETE> 00__тыс.__руб._" => "_300_ <DELETE> _тыс.__руб._"
-                leftside_align = re.sub(r"([\d]) <DELETE> (00?_)(_[^\d])", r"\g<1>\g<2> <DELETE> \g<3>",
-                                        leftside_align)
-                rightside_align = re.sub(r"([\d]) <DELETE> (00?_)(_[^\d])", r"\g<1>\g<2> <DELETE> \g<3>",
-                                         rightside_align)
+                leftside_align = re.sub(
+                    r"([\d]) <DELETE> (00?_)(_[^\d])", r"\g<1>\g<2> <DELETE> \g<3>", leftside_align
+                )
+                rightside_align = re.sub(
+                    r"([\d]) <DELETE> (00?_)(_[^\d])", r"\g<1>\g<2> <DELETE> \g<3>", rightside_align
+                )
 
                 # "_october_ _2 0,2 015_" => "_october_ _20 ,2 015_"
                 leftside_align = re.sub(r"([\d]) (0),(\d)", r"\g<1>\g<2> ,\g<3>", leftside_align)
@@ -433,28 +528,36 @@ def main() -> None:
                 leftside_align = re.sub(r"([\d]) ([0][0]?),(000_)", r"\g<1>\g<2> ,\g<3>", leftside_align)
 
                 # "_9 3 ,0__²_> _км_" => "_9 3 ,0__²_> _км_"
-                rightside_align = re.sub(r"([\d]) (,00?_)(_[^\d])",
-                                         r"\g<1>\g<2> \g<3>", rightside_align)
-                leftside_align = re.sub(r"([\d]) (,00?_)(_[^\d])",
-                                        r"\g<1>\g<2> \g<3>", leftside_align)
+                rightside_align = re.sub(r"([\d]) (,00?_)(_[^\d])", r"\g<1>\g<2> \g<3>", rightside_align)
+                leftside_align = re.sub(r"([\d]) (,00?_)(_[^\d])", r"\g<1>\g<2> \g<3>", leftside_align)
 
                 # "_0 <DELETE> , <DELETE> <DELETE> 01__г_" => "_0 <DELETE> , 01 <DELETE> _г_"
-                rightside_align = re.sub(r"(,) <DELETE> <DELETE> 01_(_[^\d])",
-                                         r"\g<1> 01_ <DELETE> \g<2>", rightside_align)
-                leftside_align = re.sub(r"(,) <DELETE> <DELETE> 01_(_[^\d])",
-                                        r"\g<1> 01_ <DELETE> \g<2>", leftside_align)
+                rightside_align = re.sub(
+                    r"(,) <DELETE> <DELETE> 01_(_[^\d])", r"\g<1> 01_ <DELETE> \g<2>", rightside_align
+                )
+                leftside_align = re.sub(
+                    r"(,) <DELETE> <DELETE> 01_(_[^\d])", r"\g<1> 01_ <DELETE> \g<2>", leftside_align
+                )
 
                 # "_0 <DELETE> , 7 6 <DELETE> <DELETE> 1__км_" => "_0 <DELETE> , 7 6 1_ <DELETE> _км_"
-                rightside_align = re.sub(r"(,) (\d) (\d) <DELETE> <DELETE> 1_(_[^\d])",
-                                         r"\g<1> \g<2> \g<3> 1_ <DELETE> \g<4>", rightside_align)
-                leftside_align = re.sub(r"(,) (\d) (\d) <DELETE> <DELETE> 1_(_[^\d])",
-                                        r"\g<1> \g<2> \g<3> 1_ <DELETE> \g<4>", leftside_align)
+                rightside_align = re.sub(
+                    r"(,) (\d) (\d) <DELETE> <DELETE> 1_(_[^\d])",
+                    r"\g<1> \g<2> \g<3> 1_ <DELETE> \g<4>",
+                    rightside_align,
+                )
+                leftside_align = re.sub(
+                    r"(,) (\d) (\d) <DELETE> <DELETE> 1_(_[^\d])",
+                    r"\g<1> \g<2> \g<3> 1_ <DELETE> \g<4>",
+                    leftside_align,
+                )
 
                 # "_5 <DELETE> 0000__рублей_" => "_50 000_ рублей"
-                rightside_align = re.sub(r"([\d]) <DELETE> ([0][0]?)(000_)(_)", r"\g<1>\g<2> \g<3> \g<4>",
-                                         rightside_align)
-                leftside_align = re.sub(r"([\d]) <DELETE> ([0][0]?)(000_)(_)", r"\g<1>\g<2> \g<3> \g<4>",
-                                        leftside_align)
+                rightside_align = re.sub(
+                    r"([\d]) <DELETE> ([0][0]?)(000_)(_)", r"\g<1>\g<2> \g<3> \g<4>", rightside_align
+                )
+                leftside_align = re.sub(
+                    r"([\d]) <DELETE> ([0][0]?)(000_)(_)", r"\g<1>\g<2> \g<3> \g<4>", leftside_align
+                )
 
                 # "_1 <DELETE> 115_" -> "_1 1 15_"
                 rightside_align = re.sub(r"<DELETE> ([1])([1][\d])", r"\g<1> \g<2>", rightside_align)
@@ -480,22 +583,28 @@ def main() -> None:
 
                 # восемь ноль ноль ноль ноль ноль ноль ноль _8 0 0 0 0 0 0 0_
                 # _8 <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 0000000_
-                rightside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 0000000_",
-                                         r"0 0 0 0 0 0 0_", rightside_align)
-                leftside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 0000000_",
-                                        r"0 0 0 0 0 0 0_", leftside_align)
+                rightside_align = re.sub(
+                    r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 0000000_",
+                    r"0 0 0 0 0 0 0_",
+                    rightside_align,
+                )
+                leftside_align = re.sub(
+                    r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 0000000_",
+                    r"0 0 0 0 0 0 0_",
+                    leftside_align,
+                )
 
                 # _8 <DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 000000_
-                rightside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 000000_", r"0 0 0 0 0 0_",
-                                         rightside_align)
-                leftside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 000000_", r"0 0 0 0 0 0_",
-                                        leftside_align)
+                rightside_align = re.sub(
+                    r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 000000_", r"0 0 0 0 0 0_", rightside_align
+                )
+                leftside_align = re.sub(
+                    r"<DELETE> <DELETE> <DELETE> <DELETE> <DELETE> 000000_", r"0 0 0 0 0 0_", leftside_align
+                )
 
                 # _8 <DELETE> <DELETE> <DELETE> <DELETE> 00000_
-                rightside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> 00000_", r"0 0 0 0 0_",
-                                         rightside_align)
-                leftside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> 00000_", r"0 0 0 0 0_",
-                                        leftside_align)
+                rightside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> 00000_", r"0 0 0 0 0_", rightside_align)
+                leftside_align = re.sub(r"<DELETE> <DELETE> <DELETE> <DELETE> 00000_", r"0 0 0 0 0_", leftside_align)
 
                 # _8 <DELETE> <DELETE> <DELETE> 0000_
                 rightside_align = re.sub(r"<DELETE> <DELETE> <DELETE> 0000_", r"0 0 0 0_", rightside_align)
@@ -506,10 +615,12 @@ def main() -> None:
                 leftside_align = re.sub(r"<DELETE> <DELETE> 000_", r"0 0 0_", leftside_align)
 
                 # "_2 <DELETE> <DELETE> 010/11" => "_2 0 10 /11"
-                rightside_align = re.sub(r"<DELETE> <DELETE> (0)([1][\d])/([\d])", r"\g<1> \g<2> /\g<3>",
-                                         rightside_align)
-                leftside_align = re.sub(r"<DELETE> <DELETE> (0)([1][\d])/([\d])", r"\g<1> \g<2> /\g<3>",
-                                        leftside_align)
+                rightside_align = re.sub(
+                    r"<DELETE> <DELETE> (0)([1][\d])/([\d])", r"\g<1> \g<2> /\g<3>", rightside_align
+                )
+                leftside_align = re.sub(
+                    r"<DELETE> <DELETE> (0)([1][\d])/([\d])", r"\g<1> \g<2> /\g<3>", leftside_align
+                )
 
                 # "_2 0 <DELETE> 11/12_" => "_2 0 11 /12_"
                 rightside_align = re.sub(r"<DELETE> ([\d]+)/([\d])", r"\g<1> /\g<2>", rightside_align)
@@ -530,10 +641,16 @@ def main() -> None:
                 rightside_align = re.sub(r"([\d]) ([\d]+)½", r"\g<1>\g<2> ½", rightside_align)
                 leftside_align = re.sub(r"([\d]) ([\d]+)½", r"\g<1>\g<2> ½", leftside_align)
                 # "_1 ½_ <DELETE> <DELETE> <DELETE>" => "_1 <DELETE> <DELETE> <DELETE> ½_" #одна целая и одна вторая
-                rightside_align = re.sub(r"([\d]) (_?½_)? <DELETE> <DELETE> <DELETE>",
-                                         r"\g<1> <DELETE> <DELETE> <DELETE> \g<2>", rightside_align)
-                leftside_align = re.sub(r"([\d]) (_?½_)? <DELETE> <DELETE> <DELETE>",
-                                        r"\g<1> <DELETE> <DELETE> <DELETE> \g<2>", leftside_align)
+                rightside_align = re.sub(
+                    r"([\d]) (_?½_)? <DELETE> <DELETE> <DELETE>",
+                    r"\g<1> <DELETE> <DELETE> <DELETE> \g<2>",
+                    rightside_align,
+                )
+                leftside_align = re.sub(
+                    r"([\d]) (_?½_)? <DELETE> <DELETE> <DELETE>",
+                    r"\g<1> <DELETE> <DELETE> <DELETE> \g<2>",
+                    leftside_align,
+                )
 
                 if args.lang == "en" and srctokens[-1] == "half":
                     #  _2 <DELETE> 1/ 2_ => _2 <DELETE> <DELETE> ½_
@@ -572,20 +689,24 @@ def main() -> None:
 
                     if len(srctokens) >= 2 and srctokens[-2] == "twenty":
                         # "<DELETE> <DELETE> _12,200 9_" => "_12 ,20 09_"
-                        leftside_align = re.sub(r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,20 0\g<1>",
-                                                leftside_align)
-                        rightside_align = re.sub(r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,20 0\g<1>",
-                                                 rightside_align)
+                        leftside_align = re.sub(
+                            r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,20 0\g<1>", leftside_align
+                        )
+                        rightside_align = re.sub(
+                            r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,20 0\g<1>", rightside_align
+                        )
 
                         # "_april_ _2 015_" => "_april_ _20 15_"
                         leftside_align = re.sub(r"2 0(\d\d_)$", r"20 \g<1>", leftside_align)
                         rightside_align = re.sub(r"2 0(\d\d_)$", r"20 \g<1>", rightside_align)
                     elif len(srctokens) >= 2 and srctokens[-2] == "thousand":
                         # "<DELETE> <DELETE> _12,200 9_" => "_12 ,2 00 9_"
-                        leftside_align = re.sub(r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,2 00 \g<1>",
-                                                leftside_align)
-                        rightside_align = re.sub(r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,2 00 \g<1>",
-                                                 rightside_align)
+                        leftside_align = re.sub(
+                            r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,2 00 \g<1>", leftside_align
+                        )
+                        rightside_align = re.sub(
+                            r"^<DELETE> <DELETE> _12,200 (\d_)", r"_12_ ,2 00 \g<1>", rightside_align
+                        )
 
                     # thirtieth twenty fifteen   _3 0th__,20 15_ => _30th_ _,20 15_
                     leftside_align = re.sub(r"(\d) 0th_(_,\d)", r"\g<1>0th_ \g<2>", leftside_align)
@@ -640,11 +761,27 @@ def main() -> None:
                     ban = True
 
                 if ban:
-                    out_str = "ban:\t" + " ".join(srctokens) + "\t" + " ".join(
-                        dsttokens) + "\t" + leftside_align + "\t" + rightside_align
+                    out_str = (
+                        "ban:\t"
+                        + " ".join(srctokens)
+                        + "\t"
+                        + " ".join(dsttokens)
+                        + "\t"
+                        + leftside_align
+                        + "\t"
+                        + rightside_align
+                    )
                 else:
-                    out_str = "good:\t" + " ".join(srctokens) + "\t" + " ".join(dsttokens) \
-                              + "\t" + leftside_align + "\t" + rightside_align
+                    out_str = (
+                        "good:\t"
+                        + " ".join(srctokens)
+                        + "\t"
+                        + " ".join(dsttokens)
+                        + "\t"
+                        + leftside_align
+                        + "\t"
+                        + rightside_align
+                    )
                 out.write(out_str + "\n")
                 cache[cache_key] = out_str
             else:

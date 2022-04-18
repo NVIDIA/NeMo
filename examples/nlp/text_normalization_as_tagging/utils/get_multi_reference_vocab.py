@@ -40,7 +40,7 @@ if __name__ == '__main__':
                 parts = line.strip().split('\t')
                 if len(parts) < 3:
                     continue
-                assert(len(parts) == 3), "expect 3 parts, got " + str(len(parts))
+                assert len(parts) == 3, "expect 3 parts, got " + str(len(parts))
                 semiotic_class, written, spoken = parts[0], parts[1].strip().casefold(), parts[2].strip().casefold()
                 spoken = spoken_preprocessing(spoken)
                 if spoken == "<self>":

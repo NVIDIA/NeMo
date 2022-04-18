@@ -18,14 +18,16 @@ This script is used to filter sentences containing bad examples from Google TN D
 
 from argparse import ArgumentParser
 from os import listdir, mkdir
-from os.path import isfile, join, exists
+from os.path import exists, isfile, join
 from typing import Set
 
 parser = ArgumentParser(description="Filter Google TN Dataset by error vocabulary")
-parser.add_argument("--data_dir", required=True, type=str,
-                    help='Path to data directory with files like output-00000-of-00100.tsv')
-parser.add_argument("--out_dir", required=True, type=str,
-                    help='Output data directory, same files (with some sentences filtered)')
+parser.add_argument(
+    "--data_dir", required=True, type=str, help='Path to data directory with files like output-00000-of-00100.tsv'
+)
+parser.add_argument(
+    "--out_dir", required=True, type=str, help='Output data directory, same files (with some sentences filtered)'
+)
 parser.add_argument("--errors_vocab_filename", required=True, type=str, help='File with error vocabulary')
 parser.add_argument("--lang", required=True, type=str, help="Language")
 args = parser.parse_args()
@@ -39,7 +41,7 @@ def filter_file(inp_filename: str, out_filename: str, error_vcb: Set) -> None:
         for line in f:
             sent_lines.append(line.strip())
             if line.startswith("<eos>"):
-                if sent_is_ok and len(sent_lines) > 1:    # there should be at least one line except <eos>
+                if sent_is_ok and len(sent_lines) > 1:  # there should be at least one line except <eos>
                     out.write("\n".join(sent_lines) + "\n")
                 sent_lines = []
                 sent_is_ok = True

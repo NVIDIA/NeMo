@@ -37,7 +37,7 @@ https://github.com/google-research/lasertagger/blob/master/utils.py
 
 import re
 from itertools import groupby
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 """Utility functions for LaserTagger."""
 
@@ -136,8 +136,9 @@ def spoken_preprocessing(spoken: str) -> str:
     return spoken
 
 
-def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str, lang: str)\
-        -> Tuple[str, str, str, str]:
+def get_src_and_dst_for_alignment(
+    semiotic_class: str, written: str, spoken: str, lang: str
+) -> Tuple[str, str, str, str]:
     """Tokenize written and spoken span.
         Args:
             semiotic_class: str - lowercase semiotic class, ex. "cardinal"
@@ -165,7 +166,7 @@ def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str
         else:
             break
     for i in range(min(len(written_parts), len(spoken_parts))):
-        if written_parts[-i-1] == spoken_parts[-i-1]:
+        if written_parts[-i - 1] == spoken_parts[-i - 1]:
             same_from_end += 1
         else:
             break
@@ -183,12 +184,9 @@ def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str
     written_tokens = []
     for frag in fragments:
         if frag.isalpha():
-            if semiotic_class == "plain" \
-                or semiotic_class == "letters" \
-                    or semiotic_class == "electronic":
-
+            if semiotic_class == "plain" or semiotic_class == "letters" or semiotic_class == "electronic":
                 chars = list(frag.strip())
-                chars[0] = "_" + chars[0]   # prepend first symbol of a word with underscore
+                chars[0] = "_" + chars[0]  # prepend first symbol of a word with underscore
                 chars[-1] = chars[-1] + "_"  # append underscore to the last symbol
                 written_tokens += chars
             else:
@@ -202,23 +200,25 @@ def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str
     written_str = " ".join(written_tokens)
 
     # _н_ _._ _г_ _._ => _н._ _г._
-    written_str = re.sub(r"([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя])_ _\._",
-                         r"\g<1>._",
-                         written_str)
+    written_str = re.sub(
+        r"([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя])_ _\._", r"\g<1>._", written_str
+    )
     # _тыс_ _. $ => _тыс._ _$
-    written_str = re.sub(r"([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя])_ _\. ([^_])]",
-                         r"\g<1>._ _\g<2>",
-                         written_str)
+    written_str = re.sub(
+        r"([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя])_ _\. ([^_])]", r"\g<1>._ _\g<2>", written_str
+    )
 
     if semiotic_class == "ordinal":
         #  _8 2 -_ _ом_  =>  _8 2-ом_
-        written_str = re.sub(r"([\d]) -_ _([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]+)_",
-                             r"\g<1>-\g<2>_",
-                             written_str)
+        written_str = re.sub(
+            r"([\d]) -_ _([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]+)_",
+            r"\g<1>-\g<2>_",
+            written_str,
+        )
         #  _8 8_ _й_       _8 8й_
-        written_str = re.sub(r"([\d])_ _([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]+)_",
-                             r"\g<1>\g<2>_",
-                             written_str)
+        written_str = re.sub(
+            r"([\d])_ _([abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]+)_", r"\g<1>\g<2>_", written_str
+        )
 
     if semiotic_class == "cardinal":
         #  _2 5 -_ _ти_ => _2 5-ти_
@@ -283,15 +283,21 @@ def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str
     if semiotic_class == "money":
         # if a span start with currency, move it to the end
         #  "_$ 2 5_"  => "_2 5_ _$<<"    #<< means "at post-processing move to the beginning of th semiotic span"
-        written_str = re.sub(r"^(_[^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]) ([\d].*)$",
-                             r"_\g<2> \g<1><<", written_str)
+        written_str = re.sub(
+            r"^(_[^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя]) ([\d].*)$",
+            r"_\g<2> \g<1><<",
+            written_str,
+        )
 
         #  "_us_ _$ 7 0 0_"  => "_us__$ 7 0 0_"
         written_str = re.sub(r"^_us_ _\$ ([\d].*)$", r"_\g<1> _us__$<<", written_str)
 
         #  "_2 5 $_"  => "_2 5_ _$_"    #insert space between last digit and dollar sign
-        written_str = re.sub(r"([\d]) ([^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя_]_)",
-                             r"\g<1>_ _\g<2>", written_str)
+        written_str = re.sub(
+            r"([\d]) ([^0123456789abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя_]_)",
+            r"\g<1>_ _\g<2>",
+            written_str,
+        )
 
     if semiotic_class == "time":
         # "_pm_ _1 0_" => "_1 0_ _pm_<<"
@@ -307,7 +313,10 @@ def get_src_and_dst_for_alignment(semiotic_class: str, written: str, spoken: str
     if semiotic_class == "measure":
         #  "_6 5 8_ _см_ _³ ._" => " _6 5 8_ _³> _см._"
         #  > means "at post-processing swap with the next token to the right"
-        written_str = re.sub(r"(_[abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя.]+_) (_[³²]_?)",
-                             r"\g<2>> \g<1>", written_str)
+        written_str = re.sub(
+            r"(_[abcdefghijklmnopqrstuvwxyzабвгдеёжзийклмнопрстуфхцчшщъыьэюя.]+_) (_[³²]_?)",
+            r"\g<2>> \g<1>",
+            written_str,
+        )
 
     return written_str, spoken, " ".join(same_begin), " ".join(same_end)

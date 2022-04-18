@@ -47,7 +47,7 @@ with open(args.filename, "r", encoding="utf-8") as f:
             if vocab[t] < args.max_count:
                 ok = True
                 vocab[t] += 1
-        if ok:                
+        if ok:
             out_sample.write(line)
         else:
             out_rest.write(line)

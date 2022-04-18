@@ -20,23 +20,29 @@ import os
 import re
 from argparse import ArgumentParser
 from collections import Counter
+from typing import Dict, TextIO, Tuple
+
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing
-from typing import Tuple, Dict, TextIO
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-parser.add_argument("--data_dir", required=True, type=str,
-                    help="Path to data directory with files like output-00000-of-00100.tsv")
+parser.add_argument(
+    "--data_dir", required=True, type=str, help="Path to data directory with files like output-00000-of-00100.tsv"
+)
 parser.add_argument("--reference_vocab", required=True, type=str, help="Multi Reference vocabulary")
 parser.add_argument("--output_file", required=True, type=str, help="Output file")
-parser.add_argument("--sampling_count", required=True, type=int,
-                    help="Number of examples per class, you want, use -1 for all examples")
+parser.add_argument(
+    "--sampling_count", required=True, type=int, help="Number of examples per class, you want, use -1 for all examples"
+)
 args = parser.parse_args()
 
 
-def process_file(inputname: str, out: TextIO,
-                 out_raw: TextIO,
-                 reference_vcb: Dict[Tuple[str, str], Dict[str, int]],
-                 sampling_vcb: Dict[str, int]):
+def process_file(
+    inputname: str,
+    out: TextIO,
+    out_raw: TextIO,
+    reference_vcb: Dict[Tuple[str, str], Dict[str, int]],
+    sampling_vcb: Dict[str, int],
+) -> None:
     words = []
     dummy_tags = []
     reference_words = []  # size may be different
@@ -47,10 +53,16 @@ def process_file(inputname: str, out: TextIO,
         for line in f:
             if line.startswith("<eos>"):
                 if len(words) > 0 and sent_ok:
-                    out.write(" ".join(words)
-                              + "\t" + " ".join(dummy_tags)
-                              + "\t" + " ".join(reference_words)
-                              + "\t" + ";".join(semiotic_info) + "\n")
+                    out.write(
+                        " ".join(words)
+                        + "\t"
+                        + " ".join(dummy_tags)
+                        + "\t"
+                        + " ".join(reference_words)
+                        + "\t"
+                        + ";".join(semiotic_info)
+                        + "\n"
+                    )
                     out_raw.write("\n".join(raw_lines) + "\n" + line)
                 words = []
                 dummy_tags = []
@@ -71,13 +83,20 @@ def process_file(inputname: str, out: TextIO,
                     reference_words.append(written)
                     dummy_tags.append("<self>")
                     # if reference is <self>, but the word has itn conversions in our dictionary, add them
-                    for cls in ["CARDINAL", "ORDINAL", "DATE"]:   # date, ex sixties -> 60s
+                    for cls in ["CARDINAL", "ORDINAL", "DATE"]:  # date, ex sixties -> 60s
                         k = (cls, written)
                         if k in reference_vcb:
                             for tr_variant in reference_vcb[k]:
                                 references.add(tr_variant)
-                            semiotic_info.append(cls + " " + str(len(words) - 1) + " " + str(
-                                len(words)) + " | " + " | ".join(references))
+                            semiotic_info.append(
+                                cls
+                                + " "
+                                + str(len(words) - 1)
+                                + " "
+                                + str(len(words))
+                                + " | "
+                                + " | ".join(references)
+                            )
                             break
                     continue
 
@@ -99,9 +118,15 @@ def process_file(inputname: str, out: TextIO,
                     if n3 > 0:
                         references.add(tr_variant3)
 
-                semiotic_info.append(cls
-                                     + " " + str(len(words) - len(spoken_words))
-                                     + " " + str(len(words)) + " | " + " | ".join(list(references)))
+                semiotic_info.append(
+                    cls
+                    + " "
+                    + str(len(words) - len(spoken_words))
+                    + " "
+                    + str(len(words))
+                    + " | "
+                    + " | ".join(list(references))
+                )
                 reference_words.append(written.casefold())
                 for n in range(len(spoken.split())):
                     dummy_tags.append("<self>")

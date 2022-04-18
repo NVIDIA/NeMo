@@ -38,7 +38,7 @@ Each corpus will be stored within <--data-dir> in the subdirectory with the name
 """
 from argparse import ArgumentParser
 from collections import Counter
-from os import mkdir, listdir
+from os import listdir, mkdir
 from os.path import isdir, join
 from shutil import rmtree
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import get_src_and_dst_for_alignment
@@ -50,6 +50,7 @@ parser.add_argument('--giza_dir', type=str, required=True, help='Path to folder 
 parser.add_argument('--mckls_binary', type=str, required=True, help='Path to mckls binary')
 parser.add_argument('--lang', type=str, required=True, help='Language')
 args = parser.parse_args()
+
 
 def prepare_subcorpora_from_data() -> None:
     semiotic_vcb = Counter()
@@ -66,7 +67,7 @@ def prepare_subcorpora_from_data() -> None:
                 parts = line.strip().split('\t')
                 if len(parts) < 3:
                     continue
-                assert(len(parts) == 3), "expect 3 parts, got " + str(len(parts))
+                assert len(parts) == 3, "expect 3 parts, got " + str(len(parts))
                 semiotic_class, written, spoken = parts[0], parts[1].strip(), parts[2].strip()
                 if spoken == "<self>":
                     continue
@@ -85,7 +86,7 @@ def prepare_subcorpora_from_data() -> None:
                 cache_vcb[semiotic_class][(src, dst)] += 1
     for sem in semiotic_vcb:
         classdir = join(args.out_dir, sem)
-        assert(isdir(classdir)), "no directory: " + classdir
+        assert isdir(classdir), "no directory: " + classdir
         print(classdir, " has ", semiotic_vcb[sem], " instances")
         with open(join(classdir, "run.sh"), "w") as out:
             out.write("GIZA_PATH=\"" + args.giza_dir + "\"\n")
@@ -95,10 +96,14 @@ def prepare_subcorpora_from_data() -> None:
             out.write("${MKCLS} -m2 -psrc -c15 -Vsrc.classes opt >& mkcls1.log\n")
             out.write("${MKCLS} -m2 -pdst -c15 -Vdst.classes opt >& mkcls2.log\n")
             out.write("${GIZA_PATH}/snt2cooc.out src.vcb dst.vcb src_dst.snt > src_dst.cooc\n")
-            out.write("${GIZA_PATH}/GIZA++ -S src.vcb -T dst.vcb -C src_dst.snt -coocurrencefile src_dst.cooc -p0 0.98 -o GIZA++ >& GIZA++.log\n")
+            out.write(
+                "${GIZA_PATH}/GIZA++ -S src.vcb -T dst.vcb -C src_dst.snt -coocurrencefile src_dst.cooc -p0 0.98 -o GIZA++ >& GIZA++.log\n"
+            )
             out.write("##reverse direction\n")
             out.write("${GIZA_PATH}/snt2cooc.out dst.vcb src.vcb dst_src.snt > dst_src.cooc\n")
-            out.write("${GIZA_PATH}/GIZA++ -S dst.vcb -T src.vcb -C dst_src.snt -coocurrencefile dst_src.cooc -p0 0.98 -o GIZA++reverse >& GIZA++reverse.log\n")
+            out.write(
+                "${GIZA_PATH}/GIZA++ -S dst.vcb -T src.vcb -C dst_src.snt -coocurrencefile dst_src.cooc -p0 0.98 -o GIZA++reverse >& GIZA++reverse.log\n"
+            )
         out_src = open(join(classdir, "src"), 'w', encoding="utf-8")
         out_dst = open(join(classdir, "dst"), 'w', encoding="utf-8")
         out_freq = open(join(classdir, "freq"), 'w', encoding="utf-8")

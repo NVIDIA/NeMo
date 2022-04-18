@@ -11,5 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.nlp.data.text_normalization_as_tagging.thutmose_tagger_dataset import ThutmoseTaggerDataset,\
-    ThutmoseTaggerTestDataset
+from nemo.collections.nlp.data.text_normalization_as_tagging.thutmose_tagger_dataset import (
+    ThutmoseTaggerDataset,
+    ThutmoseTaggerTestDataset,
+)
