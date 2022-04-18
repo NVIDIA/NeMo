@@ -4,7 +4,7 @@ from omegaconf import OmegaConf
 class TestTrainingT5Config:
 
     def test_training_t5_config_220m(self):
-        conf = OmegaConf.load('conf/training/t5/390m.yaml')
+        conf = OmegaConf.load('conf/training/t5/220m.yaml')
         s = """
         run:
           name: t5_220m
