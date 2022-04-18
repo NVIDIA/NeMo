@@ -184,6 +184,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             processed_batch = batch
 
+        processed_batch = self._process_global_batch_without_megatron_batch_sampler(processed_batch)
         # Call parent validation step to get the loss.
         loss = super().validation_step(processed_batch, batch_idx)
 
