@@ -31,7 +31,6 @@
 # https://arxiv.org/pdf/2003.02405.pdf and the implementation from
 # https://github.com/tango4j/Auto-Tuning-Spectral-Clustering.
 
-import multiprocessing
 from collections import Counter
 from typing import Dict, List
 
