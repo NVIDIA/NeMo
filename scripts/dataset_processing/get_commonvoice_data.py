@@ -161,9 +161,6 @@ def main():
         output_archive_filename = args.language + '.tar.gz'
         output_archive_filename = os.path.join(data_root, output_archive_filename)
 
-#             '-P',
-#            data_root,
-            
         commands = [
             'wget',
             '--user-agent',
