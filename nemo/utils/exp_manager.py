@@ -118,6 +118,7 @@ class ExpManagerConfig:
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
+    log_global_rank_0_only: Optional[bool] = False
 
 
 class TimingCallback(Callback):
