@@ -288,11 +288,15 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     trainer._default_root_dir = log_dir
 
     if cfg.log_local_rank_0_only and cfg.log_global_rank_0_only:
-        raise ValueError(f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither.")
+        raise ValueError(
+            f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
+        )
 
     # Handle logging to file
     # Logs on all ranks.
-    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or (not cfg.log_local_rank_0_only and not cfg.log_global_rank_0_only):
+    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or (
+        not cfg.log_local_rank_0_only and not cfg.log_global_rank_0_only
+    ):
         # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
