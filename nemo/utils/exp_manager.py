@@ -292,20 +292,20 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
             f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
         )
 
+    # This is set if the env var NEMO_TESTING is set to True.
+    nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
+
     # Handle logging to file
-    # Logs on all ranks.
-    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or (
-        not cfg.log_local_rank_0_only and not cfg.log_global_rank_0_only
-    ):
-        # If NEMO_TESTING is set (debug mode) and neither log_local_rank_0_only and log_global_rank_0_only are set
-        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
-        logging.add_file_handler(log_file)
-    # Logs only on local rank 0
-    elif local_rank == 0 and cfg.log_local_rank_0_only:
+    # Logs local rank 0 only
+    if local_rank == 0 and cfg.log_local_rank_0_only and not nemo_testing:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
     # Logs only on global rank 0
-    elif global_rank == 0 and cfg.log_global_rank_0_only:
+    elif global_rank == 0 and cfg.log_global_rank_0_only and not nemo_testing:
+        log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+        logging.add_file_handler(log_file)
+    # Logs on all ranks.
+    else:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
 
