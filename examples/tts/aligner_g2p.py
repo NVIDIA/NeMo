@@ -16,6 +16,11 @@ G2P disambiguation using an Aligner model's input embedding distances.
 
 Does not handle OOV and leaves them as graphemes.
 
+This script assumes that the text in the manifest has been normalized, and
+does not perform any normalization before passing words through G2P.
+This is because the existing normalization splits words on apostrophe, which
+screws up G2P predictions for words like "wasn't" -> "wasn" "t".
+
 Example:
 python aligner_g2p.py \
     --model=<model_path> \
@@ -220,7 +225,9 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
             for line in f_in:
                 # Retrieve entry and base G2P conversion for full text
                 entry = json.loads(line)
-                text = aligner.normalizer.normalize(entry['text'])
+                # Removed normalization since it splits apostrophes
+                #text = aligner.normalizer.normalize(entry['text'])
+                text = entry['text']
                 audio_path = entry['audio_filepath']
 
                 # Load and preprocess audio
