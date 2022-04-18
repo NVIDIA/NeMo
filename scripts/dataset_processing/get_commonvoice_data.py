@@ -91,7 +91,8 @@ def create_manifest(data: List[tuple], output_name: str, manifest_path: str):
             if wav_path != '':
                 # skip invalid input files that could not be converted
                 f.write(
-                    json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text}) + '\n'
+                    json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text})
+                    + '\n'
                 )
 
 
@@ -114,8 +115,8 @@ def process_files(csv_file, data_root, num_workers):
         audio_path = os.path.join(audio_clips_path, file_path)
         if os.path.getsize(audio_path) == 0:
             logging.warning(f'Skipping empty audio file {audio_path}')
-            return '','',''
-        
+            return '', '', ''
+
         output_wav_path = os.path.join(wav_dir, file_name + '.wav')
 
         if not os.path.exists(output_wav_path):
@@ -156,7 +157,7 @@ def main():
         logging.info('Find existing folder {}'.format(target_unpacked_dir))
     else:
         logging.info("Could not find Common Voice, Downloading corpus...")
-        
+
         # some dataset versions are packaged in different named files, so forcing
         output_archive_filename = args.language + '.tar.gz'
         output_archive_filename = os.path.join(data_root, output_archive_filename)
@@ -183,7 +184,7 @@ def main():
         if args.cleanup:
             logging.info("removing tar archive to save space")
             os.remove(target_file)
-    
+
     folder_path = os.path.join(target_unpacked_dir, args.version + f'/{args.language}/')
     if not os.path.isdir(folder_path):
         # try without language
