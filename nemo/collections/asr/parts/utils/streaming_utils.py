@@ -565,7 +565,6 @@ class FeatureFrameBufferer:
         while len(batch_frames) > 0:
 
             frame_buffers = self.get_frame_buffers(batch_frames)
-            norm_consts = self.get_norm_consts_per_frame(batch_frames)
             if len(frame_buffers) == 0:
                 continue
             if self.normalize_feature:
