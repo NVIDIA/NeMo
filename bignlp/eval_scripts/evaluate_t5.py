@@ -106,7 +106,7 @@ def run_evaluation(cfg, hydra_args="", dependency=None):
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = eval_cfg.trainer.num_nodes
-    ntasks_per_node = eval_cfg.trainer.gpus
+    ntasks_per_node = eval_cfg.trainer.devices
 
     # BCM parameters
     if cfg.get("cluster_type") == "bcm":

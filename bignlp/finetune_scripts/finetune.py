@@ -106,7 +106,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = finetune_cfg.trainer.num_nodes
-    ntasks_per_node = finetune_cfg.trainer.gpus
+    ntasks_per_node = finetune_cfg.trainer.devices
 
     # BCM parameters
     if cfg.get("cluster_type") == "bcm":
