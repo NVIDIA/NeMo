@@ -30,14 +30,14 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer.enums import AttnMaskType
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
     # fake missing classes with None attributes
     AttnMaskType = ApexGuardDefaults()
-
+    ModelType = ApexGuardDefaults()
 
 __all__ = []
 
@@ -68,13 +68,16 @@ def get_decoder_model(
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
     bias_gelu_fusion=True,
+    bias_dropout_add_fusion=True,
     masked_softmax_fusion=True,
     persist_layer_norm=False,
     openai_gelu=False,
     activation="gelu",
     onnx_safe=False,
+    bias=True,
     hidden_steps=-1,
     hidden_blocks=1,
+    parent_model_type=ModelType.encoder_or_decoder,
 ):
     """Build language model and return along with the key to save."""
 
@@ -113,11 +116,14 @@ def get_decoder_model(
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
             bias_gelu_fusion=bias_gelu_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
+            bias=bias,
+            parent_model_type=parent_model_type,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")

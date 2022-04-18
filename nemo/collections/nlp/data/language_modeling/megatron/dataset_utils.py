@@ -63,8 +63,9 @@ DSET_TYPE_BERT = 'standard_bert'
 DSET_TYPE_ICT = 'ict'
 DSET_TYPE_T5 = 't5'
 DSET_TYPE_T5_LM = 't5_prefix_lm'
+DSET_TYPE_BART = 'bart'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM]
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART]
 
 
 def compile_helper():
@@ -312,6 +313,8 @@ def create_masked_lm_predictions(
                         masked_token = vocab_id_list[np_rng.randint(0, len(vocab_id_list))]
             elif masking_style == "t5":
                 masked_token = mask_id
+            elif masking_style == "bart":
+                masked_token = mask_id
             else:
                 raise ValueError("invalid value of masking style")
 
@@ -436,6 +439,7 @@ def build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
+    delete_mask_prob=0,
 ):
 
     if len(data_prefix) == 1:
@@ -461,6 +465,7 @@ def build_train_valid_test_datasets(
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
+            delete_mask_prob=delete_mask_prob,
         )
     # Blending dataset.
     # Parse the values.
@@ -494,6 +499,7 @@ def build_train_valid_test_datasets(
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
+            delete_mask_prob=delete_mask_prob,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -538,6 +544,7 @@ def _build_train_valid_test_datasets(
     permutation=False,
     whole_word_masking=True,
     favor_long_ngrams=False,
+    delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
 ):
 
     if dataset_type not in DSET_TYPES:
@@ -579,6 +586,7 @@ def _build_train_valid_test_datasets(
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
 
         dataset = None
         if splits[index + 1] > splits[index]:
@@ -634,6 +642,7 @@ def _build_train_valid_test_datasets(
             elif dataset_type == DSET_TYPE_BERT:
                 logging.info("Instatiating BERT Dataset ...")
                 dataset = BertDataset(
+                    cfg=cfg,
                     indexed_dataset=indexed_dataset,
                     masked_lm_prob=masked_lm_prob,
                     short_seq_prob=short_seq_prob,
@@ -651,6 +660,25 @@ def _build_train_valid_test_datasets(
                     documents=documents,
                     indexed_dataset=indexed_dataset,
                     num_samples=int(train_valid_test_num_samples[index]),
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_BART:
+                assert tokenizer is not None, "Tokenizer is required for BART dataset"
+                logging.info("Instatiating BART Dataset ...")
+                dataset = BARTDataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
+                    indexed_dataset=indexed_dataset,
+                    masked_lm_prob=masked_lm_prob,
+                    short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    geometric_dist=geometric_dist,
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
+                    delete_mask_prob=delete_mask_prob,
                     **kwargs,
                 )
             else:
@@ -687,7 +715,16 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
 
 def get_samples_mapping(
-    indexed_dataset, data_prefix, num_epochs, max_num_samples, max_seq_length, short_seq_prob, seed, name, binary_head
+    indexed_dataset,
+    data_prefix,
+    num_epochs,
+    max_num_samples,
+    max_seq_length,
+    short_seq_prob,
+    seed,
+    name,
+    binary_head,
+    index_mapping_dir: str = None,
 ):
     """Get a list that maps a sample index to a starting sentence index, end sentence index, and length"""
 
@@ -699,7 +736,10 @@ def get_samples_mapping(
         max_num_samples = np.iinfo(np.int64).max - 1
 
     # Filename of the index mapping
-    indexmap_filename = data_prefix
+    if index_mapping_dir is not None:
+        indexmap_filename = os.path.join(index_mapping_dir, os.path.basename(data_prefix))
+    else:
+        indexmap_filename = data_prefix
     indexmap_filename += '_{}_indexmap'.format(name)
     if num_epochs != (np.iinfo(np.int32).max - 1):
         indexmap_filename += '_{}ep'.format(num_epochs)

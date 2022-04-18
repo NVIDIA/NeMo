@@ -262,7 +262,7 @@ class Typing(ABC):
             mandatory_out_types_list = list(metadata.mandatory_types.items())
 
             # First convert all outputs to list/tuple format to check correct number of outputs
-            if type(out_objects) in (list, tuple):
+            if isinstance(out_objects, (list, tuple)):
                 out_container = out_objects  # can be any rank nested structure
             else:
                 out_container = [out_objects]
@@ -530,6 +530,7 @@ class FileIO(ABC):
         return_config: bool = False,
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
+        megatron_legacy: Optional[bool] = False,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
