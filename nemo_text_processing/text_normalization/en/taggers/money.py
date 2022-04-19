@@ -58,7 +58,7 @@ class MoneyFst(GraphFst):
 
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="classify", deterministic=deterministic)
-        cardinal_graph = cardinal.graph
+        cardinal_graph = cardinal.graph_with_and
         graph_decimal_final = decimal.final_graph_wo_negative
 
         maj_singular_labels = load_labels(get_abs_path("data/currency/currency.tsv"))
@@ -187,7 +187,7 @@ class MoneyFst(GraphFst):
                 ).optimize()
 
         # weight for SH
-        final_graph |= pynutil.add_weight(decimal_graph_with_minor, -0.001)
+        final_graph |= pynutil.add_weight(decimal_graph_with_minor, -0.0001)
 
         if not deterministic:
             final_graph |= integer_graph_reordered | decimal_default_reordered
