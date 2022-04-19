@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.inverse_text_normalization.vi.graph_utils import GraphFst, delete_extra_space, delete_space
 
 try:
     import pynini

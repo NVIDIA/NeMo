@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-)
+from nemo_text_processing.inverse_text_normalization.vi.graph_utils import GraphFst, delete_extra_space, delete_space
 from nemo_text_processing.inverse_text_normalization.vi.utils import get_abs_path
 
 try:
@@ -73,10 +69,7 @@ def _get_year_graph():
     def _get_digits_graph():
         zero = pynini.cross((pynini.union("linh", "lẻ")), "0")
         four = pynini.cross("tư", "4")
-        graph = pynini.union(
-            zero + delete_space + (graph_digit | four),
-            graph_zero + delete_space + graph_digit,
-        )
+        graph = pynini.union(zero + delete_space + (graph_digit | four), graph_zero + delete_space + graph_digit,)
         graph.optimize()
         return graph
 

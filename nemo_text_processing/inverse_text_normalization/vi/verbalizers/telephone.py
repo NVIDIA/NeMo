@@ -13,10 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.inverse_text_normalization.vi.graph_utils import (
-    NEMO_NOT_QUOTE,
-    GraphFst,
-)
+from nemo_text_processing.inverse_text_normalization.vi.graph_utils import NEMO_NOT_QUOTE, GraphFst
 
 try:
     import pynini
