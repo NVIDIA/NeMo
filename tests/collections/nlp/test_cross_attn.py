@@ -18,10 +18,12 @@ import os
 import pytest
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
+from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import MegatronRetrievalTransformerEncoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
@@ -107,3 +109,53 @@ class TestCrossAttn:
             .half()
         )
         out, bias = cross_attn(hidden, context_mask, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb)
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    def test_retrival_encoder(self):
+
+        init_method_std = 0.02
+
+        # rotary pos emb dim
+        dim = 128
+        num_attention_heads = 8
+        # rot_dim = dim // num_attention_heads
+        # rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
+
+        hidden = torch.rand(2, 2048, dim).cuda().half()  # (batch, seq, dim)
+        pad_id = 19999
+
+        text_chunk_size = 64
+        # context_chunk_size = 128
+        retrieved = torch.randint(0, 20000, (2, 32, 2, 128)).cuda().half()
+        # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation)
+
+        # context attention mask [b, np, sq, sk]
+        pad_id = 19999
+        context_mask = (retrieved == pad_id).type(torch.int32).cuda()
+        retrieved_emb = torch.rand(2, 32, 2, 128, dim).cuda().half()
+        # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation, hidden)
+
+        # device = retrieved.device
+        # need to add extra chunk size, since it will be shifted
+        # cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, device=device, offset=0)
+        # cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size, device=device)
+        # cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+        layer_type = [LayerType.encoder, LayerType.encoder, LayerType.retrieval_encoder]
+        num_layers = len(layer_type)
+
+        init_method = init_method_normal(init_method_std)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        encoder = MegatronRetrievalTransformerEncoderModule(
+                init_method=init_method,
+                output_layer_init_method=scaled_init_method,
+                hidden_size=dim,
+                ffn_hidden_size=dim*4,
+                num_layers=num_layers,
+                num_attention_heads=num_attention_heads,
+                precision=16,
+                chunk_size=text_chunk_size,
+                layer_type=layer_type,
+        ).cuda()
+
+        out, bias = encoder(retrieved_emb, context_mask, encoder_output=hidden)

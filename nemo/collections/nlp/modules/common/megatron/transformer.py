@@ -706,6 +706,7 @@ class ParallelTransformerLayer_(MegatronModule):
         activation='gelu',
         megatron_legacy=False,
         bias=True,
+        chunk_size=64,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -784,8 +785,6 @@ class ParallelTransformerLayer_(MegatronModule):
                 layer_number=layer_number,
                 num_attention_heads=num_attention_heads,
                 hidden_size=hidden_size,
-                attention_type=AttnType.cross_attn,
-                attn_mask_type=AttnMaskType.padding,
                 precision=precision,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
@@ -793,6 +792,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
+                chunk_size=chunk_size,
                 bias=bias,
             )
             # Layernorm on the attention output.
@@ -829,6 +829,11 @@ class ParallelTransformerLayer_(MegatronModule):
         # Layer norm at the beginning of the transformer layer.
         layernorm_output = self.input_layernorm(hidden_states)
         # Self attention.
+        if pos_emb is not None:
+            # self attention pos_emb is (q, q)
+            self_attention_pos_emb = (pos_emb(0), pos_emb(0))
+        else:
+            self_attention_pos_emb = None
         attention_output, attention_bias = self.self_attention(
             layernorm_output,
             attention_mask,
@@ -836,6 +841,7 @@ class ParallelTransformerLayer_(MegatronModule):
             get_key_value=get_key_value,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            pos_emb=self_attention_pos_emb,
         )
 
         if get_key_value:
@@ -934,6 +940,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         get_key_value=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        pos_emb=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -945,6 +952,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 get_key_value,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
+                pos_emb,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -956,6 +964,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 get_key_value,
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
+                pos_emb,
             )
 
 
@@ -972,7 +981,7 @@ class ParallelTransformer(MegatronModule):
         num_attention_heads,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
-        layer_type=LayerType.encoder,
+        layer_type=LayerType.encoder,  # it can be a list of types or single type
         self_attn_mask_type=AttnMaskType.padding,
         pre_process=True,
         post_process=True,
@@ -994,6 +1003,7 @@ class ParallelTransformer(MegatronModule):
         model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
         bias=True,
+        chunk_size=64,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1024,6 +1034,10 @@ class ParallelTransformer(MegatronModule):
         self.num_layers = self.get_num_layers(num_layers)
         # Transformer layers.
         def build_layer(layer_number):
+            if isinstance(layer_type, list):
+                lt = layer_type[layer_number-1]
+            else:
+                lt = layer_type
             return ParallelTransformerLayer(
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
@@ -1033,7 +1047,7 @@ class ParallelTransformer(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                layer_type=layer_type,
+                layer_type=lt,
                 self_attn_mask_type=self_attn_mask_type,
                 precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
@@ -1050,6 +1064,7 @@ class ParallelTransformer(MegatronModule):
                 activation=activation,
                 megatron_legacy=megatron_legacy,
                 bias=bias,
+                chunk_size=chunk_size,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1189,6 +1204,7 @@ class ParallelTransformer(MegatronModule):
         enc_dec_attn_mask=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        pos_emb=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1237,6 +1253,7 @@ class ParallelTransformer(MegatronModule):
                     get_key_value=get_key_value,
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
+                    pos_emb=pos_emb,
                 )
                 if get_key_value:
                     hidden_states, present = hidden_states
