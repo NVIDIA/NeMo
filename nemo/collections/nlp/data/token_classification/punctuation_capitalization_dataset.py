@@ -1227,6 +1227,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch_beginnings, batch_sizes, batch_seq_lengths = zip(
             *sorted(zip(batch_beginnings, batch_sizes, batch_seq_lengths), key=lambda x: x[0])
         )
+        assert len(batch_beginnings) == self.number_of_batches_is_multiple_of
+        assert len(batch_sizes) == self.number_of_batches_is_multiple_of
+        assert len(batch_seq_lengths) == self.number_of_batches_is_multiple_of
         return list(batch_beginnings), list(batch_sizes), list(batch_seq_lengths)
 
     def _mark_up_batches(self, input_ids: List[np.ndarray]) -> Tuple[List[int], List[int], List[int]]:
