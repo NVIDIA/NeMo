@@ -122,7 +122,7 @@ def setup_trainer_and_model(args):
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
             app_state.model_parallel_size,
-            _,
+            _, _,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
