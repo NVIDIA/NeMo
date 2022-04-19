@@ -28,6 +28,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 class SaveRestoreConnector:
@@ -105,6 +106,7 @@ class SaveRestoreConnector:
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
@@ -130,8 +132,7 @@ class SaveRestoreConnector:
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
-                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
+                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -142,7 +143,10 @@ class SaveRestoreConnector:
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+
                 if conf.get('megatron_amp_O2', False):
                     new_state_dict = {}
                     for key in state_dict.keys():
@@ -376,8 +380,8 @@ class SaveRestoreConnector:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
-        app_state = AppState()
-        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, basename)
+        model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
 
     @staticmethod

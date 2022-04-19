@@ -178,7 +178,9 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
     for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
         embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
         for uniq_id in embeddings.keys():
-            embs_and_timestamps[uniq_id]['multiscale_weights'] = multiscale_args_dict['multiscale_weights']
+            embs_and_timestamps[uniq_id]['multiscale_weights'] = (
+                torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+            )
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
                 'embeddings': embeddings[uniq_id],
@@ -289,7 +291,21 @@ def rttm_to_labels(rttm_filename):
     return labels
 
 
-# embeddings, time_stamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params, multi_scale_data=None
+def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
+    """
+
+    Write cluster labels that are generated from clustering into a file.
+    Args:
+        base_scale_idx (int): The base scale index which is the highest scale index.
+        lines_cluster_labels (list): The start and end time-stamps of each segment with the predicted cluster label.
+        out_rttm_dir (str): The path where output rttm files are saved.
+    """
+    out_label_name = os.path.join(
+        out_rttm_dir, '../speaker_outputs', f'subsegments_scale{base_scale_idx}_cluster.label'
+    )
+    with open(out_label_name, 'w') as f:
+        for clus_label_line in lines_cluster_labels:
+            f.write(clus_label_line)
 
 
 def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, clustering_params):
@@ -314,6 +330,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
     all_reference = []
     no_references = False
     max_num_speakers = clustering_params['max_num_speakers']
+    lines_cluster_labels = []
 
     cuda = True
     if not torch.cuda.is_available():
@@ -344,11 +361,11 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
             lines[idx] += tag
-
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
+            lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
         hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
         all_hypothesis.append([uniq_id, hypothesis])
 
@@ -360,6 +377,9 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             no_references = True
             all_reference = []
+
+    if out_rttm_dir:
+        write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir)
 
     return all_reference, all_hypothesis
 
@@ -461,28 +481,37 @@ def write_rttm2manifest(AUDIO_RTTM_MAP, manifest_file):
                     start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
                 start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
 
-                if time_tup[0] >= 0 and start > time_tup[1]:
-                    dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
-                    if time_tup[0] < max_duration and dur2 > 0:
-                        meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}
-                        json.dump(meta, outfile)
-                        outfile.write("\n")
-                    else:
-                        logging.warning(
-                            "RTTM label has been truncated since start is greater than duration of audio file"
-                        )
-                    time_tup = (start, start + dur)
+                if start == 0 and dur == 0:  # No speech segments
+                    continue
                 else:
-                    if time_tup[0] == -1:
-                        end_time = start + dur
-                        if end_time > max_duration:
-                            end_time = max_duration
-                        time_tup = (start, end_time)
+
+                    if time_tup[0] >= 0 and start > time_tup[1]:
+                        dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
+                        if time_tup[0] < max_duration and dur2 > 0:
+                            meta = {
+                                "audio_filepath": audio_path,
+                                "offset": time_tup[0],
+                                "duration": dur2,
+                                "label": 'UNK',
+                            }
+                            json.dump(meta, outfile)
+                            outfile.write("\n")
+                        else:
+                            logging.warning(
+                                "RTTM label has been truncated since start is greater than duration of audio file"
+                            )
+                        time_tup = (start, start + dur)
                     else:
-                        end_time = max(time_tup[1], start + dur)
-                        if end_time > max_duration:
-                            end_time = max_duration
-                        time_tup = (min(time_tup[0], start), end_time)
+                        if time_tup[0] == -1:
+                            end_time = start + dur
+                            if end_time > max_duration:
+                                end_time = max_duration
+                            time_tup = (start, end_time)
+                        else:
+                            end_time = max(time_tup[1], start + dur)
+                            if end_time > max_duration:
+                                end_time = max_duration
+                            time_tup = (min(time_tup[0], start), end_time)
             dur2 = float("{:.3f}".format(time_tup[1] - time_tup[0]))
             if time_tup[0] < max_duration and dur2 > 0:
                 meta = {"audio_filepath": audio_path, "offset": time_tup[0], "duration": dur2, "label": 'UNK'}

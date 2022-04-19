@@ -15,17 +15,20 @@
 r"""
 Conversion script to convert PTL checkpoints into nemo checkpoint.
   Example to run this conversion script:
-    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> megatron_gpt_ckpt_to_nemo.py.py \
+    python -m torch.distributed.launch --nproc_per_node=<tensor_model_parallel_size> * <pipeline_model_parallel_size> \
+     megatron_ckpt_to_nemo.py \
      --checkpoint_folder <path_to_PTL_checkpoints_folder> \
      --checkpoint_name <checkpoint_name> \
      --nemo_file_path <path_to_output_nemo_file> \
-     --tensor_model_parallel_size <tensor_model_parallel_size>
+     --tensor_model_parallel_size <tensor_model_parallel_size> \
+     --pipeline_model_parallel_size <pipeline_model_parallel_size>
 """
 
 import os
 from argparse import ArgumentParser
 
 import torch
+from apex.transformer import parallel_state
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
@@ -33,6 +36,8 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
+from nemo.utils.distributed import initialize_distributed
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 def get_args():
@@ -60,28 +65,41 @@ def get_args():
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
+    parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
-
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
 
     args = parser.parse_args()
     return args
 
 
-def convert(rank, world_size, args):
+def convert(local_rank, rank, world_size, args):
 
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    trainer = Trainer(gpus=args.tensor_model_parallel_size)
-    # TODO: reach out to PTL For an API-safe local rank override
-    trainer.accelerator.training_type_plugin._local_rank = rank
+    num_nodes = world_size // args.gpus_per_node
+    trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
 
-    if args.tensor_model_parallel_size is not None and args.tensor_model_parallel_size > 1:
-        # inject model parallel rank
-        checkpoint_path = os.path.join(args.checkpoint_folder, f'mp_rank_{rank:02d}', args.checkpoint_name)
-    else:
-        checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
+    app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
+    app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
+    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+
+    parallel_state.initialize_model_parallel(
+        tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
+        pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+    )
+
+    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
+    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+
+    # inject model parallel rank
+    checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
+
+    logging.info(
+        f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
+    )
 
     if args.model_type == 'gpt':
         model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
@@ -104,16 +122,7 @@ def convert(rank, world_size, args):
 
 if __name__ == '__main__':
     args = get_args()
-    world_size = args.tensor_model_parallel_size
 
-    if args.local_rank == -1:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
-    else:
-        torch.cuda.set_device(args.local_rank)
-        device = torch.device("cuda", args.local_rank)
-        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.distributed.init_process_group(
-            backend='nccl', init_method='env://', rank=args.local_rank, world_size=world_size
-        )
+    local_rank, rank, world_size = initialize_distributed(args)
 
-    convert(args.local_rank, world_size, args)
+    convert(local_rank, rank, world_size, args)

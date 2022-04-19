@@ -166,6 +166,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             weights_init_scale=weights_init_scale,
             hidden_hidden_bias_scale=hidden_hidden_bias_scale,
             dropout=dropout,
+            rnn_hidden_size=prednet.get("rnn_hidden_size", -1),
         )
         self._rnnt_export = False
 
@@ -208,7 +209,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Args:
             y: Optional torch tensor of shape [B, U] of dtype long which will be passed to the Embedding.
-                If None, creates a zero tensor of shape [B, 1, H] which mimics output of pad-token on Embedding.
+                If None, creates a zero tensor of shape [B, 1, H] which mimics output of pad-token on EmbeddiNg.
 
             state: An optional list of states for the RNN. Eg: For LSTM, it is the state list length is 2.
                 Each state must be a tensor of shape [L, B, H].
@@ -292,6 +293,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         weights_init_scale,
         hidden_hidden_bias_scale,
         dropout,
+        rnn_hidden_size,
     ):
         """
         Prepare the trainable parameters of the Prediction Network.
@@ -308,6 +310,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             hidden_hidden_bias_scale: Float scale for the hidden-to-hidden bias scale. Set to 0.0 for
                 the default behaviour.
             dropout: Whether to apply dropout to RNN.
+            rnn_hidden_size: the hidden size of the RNN, if not specified, pred_n_hidden would be used
         """
         if self.blank_as_pad:
             embed = torch.nn.Embedding(vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx)
@@ -319,7 +322,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                 "embed": embed,
                 "dec_rnn": rnn.rnn(
                     input_size=pred_n_hidden,
-                    hidden_size=pred_n_hidden,
+                    hidden_size=rnn_hidden_size if rnn_hidden_size > 0 else pred_n_hidden,
                     num_layers=pred_rnn_layers,
                     norm=norm,
                     forget_gate_bias=forget_gate_bias,
@@ -327,6 +330,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
                     dropout=dropout,
                     weights_init_scale=weights_init_scale,
                     hidden_hidden_bias_scale=hidden_hidden_bias_scale,
+                    proj_size=pred_n_hidden if pred_n_hidden < rnn_hidden_size else 0,
                 ),
             }
         )
@@ -903,7 +907,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
                     sub_transcripts = sub_transcripts.detach()
 
                     original_log_prediction = self.wer.log_prediction
-                    if batch_idx == 0:
+                    if original_log_prediction and batch_idx == 0:
                         self.wer.log_prediction = True
                     else:
                         self.wer.log_prediction = False

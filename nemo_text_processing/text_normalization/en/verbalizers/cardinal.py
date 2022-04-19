@@ -37,17 +37,39 @@ class CardinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="cardinal", kind="verbalize", deterministic=deterministic)
 
-        self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
+        self.optional_sign = pynini.cross("negative: \"true\"", "minus ")
+        if not deterministic:
+            self.optional_sign |= pynini.cross("negative: \"true\"", "negative ")
+        self.optional_sign = pynini.closure(self.optional_sign + delete_space, 0, 1)
 
-        if deterministic:
-            integer = pynini.closure(NEMO_NOT_QUOTE, 1)
-        else:
-            integer = (
-                pynini.closure(NEMO_NOT_QUOTE)
-                + pynini.closure(pynini.cross("hundred ", "hundred and ") | pynini.cross("hundred ", " "), 0, 1)
-                + pynini.closure(NEMO_NOT_QUOTE)
-            )
-
+        # no_thousand_million = pynini.difference(
+        #     pynini.closure(NEMO_NOT_QUOTE),
+        #     pynini.closure(NEMO_NOT_QUOTE) + pynini.union("thousand", "million") + pynini.closure(NEMO_NOT_QUOTE),
+        # ).optimize()
+        # integer = (
+        #     pynini.closure(NEMO_NOT_QUOTE)
+        #     + pynini.closure(
+        #         pynutil.add_weight(pynini.cross("hundred ", "hundred and ") + no_thousand_million, -0.0001), 0, 1
+        #     ).optimize()
+        # )
+        # no_hundred = pynini.difference(
+        #     pynini.closure(NEMO_NOT_QUOTE),
+        #     pynini.closure(NEMO_NOT_QUOTE) + "hundred" + pynini.closure(NEMO_NOT_QUOTE),
+        # ).optimize()
+        # integer |= (
+        #     pynini.closure(NEMO_NOT_QUOTE)
+        #     + pynini.closure(
+        #         pynutil.add_weight(pynini.cross("thousand ", "thousand and ") + no_hundred, -0.0001), 0, 1
+        #     ).optimize()
+        # )
+        #
+        # if not deterministic:
+        #     integer |= (
+        #         pynini.closure(NEMO_NOT_QUOTE)
+        #         + pynini.closure(pynini.cross("hundred ", "hundred and ") | pynini.cross("hundred ", " "), 0, 1)
+        #         + pynini.closure(NEMO_NOT_QUOTE)
+        #     ).optimize()
+        integer = pynini.closure(NEMO_NOT_QUOTE)
         self.integer = delete_space + pynutil.delete("\"") + integer + pynutil.delete("\"")
         integer = pynutil.delete("integer:") + self.integer
 

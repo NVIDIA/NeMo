@@ -119,6 +119,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         self.setup_optim_normalization()
 
+        # Setup optional Optimization flags
+        self.setup_optimization_flags()
+
     def setup_optim_normalization(self):
         """
         Helper method to setup normalization of certain parts of the model prior to the optimization step.
@@ -264,7 +267,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             with tempfile.TemporaryDirectory() as tmpdir:
                 with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -858,9 +861,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.joint.vocabulary,
             'batch_size': batch_size,
