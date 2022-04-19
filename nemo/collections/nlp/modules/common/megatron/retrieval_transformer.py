@@ -27,10 +27,11 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelAttention
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+
 try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType, AttnType, ModelType
@@ -40,5 +41,3 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
-

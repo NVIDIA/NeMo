@@ -14,9 +14,9 @@
 
 """Transformer based language model."""
 
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     attn_mask_postprocess,

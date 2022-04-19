@@ -21,5 +21,3 @@ class LayerType(enum.Enum):
     decoder = 2
     retrieval_encoder = 3
     retrieval_decoder = 4
-
-

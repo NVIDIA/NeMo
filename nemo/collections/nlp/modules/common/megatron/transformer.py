@@ -28,10 +28,10 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -577,6 +577,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         attention_dropout=0.1,
         megatron_legacy=False,
         chunk_size=64,  # each chunk, how many tokens
+        bias=True,
     ):
         super(ParallelChunkedCrossAttention, self).__init__()
         self.cross_attention = ParallelAttention(
@@ -594,14 +595,17 @@ class ParallelChunkedCrossAttention(MegatronModule):
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
             megatron_legacy=megatron_legacy,
+            bias=bias,
         )
         self.chunk_size = chunk_size
 
     def forward(
-        self, hidden_states, attention_mask, context=None, pos_emb=None,
+        self, hidden_states, attention_mask, encoder_output=None, pos_emb=None,
     ):
         # hidden_states is assumed to have dimension [token length, batch, dimension]
         # derive variables
+        # encoder_output here is the retrieved context
+        context = encoder_output
         # context is assumed to have dimension [num_chunks, num_neighbors, context_token_len, batch, dimension]
         chunk_size = self.chunk_size
 
@@ -773,7 +777,7 @@ class ParallelTransformerLayer_(MegatronModule):
             )
             # Layernorm on the attention output.
             self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
-        elif self.layer_type == LayerType.retrieval_decoder: 
+        elif self.layer_type == LayerType.retrieval_decoder:
             self.inter_attention = ParallelChunkedCrossAttention(
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
@@ -789,6 +793,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
                 megatron_legacy=megatron_legacy,
+                bias=bias,
             )
             # Layernorm on the attention output.
             self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
@@ -817,6 +822,7 @@ class ParallelTransformerLayer_(MegatronModule):
         get_key_value=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        pos_emb=None,
     ):
         # hidden_states: [b, s, h]
 
@@ -863,9 +869,13 @@ class ParallelTransformerLayer_(MegatronModule):
         # Layer norm post the self attention.
         layernorm_output = self.post_attention_layernorm(layernorm_input)
 
-        if self.layer_type == LayerType.decoder:
+        if (
+            self.layer_type == LayerType.decoder
+            or self.layer_type == LayerType.retrieval_decoder
+            or self.layer_type == LayerType.retrieval_encoder
+        ):
             attention_output, attention_bias = self.inter_attention(
-                layernorm_output, enc_dec_attn_mask, encoder_output=encoder_output
+                layernorm_output, enc_dec_attn_mask, encoder_output=encoder_output, pos_emb=pos_emb,
             )
             # residual connection
             if self.apply_residual_connection_post_layernorm:
