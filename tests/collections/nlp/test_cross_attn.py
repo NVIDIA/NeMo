@@ -158,7 +158,5 @@ class TestCrossAttn:
                 precision=16,
                 chunk_size=text_chunk_size,
                 layer_type=layer_type,
-        ).cuda()
-
-        out, bias = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
-        print(out)
+        ).cuda().half()
+        out = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
