@@ -77,14 +77,11 @@ class DialogueNearestNeighbourDataset(Dataset):
                 return_tensors='pt',
                 max_length=self.cfg.max_seq_length,
             )
-            examples.append((encoded_input, torch.tensor(labels)))
+            examples.append((encoded_input['input_ids'], encoded_input['attention_mask'], torch.tensor(labels)))
         return examples
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, idx: int):
-        encoding, labels = self.examples[idx]
-        input_ids = encoding['input_ids']
-        attn_mask = encoding['attention_mask']
-        return input_ids, attn_mask, labels
+        return self.examples[idx]

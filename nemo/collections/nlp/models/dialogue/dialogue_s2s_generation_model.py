@@ -24,6 +24,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoModelForSeq2SeqLM
 
 from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.mellon_qa_data_processor import DialogueMellonQADataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
@@ -268,8 +269,12 @@ class DialogueS2SGenerationModel(NLPModel):
                 tokenizer=self.tokenizer,
                 cfg=self._cfg.dataset,
             )
+        elif self._cfg.dataset.task == "mellon_qa":
+            self.dialogues_processor = DialogueMellonQADataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer
+            )
         else:
-            raise ValueError("Only ms_marco and sgd_generation supported for Dialogue GPT Generation Model")
+            raise ValueError("Only ms_marco, sgd_generation and mellon_qa supported for Dialogue GPT Generation Model")
 
         self.data_prepared = True
 

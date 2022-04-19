@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+from multiprocessing.sharedctypes import Value
 from typing import Optional
 
 import numpy as np
@@ -113,7 +114,6 @@ class DialogueNearestNeighbourModel(NLPModel):
             output = self.forward(input_ids=input_ids[i], attention_mask=input_mask[i])
             sentence_embeddings = DialogueNearestNeighbourModel.mean_pooling(output, input_mask[i])
             sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
-
             cos_sim = F.cosine_similarity(sentence_embeddings[:1, :], sentence_embeddings[1:, :])
             pred = torch.argmax(cos_sim).item() + 1
             gt = torch.argmax(labels[i][1:]).item() + 1

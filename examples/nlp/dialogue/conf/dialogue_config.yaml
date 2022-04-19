@@ -75,10 +75,10 @@ model:
   original_nemo_checkpoint: null
 
   dataset:
-    task: sgd # sgd, assistant, zero_shot, ms_marco, sgd_generation, design
+    task: sgd # sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa
     field: intent # intemt, slots, service
     system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn takes the system utterance that follows the user utterance
-    input_field: utterance+response # passage+utterance, utterance, response, utterance+response
+    input_field: utterance+response # passage+utterance, utterance, response, utterance+response, system_actions
     output_field: fluent_response # response, fluent_response, system_utterance
     prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel #acts_slots_values, slots_values, values for DialogueS2SGenerationDataset
     target_template: default # default, with_description, with_slots

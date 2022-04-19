@@ -145,7 +145,7 @@ def main(cfg: DictConfig) -> None:
         else:
             model_class = IntentSlotClassificationModel
     elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():
-        if cfg.model.dataset.task == 'ms_marco':
+        if cfg.model.dataset.task in ['ms_marco', 'mellon_qa']:
             model_class = DialogueGPTGenerationModel
         else:
             model_class = DialogueGPTClassificationModel

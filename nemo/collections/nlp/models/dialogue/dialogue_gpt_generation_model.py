@@ -23,6 +23,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
+from nemo.collections.nlp.data.dialogue.data_processor.mellon_qa_data_processor import DialogueMellonQADataProcessor
 from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_generation_dataset import DialogueGPTGenerationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
@@ -331,8 +332,12 @@ class DialogueGPTGenerationModel(NLPModel):
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
                 data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, debug_mode=self.cfg.dataset.debug_mode
             )
+        elif self._cfg.dataset.task == "mellon_qa":
+            self.dialogues_processor = DialogueMellonQADataProcessor(
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer
+            )
         else:
-            raise ValueError("Only ms_marco supported for Dialogue GPT Generation Model")
+            raise ValueError("Only ms_marco and mellon_qa supported for Dialogue GPT Generation Model")
 
         self.data_prepared = True
 
