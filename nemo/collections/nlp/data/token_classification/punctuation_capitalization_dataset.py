@@ -839,7 +839,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             other useful information.
         n_jobs (:obj:`int`, `optional`, defaults to :obj:`0`): number of workers used for tokenization, encoding
             labels, creating "first token in word" mask, and clipping. If ``n_jobs <= 0`` data preparation is performed
-            without multiprocessing. By default ``n_jobs`` is equal to the number of CPUs.
+            without multiprocessing. By default ``n_jobs`` is ``0``.
 
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
@@ -888,6 +888,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         add_masks_and_segment_ids_to_batch: bool = True,
         verbose: bool = True,
         n_jobs: Optional[int] = 0,
+        number_of_batches_is_multiple_of: int = 1,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
@@ -913,9 +914,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if capit_label_vocab_file is not None:
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
-        text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
+        self.text_file, self.labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
         if label_info_save_dir is None:
-            self.label_info_save_dir = text_file.parent
+            self.label_info_save_dir = self.text_file.parent
         else:
             self.label_info_save_dir = Path(label_info_save_dir).expanduser()
 
@@ -930,22 +931,22 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_building_progress_queue = batch_building_progress_queue
 
         master_device = is_global_rank_zero()
-        self.features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
+        self.features_pkl = self._get_path_to_pkl_features(self.text_file, cache_dir, max_seq_length, num_samples)
         features = None
         if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(f'Processing {text_file}')
-            res = self._read_dataset(text_file, labels_file, num_samples)
+            res = self._read_dataset(self.text_file, self.labels_file, num_samples)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
             if punct_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file
+                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', self.labels_file
                 )
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file
+                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', self.labels_file
                 )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
@@ -986,6 +987,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
+        self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
@@ -1170,6 +1172,60 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
         return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels
 
+    def _adjust_number_of_batches(
+        self,
+        input_ids: List[np.ndarray],
+        batch_beginnings: List[int],
+        batch_sizes: List[int],
+        batch_seq_lengths: List[int],
+    ) -> Tuple[List[int], List[int], List[int]]:
+        num_missing_batches = (
+            self.number_of_batches_is_multiple_of - len(batch_sizes) % self.number_of_batches_is_multiple_of
+        )
+        indices_of_batches_to_split: List[int] = []
+        for i, bs in enumerate(batch_sizes):
+            if bs > 1:
+                indices_of_batches_to_split.append(i)
+            if len(indices_of_batches_to_split) == num_missing_batches:
+                break
+        if len(indices_of_batches_to_split) < num_missing_batches:
+            logging.warning(
+                f"Unable to achieve number of batches multiple of {self.number_of_batches_is_multiple_of} because "
+                f"dataset in files '{self.text_file}' and '{self.labels_file}' contains not enough examples "
+                f"({sum(batch_sizes)}) or strings in the dataset are too long. Dataset will have "
+                f"{len(batch_beginnings)} batches instead. For validation or test dataset if multiple GPUs are used "
+                f"this will lead to distorted metrics because some batches will be processed several times."
+            )
+            return batch_beginnings, batch_sizes, batch_seq_lengths
+        for i in indices_of_batches_to_split:
+            reversed_batch = input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i] : -1]
+            num_tokens_in_batch = sum([len(a) for a in reversed_batch])
+            new_batch = []
+            new_batch_num_tokens = 0
+            for j, elem in enumerate(reversed_batch):
+                new_batch.append(elem)
+                new_batch_num_tokens += len(elem)
+                if new_batch_num_tokens >= num_tokens_in_batch // 2:
+                    assert len(new_batch) < len(reversed_batch), (
+                        f"`input_ids` list is supposed to be sorted be length in ascending order `reversed_batch` "
+                        f"is supposed to be sorted in descending order. In addition the batch has to contain more "
+                        f"than 1 element ({len(reversed_batch)}). Thus number of elements {len(new_batch)} in "
+                        f"`new_batch` has to less than in `reversed_batch`."
+                    )
+                    break
+            # Reversing batches for uniformity because elements in other batches are sorted by length in ascending order
+            new_batch, replacement_batch = new_batch[::-1], reversed_batch[:-len(new_batch):-1]
+            batch_beginnings.append(batch_beginnings[i] + len(replacement_batch))
+            batch_sizes.append(len(new_batch))
+            batch_seq_lengths.append(ceil(max([len(elem) for elem in new_batch]) / 8) * 8)
+            batch_sizes[i] = len(replacement_batch)
+            batch_seq_lengths[i] = ceil(max([len(elem) for elem in replacement_batch]) / 8) * 8
+        # For ease of checking of mark batches are sorted by batch beginnings.
+        batch_beginnings, batch_sizes, batch_seq_lengths = zip(
+            *sorted(zip(batch_beginnings, batch_sizes, batch_seq_lengths), key=lambda x: x[0])
+        )
+        return list(batch_beginnings), list(batch_sizes), list(batch_seq_lengths)
+
     def _mark_up_batches(self, input_ids: List[np.ndarray]) -> Tuple[List[int], List[int], List[int]]:
         """
         Computes indices of first samples in batch, batch sizes, seq lengths for batches. ``input_ids`` has to be
@@ -1239,6 +1295,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
             batch_seq_lengths.append(seq_length)
             if self.batch_mark_up_progress_queue is not None:
                 self.batch_mark_up_progress_queue.put(progress_made)
+        if len(batch_beginnings) % self.number_of_batches_is_multiple_of:
+            batch_beginnings, batch_sizes, batch_seq_lengths = self._adjust_number_of_batches(
+                input_ids, batch_beginnings, batch_sizes, batch_seq_lengths
+            )
         assert sum(batch_sizes) == len(input_ids)
         for i in range(len(batch_beginnings) - 1):
             assert batch_beginnings[i] + batch_sizes[i] == batch_beginnings[i + 1]
