@@ -1305,7 +1305,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         assert sum(batch_sizes) == len(input_ids)
         for i in range(len(batch_beginnings) - 1):
             assert batch_beginnings[i] + batch_sizes[i] == batch_beginnings[i + 1]
-            assert batch_seq_lengths[i] == max(
+            assert batch_seq_lengths[i] >= max(
                 [len(inp) for inp in input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i]]]
             )
         return batch_beginnings, batch_sizes, batch_seq_lengths
