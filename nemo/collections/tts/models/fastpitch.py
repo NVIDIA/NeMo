@@ -98,7 +98,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning(
-                    "AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for" \
+                    "AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for"
                     " training or finetuning. Only inference is supported."
                 )
                 tokenizer_conf = self._get_default_text_tokenizer_conf()
@@ -155,7 +155,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def _get_default_text_tokenizer_conf(self):
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
-        return OmegaConf.create(OmegaConf.to_yaml( text_tokenizer))
+        return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
