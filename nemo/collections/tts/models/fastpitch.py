@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import contextlib
-from typing import Optional
 from dataclasses import dataclass, is_dataclass
+from typing import Optional
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
@@ -43,6 +43,7 @@ from nemo.core.neural_types.elements import (
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 
+
 @dataclass
 class G2PConfig:
     _target_: str = "nemo.collections.tts.torch.g2ps.EnglishG2p"
@@ -61,6 +62,7 @@ class TextTokenizer:
     pad_with_space: bool = True
     add_blank_at: bool = True
     g2p: G2PConfig = G2PConfig()
+
 
 @dataclass
 class TextTokenizerConfig:
@@ -95,8 +97,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
             elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                logging.warning("AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for" \
-                " training or finetuning. Only inference is supported.")
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for" \
+                    " training or finetuning. Only inference is supported."
+                )
                 tokenizer_conf = self._get_default_text_tokenizer_conf()
                 self._setup_tokenizer(tokenizer_conf)
                 assert self.vocab is not None
@@ -149,10 +153,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
         self._input_types = self._output_types = None
 
-
     def _get_default_text_tokenizer_conf(self):
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
-        return OmegaConf.create( OmegaConf.to_yaml( text_tokenizer) )
+        return OmegaConf.create(OmegaConf.to_yaml( text_tokenizer))
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
