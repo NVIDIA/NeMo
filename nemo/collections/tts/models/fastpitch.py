@@ -13,6 +13,7 @@
 # limitations under the License.
 import contextlib
 from typing import Optional
+from dataclasses import dataclass, is_dataclass
 
 import torch
 from hydra.utils import instantiate
@@ -41,6 +42,29 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+
+@dataclass
+class G2PConfig:
+    _target_: str = "nemo.collections.tts.torch.g2ps.EnglishG2p"
+    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-030921"
+    phoneme_probability: float = 0.5
+
+
+@dataclass
+class TextTokenizer:
+    _target_: str = "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    punct: bool = True
+    stresses: bool = True
+    chars: bool = True
+    apostrophe: bool = True
+    pad_with_space: bool = True
+    add_blank_at: bool = True
+    g2p: G2PConfig = G2PConfig()
+
+@dataclass
+class TextTokenizerConfig:
+    text_tokenizer: TextTokenizer = TextTokenizer()
 
 
 class FastPitchModel(SpectrogramGenerator, Exportable):
@@ -73,8 +97,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 logging.warning("AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for" \
                 " training or finetuning. Only inference is supported.")
-                default_tokenizer_yaml = self._get_default_text_tokenizer()
-                tokenizer_conf = OmegaConf.create(default_tokenizer_yaml)
+                tokenizer_conf = self._get_default_text_tokenizer_conf()
                 self._setup_tokenizer(tokenizer_conf)
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
@@ -127,24 +150,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         self._input_types = self._output_types = None
 
 
-    def _get_default_text_tokenizer(self):
-        default_text_tokenizer = """
-            text_tokenizer:
-                _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
-                punct: true
-                stresses: true
-                chars: true
-                apostrophe: true
-                pad_with_space: true
-                add_blank_at: true
-                g2p:
-                    _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
-                    phoneme_dict: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
-                    heteronyms: "scripts/tts_dataset_files/heteronyms-030921"
-                    phoneme_probability: 0.5
-            """
-        return default_text_tokenizer
-
+    def _get_default_text_tokenizer_conf(self):
+        text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
+        return OmegaConf.create( OmegaConf.to_yaml( text_tokenizer) )
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -205,8 +213,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
                 self._parser = self.vocab.encode
             elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
                 if self.vocab is None:
-                    default_tokenizer_yaml = self._get_default_text_tokenizer()
-                    tokenizer_conf = OmegaConf.create(default_tokenizer_yaml)
+                    tokenizer_conf = self._get_default_text_tokenizer_conf()
                     self._setup_tokenizer(tokenizer_conf)
                 self._parser = self.vocab.encode
             else:
