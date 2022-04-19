@@ -1198,7 +1198,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
             return batch_beginnings, batch_sizes, batch_seq_lengths
         for i in indices_of_batches_to_split:
-            reversed_batch = input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i] : -1]
+            reversed_batch = input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i]][::-1]
             num_tokens_in_batch = sum([len(a) for a in reversed_batch])
             new_batch = []
             new_batch_num_tokens = 0
@@ -1214,7 +1214,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     )
                     break
             # Reversing batches for uniformity because elements in other batches are sorted by length in ascending order
-            new_batch, replacement_batch = new_batch[::-1], reversed_batch[:-len(new_batch):-1]
+            new_batch, replacement_batch = new_batch[::-1], reversed_batch[len(new_batch):][::-1]
+            assert {
+                id(elem) for elem in new_batch
+            } | {id(elem) for elem in replacement_batch} == {id(elem) for elem in reversed_batch}
             batch_beginnings.append(batch_beginnings[i] + len(replacement_batch))
             batch_sizes.append(len(new_batch))
             batch_seq_lengths.append(ceil(max([len(elem) for elem in new_batch]) / 8) * 8)
@@ -1302,7 +1305,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         assert sum(batch_sizes) == len(input_ids)
         for i in range(len(batch_beginnings) - 1):
             assert batch_beginnings[i] + batch_sizes[i] == batch_beginnings[i + 1]
-            assert batch_seq_lengths[i] >= max(
+            assert batch_seq_lengths[i] == max(
                 [len(inp) for inp in input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i]]]
             )
         return batch_beginnings, batch_sizes, batch_seq_lengths
