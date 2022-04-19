@@ -20,7 +20,7 @@ import torch
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import ParallelChunkedCrossAttention
+from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
@@ -30,7 +30,6 @@ class TestCrossAttn:
     @pytest.mark.run_only_on('GPU')
     def setup_method(self, test_method):
         os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
-        # plugin.setup_distributed()
         plugin = NLPDDPPlugin()
 
         TP_SIZE = 2
@@ -60,7 +59,6 @@ class TestCrossAttn:
             trainer.strategy.launcher.launch(dummy, trainer=trainer)
         trainer.strategy.setup_environment()
 
-        print('here model')
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit

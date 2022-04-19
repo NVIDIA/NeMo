@@ -21,6 +21,7 @@ import torch.nn.init as init
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     get_linear_layer,
@@ -30,7 +31,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 try:
     from apex.transformer import tensor_parallel
-    from apex.transformer.enums import AttnMaskType, LayerType
+    from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
