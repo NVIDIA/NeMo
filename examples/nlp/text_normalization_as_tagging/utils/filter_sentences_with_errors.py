@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """
 This script is used to filter sentences containing bad examples from Google TN Dataset.
 """

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 """
 This script can be used to get label vocab from train and dev labeled files.
 """
