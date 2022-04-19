@@ -192,7 +192,8 @@ def main(cfg: DictConfig) -> None:
                 model._cfg.dataset = cfg.model.dataset
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.ds_item is not None:
-        trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, precision=16)
+        eval_device = [cfg.trainer.devices[0]] if isinstance(cfg.trainer.devices, list) else 1
+        trainer = pl.Trainer(devices=eval_device, accelerator=cfg.trainer.accelerator, precision=16)
         model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
         if model.prepare_test(trainer):
             trainer.test(model)

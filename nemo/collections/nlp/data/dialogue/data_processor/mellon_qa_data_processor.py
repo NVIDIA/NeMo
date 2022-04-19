@@ -65,7 +65,8 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
         raw_examples = [
             example
             for example in raw_examples
-            if example['Non Generative Question Answering '] and example['Generative Question Answering ']
+            if isinstance(example['Non Generative Question Answering '], str)
+            and isinstance(example['Generative Question Answering '], str)
         ]
 
         if dataset_split == "train":
