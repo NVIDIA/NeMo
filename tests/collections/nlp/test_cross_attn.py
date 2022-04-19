@@ -118,12 +118,14 @@ class TestCrossAttn:
 
         # rotary pos emb dim
         dim = 128
+        pad_id = 19999
         num_attention_heads = 8
         # rot_dim = dim // num_attention_heads
         # rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
+        hidden = torch.rand(2, 2048).cuda().half()  # (batch, seq, dim)
+        hidden_mask = (hidden == pad_id).type(torch.int32).cuda()
 
-        hidden = torch.rand(2, 2048, dim).cuda().half()  # (batch, seq, dim)
-        pad_id = 19999
+        hidden_emb = torch.rand(2, 2048, dim).cuda().half()  # (batch, seq, dim)
 
         text_chunk_size = 64
         # context_chunk_size = 128
@@ -158,4 +160,5 @@ class TestCrossAttn:
                 layer_type=layer_type,
         ).cuda()
 
-        out, bias = encoder(retrieved_emb, context_mask, encoder_output=hidden)
+        out, bias = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
+        print(out)

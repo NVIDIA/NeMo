@@ -144,11 +144,11 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         self.model.set_input_tensor(input_tensor)
 
     def forward(
-        self, enc_input, enc_attn_mask, encoder_output=None, layer_past=None, get_key_value=False,
+        self, enc_input, enc_attn_mask, context_attn_mask=None, encoder_output=None, layer_past=None, get_key_value=False,
     ):
         # expected enc_input shape [batch, num_chunks, num_neighbors, retrival_seq_len, dim]
         # expected enc_attn_mask shape [batch, num_chunks, num_neighbors, retrival_seq_len]
-        # expected encoder_output shape []
+        # expected encoder_output shape [batch, seq_len, dim]
         b, k, r, rn, dim = enc_input.shape
 
         # batch, seq_len, dim
@@ -162,22 +162,31 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         retrieved = rearrange(enc_input, 'b k r n d -> (b k r) n d')
         enc_attn_mask = rearrange(enc_attn_mask, 'b k r n -> (b k r) n')
         embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n = self.chunk_size, r = r)
+        context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n = self.chunk_size, r = r)
 
         device = retrieved.device
         # need to add extra chunk size, since it will be shifted
         cross_attn_q_pos_emb = self.rotary_pos_emb(rn, device=device, offset=0)
-        cross_attn_k_pos_emb = self.rotary_pos_emb(n, device=device)
+        cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, device=device)
         cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         
         # # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
             source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
+        enc_attn_mask_3d = enc_attn_mask_3d[:, None, :, :]
+
+        enc_dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=enc_attn_mask, target_mask=context_attn_mask, attn_mask_type=self.model_attn_mask_type,
+        )
+        enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+
 
         # transformer encoder
         enc_output = self.model(
             retrieved, enc_attn_mask_3d, layer_past=layer_past, get_key_value=get_key_value,
             encoder_output=embed_as_context,
+            enc_dec_attn_mask=enc_dec_attn_mask_3d,
             pos_emb=cross_attn_pos_emb,
         )
 

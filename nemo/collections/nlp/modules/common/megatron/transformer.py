@@ -462,6 +462,11 @@ class ParallelAttention(MegatronModule):
 
             query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
             key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
+            # TODO, can apply positional embedding to value_layer so it has
+            # absolute positional embedding.
+            # otherwise, only relative positional embedding takes effect
+            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+
 
         # [sq, b, np, hn] -> [sq, b * np, hn]
         query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
@@ -831,7 +836,7 @@ class ParallelTransformerLayer_(MegatronModule):
         # Self attention.
         if pos_emb is not None:
             # self attention pos_emb is (q, q)
-            self_attention_pos_emb = (pos_emb(0), pos_emb(0))
+            self_attention_pos_emb = (pos_emb[0], pos_emb[0])
         else:
             self_attention_pos_emb = None
         attention_output, attention_bias = self.self_attention(
