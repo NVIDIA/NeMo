@@ -93,14 +93,14 @@ class TestCrossAttn:
         rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
 
         hidden = torch.rand(input_length, batch).cuda().half()  # (seq, batch, dim)
-        hidden_mask = (hidden == pad_id).type(torch.int32).cuda()
+        hidden_mask = (hidden != pad_id).cuda()
         hidden_emb = torch.rand(input_length, batch, dim).cuda().half()  # (seq, batch, dim)
 
         retrieved = torch.randint(0, vocab_size, (chunks, neighbors, context_chunk_size, batch)).cuda().half()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch)
 
         # context attention mask [b, np, sq, sk]
-        context_mask = retrieved != pad_id
+        context_mask = (retrieved != pad_id).cuda()
         retrieved_emb = torch.rand(chunks, neighbors, context_chunk_size, batch, dim).cuda().half()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch, hidden)
 
@@ -154,15 +154,15 @@ class TestCrossAttn:
         vocab_size = 20000
 
         hidden = torch.rand(batch, input_length).cuda().half()  # (batch, seq, dim)
-        hidden_mask = (hidden == pad_id).type(torch.int32).cuda()
+        hidden_mask = (hidden != pad_id).cuda()
 
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
         retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda().half()
         pad_id = vocab_size - 1
-        context_mask = (retrieved == pad_id).type(torch.int32).cuda()
+        context_mask = (retrieved != pad_id).cuda()
         retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
 
-        layer_type = [LayerType.encoder, LayerType.encoder, LayerType.retrieval_encoder, LayerType.encoder, LayerType.encoder, LayerType.retrieval_encoder]
+        layer_type = [LayerType.encoder, LayerType.retrieval_encoder, LayerType.encoder, LayerType.retrieval_encoder]
         num_layers = len(layer_type)
 
         init_method = init_method_normal(init_method_std)
@@ -199,7 +199,7 @@ class TestCrossAttn:
         # rot_dim = dim // num_attention_heads
         # rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
         hidden = torch.rand(batch, input_length).cuda().half()  # (batch, seq, dim)
-        hidden_mask = (hidden == pad_id).type(torch.int32).cuda()
+        hidden_mask = (hidden != pad_id).cuda()
 
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
 
@@ -209,7 +209,7 @@ class TestCrossAttn:
 
         # context attention mask [b, np, sq, sk]
         pad_id = vocab_size - 1
-        context_mask = (retrieved == pad_id).type(torch.int32).cuda()
+        context_mask = (retrieved != pad_id).cuda()
         retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
         # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation, hidden)
 
@@ -218,7 +218,7 @@ class TestCrossAttn:
         # cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, device=device, offset=0)
         # cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size, device=device)
         # cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
-        layer_type = [LayerType.decoder, LayerType.retrieval_decoder]
+        layer_type = [LayerType.encoder, LayerType.retrieval_decoder, LayerType.encoder, LayerType.retrieval_decoder]
         num_layers = len(layer_type)
 
         init_method = init_method_normal(init_method_std)
