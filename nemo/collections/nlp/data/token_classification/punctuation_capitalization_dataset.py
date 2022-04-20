@@ -889,7 +889,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         verbose: bool = True,
         n_jobs: Optional[int] = 0,
         number_of_batches_is_multiple_of: int = 1,
-        batch_repacking_random_state: int = 42,
+        batch_shuffling_random_state: int = 42,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
@@ -989,7 +989,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
-        self.batch_repacking_random_state = np.random.RandomState(batch_repacking_random_state)
+        self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_state)
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
@@ -1352,7 +1352,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             The values of a batch dictionary are numpy arrays of identical shape.
         """
         zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
-        self.batch_repacking_random_state.shuffle(zipped)
+        self.batch_shuffling_random_state.shuffle(zipped)
         input_ids, subtokens_mask, punct_labels, capit_labels = zip(*sorted(zipped, key=lambda x: x[0].shape[0]))
         batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(input_ids)
         batches = []
@@ -1401,7 +1401,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     progress_made = 0
         if self.batch_building_progress_queue is not None:
             self.batch_building_progress_queue.put(progress_made)
-        random.shuffle(batches)
+        self.batch_shuffling_random_state.shuffle(batches)
         return batches
 
     def repack_batches_with_shuffle(self) -> None:
