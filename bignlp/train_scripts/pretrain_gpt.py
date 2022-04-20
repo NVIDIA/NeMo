@@ -4,7 +4,7 @@ import sys
 import hydra
 from gpu_affinity import set_affinity
 
-from bignlp.train_scripts.train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, numa_mapping, \
+from bignlp.train_scripts.train_utils import pause_and_prime_dns_connections, generate_cmd_prefix, \
     convert_args_to_hydra_train_args
 
 
@@ -27,7 +27,8 @@ def main(cfg):
     flags = f"--config-path={training_config_path} --config-name={training_config} "
 
     gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
-    affinity = set_affinity(gpu_id=rank, nproc_per_node=devices, mode="single")
+    if cfg.get("enable_numa_mapping"):
+        affinity = set_affinity(gpu_id=rank, nproc_per_node=devices, mode="single")
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
