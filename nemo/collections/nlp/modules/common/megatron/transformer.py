@@ -29,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_b
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -83,9 +84,13 @@ if HAVE_APEX:
 
 else:
 
-    class ColumnLinear:
-        # Dummy class if apex is not installed
-        raise Warning("APEX not found. ColumnLinear will not work.")
+    class ColumnLinear(ApexGuardDefaults):
+        def __init__(self):
+            super().__init__()
+
+            logging.warning(
+                "Apex was not found. ColumnLinear will not work. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
 
 class ParallelMLP(MegatronModule):
