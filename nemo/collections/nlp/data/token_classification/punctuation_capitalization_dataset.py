@@ -1211,7 +1211,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                         )
                         rb += ss
                         num_cut += 1
-                    assert len(input_ids[bb + rb: bb + rb + bs]) >= ss
+                    assert len(input_ids[bb + rb: bb + rb + bs]) > 0
                     batch_sizes[original_batch_index] = bs - rb
                     batch_beginnings[original_batch_index] = bb + rb
                     batch_seq_lengths[original_batch_index] = self.calc_batch_seq_length(
