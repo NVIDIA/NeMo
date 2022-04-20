@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from attr import has
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 
+from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
 from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.core.config import hydra_runner
@@ -75,9 +77,14 @@ def main(cfg) -> None:
         t5_cfg.masked_softmax_fusion = False
         t5_cfg.data = cfg.data
 
-    model = MegatronT5GLUEModel.restore_from(
-        restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
-    )
+    if hasattr(cfg.data.validation_ds, 'task_name'):
+        model = MegatronT5GLUEModel.restore_from(
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
+        )
+    else:
+        model = MegatronT5FinetuneModel.restore_from(
+            restore_path=cfg.model.restore_from_path, trainer=trainer, override_config_path=t5_cfg
+        )
     model.freeze()
     trainer.validate(model)
     if hasattr(cfg.data, 'test_ds'):

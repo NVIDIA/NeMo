@@ -19,6 +19,7 @@ from pytorch_lightning.plugins.environments.torchelastic_environment import Torc
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
 
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
+from nemo.collections.nlp.models.language_modeling.megatron_glue_model import MegatronT5GLUEModel
 from nemo.collections.nlp.parts.nlp_overrides import (
     GradScaler,
     MegatronHalfPrecisionPlugin,
@@ -98,12 +99,20 @@ def main(cfg) -> None:
         if hasattr(cfg.model, 'eval_languages'):
             t5_cfg.eval_languages = cfg.model.eval_languages
 
-    model = MegatronT5FinetuneModel.restore_from(
-        restore_path=cfg.model.restore_from_path,
-        trainer=trainer,
-        override_config_path=t5_cfg,
-        save_restore_connector=NLPSaveRestoreConnector(),
-    )
+    if hasattr(cfg.model.data.train_ds, 'task_name'):
+        model = MegatronT5GLUEModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=t5_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
+        )
+    else:
+        model = MegatronT5FinetuneModel.restore_from(
+            restore_path=cfg.model.restore_from_path,
+            trainer=trainer,
+            override_config_path=t5_cfg,
+            save_restore_connector=NLPSaveRestoreConnector(),
+        )
 
     trainer.fit(model)
     trainer.validate(model)
