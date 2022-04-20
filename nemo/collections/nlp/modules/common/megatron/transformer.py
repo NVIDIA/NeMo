@@ -40,6 +40,7 @@ try:
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
+
     HAVE_APEX = False
 
     # fake missing classes with None attributes
@@ -83,9 +84,8 @@ if HAVE_APEX:
 else:
 
     class ColumnLinear:
-        raise Warning("APEX not found. ColumnLinear will not work.")
         # Dummy class if apex is not installed
-        pass
+        raise Warning("APEX not found. ColumnLinear will not work.")
 
 
 class ParallelMLP(MegatronModule):
