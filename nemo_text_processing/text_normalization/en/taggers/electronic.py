@@ -60,13 +60,12 @@ class ElectronicFst(GraphFst):
 
         username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
-
-        protocol_start = pynini.accep("https://") | pynini.accep("http://")
         protocol_symbols = pynini.closure(
-            plurals._priority_union(graph_symbols | pynini.cross(":", "colon"), NEMO_ALPHA, NEMO_SIGMA)
-            + pynutil.insert(" ")
+            graph_symbols | pynini.cross(":", "colon") + pynutil.insert(" ")
         )
-        protocol_end = pynini.accep("www.")
+        protocol_start = pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ") + (pynini.accep("://")@protocol_symbols)
+
+        protocol_end = pynini.cross("www", "WWW ") + pynini.cross(".", "dot ") 
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
 
         domain_graph = (
@@ -79,12 +78,13 @@ class ElectronicFst(GraphFst):
             + pynini.difference(accepted_symbols + pynini.union(*accepted_common_domains), protocol + NEMO_SIGMA)
             + pynutil.insert("\"")
         )
-        protocol = pynini.compose(protocol, protocol_symbols)
 
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         graph = username + domain_graph
         graph |= domain_common_graph
         graph |= protocol + pynutil.insert(" ") + domain_graph
+
+        import ipdb; ipdb.set_trace()
 
         final_graph = self.add_tokens(graph)
 
