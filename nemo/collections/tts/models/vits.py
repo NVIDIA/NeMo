@@ -175,17 +175,17 @@ class VitsModel(TextToWaveform):
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
     # only for inference
-    def forward(self, batch, batch_idx):
+    def forward(self, batch, batch_idx, sid=None, noise_scale=1, length_scale=1, noise_scale_w=1., max_len=None):
         with torch.no_grad():
-            (x, x_lengths, spec, spec_lengths, y, y_lengths) = batch
-
+            (y, y_lengths, x, x_lengths) = batch
             # remove else
             x = x[:1]
             x_lengths = x_lengths[:1]
 
-            y_hat, attn, mask, *_ = self.net_g.module.infer(x, x_lengths, max_len=1000)
-            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.hop_size
-        return y_hat, y_hat_lengths
+            y_hat, attn, mask, (z, z_p, m_p, logs_p) = self.net_g.infer(x, x_lengths, sid=sid, noise_scale=noise_scale,
+             length_scale=length_scale, noise_scale_w=noise_scale_w, max_len=1000)
+            y_hat_lengths = mask.sum([1, 2]).long() * self._cfg.n_window_stride
+        return y_hat, y_hat_lengths, (z, z_p, m_p, logs_p)
 
     def get_spec(self, audio):
         with torch.cuda.amp.autocast(enabled=False):
