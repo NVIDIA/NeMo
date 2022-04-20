@@ -13,16 +13,18 @@
 # limitations under the License.
 
 import os
-import torch
 
 import numpy as np
+import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
+
 class SequenceToSequenceDataset(Dataset):
     """Sequence to Sequence Dataset in memory."""
+
     def __init__(
         self,
         src_file_name: str,

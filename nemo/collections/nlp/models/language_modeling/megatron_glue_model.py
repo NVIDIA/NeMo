@@ -11,28 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
-import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextGLUEDataset,
     TextToTextXNLIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_finetune_model import MegatronT5FinetuneModel
-from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.utils import AppState, logging
-
-try:
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
-
+from nemo.utils import logging
 
 __all__ = ['MegatronT5GLUEModel']
 
