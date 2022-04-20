@@ -26,12 +26,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import hydra
-import pytorch_lightning as pl
 import wrapt
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
-from nemo.core.config import TrainerConfig
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
 from nemo.utils import logging, model_utils
