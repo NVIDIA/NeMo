@@ -827,7 +827,7 @@ class ParallelTransformerLayer_(MegatronModule):
         get_key_value=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        pos_emb=None,
+        pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
     ):
         # hidden_states: [b, s, h]
 
@@ -837,8 +837,10 @@ class ParallelTransformerLayer_(MegatronModule):
         if pos_emb is not None:
             # self attention pos_emb is (q, q)
             self_attention_pos_emb = (pos_emb[0], pos_emb[0])
+            cross_attention_pos_emb = (pos_emb[1], pos_emb[2])
         else:
             self_attention_pos_emb = None
+            cross_attention_pos_emb = None
         attention_output, attention_bias = self.self_attention(
             layernorm_output,
             attention_mask,
@@ -886,7 +888,7 @@ class ParallelTransformerLayer_(MegatronModule):
             or self.layer_type == LayerType.retrieval_encoder
         ):
             attention_output, attention_bias = self.inter_attention(
-                layernorm_output, enc_dec_attn_mask, encoder_output=encoder_output, pos_emb=pos_emb,
+                layernorm_output, enc_dec_attn_mask, encoder_output=encoder_output, pos_emb=cross_attention_pos_emb,
             )
             # residual connection
             if self.apply_residual_connection_post_layernorm:
@@ -1209,7 +1211,7 @@ class ParallelTransformer(MegatronModule):
         enc_dec_attn_mask=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        pos_emb=None,
+        pos_emb=None, # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
     ):
         # Checks.
         if inference_max_sequence_len:
