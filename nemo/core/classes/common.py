@@ -458,17 +458,6 @@ class Serialization(ABC):
                         imported_cls = cls
                     accepts_trainer = Serialization._inspect_signature_for_trainer(imported_cls)
                     if accepts_trainer:
-                        if trainer is None:
-                            # Create a dummy PL trainer object
-                            cfg_trainer = TrainerConfig(
-                                gpus=1,
-                                accelerator="ddp",
-                                num_nodes=1,
-                                # Need to set the following two to False as ExpManager will take care of them differently.
-                                logger=False,
-                                checkpoint_callback=False,
-                            )
-                            trainer = pl.Trainer(cfg_trainer)
                         instance = imported_cls(cfg=config, trainer=trainer)
                     else:
                         instance = imported_cls(cfg=config)
