@@ -61,22 +61,31 @@ except (ImportError, ModuleNotFoundError):
         hyperparameters: transformer hyperparameters
 """
 
+if HAVE_APEX:
 
-class ColumnLinear(tensor_parallel.ColumnParallelLinear):
-    # redefine forward only for non-parallel inference
-    def forward(self, input_):
-        world_size = get_tensor_model_parallel_world_size()
-        if input_.requires_grad or world_size > 1:
-            return tensor_parallel.ColumnParallelLinear.forward(self, input_)
+    class ColumnLinear(tensor_parallel.ColumnParallelLinear):
+        # redefine forward only for non-parallel inference
+        def forward(self, input_):
+            world_size = get_tensor_model_parallel_world_size()
+            if input_.requires_grad or world_size > 1:
+                return tensor_parallel.ColumnParallelLinear.forward(self, input_)
 
-        # Matrix multiply.
-        output = torch.matmul(input_, self.weight.t())
-        if not self.skip_bias_add:
-            output = output + self.bias
+            # Matrix multiply.
+            output = torch.matmul(input_, self.weight.t())
+            if not self.skip_bias_add:
+                output = output + self.bias
 
-        output_bias = self.bias if self.skip_bias_add else None
+            output_bias = self.bias if self.skip_bias_add else None
 
-        return output, output_bias
+            return output, output_bias
+
+
+else:
+
+    class ColumnLinear:
+        raise Warning("APEX not found. ColumLinear will not work.")
+        # Dummy class if apex is not installed
+        pass
 
 
 class ParallelMLP(MegatronModule):
