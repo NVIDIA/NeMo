@@ -83,7 +83,7 @@ if HAVE_APEX:
 else:
 
     class ColumnLinear:
-        raise Warning("APEX not found. ColumLinear will not work.")
+        raise Warning("APEX not found. ColumnLinear will not work.")
         # Dummy class if apex is not installed
         pass
 
