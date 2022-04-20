@@ -29,19 +29,32 @@ class RotaryEmbedding(nn.Module):
     def forward(self, max_seq_len, *, device, offset=0):
         seq = torch.arange(max_seq_len, device=device) + offset
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
-        # emb [seq_length, ]
-        emb = torch.cat((freqs, freqs), dim=-1)  # first odd, second even, 2 * dim in dimension
+        # first part even vector components, second part odd vector components,
+        #  2 * dim in dimension size
+        emb = torch.cat((freqs, freqs), dim=-1)  
+        # emb [seq_length, .., dim]
         return rearrange(emb, 'n d -> n 1 1 d')
 
 
 def _rotate_half(x):
+    """
+    change sign so the last dimension becomes [-odd, +even]
+    """
     x = rearrange(x, '... (j d) -> ... j d', j=2)
     x1, x2 = x.unbind(dim=-2)
     return torch.cat((-x2, x1), dim=-1)
 
 
 def apply_rotary_pos_emb(t, freqs):
-    seq_len, rot_dim = t.shape[0], freqs.shape[-1]
+    """
+    input tensor t is of shape [seq_length, ..., dim]
+    rotary positional embeding tensor freqs is of shape [seq_length, ..., dim]
+    check https://kexue.fm/archives/8265 for detailed formulas
+    """
+    rot_dim = freqs.shape[-1]
+    # ideally t_pass is empty so rotary pos embedding is applied to all tensor t
     t, t_pass = t[..., :rot_dim], t[..., rot_dim:]
+    # first part is cosine component
+    # second part is sine component, need to change signs with _rotate_half method
     t = (t * freqs.cos()) + (_rotate_half(t) * freqs.sin())
     return torch.cat((t, t_pass), dim=-1)

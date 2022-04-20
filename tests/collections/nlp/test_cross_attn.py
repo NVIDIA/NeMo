@@ -29,8 +29,10 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 
 class TestCrossAttn:
+
+    @classmethod
     @pytest.mark.run_only_on('GPU')
-    def setup_method(self, test_method):
+    def setup_class(cls):
         os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         plugin = NLPDDPPlugin()
 
