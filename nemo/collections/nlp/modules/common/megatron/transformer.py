@@ -18,11 +18,6 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, AttnType, LayerType, ModelType
-from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
-from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
-from apex.transformer.utils import divide as safe_divide
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -32,7 +27,23 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+from nemo.utils import logging
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType, AttnType, LayerType, ModelType
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from apex.transformer.utils import divide as safe_divide
+    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+    # fake missing classes with None attributes
+    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 
 """ We use the following notation throughout this file:
@@ -50,22 +61,34 @@ from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_fu
         hyperparameters: transformer hyperparameters
 """
 
+if HAVE_APEX:
 
-class ColumnLinear(tensor_parallel.ColumnParallelLinear):
-    # redefine forward only for non-parallel inference
-    def forward(self, input_):
-        world_size = get_tensor_model_parallel_world_size()
-        if input_.requires_grad or world_size > 1:
-            return tensor_parallel.ColumnParallelLinear.forward(self, input_)
+    class ColumnLinear(tensor_parallel.ColumnParallelLinear):
+        # redefine forward only for non-parallel inference
+        def forward(self, input_):
+            world_size = get_tensor_model_parallel_world_size()
+            if input_.requires_grad or world_size > 1:
+                return tensor_parallel.ColumnParallelLinear.forward(self, input_)
 
-        # Matrix multiply.
-        output = torch.matmul(input_, self.weight.t())
-        if not self.skip_bias_add:
-            output = output + self.bias
+            # Matrix multiply.
+            output = torch.matmul(input_, self.weight.t())
+            if not self.skip_bias_add:
+                output = output + self.bias
 
-        output_bias = self.bias if self.skip_bias_add else None
+            output_bias = self.bias if self.skip_bias_add else None
 
-        return output, output_bias
+            return output, output_bias
+
+
+else:
+
+    class ColumnLinear(ApexGuardDefaults):
+        def __init__(self):
+            super().__init__()
+
+            logging.warning(
+                "Apex was not found. ColumnLinear will not work. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
 
 
 class ParallelMLP(MegatronModule):
