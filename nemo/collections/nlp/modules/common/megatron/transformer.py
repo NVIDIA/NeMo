@@ -467,7 +467,6 @@ class ParallelAttention(MegatronModule):
             # otherwise, only relative positional embedding takes effect
             # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
 
-
         # [sq, b, np, hn] -> [sq, b * np, hn]
         query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
         # [sk, b, np, hn] -> [sk, b * np, hn]
@@ -1035,7 +1034,7 @@ class ParallelTransformer(MegatronModule):
         # Transformer layers.
         def build_layer(layer_number):
             if isinstance(layer_type, list):
-                lt = layer_type[layer_number-1]
+                lt = layer_type[layer_number - 1]
             else:
                 lt = layer_type
             return ParallelTransformerLayer(
@@ -1204,7 +1203,7 @@ class ParallelTransformer(MegatronModule):
         enc_dec_attn_mask=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        pos_emb=None, # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
+        pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
     ):
         # Checks.
         if inference_max_sequence_len:

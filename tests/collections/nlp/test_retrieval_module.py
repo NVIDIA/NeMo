@@ -17,15 +17,22 @@ import os
 
 import pytest
 import torch
-from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from einops import rearrange
-from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
+from pytorch_lightning.trainer.trainer import Trainer
+
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
+    MegatronRetrievalTransformerDecoderModule,
+    MegatronRetrievalTransformerEncoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
-from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import MegatronRetrievalTransformerEncoderModule, MegatronRetrievalTransformerDecoderModule
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    build_attention_mask_3d,
+    init_method_normal,
+    scaled_init_method_normal,
+)
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 try:
@@ -36,9 +43,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-
 class TestCrossAttn:
-
     @classmethod
     @pytest.mark.run_only_on('GPU')
     def setup_class(cls):
@@ -134,7 +139,9 @@ class TestCrossAttn:
             .half()
         )
 
-        out, bias = cross_attn(hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb)
+        out, bias = cross_attn(
+            hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb
+        )
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
@@ -167,17 +174,21 @@ class TestCrossAttn:
 
         init_method = init_method_normal(init_method_std)
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
-        encoder = MegatronRetrievalTransformerEncoderModule(
+        encoder = (
+            MegatronRetrievalTransformerEncoderModule(
                 init_method=init_method,
                 output_layer_init_method=scaled_init_method,
                 hidden_size=dim,
-                ffn_hidden_size=dim*4,
+                ffn_hidden_size=dim * 4,
                 num_layers=num_layers,
                 num_attention_heads=num_attention_heads,
                 precision=16,
                 chunk_size=text_chunk_size,
                 layer_type=layer_type,
-        ).cuda().half()
+            )
+            .cuda()
+            .half()
+        )
         out = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
 
     @pytest.mark.run_only_on('GPU')
@@ -223,15 +234,19 @@ class TestCrossAttn:
 
         init_method = init_method_normal(init_method_std)
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
-        decoder = MegatronRetrievalTransformerDecoderModule(
+        decoder = (
+            MegatronRetrievalTransformerDecoderModule(
                 init_method=init_method,
                 output_layer_init_method=scaled_init_method,
                 hidden_size=dim,
-                ffn_hidden_size=dim*4,
+                ffn_hidden_size=dim * 4,
                 num_layers=num_layers,
                 num_attention_heads=num_attention_heads,
                 precision=16,
                 chunk_size=text_chunk_size,
                 layer_type=layer_type,
-        ).cuda().half()
+            )
+            .cuda()
+            .half()
+        )
         out = decoder(hidden_emb, hidden_mask, context_attn_mask=context_mask, encoder_output=retrieved_emb)

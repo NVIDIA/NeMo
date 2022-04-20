@@ -31,7 +31,7 @@ class RotaryEmbedding(nn.Module):
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size
-        emb = torch.cat((freqs, freqs), dim=-1)  
+        emb = torch.cat((freqs, freqs), dim=-1)
         # emb [seq_length, .., dim]
         return rearrange(emb, 'n d -> n 1 1 d')
 
