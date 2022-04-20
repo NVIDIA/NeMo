@@ -31,13 +31,12 @@ import logging
 import sys
 
 import torch
+from pytorch_lightning import Trainer
 
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable, typecheck
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
-
-from pytorch_lightning import Trainer
 
 try:
     from contextlib import nullcontext
