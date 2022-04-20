@@ -1229,9 +1229,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
             batch_sizes: a list of numbers of samples in batches
             batch_seq_lengths: a list of sequence lengths after padding for every batch
         """
-        batch_beginnings, batch_sizes, batch_seq_lengths = (
-            batch_beginnings.copy(), batch_sizes.copy(), batch_seq_lengths.copy()
-        )
+        batch_beginnings, batch_sizes, batch_seq_lengths = batch_beginnings.copy(), batch_sizes.copy()
+        batch_seq_lengths = batch_seq_lengths.copy()
         num_missing_batches = (
             self.number_of_batches_is_multiple_of - len(batch_sizes) % self.number_of_batches_is_multiple_of
         )
@@ -1262,15 +1261,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
                         batch_sizes.append(ss)
                         batch_beginnings.append(bb + rb)
                         batch_seq_lengths.append(
-                            self.calc_batch_seq_length(input_ids[bb + rb: bb + rb + ss], length_is_multiple_of=8)
+                            self.calc_batch_seq_length(input_ids[bb + rb : bb + rb + ss], length_is_multiple_of=8)
                         )
                         rb += ss
                         num_cut += 1
-                    assert len(input_ids[bb + rb: bb + rb + bs]) > 0
+                    assert len(input_ids[bb + rb : bb + bs]) > 0
                     batch_sizes[original_batch_index] = bs - rb
                     batch_beginnings[original_batch_index] = bb + rb
                     batch_seq_lengths[original_batch_index] = self.calc_batch_seq_length(
-                        input_ids[bb + rb: bb + bs], length_is_multiple_of=8
+                        input_ids[bb + rb : bb + bs], length_is_multiple_of=8
                     )
                 original_batch_index -= 1
             # Keeping order of batches.
@@ -1333,7 +1332,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                         start = i
                         current_max_length = ceil(len(inp) / 8) * 8
                         continue
-                seq_length = self.calc_batch_seq_length(input_ids[start: start + batch_size], length_is_multiple_of=8)
+                seq_length = self.calc_batch_seq_length(input_ids[start : start + batch_size], length_is_multiple_of=8)
                 batch_beginnings.append(start)
                 batch_sizes.append(batch_size)
                 batch_seq_lengths.append(seq_length)
