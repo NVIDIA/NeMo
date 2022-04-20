@@ -170,11 +170,6 @@ class ParallelMLP(MegatronModule):
         else:
             glu_activation_family = False
 
-        if glu_activation_family and bias_gelu_fusion:
-            raise ValueError(
-                f"Cannot use bias_gelu_fusion with {activation} activation. Please turn bias gelu fusion off."
-            )
-
         self.bias_gelu_fusion = bias_gelu_fusion
 
         if activation == "gelu":
