@@ -35,11 +35,12 @@ from collections import Counter
 from typing import Dict, List
 
 import torch
-from torch.linalg import eigh as eigh
+import multiprocessing
+from torch.linalg import eigh
 
 
 @torch.jit.script
-def cos_similarity(a, b, eps=torch.tensor(3.5e-4)):
+def cos_similarity(a: torch.Tensor, b: torch.Tensor, eps=torch.tensor(3.5e-4)):
     """
     Args:
         a: (torch.tensor)
@@ -58,8 +59,11 @@ def cos_similarity(a, b, eps=torch.tensor(3.5e-4)):
 
 
 @torch.jit.script
-def ScalerMinMax(X):
+def ScalerMinMax(X: torch.Tensor):
     """
+    Min-max scale the input affinity matrix X, which will lead to a dynamic range of
+    [0, 1].
+
     Args:
         X: (torch.tensor)
             Matrix containing cosine similarity values among embedding vectors (N x N)
@@ -74,7 +78,7 @@ def ScalerMinMax(X):
 
 
 @torch.jit.script
-def getEuclideanDistance(specEmbA, specEmbB, device: torch.device = torch.device('cpu')):
+def getEuclideanDistance(specEmbA: torch.Tensor, specEmbB: torch.Tensor, device: torch.device = torch.device('cpu')):
     """
     Args:
         specEmbA: (torch.tensor)
@@ -85,7 +89,7 @@ def getEuclideanDistance(specEmbA, specEmbB, device: torch.device = torch.device
 
     Returns:
         dis: (torch.tensor)
-            Euclidean distance values of the two set of spectral embedding vectors.
+            Euclidean distance values of the two sets of spectral embedding vectors.
     """
     specEmbA, specEmbB = specEmbA.to(device), specEmbB.to(device)
     A, B = specEmbA.unsqueeze(dim=1), specEmbB.unsqueeze(dim=0)
@@ -96,9 +100,28 @@ def getEuclideanDistance(specEmbA, specEmbB, device: torch.device = torch.device
 
 @torch.jit.script
 def kmeans_plusplus_torch(
-    X, n_clusters: int, random_state: int, n_local_trials: int = 20, device: torch.device = torch.device('cpu')
+    X: torch.Tensor,
+    n_clusters: int,
+    random_state: int,
+    n_local_trials: int = 30,
+    device: torch.device = torch.device('cpu'),
 ):
     """
+    Choose initial centroids for initializing k-means algorithm. The performance of
+    k-means algorithm can vary significantly by the initial centroids. To alleviate
+    this problem, k-means++ algorithm chooses initial centroids based on the probability
+    proportional to the distance from the formally chosen centroids. The centroids
+    selected by k-means++ algorithm improve the chance of getting more accurate and
+    stable clustering results. The overall implementation of k-means++ algorithm is
+    inspired by the numpy based k-means++ implementation in:
+        https://github.com/scikit-learn/scikit-learn
+
+    Originally, the implementation of the k-means++ algorithm in scikit-learn is based
+    on the following research article:
+        Arthur, David, and Sergei Vassilvitskii. k-means++: The advantages of careful
+        seeding. Proceedings of the eighteenth annual ACM-SIAM symposium on Discrete
+        algorithms, Society for Industrial and Applied Mathematics (2007)
+
     Args:
         X: (torch.tensor)
             Matrix containing cosine similarity values among embedding vectors (N x N)
@@ -167,9 +190,24 @@ def kmeans_plusplus_torch(
 
 @torch.jit.script
 def kmeans_torch(
-    X, num_clusters: int, threshold: float = 1e-4, iter_limit: int = 15, device: torch.device = torch.device('cpu'),
+    X: torch.Tensor,
+    num_clusters: int,
+    threshold: float = 1e-4,
+    iter_limit: int = 15,
+    random_state: int = 0,
+    device: torch.device = torch.device('cpu'),
 ):
     """
+    Run k-means algorithm on the given set of spectral embeddings in X. The threshold
+    and iter_limit variables are set to show the best performance on speaker diarization
+    tasks. The overall implementation of k-means algorithm is inspired by the k-means
+    algorithm implemented in https://github.com/scikit-learn/scikit-learn.
+
+    References:
+        Arthur, David, and Sergei Vassilvitskii. k-means++: The advantages of careful
+        seeding. Proceedings of the eighteenth annual ACM-SIAM symposium on Discrete
+        algorithms, Society for Industrial and Applied Mathematics (2007).
+
     Args:
         X: (torch.tensor)
             Cosine similarity matrix calculated from speaker embeddings
@@ -182,56 +220,58 @@ def kmeans_torch(
             the center shift values are bigger than this threshold, the iteration stops.
 
         iter_limit: (int)
-            The maximum number of iteration that is allowed by k-means algorithm.
+            The maximum number of iterations that is allowed by the k-means algorithm.
 
         device: (torch.device)
             Torch device variable
 
     Returns:
-        selected_cluster_index: (torch.tensor)
+        selected_cluster_indices: (torch.tensor)
             The assigned cluster labels from the k-means clustering.
     """
     # Convert tensor type to float
     X = X.float().to(device)
     input_size = X.shape[0]
 
-    initial_state = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=0, device=device)
-    centers = initial_state[0]
+    # Initialize the cluster centers with kmeans_plusplus algorithm.
+    plusplus_init_states = kmeans_plusplus_torch(X, n_clusters=num_clusters, random_state=random_state, device=device)
+    centers = plusplus_init_states[0]
 
     iter_count = 0
-    selected_cluster_index = torch.zeros(input_size).int()
-    while True:
+    selected_cluster_indices = torch.zeros(input_size).int()
+
+    for iter_count in range(iter_limit):
         euc_dist = getEuclideanDistance(X, centers, device=device)
+
         if len(euc_dist.shape) <= 1:
             break
         else:
-            selected_cluster_index = torch.argmin(euc_dist, dim=1)
+            selected_cluster_indices = torch.argmin(euc_dist, dim=1)
 
-        initial_state_pre = centers.clone()
+        center_inits = centers.clone()
 
         for index in range(num_clusters):
-            selected_cluster = torch.nonzero(selected_cluster_index == index).squeeze().to(device)
-            selected = torch.index_select(X, 0, selected_cluster)
+            selected_cluster = torch.nonzero(selected_cluster_indices == index).squeeze().to(device)
+            chosen_indices = torch.index_select(X, 0, selected_cluster)
 
-            if selected.shape[0] == 0:
-                selected = X[torch.randint(len(X), (1,))]
+            if chosen_indices.shape[0] == 0:
+                chosen_indices = X[torch.randint(len(X), (1,))]
 
-            centers[index] = selected.mean(dim=0)
+            centers[index] = chosen_indices.mean(dim=0)
 
-        center_shift = torch.sum(torch.sqrt(torch.sum((centers - initial_state_pre) ** 2, dim=1)))
+        # Calculate the delta from center_inits to centers
+        center_delta_pow = torch.pow((centers - center_inits), 2)
+        center_shift_pow = torch.pow(torch.sum(torch.sqrt(torch.sum(center_delta_pow, dim=1))), 2)
 
-        # Increase iter_count
-        iter_count += 1
-        if center_shift ** 2 < threshold:
+        # If the cluster centers are not changing significantly, stop the loop.
+        if center_shift_pow < threshold:
             break
-        if iter_limit > 0 and iter_count >= iter_limit:
-            break
 
-    return selected_cluster_index
+    return selected_cluster_indices
 
 
 @torch.jit.script
-def getTheLargestComponent(affinity_mat, seg_index: int, device: torch.device):
+def getTheLargestComponent(affinity_mat: torch.Tensor, seg_index: int, device: torch.device):
     """
     Find the largest affinity_mat connected components for each given node.
     This is for checking whether the affinity_mat is fully connected.
@@ -241,7 +281,7 @@ def getTheLargestComponent(affinity_mat, seg_index: int, device: torch.device):
             A square matrix (tensor) containing normalized cosine distance values
 
         seg_index: (int)
-            The segment index that is targeted to be explorerd.
+            The segment index that is targeted to be explored.
     Returns:
         connected_nodes: (torch.tensor)
             A tensor containing booleans that indicate whether the node is connected.
@@ -269,7 +309,7 @@ def getTheLargestComponent(affinity_mat, seg_index: int, device: torch.device):
 
 
 @torch.jit.script
-def isGraphFullyConnected(affinity_mat, device: torch.device):
+def isGraphFullyConnected(affinity_mat: torch.Tensor, device: torch.device):
     """
     Check whether the given affinity matrix is a fully connected graph.
     """
@@ -277,22 +317,21 @@ def isGraphFullyConnected(affinity_mat, device: torch.device):
 
 
 @torch.jit.script
-def getKneighborsConnections(affinity_mat, p_value: int):
+def getKneighborsConnections(affinity_mat: torch.Tensor, p_value: int):
     """
     Binarize top-p values for each row from the given affinity matrix.
     """
-    binarized_affinity_mat = torch.zeros_like(affinity_mat)
+    binarized_affinity_mat = torch.zeros_like(affinity_mat).int()
     for i in range(affinity_mat.shape[0]):
         line = affinity_mat[i, :]
         sorted_idx = torch.argsort(line, descending=True)
         indices = sorted_idx[:p_value]
-        binarized_affinity_mat[indices, i] = 1
-
+        binarized_affinity_mat[indices, i] = torch.ones(indices.shape[0]).to(affinity_mat.device).int()
     return binarized_affinity_mat
 
 
 @torch.jit.script
-def getAffinityGraphMat(affinity_mat_raw, p_value: int):
+def getAffinityGraphMat(affinity_mat_raw: torch.Tensor, p_value: int):
     """
     Calculate a binarized graph matrix and
     symmetrize the binarized graph matrix.
@@ -303,10 +342,10 @@ def getAffinityGraphMat(affinity_mat_raw, p_value: int):
 
 
 @torch.jit.script
-def getMinimumConnection(mat, max_N, n_list, device: torch.device):
+def getMinimumConnection(mat: torch.Tensor, max_N: torch.Tensor, n_list: torch.Tensor, device: torch.device):
     """
     Generate connections until fully connect all the nodes in the graph.
-    If graph is not fully connected, it might generate inaccurate results.
+    If the graph is not fully connected, it might generate inaccurate results.
     """
     p_value = torch.tensor(1)
     affinity_mat = getAffinityGraphMat(mat, p_value)
@@ -320,7 +359,7 @@ def getMinimumConnection(mat, max_N, n_list, device: torch.device):
 
 
 @torch.jit.script
-def getRepeatedList(mapping_argmat, score_mat_size):
+def getRepeatedList(mapping_argmat: torch.Tensor, score_mat_size: torch.Tensor):
     """
     Count the numbers in the mapping dictionary and create lists that contain
     repeated indices that will be used for creating a repeated affinity matrix.
@@ -332,7 +371,7 @@ def getRepeatedList(mapping_argmat, score_mat_size):
     return repeat_list
 
 
-def get_argmin_mat(uniq_scale_dict):
+def get_argmin_mat(uniq_scale_dict: dict):
     """
     Calculate the mapping between the base scale and other scales. A segment from a longer scale is
     repeatedly mapped to a segment from a shorter scale or the base scale.
@@ -364,7 +403,7 @@ def get_argmin_mat(uniq_scale_dict):
     return session_scale_mapping_dict
 
 
-def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device: torch.device = torch.device('cpu')):
+def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -377,7 +416,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device: torch.devic
 
     Returns:
         fused_sim_d (torch.tensor):
-            This function generates an ffinity matrix that is obtained by calculating
+            This function generates an affinity matrix that is obtained by calculating
             the weighted sum of the affinity matrices from the different scales.
 
         base_scale_emb (torch.tensor):
@@ -403,7 +442,7 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device: torch.devic
 
 
 @torch.jit.script
-def getCosAffinityMatrix(_emb):
+def getCosAffinityMatrix(_emb: torch.Tensor):
     """
     Calculate cosine similarity values among speaker embeddings then min-max normalize
     the affinity matrix.
@@ -427,11 +466,11 @@ def getLaplacian(X: torch.Tensor):
 
 
 @torch.jit.script
-def eigDecompose(laplacian: torch.Tensor, is_cuda: bool, device: torch.device = torch.device('cpu')):
+def eigDecompose(laplacian: torch.Tensor, cuda: bool, device: torch.device = torch.device('cpu')):
     """
     Calculate eigenvalues and eigenvectors from the Laplacian matrix.
     """
-    if is_cuda:
+    if cuda:
         if device is None:
             device = torch.cuda.current_device()
         laplacian = laplacian.float().to(device)
@@ -442,7 +481,7 @@ def eigDecompose(laplacian: torch.Tensor, is_cuda: bool, device: torch.device = 
 
 
 @torch.jit.script
-def getLamdaGaplist(lambdas):
+def getLamdaGaplist(lambdas: torch.Tensor):
     """
     Calculate the gaps between lambda values.
     """
@@ -450,7 +489,7 @@ def getLamdaGaplist(lambdas):
         lambdas = torch.real(lambdas)
     return lambdas[1:] - lambdas[:-1]
 
-
+@torch.jit.script
 def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sigma: float):
     """
     Add randomly generated synthetic embeddings to make eigen analysis more stable.
@@ -506,7 +545,7 @@ def getEnhancedSpeakerCount(
         The input embedding from the embedding extractor.
 
     cuda (bool):
-        Use cuda for the operations if cuda=True.
+        Use cuda for the operations if cuda==True.
 
     random_test_count (int):
         Number of trials of the enhanced counting with randomness.
@@ -550,19 +589,19 @@ def getEnhancedSpeakerCount(
 
 
 @torch.jit.script
-def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool = False):
+def estimateNumofSpeakers(affinity_mat: torch.Tensor, max_num_speaker: int, cuda: bool = False):
     """
-    Estimate the number of speakers using eigen decomposition on the Laplacian Matrix.
+    Estimate the number of speakers using eigendecomposition on the Laplacian Matrix.
 
     Args:
         affinity_mat: (torch.tensor)
-            N by N affitnity matrix
+            N by N affinity matrix
 
         max_num_speaker: (int)
             Maximum number of clusters to consider for each session
 
-        is_cuda: (bool)
-            If cuda available eigh decomposition would be computed on GPUs.
+        cuda: (bool)
+            If cuda available eigendecomposition is computed on GPUs.
 
     Returns:
         num_of_spk: (torch.tensor)
@@ -575,7 +614,7 @@ def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool = Fa
             The gap between the lambda values from eigendecomposition
     """
     laplacian = getLaplacian(affinity_mat)
-    lambdas, _ = eigDecompose(laplacian, is_cuda)
+    lambdas, _ = eigDecompose(laplacian, cuda)
     lambdas = torch.sort(lambdas)[0]
     lambda_gap = getLamdaGaplist(lambdas)
     num_of_spk = torch.argmax(lambda_gap[: min(max_num_speaker, lambda_gap.shape[0])]) + 1
@@ -584,36 +623,112 @@ def estimateNumofSpeakers(affinity_mat, max_num_speaker: int, is_cuda: bool = Fa
 
 @torch.jit.script
 class SpectralClustering:
+    """
+    Perform spectral clustering by calculating spectral embeddings then run k-means clustering
+    algorithm on the spectral embeddings.
+    """
+
     def __init__(
         self,
         n_clusters: int = 8,
         random_state: int = 0,
-        n_init: int = 10,
-        p_value: int = 10,
+        n_random_trials: int = 1,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
+        """
+        Initialize the variables needed for spectral clustering and k-means++.
+
+        Args:
+            n_clusters (int):
+                Number of the estimated (or oracle) number of speakers
+
+            random_state (int):
+                Random seed that determines a random state of k-means initialization.
+
+            n_random_trials (int):
+                Number of trials with different random seeds for k-means initialization.
+                k-means++ algorithm is executed for multiple times then the final result
+                is obtained by taking a majority vote.
+
+            cuda (bool):
+                if cuda=True, spectral clustering is done on GPU.
+
+            device (torch.device):
+                Torch device variable
+
+        """
         self.n_clusters = n_clusters
         self.random_state = random_state
-        self.n_init = n_init
-        self.p_value = p_value
+        self.n_random_trials = max(n_random_trials, 1)
         self.cuda = cuda
         self.device = device
 
     def predict(self, X):
+        """
+        Call self.clusterSpectralEmbeddings() function to predict cluster labels.
+
+        Args:
+            X (torch.tensor):
+                Affinity matrix input
+
+        Returns:
+            labels (torch.tensor):
+                clustering label output
+        """
         if X.shape[0] != X.shape[1]:
             raise ValueError("The affinity matrix is not a square matrix.")
-        labels = self.clusterSpectralEmbeddings(X, n_init=self.n_init, cuda=self.cuda, device=self.device)
+        labels = self.clusterSpectralEmbeddings(X, cuda=self.cuda, device=self.device)
         return labels
 
-    def clusterSpectralEmbeddings(
-        self, affinity, n_init: int = 10, cuda: bool = False, device: torch.device = torch.device('cpu')
-    ):
-        spectral_emb = self.getSpectralEmbeddings(affinity, n_spks=self.n_clusters, drop_first=False, cuda=cuda)
-        labels = kmeans_torch(X=spectral_emb, num_clusters=self.n_clusters, device=device)
+    def clusterSpectralEmbeddings(self, affinity, cuda: bool = False, device: torch.device = torch.device('cpu')):
+        """
+        Perform k-means clustering on spectral embeddings. To alleviate the effect of randomness,
+        k-means clustering is performed for (self.n_random_trials) times then the final labels are obtained
+        by taking a majority vote. If speed is the major concern, self.n_random_trials should be set to 1.
+        n_random_trials=30 is recommended to see an improved result.
+
+        Args:
+            affinity (torch.tensor):
+                Affinity matrix input
+            cuda (torch.bool):
+                Use cuda for spectral clustering if cuda=True
+            device (torch.device):
+                Torch device variable
+
+        Returns:
+            labels (torch.tensor):
+                clustering label output
+
+        """
+        spectral_emb = self.getSpectralEmbeddings(affinity, n_spks=self.n_clusters, cuda=cuda)
+        labels_set = []
+        for random_state_seed in range(self.random_state, self.random_state + self.n_random_trials):
+            _labels = kmeans_torch(
+                X=spectral_emb, num_clusters=self.n_clusters, random_state=random_state_seed, device=device
+            )
+            labels_set.append(_labels)
+        stacked_labels = torch.stack(labels_set)
+        label_index = torch.mode(torch.mode(stacked_labels, 0)[1])[0]
+        labels = stacked_labels[label_index]
         return labels
 
-    def getSpectralEmbeddings(self, affinity_mat, n_spks: int = 8, drop_first: bool = True, cuda: bool = False):
+    def getSpectralEmbeddings(self, affinity_mat: torch.Tensor, n_spks: int = 8, cuda: bool = False):
+        """
+        Calculate eigenvalues and eigenvectors to extract spectral embeddings.
+
+        Args:
+            affinity (torch.tensor):
+                Affinity matrix input
+            cuda (torch.bool):
+                Use cuda for spectral clustering if cuda=True
+            device (torch.device):
+                Torch device variable
+
+        Returns:
+            labels (torch.Tensor):
+                clustering label output
+        """
         laplacian = getLaplacian(affinity_mat)
         lambdas_, diffusion_map_ = eigDecompose(laplacian, cuda)
         diffusion_map = diffusion_map_[:, :n_spks]
@@ -634,11 +749,13 @@ class NMESC:
     convert the rest of values to 0.
 
     p_value can be also tuned on a development set without performing
-    NME-analysis. This will brings about significantly faster clustering speed,
-    but the optimized performance is limited to the development set.
+    NME-analysis. Fixing p_value brings about significantly faster clustering
+    speed, but the performance is limited to the development set.
 
-    Reference: Auto-Tuning Spectral Clustering for Speaker Diarization
-    Using Normalized Maximum Eigengap (https://arxiv.org/abs/2003.02405)
+    References:
+        Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization
+        Using Normalized Maximum Eigengap, IEEE Signal Processing Letters 27 (2019),
+        https://arxiv.org/abs/2003.02405
 
     Args:
         Please refer to def __init__().
@@ -698,18 +815,18 @@ class NMESC:
             sparse_search_volume: (int)
                 Number of p_values we search during NME analysis.
                 Default is 30. The lower the value, the faster NME-analysis becomes.
-                Lower than 20 might cause a poor parameter estimation.
+                However, a value lower than 20 might cause a poor parameter estimation.
 
             use_subsampling_for_NME: (bool)
                 Use subsampling to reduce the calculational complexity.
                 Default is True.
 
             fixed_thres: (float or None)
-                A fixed threshould which can be used instead of estimating the
+                A fixed threshold which can be used instead of estimating the
                 threshold with NME analysis. If fixed_thres is float,
                 it skips the NME analysis part.
 
-            cuda: (bool)
+            cuda (bool)
                 Use cuda for Eigen decomposition if cuda=True.
 
             NME_mat_size: (int)
@@ -774,8 +891,8 @@ class NMESC:
 
         The recommended NME_mat_size is 250~750.
         However, if there are speakers who speak for very short period of time in the recording,
-        this subsampling might make the system miss the underrepresented speaker.
-        Use this with caution.
+        this subsampling might make the system miss underrepresented speakers.
+        Use this variable with caution.
 
         Args:
             NME_mat_size: (int)
@@ -792,8 +909,12 @@ class NMESC:
 
     def getEigRatio(self, p_neighbors: int):
         """
-        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the maximum eigengap.
-        For more details: https://arxiv.org/abs/2003.02405
+        For a given p_neighbors value, calculate g_p, which is a ratio between p_neighbors and the 
+        maximum eigengap values.
+        References:
+            Tae Jin Park et al., Auto-Tuning Spectral Clustering for Speaker Diarization Using 
+            Normalized Maximum Eigengap, IEEE Signal Processing Letters 27 (2019),
+            https://arxiv.org/abs/2003.02405
 
         Args:
             p_neighbors: (int)
@@ -845,6 +966,7 @@ def COSclustering(
 ):
     """
     Clustering method for speaker diarization based on cosine similarity.
+    NME-SC part is converted to torch.tensor based operations in NeMo 1.9.
 
     Args:
         uniq_embs_and_timestamps: (dict)
@@ -873,7 +995,7 @@ def COSclustering(
         max_rp_threshold: (float)
             Limits the range of parameter search.
             Clustering performance can vary depending on this range.
-            Default is 0.25.
+            Default is 0.15.
 
         sparse_search_volume: (int)
             Number of p_values we search during NME analysis.

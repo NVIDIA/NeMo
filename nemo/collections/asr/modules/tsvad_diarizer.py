@@ -108,6 +108,7 @@ class TSVAD_module(NeuralModule, Exportable):
             self, 
             num_spks: int = -1,
             hidden_size=256,
+            num_lstm_layers=2,
             dropout_rate: float=0.5,
             cnn_output_ch=4,
             emb_sizes=192,
@@ -120,16 +121,20 @@ class TSVAD_module(NeuralModule, Exportable):
         self.cnn_output_ch = cnn_output_ch
         self.chan = 1
         self.eps = 1e-6
-        self.num_lstm_layers = 1
+        self.num_lstm_layers = num_lstm_layers
         self.fixed_ms_weight = torch.ones(self.scale_n)/self.scale_n
         self.softmax = torch.nn.Softmax(dim=2)
         self.cos_dist = torch.nn.CosineSimilarity(dim=3, eps=self.eps)
         lstm_input_size = hidden_size
-        self.lstm = nn.LSTM(lstm_input_size, hidden_size, num_layers=self.num_lstm_layers, batch_first=True)
-        self.cnn = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.scale_n + self.scale_n*num_spks, 1), stride=(1, 1))
+        # self.lstm = nn.LSTM(lstm_input_size, hidden_size, num_layers=self.num_lstm_layers, batch_first=True)
+        self.lstm = nn.LSTM(lstm_input_size, hidden_size, num_layers=self.num_lstm_layers, batch_first=True, bidirectional=True, dropout=0.5)
+        self.cnn1 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.scale_n + self.scale_n*num_spks, 1), stride=(1, 1))
+        self.cnn2 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.cnn_output_ch, 1), stride=(1, 1))
+        self.cnn1_bn = nn.BatchNorm2d(cnn_output_ch)
+        self.cnn2_bn = nn.BatchNorm2d(cnn_output_ch)
         self.cnn2linear = nn.Linear(emb_sizes*cnn_output_ch, hidden_size)
         self.linear2weights = nn.Linear(hidden_size, self.scale_n)
-        self.hidden2spk = nn.Linear(hidden_size, self.num_spks)
+        self.hidden2spk = nn.Linear(2*hidden_size, self.num_spks)
 
         ### Non-SUM mode
         self.dis2emb = nn.Linear(self.scale_n * self.num_spks, lstm_input_size)
@@ -183,12 +188,36 @@ class TSVAD_module(NeuralModule, Exportable):
         _ms_cnn_input_seq = _ms_cnn_input_seq.unsqueeze(2)
         # _ms_cnn_input_seq: batch_size x feats_len x 1 x (scale_n * max_spks + scale_n) x emb_dim 
         _ms_cnn_input_seq = _ms_cnn_input_seq.flatten(0, 1)
-        cnn_out = self.cnn(_ms_cnn_input_seq)
-        sprint("cnn_out shape:", cnn_out.shape)
-        cnn_out = cnn_out.reshape(batch_size, length, self.cnn_output_ch, emb_dim)
-        sprint("cnn_out reshape shape:", cnn_out.shape)
-        # cnn_out = batch_size x cnn_output_ch x feats_len x emb_dim
-        lin_input_seq = cnn_out.view(batch_size, length, self.cnn_output_ch * emb_dim)
+        sprint("_ms_cnn_input_seq shape:", _ms_cnn_input_seq.shape)  # torch.Size([5736, 1, 15, 192]) 
+        
+        cnn_out1 = self.cnn1(_ms_cnn_input_seq)
+        cnn_out1 = self.dropout(cnn_out1)
+        sprint("cnn_out1 shape:", cnn_out1.shape)
+        cnn_out1 = cnn_out1.reshape(batch_size, length, self.cnn_output_ch, emb_dim)
+        cnn_out1 = cnn_out1.unsqueeze(2)
+        # _ms_cnn_input_seq: batch_size x feats_len x 1 x (scale_n * max_spks + scale_n) x emb_dim 
+        cnn_out1 = cnn_out1.flatten(0, 1)
+        sprint("cnn_out1 reshape shape, for cnn2 input:", cnn_out1.shape)
+        # cnn_out1 = batch_size x cnn_output_ch x feats_len x emb_dim
+        
+        # cnn_out1 = cnn_out1.view(batch_size, length, 
+        # cnn_out1 = F.relu(self.cnn1_bn(cnn_out1))
+        cnn_out1 = F.relu(cnn_out1)
+        cnn_out1 = self.dropout(cnn_out1)
+        cnn_out2 = self.cnn2(cnn_out1)
+        sprint("Raw cnn_out2 shape:", cnn_out2.shape)
+        cnn_out2 = cnn_out2.permute(0,2,1,3)
+        sprint("After permute cnn_out2 shape:", cnn_out2.shape)
+        cnn_out2 = cnn_out2.reshape(batch_size, length, self.cnn_output_ch, emb_dim)
+        cnn_out2 = self.dropout(cnn_out2)
+        # cnn_out2 = F.relu(self.cnn2_bn(cnn_out2))
+        cnn_out2 = F.relu(cnn_out2)
+        cnn_out2 = self.dropout(cnn_out2)
+        sprint("cnn_out2 shape, reshaped :", cnn_out2.shape)
+
+
+        lin_input_seq = cnn_out2.view(batch_size, length, self.cnn_output_ch * emb_dim)
+        sprint("cnn_out2 reshape shape, lin_input_seq:", lin_input_seq.shape)
         hidden_seq = self.cnn2linear(lin_input_seq)
         sprint("hidden_seq shape:", hidden_seq.shape)
         self.scale_weights = self.linear2weights(hidden_seq)
