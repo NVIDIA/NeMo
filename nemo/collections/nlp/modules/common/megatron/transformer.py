@@ -167,7 +167,6 @@ class ParallelMLP(MegatronModule):
             raise ValueError(
                 f"Cannot use bias_gelu_fusion without bias terms. Please set bias=True or bias_gelu_fusion=False."
             )
-            glu_activation_family = True
         else:
             glu_activation_family = False
 
