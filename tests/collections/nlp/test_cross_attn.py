@@ -19,13 +19,22 @@ import pytest
 import torch
 from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-
+from einops import rearrange
+from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import MegatronRetrievalTransformerEncoderModule, MegatronRetrievalTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+
+try:
+    from apex.transformer.enums import AttnMaskType
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 
 class TestCrossAttn:
@@ -66,26 +75,33 @@ class TestCrossAttn:
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_cross_attn(self):
-        init_method_std = 0.02
         num_layers = 1
-
+        init_method_std = 0.02
+        batch = 2
+        neighbors = 2
         # rotary pos emb dim
         dim = 128
+        pad_id = 19999
         num_attention_heads = 8
+        chunks = 32
+        text_chunk_size = 64
+        context_chunk_size = 2 * text_chunk_size
+        input_length = chunks * text_chunk_size
+        vocab_size = 20000
+
         rot_dim = dim // num_attention_heads
         rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
-        hidden = torch.rand(2048, 2, dim).cuda().half()  # (seq, batch, dim)
-        pad_id = 19999
 
-        text_chunk_size = 64
-        context_chunk_size = 128
-        retrieved = torch.randint(0, 20000, (32, 2, 128, 2)).cuda().half()
+        hidden = torch.rand(input_length, batch).cuda().half()  # (seq, batch, dim)
+        hidden_mask = (hidden == pad_id).type(torch.int32).cuda()
+        hidden_emb = torch.rand(input_length, batch, dim).cuda().half()  # (seq, batch, dim)
+
+        retrieved = torch.randint(0, vocab_size, (chunks, neighbors, context_chunk_size, batch)).cuda().half()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch)
 
         # context attention mask [b, np, sq, sk]
-        pad_id = 19999
         context_mask = retrieved != pad_id
-        retrieved_emb = torch.rand(32, 2, 128, 2, dim).cuda().half()
+        retrieved_emb = torch.rand(chunks, neighbors, context_chunk_size, batch, dim).cuda().half()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch, hidden)
 
         device = retrieved.device
@@ -93,6 +109,13 @@ class TestCrossAttn:
         cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, device=device, offset=0)
         cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size, device=device)
         cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+
+        dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
+        context_attn_mask = rearrange(context_mask, 'k r n b -> (b k) (r n)')
+        enc_dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+        )
+        enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
 
         init_method = init_method_normal(init_method_std)
 
@@ -110,7 +133,8 @@ class TestCrossAttn:
             .cuda()
             .half()
         )
-        out, bias = cross_attn(hidden, context_mask, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb)
+
+        out, bias = cross_attn(hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb)
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit

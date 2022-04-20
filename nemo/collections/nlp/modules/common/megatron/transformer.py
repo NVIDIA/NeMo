@@ -649,14 +649,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
 
         x = rearrange(x, '(k n) b d -> n (b k) d', k=num_chunks)
         context = rearrange(context, 'k r n b d -> (r n) (b k) d')
-        query_length = x.shape[0]
-
-        if attention_mask is not None:
-            # attention mask [b, np, sq, sk]
-            attention_mask = repeat(attention_mask, 'k r n b-> (b k) 1 q (r n)', q=query_length)
-
         # cross attention
-
         out, bias = self.cross_attention(x, attention_mask, encoder_output=context, pos_emb=pos_emb)
 
         # reshape back to original sequence
@@ -1237,7 +1230,11 @@ class ParallelTransformer(MegatronModule):
             hidden_states = self.input_tensor
 
         if encoder_output is not None:
-            encoder_output = encoder_output.transpose(0, 1).contiguous()
+            if len(encoder_output.shape) == 5:
+                # this is retrival decoder, need special transpose
+                encoder_output = rearrange(encoder_output, 'b k r n d -> k r n b d').contiguous()
+            else:
+                encoder_output = encoder_output.transpose(0, 1).contiguous()
 
         if self.activations_checkpoint_method is not None:
             hidden_states = self._checkpointed_forward(
