@@ -18,7 +18,7 @@ This script serves three goals:
     (2) Shows example of batch ASR inference
     (3) Serves as CI test for pre-trained checkpoint
 """
-
+import shutil
 import copy
 import json
 import math
@@ -57,18 +57,28 @@ def get_wer_feat(
     preprocessor.to(device)
     hyps = []
     refs = []
+    audio_filepaths = []
+    offsets = []
+    durations = []
     total_durations_to_asr = []
     original_durations = []
     total_speech_segments = []
     total_streaming_vad_logits = []
-
+    
     with open(mfst, "r") as mfst_f:
         for l in mfst_f:
             asr.reset()
             row = json.loads(l.strip())
+            offset = row.get('offset', 0)
+            duration = row.get('duration', None)
+
+            audio_filepaths.append(row['audio_filepath'])
+            offsets.append(offset)
+            durations.append(duration)
+
             if vad:
                 vad.reset()
-                vad.read_audio_file(row['audio_filepath'], offset=0, duration=0, delay=vad_delay, model_stride_in_secs=1)          
+                vad.read_audio_file(row['audio_filepath'], offset=offset, duration=duration, delay=vad_delay, model_stride_in_secs=1)          
                 streaming_vad_logits, speech_segments = vad.decode(threshold=threshold)
                 speech_segments = [list(i) for i in speech_segments]
                 speech_segments.sort(key=lambda x: x[0])
@@ -96,7 +106,7 @@ def get_wer_feat(
                 final_hyp = final_hyp[1:-1]
                 # final_hyp = clean_label(final_hyp, num_to_words)
                 # ref_clean = clean_label(row['text'], num_to_words)
-
+               
                 hyps.append(final_hyp)
                 refs.append(row['text'])
                 total_durations_to_asr.append(total_duration_to_asr)
@@ -105,7 +115,7 @@ def get_wer_feat(
                 total_streaming_vad_logits.append(streaming_vad_logits)
 
             else:
-                asr.read_audio_file(row['audio_filepath'], offset=0, duration=0, delay=delay, model_stride_in_secs=model_stride_in_secs)
+                asr.read_audio_file(row['audio_filepath'], offset=offset, duration=duration, delay=delay, model_stride_in_secs=model_stride_in_secs)
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
                 refs.append(row['text'])
@@ -114,12 +124,15 @@ def get_wer_feat(
                 speech_segments = "ALL"
                 total_speech_segments.append(speech_segments)
 
+            
+            
+            
     wer = word_error_rate(hypotheses=hyps, references=refs)
     print(wer)
     if vad:
         print(f"VAD reduces total durations for ASR inference from {int(sum(original_durations))} seconds to {int(sum(total_durations_to_asr))} seconds, by filtering out some noise or music")
     
-    return hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits
+    return audio_filepaths, offsets, durations, hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits
 
 
 def main():
@@ -217,6 +230,19 @@ def main():
     frame_vad = None
 
     if args.vad_before_asr and args.vad_model:
+        vad_logits_folder = "vad_logits"
+        if os.path.exists(vad_logits_folder):
+            print(f"{vad_logits_folder} exists! Overwriting")
+            shutil.rmtree(vad_logits_folder)
+        os.makedirs(vad_logits_folder, exist_ok=True)
+
+        speech_segments_folder = "speech_segments"
+        if os.path.exists(speech_segments_folder):
+            print(f"{speech_segments_folder} exists! Overwriting")
+            shutil.rmtree(speech_segments_folder)
+        os.makedirs(speech_segments_folder, exist_ok=True)
+    
+
         total_vad_buffer = args.total_vad_buffer_in_secs
         vad_mid_delay = math.ceil((chunk_len + (total_vad_buffer - chunk_len) / 2) / 1)
         
@@ -235,7 +261,7 @@ def main():
         asr_model=asr_model, frame_len=chunk_len, total_buffer=total_buffer, batch_size=args.batch_size,
     )
 
-    hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits = get_wer_feat(
+    audio_filepaths, offsets, durations, hyps, refs, wer, total_durations_to_asr, total_speech_segments, total_streaming_vad_logits = get_wer_feat(
         args.test_manifest,
         frame_asr,
         chunk_len,
@@ -251,8 +277,13 @@ def main():
     )
     logging.info(f"WER is {round(wer * 100, 2)} % when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 
-    if args.output_path is not None:
+   
 
+    if args.output_path:
+        hyp_json = args.output_path
+
+     # if args.output_path is not None: # to align with eval_vad_asr
+    else:
         fname = (
             os.path.splitext(os.path.basename(args.asr_model))[0]
             + "_"
@@ -263,33 +294,44 @@ def main():
             + str(int(total_buffer * 1000))
             + ".json"
         )
-        hyp_json = os.path.join(args.output_path, fname)
-        os.makedirs(args.output_path, exist_ok=True)
-        os.makedirs("vad_logits", exist_ok=True)
-        
-        with open(hyp_json, "w") as out_f:
-            for i, hyp in enumerate(hyps):
-                if args.vad_before_asr:
-                    vad_output_file = os.path.join("vad_logits", str(i) + ".npy")
-                    np.save(vad_output_file, total_streaming_vad_logits[i])
-                    record = {
-                        "pred_text": hyp,
-                        "text": refs[i],
-                        "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
-                        "total_duration_to_asr": total_durations_to_asr[i],
-                        "total_speech_segments": total_speech_segments[i],
-                        "total_streaming_vad_logits": vad_output_file,
-                    }
-                else:
-                    record = {
-                        "pred_text": hyp,
-                        "text": refs[i],
-                        "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
-                        "total_duration_to_asr": total_durations_to_asr[i],
-                        "total_speech_segments": total_speech_segments[i],
-                    }
-                
-                out_f.write(json.dumps(record) + '\n')
+        hyp_json = fname
+
+        # hyp_json = os.path.join(args.output_path, fname)
+        # os.makedirs(args.output_path, exist_ok=True)
+
+    with open(hyp_json, "w") as out_f:
+        for i, hyp in enumerate(hyps):
+            if args.vad_before_asr:
+                audio_filename = audio_filepaths[i].split("/")[-1].rsplit('.', 1)[0]
+                vad_output_file = os.path.abspath(os.path.join(vad_logits_folder, audio_filename + ".npy"))
+                np.save(vad_output_file, total_streaming_vad_logits[i])
+                speech_segment_output_file = os.path.abspath(os.path.join(speech_segments_folder, audio_filename + ".npy"))
+                np.save(speech_segment_output_file, total_speech_segments[i])
+               
+                record = {
+                    "audio_filepath": audio_filepaths[i],
+                    "offset": offsets[i],
+                    "duration": durations[i],
+                    "pred_text": hyp,
+                    "text": refs[i],
+                    "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
+                    "total_duration_to_asr": total_durations_to_asr[i],
+                    "speech_segments_filepath": speech_segment_output_file,
+                    "total_streaming_vad_logits": vad_output_file,
+                }
+            else:
+                record = {
+                    "audio_filepath": audio_filepaths[i],
+                    "offset": offsets[i],
+                    "duration": durations[i],
+                    "pred_text": hyp,
+                    "text": refs[i],
+                    "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
+                    "total_duration_to_asr": total_durations_to_asr[i],
+                    "speech_segments_filepath": "",
+                }
+            
+            out_f.write(json.dumps(record) + '\n')
 
 
 if __name__ == '__main__':
