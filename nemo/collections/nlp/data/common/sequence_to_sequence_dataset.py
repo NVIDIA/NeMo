@@ -56,8 +56,8 @@ class SequenceToSequenceDataset(Dataset):
 
     def _get_examples(self):
         self.examples = []
-        with open(self.src_file_name) as f_src, open(self.tgt_file_name) as f_tgt:
-            for i, src, tgt in enumerate(zip(f_src, f_tgt)):
+        with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
+            for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
                 if i % 10000 == 0:
                     logging.info(f"Finished reading ")
                 src = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(src.strip()) + [self.tokenizer.eos_id]
