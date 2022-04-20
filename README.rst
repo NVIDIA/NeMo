@@ -139,7 +139,7 @@ Install PyTorch using their `configurator <https://pytorch.org/get-started/local
 
     conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
 
-..note::
+.. note::
 
   The command used to install PyTorch may depend on your system.
 
