@@ -35,7 +35,6 @@ from collections import Counter
 from typing import Dict, List
 
 import torch
-import multiprocessing
 from torch.linalg import eigh
 
 
@@ -488,6 +487,7 @@ def getLamdaGaplist(lambdas: torch.Tensor):
     if torch.is_complex(lambdas):
         lambdas = torch.real(lambdas)
     return lambdas[1:] - lambdas[:-1]
+
 
 @torch.jit.script
 def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sigma: float):
