@@ -6,8 +6,6 @@ import time
 import math
 from collections import defaultdict
 
-rank2gpu = [0, 4, 2, 6, 1, 5, 3, 7]
-
 
 def pause_and_prime_dns_connections() -> None:
     if int(os.environ.get("GROUP_RANK")) > 0:
@@ -55,12 +53,6 @@ def generate_cmd_prefix(cfg, code_dir):
     # Write command to launch training.
     cmd_prefix = f'{wandb_cmd} cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {nccl_cmd}'
     return cmd_prefix
-
-
-def numa_mapping(dgxa100_gpu2core, dgxa100_gpu2mem):
-    gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
-    core_mapping = f"exec numactl --physcpubind={dgxa100_gpu2core[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} --membind={dgxa100_gpu2mem[rank2gpu[int(os.environ.get('LOCAL_RANK'))]]} -- "
-    return gpu_mapping, core_mapping
 
 
 def convert_args_to_hydra_train_args(args, prefix="training."):
