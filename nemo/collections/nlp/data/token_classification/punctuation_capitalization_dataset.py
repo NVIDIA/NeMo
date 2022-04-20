@@ -889,7 +889,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         verbose: bool = True,
         n_jobs: Optional[int] = 0,
         number_of_batches_is_multiple_of: int = 1,
-        batch_shuffling_random_state: int = 42,
+        batch_shuffling_random_seed: int = 42,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
@@ -989,7 +989,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
-        self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_state)
+        self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
