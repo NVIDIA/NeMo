@@ -18,11 +18,6 @@ import math
 
 import torch
 import torch.nn.functional as F
-from apex.transformer import parallel_state, tensor_parallel
-from apex.transformer.enums import AttnMaskType, AttnType, LayerType, ModelType
-from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
-from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
-from apex.transformer.utils import divide as safe_divide
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -33,7 +28,22 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import attention_mask_func, erf_gelu
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
+
+try:
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.enums import AttnMaskType, AttnType, LayerType, ModelType
+    from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
+    from apex.transformer.utils import divide as safe_divide
+    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
+
+    HAVE_APEX = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
+    # fake missing classes with None attributes
+    ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 
 """ We use the following notation throughout this file:
