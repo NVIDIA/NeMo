@@ -58,8 +58,10 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 """
 
+from dataclasses import is_dataclass
+
 import pytorch_lightning as pl
-from omegaconf import OmegaConf, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config import hydra_runner
@@ -84,6 +86,26 @@ def update_model_cfg(original_cfg, new_cfg):
 
         new_cfg = OmegaConf.merge(original_cfg, new_cfg)
     return new_cfg
+
+
+def add_global_adapter_cfg(model, global_adapter_cfg):
+    # Convert to DictConfig from dict or Dataclass
+    if is_dataclass(global_adapter_cfg):
+        global_adapter_cfg = OmegaConf.structured(global_adapter_cfg)
+
+    if not isinstance(global_adapter_cfg, DictConfig):
+        global_adapter_cfg = DictConfig(global_adapter_cfg)
+
+    # Update the model.cfg with information about the new adapter global cfg
+    with open_dict(global_adapter_cfg), open_dict(model.cfg):
+        if 'adapters' not in model.cfg:
+            model.cfg.adapters = OmegaConf.create({})
+
+        # Add the global config for adapters to the model's internal config
+        model.cfg.adapters[model.adapter_global_cfg_key] = global_adapter_cfg
+
+        # Update all adapter modules (that already exist) with this global adapter config
+        model.update_adapter_cfg(model.cfg.adapters)
 
 
 @hydra_runner(config_path="conf", config_name="asr_adaptation.yaml")
@@ -122,7 +144,13 @@ def main(cfg):
 
     # Setup adapters
     with open_dict(cfg.model.adapter):
+        # Extract the name of the adapter (must be give for training)
         adapter_name = cfg.model.adapter.pop("adapter_name")
+
+        # Extract the global adapter config, if provided
+        adapter_global_cfg = cfg.model.adapter.pop(model.adapter_global_cfg_key, None)
+        if adapter_global_cfg is not None:
+            add_global_adapter_cfg(model, adapter_global_cfg)
 
     model.add_adapter(adapter_name, cfg=cfg.model.adapter)
     assert model.is_adapter_available()
