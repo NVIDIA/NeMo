@@ -60,8 +60,8 @@ class SequenceToSequenceDataset(Dataset):
         self.examples = []
         with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
             for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
-                if i % 10000 == 0:
-                    logging.info(f"Finished reading ")
+                if i % 10000 == 0 and i != 0:
+                    logging.info(f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}")
                 src = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(src.strip()) + [self.tokenizer.eos_id]
                 tgt = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(tgt.strip()) + [self.tokenizer.eos_id]
                 if len(src) <= self.max_src_seq_length and len(tgt) < self.max_tgt_seq_length:

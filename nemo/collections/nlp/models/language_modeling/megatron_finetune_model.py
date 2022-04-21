@@ -24,7 +24,7 @@ from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator, get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -47,7 +47,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 if hasattr(self.cfg.data.validation_ds, "names") and isinstance(self.cfg.data.validation_ds.names, ListConfig):
                     self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
                 else:
-                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(list(range(len(self.cfg.data.validation_ds.src_file_name))))
+                    self.val_acc_metric = ExactStringPerCategoryMatchMetric([str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))])
             else:
                 self.val_acc_metric = ExactStringPerCategoryMatchMetric()
 
@@ -56,7 +56,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     if hasattr(self.cfg.data.test_ds, "names") and isinstance(self.cfg.data.test_ds.names, ListConfig):
                         self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.test_ds.names)
                     else:
-                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(list(range(len(self.cfg.data.test_ds.src_file_name))))
+                        self.test_acc_metric = ExactStringPerCategoryMatchMetric([str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))])
                 else:
                     self.test_acc_metric = ExactStringPerCategoryMatchMetric()
 
@@ -178,14 +178,42 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def on_validation_epoch_end(self):
         app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=self.cfg.data.train_ds.global_batch_size,
-            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
         return super().on_validation_epoch_end()
+
+    def training_step(self, batch, batch_idx):
+        micro_batch_size = batch[0]['text_enc'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.train_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        return super().training_step(batch, batch_idx)
 
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
         batch_has_lang_information = len(batch[0]) == 7
@@ -197,6 +225,20 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 processed_batch.append(micro_batch)
         else:
             processed_batch = batch
+
+        micro_batch_size = processed_batch[0]['text_enc'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
 
         # Call parent validation step to get the loss.
         loss = super().validation_step(processed_batch, batch_idx)
@@ -248,6 +290,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def inference_epoch_end(self, outputs, mode):
         # Parent class will handle logging of the loss.
+        if not outputs:
+            return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
@@ -266,7 +310,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         logging.info(f"{mode} accuracy: {accuracy['acc']}")
 
         for k, v in accuracy.items():
-            if k != 'acc':
+            if k != 'acc' and 'total' not in k:
                 logging.info(f"{mode} {k} accuracy: {v} total: {accuracy[k+'_total']}")
                 self.log(f'{mode}_{k}_acc', v)
 
@@ -426,7 +470,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 raise ValueError(
                     "src_file_name and tgt_file_name must have the same number of elements. "
                 )
-            if is_names_list_config and len(data_cfg.labels) != len(data_cfg.src_file_name):
+            if is_names_list_config and len(data_cfg.names) != len(data_cfg.src_file_name):
                 raise ValueError(
                     "If you are providing names for each src/tgt file, they must have the same number of elements."
                 )
