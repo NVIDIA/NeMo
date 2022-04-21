@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import is_dataclass
 from typing import List, Optional
 
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
-from nemo.utils import logging
 
 
-class ASREncoderAdapterModelMixin(AdapterModelPTMixin):
+class ASRAdapterModelMixin(AdapterModelPTMixin):
     """ ASR Adapter Mixin that can augment any Encoder module with Adapter module support.
 
     This mixin class should be used only with a top level ModelPT subclass, that includes an `encoder` submodule.

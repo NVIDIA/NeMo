@@ -211,7 +211,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         # Setup optional Optimization flags
         self.setup_optimization_flags()
 
-        # Adapter modules setup (from ASREncoderAdapterModelMixin)
+        # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_encoder_adapters()
 
     @torch.no_grad()
