@@ -434,6 +434,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, batch, batch_idx):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+        print(input_ids)
+        print(labels)
 
         with torch.no_grad():
             output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
@@ -459,9 +461,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == "p-tuning" and self.cfg.p_tuning.save_tuned_prompts_to_prompt_table:
+        if self.virtual_prompt_style == "p-tuning":
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
+
+        self.virtual_prompt_style = 'inference'
+        self.virtual_prompt_source = 'prompt-table'
 
         # Move new tags to existing tag list for loading during inference later
         with open_dict(self.cfg):
