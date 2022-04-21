@@ -18,6 +18,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
     NEMO_SIGMA,
     GraphFst,
+    delete_extra_space,
     delete_space,
     insert_space,
     plurals,
@@ -51,15 +52,19 @@ class TelephoneFst(GraphFst):
         super().__init__(name="telephone", kind="classify", deterministic=deterministic)
 
         add_separator = pynutil.insert(", ")  # between components
-        digit = pynini.invert(pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))).optimize() | pynini.cross(
-            "0", "o"
-        )
+        zero = pynini.cross("0", "zero")
+        if not deterministic:
+            zero |= pynini.cross("0", pynini.union("o", "oh"))
+        digit = pynini.invert(pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))).optimize() | zero
 
+        telephone_prompts = pynini.string_file(get_abs_path("data/telephone/telephone_prompt.tsv"))
+        ip_prompts = pynini.string_file(get_abs_path("data/telephone/ip_prompt.tsv"))
+        country_code = (
+            pynini.closure(pynini.cross("+", "plus "), 0, 1) + pynini.closure(digit + insert_space, 0, 2) + digit
+        )
         country_code = (
             pynutil.insert("country_code: \"")
-            + pynini.closure(pynutil.delete("+"), 0, 1)
-            + pynini.closure(digit + insert_space, 0, 2)
-            + digit
+            + ((telephone_prompts + delete_extra_space + pynini.closure(country_code, 0, 1)) | country_code)
             + pynutil.insert("\"")
         )
         country_code = country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space
@@ -98,7 +103,14 @@ class TelephoneFst(GraphFst):
             NEMO_DIGIT ** (1, 3), digit + pynini.closure(pynutil.insert(" ") + digit)
         ).optimize()
         ip_graph = digit_to_str_graph + (pynini.cross(".", " dot ") + digit_to_str_graph) ** 3
-        graph |= pynutil.insert("number_part: \"") + ip_graph.optimize() + pynutil.insert("\"")
+        graph |= (
+            pynini.closure(
+                pynutil.insert("country_code: \"") + ip_prompts + delete_extra_space + pynutil.insert("\""), 0, 1
+            )
+            + pynutil.insert("number_part: \"")
+            + ip_graph.optimize()
+            + pynutil.insert("\"")
+        )
 
         final_graph = self.add_tokens(graph)
         self.fst = final_graph.optimize()

@@ -20,7 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     get_abs_path,
-    insert_space
+    insert_space,
 )
 
 try:
@@ -65,7 +65,7 @@ class ElectronicFst(GraphFst):
         protocol_start = (pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ")) + (
             pynini.accep("://") @ protocol_symbols
         )
-        protocol_file_start=pynini.accep("file") + insert_space + (pynini.accep(":///") @ protocol_symbols)
+        protocol_file_start = pynini.accep("file") + insert_space + (pynini.accep(":///") @ protocol_symbols)
 
         protocol_end = pynini.cross("www", "WWW ") + pynini.accep(".") @ protocol_symbols
         protocol = protocol_file_start | protocol_start | protocol_end | (protocol_start + protocol_end)
