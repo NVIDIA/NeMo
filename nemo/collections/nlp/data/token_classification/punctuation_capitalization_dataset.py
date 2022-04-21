@@ -1319,9 +1319,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     if i > start:
                         batch_size = i - start
                         logging.warning(
-                            f"Could not create batch with multiple of 8 size. Probably there is a too long sequence in "
-                            f"the dataset. current_max_length={current_max_length}. Batch size will be reduced to "
-                            f"{batch_size}. tokens_in_batch={self.tokens_in_batch}. The batch includes sequences from "
+                            f"Could not create batch with multiple of 8 size. Probably, there is a too long sequence "
+                            f"in the dataset or parameter `tokens_in_batch` is too small. Current length of sequences "
+                            f"in batch is {current_max_length}. Batch size will be reduced to {batch_size}. "
+                            f"tokens_in_batch={self.tokens_in_batch}. The batch includes sequences from "
                             f"{start} to {i - 1}."
                         )
                     else:
