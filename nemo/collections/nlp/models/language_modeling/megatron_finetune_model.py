@@ -44,10 +44,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
         else:
             if isinstance(self.cfg.data.validation_ds.src_file_name, ListConfig):
-                if hasattr(self.cfg.data.validation_ds, "names") and isinstance(self.cfg.data.validation_ds.names, ListConfig):
+                if hasattr(self.cfg.data.validation_ds, "names") and isinstance(
+                    self.cfg.data.validation_ds.names, ListConfig
+                ):
                     self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
                 else:
-                    self.val_acc_metric = ExactStringPerCategoryMatchMetric([str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))])
+                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(
+                        [str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))]
+                    )
             else:
                 self.val_acc_metric = ExactStringPerCategoryMatchMetric()
 
@@ -56,7 +60,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     if hasattr(self.cfg.data.test_ds, "names") and isinstance(self.cfg.data.test_ds.names, ListConfig):
                         self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.test_ds.names)
                     else:
-                        self.test_acc_metric = ExactStringPerCategoryMatchMetric([str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))])
+                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(
+                            [str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))]
+                        )
                 else:
                     self.test_acc_metric = ExactStringPerCategoryMatchMetric()
 
@@ -410,20 +416,24 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         self._test_dl = self.setup_eval_data(self._test_ds)
 
     def _build_train_dataset(self, data_cfg):
+        """Build the training dataset."""
+        if (
+            data_cfg.drop_last is False
+            and data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size()
+        ):
+            raise ValueError(
+                f"Cannot use drop_last=False in your training data with gradient accumulation found grad acc of {data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())} with global_batch_size {data_cfg.global_batch_size}, micro_batch_size {data_cfg.micro_batch_size}, data parallel size {parallel_state.get_data_parallel_world_size()}"
+            )
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
         is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
         is_tgt_list_config = isinstance(data_cfg.tgt_file_name, ListConfig)
 
         if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
-            raise ValueError(
-                "src_list and tgt_list must both be either a ListConfig or a string. "
-            )
+            raise ValueError("src_list and tgt_list must both be either a ListConfig or a string. ")
         if is_src_list_config:
             if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
-                raise ValueError(
-                    "src_file_name and tgt_file_name must have the same number of elements. "
-                )
+                raise ValueError("src_file_name and tgt_file_name must have the same number of elements. ")
         else:
             data_cfg.src_file_name = [data_cfg.src_file_name]
             data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
@@ -444,7 +454,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     datasets=datasets,
                     sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
                     sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
-                    sampling_probabilities=data_cfg.get('concat_sampling_probabilities', [1/len(datasets)] * len(datasets)),
+                    sampling_probabilities=data_cfg.get(
+                        'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
+                    ),
                     global_rank=parallel_state.get_data_parallel_rank(),
                     world_size=parallel_state.get_data_parallel_world_size(),
                 )
@@ -452,6 +464,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             return datasets[0]
 
     def _build_eval_dataset(self, data_cfg, mode='train'):
+        """Build the evaluation dataset."""
+        if data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size():
+            raise ValueError(
+                f'You are trying to use "implicit gradient accumulation" of {data_cfg.global_batch_size // (data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size())} in your validation/test datasets. This is not supported. Please set global_batch_size equal to micro_batch_size * data_parallel_world_size.'
+            )
         datasets = []
         # Determine if we are using a single dataset or a list of datasets.
         is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
@@ -462,14 +479,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 is_names_list_config = True
 
         if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
-            raise ValueError(
-                "src_list and tgt_list must both be either a ListConfig or a string. "
-            )
+            raise ValueError("src_list and tgt_list must both be either a ListConfig or a string. ")
         if is_src_list_config:
             if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
-                raise ValueError(
-                    "src_file_name and tgt_file_name must have the same number of elements. "
-                )
+                raise ValueError("src_file_name and tgt_file_name must have the same number of elements. ")
             if is_names_list_config and len(data_cfg.names) != len(data_cfg.src_file_name):
                 raise ValueError(
                     "If you are providing names for each src/tgt file, they must have the same number of elements."
@@ -487,14 +500,16 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 max_tgt_seq_length=data_cfg.max_tgt_seq_length,
             )
             datasets.append(dataset)
-        
+
         if mode == 'train' and len(datasets) > 1:
             if len(datasets) > 1:
                 dataset = ConcatDataset(
                     datasets=datasets,
                     sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
                     sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
-                    sampling_probabilities=data_cfg.get('concat_sampling_probabilities', [1/len(datasets)] * len(datasets)),
+                    sampling_probabilities=data_cfg.get(
+                        'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
+                    ),
                     global_rank=parallel_state.get_data_parallel_rank(),
                     world_size=parallel_state.get_data_parallel_world_size(),
                 )
