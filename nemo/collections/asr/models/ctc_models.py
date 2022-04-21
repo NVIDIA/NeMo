@@ -212,7 +212,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         self.setup_optimization_flags()
 
         # Adapter modules setup (from ASRAdapterModelMixin)
-        self.setup_encoder_adapters()
+        self.setup_adapters()
 
     @torch.no_grad()
     def transcribe(

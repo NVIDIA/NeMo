@@ -36,22 +36,29 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
                 and values are the Adapter nn.Module().
         -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
+        -   `adapter_global_cfg_key`: A str representing a key in the model config that can be provided by the user.
+                The value resolves to `global_cfg`, and can be overridden via `model.cfg.adapters.global_cfg.*`.
 
     **Note**: This module **is** responsible for maintaining its config. At the ModelPT level, it will access and
         write Adapter config information to `self.cfg.adapters`.
     """
 
-    def setup_encoder_adapters(self):
+    def setup_adapters(self):
         """
         Utility method that is called in the ASR ModelPT-implementation constructor, so as to restore any
         adapters that were previously added.
 
         This method should be called just once at constructor time.
         """
-        if not hasattr(self, 'encoder') or not isinstance(self.encoder, AdapterModuleMixin):
-            return
+        supports_adapters = False
 
-        super().setup_encoder_adapters()
+        # At least the encoder must extend AdapterModuleMixin
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
+            supports_adapters |= True
+
+        # If adapters are supported, setup the adapter config + any modules (pre-existing adapter modules)
+        if supports_adapters:
+            super().setup_adapters()
 
     def add_adapter(self, name: str, cfg: DictConfig):
         """
@@ -63,10 +70,18 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         super().add_adapter(name=name, cfg=cfg)
 
+        # Try to retrieve global adapter config
+        global_config = DictConfig({})
+        if self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(self.cfg):
-            # Dispatch the call to the encoder.
-            self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
+            # Check if encoder adapters should be added
+            use_encoder_adapters = global_config.get('encoder_adapter', True)
+            if use_encoder_adapters:
+                # Dispatch the call to the encoder.
+                self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
 
     def is_adapter_available(self) -> bool:
         """
@@ -99,8 +114,17 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         super().set_enabled_adapters(name=name, enabled=enabled)
 
+        # Try to retrieve global adapter config
+        global_config = DictConfig({})
+        if self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
+
+        # Check if encoder adapters should be used
+        use_encoder_adapters = global_config.get('encoder_adapter', True)
+
         # Dispatch the call to the encoder.
-        self.encoder.set_enabled_adapters(name=name, enabled=enabled)
+        if use_encoder_adapters:
+            self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -110,15 +134,36 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             A list of str names of each enabled adapter(s).
         """
         enabled_adapters = super().get_enabled_adapters()
-        enabled_adapters.extend(self.encoder.get_enabled_adapters())
+
+        # Try to retrieve global adapter config
+        global_config = DictConfig({})
+        if self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
+
+        # Check if encoder adapters should be used
+        use_encoder_adapters = global_config.get('encoder_adapter', True)
+
+        if use_encoder_adapters:
+            enabled_adapters.extend(self.encoder.get_enabled_adapters())
+
         return enabled_adapters
 
     def _check_valid_model_with_adapter_support(self):
         """
         Utility method to test if the subclass of this mixin is an appropriate subclass of ModelPT itself.
         """
-        if not hasattr(self, 'encoder'):
+        # Obtain the global adapter config if possible, otherwise use sensible defaults.
+        global_cfg = DictConfig({})
+        if hasattr(self, 'adapter_cfg'):
+            global_cfg = self.adapter_cfg
+
+            if self.adapter_global_cfg_key in global_cfg:
+                global_cfg = global_cfg[self.adapter_global_cfg_key]
+
+        # Test whether the encoder supports adapters
+        use_encoder_adapter = global_cfg.get('encoder_adapter', True)
+        if use_encoder_adapter and not hasattr(self, 'encoder'):
             raise ValueError("Cannot add adapter to this object as it does not have an `encoder` sub-module!")
 
-        if not isinstance(self.encoder, AdapterModuleMixin):
+        if use_encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
             raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')

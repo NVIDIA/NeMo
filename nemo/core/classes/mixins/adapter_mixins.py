@@ -41,11 +41,15 @@ class AdapterModuleMixin(ABC):
         -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
                 and values are the Adapter nn.Module().
         -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
+        -   `adapter_global_cfg_key`: A str representing a key in the model config that can be provided by the user.
+                The value resolves to `global_cfg`, and can be overridden via `model.cfg.adapters.global_cfg.*`.
 
     **Note**: This module is **not** responsible for maintaining its config. Subclasses must ensure config is updated
         or preserved as needed. It is the responsibility of the subclasses to propagate the most up to date config to
         lower layers.
     """
+
+    adapter_global_cfg_key = "global_cfg"
 
     def add_adapter(self, name: str, cfg: DictConfig):
         """
@@ -74,6 +78,10 @@ class AdapterModuleMixin(ABC):
         # Assert that name is globally unique to all adapters.
         if name in self.adapter_layer:
             raise ValueError(f"Adapter with name `{name}` already exists !")
+
+        # Assert that name is not `adapter_global_cfg_key`
+        if name == self.adapter_global_cfg_key:
+            raise ValueError(f"Adapters cannot have the reserved name : `{self.adapter_global_cfg_key}`")
 
         # Update internal config and instantiate the Adapter module
         with open_dict(cfg), open_dict(self.adapter_cfg):
@@ -118,9 +126,20 @@ class AdapterModuleMixin(ABC):
 
         # If name is None, enable/disable all adapters.
         if name is None:
-            for name, config in self.adapter_cfg.items():
-                self.adapter_cfg[name]['enabled'] = enabled
+            for key, config in self.adapter_cfg.items():
+                # Skip the global adapter config
+                if key == self.adapter_global_cfg_key:
+                    continue
+
+                # Enable/Disable the current adapter
+                self.adapter_cfg[key]['enabled'] = enabled
         else:
+            # Cannot set the state of the global config for adapters
+            if name == self.adapter_global_cfg_key:
+                raise ValueError(
+                    f'Cannot set the state of the global config of adapters, given name = `{self.adapter_global_cfg_key}`'
+                )
+
             # Enable/Disable just named adapter
             self.adapter_cfg[name]['enabled'] = enabled
 
@@ -136,6 +155,10 @@ class AdapterModuleMixin(ABC):
 
         enabled_adapters = []
         for name, config in self.adapter_cfg.items():
+            # Skip the global adapter config
+            if name == self.adapter_global_cfg_key:
+                continue
+
             if self.adapter_cfg[name]['enabled']:
                 enabled_adapters.append(name)
 
@@ -174,13 +197,20 @@ class AdapterModuleMixin(ABC):
         for module in self.modules():  # access PT subclass method via inheritance
             if hasattr(module, 'adapter_layer') and module.is_adapter_available():
                 for name, config in self.adapter_cfg.items():
+                    # Skip global adapter config
+                    if name == self.adapter_global_cfg_key:
+                        continue
+
+                    # Check if adapter is enabled or not
                     if self.adapter_cfg[name]['enabled']:
+                        # Recursively set training mode of submodules
                         module.adapter_layer[name].train()
 
+                        # Recursively set grad required for submodules
                         for pname, param in module.adapter_layer[name].named_parameters():
                             param.requires_grad_(True)
 
-                        # unfreeze batch norm if any
+                        # unfreeze batch norm if any in the adapter submodules
                         for mname, module in module.adapter_layer[name].named_modules():
                             if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
                                 module.track_running_stats = (
@@ -212,12 +242,14 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
                     and values are the Adapter nn.Module().
             -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
+            -   `adapter_global_cfg_key`: A str representing a key in the model config that can be provided by the user.
+                The value resolves to `global_cfg`, and can be overridden via `model.cfg.adapters.global_cfg.*`.
 
         **Note**: This module **is** responsible for maintaining its config. At the ModelPT level, it will access and
             write Adapter config information to `self.cfg.adapters`.
         """
 
-    def setup_encoder_adapters(self):
+    def setup_adapters(self):
         """
         Utility method that is called in the ASR ModelPT-implementation constructor, so as to restore any
         adapters that were previously added.
@@ -234,7 +266,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             # Dispatch the call to the encoder, for every adapter contained in the config.
             for adapter_name, adapter_cfg in self.cfg.adapters.items():
                 # reserve special key `model.adapters.cfg`
-                if 'cfg' in adapter_name:
+                if adapter_name == self.adapter_global_cfg_key:
                     continue
 
                 self.add_adapter(name=adapter_name, cfg=adapter_cfg)
@@ -246,7 +278,8 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         """
         Add an Adapter module to this model.
 
-        Should be overridden by subclass and super() call must be used.
+        Should be overridden by subclass and super() call must be used - this will setup the config.
+        After calling super(), forward this call to modules that implement the mixin.
 
         Args:
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
@@ -299,7 +332,8 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         A common user pattern would be to disable all adapters (either after adding them, or restoring a model
         with pre-existing adapters) and then simply enable one of the adapters.
 
-        Should be overridden by subclass and super() call must be used.
+        Should be overridden by subclass and super() call must be used - this will setup the config.
+        After calling super(), forward this call to modules that implement the mixin.
 
         .. code::
 
@@ -318,10 +352,20 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             # If no name is provided, update all adapters.
             if name is None:
                 for key in self.cfg.adapters.keys():
+                    # Skip the global adapter config
+                    if key == self.adapter_global_cfg_key:
+                        continue
+
                     self.cfg.adapters[key]['enabled'] = enabled
                     logging.info(f"Setting adapter '{key}' status : Enabled = {enabled}")
 
             else:
+                # Cannot set the state of the global config for adapters
+                if name == self.adapter_global_cfg_key:
+                    raise ValueError(
+                        f'Cannot set the state of the global config of adapters, given name = `{self.adapter_global_cfg_key}`'
+                    )
+
                 # Otherwise, update just the specified adapter.
                 self.cfg.adapters[name]['enabled'] = enabled
                 logging.info(f"Setting adapter '{name}' status : Enabled = {enabled}")
