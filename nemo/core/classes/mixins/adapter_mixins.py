@@ -229,10 +229,14 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         # Test if `adapters` is part of the config (injected from previous Adapter additions)
         if 'adapters' in self.cfg:
             # Set the global config of adapters
-            self._update_adapter_cfg(self.cfg.adapters)
+            self.update_adapter_cfg(self.cfg.adapters)
 
             # Dispatch the call to the encoder, for every adapter contained in the config.
             for adapter_name, adapter_cfg in self.cfg.adapters.items():
+                # reserve special key `model.adapters.cfg`
+                if 'cfg' in adapter_name:
+                    continue
+
                 self.add_adapter(name=adapter_name, cfg=adapter_cfg)
                 logging.info(
                     f"Finished setup of adapter : '{adapter_name}'. Enabled: {adapter_cfg.get('enabled', True)}."
@@ -268,7 +272,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             self.cfg.adapters[name] = OmegaConf.create(cfg)
 
             # Set the global config of adapters
-            self._update_adapter_cfg(self.cfg.adapters)
+            self.update_adapter_cfg(self.cfg.adapters)
 
     def is_adapter_available(self) -> bool:
         """
@@ -281,6 +285,10 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             enabled or disabled, false only if no adapters exist.
         """
         self._check_valid_model_with_adapter_support()
+
+        if 'adapters' in self.cfg:
+            self.update_adapter_cfg(self.cfg.adapters)
+
         return 'adapters' in self.cfg
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
@@ -318,7 +326,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 self.cfg.adapters[name]['enabled'] = enabled
                 logging.info(f"Setting adapter '{name}' status : Enabled = {enabled}")
 
-            self._update_adapter_cfg(self.cfg.adapters)
+            self.update_adapter_cfg(self.cfg.adapters)
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -330,6 +338,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             A list of str names of each enabled adapter(s).
         """
         self._check_valid_model_with_adapter_support()
+
+        if 'adapters' in self.cfg:
+            self.update_adapter_cfg(self.cfg.adapters)
         return []
 
     def _check_valid_model_with_adapter_support(self):
@@ -340,7 +351,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         """
         pass
 
-    def _update_adapter_cfg(self, cfg: DictConfig):
+    def update_adapter_cfg(self, cfg: DictConfig):
         """
         Utility method to recursively update all of the Adapter module configs with the provided config.
         **Note**: It is not a (deep)copy, but a reference copy. Changes made to the config will be reflected to
