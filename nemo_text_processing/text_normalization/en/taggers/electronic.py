@@ -61,21 +61,21 @@ class ElectronicFst(GraphFst):
         username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
         protocol_symbols = pynini.closure(
-            graph_symbols | pynini.cross(":", "colon") + pynutil.insert(" ")
+            (graph_symbols | pynini.cross(":", "colon")) + pynutil.insert(" ")
         )
-        protocol_start = pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ") + (pynini.accep("://")@protocol_symbols)
+        protocol_start = (pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ")) + (pynini.accep("://")@protocol_symbols)
 
-        protocol_end = pynini.cross("www", "WWW ") + pynini.cross(".", "dot ") 
+        protocol_end = pynini.cross("www", "WWW ") + pynini.accep(".") @ protocol_symbols
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
 
         domain_graph = (
             pynutil.insert("domain: \"")
-            + pynini.difference(domain_graph, protocol + NEMO_SIGMA)
+            + pynini.difference(domain_graph, pynini.project(protocol, "input") + NEMO_SIGMA)
             + pynutil.insert("\"")
         )
         domain_common_graph = (
             pynutil.insert("domain: \"")
-            + pynini.difference(accepted_symbols + pynini.union(*accepted_common_domains), protocol + NEMO_SIGMA)
+            + pynini.difference(accepted_symbols + pynini.union(*accepted_common_domains), pynini.project(protocol, "input") + NEMO_SIGMA)
             + pynutil.insert("\"")
         )
 
@@ -84,7 +84,6 @@ class ElectronicFst(GraphFst):
         graph |= domain_common_graph
         graph |= protocol + pynutil.insert(" ") + domain_graph
 
-        import ipdb; ipdb.set_trace()
 
         final_graph = self.add_tokens(graph)
 
