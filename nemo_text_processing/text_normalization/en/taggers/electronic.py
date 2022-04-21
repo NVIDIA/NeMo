@@ -20,6 +20,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_SIGMA,
     GraphFst,
     get_abs_path,
+    insert_space
 )
 
 try:
@@ -60,13 +61,14 @@ class ElectronicFst(GraphFst):
 
         username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
-        protocol_symbols = pynini.closure((graph_symbols | pynini.cross(":", "colon")) + pynutil.insert(" "))
+        protocol_symbols = pynini.closure((graph_symbols | pynini.cross(":", "semicolon")) + pynutil.insert(" "))
         protocol_start = (pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ")) + (
             pynini.accep("://") @ protocol_symbols
         )
+        protocol_file_start=pynini.accep("file") + insert_space + (pynini.accep(":///") @ protocol_symbols)
 
         protocol_end = pynini.cross("www", "WWW ") + pynini.accep(".") @ protocol_symbols
-        protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
+        protocol = protocol_file_start | protocol_start | protocol_end | (protocol_start + protocol_end)
 
         domain_graph = (
             pynutil.insert("domain: \"")
