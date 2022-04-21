@@ -1,5 +1,4 @@
 # Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,88 +14,30 @@
 
 """
 This script contains an example of how to train and test dialogue models in NeMo.
-The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
-The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
-The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
-The NLU takes in a dialogue turn and different schema (entity) information options and outputs their match score. The state tracker takes the highest rated entities and composes
-the dialogue state across turns.
-
-***Data format***
-The SGD-QA requires a JSON schema and dialogue files for each dataset split. 
-In the following we will show an example for a service entry in the schema file.
-* service_name
-* description
-* slots
-    * name
-    * description
-    * is_categorical
-    * possible values
-* intents
-    * name
-    * description
-    * required_slots (not used)
-    * is_transactional (not used)
-    * optional_slots (not used)
-    * result_slots (not used)
-
-
-In the following we will show an example for a dialogue. More information at https://arxiv.org/abs/1909.05855
-* dialogue_id
-* services
-* turns
-    * frames
-        * actions
-            * act
-            * slot
-            * values
-        * service
-        * slots
-            * exclusive_end
-            * slot
-            * start
-        * state
-            * active_intent
-            * requeste_slots
-            * slot_values 
-    * speaker - [USER, SYSTEM]
-    * utterance
-
-
-***Downloading the dataset***
-#   git clone https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git
 
 ***Setting the configs***
 The model and the PT trainer are defined in a config file that declares multiple important sections.
 The most important ones are:
-    model: All arguments that are related to the Model - language model, SGD-QA encoder and decoder, loss, optimizer,
+    model: All arguments that are related to the Model - model, loss, optimizer,
             schedulers, and datasets/data loaders.
     trainer: Any argument to be passed to PyTorch Lightning including number of epochs, number of GPUs,
             precision level, etc.
 
-This script uses the `/examples/nlp/dialogue_state_tracking/conf/sgdqa_config.yaml` config file
+This script uses the `/examples/nlp/dialogue_state_tracking/conf/dialog_config.yaml` config file
 by default. You may update the config file from the file directly. The other option is to set another config file via command-line arguments by `--config-name=CONFIG_FILE_PATH'.
 
 
 ***Model Training***
-# python sgd_qa.py
+    python dialogue.py
     do_training=True
     model.dataset.data_dir=<DATA_DIR_WITH_JSON_DATA>
-    model.dataset.dialogues_example_dir=<DATA_DIR_WITH_PREPROCESSED_DATA>
-    model.validation_ds.ds_item=<LIST_OF_SPLITS>
-    trainer.max_epochs=<NUM_EPOCHS>
-    trainer.devices=[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
-
+    model.dataset.dialogues_example_dir=<DAT_DIR_FOR_CACHING_INTERMEDIATE_AND_SAVING_PREDICTIONS>
+    model.dataset.task=<TASK - see conf/dialogue_config.yaml for full list> e.g. sgd
+    model.language_model.pretrained_model_name=<TASK - see conf/dialogue_config.yaml for full list> e.g. gpt2
+    trainer.devices=[<DEVICE_IDS_TO_USE>]
 
 ***Model Evaluation***
-#   python sgd_qa.py
-    do_training=False
-    model.test_ds.ds_item=<LIST_OF_SPLITS>
-
-To load a pretrained checkpoint from the cloud prior to training (e.g. for fine-tuning) or evaluation you can set cfg.from_pretrained=<MODEL_NAME>. You can find all pretrained model names by using 
-SGDQAModel.list_available_models(). To load a local checkpoint use model.restore_from(<PATH_TO_CHECKPOINT>)
-
-# Known issue, when do_training=True on multi-gpu, test-loop gets stuck
-# Quick fix is to simply load checkpoint for testing separately after training
+    command as above, change do_training=False
 """
 
 import os

@@ -40,7 +40,15 @@ __all__ = ['SGDQAModel']
 
 
 class SGDQAModel(NLPModel):
-    """Dialogue State Tracking Model SGD-QA (https://arxiv.org/abs/2105.08049)"""
+    """
+    Dialogue State Tracking Model SGD-QA (https://arxiv.org/abs/2105.08049)
+
+    The SGD-QA model is a fast multi-pass schema-guided state-tracking model, that is trained on the Google schema-guided state tracking dataset (https://arxiv.org/abs/1909.05855).
+    The model takes dialogue as input and outputs the dialogue state, which includes slot-value pairs. 
+    The model consists of two components: a neural natural language understanding model (NLU), and a rule-based state tracker.
+    The NLU takes in a dialogue turn and different schema (entity) information options and outputs their match score. The state tracker takes the highest rated entities and composes
+    the dialogue state across turns.
+    """
 
     @property
     def output_module(self):

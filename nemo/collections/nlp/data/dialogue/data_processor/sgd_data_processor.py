@@ -43,7 +43,55 @@ FILE_RANGES = {
 
 
 class DialogueSGDDataProcessor(DialogueDataProcessor):
-    """Data Processor for SGD dialogues."""
+    """Data Processor for SGD dialogues.
+
+    More information at https://arxiv.org/abs/1909.05855
+
+    ***Downloading the dataset***
+        #   git clone https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git
+
+    ***Data format***
+    SGD data comes with a JSON schema file and dialogue files for each dataset split. 
+
+    In the following we will show an example for a service entry in the schema file.
+    * service_name
+    * description
+    * slots
+        * name
+        * description
+        * is_categorical
+        * possible values
+    * intents
+        * name
+        * description
+        * required_slots (not used)
+        * is_transactional (not used)
+        * optional_slots (not used)
+        * result_slots (not used)
+
+
+    In the following we will show an example for a dialogue. 
+    * dialogue_id
+    * services
+    * turns
+        * frames
+            * actions
+                * act
+                * slot
+                * values
+            * service
+            * slots
+                * exclusive_end
+                * slot
+                * start
+            * state
+                * active_intent
+                * requeste_slots
+                * slot_values 
+        * speaker - [USER, SYSTEM]
+        * utterance
+
+    """
 
     def __init__(
         self, data_dir: str, dialogues_example_dir: str, tokenizer: object, cfg=None,
