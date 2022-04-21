@@ -61,9 +61,6 @@ if __name__ == "__main__":
     training_data = load_files([file_path])
 
     if args.filter:
-        import pdb
-
-        pdb.set_trace()
         training_data = filter_loaded_data(training_data)
 
     if args.category is None:
