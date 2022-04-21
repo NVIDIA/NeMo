@@ -7,12 +7,15 @@ model:
   nemo_model: null  # path to a ASR model file (.nemo)
 
   adapter:
-    adapter_name: ???
+    adapter_name: ???  # Name of the adapter, used by the script
     _target_: nemo.collections.asr.parts.submodules.adapter_modules.LinearAdapter
     in_features: ???  # User must provide the output dimension of the layers of the model
     dim: 32  # can be any hidden dimension as chosen by user, but small values are preferred to reduce param count
     activation: swish
     norm_position: 'post'  # Can be `pre` or `post`
+    # Optional global config available to all adapters
+    global_cfg:
+      encoder_adapter: True  # ASR adapter key, determines whether to add encoder adapter modules
 
   train_ds:
     # train dataset + dataloader config
