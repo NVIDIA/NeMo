@@ -1229,7 +1229,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             batch_sizes: a list of numbers of samples in batches
             batch_seq_lengths: a list of sequence lengths after padding for every batch
         """
-        batch_beginnings, batch_sizes, batch_seq_lengths = batch_beginnings.copy(), batch_sizes.copy()
+        batch_beginnings, batch_sizes = batch_beginnings.copy(), batch_sizes.copy()
         batch_seq_lengths = batch_seq_lengths.copy()
         num_missing_batches = (
             self.number_of_batches_is_multiple_of - len(batch_sizes) % self.number_of_batches_is_multiple_of
