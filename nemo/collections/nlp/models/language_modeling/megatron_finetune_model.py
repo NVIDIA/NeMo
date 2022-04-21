@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-from omegaconf.dictconfig import DictConfig
+from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
@@ -38,10 +39,26 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if hasattr(self.cfg, 'eval_languages'):
-            self.acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
+        if hasattr(self.cfg, "eval_languages"):
+            self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
+            self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
         else:
-            self.acc_metric = ExactStringPerCategoryMatchMetric()
+            if isinstance(self.cfg.data.validation_ds.src_file_name, ListConfig):
+                if hasattr(self.cfg.data.validation_ds, "names") and isinstance(self.cfg.data.validation_ds.names, ListConfig):
+                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
+                else:
+                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(list(range(len(self.cfg.data.validation_ds.src_file_name))))
+            else:
+                self.val_acc_metric = ExactStringPerCategoryMatchMetric()
+
+            if hasattr(self.cfg.data, "test_ds"):
+                if isinstance(self.cfg.data.test_ds.src_file_name, ListConfig):
+                    if hasattr(self.cfg.data.test_ds, "names") and isinstance(self.cfg.data.test_ds.names, ListConfig):
+                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.test_ds.names)
+                    else:
+                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(list(range(len(self.cfg.data.test_ds.src_file_name))))
+                else:
+                    self.test_acc_metric = ExactStringPerCategoryMatchMetric()
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -170,7 +187,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         )
         return super().on_validation_epoch_end()
 
-    def inference_step(self, batch, batch_idx):
+    def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
         batch_has_lang_information = len(batch[0]) == 7
         # XNLI Batches have language information that need to be removed before calling the parent validation step.
         if batch_has_lang_information:
@@ -195,13 +212,19 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
 
         if not batch_has_lang_information:
-            langs = [None] * len(preds_text)
+            if mode == 'validation' and isinstance(self.cfg.data.validation_ds.names, ListConfig):
+                categories = [self.cfg.data.validation_ds.names[dataloader_idx]] * len(preds_text)
+            else:
+                categories = [None] * len(preds_text)
+        else:
+            categories = langs
 
-        assert len(langs) == len(preds_text) == len(labels_text)
-        for _, (pred, label, lang) in enumerate(zip(preds_text, labels_text, langs)):
-            _ = self.acc_metric(pred, label, lang)
+        acc_metric = self.val_acc_metric if mode == 'validation' else self.test_acc_metric
+        assert len(categories) == len(preds_text) == len(labels_text)
+        for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
+            _ = acc_metric(pred, label, category)
 
-        return loss
+        return {'loss': loss}
 
     def preds_and_labels_to_text(self, preds, labels):
         preds = preds.cpu().numpy().tolist()
@@ -225,29 +248,43 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def inference_epoch_end(self, outputs, mode):
         # Parent class will handle logging of the loss.
+        if isinstance(outputs[0], dict):
+            outputs = [outputs]
+
+        for _, output in enumerate(outputs):
+            if mode == 'validation':
+                averaged_loss = super().validation_epoch_end([x['loss'] for x in output])
+            else:
+                averaged_loss = super().test_epoch_end([x['loss'] for x in output])
+
         if mode == 'validation':
-            averaged_loss = super().validation_epoch_end(outputs)
+            accuracy = self.val_acc_metric.compute()
         else:
-            averaged_loss = super().test_epoch_end(outputs)
-        accuracy = self.acc_metric.compute()
+            accuracy = self.test_acc_metric.compute()
         # Loss is logged in the parent epoch end class.
         self.log(f'{mode}_acc', accuracy['acc'])
-        if hasattr(self.cfg, 'eval_languages'):
-            for lang in self.cfg.eval_languages:
-                self.log(f'{lang}_acc', accuracy[lang])
-                logging.info(f"{mode} {lang} accuracy: {accuracy[lang]} total: {accuracy[lang+'_total']}")
         logging.info(f"{mode} accuracy: {accuracy['acc']}")
-        self.acc_metric.reset()
+
+        for k, v in accuracy.items():
+            if k != 'acc':
+                logging.info(f"{mode} {k} accuracy: {v} total: {accuracy[k+'_total']}")
+                self.log(f'{mode}_{k}_acc', v)
+
+        if mode == 'validation':
+            self.val_acc_metric.reset()
+        else:
+            self.test_acc_metric.reset()
+
         return averaged_loss, accuracy['acc']
 
-    def validation_step(self, batch, batch_idx):
-        return self.inference_step(batch, batch_idx)
+    def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
 
     def validation_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'validation')
 
-    def test_step(self, batch, batch_idx):
-        return self.inference_step(batch, batch_idx)
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
 
     def test_epoch_end(self, outputs):
         _ = self.inference_epoch_end(outputs, 'test')
@@ -306,56 +343,134 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             check_validation_interval=True,
         )
 
+    def setup_eval_data(self, datasets):
+        dataloaders = []
+        for dataset in datasets:
+            validation_dl = self.build_data_loader(
+                dataset,
+                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+                shuffle=self.cfg.data.validation_ds.shuffle,
+                num_workers=self.cfg.data.validation_ds.num_workers,
+                pin_memory=self.cfg.data.validation_ds.pin_memory,
+                drop_last=self.cfg.data.validation_ds.drop_last,
+                check_validation_interval=False,
+            )
+            dataloaders.append(validation_dl)
+        return dataloaders
+
     def setup_validation_data(self):
-        self._validation_dl = self.build_data_loader(
-            self._validation_ds,
-            micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
-            global_batch_size=self.cfg.data.validation_ds.global_batch_size,
-            shuffle=self.cfg.data.validation_ds.shuffle,
-            num_workers=self.cfg.data.validation_ds.num_workers,
-            pin_memory=self.cfg.data.validation_ds.pin_memory,
-            drop_last=self.cfg.data.validation_ds.drop_last,
-            check_validation_interval=False,
-        )
+        self._validation_dl = self.setup_eval_data(self._validation_ds)
 
     def setup_test_data(self):
-        self._test_dl = self.build_data_loader(
-            self._test_ds,
-            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
-            global_batch_size=self.cfg.data.test_ds.global_batch_size,
-            shuffle=self.cfg.data.test_ds.shuffle,
-            num_workers=self.cfg.data.test_ds.num_workers,
-            pin_memory=self.cfg.data.test_ds.pin_memory,
-            drop_last=self.cfg.data.test_ds.drop_last,
-            check_validation_interval=False,
-        )
+        self._test_dl = self.setup_eval_data(self._test_ds)
 
-    def _build_dataset(self, data_cfg):
-        dataset = SequenceToSequenceDataset(
-            src_file_name=data_cfg.src_file_name,
-            tgt_file_name=data_cfg.tgt_file_name,
-            tokenizer=self.tokenizer,
-            max_src_seq_length=data_cfg.max_src_seq_length,
-            max_tgt_seq_length=data_cfg.max_tgt_seq_length,
-        )
-        return dataset
+    def _build_train_dataset(self, data_cfg):
+        datasets = []
+        # Determine if we are using a single dataset or a list of datasets.
+        is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
+        is_tgt_list_config = isinstance(data_cfg.tgt_file_name, ListConfig)
+
+        if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
+            raise ValueError(
+                "src_list and tgt_list must both be either a ListConfig or a string. "
+            )
+        if is_src_list_config:
+            if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
+                raise ValueError(
+                    "src_file_name and tgt_file_name must have the same number of elements. "
+                )
+        else:
+            data_cfg.src_file_name = [data_cfg.src_file_name]
+            data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
+
+        for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
+            dataset = SequenceToSequenceDataset(
+                src_file_name=src,
+                tgt_file_name=tgt,
+                tokenizer=self.tokenizer,
+                max_src_seq_length=data_cfg.max_src_seq_length,
+                max_tgt_seq_length=data_cfg.max_tgt_seq_length,
+            )
+            datasets.append(dataset)
+
+        if len(datasets) > 1:
+            if len(datasets) > 1:
+                dataset = ConcatDataset(
+                    datasets=datasets,
+                    sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
+                    sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
+                    sampling_probabilities=data_cfg.get('concat_sampling_probabilities', [1/len(datasets)] * len(datasets)),
+                    global_rank=parallel_state.get_data_parallel_rank(),
+                    world_size=parallel_state.get_data_parallel_world_size(),
+                )
+        else:
+            return datasets[0]
+
+    def _build_eval_dataset(self, data_cfg, mode='train'):
+        datasets = []
+        # Determine if we are using a single dataset or a list of datasets.
+        is_src_list_config = isinstance(data_cfg.src_file_name, ListConfig)
+        is_tgt_list_config = isinstance(data_cfg.tgt_file_name, ListConfig)
+        is_names_list_config = False
+        if hasattr(data_cfg, "names"):
+            if isinstance(data_cfg.names, ListConfig):
+                is_names_list_config = True
+
+        if (is_src_list_config and not is_tgt_list_config) or (is_tgt_list_config and not is_src_list_config):
+            raise ValueError(
+                "src_list and tgt_list must both be either a ListConfig or a string. "
+            )
+        if is_src_list_config:
+            if len(data_cfg.src_file_name) != len(data_cfg.tgt_file_name):
+                raise ValueError(
+                    "src_file_name and tgt_file_name must have the same number of elements. "
+                )
+            if is_names_list_config and len(data_cfg.labels) != len(data_cfg.src_file_name):
+                raise ValueError(
+                    "If you are providing names for each src/tgt file, they must have the same number of elements."
+                )
+        else:
+            data_cfg.src_file_name = [data_cfg.src_file_name]
+            data_cfg.tgt_file_name = [data_cfg.tgt_file_name]
+
+        for src, tgt in zip(data_cfg.src_file_name, data_cfg.tgt_file_name):
+            dataset = SequenceToSequenceDataset(
+                src_file_name=src,
+                tgt_file_name=tgt,
+                tokenizer=self.tokenizer,
+                max_src_seq_length=data_cfg.max_src_seq_length,
+                max_tgt_seq_length=data_cfg.max_tgt_seq_length,
+            )
+            datasets.append(dataset)
+        
+        if mode == 'train' and len(datasets) > 1:
+            if len(datasets) > 1:
+                dataset = ConcatDataset(
+                    datasets=datasets,
+                    sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
+                    sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
+                    sampling_probabilities=data_cfg.get('concat_sampling_probabilities', [1/len(datasets)] * len(datasets)),
+                    global_rank=parallel_state.get_data_parallel_rank(),
+                    world_size=parallel_state.get_data_parallel_world_size(),
+                )
+            return dataset
+
+        return datasets
 
     def build_train_valid_test_datasets(self, stage):
         logging.info('Building datasets ...')
         if stage != 'test':
-            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds)
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            self._validation_ds = self._build_eval_dataset(self.cfg.data.validation_ds, mode='validation')
 
         if stage != 'validation':
             if hasattr(self.cfg.data, 'test_ds'):
-                self._test_ds = self._build_dataset(self.cfg.data.test_ds)
-                logging.info(f'Length of test dataset: {len(self._test_ds)}')
+                self._test_ds = self._build_eval_dataset(self.cfg.data.test_ds, mode='test')
 
         if stage == 'validation' or stage == 'test':
             return
-        self._train_ds = self._build_dataset(self.cfg.data.train_ds)
-        logging.info(f'Length of train dataset: {len(self._train_ds)}')
-        logging.info(f'Finished building GLUE/XNLI datasets.')
+        self._train_ds = self._build_train_dataset(self.cfg.data.train_ds)
+        logging.info(f'Finished building datasets ...')
 
     def on_train_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
