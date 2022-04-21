@@ -18,7 +18,7 @@ import torch
 
 from nemo.core.classes import Dataset
 
-__all__ = ['DialogueZeroShotIntentDataset']
+__all__ = ['DialogueNearestNeighbourDataset']
 
 
 class DialogueNearestNeighbourDataset(Dataset):
