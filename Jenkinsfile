@@ -2291,17 +2291,35 @@ pipeline {
         }
       }
       failFast true
-      steps{
-        sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
-            --model_file \
-            /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
-            --target_file \
-            /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo \
-            --tensor_model_parallel_size \
-            2 \
-            --target_tensor_model_parallel_size \
-            1"
-          sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-split.nemo"
+      parallel{
+        stage('Reduce Num Partitions (2 to 1)'){
+          steps{
+            sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+                --model_file \
+                /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+                --target_file \
+                /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo \
+                --tensor_model_parallel_size \
+                2 \
+                --target_tensor_model_parallel_size \
+                1"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-reduce.nemo"
+          }
+        }
+        stage('Increase Num Partitions (2 to 4)'){
+          steps{
+            sh "python examples/nlp/language_modeling/megatron_change_num_partitions.py \
+                --model_file \
+                /home/TestData/nlp/megatron_gpt/TP2/megatron_gpt_tp2.nemo \
+                --target_file \
+                /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo \
+                --tensor_model_parallel_size \
+                2 \
+                --target_tensor_model_parallel_size \
+                4"
+            sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
+          }
+        }        
       }
     }
     stage('L2: Megatron T5 Pretraining and Resume Training TP=2') {
@@ -2567,6 +2585,7 @@ pipeline {
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
             +trainer.limit_val_batches=2 \
+            +trainer.limit_test_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
@@ -2595,6 +2614,7 @@ pipeline {
             trainer.log_every_n_steps=1 \
             trainer.val_check_interval=1 \
             +trainer.limit_val_batches=2 \
+            +trainer.limit_test_batches=2 \
             trainer.accumulate_grad_batches=1 \
             trainer.max_steps=2 \
             trainer.precision=16 \
@@ -2606,12 +2626,12 @@ pipeline {
             model.data.train_ds.micro_batch_size=2 \
             model.data.validation_ds.global_batch_size=4 \
             model.data.validation_ds.micro_batch_size=2 \
+            model.data.test_ds.global_batch_size=4 \
+            model.data.test_ds.micro_batch_size=2 \
             model.data.train_ds.task_name=rte \
             model.data.train_ds.file_path=/home/TestData/nlp/megatron_t5/data/train_ci.tsv \
             model.data.validation_ds.task_name=xnli \
             model.data.validation_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv \
-            model.data.test_ds.global_batch_size=4 \
-            model.data.test_ds.micro_batch_size=2 \
             model.data.test_ds.task_name=xnli \
             model.data.test_ds.file_path=/home/TestData/nlp/megatron_t5/data/xnli_dev_ci.tsv \
             "
