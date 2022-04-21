@@ -60,10 +60,10 @@ class ElectronicFst(GraphFst):
 
         username = pynutil.insert("username: \"") + accepted_symbols + pynutil.insert("\"") + pynini.cross('@', ' ')
         domain_graph = accepted_symbols + pynini.accep('.') + accepted_symbols
-        protocol_symbols = pynini.closure(
-            (graph_symbols | pynini.cross(":", "colon")) + pynutil.insert(" ")
+        protocol_symbols = pynini.closure((graph_symbols | pynini.cross(":", "colon")) + pynutil.insert(" "))
+        protocol_start = (pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ")) + (
+            pynini.accep("://") @ protocol_symbols
         )
-        protocol_start = (pynini.cross("https", "HTTPS ") | pynini.cross("http", "HTTP ")) + (pynini.accep("://")@protocol_symbols)
 
         protocol_end = pynini.cross("www", "WWW ") + pynini.accep(".") @ protocol_symbols
         protocol = protocol_start | protocol_end | (protocol_start + protocol_end)
@@ -75,15 +75,20 @@ class ElectronicFst(GraphFst):
         )
         domain_common_graph = (
             pynutil.insert("domain: \"")
-            + pynini.difference(accepted_symbols + pynini.union(*accepted_common_domains), pynini.project(protocol, "input") + NEMO_SIGMA)
+            + pynini.difference(
+                accepted_symbols + pynini.union(*accepted_common_domains),
+                pynini.project(protocol, "input") + NEMO_SIGMA,
+            )
             + pynutil.insert("\"")
         )
 
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
+        # email
         graph = username + domain_graph
+        # abc.com
         graph |= domain_common_graph
+        # www.abc.com/sdafsdf, or https://www.abc.com/asdfad
         graph |= protocol + pynutil.insert(" ") + domain_graph
-
 
         final_graph = self.add_tokens(graph)
 
