@@ -1,7 +1,9 @@
 import argparse
 import json
 import random
+
 from tqdm import tqdm
+
 
 """
 Financial Phrase Bank Dataset preprocessing script for p-tuning/prompt-tuning.
@@ -16,24 +18,21 @@ An example of the processed output written to file:
     {"taskname": "sentiment", "sentence": "Sanoma News ' advertising sales decreased by 22 % during the year .", "label": "negative"}
 """
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=str, default="data/FinancialPhraseBank-v1.0")
     parser.add_argument("--file-name", type=str, default="Sentences_AllAgree.txt")
     parser.add_argument("--save-name-base", type=str, default="financial_phrase_bank")
     parser.add_argument("--random-seed", type=int, default=1234)
-    parser.add_argument("--train-percent", type=float, default=.8)
+    parser.add_argument("--train-percent", type=float, default=0.8)
     args = parser.parse_args()
 
     data = open(f"{args.data_dir}/{args.file_name}", "r", encoding="ISO-8859-1").readlines()
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(
-        data, 
-        save_name_base, 
-        args.train_percent, 
-        args.random_seed
-    )
+    process_data(data, save_name_base, args.train_percent, args.random_seed)
+
 
 def process_data(data, save_name_base, train_percent, random_seed):
     random.seed(random_seed)
@@ -43,13 +42,14 @@ def process_data(data, save_name_base, train_percent, random_seed):
     train_total = int(data_total * train_percent)
     val_total = (data_total - train_total) // 2
 
-    train_set = data[0: train_total]
-    val_set = data[train_total: train_total + val_total]
-    test_set = data[train_total + val_total: ]
+    train_set = data[0:train_total]
+    val_set = data[train_total : train_total + val_total]
+    test_set = data[train_total + val_total :]
 
     gen_file(train_set, save_name_base, 'train')
     gen_file(val_set, save_name_base, 'val')
     gen_file(test_set, save_name_base, 'test')
+
 
 def gen_file(data, save_name_base, split_type):
     save_path = f"{save_name_base}_{split_type}.jsonl"
@@ -62,9 +62,13 @@ def gen_file(data, save_name_base, split_type):
             sent = sent.strip()
             label = label.strip()
             example_json["sentence"] = sent
-            example_json["label"] = label
-            
-            save_file.write(json.dumps(example_json)+'\n')
+
+            # Dont want labels in the test set
+            if split_type != "test":
+                example_json["label"] = label
+
+            save_file.write(json.dumps(example_json) + '\n')
+
 
 if __name__ == "__main__":
     main()

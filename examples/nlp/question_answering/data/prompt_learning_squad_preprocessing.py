@@ -1,7 +1,9 @@
 import argparse
 import json
 import random
+
 from tqdm import tqdm
+
 
 """
 Financial Phrase Bank Dataset preprocessing script for p-tuning/prompt-tuning.
@@ -18,25 +20,22 @@ An example of the processed output written to file:
 
 """
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", type=str, default="data/SQuAD")
     parser.add_argument("--file-name", type=str, default="train-v2.0.json")
     parser.add_argument("--save-name-base", type=str, default="squad")
     parser.add_argument("--random-seed", type=int, default=1234)
-    parser.add_argument("--train-percent", type=float, default=.8)
+    parser.add_argument("--train-percent", type=float, default=0.8)
     args = parser.parse_args()
 
     data_dict = json.load(open(f"{args.data_dir}/{args.file_name}"))
     data = data_dict['data']
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(
-        data, 
-        save_name_base, 
-        args.train_percent, 
-        args.random_seed
-    )
+    process_data(data, save_name_base, args.train_percent, args.random_seed)
+
 
 def process_data(data, save_name_base, train_percent, random_seed):
     data = extract_questions(data)
@@ -50,9 +49,9 @@ def process_data(data, save_name_base, train_percent, random_seed):
     train_total = int(data_total * train_percent)
     val_total = (data_total - train_total) // 2
 
-    train_set = data[0: train_total]
-    val_set = data[train_total: train_total + val_total]
-    test_set = data[train_total + val_total: ]
+    train_set = data[0:train_total]
+    val_set = data[train_total : train_total + val_total]
+    test_set = data[train_total + val_total :]
 
     # Flatten data for each split now that topics have been confined to one split
     train_set = [question for topic in train_set for question in topic]
@@ -65,6 +64,7 @@ def process_data(data, save_name_base, train_percent, random_seed):
     gen_file(train_set, save_name_base, 'train')
     gen_file(val_set, save_name_base, 'val')
     gen_file(test_set, save_name_base, 'test')
+
 
 def extract_questions(data):
     processed_data = []
@@ -89,26 +89,26 @@ def extract_questions(data):
                 except:
                     continue
 
-                example_json = {
-                    "taskname": "squad", 
-                    "context": context, 
-                    "question": question, 
-                    "answer": answer
-                }
+                example_json = {"taskname": "squad", "context": context, "question": question, "answer": answer}
                 processed_topic_data.append(example_json)
         processed_data.append(processed_topic_data)
 
     return processed_data
 
+
 def gen_file(data, save_name_base, split_type):
     save_path = f"{save_name_base}_{split_type}.jsonl"
     print(f"Saving {split_type} split to {save_path}")
-    
+
     with open(save_path, 'w') as save_file:
         for example_json in tqdm(data):
+
+            # Dont want labels in the test set
+            if split_type == "test":
+                del example_json["answer"]
+
             save_file.write(json.dumps(example_json) + '\n')
 
 
 if __name__ == "__main__":
     main()
-    
