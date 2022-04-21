@@ -70,7 +70,7 @@ model:
       pin_memory: True
       max_src_seq_length: 512
       max_tgt_seq_length: 128
-      drop_last: False # TODO: Figure out if there is a way to avoid dropping last.
+      drop_last: True # TODO: Figure out if there is a way to avoid dropping last.
 
   optim:
     name: fused_adam
