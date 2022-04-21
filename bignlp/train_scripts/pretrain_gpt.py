@@ -29,6 +29,7 @@ def main(cfg):
     gpu_mapping = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
     if cfg.get("enable_numa_mapping"):
         affinity = set_affinity(gpu_id=rank, nproc_per_node=devices, mode="single")
+        print(f"GPU Affinity: {affinity}")
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
