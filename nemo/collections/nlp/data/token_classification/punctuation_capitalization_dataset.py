@@ -947,7 +947,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         features = None
         if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
-                logging.info(f'Processing {text_file}')
+                logging.info(f'Processing {self.text_file}')
             res = self._read_dataset(self.text_file, self.labels_file, num_samples)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
             if punct_label_ids:
