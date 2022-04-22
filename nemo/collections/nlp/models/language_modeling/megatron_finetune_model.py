@@ -301,9 +301,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 averaged_loss = super().test_epoch_end([x['loss'] for x in output])
 
         if mode == 'validation':
-            accuracy = self.val_acc_metric.compute()
+            accuracy = self.val_metric.compute()
         else:
-            accuracy = self.test_acc_metric.compute()
+            accuracy = self.test_metric.compute()
         # Loss is logged in the parent epoch end class.
         self.log(f'{mode}_acc', accuracy['acc'])
         logging.info(f"{mode} accuracy: {accuracy['acc']}")
@@ -314,9 +314,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 self.log(f'{mode}_{k}_acc', v)
 
         if mode == 'validation':
-            self.val_acc_metric.reset()
+            self.val_metric.reset()
         else:
-            self.test_acc_metric.reset()
+            self.test_metric.reset()
 
         return averaged_loss, accuracy['acc']
 
