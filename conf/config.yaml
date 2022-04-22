@@ -33,7 +33,14 @@ wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on
 nccl_topology_xml_file: null  # This file will be exported as "export NCCL_TOPO_FILE=${nccl_topology_xml_file}"
 
 # GPU Mapping
-enable_numa_mapping: True  # Set to False to disable all mapping (performance will suffer).
+numa_mapping:
+  enable: True  # Set to False to disable all mapping (performance will suffer).
+  mode: unique_contiguous  # One of: all, single, single_unique, unique_interleaved or unique_contiguous.
+  scope: node  # Either node or socket.
+  cores: all_logical  # Either all_logical or single_logical.
+  balanced: True  # Whether to assing an equal number of physical cores to each process.
+  min_cores: 1  # Minimum number of physical cores per process.
+  max_cores: 8  # Maximum number of physical cores per process. Can be null to use all available cores.
 
 # Do not modify below, use the values above instead.
 data_config: ${hydra:runtime.choices.data_preparation}

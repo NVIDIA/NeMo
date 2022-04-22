@@ -16,6 +16,12 @@ def main(cfg):
 
     bignlp_path = cfg.get("bignlp_path")
     train_cfg = cfg.get("training")
+    trainer_cfg = train_cfg.get("trainer")
+    devices = trainer_cfg.get("devices")
+    numa_cfg = cfg.get("numa_mapping")
+    
+    rank = int(os.environ.get("LOCAL_RANK"))
+    
     training_config = cfg.get("training_config").rsplit('/', 1)[1]
     training_config_path = os.path.join(bignlp_path, "conf/training", cfg.get("training_config").rsplit('/', 1)[0])
     flags = f"--config-path={training_config_path} --config-name={training_config} "
@@ -29,7 +35,7 @@ def main(cfg):
             hydra_args = convert_to_cli(cfg)
             hydra_train_args = convert_args_to_hydra_train_args(hydra_args.split())
 
-    gpu_mapping, core_mapping = numa_mapping(cfg.get("dgxa100_gpu2core"), cfg.get("dgxa100_gpu2mem"))
+    cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = (
@@ -38,10 +44,10 @@ def main(cfg):
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
     # Write command to launch training.
     if cfg.get("cluster_type") == "bcm":
-        cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} {hydra_train_args} {flags}'
+        cmd = f'{cmd_prefix} {cuda_visible_devices} python3 {code_path} {hydra_train_args} {flags}'
     elif cfg.get("cluster_type") == "bcp":
         pause_and_prime_dns_connections()
-        cmd = f'{cmd_prefix} {gpu_mapping} {core_mapping} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
+        cmd = f'{cmd_prefix} {cuda_visible_devices} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     os.system(f"{cmd}")
 
 
