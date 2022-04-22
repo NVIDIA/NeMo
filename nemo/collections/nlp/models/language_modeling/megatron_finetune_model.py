@@ -248,7 +248,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             tokens_enc, _, _, labels, enc_mask, _ = self.process_global_batch(batch)
 
-        predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=10)
+        predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=30)
 
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
 
