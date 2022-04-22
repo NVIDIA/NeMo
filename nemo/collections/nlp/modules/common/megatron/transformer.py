@@ -37,7 +37,7 @@ try:
     from apex.transformer.functional.fused_softmax import FusedScaleMaskSoftmax
     from apex.transformer.utils import divide as safe_divide
     from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
-
+    from apex.normalization import MixedFusedRMSNorm
     HAVE_APEX = True
 
 except (ImportError, ModuleNotFoundError):
@@ -74,7 +74,7 @@ if HAVE_APEX:
 
             # Matrix multiply.
             output = torch.matmul(input_, self.weight.t())
-            if not self.skip_bias_add:
+            if not self.skip_bias_add and self.bias is not None:
                 output = output + self.bias
 
             output_bias = self.bias if self.skip_bias_add else None
@@ -172,15 +172,17 @@ class ParallelMLP(MegatronModule):
 
         self.bias_gelu_fusion = bias_gelu_fusion
 
-        if activation == "gelu":
+        if activation == ["gelu", "geglu"]:
             self.activation_func = F.gelu
         elif openai_gelu:
             self.activation_func = openai_gelu
         elif onnx_safe:
             self.activation_func = erf_gelu
-        else:
-            # Remaining acitvations are implemeted in the forward function.
-            self.activation_func = None
+        elif activation == "reglu":
+            self.activation_func = F.relu
+        elif activation == "swiglu":
+            # SiLU or sigmoid linear unit is the same as swish with beta = 1 (which is what https://arxiv.org/pdf/2002.05202.pdf uses.)
+            self.activation_func = F.silu
 
         # Project back to h.
         self.dense_4h_to_h = tensor_parallel.RowParallelLinear(
@@ -200,20 +202,13 @@ class ParallelMLP(MegatronModule):
 
         if self.activation in ['geglu', 'reglu', 'swiglu']:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+            if bias_parallel is not None:
+                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
+                    intermediate_parallel_2 + bias_parallel_2
+                )
+            else:
+                intermediate_parallel = self.activation_func(intermediate_parallel) * intermediate_parallel_2
 
-        if self.activation == 'geglu':
-            intermediate_parallel = F.gelu(intermediate_parallel + bias_parallel) * (
-                intermediate_parallel_2 + bias_parallel_2
-            )
-        elif self.activation == 'swiglu':
-            # SiLU or sigmoid linear unit is the same as swish with beta = 1 (which is what https://arxiv.org/pdf/2002.05202.pdf uses.)
-            intermediate_parallel = F.silu(intermediate_parallel + bias_parallel) * (
-                intermediate_parallel_2 + bias_parallel_2
-            )
-        elif self.activation == 'reglu':
-            intermediate_parallel = F.relu(intermediate_parallel + bias_parallel) * (
-                intermediate_parallel_2 + bias_parallel_2
-            )
         elif self.bias_gelu_fusion and self.activation == 'gelu':
             intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
@@ -288,10 +283,10 @@ class ParallelAttention(MegatronModule):
             )
         else:
             assert attention_type == AttnType.cross_attn
-            self.query = ColumnLinear(hidden_size, projection_size, gather_output=False, init_method=init_method)
+            self.query = ColumnLinear(hidden_size, projection_size, gather_output=False, init_method=init_method, bias=bias)
 
             self.key_value = ColumnLinear(
-                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method
+                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method, bias=bias
             )
 
         coeff = None
@@ -582,6 +577,13 @@ def get_bias_dropout_add(training):
 
     return _bias_dropout_add
 
+def get_dropout_add(training):
+    def _dropout_add(x, bias, residual, prob):
+        assert bias is None
+        return dropout_add(x, bias, residual, prob, training)
+
+    return _dropout_add
+
 
 class ParallelTransformerLayer_(MegatronModule):
     """A single transformer layer.
@@ -618,6 +620,7 @@ class ParallelTransformerLayer_(MegatronModule):
         activation='gelu',
         megatron_legacy=False,
         bias=True,
+        normalization='layernorm'
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -635,6 +638,11 @@ class ParallelTransformerLayer_(MegatronModule):
             raise ValueError(
                 'bias_dropout_fusion=True requires bias=True, found bias=False. Either set both to True or both to False.'
             )
+        
+        if normalization not in ['layernorm', 'rmsnorm']:
+            raise ValueError(
+                f'normalization must be either "layernorm" or "rmsnorm", found {normalization}'
+            )
 
         # if true apply residual connection post layer norm (like original bert)
         self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm
@@ -642,7 +650,10 @@ class ParallelTransformerLayer_(MegatronModule):
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
         # Layernorm on the input data.
-        self.input_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        if normalization == 'layernorm':
+            self.input_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        else:
+            self.input_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -667,7 +678,10 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Layernorm on the attention output
-        self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        if normalization == 'layernorm':
+            self.post_attention_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        else:
+            self.post_attention_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -688,7 +702,14 @@ class ParallelTransformerLayer_(MegatronModule):
                 bias=bias,
             )
             # Layernorm on the attention output.
-            self.post_inter_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            if normalization == 'layernorm':
+                self.post_inter_attention_normalization = get_layer_norm(
+                    hidden_size, layernorm_epsilon, persist_layer_norm
+                )
+            else:
+                self.post_inter_attention_normalization = MixedFusedRMSNorm(
+                    hidden_size, layernorm_epsilon
+                )
 
         # MLP
         self.mlp = ParallelMLP(
@@ -718,10 +739,10 @@ class ParallelTransformerLayer_(MegatronModule):
         # hidden_states: [b, s, h]
 
         # Layer norm at the beginning of the transformer layer.
-        layernorm_output = self.input_layernorm(hidden_states)
+        normalization_output = self.input_normalization(hidden_states)
         # Self attention.
         attention_output, attention_bias = self.self_attention(
-            layernorm_output,
+            normalization_output,
             attention_mask,
             layer_past=layer_past,
             get_key_value=get_key_value,
@@ -750,7 +771,7 @@ class ParallelTransformerLayer_(MegatronModule):
         elif self.bias and not self.bias_dropout_fusion:
             bias_dropout_add_func = get_bias_dropout_add(self.training)
         else:
-            bias_dropout_add_func = dropout_add
+            bias_dropout_add_func = get_dropout_add(self.training)
 
         if attention_bias is not None:
             attention_bias = attention_bias.expand_as(residual)
@@ -758,7 +779,7 @@ class ParallelTransformerLayer_(MegatronModule):
         layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
         # Layer norm post the self attention.
-        layernorm_output = self.post_attention_layernorm(layernorm_input)
+        layernorm_output = self.post_attention_normalization(layernorm_input)
 
         if self.layer_type == LayerType.decoder:
             attention_output, attention_bias = self.inter_attention(
@@ -776,7 +797,7 @@ class ParallelTransformerLayer_(MegatronModule):
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
             # Layer norm post the decoder attention
-            layernorm_output = self.post_inter_attention_layernorm(layernorm_input)
+            layernorm_output = self.post_inter_attention_normalization(layernorm_input)
 
         # MLP.
         mlp_output, mlp_bias = self.mlp(layernorm_output)
@@ -881,6 +902,7 @@ class ParallelTransformer(MegatronModule):
         model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
         bias=True,
+        normalization='layernorm',
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -896,6 +918,7 @@ class ParallelTransformer(MegatronModule):
         self.input_tensor = None
         self.self_attn_mask_type = self_attn_mask_type
         self.model_type = model_type
+        self.normalization = normalization
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
@@ -937,6 +960,7 @@ class ParallelTransformer(MegatronModule):
                 activation=activation,
                 megatron_legacy=megatron_legacy,
                 bias=bias,
+                normalization=normalization
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -977,7 +1001,10 @@ class ParallelTransformer(MegatronModule):
 
         if self.post_process:
             # Final layer norm before output.
-            self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            if normalization == 'layernorm':
+                self.final_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            else:
+                self.final_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
@@ -1133,7 +1160,7 @@ class ParallelTransformer(MegatronModule):
         if self.post_process:
             # Reverting data format change [s b h] --> [b s h].
             hidden_states = hidden_states.transpose(0, 1).contiguous()
-            output = self.final_layernorm(hidden_states)
+            output = self.final_normalization(hidden_states)
         else:
             output = hidden_states
         if get_key_value:

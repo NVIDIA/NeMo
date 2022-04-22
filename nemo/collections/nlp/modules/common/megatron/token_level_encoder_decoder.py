@@ -106,6 +106,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         activation='gelu',
         onnx_safe=False,
         bias=True,
+        normalization="layernorm",
         hidden_steps=-1,
         hidden_blocks=1,
         add_encoder=True,
@@ -120,6 +121,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.normalization = normalization
 
         if kv_channels is None:
             assert (
@@ -173,6 +175,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_blocks=hidden_blocks,
                 activation=activation,
                 bias=bias,
+                normalization=normalization,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -231,6 +234,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_blocks=hidden_blocks,
                 activation=activation,
                 bias=bias,
+                normalization=normalization,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 

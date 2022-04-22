@@ -68,6 +68,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
+        normalization='layernorm',
         parent_model_type=ModelType.encoder_or_decoder,
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
@@ -81,6 +82,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
+        self.normalization = normalization
 
         if kv_channels is None:
 
@@ -118,6 +120,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
             model_type=parent_model_type,
         )
         self._model_key = 'model'

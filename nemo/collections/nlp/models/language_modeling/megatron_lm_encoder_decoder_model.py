@@ -176,6 +176,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             onnx_safe=self.cfg.get('onnx_safe', False),
             activation=self.cfg.get('activation', 'gelu'),
             bias=self.cfg.get('bias', True),
+            normalization=self.cfg.get('normalization', 'layernorm'),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
         )

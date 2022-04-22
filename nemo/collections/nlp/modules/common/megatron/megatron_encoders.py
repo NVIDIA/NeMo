@@ -74,6 +74,7 @@ def get_encoder_model(
     activation="gelu",
     onnx_safe=False,
     bias=True,
+    normalization="layernorm",
     hidden_steps=-1,
     hidden_blocks=1,
     parent_model_type=ModelType.encoder_or_decoder,
@@ -122,6 +123,7 @@ def get_encoder_model(
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
             parent_model_type=parent_model_type,
         )
     else:
