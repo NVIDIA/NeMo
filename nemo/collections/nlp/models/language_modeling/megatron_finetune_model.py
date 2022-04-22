@@ -44,8 +44,13 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             self.test_metric = self.setup_metric(self.cfg.data.test_ds)
 
     def setup_metric(self, data_cfg):
-        if hasattr(self.cfg, "eval_languages") or hasattr(data_cfg, "task_name"):
+        # XNLI
+        if hasattr(self.cfg, "eval_languages"):
             metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
+        # GLUE
+        elif hasattr(data_cfg, "task_name"):
+            metric = ExactStringPerCategoryMatchMetric()
+        # General Seq2seq finetuning
         else:
             if isinstance(data_cfg.src_file_name, ListConfig):
                 if hasattr(data_cfg, "names") and isinstance(data_cfg.names, ListConfig):
