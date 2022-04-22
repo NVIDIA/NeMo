@@ -3,7 +3,7 @@ import subprocess
 
 import omegaconf
 
-from .pile_dataprep_scripts import utils
+from bignlp.data_preparation.pile_dataprep_scripts import utils
 from bignlp.bignlp_utils import add_container_mounts
 
 

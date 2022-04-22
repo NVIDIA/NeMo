@@ -18,11 +18,14 @@ if __name__ == '__main__':
     parser.add_argument("--c4-path", help="Path to (m)C4 dataset repo folder", required=True)
     parser.add_argument("--git-lfs-path", help="Path to git lfs", required=True)
     parser.add_argument("--worker-mapping-file", help="Decide which worker download which languages", required=True)
+    parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
     args = parser.parse_args()
 
     setup_git_lfs(args.git_lfs_path)
-
-    task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
+    if args.bcp:
+        task_id = int(os.environ.get("OMPI_COMM_WORLD_RANK", 0))  # assume exec with mpirun
+    else:  # on slurm based platforms
+        task_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     with open(args.worker_mapping_file) as f:
         mapping = f.readlines()
     languages = mapping[task_id].strip().split(',')

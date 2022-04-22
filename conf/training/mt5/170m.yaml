@@ -1,5 +1,5 @@
 run:
-  name: mt5_220m
+  name: mt5_170m
   results_dir: ${base_results_dir}/${.name}
   time_limit: "7-00:00:00"
   dependency: "singleton"
@@ -33,7 +33,7 @@ exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
   name: megatron_mt5
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
     project: nemo_mt5
     name: ${training.run.name}
@@ -55,7 +55,8 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 32
+  micro_batch_size: 64
+  global_batch_size: 2048 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
@@ -82,7 +83,7 @@ model:
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+  bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
