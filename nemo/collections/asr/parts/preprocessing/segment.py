@@ -171,7 +171,7 @@ class AudioSegment(object):
                 logging.error(f"Loading {audio_file} via pydub raised CouldntDecodeError: `{err}`.")
 
         if samples is None:
-            libs = "soundfile, kaldiio, and pydub" if HAVE_PYDUB else "soundfile"
+            libs = "soundfile, and pydub" if HAVE_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
 
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
