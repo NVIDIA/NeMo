@@ -40,7 +40,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
         self.val_metric = self.setup_metric(self.cfg.data.validation_ds)
-        self.test_metric = self.setup_metric(self.cfg.data.test_ds)
+        if hasattr(self.cfg.data, "test_ds"):
+            self.test_metric = self.setup_metric(self.cfg.data.test_ds)
 
     def setup_metric(self, data_cfg):
         if hasattr(self.cfg, "eval_languages") or hasattr(data_cfg, "task_name"):

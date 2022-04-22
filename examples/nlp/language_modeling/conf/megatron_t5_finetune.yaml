@@ -1,4 +1,4 @@
-name: megatron_t5_glue
+name: megatron_t5_finetuning
 
 trainer:
   devices: 2
