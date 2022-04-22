@@ -3,8 +3,8 @@ import time
 import subprocess
 
 import omegaconf
+from bignlp.data_preparation.pile_dataprep_scripts import utils
 from bignlp.bignlp_utils import add_container_mounts
-
 
 def create_slurm_file(
         new_script_path,
@@ -139,6 +139,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     rm_arg = "--rm-downloaded" if rm_downloaded else ""
     preprocess_args = f"{rm_arg} " \
                       f"--worker-mapping-file={preprocess_worker_mapping} " \
+                      f"--workers-per-node={workers_per_node} " \
                       f"--output-path={preprocessed_dir} " \
                       f"--tokenizer-library=sentencepiece " \
                       f"--tokenizer-model={tokenizer_model} " \
@@ -277,5 +278,87 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.get("cluster_type") == "bcp":
-        raise NotImplementedError
+        def get_launcher(nnodes, npernode, cmd):
+            if utils.is_tool('bcprun'):
+                launcher = "NGC_ARRAY_TYPE=MPIJob " + \
+                    f"bcprun --nnodes {nnodes} --npernode {npernode} " + \
+                    f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+            else:
+                launcher = \
+                    f"mpirun --allow-run-as-root " + \
+                    f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+            return launcher
+
+        joblog = os.path.join(log_dir, "data_joblog.log")
+        nnodes = int(os.environ.get("NGC_ARRAY_SIZE", 1))
+
+        assert isinstance(download_mc4, bool), "download_mc4 must be bool."
+        if download_mc4:
+            # Prepare mC4 dataset repo
+            cmd = f"python3 {prepare_code_path} {prepare_args}"
+            launchcmd = cmd  # prepare env do not need mpirun
+            proc = subprocess.Popen(
+                launchcmd, shell=True, stdout=subprocess.PIPE,
+                universal_newlines=True)
+            print(f"\nSubmitted mC4 Prepare script with job pid: {proc.pid}")
+            with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"mC4 Prepare CMD:\n{launchcmd}", file=jlog)
+                for line in proc.stdout:
+                    print(line)
+                    jlog.write(line)
+
+            proc.wait()
+            print(f"Finished mC4 Prepare script returncode: {proc.returncode}")
+
+            # Download mC4 dataset files
+            download_args += " --bcp "
+            cmd = f"python3 {download_code_path} {download_args}"
+            launchcmd = get_launcher(nnodes, 1, cmd)
+            proc = subprocess.Popen(
+                launchcmd, shell=True, stdout=subprocess.PIPE,
+                universal_newlines=True)
+            print(f"\nSubmitted mC4 Download script with job pid: {proc.pid}")
+            with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"mC4 Download CMD:\n{launchcmd}", file=jlog)
+                for line in proc.stdout:
+                    print(line)
+                    jlog.write(line)
+
+            proc.wait()
+            print(f"Finished mC4 Download script returncode: {proc.returncode}")
+
+        assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
+        if preprocess_data:
+            # Setup preprocess for mC4 dataset
+            cmd = f"python3 {setup_preprocess_code_path} {setup_preprocess_args}"
+            launchcmd = cmd  # prepare env do not need mpirun
+            proc = subprocess.Popen(
+                launchcmd, shell=True, stdout=subprocess.PIPE,
+                universal_newlines=True)
+            print(f"\nSubmitted mC4 Setup Preprocessing script with job pid: {proc.pid}")
+            with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"mC4 Setup Preprocessing CMD:\n{launchcmd}", file=jlog)
+                for line in proc.stdout:
+                    print(line)
+                    jlog.write(line)
+
+            proc.wait()
+            print(f"Finished mC4 Setup Preprocessing script returncode: {proc.returncode}")
+
+            # Preprocess the dataset
+            preprocess_args += " --bcp "
+            cmd = f"python3 {preprocess_code_path} {preprocess_args}"
+            launchcmd = get_launcher(nnodes, workers_per_node, cmd)
+            proc = subprocess.Popen(
+                launchcmd, shell=True, stdout=subprocess.PIPE,
+                universal_newlines=True)
+            print(f"\nSubmitted mC4 Preprocess script with job pid: {proc.pid}")
+            with open(joblog, "a", encoding="utf-8") as jlog:
+                print(f"mC4 Preprocess CMD:\n{launchcmd}", file=jlog)
+                for line in proc.stdout:
+                    print(line)
+                    jlog.write(line)
+
+            proc.wait()
+            print(f"Finished mC4 Preprocess script returncode: {proc.returncode}")
     return None
