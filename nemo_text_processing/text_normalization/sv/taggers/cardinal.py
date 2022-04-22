@@ -184,25 +184,45 @@ class CardinalFst(GraphFst):
         graph_million = pynutil.add_weight(pynini.cross("000001", "miljon"), -0.001)
         if not deterministic:
             graph_million |= pynutil.add_weight(pynini.cross("000001", "million"), -0.001)
+            graph_million |= pynutil.add_weight(pynini.cross("000001", "en miljon"), -0.001)
+            graph_million |= pynutil.add_weight(pynini.cross("000001", "ett miljon"), -0.001)
+            graph_million |= pynutil.add_weight(pynini.cross("000001", "en million"), -0.001)
+            graph_million |= pynutil.add_weight(pynini.cross("000001", "ett million"), -0.001)
         graph_million |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" miljoner")
         if not deterministic:
             graph_million |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" millioner")
         graph_million |= pynutil.delete("000000")
         graph_million += insert_space
 
-        graph_billion = pynutil.add_weight(pynini.cross("000001", "un billón"), -0.001)
-        graph_billion |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" billones")
+        graph_milliard = pynutil.add_weight(pynini.cross("000001", "miljard"), -0.001)
+        if not deterministic:
+            graph_milliard |= pynutil.add_weight(pynini.cross("000001", "milliard"), -0.001)
+            graph_milliard |= pynutil.add_weight(pynini.cross("000001", "en miljard"), -0.001)
+            graph_milliard |= pynutil.add_weight(pynini.cross("000001", "ett miljard"), -0.001)
+            graph_milliard |= pynutil.add_weight(pynini.cross("000001", "en milliard"), -0.001)
+            graph_milliard |= pynutil.add_weight(pynini.cross("000001", "ett milliard"), -0.001)
+        graph_milliard |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" miljarder")
+        if not deterministic:
+            graph_milliard |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" milliarder")
+        graph_milliard |= pynutil.delete("000000")
+        graph_milliard += insert_space
+
+        graph_billion = pynutil.add_weight(pynini.cross("000001", "biljon"), -0.001)
+        if not deterministic:
+            graph_billion |= pynutil.add_weight(pynini.cross("000001", "billion"), -0.001)
+            graph_billion |= pynutil.add_weight(pynini.cross("000001", "en biljon"), -0.001)
+            graph_billion |= pynutil.add_weight(pynini.cross("000001", "ett biljon"), -0.001)
+            graph_billion |= pynutil.add_weight(pynini.cross("000001", "en billion"), -0.001)
+            graph_billion |= pynutil.add_weight(pynini.cross("000001", "ett billion"), -0.001)
+        graph_billion |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" biljoner")
+        if not deterministic:
+            graph_billion |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" billioner")
         graph_billion |= pynutil.delete("000000")
         graph_billion += insert_space
 
-        graph_trillion = pynutil.add_weight(pynini.cross("000001", "un trillón"), -0.001)
-        graph_trillion |= graph_thousands_component_at_least_one_non_zero_digit_no_one + pynutil.insert(" trillones")
-        graph_trillion |= pynutil.delete("000000")
-        graph_trillion += insert_space
-
         graph = (
-            graph_trillion
-            + graph_billion
+            graph_billion
+            + graph_milliard
             + graph_million
             + (graph_thousands_component_at_least_one_non_zero_digit | pynutil.delete("000000"))
         )
