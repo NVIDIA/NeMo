@@ -18,10 +18,22 @@ This script can be used to compare the inference output of Thutmose tagger with 
 The additional report is stored to a separate file for each semiotic class.
 
 USAGE Example:
-  python eval.py \
+  python eval_per_class.py \
      --inference_file= \
      --reference_file= \
      --output_file=
+
+The inference file is a tsv file in which the first column contains the predicted sentence text.
+The reference file is a tsv file in which
+    the first column contains the input sentence text,
+    the second column contains the reference sentence text (taken from Google TN dataset)
+    the third column (optional) contains additional acceptable references for semiotic spans in this sentence.
+    E.g.
+        mizoguchi akiko september twenty ten    mizoguchi akiko september 2010     DATE 2 5 | sept 2010 | sep. 2010 ...
+
+The script generates:
+    a file with report on accuracy per semiotiotic class (output_file).
+    files (<output_file>.<semiotic_class>) with sentences, containing errors in this semiotic span.
 
 """
 
@@ -64,9 +76,9 @@ if __name__ == '__main__':
                 predicted_words[k] = predicted_words[k].replace(">", "").replace("<", "")
 
         parts = lines_ref[i].strip().split("\t")
-        assert len(parts) >= 3 and len(parts) <= 4, "bad format: " + lines_ref[i]
-        if len(parts) == 4:  # there are non-trivial semiotic spans
-            spans = parts[3].split(";")
+        assert len(parts) >= 2 and len(parts) <= 3, "bad format: " + lines_ref[i]
+        if len(parts) == 3:  # there are non-trivial semiotic spans
+            spans = parts[2].split(";")
             for span in spans:
                 span_parts = span.split(" | ")
                 try:

@@ -45,7 +45,6 @@ def process_file(
     sampling_vcb: Dict[str, int],
 ) -> None:
     words = []
-    dummy_tags = []
     reference_words = []  # size may be different
     semiotic_info = []
     raw_lines = []
@@ -57,8 +56,6 @@ def process_file(
                     out.write(
                         " ".join(words)
                         + "\t"
-                        + " ".join(dummy_tags)
-                        + "\t"
                         + " ".join(reference_words)
                         + "\t"
                         + ";".join(semiotic_info)
@@ -66,7 +63,6 @@ def process_file(
                     )
                     out_raw.write("\n".join(raw_lines) + "\n" + line)
                 words = []
-                dummy_tags = []
                 reference_words = []
                 semiotic_info = []
                 raw_lines = []
@@ -82,7 +78,6 @@ def process_file(
                 if spoken == "<self>":
                     words.append(written)
                     reference_words.append(written)
-                    dummy_tags.append("<self>")
                     # if reference is <self>, but the word has itn conversions in our dictionary, add them
                     for cls in ["CARDINAL", "ORDINAL", "DATE"]:  # date, ex sixties -> 60s
                         k = (cls, written)
@@ -129,8 +124,6 @@ def process_file(
                     + " | ".join(list(references))
                 )
                 reference_words.append(written.casefold())
-                for n in range(len(spoken.split())):
-                    dummy_tags.append("<self>")
 
                 if cls not in sampling_vcb:
                     sampling_vcb[cls] = 0

@@ -21,12 +21,12 @@ from collections import Counter
 from os import listdir
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing
 
-parser = ArgumentParser(description='Get reference vocabulary from corpus (it will be used in testing)')
-parser.add_argument('--data_dir', type=str, required=True, help='Path to folder with data')
-parser.add_argument('--out_filename', type=str, required=True, help='Path to output file')
+parser = ArgumentParser(description="Get reference vocabulary from corpus (it will be used in testing)")
+parser.add_argument("--data_dir", type=str, required=True, help="Path to folder with data")
+parser.add_argument("--out_filename", type=str, required=True, help="Path to output file")
 args = parser.parse_args()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     vcb = {}
     filenames = []
@@ -36,9 +36,9 @@ if __name__ == '__main__':
         filenames.append(args.data_dir + "/dev/" + fn)
     for fn in filenames:
         print("Processing ", fn)
-        with open(fn, 'r', encoding='utf-8') as f:
+        with open(fn, "r", encoding="utf-8") as f:
             for line in f:
-                parts = line.strip().split('\t')
+                parts = line.strip().split("\t")
                 if len(parts) < 3:
                     continue
                 assert len(parts) == 3, "expect 3 parts, got " + str(len(parts))

@@ -20,30 +20,47 @@ USAGE Example:
   python eval.py \
      --inference_file= \
      --reference_file= \
-     --print_other_errors=true/false \
-     --output_file=
+     --print_other_errors
 
+The inference file is a tsv file in which the first column contains the predicted sentence text.
+The reference file is a tsv file in which
+    the first column contains the input sentence text,
+    the second column contains the reference sentence text (taken from Google TN dataset)
+    the third column (optional) contains additional acceptable references for semiotic spans in this sentence.
+    E.g.
+        mizoguchi akiko september twenty ten    mizoguchi akiko september 2010     DATE 2 5 | sept 2010 | sep. 2010 ...
+
+The script outputs the following metrics:
+    Word Error Rate (WER) - an automatic metric commonly used in ASR.
+       It does not take into account additional references.
+    Sentence accuracy:
+       The sentence is regarded as correct if its characters (without spaces) match to the reference,
+       It takes into account additional references.
+
+       If at least one digital character doesn't match this sentence is regarded as containing Digit Error.
+       If all digital character match, but at least one non-digital character doesn't match
+          this sentence is regarded as containing Other Error.
 """
+
+
 import re
 from argparse import ArgumentParser
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 
 
-parser = ArgumentParser(description='Compare inference output with multi-reference')
-parser.add_argument('--inference_file', type=str, required=True, help='Path to inference file')
+parser = ArgumentParser(description="Compare inference output with multi-reference")
+parser.add_argument("--inference_file", type=str, required=True, help="Path to inference file")
 parser.add_argument(
-    '--print_other_errors',
-    type=bool,
-    required=True,
-    help='Whether to print other errors, if false only digit errors will be printed',
+    "--print_other_errors",
+    action='store_true',
+    help="Whether to print other errors, if false only digit errors will be printed",
 )
-parser.add_argument('--reference_file', type=str, required=True, help='Path to reference file')
-parser.add_argument('--output_file', type=str, required=True, help='Path to output file')
+parser.add_argument("--reference_file", type=str, required=True, help="Path to reference file")
 args = parser.parse_args()
 
 # Main code
-if __name__ == '__main__':
+if __name__ == "__main__":
     inputs = []
     references = []  # list(size=len(inputs)) of lists
     skip_ids = set()  # sentences ids to be skipped during evaluation
@@ -51,15 +68,15 @@ if __name__ == '__main__':
         for line in f:
             multi_references = []
             parts = line.strip().split("\t")
-            assert len(parts) >= 3 and len(parts) <= 4, "bad format: " + line
+            assert len(parts) >= 2 and len(parts) <= 3, "bad format: " + line
             words = parts[0].split()
             inputs.append(words)
-            if len(parts) == 4:  # there are non-trivial semiotic spans
+            if len(parts) == 3:  # there are non-trivial semiotic spans
                 multi_references.append("")
                 input_position = 0
-                if "TELEPHONE" in parts[3] or "ELECTRONIC" in parts[3]:
+                if "TELEPHONE" in parts[2] or "ELECTRONIC" in parts[2]:
                     skip_ids.add(len(references))
-                spans = parts[3].split(";")
+                spans = parts[2].split(";")
                 multi_references_updated = []
                 for span in spans:
                     span_parts = span.split(" | ")
@@ -88,7 +105,7 @@ if __name__ == '__main__':
                 for i in range(len(multi_references)):  # copy needed words from the input end
                     multi_references[i] += " " + " ".join(inputs[-1][input_position : len(inputs[-1])])
             # the last reference added is the actual one
-            multi_references.append(parts[2])
+            multi_references.append(parts[1])
             references.append(multi_references)
 
     predictions = []
@@ -122,8 +139,8 @@ if __name__ == '__main__':
         refs_for_wer.append(references[i][-1])
         preds_for_wer.append(predictions[i])
         for ref in references[i]:
-            ref_digit_fragments = re.findall(r'\d+', ref)
-            pred_digit_fragments = re.findall(r'\d+', predictions[i])
+            ref_digit_fragments = re.findall(r"\d+", ref)
+            pred_digit_fragments = re.findall(r"\d+", predictions[i])
             if "".join(pred_digit_fragments) == "".join(ref_digit_fragments):
                 ok_digit = True
             if predictions[i].replace("_", "").replace(" ", "") == ref.replace("_", "").replace(" ", ""):
@@ -145,9 +162,9 @@ if __name__ == '__main__':
             print("\tref=", references[i][-1])  # last reference is actual reference
 
     wer = word_error_rate(refs_for_wer, preds_for_wer)
-    print("wer=", wer)
+    print("WER: ", wer)
     print(
-        "correct: ",
+        "Sentence accuracy: ",
         correct_sentences_disregarding_space / (len(inputs) - len(skip_ids)),
         correct_sentences_disregarding_space,
     )

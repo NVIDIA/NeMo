@@ -22,9 +22,9 @@ from omegaconf import DictConfig
 from nemo.collections.nlp.models import ThutmoseTaggerModel
 from nemo.utils import logging
 
-__all__ = ['ITN_MODEL', 'MODEL_NAMES', 'instantiate_model_and_trainer']
+__all__ = ["ITN_MODEL", "MODEL_NAMES", "instantiate_model_and_trainer"]
 
-ITN_MODEL = 'itn'
+ITN_MODEL = "itn"
 MODEL_NAMES = [ITN_MODEL]
 
 

@@ -55,7 +55,6 @@ class ThutmoseTaggerModel(NLPModel):
             "input_ids": NeuralType(('B', 'T'), ChannelType()),
             "input_mask": NeuralType(('B', 'T'), MaskType()),
             "segment_ids": NeuralType(('B', 'T'), MaskType()),
-            # "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
         }
 
     @property
@@ -73,8 +72,8 @@ class ThutmoseTaggerModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
 
-        label_map_file = self.register_artifact("label_map", cfg.label_map)
-        semiotic_classes_file = self.register_artifact("semiotic_classes", cfg.semiotic_classes)
+        label_map_file = self.register_artifact("label_map", cfg.label_map, verify_src_exists=True)
+        semiotic_classes_file = self.register_artifact("semiotic_classes", cfg.semiotic_classes, verify_src_exists=True)
         self.label_map = read_label_map(label_map_file)
         self.semiotic_classes = read_semiotic_classes(semiotic_classes_file)
 
@@ -83,7 +82,9 @@ class ThutmoseTaggerModel(NLPModel):
         self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.tokenizer.model_max_length)
 
         # setup to track metrics
-        # we will have (len(self.semiotic_classes) + 1) labels, last one stands for WRONG
+        # we will have (len(self.semiotic_classes) + 1) labels
+        # last one stands for WRONG (span in which the predicted tags don't match the labels)
+        # this is needed to feed the sequence of classes to classification_report during validation
         label_ids = self.semiotic_classes.copy()
         label_ids["WRONG"] = len(self.semiotic_classes)
         self.classification_report = ClassificationReport(
@@ -100,12 +101,9 @@ class ThutmoseTaggerModel(NLPModel):
         )
 
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
-        self.loss_eval_metric = CrossEntropyLoss(logits_ndim=3, reduction='none')
-
-        converter = tagging.TaggingConverterTrivial()
 
         self.builder = bert_example.BertExampleBuilder(
-            self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len, converter
+            self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
         )
 
     @typecheck()
@@ -161,6 +159,7 @@ class ThutmoseTaggerModel(NLPModel):
                 torch.tensor(semiotic_predictions).to(self.device), torch.tensor(semiotic_labels).to(self.device)
             )
 
+            # We collect a separate classification_report for multiword replacements, as they are harder for the model
             multiword_semiotic_labels = []
             multiword_semiotic_predictions = []
             for cid, start, end in semiotic:
@@ -193,12 +192,13 @@ class ThutmoseTaggerModel(NLPModel):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and classification report
+        # In our task recall = accuracy, and the recall column - is the per class accuracy
         _, accuracy, _, report = self.classification_report.compute()
         _, multiword_accuracy, _, multiword_report = self.multiword_classification_report.compute()
 
-        logging.info("Total accuracy")
+        logging.info("Total accuracy: " + str(accuracy))
         logging.info(report)
-        logging.info("Only multiword accuracy")
+        logging.info("Only multiword accuracy: " + str(multiword_accuracy))
         logging.info(multiword_report)
 
         self.log('val_loss', avg_loss, prog_bar=True)
@@ -310,7 +310,6 @@ class ThutmoseTaggerModel(NLPModel):
         Args:
             cfg: config dictionary containing data loader params like batch_size, num_workers and pin_memory
             queries: text
-            max_seq_length: maximum length of queries, default is -1 for no limit
         Returns:
             A pytorch DataLoader.
         """

@@ -62,10 +62,10 @@ def prepare_subcorpora_from_data() -> None:
     for fn in listdir(args.data_dir + "/dev"):
         filenames.append(args.data_dir + "/dev/" + fn)
     for fn in filenames:
-        with open(fn, 'r', encoding='utf-8') as f:
+        with open(fn, "r", encoding="utf-8") as f:
             # Loop through each line of the file
             for line in f:
-                parts = line.strip().split('\t')
+                parts = line.strip().split("\t")
                 if len(parts) < 3:
                     continue
                 assert len(parts) == 3, "expect 3 parts, got " + str(len(parts))

@@ -21,11 +21,12 @@ https://github.com/google-research/lasertagger/blob/master/bert_example.py
 import logging
 
 from collections import OrderedDict
+from os import path
 from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizerBase
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import EditingTask, Tag, TaggingConverterTrivial
+from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import EditingTask, Tag
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import yield_sources_and_targets
 
 
@@ -138,7 +139,6 @@ class BertExampleBuilder(object):
         semiotic_classes: Dict[str, int],
         tokenizer: PreTrainedTokenizerBase,
         max_seq_length: int,
-        converter: TaggingConverterTrivial,
     ) -> None:
         """Initializes an instance of BertExampleBuilder.
 
@@ -154,7 +154,6 @@ class BertExampleBuilder(object):
         self._tokenizer = tokenizer
         self._max_seq_length = max_seq_length
         self._max_semiotic_length = max(4, int(max_seq_length / 2))
-        self._converter = converter
         self._pad_id = self._tokenizer.pad_token_id
         self._keep_tag_id = self._label_map['KEEP']
 
@@ -174,7 +173,7 @@ class BertExampleBuilder(object):
         # Compute target labels.
         task = EditingTask(source)
         if (target is not None) and (not infer):
-            tags = self._converter.compute_tags(task, target)
+            tags = BertExampleBuilder._compute_tags(task, target)
             if not tags:
                 return None
         else:
@@ -285,6 +284,31 @@ class BertExampleBuilder(object):
         except KeyError:
             return 0
 
+    @staticmethod
+    def _compute_tags(task: EditingTask, target: str) -> List[Tag]:
+        """Computes tags needed for converting the source into the target.
+
+        Args:
+            task: tagging.EditingTask that specifies the input.
+            target: Target text.
+
+        Returns:
+            List of tagging.Tag objects.
+        """
+        target_tokens = target.split(" ")
+        assert len(target_tokens) == len(task.source_tokens), (
+            "len mismatch: " + str(task.source_tokens) + "\n" + target
+        )
+        tags = []
+        for t in target_tokens:
+            if t == "<SELF>":
+                tags.append(Tag('KEEP'))
+            elif t == "<DELETE>":
+                tags.append(Tag('DELETE'))
+            else:
+                tags.append(Tag('DELETE|' + t))
+        return tags
+
 
 def read_input_file(
     example_builder: 'BertExampleBuilder', input_filename: str, infer: bool = False
@@ -300,6 +324,7 @@ def read_input_file(
         examples: List of converted examples(features and Editing Tasks)
     """
 
+    assert path.exists(input_filename), "Cannot find file: " + input_filename
     examples = []
     for i, (source, target, semiotic_info) in enumerate(yield_sources_and_targets(input_filename)):
         if len(examples) % 1000 == 0:

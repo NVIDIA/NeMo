@@ -50,23 +50,18 @@ def main(cfg: DictConfig) -> None:
     _, model = instantiate_model_and_trainer(cfg, ITN_MODEL, False)
 
     text_file = cfg.inference.from_file
-    logging.info(f'Running inference on {text_file}...')
+    logging.info(f"Running inference on {text_file}...")
     if not os.path.exists(text_file):
-        raise ValueError(f'{text_file} not found.')
+        raise ValueError(f"{text_file} not found.")
 
-    with open(text_file, 'r') as f:
+    with open(text_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
     batch_size = cfg.inference.get("batch_size", 8)
 
     batch, all_preds = [], []
     for i, line in enumerate(lines):
-
-        # ATTENTION!!! This is INPUT transformation!
-        # Need to be the same as in function: get_src_and_dst_for_alignment!
-        #  "долларов сэ ш а"  => "долларов-сэ-ш-а"    #join into one token to simplify alignment
-        s = spoken_preprocessing(line)
-
+        s = spoken_preprocessing(line)  # this is the same input transformation as in corpus preparation
         batch.append(s.strip())
         if len(batch) == batch_size or i == len(lines) - 1:
             outputs = model._infer(batch)
@@ -75,10 +70,10 @@ def main(cfg: DictConfig) -> None:
             batch = []
     assert len(all_preds) == len(lines), "all_preds=" + str(len(all_preds)) + "; lines=" + str(len(lines))
     out_file = cfg.inference.out_file
-    with open(f'{out_file}', 'w') as f_out:
+    with open(f"{out_file}", "w", encoding="utf-8") as f_out:
         f_out.write("\n".join(all_preds))
-    logging.info(f'Predictions saved to {out_file}.')
+    logging.info(f"Predictions saved to {out_file}.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -50,6 +50,15 @@ args = parser.parse_args()
 
 
 def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, str]) -> None:
+    """Processes one file in Google TN Dataset format to get the labeled data for ThutmoseTaggerModel
+
+    Args:
+        inputname: name of input file
+        out: output stream
+        keys2replacements: Mapping from (semiotic class, spoken, written) to the segmented written form,
+         which is aligned one-to-one to spoken words (this is the result obtained from Giza++ alignment pipeline)
+
+    """
     words = []
     tags = []
     semiotic_info = []
@@ -104,67 +113,9 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
                     sent_is_ok = False
 
 
-def process_file_tn(inputname: str, out: TextIO, keys2replacements: Dict[str, str]) -> None:
-    words = []
-    tags = []
-    semiotic_info = []
-    sent_is_ok = True
-    with open(inputname, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("<eos>"):
-                if sent_is_ok and len(words) > 0:
-                    out.write(" ".join(words) + "\t" + " ".join(tags) + "\t" + ";".join(semiotic_info) + "\n")
-                words = []
-                tags = []
-                semiotic_info = []
-                sent_is_ok = True
-            else:
-                cls, written, spoken = line.strip().split("\t")
-                if spoken == "sil":
-                    if " " in written:  # this means there is an error in corpus, will lead to token number mismatch
-                        sent_is_ok = False
-                    else:
-                        words.append(written.casefold())
-                        tags.append("<DELETE>")
-                    continue
-                if spoken == "<self>":
-                    words.append(written.casefold())
-                    tags.append("<SELF>")
-                    continue
-                src, dst, same_begin, same_end = get_src_and_dst_for_alignment(
-                    cls.casefold(), written, spoken, args.lang
-                )
-                same_from_begin = [] if same_begin == "" else same_begin.split(" ")
-                same_from_end = [] if same_end == "" else same_end.split(" ")
-                key = cls.casefold() + "\t" + src + "\t" + dst
-                if key in keys2replacements:
-                    replacements = keys2replacements[key].split(" ")
-                    spoken_words = dst.split(" ")
-                    for w, r in zip(
-                        same_from_begin + replacements + same_from_end, same_from_begin + spoken_words + same_from_end
-                    ):
-                        words.append(w)
-                        if cls == "LETTERS" or cls == "PLAIN":
-                            if w == r:
-                                tags.append("<SELF>")
-                            else:
-                                tags.append(r)
-                        elif w == r.replace("_", ""):
-                            tags.append("<SELF>")
-                        else:
-                            tags.append(r)
-                    semiotic_info.append(
-                        cls
-                        + " "
-                        + str(len(words) - len(replacements) - len(same_from_begin) - len(same_from_end))
-                        + " "
-                        + str(len(words))
-                    )
-                else:
-                    sent_is_ok = False
-
-
 def process_line(semiotic_class: str, line: str) -> Optional[Tuple[str, str, str, int]]:
+    """A helper function to read the file with alignment results"""
+
     parts = line.strip().split("\t")
     if len(parts) != 6:
         return None
@@ -180,7 +131,11 @@ def process_line(semiotic_class: str, line: str) -> Optional[Tuple[str, str, str
     return src, dst, align, freq
 
 
-def get_replacement_vocab(tn: bool = False) -> None:
+def get_replacement_vocab() -> None:
+    """Loops through the files with alignment results in each semiotic class subfolder, counts frequencies of different
+     replacement segments.
+    """
+
     full_vocab = Counter()
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     for fn in alignment_files:
@@ -200,11 +155,8 @@ def get_replacement_vocab(tn: bool = False) -> None:
                 for inp, rep in zip(inputs, replacements):
                     if inp == rep:  # skip same words
                         continue
-                    if tn:
-                        full_vocab[inp] += freq
-                    else:  # itn
-                        full_vocab[rep] += freq
-                        class_vocab[rep] += freq
+                    full_vocab[rep] += freq
+                    class_vocab[rep] += freq
         with open(args.vocab_filename + "." + semiotic_class, "w", encoding="utf-8") as out:
             for k, v in class_vocab.most_common(1000000000):
                 out.write(k + "\t" + str(v) + "\n")
@@ -214,7 +166,12 @@ def get_replacement_vocab(tn: bool = False) -> None:
             out.write(k + "\t" + str(v) + "\n")
 
 
-def filter_by_vocab(tn: bool = False) -> None:
+def filter_by_vocab() -> None:
+    """Given a restricted vocabulary of replacements,
+    loops through the files with alignment results in each semiotic class subfolder,
+    discards the examples containing a replacement which is not in our restricted vocabulary.
+    """
+
     if not os.path.exists(args.vocab_filename):
         raise ValueError(f"Alignments dir {args.giza_dir} does not exist")
     # load vocab from file
@@ -229,7 +186,7 @@ def filter_by_vocab(tn: bool = False) -> None:
         fn_parts = fn.split("/")
         assert len(fn_parts) >= 2
         semiotic_class = fn_parts[-2]
-        out = open(args.giza_dir + "/" + semiotic_class + "/" + args.out_filename, "w", encoding="utf8")
+        out = open(args.giza_dir + "/" + semiotic_class + "/" + args.out_filename, "w", encoding="utf-8")
         with open(fn, "r", encoding="utf-8") as f:
             for line in f:
                 t = process_line(semiotic_class, line)
@@ -238,17 +195,21 @@ def filter_by_vocab(tn: bool = False) -> None:
                 src, dst, replacement, freq = t
                 ok = True
                 for s, r in zip(src.split(" "), replacement.split(" ")):
-                    if s != r:
-                        if tn and s not in vocab:
-                            ok = False
-                        elif not tn and r not in vocab:
-                            ok = False
+                    if s != r and r not in vocab:
+                        ok = False
                 if ok:
                     out.write(semiotic_class + "\t" + src + "\t" + dst + "\t" + replacement + "\n")
         out.close()
 
 
-def get_labeled_corpus(tn: bool = False) -> None:
+def get_labeled_corpus() -> None:
+    """Loops through the files with alignment results in each semiotic class subfolder,
+    collects a mapping from (semiotic class, spoken, written) to the segmented written form,
+         which is aligned one-to-one to spoken words.
+    Then loops through the files in Google TN Dataset format to get the labeled data for ThutmoseTaggerModel.
+    It extracts the whole sentences and substitutes the semiotic spans to their aligned form from the dictionary.
+    """
+
     if not os.path.exists(args.data_dir):
         raise ValueError(f"Data dir {args.data_dir} does not exist")
 
@@ -266,10 +227,7 @@ def get_labeled_corpus(tn: bool = False) -> None:
     out = open(args.out_filename, "w", encoding="utf-8")
     input_paths = sorted([os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)])
     for inputname in input_paths:
-        if tn:
-            process_file_tn(inputname, out, keys2replacements)
-        else:
-            process_file_itn(inputname, out, keys2replacements)
+        process_file_itn(inputname, out, keys2replacements)
     out.close()
 
 
@@ -279,16 +237,10 @@ def main() -> None:
 
     if args.mode == "get_replacement_vocab":
         get_replacement_vocab()
-    elif args.mode == "get_replacement_vocab_tn":
-        get_replacement_vocab(tn=True)
     elif args.mode == "filter_by_vocab":
         filter_by_vocab()
-    elif args.mode == "filter_by_vocab_tn":
-        filter_by_vocab(tn=True)
     elif args.mode == "get_labeled_corpus":
         get_labeled_corpus()
-    elif args.mode == "get_labeled_corpus_tn":
-        get_labeled_corpus(tn=True)
     else:
         assert False, "unknown mode"
 

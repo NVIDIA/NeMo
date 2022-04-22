@@ -51,7 +51,7 @@ def read_google_data(data_file: str, lang: str, split: str, add_test_full=False)
         data_file: Path to the data file. Should be of the form output-xxxxx-of-00100
         lang: Selected language.
         split: data split
-        add_test_full: do not truncate test data
+        add_test_full: do not truncate test data i.e. take the whole test file not #num of lines
     Return:
         data: list of examples
     """
@@ -94,8 +94,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--add_test_full',
-        type=bool,
-        default=False,
+        action='store_true',
         help='If True, additional folder test_full will be created without truncation of files',
     )
     args = parser.parse_args()
