@@ -39,32 +39,24 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        if hasattr(self.cfg, "eval_languages"):
-            self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
-            self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
+        self.val_metric = self.setup_metric(self.cfg.data.validation_ds)
+        self.test_metric = self.setup_metric(self.cfg.data.test_ds)
+
+    def setup_metric(self, data_cfg):
+        if hasattr(self.cfg, "eval_languages") or hasattr(data_cfg, "task_name"):
+            metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
         else:
-            if isinstance(self.cfg.data.validation_ds.src_file_name, ListConfig):
-                if hasattr(self.cfg.data.validation_ds, "names") and isinstance(
-                    self.cfg.data.validation_ds.names, ListConfig
-                ):
-                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
+            if isinstance(data_cfg.src_file_name, ListConfig):
+                if hasattr(data_cfg, "names") and isinstance(data_cfg.names, ListConfig):
+                    metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
                 else:
-                    self.val_acc_metric = ExactStringPerCategoryMatchMetric(
+                    metric = ExactStringPerCategoryMatchMetric(
                         [str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))]
                     )
             else:
-                self.val_acc_metric = ExactStringPerCategoryMatchMetric()
+                metric = ExactStringPerCategoryMatchMetric()
 
-            if hasattr(self.cfg.data, "test_ds"):
-                if isinstance(self.cfg.data.test_ds.src_file_name, ListConfig):
-                    if hasattr(self.cfg.data.test_ds, "names") and isinstance(self.cfg.data.test_ds.names, ListConfig):
-                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(self.cfg.data.test_ds.names)
-                    else:
-                        self.test_acc_metric = ExactStringPerCategoryMatchMetric(
-                            [str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))]
-                        )
-                else:
-                    self.test_acc_metric = ExactStringPerCategoryMatchMetric()
+        return metric
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -267,10 +259,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             categories = langs
 
-        acc_metric = self.val_acc_metric if mode == 'validation' else self.test_acc_metric
+        metric = self.val_metric if mode == 'validation' else self.test_metric
         assert len(categories) == len(preds_text) == len(labels_text)
         for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-            _ = acc_metric(pred, label, category)
+            _ = metric(pred, label, category)
 
         return {'loss': loss}
 
