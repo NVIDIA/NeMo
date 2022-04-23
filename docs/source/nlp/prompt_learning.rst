@@ -121,81 +121,63 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
 
 Prompt Learning Specific Config Values
 ^^^^^^^^^^
-.. list-table:: Prompt Tuning Config Parameters
-   :widths: 15 15 15 25
+.. list-table::
+   :widths: 15 15 25
    :header-rows: 1
    
    * - **Parameter**
      - **Data type**
-     - **Default**
      - **Description**
    * - **model.nemo_path**
      - string
-     - ``${name}.nemo`` the name of the experiment
      - Path to where you want to save your model after prompt tuning/p-tuning, must end in `.nemo`
    * - **model.lm_finetune**
      - bool
-     - False
      - whether fine tune all the GPT language model weights
    * - **model.virtual_prompt_style**
      - string
-     - 'p-tuning'
      - one of 'prompt-tuning', 'p-tuning', or 'inference'
    * - **model.language_model_path**
      - string
-     - None
      - Path to the GPT language model .nemo file you want to use for prompt learning, not needed if ``restore_path`` is set
    * - **model.restore_path**
      - string
-     - None
-     - Path to a .nemo file of existing ``MegatronGPTPromptLearningModel`` that has already been prompt tuned or p-tuned on at least one task. P-tuned or prompt tuned in this training session will be added to this model's `prompt_table`.
+     - Path to a .nemo file of existing ``MegatronGPTPromptLearningModel`` that has already been prompt tuned or p-tuned on at least one task. P-tuned or prompt tuned in this training session will be added to this model's `prompt_table`. Should be set to ``null`` if none.
    * - **model.new_tasks**
      - list of strings
-     - ``[]``
-     - List of new tasknames to be prompt or p-tuned
+     - List of new tasknames to be prompt or p-tuned, 
    * - **model.existing_tasks**
      - list of strings
-     - ``[]``
-     - List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
+     - List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given. Should be set to ``[]`` if None. 
    * - **model.task_templates**
      - list
-     - required
      - See the ``model.task_templates`` Config Parameters Table above
    * - **model.prompt_tuning.new_prompt_init_methods**
      - list of strings
-     - ``[]``
      - List of 'text' or 'random', should correspond to the order of tasks listed in ``model.new_tasks``. Only needed if `virtual_prompt_style='prompt-tuning'`
    * - **model.prompt_tuning.new_prompt_init_text**
      - list of strings
-     - ``[]``
      - The text you want to use for soft prompt initalization if ``model.prompt_tuning.new_prompt_init_methods`` is set to 'text' for a task. Should correspond to the order of tasks listed in ``model.new_tasks``. The text is tokenized and clipped or tiled to match ``total_virtual_tokens`` in ``model.task_templates``. The vocab embeddings associated with each token are copied and use to initialize the soft prompts before tuning.
    * - **model.p_tuning.dropout**
      - float
-     - 0.0
      - LSTM prompt encoder dropout prob
    * - **model.p_tuning.num_layers**
      - int
-     - 2
      - Num layers in LSTM prompt encoder
    * - **model.tensor_model_parallel_size**
      - int
-     - 1
      - intra-layer model parallelism, must match the ``tensor_model_parallel_size`` of the GPT model given at ``language_model_path``
    * - **model.batch_size**
      - int
-     - 8
      - global batch size 
    * - **model.data.train_ds**
      - list of strings
-     - ``[]``
      - list of ``.json`` or ``.jsonl`` training dataset files with json ojects that have the dataset format described above
    * - **model.data.validation_ds**
      - list of strings
-     - ``[]``
      - list of ``.json`` or ``.jsonl`` validation dataset files with json ojects that have the dataset format described above
    * - **model.data.add_eos**
      - bool
-     - True
      - Whether to add an EOS token at the end of each training example (recommended). 
 
 An example config file can be found at https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
@@ -207,79 +189,128 @@ After you p-tune or prompt-tune your model, you can always go back and p-tune or
 
 Example Multi-Task Prompt Tuning Command
 ^^^^^^^^^^
+First define a config called ``multitask-prompt-learning.yaml`` that looks like:
 
 .. code::
   
-  EXPR_NAME='winogrande_prompt_tuning'
-  RESTORE_PATH='megatron_gpt.nemo'
-  GPUS=1
-  MAX_STEPS=1000
-  PROMPT_LENGTH=150
+  name: multitask_prompt_tuning
+  trainer: ...
+  exp_manager: ...
+  model:
+    seed: 1234
+    nemo_path: ${name}.nemo 
+    lm_finetune: False 
+    pseudo_token_base: "PROMPT_" 
+    virtual_prompt_style: "prompt-tuning" 
+    encoder_seq_length: 2048 
+    tensor_model_parallel_size: 1 
+    pipeline_model_parallel_size: 1 
+    batch_size: 8
+
+    restore_path: null 
+    language_model_path: models/megatron_125M_gpt.nemo
+    existing_tasks: []
+    new_tasks: ["sentiment", "intent_and_slot"] 
+
+    task_templates: 
+    - taskname: "sentiment" 
+      prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
+      total_virtual_tokens: 100 
+      virtual_token_splits: [100] 
+      truncate_field: null
+
+    - taskname: "intent_and_slot"
+      prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
+      total_virtual_tokens: 100 
+      virtual_token_splits: [80, 20]
+      truncate_field: null
+
+    prompt_tuning: 
+      new_prompt_init_methods: ["text", "text"] 
+      new_prompt_init_text: ["financial sentiment analysis postive neutral negative", "intent and slot classification virtual assistant task bot please"] 
+
+    data:
+      train_ds: ["data/financial_phrase_bank_train.jsonl", "data/assistent_train.jsonl"]
+      validation_ds: ["data/financial_phrase_bank_val.jsonl", "data/assistent_val.jsonl"]
+      add_eos: True
+      shuffle: True
+      num_workers: 1
+      pin_memory: True
+
+    optim: ...
+
+(See https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml for what should go in the ``trainer``, ``exp_manager``, and ``optim`` sections.)
+
+Then run the command
+
+.. code::
   
-  echo "Prompt tuning starting"
-  python megatron_gpt_prompt_tuning.py \
-          --config-name=megatron_gpt_config \
-          trainer.devices=$GPUS \
-          trainer.accelerator='gpu' \
-          trainer.max_steps=$MAX_STEPS \
-          restore_from_path=$RESTORE_PATH \
-          exp_manager.name=$EXPR_NAME \
-          exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
-          +model.use_soft_prompts=True \
-          +model.num_prompt_tokens=$PROMPT_LENGTH \
-          +model.new_prompt_tags=['Winogrande'] \
-          +model.new_prompt_init_text=['disambiguate pronoun noun names pick correct name fill blank'] \
-          +model.new_prompt_init_methods=['text'] \
-          model.data.data_prefix=None \
-          +model.data.train_ds='winogrande_prompt_tuning_train.jsonl' \
-          +model.data.valid_ds='winogrande_prompt_tuning_val.jsonl' \
-          +model.data.batch_size=32 \
-          model.optim.lr=2e-3 \
-          model.optim.sched.min_lr=2e-6 \
-          model.optim.sched.warmup_steps=320 \
-          model.optim.sched.constant_steps=2240 \
-          model.encoder_seq_length=2048
+  python megatron_gpt_prompt_learning.py --config-name=multitask-prompt-learning.yaml
+         
 
 Example Multi-Task P-Tuning Command After Prompt-Tuning
 ^^^^^^^^^^
-
-Be sure to update ``model.existing_prompt_tags`` with tags from previous prompt tuning run
-and to use the .nemo file saved at the end of the last prompt tuning run.
+Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt tuning run and to use the ``.nemo`` file saved at the end of the last prompt tuning run. Values changed from the config above are bolded. 
 
 .. code::
 
-  EXPR_NAME='rte_prompt_tuning'
-  RESTORE_PATH='winogrande_prompt_tuning.nemo'
-  GPUS=1
-  MAX_STEPS=780
-  PROMPT_LENGTH=150
-  VAL_CHECK_INTERVAL=50
+  <b>name: multitask_p_tuning</b>
+  trainer: ...
+  exp_manager: ...
+  model:
+  seed: 1234
+  nemo_path: ${name}.nemo 
+  lm_finetune: False 
+  pseudo_token_base: "PROMPT_" 
+  **virtual_prompt_style: "p-tuning"**
+  encoder_seq_length: 2048 
+  tensor_model_parallel_size: 1 
+  pipeline_model_parallel_size: 1 
+  batch_size: 8
 
-  echo "Prompt tuning starting"
-  python megatron_gpt_prompt_tuning.py \
-          --config-name=megatron_gpt_config \
-          trainer.devices=$GPUS \
-          trainer.accelerator='gpu' \
-          trainer.max_steps=$MAX_STEPS \
-          trainer.val_check_interval=$VAL_CHECK_INTERVAL \
-          restore_from_path=$RESTORE_PATH \
-          exp_manager.name=$EXPR_NAME \
-          exp_manager.checkpoint_callback_params.save_nemo_on_train_end=True \
-          +model.use_soft_prompts=True \
-          +model.num_prompt_tokens=$PROMPT_LENGTH \
-          +model.existing_prompt_tags=['Winogrande'] \
-          +model.new_prompt_tags=['RTE'] \
-          +model.new_prompt_init_text=['entailment cause relationship imply label text'] \
-          +model.new_prompt_init_methods=['text'] \
-          model.data.data_prefix=None \
-          +model.data.train_ds='RTE_prompt_tuning_train.jsonl' \
-          +model.data.valid_ds='RTE_prompt_tuning_val.jsonl' \
-          +model.data.batch_size=32 \
-          model.optim.lr=2e-4 \
-          model.optim.sched.min_lr=2e-6 \
-          model.optim.sched.warmup_steps=78 \
-          model.optim.sched.constant_steps=545 \
-          model.encoder_seq_length=2048
+  **restore_path: multitask_prompt_tuning.nemo** 
+  language_model_path: models/megatron_125M_gpt.nemo
+  **existing_tasks: ["sentiment", "intent_and_slot"]**
+  new_tasks: ["sentiment", "intent_and_slot"] 
+
+  task_templates: 
+  - taskname: "sentiment" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
+    total_virtual_tokens: 100 
+    virtual_token_splits: [100] 
+    truncate_field: null
+
+  - taskname: "intent_and_slot"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
+    total_virtual_tokens: 100 
+    virtual_token_splits: [80, 20]
+    truncate_field: null
+
+  **- taskname: "squad"**
+    **prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context <|VIRTUAL_PROMPT_1|> {question} <|VIRTUAL_PROMPT_2|> {context} <|VIRTUAL_PROMPT_3|>  Answer: {answer}"** 
+    **total_virtual_tokens: 16**
+    **virtual_token_splits: [4, 4, 4, 4]**
+    **truncate_field: null**
+
+  p_tuning: 
+      dropout: 0.0
+      num_layers: 2 
+
+  data:
+    **train_ds: ["data/squad_train.jsonl"]**
+    **validation_ds: ["data/squad_val.jsonl"]**
+    add_eos: True
+    shuffle: True
+    num_workers: 1
+    pin_memory: True
+
+  optim: ...
+
+Then run the command again:
+
+.. code::
+  
+  python megatron_gpt_prompt_learning.py --config-name=multitask-prompt-learning.yaml
 
 
 Example Multi-Task Inference 
