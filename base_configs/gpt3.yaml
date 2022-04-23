@@ -16,7 +16,7 @@ trainer:
   max_epochs: null
   max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   max_time: "01:11:30:00" # days:hours:minutes:seconds
-  log_every_n_steps: 10
+  log_every_n_steps: 1
   val_check_interval: 2000
   limit_val_batches: 50
   limit_test_batches: 50

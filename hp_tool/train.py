@@ -85,7 +85,7 @@ def run_training(cfg, bignlp_hp_tool_path):
     new_script_path = os.path.join(scripts_dir, f"{name}.sh")
     code_path = "/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_gpt.py"
     train_cmd = (
-        f"PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
+        f"HYDRA_FULL_ERROR=1 PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
     )
 
     nodes = train_cfg.trainer.num_nodes

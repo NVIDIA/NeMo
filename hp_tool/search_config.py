@@ -29,6 +29,7 @@ def search_config(cfg):
     max_training_days = train_cfg.get("max_training_days")
     max_minutes_per_run = train_cfg.get("max_minutes_per_run")
     model_size_in_b = train_cfg.get("model_size_in_b")
+    vocab_size = train_cfg.get("vocab_size")
     tflops_per_gpu = train_cfg.get("tflops_per_gpu")
     num_tokens_in_b = train_cfg.get("num_tokens_in_b")
 
@@ -66,6 +67,7 @@ def search_config(cfg):
         gpus_per_node=gpus_per_node,
         max_training_days=max_training_days,
         num_tokens_in_b=num_tokens_in_b,
+        vocab_size=vocab_size,
         cfg=cfg,
         model_name=model_name,
     )

@@ -12,18 +12,21 @@ def search_training_config(base_cfg, model_size, model_name, cfg):
     # Generate candidate configs.
     base_dir, results_cfgs = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
-    job_ids = launch_grid_search_configs(base_dir, results_cfgs, cfg)
+    job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     #job_ids = None
     # Measure and compare throughputs for each config.
     launch_throughput_measure(job_ids, model_size, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
+    # 2 * num_layers is needed because of encoder/decoder architecture.
+    multiplier = 1 if model_name == "gpt3" else 2
+
     num_layers = base_cfg["model"]["num_layers"]
-    results_cfgs = [[] for _ in range(num_layers + 1)]
+    results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
-        model_size_in_b=model_size_in_b, num_layers=num_layers
+        model_size_in_b=model_size_in_b, num_layers=num_layers, model_name=model_name
     )
 
     base_dir = f"{cfg.search_config.train_settings.logs}/candidate_configs"
@@ -34,15 +37,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     valid_pp_list = []
     for tp in tp_list:
         for pp in pp_list:
-            if model_name == "gpt3":
-                act_ckpt_layers = [x for x in range(num_layers // pp + 1)]
-            elif model_name == "t5":
-                # TODO: @yuya to check.
-                # 2 * num_layers is needed because of encoder/decoder architecture.
-                act_ckpt_layers = [x for x in range(2 * num_layers // pp + 1)]
-            else:
-                raise NotImplementedError("Model name not implemented.")
-
+            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1)]
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
                     num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
@@ -51,20 +46,14 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                     num_layers = base_cfg["model"]["num_layers"]
                     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
                     mod_att_heads = att_heads % tp
-                    mod_layers = num_layers % pp
+                    mod_layers = (multiplier * num_layers) % pp
                     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
                         valid_pp_list.append(pp)
 
     # Generate grid search configs.
     for tp in tp_list:
         for pp in pp_list:
-            if model_name == "gpt3":
-                act_ckpt_layers = [x for x in range(num_layers // pp + 1)]
-            elif model_name == "t5":
-                act_ckpt_layers = [x for x in range(2 * num_layers // pp + 1)]
-            else:
-                raise NotImplementedError("Model name not implemented.")
-
+            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1)]
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
                     new_cfg = utils.modify_cfg(
@@ -82,10 +71,12 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
-    # TODO: @mausin add support for T5, ask @yuya for guidance.
+    multiplier = 1 if model_name == "gpt3" else 2
+    # TODO: @mausin Add 1 to valid_pp list for T5
     valid_pp = [
-        x for x in range(1, num_layers + 1) if num_layers % x == 0
+        multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
     ]  # Only divisors of num_layers are possible.
+
     if model_name == "gpt3":
         tp = [1, 2, 4, 8]
         pp = [1]
@@ -122,7 +113,7 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
             mbs = [1, 2]
         elif 395.0 < model_size_in_b <= 790.0:
             tp = [8]
-            pp = [x for x in valid_pp if 23 < x < 71]
+            pp = [x for x in valid_pp if 19 < x < 71]
             mbs = [1, 2]
         elif 790.0 < model_size_in_b <= 1100.0:
             tp = [8]
@@ -132,21 +123,30 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
         # TODO: @yuya to check.
         tp = [1, 2, 4, 8]
         pp = [1]
-        mbs = [1, 2, 4, 8]
+        mbs = [1, 2, 4, 6, 8, 12, 16]
         if model_size_in_b <= 1.0:
-            tp = [1]
-        elif 1.0 < model_size_in_b <= 2.0:
             tp = [1, 2]
+            mbs = [16, 32, 64, 128]
+            # Add a check to make it work with the specified number of nodes.
+        elif 1.0 < model_size_in_b <= 4.0:
+            tp = [1, 2, 4]
+            mbs = [4, 6, 8, 12, 16, 24, 27, 32, 48]
         elif 4.0 < model_size_in_b <= 8.0:
             tp = [2, 4, 8]
-        elif 8.0 < model_size_in_b <= 11.5:
+            mbs = [4, 6, 8, 12, 16, 24, 27, 32]
+        elif 8.0 < model_size_in_b <= 14.5:
             tp = [4, 8]
+            mbs = [1, 4, 6, 8, 12, 16, 24]
+        elif 14.5 < model_size_in_b <= 25.9:
+            tp = [8]
+            pp = [x for x in valid_pp if 1 <= x <= 4]
+            mbs = [1, 2, 4, 8]
     else:
         raise NotImplementedError("Model name not implemented.")
     return tp, pp, mbs
 
 
-def launch_grid_search_configs(base_dir, results_cfgs, cfg):
+def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
     """Launches training jobs for the grid search in parallel. The limit of how many 
     jobs to launch is specified by limit_search_runs.
 
@@ -162,7 +162,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
     for cfg_list in results_cfgs:
         for config in cfg_list:
             conf = OmegaConf.load(f"{base_dir}/{config}")
-            new_cfg = create_bignlp_config(cfg)
+            new_cfg = create_bignlp_config(model_name, cfg)
             # Add the training config (conf) to the new_cfg.training, which is the bignlp-scripts format.
             new_cfg.training = conf
             # Add cluster config to new_cfg.
@@ -175,7 +175,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, cfg):
     return job_ids
 
 
-def create_bignlp_config(cfg):
+def create_bignlp_config(model_name, cfg):
     """Creates a basic config for bignlp-scripts to train the model correctly.
 
     Arguments:
@@ -186,10 +186,18 @@ def create_bignlp_config(cfg):
     results_dir = os.path.join(cfg.search_config.train_settings.logs, "training_logs")
     training_container = cfg.training_container
     data_dir = cfg.data_dir
-    model_size = cfg.search_config.train_settings.model_size_in_b
+    wandb_cfg = cfg.get("wandb")
+    api_key_file = wandb_cfg.get("api_key_file")
+
+    api_key_f = "null" if api_key_file is None else api_key_file
+
+    if model_name == "gpt3":
+        train_config = "gpt3/5b"
+    else:
+        train_config = "t5/220m"
 
     s = f"""
-    training: null
+    training: {train_config}
     cluster: null
 
     run_data_preparation: False
@@ -199,13 +207,15 @@ def create_bignlp_config(cfg):
     run_evaluation: False
 
     cluster_type: bcm
-    training_config: gpt3/5b
+    training_config: {train_config}
     bignlp_path: /opt/bignlp/bignlp-scripts
     data_dir: {data_dir}
     base_results_dir: {results_dir}
     container_mounts:
       - {results_dir}:/opt/bignlp/bignlp-scripts/results
     container: {training_container}
+
+    wandb_api_key_file: {api_key_f}
     """
     new_cfg = OmegaConf.create(s)
     return new_cfg

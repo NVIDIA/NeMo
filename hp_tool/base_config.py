@@ -53,9 +53,12 @@ def calculate_model_size(
             max_training_days, gpu_count, tflops_per_gpu, num_tokens_in_b, model_name
         )
     else:
-        max_training_days = _estimate_training_time(
+        max_training_days = 4.0
+        """
+        _estimate_training_time(
             model_size_in_b, num_tokens_in_b, gpu_count, tflops_per_gpu, model_name
         )
+        """
 
     print(
         f"You can train a {model_size_in_b}B parameter model in "
@@ -190,6 +193,7 @@ def generate_base_config(
     gpus_per_node,
     max_training_days,
     num_tokens_in_b,
+    vocab_size,
     model_name,
     cfg,
 ):
@@ -220,6 +224,7 @@ def generate_base_config(
     )
 
     # TRAINER
+    base_cfg["trainer"]["num_nodes"] = nodes
     base_cfg["trainer"]["precision"] = "bf16"
     seq_length = base_cfg["model"]["data"]["seq_length"]
     base_cfg["trainer"]["max_steps"] = int((num_tokens_in_b * 1e9) / (seq_length * gbs))
@@ -228,8 +233,16 @@ def generate_base_config(
         f"{int(24 * (max_training_days - int(max_training_days))) - 1}:30:00"
     )
 
+    # EXP_MANAGER
+    wandb_cfg = cfg.get("wandb")
+    enable = wandb_cfg.get("enable")
+    project = wandb_cfg.get("project")
+    if enable:
+        base_cfg["exp_manager"]["create_wandb_logger"] = bool(enable)
+        base_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] = project
+
     # MODEL
-    layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(model_size_in_b=model_size_in_b, model_name=model_name)
+    layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(model_size_in_b=model_size_in_b, vocab_size=vocab_size, seq_length=seq_length, model_name=model_name)
     base_cfg["model"]["num_layers"] = int(layers)
     base_cfg["model"]["global_batch_size"] = int(gbs)
     base_cfg["model"]["hidden_size"] = int(hs)
@@ -241,12 +254,16 @@ def generate_base_config(
     base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6) if model_name == "gpt3" else 0.015
     base_cfg["model"]["optim"]["lr"] = lr
     base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
-    base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
-        0.0015 * base_cfg["trainer"]["max_steps"]
-    )
-    base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
-        0.166 * base_cfg["trainer"]["max_steps"]
-    )
+    if model_name == "gpt3":
+        base_cfg["model"]["optim"]["sched"]["warmup_steps"] = int(
+            0.0015 * base_cfg["trainer"]["max_steps"]
+        )
+        base_cfg["model"]["optim"]["sched"]["constant_steps"] = int(
+            0.166 * base_cfg["trainer"]["max_steps"]
+        )
+    else:
+        base_cfg["model"]["optim"]["sched"]["warmup_ratio"] = 0.01
+
 
     with open(f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w") as f:
         yaml.dump(base_cfg, f)

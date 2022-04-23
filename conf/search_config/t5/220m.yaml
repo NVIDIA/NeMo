@@ -3,26 +3,21 @@ train_settings:
   num_nodes: 4
   gpus_per_node: 8
   max_training_days: 4 # unit in days
-  limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
+  limit_search_runs: 3 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 100
-  max_minutes_per_run: 20 # 20 minute default running time.
+  max_minutes_per_run: 40 # 20 minute default running time.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
   seq_length: 512  # Sequence length for training GPT3 model.
-  vocab_size: 51200
-  #kv_channels: null
-  #ffn_size: null
-  #att_heads: null
-  candidate_logs: ${base_results_dir}/candidate_logs
-  candidate_configs: ${base_results_dir}/candidate_configs
-  final_result_logs: ${base_results_dir}/result_logs
+  vocab_size: 29000
+  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/gpt3/126m
   tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_size: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
  
 inference_settings:
-  vocab_size: 28000
+  vocab_size: 29000
   start_id: 50256
   end_id: 50256
   input_seq_len: 60

@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - cluster: bcm
-  - search_config: gpt3/126m
+  - search_config: gpt3/5b
   - override hydra/job_logging: stdout
 
 hydra:
@@ -13,9 +13,14 @@ bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  #
 base_results_dir: ${bignlp_hp_tool_path}/results
 data_dir: /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 
-training_container: nvcr.io/nvidian/bignlp-training:22.04.02-py
+training_container: nvcr.io/nvidian/bignlp-training:22.04.08-py
 container_mounts:
     - null
+
+wandb:  # Weights and Biases (W&B) logging.
+    enable: True  # Whether to save logs to W&B.
+    api_key_file: ${bignlp_hp_tool_path}/api_key.txt  # Path to the file where the w&B api key is stored. Key must be on the first line.
+    project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 
 # Do not modify the code below.
 search_config_value: ${hydra:runtime.choices.search_config}

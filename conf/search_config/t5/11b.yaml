@@ -1,14 +1,14 @@
 run:
-  name: t5_220m
+  name: t5_3b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "7-00:00:00"
+  time_limit: "40-00:00:00"
   dependency: "singleton"
 
 name: megatron_t5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 4
+  num_nodes: 20
   devices: 8
   accelerator: gpu
   precision: bf16
@@ -18,8 +18,8 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "06:23:30:00"
-  log_every_n_steps: 1
+  max_time: "39:23:30:00"
+  log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
   limit_test_batches: 500
@@ -53,9 +53,9 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 64
-  global_batch_size: 2048 # will use more micro batches to reach global batch size
-  tensor_model_parallel_size: 1
+  micro_batch_size: 6
+  global_batch_size: 1920 # will use more micro batches to reach global batch size
+  tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
   resume_from_checkpoint: null # manually set the checkpoint file to load from
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -69,14 +69,14 @@ model:
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
-  num_layers: 12
-  hidden_size: 768
-  ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
-  num_attention_heads: 12
+  num_layers: 24
+  hidden_size: 4096
+  ffn_hidden_size: 15360  # Transformer FFN hidden size. 4 * hidden_size.
+  num_attention_heads: 64
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability in the attention layer.
-  kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.

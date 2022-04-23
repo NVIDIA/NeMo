@@ -8,6 +8,7 @@ train_settings:
   max_minutes_per_run: 35 # minutes per run for the grid search.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+  vocab_size: 51200
   candidate_logs: ${base_results_dir}/candidate_logs
   candidate_configs: ${base_results_dir}/candidate_configs
   final_result_logs: ${base_results_dir}/result_logs

@@ -42,12 +42,11 @@ def _calculate_model_size(
                 + seq_length
                 + vocab_size
             )
-            / 1e9
-        )
+        ) / 1e9
     return model_size
 
 
-def calculate_model_size_params(model_size_in_b, seq_length=2048, vocab_size=51200, model_name="gpt3"):
+def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=2048, model_name="gpt3"):
     """Calculates the parameters that affect model_size: hidden size, attention heads, 
     KV channels, and FFN size. It also calculates the learning rate.
 
@@ -117,7 +116,14 @@ def calculate_model_size_params(model_size_in_b, seq_length=2048, vocab_size=512
     for attempt in range(0, 10):
         for layers in (2**p for p in range(1, 10)):
             out_size = _calculate_model_size(
-                vocab_size, seq_length, hs, layers, model_name
+                vocab_size=vocab_size,
+                seq_length=seq_length,
+                hidden_size=hs,
+                num_layers=layers,
+                ffn_size=ffn,
+                kv_channels=kv,
+                att_heads=att_h,
+                model_name=model_name,
             )
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
@@ -128,7 +134,32 @@ def calculate_model_size_params(model_size_in_b, seq_length=2048, vocab_size=512
     for attempt in range(0, 6):
         for layers in range(16, 201, 16):
             out_size = _calculate_model_size(
-                vocab_size, seq_length, hs, layers, model_name
+                vocab_size=vocab_size,
+                seq_length=seq_length,
+                hidden_size=hs,
+                num_layers=layers,
+                ffn_size=ffn,
+                kv_channels=kv,
+                att_heads=att_h,
+                model_name=model_name,
+            )
+            if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
+                return layers, hs, att_h, ffn, kv, lr
+        margin += 0.01  # Double margin of acceptable model sizes.
+    
+    # Try multiples of 5
+    margin = 0.01
+    for attempt in range(0, 10):
+        for layers in range(5, 201, 5):
+            out_size = _calculate_model_size(
+                vocab_size=vocab_size,
+                seq_length=seq_length,
+                hidden_size=hs,
+                num_layers=layers,
+                ffn_size=ffn,
+                kv_channels=kv,
+                att_heads=att_h,
+                model_name=model_name,
             )
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
@@ -139,7 +170,14 @@ def calculate_model_size_params(model_size_in_b, seq_length=2048, vocab_size=512
     for attempt in range(0, 6):
         for layers in range(2, 201, 2):
             out_size = _calculate_model_size(
-                vocab_size, seq_length, hs, layers, model_name
+                vocab_size=vocab_size,
+                seq_length=seq_length,
+                hidden_size=hs,
+                num_layers=layers,
+                ffn_size=ffn,
+                kv_channels=kv,
+                att_heads=att_h,
+                model_name=model_name,
             )
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
@@ -150,7 +188,14 @@ def calculate_model_size_params(model_size_in_b, seq_length=2048, vocab_size=512
     for attempt in range(0, 10):
         for layers in range(1, 200):
             out_size = _calculate_model_size(
-                vocab_size, seq_length, hs, layers, model_name
+                vocab_size=vocab_size,
+                seq_length=seq_length,
+                hidden_size=hs,
+                num_layers=layers,
+                ffn_size=ffn,
+                kv_channels=kv,
+                att_heads=att_h,
+                model_name=model_name,
             )
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
