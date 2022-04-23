@@ -73,7 +73,9 @@ class ThutmoseTaggerModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         label_map_file = self.register_artifact("label_map", cfg.label_map, verify_src_exists=True)
-        semiotic_classes_file = self.register_artifact("semiotic_classes", cfg.semiotic_classes, verify_src_exists=True)
+        semiotic_classes_file = self.register_artifact(
+            "semiotic_classes", cfg.semiotic_classes, verify_src_exists=True
+        )
         self.label_map = read_label_map(label_map_file)
         self.semiotic_classes = read_semiotic_classes(semiotic_classes_file)
 

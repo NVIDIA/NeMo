@@ -54,12 +54,7 @@ def process_file(
             if line.startswith("<eos>"):
                 if len(words) > 0 and sent_ok:
                     out.write(
-                        " ".join(words)
-                        + "\t"
-                        + " ".join(reference_words)
-                        + "\t"
-                        + ";".join(semiotic_info)
-                        + "\n"
+                        " ".join(words) + "\t" + " ".join(reference_words) + "\t" + ";".join(semiotic_info) + "\n"
                     )
                     out_raw.write("\n".join(raw_lines) + "\n" + line)
                 words = []

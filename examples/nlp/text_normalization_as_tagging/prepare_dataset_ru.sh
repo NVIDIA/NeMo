@@ -38,7 +38,7 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/utils/filter_sent
   --data_dir=${CORPUS_DIR}_tmp \
   --out_dir=${CORPUS_DIR} \
   --lang=${CORPUS_LANG} \
-  --errors_vocab_filename=corpus_errors.${CORPUS_LANG}
+  --errors_vocab_filename=${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/utils/corpus_errors.${CORPUS_LANG}
 
 rm -r ${CORPUS_DIR}_tmp
 
