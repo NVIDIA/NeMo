@@ -508,7 +508,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     sampling_frames[1] + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
                 ]
             else:
-                streaming_cfg.chunk_size = sampling_frames * (1 + streaming_cfg.lookahead_steps)
+                streaming_cfg.shift_size = sampling_frames + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
 
             # streaming_cfg.shift_size = [
             #     1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),

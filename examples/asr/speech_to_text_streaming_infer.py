@@ -91,7 +91,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=True, #True if step_num > 0 else False,
+                    drop_extra_pre_encoded=True if step_num > 0 else False, # True
                     return_transcribtion=True,
                     onnx_model=onnx_model
                 )
@@ -221,7 +221,16 @@ def main():
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
-    streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=args.online_normalization)
+    if args.online_normalization:
+        if asr_model.cfg.normalize in ["per_feature", "all_feature"]:
+            logging.warning("online_normalization is enabled but the model does not use normalization, so normalization is skipped.")
+            online_normalization = False
+        else:
+            online_normalization = True
+
+    else:
+        online_normalization = False
+    streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=online_normalization)
     if args.audio_file is not None:
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
