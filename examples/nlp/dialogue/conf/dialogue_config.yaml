@@ -58,7 +58,7 @@ model:
   new_prompt_init_text: [] # long descriptive text to init
 
   # intent_slot_classification model args
-  class_balancing: null # or weighted_loss
+  class_balancing: ${model.dataset.class_balancing}
   intent_loss_weight: 0.6 # relation of intent to slot loss in total loss (between 0 to 1)
   data_dir: ${model.dataset.data_dir}
   classifier_head:
@@ -95,7 +95,7 @@ model:
     target_template: default # default, with_description, with_slots
     
     ## SGD task specific params
-    system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn takes the system utterance that follows the user utterance
+    system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn (for sgd_generation) takes the system utterance that follows the user utterance
     num_tasks: 1 # number of task heads 1 for DialogGPTClassification and 6 for SGDQA
     
     ## SGD and Zero Shot task specific params
@@ -119,7 +119,7 @@ model:
     do_lowercase: false 
 
     #zero shot intent classification args
-    class_balancing: weighted_loss
+    class_balancing: null # or weighted_loss
     num_classes: 3 
 
   train_ds:
