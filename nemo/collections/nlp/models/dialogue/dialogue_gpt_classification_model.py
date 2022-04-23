@@ -44,7 +44,7 @@ class DialogueGPTClassificationModel(NLPModel):
     ):
 
         self.cfg = cfg
-        self.eval_mode = cfg.eval_mode
+        self.eval_mode = cfg.dataset.eval_mode
         self.data_prepared = False
 
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)

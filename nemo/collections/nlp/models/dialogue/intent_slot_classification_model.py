@@ -38,8 +38,7 @@ class IntentSlotClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
-        self.max_seq_length = cfg.language_model.max_seq_length
-        # init superclass
+        self.max_seq_length = cfg.dataset.max_seq_length
         self.cfg = cfg
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
@@ -49,7 +48,7 @@ class IntentSlotClassificationModel(NLPModel):
             self.data_dir = cfg.data_dir
             # Update configuration of data_desc.
             self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
-
+        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Initialize Classifier.

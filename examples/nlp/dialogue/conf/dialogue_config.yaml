@@ -13,7 +13,7 @@
 # limitations under the License.
 
 pretrained_model: null # pretrained QAModel model from list_available_models()
-do_training: true # training mode, for testing change to false
+do_training: true # true for training mode, false for testing 
 trainer:
   devices: 8 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
@@ -31,12 +31,28 @@ trainer:
   logger: False  # Provided by exp_manager 
 
 model:
+  # all models
   tensor_model_parallel_size: 1
   nemo_path: null # filename to save the model and associated artifacts to .nemo file
-  library: huggingface # huggingface or megatron
-  save_model: False # save validation models
+  library: huggingface # [huggingface, megatron]
+  save_model: False # save validation model checkpoints
 
-  # megatron prompt tuning model args
+  language_model:
+    pretrained_model_name: gpt2 # main config to select model (between bert, gpt2, t5/bart based models) there are many possible options from NGC and Huggingface including [t5-base, facebook/bart-large, bert-base-uncased, sentence-transformers/all-MiniLM-L6-v2, microsoft/DialoGPT-small]
+    lm_checkpoint: null
+    config_file: null # json file, precedence over config
+    config: null
+
+  tokenizer:
+    tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
+    vocab_file: null # path to vocab file
+    tokenizer_model: null # only used if tokenizer is sentencepiece
+    special_tokens: null
+  
+  # Dialogue GPT Classification/Generation and Dialogue S2S Generation Model args
+  tokens_to_generate: 32 # for generation mode only
+
+  # Dialogue GPT Classification megatron prompt tuning model args
   new_prompt_tags: [] # brief short name (each element is a string "<tag>")
   new_prompt_init_methods: [] # text (preferably) or random
   new_prompt_init_text: [] # long descriptive text to init
@@ -48,47 +64,55 @@ model:
   classifier_head:
     num_output_layers: 2
     fc_dropout: 0.1
-    
-  tokenizer:
-      tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
-      vocab_file: null # path to vocab file
-      tokenizer_model: null # only used if tokenizer is sentencepiece
-      special_tokens: null
-
-  eval_mode: ${model.dataset.eval_mode} 
-
-  language_model:
-    pretrained_model_name: gpt2
-    max_seq_length: 50
-    lm_checkpoint: null
-    config_file: null # json file, precedence over config
-    config: null
-
-  tokens_to_generate: 32 # for generation mode only
   
+  # SGDQA args
   encoder:
     dropout: 0.1
-
-  # zero shot intent classification loading
-  # cannot directly load as .nemo uses the pre-refactor model
-  # therefore transfer its attributes over
-  original_nemo_checkpoint: null
+  
+  # zero shot intent classification args
+  original_nemo_checkpoint: null ## cannot directly load as .nemo uses the pre-refactor model, therefore transfer its attributes over
 
   dataset:
-    task: sgd # sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa
-    field: intent # intemt, slots, service
-    system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn takes the system utterance that follows the user utterance
+
+    ## All tasks/models
+    data_dir: ??? # location to load data from 
+    dialogues_example_dir: ??? # store prediction files
+    task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa]
+    debug_mode: false # small number of examples for debugging
+    max_seq_length: 128 # the maximum number of tokens per sample
+    
+    ## Dialogue S2S and GPT Generation Model params
     input_field: utterance+response # passage+utterance, utterance, response, utterance+response, system_actions
     output_field: fluent_response # response, fluent_response, system_utterance
-    prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel #acts_slots_values, slots_values, values for DialogueS2SGenerationDataset
-    target_template: default # default, with_description, with_slots
+    
+    ## Dialogue GPT Classification Model params
+    field: intent # [intent, slots, service]
     few_shot: 0 # int ; 0 to 10, for number of examples in prompt
-    debug_mode: false # small number of examples for debugging
     eval_mode: ranking # ranking or generation or binary_score
     binary_score_subsample: false # subsample negative examples for binary score training
     binary_score_subsample_ratio: 2 # number of negative examples per postive example
+    prompt_template: default # default, prompt_tuning, i_want_to # "This example is" for zeroshotintentmodel #acts_slots_values, slots_values, values for DialogueS2SGenerationDataset
+    target_template: default # default, with_description, with_slots
     
-    num_samples: -1
+    ## SGD task specific params
+    system_utterance: prev_turn # prev_turn, next_turn: prev_turn (default for sgdqa) takes the system utterance that precede the user utterance; next_turn takes the system utterance that follows the user utterance
+    num_tasks: 1 # number of task heads 1 for DialogGPTClassification and 6 for SGDQA
+    
+    ## SGD and Zero Shot task specific params
+    preprocess_intent_function: default # default, lowercase, description # remove_domain for zero_shot task
+
+    ## SGDQA model specific params
+    subsample: false # balances negative and positive training examples for improved performance
+    task_name: sgd_single_domain # or from [sgd_all, sgd_all_single, sgd_multi_domain, debug_sample]
+    state_tracker: nemotracker # or baseline
+    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
+    use_fuzzy_match: true # Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
+    joint_acc_across_turn: false # Whether to compute joint goal accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
+    max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
+    max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
+    max_value_per_cat_slot: 12 # maximum number of different categorical slot values per service in dataset 
+    max_num_intent: 4 # maximum number of different intents per service in dataset 
+    num_samples: -1 # restrict num_samples to an int value, if -1 all samples will be used
     pad_label: -1 # if -1 not slot token will be used
     ignore_extra_tokens: false
     ignore_start_end: true # do not use first and last token for slot training
@@ -97,22 +121,6 @@ model:
     #zero shot intent classification args
     class_balancing: weighted_loss
     num_classes: 3 
-
-    max_seq_length: 128 # the maximum length BERT supports is 512
-    max_num_cat_slot: 6 # maximum number of different categorical slots per service in dataset 
-    max_num_noncat_slot: 12 # maximum number of different non-categorical slots per service in dataset 
-    max_value_per_cat_slot: 12 # maximum number of different categorical slot values per service in dataset 
-    max_num_intent: 4 # maximum number of different intents per service in dataset 
-    task_name: sgd_single_domain # or from [sgd_all, sgd_all_single, sgd_multi_domain, debug_sample]
-    state_tracker: nemotracker # or baseline
-    data_dir: ???
-    dialogues_example_dir: ??? # cache location to store or load preprocessed data from. To use cache, specify `use_cache`
-    subsample: false # balances negative and positive training examples for improved performance
-    use_cache: false # uses a cache to store the processed dataset, you may use it for large datasets for speed up
-    use_fuzzy_match: true # Whether to use fuzzy string matching when comparing non-categorical slot values. Should be set to False when conducting multiwoz style evaluation.
-    joint_acc_across_turn: false # Whether to compute joint goal accuracy across turn instead of across service. Should be set to True when conducting multiwoz style evaluation.
-    num_tasks: 1 # number of task heads 1 for DialogGPTClassification and 6 for SGDQA
-    preprocess_intent_function: default # default, lowercase, description # remove_domain for zero_shot task
 
   train_ds:
     ds_item: "train"
@@ -125,7 +133,7 @@ model:
 
   validation_ds:
     prefix: test
-    ds_item: ["dev"] # ["dev", "test"]
+    ds_item: ["dev"]
     batch_size: 8
     shuffle: false
     num_workers: 3
