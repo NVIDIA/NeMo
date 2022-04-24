@@ -71,6 +71,8 @@ class MegatronTransformerDecoderModule(MegatronModule):
         activation='gelu',
         bias=True,
         normalization='layernorm',
+        arch='transformer',
+        headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
     ):
         super(MegatronTransformerDecoderModule, self).__init__()
@@ -125,6 +127,8 @@ class MegatronTransformerDecoderModule(MegatronModule):
             bias=bias,
             normalization=normalization,
             model_type=parent_model_type,
+            arch=arch,
+            headscale=headscale,
         )
         self._model_key = 'model'
 

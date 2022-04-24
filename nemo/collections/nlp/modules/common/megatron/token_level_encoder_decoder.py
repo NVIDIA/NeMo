@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from requests import head
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
@@ -109,6 +110,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         normalization="layernorm",
         hidden_steps=-1,
         hidden_blocks=1,
+        headscale=False,
         add_encoder=True,
         add_decoder=True,
     ):
@@ -176,6 +178,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
+                headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -235,6 +238,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
+                headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 

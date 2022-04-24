@@ -41,7 +41,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = []
 
-AVAILABLE_ENCODERS = ["transformer"]
+AVAILABLE_ENCODERS = ["transformer", "normformer"]
 
 
 def get_encoder_model(
@@ -75,6 +75,7 @@ def get_encoder_model(
     onnx_safe=False,
     bias=True,
     normalization="layernorm",
+    headscale=False,
     hidden_steps=-1,
     hidden_blocks=1,
     parent_model_type=ModelType.encoder_or_decoder,
@@ -93,7 +94,7 @@ def get_encoder_model(
     if scaled_init_method is None:
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
-    if arch == "transformer":
+    if arch in ["transformer", "normformer"]:
         # Language encoder.
         encoder = MegatronTransformerEncoderModule(
             init_method=init_method,
@@ -124,6 +125,8 @@ def get_encoder_model(
             activation=activation,
             bias=bias,
             normalization=normalization,
+            arch=arch,
+            headscale=headscale,
             parent_model_type=parent_model_type,
         )
     else:
