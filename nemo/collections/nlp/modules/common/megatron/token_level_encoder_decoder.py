@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from requests import head
 import torch
+from requests import head
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
