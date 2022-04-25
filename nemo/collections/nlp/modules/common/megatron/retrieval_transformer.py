@@ -184,6 +184,23 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         return enc_output
 
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """For easy load."""
+
+        state_dict_ = {}
+
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Customized load."""
+
+        # Encoder.
+        if self._model_key in state_dict:
+            state_dict_ = state_dict[self._model_key]
+        self.model.load_state_dict(state_dict_, strict=strict)
+
 
 class MegatronRetrievalTransformerDecoderModule(MegatronModule):
     """Transformer decoder model.
@@ -337,3 +354,20 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         )
 
         return enc_output
+
+    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+        """For easy load."""
+
+        state_dict_ = {}
+
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Customized load."""
+
+        # Encoder.
+        if self._model_key in state_dict:
+            state_dict_ = state_dict[self._model_key]
+        self.model.load_state_dict(state_dict_, strict=strict)
