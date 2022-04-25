@@ -16,7 +16,6 @@ import os
 import pathlib
 from typing import Dict, List, Optional
 
-
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -194,7 +193,7 @@ class IntentSlotClassificationModel(NLPModel):
             hidden_states = hidden_states[0]
 
         intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
-        return intent_logits, slot_logits
+        return intent_logits.float(), slot_logits.float()
 
     def training_step(self, batch, batch_idx):
         """
