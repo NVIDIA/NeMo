@@ -221,7 +221,7 @@ class CardinalFst(GraphFst):
         graph_billion |= pynutil.delete("000")
         graph_billion += insert_space
 
-        graph_billiard = pynutil.add_weight(pynini.cross("001", "biljiard"), -0.001)
+        graph_billiard = pynutil.add_weight(pynini.cross("001", "biljard"), -0.001)
         if not deterministic:
             graph_billiard |= pynutil.add_weight(pynini.cross("001", "billiard"), -0.001)
             graph_billiard |= pynutil.add_weight(pynini.cross("001", "en biljard"), -0.001)
@@ -247,7 +247,7 @@ class CardinalFst(GraphFst):
         graph_trillion |= pynutil.delete("000")
         graph_trillion += insert_space
 
-        graph_trilliard = pynutil.add_weight(pynini.cross("001", "triljiard"), -0.001)
+        graph_trilliard = pynutil.add_weight(pynini.cross("001", "triljard"), -0.001)
         if not deterministic:
             graph_trilliard |= pynutil.add_weight(pynini.cross("001", "trilliard"), -0.001)
             graph_trilliard |= pynutil.add_weight(pynini.cross("001", "en triljard"), -0.001)
