@@ -301,7 +301,7 @@ class ParallelAttention(MegatronModule):
         # Headscale
         if headscale:
             self.head_scale_tensor = torch.nn.Parameter(
-                torch.ones(1, self.num_attention_heads_per_partition, 1, self.hidden_size_per_attention_head)
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1)
             )
 
         # Strided linear layer.
