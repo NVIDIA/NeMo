@@ -29,7 +29,7 @@ If you choose to initialize virtual token embeddings from existing embedding wei
 P-Tuning
 ^^^^^^^^
 
-In p-tuning, an LSTM model is used to predict virtual token embeddings. We refer to this LSTM model as our `prompt_encoder`. LSTM parameters are randomly initialized at the start of p-tuning. All GPT model parameters are frozen, and only the LSTM weights are updated at each training step. LSTM parameters are shared between all tasks that are p-tuned at the same time, but the LSTM model outputs unique virtual token embeddings for each task. The virtual tokens predicted by the LSTM are inserted among the discrete token input in the exact same manner as with prompt-tuning. You still specify the number of virtual tokens you want to use by setting ``total_virtual_tokens`` and each virtual token embedding is still a 1D vector of size ``hidden_size``.
+In p-tuning, an LSTM model is used to predict virtual token embeddings. We refer to this LSTM model as our ``prompt_encoder``. LSTM parameters are randomly initialized at the start of p-tuning. All GPT model parameters are frozen, and only the LSTM weights are updated at each training step. LSTM parameters are shared between all tasks that are p-tuned at the same time, but the LSTM model outputs unique virtual token embeddings for each task. The virtual tokens predicted by the LSTM are inserted among the discrete token input in the exact same manner as with prompt-tuning. You still specify the number of virtual tokens you want to use by setting ``total_virtual_tokens`` and each virtual token embedding is still a 1D vector of size ``hidden_size``.
 
 Using Both Prompt and P-Tuning
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
