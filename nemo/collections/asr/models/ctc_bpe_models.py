@@ -301,7 +301,7 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             if 'manifest_filepath' in config and config['manifest_filepath'] is None:
                 logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
                 return None
-
+            print(config)
             dataset = audio_to_text_dataset.get_bpe_dataset(
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
@@ -354,6 +354,9 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+            'left': config['left'],
+            'right':config['right'],
+            'augmentor': config.get('augmentor', None)
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

@@ -28,6 +28,9 @@ def transcribe_partial_audio(
     return_hypotheses: bool = False,
     partial_hypothesis: Optional[List['Hypothesis']] = None,
     num_workers: int = 0,
+    left: int = 0,
+    right: int = 0,
+    augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
 ) -> List[str]:
 
     if isinstance(asr_model, EncDecCTCModel):
@@ -64,8 +67,10 @@ def transcribe_partial_audio(
                 'manifest_filepath': path2manifest,
                 'batch_size': batch_size,
                 'num_workers': num_workers,
+                'left': left,
+                'right': right
             }
-
+            print("1!!", config)
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 logits, logits_len, greedy_predictions = asr_model.forward(
@@ -135,6 +140,8 @@ def transcribe_partial_audio(
                 'manifest_filepath': path2manifest,
                 'batch_size': batch_size,
                 'num_workers': num_workers,
+                'left': left,
+                'right': right
                 }
 
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)

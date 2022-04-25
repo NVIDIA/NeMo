@@ -707,6 +707,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             'shuffle': False,
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
+            'left': config['left'],
+            'right':config['right']
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))

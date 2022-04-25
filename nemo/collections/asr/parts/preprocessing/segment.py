@@ -127,7 +127,7 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False, orig_sr=None,
+        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False, orig_sr=None, left=0, right=0
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
@@ -185,6 +185,13 @@ class AudioSegment(object):
         if samples is None:
             libs = "soundfile, kaldiio, and pydub" if HAVE_KALDI_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
+        
+        # here
+        if left == 0 and right == 0:
+            return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
+
+        else:
+            samples = np.pad(samples, (sample_rate * left, sample_rate * right),  mode='constant') 
 
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 

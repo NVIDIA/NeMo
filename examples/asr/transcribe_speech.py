@@ -98,6 +98,16 @@ class TranscriptionConfig:
     eval_wer: bool = False
     use_cer: bool = False
 
+    left: int = 0
+    right: int = 0
+
+    # augmentor:
+    #     noise:
+    #         prob: 1.0
+    #         manifest_path: '/home/fjia/code/5_syn/test_noise_0_30_musan_fs.json'
+    #         min_snr_db: snr
+    #         max_snr_db: snr
+    #         norm: True
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
@@ -211,6 +221,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     path2manifest=cfg.dataset_manifest,
                     batch_size=cfg.batch_size,
                     num_workers=cfg.num_workers,
+                    left = cfg.left,
+                    right = cfg.right
                 )
                 
             else:

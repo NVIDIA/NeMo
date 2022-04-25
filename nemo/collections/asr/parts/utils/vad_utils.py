@@ -32,6 +32,8 @@ from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.utils import logging
 from nemo.collections.asr.metrics.wer import word_error_rate
 
+np.random.seed(42)
+
 try:
     from torch.cuda.amp import autocast
 except ImportError:
@@ -1024,16 +1026,51 @@ def write_ss2manifest(input_manifest, exp, output_manifest="generated_oracle_ss_
     results = []
     for line in open(input_manifest, 'r', encoding='utf-8'):
         sample = json.loads(line)
-        speech_segments = torch.load(sample[exp])
-        for i in speech_segments:
-            metadata = {
-                'audio_filepath': sample['audio_filepath'],
-                'offset': np.round(i[0], 4),
-                'duration': np.round(i[1]-i[0], 4),
-                'label': 'speech',
-                'text': '_',
-            }
-            results.append(metadata)
+
+        if exp == "oracle_vad":
+            speech_segments = torch.load(sample[exp])
+            for i in speech_segments:
+                metadata = {
+                    'audio_filepath': sample['audio_filepath'],
+                    'offset': np.round(i[0], 4),
+                    'duration': np.round(i[1]-i[0], 4),
+                    'label': 'speech',
+                    'text': '_',
+                }
+                results.append(metadata)
+
+        elif exp == "random_vad":
+            speech_segments = torch.load(sample['oracle_vad'])
+            for i in range(len(speech_segments)):
+
+                start, end = None, None
+                if i == 0:
+                    if speech_segments[i][0]!=0:
+                        start = np.random.uniform(low=0, high=speech_segments[i][0])
+                    else:
+                        start = 0
+                    if len(speech_segments) == 1:
+                        end = np.random.uniform(low=speech_segments[i][1], high=sample['duration'])
+                    
+                if i == len(speech_segments) - 1:
+                    end = np.random.uniform(low=speech_segments[i][1], high=sample['duration'])
+                
+                if start is None:
+                    start = np.random.uniform(low=speech_segments[i-1][1], high=speech_segments[i][0])
+                    
+                if end is None:
+                    end = np.random.uniform(low=speech_segments[i][1], high=speech_segments[i+1][0])
+
+                metadata = {
+                    'audio_filepath': sample['audio_filepath'],
+                    'offset': start,
+                    'duration': end - start,
+                    'label': 'speech',
+                    'text': '_',
+                }
+                results.append(metadata)
+        else:
+            print("energy oracle vad ")
             
     with open(output_manifest, 'w', encoding='utf-8') as fout:
         for res in results:

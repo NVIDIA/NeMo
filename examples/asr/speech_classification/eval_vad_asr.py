@@ -119,24 +119,33 @@ def switch_model_buffered_param(model: str) -> float:
 
 def main():
     """
-    modes = ['streaming', 'offline]
+    modes = ['streaming', 'offline']
     langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
-    models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] # no russian citrinet now
+    vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad", "random_vad"] 
+    models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] 
     db_list = [0,5,10,15,20,'clean']
     """
 
     db_list = [0,5,10,15,20,'clean']
-    modes = ['streaming', 'offline']
-    langs = ['english', 'spanish', 'mandarin', 'french', 'german', 'russian']
-    vad_exps = ["novad", "oracle_vad", "neural_vad", "energy_vad"] 
-    models = ['nr_citrinet', 'nr_conformer_ctc', 'citrinet']
+    modes = ['offline']
+    langs = ['spanish']
+    vad_exps = ["novad", "energy_vad"] 
+    models = ['nr_conformer_ctc',] 
 
     subset="test"
-    single= True
+    single= False # True
     exp = "_single" if single else ""
-    res_file = f"res{exp}_asr_streaming_offline.csv"
+    res_file = f"res{exp}_asr_offline_multiple.csv"
+    si_ratio =  False #True
 
+    fixed_silence_set = {1}
+    if si_ratio:
+        fixed_silence_set = set()
+        for i in range(0, 11, 2):
+            for j in range(0, 11, 2):
+                fixed_silence_set.add((i,j))
+
+    
     final_output_folder = "final"
     save_neural_vad = True
     os.makedirs(final_output_folder, exist_ok=True)
@@ -161,233 +170,257 @@ def main():
                     continue
 
                 for vad_exp in vad_exps:
+
                     for db in db_list:
-                        start = time.time()
-                        mode_lang_folder = f"{final_output_folder}/{mode}/{lang}"
-                        if os.path.exists(mode_lang_folder):
-                            shutil.rmtree(mode_lang_folder)
-                        os.makedirs(mode_lang_folder, exist_ok=True)
 
-                        if db=='clean':
-                            input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
-                        else:
-                            input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
+                        for fixed_silence in fixed_silence_set:
+                            start = time.time()
+                            mode_lang_folder = f"{final_output_folder}/{mode}/{lang}"
+                            os.makedirs(mode_lang_folder, exist_ok=True)
 
-                        if mode == "offline":
-                            if vad_exp =="novad":
-                                novad_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
-                                if use_model_path:
-                                    os.system(f'python ../transcribe_speech.py \
-                                        model_path={asr_model} \
-                                        dataset_manifest={input_manifest} \
-                                        batch_size=32 \
-                                        amp=True \
-                                        output_filename={novad_output_manifest}') 
-                                    WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
-                                    print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
-
-                                else:
-                                    os.system(f'python ../transcribe_speech.py \
-                                        pretrained_name={asr_model} \
-                                        dataset_manifest={input_manifest} \
-                                        batch_size=32 \
-                                        amp=True \
-                                        output_filename={novad_output_manifest}') 
-                                    WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
-                                    print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
-
-                            elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad"]:
-                                vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
-
-                                if vad_exp=="neural_vad":
-                                    params = {
-                                        "onset": 0.5,
-                                        "offset": 0.5,
-                                        "min_duration_on": 0.5,
-                                        "min_duration_off": 0.5,
-                                        "pad_onset": 0.2,
-                                        "pad_offset": -0.2
-                                    }
-                                    # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
-                                    vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
-                                    
-                                    if save_neural_vad:
-                                        frame_out_dir = f"{final_output_folder}/{mode}/{lang}/{model}/neural_vad_{db}"
-                                    else:
-                                        frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
-                                    os.system(f'python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" \
-                                        dataset={input_manifest} \
-                                        vad.model_path={vad_model} \
-                                        frame_out_dir={frame_out_dir} \
-                                        vad.parameters.window_length_in_sec=0.63 \
-                                        vad.parameters.postprocessing.onset={params["onset"]} \
-                                        vad.parameters.postprocessing.offset={params["offset"]} \
-                                        vad.parameters.postprocessing.min_duration_on={params["min_duration_on"]} \
-                                        vad.parameters.postprocessing.min_duration_off={params["min_duration_off"]} \
-                                        vad.parameters.postprocessing.pad_onset={params["pad_onset"]} \
-                                        vad.parameters.postprocessing.pad_offset={params["pad_offset"]} \
-                                        out_manifest_filepath={vad_out_manifest_filepath}')  
-
-                                elif vad_exp=="energy_vad":
-                                    vad_out_manifest_filepath = perform_energy_vad(input_manifest, vad_out_manifest_filepath)
-
-                                else: # oracle_vad and energy_oracle_vad
-                                    vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath)
-
-                                segmented_output_manifest = os.path.join(mode_lang_folder, "asr_segmented_output_manifest.json")
-
-                                if use_model_path:
-                                    os.system(f'python ../transcribe_speech.py \
-                                        model_path={asr_model} \
-                                        dataset_manifest={vad_out_manifest_filepath} \
-                                        batch_size=32 \
-                                        amp=True \
-                                        output_filename={segmented_output_manifest}')
-                                else:
-                                    os.system(f'python ../transcribe_speech.py \
-                                        pretrained_name={asr_model} \
-                                        dataset_manifest={vad_out_manifest_filepath} \
-                                        batch_size=32 \
-                                        amp=True \
-                                        output_filename={segmented_output_manifest}')
-
-                                stitched_output_manifest = os.path.join(mode_lang_folder, "/stitched_asr_output_manifest.json")
-                                stitched_output_manifest = stitch_segmented_asr_output(
-                                    segmented_output_manifest,
-                                    speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
-                                    stitched_output_manifest = stitched_output_manifest)
-
-                                aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
-                                aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
-
-                                DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest)
-                                print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
-
-                                WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
-                                print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
-
+                            if db=='clean' :
+                                input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
                             else:
-                                raise ValueError(f"vad_exp could only be in novad, energy_vad, neural_vad and oracle_vad but got {vad_exp}")
+                                # silence only clean now need change
+                                input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
 
+                            if mode == "offline":
+                                if vad_exp =="novad":
+                                    novad_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{subset}{exp}.json"
+                                    if si_ratio:
+                                        left, right = fixed_silence
+                                        novad_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{subset}{exp}_{left}_{right}.json"
+                                    if not si_ratio:
+                                        left, right = 0, 0
+                                    if use_model_path:
+                                        os.system(f'python ../transcribe_speech.py \
+                                            model_path={asr_model} \
+                                            dataset_manifest={input_manifest} \
+                                            batch_size=32 \
+                                            amp=True \
+                                            output_filename={novad_output_manifest} \
+                                            left={left} \
+                                            right={right}') 
+                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                        print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
-                        elif mode == "streaming":
-                            chunk_len_in_ms = 160 
-                            if vad_exp =="novad":
-                                novad_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
-                               
-                                os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
-                                --asr_model {asr_model} \
-                                --test_manifest {input_manifest} \
-                                --chunk_len_in_ms {chunk_len_in_ms} \
-                                --output_path {novad_output_manifest} \
-                                --batch_size 128 \
-                                --model_stride {model_stride} \
-                                --total_buffer_in_secs 4')
-
-                                WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
-                                print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
-
-                            elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad"]:
-                                vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
-                                vad_asr_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
-                                aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
-
-                                if vad_exp=="neural_vad":
-                                    # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
-                                    vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
-                                    threshold = 0.5 # same as onset offset
-                                    look_back = 4
-                                    if save_neural_vad:
-                                        frame_out_dir = f"{final_output_folder}/{mode}/{lang}/{model}/neural_vad_{db}"
                                     else:
-                                        frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
+                                        os.system(f'python ../transcribe_speech.py \
+                                            pretrained_name={asr_model} \
+                                            dataset_manifest={input_manifest} \
+                                            batch_size=32 \
+                                            amp=True \
+                                            output_filename={novad_output_manifest} \
+                                            left={left} \
+                                            right={right}') 
+                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                        print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
+                                elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad", "random_vad"]:
+                                    vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
+
+                                    if vad_exp=="neural_vad":
+                                        params = {
+                                            "onset": 0.5,
+                                            "offset": 0.5,
+                                            "min_duration_on": 0.5,
+                                            "min_duration_off": 0.5,
+                                            "pad_onset": 0.2,
+                                            "pad_offset": -0.2
+                                        }
+                                        # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
+                                        vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
+                                        
+                                        if save_neural_vad:
+                                            frame_out_dir = f"{final_output_folder}/{mode}/{lang}/{model}/neural_vad_{db}"
+                                        else:
+                                            frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
+                                        os.system(f'python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" \
+                                            dataset={input_manifest} \
+                                            vad.model_path={vad_model} \
+                                            frame_out_dir={frame_out_dir} \
+                                            vad.parameters.window_length_in_sec=0.63 \
+                                            vad.parameters.postprocessing.onset={params["onset"]} \
+                                            vad.parameters.postprocessing.offset={params["offset"]} \
+                                            vad.parameters.postprocessing.min_duration_on={params["min_duration_on"]} \
+                                            vad.parameters.postprocessing.min_duration_off={params["min_duration_off"]} \
+                                            vad.parameters.postprocessing.pad_onset={params["pad_onset"]} \
+                                            vad.parameters.postprocessing.pad_offset={params["pad_offset"]} \
+                                            out_manifest_filepath={vad_out_manifest_filepath}')  
+
+                                    elif vad_exp=="energy_vad":
+                                        vad_out_manifest_filepath = perform_energy_vad(input_manifest, vad_out_manifest_filepath)
+
+                                    else: # random_vad, oracle_vad and energy_oracle_vad
+                                        vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath)
+
+                                    segmented_output_manifest = os.path.join(mode_lang_folder, "asr_segmented_output_manifest.json")
+
+                                    if use_model_path:
+                                        os.system(f'python ../transcribe_speech.py \
+                                            model_path={asr_model} \
+                                            dataset_manifest={vad_out_manifest_filepath} \
+                                            batch_size=32 \
+                                            amp=True \
+                                            output_filename={segmented_output_manifest}')
+                                    else:
+                                        os.system(f'python ../transcribe_speech.py \
+                                            pretrained_name={asr_model} \
+                                            dataset_manifest={vad_out_manifest_filepath} \
+                                            batch_size=32 \
+                                            amp=True \
+                                            output_filename={segmented_output_manifest}')
+
+                                    stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
+                                    speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments")
+                                    stitched_output_manifest = stitch_segmented_asr_output(segmented_output_manifest, speech_segments_tensor_dir, stitched_output_manifest)
+
+                                    aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{subset}{exp}.json"
+                                    aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+
+                                    DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest)
+                                    print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+
+                                
+                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
+
+                                    os.remove(vad_out_manifest_filepath)
+                                    os.remove(stitched_output_manifest)
+                                    os.remove(segmented_output_manifest)
+                                    shutil.rmtree(speech_segments_tensor_dir)
+
+                                else:
+                                    raise ValueError(f"vad_exp could only be in novad, energy_vad, neural_vad and oracle_vad but got {vad_exp}")
+
+
+                            elif mode == "streaming":
+                                chunk_len_in_ms = 160 
+                                if vad_exp =="novad":
+                                    novad_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
+                                
                                     os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
                                     --asr_model {asr_model} \
-                                    --vad_model {vad_model} \
                                     --test_manifest {input_manifest} \
                                     --chunk_len_in_ms {chunk_len_in_ms} \
-                                    --output_path {vad_asr_output_manifest} \
-                                    --batch_size 128 \
-                                    --model_stride {model_stride} \
-                                    --total_buffer_in_secs 4 \
-                                    --threshold {threshold} \
-                                    --look_back {look_back} \
-                                    --vad_before_asr')
-
-                                    aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, vad_asr_output_manifest, aligned_vad_asr_output_manifest)
-                                
-                                elif vad_exp=="energy_vad":
-                                    # no look back
-                                    vad_out_manifest_filepath = perform_energy_vad(input_manifest, vad_out_manifest_filepath)
-
-                                    os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
-                                    --asr_model {asr_model} \
-                                    --test_manifest {vad_out_manifest_filepath} \
-                                    --chunk_len_in_ms {chunk_len_in_ms} \
-                                    --output_path {vad_asr_output_manifest} \
+                                    --output_path {novad_output_manifest} \
                                     --batch_size 128 \
                                     --model_stride {model_stride} \
                                     --total_buffer_in_secs 4')
 
-                                    stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
-                                    stitched_output_manifest = stitch_segmented_asr_output(
-                                        vad_asr_output_manifest,
-                                        speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
-                                        stitched_output_manifest = stitched_output_manifest)
-                                    aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
-                                
+                                    WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
-                                else: # oracle_vad and energy_oracle_vad
-                                    vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath)
+                                elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad"]:
+                                    vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
+                                    vad_asr_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
+                                    
+                                    aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}.json"
+                                    if si_ratio:
+                                        aligned_vad_asr_output_manifest= f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{fixed_silence[0]}_{fixed_silence[1]}.json"
 
-                                    os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
-                                    --asr_model {asr_model} \
-                                    --test_manifest {vad_out_manifest_filepath} \
-                                    --chunk_len_in_ms {chunk_len_in_ms} \
-                                    --output_path {vad_asr_output_manifest} \
-                                    --batch_size 128 \
-                                    --model_stride {model_stride} \
-                                    --total_buffer_in_secs 4')
 
-                                    stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
-                                    stitched_output_manifest = stitch_segmented_asr_output(
-                                        vad_asr_output_manifest,
-                                        speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
-                                        stitched_output_manifest = stitched_output_manifest)
-                                    aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
-                                
+                                    if vad_exp=="neural_vad":
+                                        # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
+                                        vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
+                                        threshold = 0.5 # same as onset offset
+                                        look_back = 4
+                                        if save_neural_vad:
+                                            frame_out_dir = f"{final_output_folder}/{mode}/{lang}/{model}/neural_vad_{db}"
+                                        else:
+                                            frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
 
-                                
-                                DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest)
-                                print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+                                        os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
+                                        --asr_model {asr_model} \
+                                        --vad_model {vad_model} \
+                                        --test_manifest {input_manifest} \
+                                        --chunk_len_in_ms {chunk_len_in_ms} \
+                                        --output_path {vad_asr_output_manifest} \
+                                        --batch_size 128 \
+                                        --model_stride {model_stride} \
+                                        --total_buffer_in_secs 4 \
+                                        --threshold {threshold} \
+                                        --look_back {look_back} \
+                                        --vad_before_asr')
 
-                                WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
-                                print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
+                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, vad_asr_output_manifest, aligned_vad_asr_output_manifest)
+                                    
+                                    elif vad_exp=="energy_vad":
+                                        # no look back
+                                        vad_out_manifest_filepath = perform_energy_vad(input_manifest, vad_out_manifest_filepath)
 
-                            else:
-                                raise ValueError(f"vad_exp could only be in novad, energy_vad, neural_vad and oracle_vad but got {vad_exp}")
+                                        os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
+                                        --asr_model {asr_model} \
+                                        --test_manifest {vad_out_manifest_filepath} \
+                                        --chunk_len_in_ms {chunk_len_in_ms} \
+                                        --output_path {vad_asr_output_manifest} \
+                                        --batch_size 128 \
+                                        --model_stride {model_stride} \
+                                        --total_buffer_in_secs 4')
 
-                        else:
-                            raise ValueError(f"Invalid mode {mode}. Mode could be either streaming or offline.")
+                                        stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
+                                        stitched_output_manifest = stitch_segmented_asr_output(
+                                            vad_asr_output_manifest,
+                                            speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
+                                            stitched_output_manifest = stitched_output_manifest)
+                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+                                        
 
-                        end = time.time()
-                        run_time = end-start
-                        # collecting evaluation result
-                        with open(res_file, "a") as fp:
-                            if vad_exp == "novad" or vad_exp=="oracle_vad":
-                                fp.write(f"{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)}")
-                                fp.write("\n")
-                            elif vad_exp == "energy_vad" :
-                                fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{DetER},{FA},{MISS},{round(run_time, 4)}')
-                                fp.write("\n")
-                            else:
-                                if mode == 'streaming':
-                                    # think about how to convert patience to min_duration_on off and look back to pad
-                                    fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{DetER},{FA},{MISS},{round(run_time, 4)}')
+                                    else: # oracle_vad and energy_oracle_vad
+                                        vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath)
+
+                                        os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
+                                        --asr_model {asr_model} \
+                                        --test_manifest {vad_out_manifest_filepath} \
+                                        --chunk_len_in_ms {chunk_len_in_ms} \
+                                        --output_path {vad_asr_output_manifest} \
+                                        --batch_size 128 \
+                                        --model_stride {model_stride} \
+                                        --total_buffer_in_secs 4')
+
+                                        stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
+                                        stitched_output_manifest = stitch_segmented_asr_output(
+                                            vad_asr_output_manifest,
+                                            speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
+                                            stitched_output_manifest = stitched_output_manifest)
+                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+                                    
+
+                                    
+                                    DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest)
+                                    print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+
+                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
+
                                 else:
-                                    fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{DetER},{FA},{MISS},{round(params["onset"], 4)},{round(params["offset"], 4)},{round(params["min_duration_on"], 4)},{round(params["min_duration_off"], 4)},{round(params["pad_onset"], 4)},{round(params["pad_offset"], 4)},{round(run_time, 4)}')
-                                fp.write("\n")
+                                    raise ValueError(f"vad_exp could only be in novad, energy_vad, neural_vad and oracle_vad but got {vad_exp}")
+
+                            else:
+                                raise ValueError(f"Invalid mode {mode}. Mode could be either streaming or offline.")
+
+                            end = time.time()
+                            run_time = end-start
+                            # collecting evaluation result
+                            with open(res_file, "a") as fp:
+                                if si_ratio:
+                                    if vad_exp == "novad" or vad_exp=="oracle_vad":
+                                        fp.write(f"{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)},{left},{right}")
+                                        fp.write("\n")
+                                else:
+                                    if vad_exp == "novad" or vad_exp=="oracle_vad" or vad_exp=="random_vad":
+                                        fp.write(f"{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)}")
+                                        fp.write("\n")
+                                    elif vad_exp == "energy_vad" :
+                                        fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)},{DetER},{FA},{MISS}')
+                                        fp.write("\n")
+                                    else:
+                                        if mode == 'streaming':
+                                            # think about how to convert patience to min_duration_on off and look back to pad
+                                            fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)},{DetER},{FA},{MISS}')
+                                        else:
+                                            fp.write(f'{subset},{mode},{lang},{model},{db},{vad_exp},{round(WER, 4)},{round(WER_nospace, 4)},{round(run_time, 4)},{DetER},{FA},{MISS},{round(params["onset"], 4)},{round(params["offset"], 4)},{round(params["min_duration_on"], 4)},{round(params["min_duration_off"], 4)},{round(params["pad_onset"], 4)},{round(params["pad_offset"], 4)}')
+                                        fp.write("\n")
 
 
                 
