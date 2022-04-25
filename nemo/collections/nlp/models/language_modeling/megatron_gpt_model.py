@@ -62,7 +62,6 @@ try:
 
     # TODO: use this apex import once bug is fixed in apex in NGC container
     # from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
-    from nemo.collections.nlp.parts.utils_funcs import _reconfigure_microbatch_calculator
     import apex.transformer.pipeline_parallel.utils
 
     HAVE_APEX = True
