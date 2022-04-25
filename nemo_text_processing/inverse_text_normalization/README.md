@@ -11,10 +11,6 @@ For example, `one hundred twenty three kilograms` -> `123 kg`
 
 [TN/INT tutorials NeMo/tutorials/text_processing](https://github.com/NVIDIA/NeMo/tree/stable/tutorials/text_processing).
 
-# Installation
-
-``` bash setup.sh ```
-
 # Integrate ITN to a text processing pipeline
 
 ```
@@ -35,10 +31,6 @@ print(inverse_normalizer.normalize("in nineteen seventy"))
 # Prediction
 
 ```
-# run prediction on <INPUT_TEXT_FILE>
-python run_predict.py  --input=<INPUT_TEXT_FILE> --output=<OUTPUT_PATH> --lang=<LANGUAGE> \
-    [--verbose]
-
 # single input prediction
 python inverse_normalize.py --lang=<LANGUAGE> <INPUT_TEXT> \
     [--verbose] [--overwrite_cache] [--cache_dir=<CACHE_DIR>]
@@ -50,7 +42,7 @@ See the above scripts for more details.
 
 # Supported Languages
 
-ITN supports: English, Spanish, German, French, Vietnamese, and Russian languages.
+ITN supports: English, Spanish, German, French, Vietnamese, and Russian.
 
 # Evaluation
 Evaluation on text normalization data, e.g. [Google text normalization dataset](https://www.kaggle.com/richardwilliamsproat/text-normalization-for-english-russian-and-polish).

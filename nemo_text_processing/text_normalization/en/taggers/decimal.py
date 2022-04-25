@@ -13,17 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
+from pynini.lib import pynutil
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    delete_space = pynutil.delete(" ")
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+delete_space = pynutil.delete(" ")
 
 
 def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike') -> 'pynini.FstLike':

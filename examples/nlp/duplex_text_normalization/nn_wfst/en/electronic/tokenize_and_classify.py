@@ -15,6 +15,7 @@
 
 import os
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_WHITE_SPACE,
     GraphFst,
@@ -25,16 +26,9 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 from nemo_text_processing.text_normalization.en.taggers.electronic import ElectronicFst
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):

@@ -19,8 +19,10 @@ from argparse import ArgumentParser
 from glob import glob
 from typing import List, Tuple
 
+import pynini
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.normalize import Normalizer
+from pynini.lib import rewrite
 from tqdm import tqdm
 
 try:
@@ -31,13 +33,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
-try:
-    import pynini
-    from pynini.lib import rewrite
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 try:
     from nemo.collections.nlp.data.text_normalization.utils import post_process_punct

@@ -10,9 +10,6 @@ For example, `123 kg` -> `one hundred twenty three kilograms`
 
 [TN/INT tutorials: NeMo/tutorials/text_processing](https://github.com/NVIDIA/NeMo/tree/stable/tutorials/text_processing).
 
-# Installation
-`bash ../setup.sh`
-
 # Integrate TN to a text processing pipeline
 
 ```

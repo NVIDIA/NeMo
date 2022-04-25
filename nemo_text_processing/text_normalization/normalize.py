@@ -20,17 +20,10 @@ from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
 
+import pynini
 from nemo_text_processing.text_normalization.data_loader_utils import get_installation_msg, pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
-
-try:
-    import pynini
-
-    PYNINI_AVAILABLE = True
-
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 try:
     from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
@@ -68,9 +61,6 @@ class Normalizer:
         lm: bool = False,
     ):
         assert input_case in ["lower_cased", "cased"]
-
-        if not PYNINI_AVAILABLE:
-            raise ImportError(get_installation_msg())
 
         if lang == 'en' and deterministic:
 
