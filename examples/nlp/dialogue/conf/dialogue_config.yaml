@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pretrained_model: null # pretrained QAModel model from list_available_models()
+pretrained_model: null # pretrained model from list_available_models()
 do_training: true # true for training mode, false for testing 
 trainer:
   devices: 8 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
@@ -57,7 +57,7 @@ model:
   new_prompt_init_methods: [] # text (preferably) or random
   new_prompt_init_text: [] # long descriptive text to init
 
-  # intent_slot_classification model args
+  # Intent Slot Classification model args
   class_balancing: ${model.dataset.class_balancing}
   intent_loss_weight: 0.6 # relation of intent to slot loss in total loss (between 0 to 1)
   data_dir: ${model.dataset.data_dir}
@@ -69,7 +69,7 @@ model:
   encoder:
     dropout: 0.1
   
-  # zero shot intent classification args
+  # Zero Shot Intent Model args
   original_nemo_checkpoint: null ## cannot directly load as .nemo uses the pre-refactor model, therefore transfer its attributes over
 
   dataset:
@@ -118,7 +118,7 @@ model:
     ignore_start_end: true # do not use first and last token for slot training
     do_lowercase: false 
 
-    #zero shot intent classification args
+    #Zero Shot Intent Model args
     class_balancing: null # or weighted_loss
     num_classes: 3 
 
