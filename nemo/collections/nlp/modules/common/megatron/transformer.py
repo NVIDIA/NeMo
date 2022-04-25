@@ -849,7 +849,7 @@ class ParallelTransformerLayer_(MegatronModule):
         if self.arch == 'normformer':
             # Normformer normalization
             attention_output = attention_output + attention_bias if attention_bias is not None else attention_output
-            normalization_output = self.post_attention_normformer_norm(attention_output)
+            attention_output = self.post_attention_normformer_norm(attention_output)
             attention_bias = None
 
         # Residual connection.
@@ -883,7 +883,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_output = (
                     attention_output + attention_bias if attention_bias is not None else attention_output
                 )
-                normalization_output = self.post_inter_attention_normformer_norm(attention_output)
+                attention_output = self.post_inter_attention_normformer_norm(attention_output)
                 attention_bias = None
 
             # residual connection
