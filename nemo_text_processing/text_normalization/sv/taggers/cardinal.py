@@ -156,9 +156,9 @@ class CardinalFst(GraphFst):
             pynutil.delete("00") + digits_no_one
         )
 
-        tusen = pynutil.insert("tusen")
+        tusen = pynutil.insert(" tusen")
         if not deterministic:
-            tusen |= pynutil.insert(" tusen")
+            tusen |= pynutil.insert("tusen")
             tusen |= pynutil.insert("ettusen")
             tusen |= pynutil.insert(" ettusen")
             tusen |= pynutil.insert("ett tusen")
