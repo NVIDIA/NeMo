@@ -39,8 +39,8 @@ class OrdinalFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="ordinal", kind="verbalize", deterministic=deterministic)
 
-        graph_digit = pynini.string_file(get_abs_path("data/ordinals/digit.tsv")).invert()
-        graph_teens = pynini.string_file(get_abs_path("data/ordinals/teen.tsv")).invert()
+        graph_digit = pynini.string_file(get_abs_path("data/ordinal/digit.tsv")).invert()
+        graph_teens = pynini.string_file(get_abs_path("data/ordinal/teen.tsv")).invert()
 
         graph = (
             pynutil.delete("integer:")
@@ -49,13 +49,10 @@ class OrdinalFst(GraphFst):
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
         )
-        convert_rest = pynutil.insert("th", weight=0.01)
+        convert_rest = pynutil.insert("th")
 
         suffix = pynini.cdrewrite(
-            graph_digit | graph_teens | pynutil.add_weight(pynini.cross("ty", "tieth"), weight=0.001) | convert_rest,
-            "",
-            "[EOS]",
-            NEMO_SIGMA,
+            graph_digit | graph_teens | pynini.cross("ty", "tieth") | convert_rest, "", "[EOS]", NEMO_SIGMA,
         ).optimize()
         self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix

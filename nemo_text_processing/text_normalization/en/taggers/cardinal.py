@@ -15,19 +15,19 @@
 
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_ALPHA,
     NEMO_DIGIT,
-    NEMO_NOT_SPACE,
+    NEMO_NOT_QUOTE,
     NEMO_SIGMA,
     GraphFst,
     insert_space,
 )
-from nemo_text_processing.text_normalization.en.taggers.date import get_hundreds_graph
+from nemo_text_processing.text_normalization.en.taggers.date import get_four_digit_year_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
 
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -44,20 +44,19 @@ class CardinalFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, lm: bool = False):
         super().__init__(name="cardinal", kind="classify", deterministic=deterministic)
-        # TODO repalce to have "oh" as a default for "0"
-        graph = pynini.Far(get_abs_path("data/numbers/cardinal_number_name.far")).get_fst()
+
+        self.lm = lm
+        self.deterministic = deterministic
+        # TODO replace to have "oh" as a default for "0"
+        graph = pynini.Far(get_abs_path("data/cardinal/cardinal_number_name.far")).get_fst()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
         ) @ graph
-        self.graph = (
-            pynini.closure(NEMO_DIGIT, 1, 3)
-            + pynini.closure(pynini.closure(pynutil.delete(","), 0, 1) + NEMO_DIGIT + NEMO_DIGIT + NEMO_DIGIT)
-        ) @ graph
 
-        graph_digit = pynini.string_file(get_abs_path("data/numbers/digit.tsv"))
-        graph_zero = pynini.string_file(get_abs_path("data/numbers/zero.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))
+        graph_zero = pynini.string_file(get_abs_path("data/cardinal/zero.tsv"))
 
         single_digits_graph = pynini.invert(graph_digit | graph_zero)
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)
@@ -85,99 +84,61 @@ class CardinalFst(GraphFst):
                 1,
             )
 
-            self.range_graph = pynutil.insert("from ") + self.graph + pynini.cross("-", " to ") + self.graph
-            self.range_graph |= self.graph + (pynini.cross("x", " by ") | pynini.cross(" x ", " by ")) + self.graph
-            self.range_graph |= (
-                pynutil.insert("from ") + get_hundreds_graph() + pynini.cross("-", " to ") + get_hundreds_graph()
-            )
-            self.range_graph = self.range_graph.optimize()
-
-        serial_graph = self.get_serial_graph()
         optional_minus_graph = pynini.closure(pynutil.insert("negative: ") + pynini.cross("-", "\"true\" "), 0, 1)
+
+        graph = (
+            pynini.closure(NEMO_DIGIT, 1, 3)
+            + (pynini.closure(pynutil.delete(",") + NEMO_DIGIT ** 3) | pynini.closure(NEMO_DIGIT ** 3))
+        ) @ graph
+
+        self.graph = graph
+        self.graph_with_and = self.add_optional_and(graph)
 
         if deterministic:
             long_numbers = pynini.compose(NEMO_DIGIT ** (5, ...), self.single_digits_graph).optimize()
-            final_graph = self.graph | serial_graph | pynutil.add_weight(long_numbers, -0.001)
+            final_graph = plurals._priority_union(long_numbers, self.graph_with_and, NEMO_SIGMA).optimize()
             cardinal_with_leading_zeros = pynini.compose(
                 pynini.accep("0") + pynini.closure(NEMO_DIGIT), self.single_digits_graph
             )
             final_graph |= cardinal_with_leading_zeros
         else:
-
             leading_zeros = pynini.compose(pynini.closure(pynini.accep("0"), 1), self.single_digits_graph)
             cardinal_with_leading_zeros = (
-                leading_zeros + pynutil.insert(" ") + pynini.compose(pynini.closure(NEMO_DIGIT), self.graph)
+                leading_zeros + pynutil.insert(" ") + pynini.compose(pynini.closure(NEMO_DIGIT), self.graph_with_and)
             )
 
             # add small weight to non-default graphs to make sure the deterministic option is listed first
             final_graph = (
-                self.graph
-                | serial_graph
-                | self.range_graph
-                | pynutil.add_weight(self.single_digits_graph, 0.001)
-                | pynutil.add_weight(get_hundreds_graph(), 0.001)
-                | pynutil.add_weight(single_digits_graph_with_commas, 0.001)
+                self.graph_with_and
+                | pynutil.add_weight(self.single_digits_graph, 0.0001)
+                | get_four_digit_year_graph()  # allows e.g. 4567 be pronouced as forty five sixty seven
+                | pynutil.add_weight(single_digits_graph_with_commas, 0.0001)
                 | cardinal_with_leading_zeros
             )
 
         final_graph = optional_minus_graph + pynutil.insert("integer: \"") + final_graph + pynutil.insert("\"")
         final_graph = self.add_tokens(final_graph)
-
         self.fst = final_graph.optimize()
 
-    def get_serial_graph(self):
-        """
-        Finite state transducer for classifying serial (handles only cases without delimiters,
-        values with delimiters are handled by default).
-            The serial is a combination of digits, letters and dashes, e.g.:
-            c325b -> tokens { cardinal { integer: "c three two five b" } }
-        """
-        num_graph = self.single_digits_graph
-
+    def add_optional_and(self, graph):
         if not self.deterministic:
-            num_graph |= self.graph
+            graph = pynini.compose(
+                graph, NEMO_SIGMA + pynini.closure(pynini.cross("hundred ", " "), 0, 1) + NEMO_SIGMA
+            )
 
-        # add space between letter and digit
-        graph_with_space = pynini.compose(
-            pynini.cdrewrite(pynutil.insert(" "), NEMO_ALPHA, NEMO_DIGIT, NEMO_SIGMA),
-            pynini.cdrewrite(pynutil.insert(" "), NEMO_DIGIT, NEMO_ALPHA, NEMO_SIGMA),
-        )
+        not_quote = pynini.closure(NEMO_NOT_QUOTE)
+        no_thousand_million = pynini.difference(
+            not_quote, not_quote + pynini.union("thousand", "million") + not_quote
+        ).optimize()
+        integer = (
+            not_quote + pynutil.add_weight(pynini.cross("hundred ", "hundred and ") + no_thousand_million, -0.0001)
+        ).optimize()
 
-        # make sure at least one digit and letter is present
-        not_space = pynini.closure(NEMO_NOT_SPACE)
-        graph_with_space = pynini.compose(
-            (not_space + NEMO_ALPHA + not_space + NEMO_DIGIT + not_space)
-            | (not_space + NEMO_DIGIT + not_space + NEMO_ALPHA + not_space),
-            graph_with_space,
-        )
+        no_hundred = pynini.difference(NEMO_SIGMA, not_quote + pynini.accep("hundred") + not_quote).optimize()
+        integer |= (
+            not_quote + pynutil.add_weight(pynini.cross("thousand ", "thousand and ") + no_hundred, -0.0001)
+        ).optimize()
 
-        keep_space = pynini.accep(" ")
-        serial_graph = pynini.compose(
-            graph_with_space,
-            pynini.closure(pynini.closure(NEMO_ALPHA, 1) + keep_space, 1)
-            + num_graph
-            + pynini.closure(keep_space + pynini.closure(NEMO_ALPHA) + pynini.closure(keep_space + num_graph, 0, 1)),
-        )
-        serial_graph |= pynini.compose(
-            graph_with_space,
-            num_graph
-            + keep_space
-            + pynini.closure(NEMO_ALPHA, 1)
-            + pynini.closure(keep_space + num_graph + pynini.closure(keep_space + pynini.closure(NEMO_ALPHA), 0, 1)),
-        )
+        graph_with_and = pynini.compose(graph, integer).optimize() | pynutil.add_weight(graph, 0.00001)
 
-        # serial graph with delimiter
-        delimiter = pynini.accep("-") | pynini.accep("/")
-        alphas = pynini.closure(NEMO_ALPHA, 1)
-        letter_num = alphas + delimiter + num_graph
-        num_letter = pynini.closure(num_graph + delimiter, 1) + alphas
-        next_alpha_or_num = pynini.closure(delimiter + (alphas | num_graph))
-        next_alpha_or_num |= pynini.closure(delimiter + num_graph + pynutil.insert(" ") + alphas)
-
-        serial_graph |= letter_num + next_alpha_or_num
-        serial_graph |= num_letter + next_alpha_or_num
-        # numbers only with 2+ delimiters
-        serial_graph |= (
-            num_graph + delimiter + num_graph + delimiter + num_graph + pynini.closure(delimiter + num_graph)
-        )
-        return pynutil.add_weight(serial_graph, 2)
+        return graph_with_and
