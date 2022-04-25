@@ -38,7 +38,7 @@ A single pretrained GPT model can use both p-tuning and prompt-tuning. While you
 
 When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_encoder`` are automatically moved to the ``prompt_table`` where all prompt tuned and p-tuned soft prompts are stored. The LSTM ``prompt_encoder`` is then removed from the model. This allows us to preserve previously p-tuned soft prompts while still maintaining the ability to add new p-tuned or prompt-tuned soft prompts in the future. The ``prompt_table`` uses the ``taskname`` as a key to look up the correct virtual tokens for a specified task. The ``prompt_table``'s hash table data structure also makes it possible for each task to flexibly use a different amount of virtual tokens. 
 
-P-tuning usually requires fewer virtual tokens per task to achieve good results but uses a higher number of parameters compared to prompt-tuning. For example, if you prompt tune a 125M parameter GPT model (with hidden size 768) on two tasks, using 100 virtual tokens per task, the total parameters tuned during prompt tuning equals 153k (~.1% of the pre-trained model size). If you p-tune the same 125M GPT model on 2 tasks, using an LSTM with two layers and 10 tokens per task, you will be tuning 8.3M parameters (~6.6% of the pre-trained model size). The increased number of parameters used during p-tuning is mitigated by our ``prompt_table``. When p-tuned soft prompts are placed in the prompt table, only the parameters for the predicted virtual tokens are saved. This allows us to keep the benefit of tuning a larger number of parameters during training, while also preserving the parameter efficiency of prompt-tuning during inference and storing of the model.
+P-tuning usually requires fewer virtual tokens per task to achieve good results but uses a higher number of parameters compared to prompt-tuning. For example, if you prompt tune a 125M parameter GPT model (with hidden size 768) on two tasks, using 100 virtual tokens per task, the total parameters tuned during prompt tuning would equal 153k (~.1% of the pre-trained model size). If you p-tune the same 125M GPT model on 2 tasks, using an LSTM with two layers and 10 tokens per task, you will be tuning 8.3M parameters (~6.6% of the pre-trained model size). The increased number of parameters used during p-tuning is mitigated by our ``prompt_table``. When p-tuned soft prompts are placed in the prompt table, only the parameters for the predicted virtual tokens are saved. This allows us to keep the benefit of tuning a larger number of parameters during training, while also preserving the parameter efficiency of prompt-tuning during inference and storing of the model.
 
 Because p-tuning shares parameters between tasks during training, p-tuning your model on multiple tasks that are similar might allow your model to share insight between tasks. In the same vein, p-tuning on many very different tasks at once might perform worse than prompt tuning, which tunes a distinct set of parameters per task. 
 
@@ -168,6 +168,9 @@ Prompt Learning Specific Config Values
    * - **model.p_tuning.num_layers**
      - int
      - Num layers in LSTM prompt encoder
+   * - **model.p_tuning.save_tuned_prompts_to_prompt_table**
+     - bool
+     - Whether to save p-tuned prompts to ``prompt_table`` after tuning. (``True`` strongly recommended)
    * - **model.tensor_model_parallel_size**
      - int
      - intra-layer model parallelism, must match the ``tensor_model_parallel_size`` of the GPT model given at ``language_model_path``
@@ -254,11 +257,11 @@ Then run the command
 
 Example Multi-Task P-Tuning Command After Prompt-Tuning
 ^^^^^^^^^^
-Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt tuning run and to use the ``.nemo`` file saved at the end of the last prompt tuning run. Values changed from the config above are bolded. 
+Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them. 
 
 .. code::
 
-  <b>name: multitask_p_tuning</b>
+  name: multitask_p_tuning # ***
   trainer: ...
   exp_manager: ...
   model:
@@ -266,15 +269,15 @@ Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning p
   nemo_path: ${name}.nemo 
   lm_finetune: False 
   pseudo_token_base: "PROMPT_" 
-  **virtual_prompt_style: "p-tuning"**
+  virtual_prompt_style: "p-tuning" # ***
   encoder_seq_length: 2048 
   tensor_model_parallel_size: 1 
   pipeline_model_parallel_size: 1 
   batch_size: 8
 
-  **restore_path: multitask_prompt_tuning.nemo** 
+  restore_path: multitask_prompt_tuning.nemo # ***
   language_model_path: models/megatron_125M_gpt.nemo
-  **existing_tasks: ["sentiment", "intent_and_slot"]**
+  existing_tasks: ["sentiment", "intent_and_slot"] # ***
   new_tasks: ["sentiment", "intent_and_slot"] 
 
   task_templates: 
@@ -290,19 +293,20 @@ Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning p
     virtual_token_splits: [80, 20]
     truncate_field: null
 
-  **- taskname: "squad"**
-    **prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context <|VIRTUAL_PROMPT_1|> {question} <|VIRTUAL_PROMPT_2|> {context} <|VIRTUAL_PROMPT_3|>  Answer: {answer}"** 
-    **total_virtual_tokens: 16**
-    **virtual_token_splits: [4, 4, 4, 4]**
-    **truncate_field: null**
+  - taskname: "squad" # ***
+    prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context <|VIRTUAL_PROMPT_1|> {question} <|VIRTUAL_PROMPT_2|> {context} <|VIRTUAL_PROMPT_3|>  Answer: {answer}" # *** 
+    total_virtual_tokens: 16 # ***
+    virtual_token_splits: [4, 4, 4, 4] # ***
+    truncate_field: null # ***
 
-  p_tuning: 
-      dropout: 0.0
-      num_layers: 2 
+  p_tuning: # ***
+      dropout: 0.0 # ***
+      num_layers: 2 # ***
+      save_tuned_prompts_to_prompt_table: True # ***
 
   data:
-    **train_ds: ["data/squad_train.jsonl"]**
-    **validation_ds: ["data/squad_val.jsonl"]**
+    train_ds: ["data/squad_train.jsonl"] # ***
+    validation_ds: ["data/squad_val.jsonl"] # ***
     add_eos: True
     shuffle: True
     num_workers: 1
