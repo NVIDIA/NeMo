@@ -976,11 +976,11 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         attention_mask,
         encoder_output=None,
         enc_dec_attn_mask=None,
+        pos_emb=None,
         layer_past=None,
         get_key_value=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
-        pos_emb=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -1175,7 +1175,7 @@ class ParallelTransformer(MegatronModule):
 
         return num_layers
 
-    def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask):
+    def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
@@ -1184,9 +1184,10 @@ class ParallelTransformer(MegatronModule):
                 attention_mask = inputs[1]
                 encoder_output = inputs[2]
                 enc_dec_attn_mask = inputs[3]
+                pos_emb = inputs[4]
                 for index in range(start, end):
                     layer = self._get_layer(index)
-                    x_ = layer(x_, attention_mask, encoder_output, enc_dec_attn_mask)
+                    x_ = layer(x_, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb)
                 return x_
 
             return custom_forward
@@ -1206,6 +1207,7 @@ class ParallelTransformer(MegatronModule):
                     attention_mask,
                     encoder_output,
                     enc_dec_attn_mask,
+                    pos_emb,
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
@@ -1215,10 +1217,12 @@ class ParallelTransformer(MegatronModule):
             for l in range(self.num_layers):
                 if l < self.activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + 1), hidden_states, attention_mask, encoder_output, enc_dec_attn_mask
+                        custom(l, l + 1), hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb
                     )
                 else:
-                    hidden_states = custom(l, l + 1)(hidden_states, attention_mask, encoder_output, enc_dec_attn_mask)
+                    hidden_states = custom(l, l + 1)(
+                        hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb
+                    )
         else:
             raise ValueError("Invalid activation checkpoint method.")
 
@@ -1278,7 +1282,7 @@ class ParallelTransformer(MegatronModule):
 
         if self.activations_checkpoint_method is not None:
             hidden_states = self._checkpointed_forward(
-                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask
+                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb
             )
         else:
             if get_key_value:
