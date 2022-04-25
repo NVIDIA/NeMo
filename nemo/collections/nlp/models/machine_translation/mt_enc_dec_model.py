@@ -65,7 +65,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         cfg = model_utils.maybe_update_config_version(cfg)
 
@@ -144,7 +144,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 self.target_processor_list,
                 self.multilingual_ids,
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language, self.tgt_language, self.encoder_tokenizer,
+                self.src_language,
+                self.tgt_language,
+                self.encoder_tokenizer,
+                self.encoder_tokenizer_library,
+                self.decoder_tokenizer_library,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -252,16 +256,18 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
     @classmethod
-    def setup_multilingual_ids_and_processors(cls, src_language, tgt_language, tokenizer, tokenizer_library):
+    def setup_multilingual_ids_and_processors(
+        cls, src_language, tgt_language, encoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
+    ):
         multilingual_ids = []
         if isinstance(src_language, ListConfig):
             for lng in src_language:
                 multilingual_ids.append(None)
         else:
             for lng in tgt_language:
-                if f"<{lng}>" not in tokenizer.vocab:
-                    tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
-                multilingual_ids.append(tokenizer.token_to_id(f"<{lng}>"))
+                if f"<{lng}>" not in encoder_tokenizer.vocab:
+                    encoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
+                multilingual_ids.append(encoder_tokenizer.token_to_id(f"<{lng}>"))
 
         if isinstance(src_language, ListConfig):
             tgt_language = [tgt_language] * len(src_language)
@@ -272,7 +278,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         target_processor_list = []
         for src_lng, tgt_lng in zip(src_language, tgt_language):
             src_prcsr, tgt_prscr = MTEncDecModel.setup_pre_and_post_processing_utils(
-                src_lng, tgt_lng, tokenizer_library, tokenizer_library
+                src_lng, tgt_lng, encoder_tokenizer_library, decoder_tokenizer_library
             )
             source_processor_list.append(src_prcsr)
             target_processor_list.append(tgt_prscr)
