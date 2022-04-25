@@ -561,8 +561,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
-        # TODO: verify rampup batch schedule is consistent
-        # by verifying consistency for every step of training
+        # verify rampup batch schedule is consistent for every training step
         if self.cfg.get('rampup_batch_size', None):
             rampup_batch_size = self.cfg.rampup_batch_size
             rampup_samples = rampup_batch_size[2]
