@@ -133,6 +133,7 @@ class TextMemMapDataset(Dataset):
         rec_end = self.mdata_midx_size_list[file_id][1][file_row + 1 + self._skip_lines]
         text = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
         
+        # parse raw text (e.g., tokenize)
         data = self._build_data_from_text(text)
 
         return data
@@ -141,7 +142,7 @@ class TextMemMapDataset(Dataset):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
         # tokenize text if tokenizer is given
         if self.tokenizer is not None:
-            data = self.tokenizer
+            data = self.tokenizer.text_to_ids(text)
         else:
             data = text
         
