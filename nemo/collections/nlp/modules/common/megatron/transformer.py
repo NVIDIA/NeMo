@@ -692,9 +692,9 @@ class ParallelTransformerLayer_(MegatronModule):
 
         # Layernorm on the input data.
         if normalization == 'layernorm':
-            self.input_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            self.input_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
         else:
-            self.input_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         # Self attention.
         self.self_attention = ParallelAttention(
@@ -730,9 +730,9 @@ class ParallelTransformerLayer_(MegatronModule):
 
         # Layernorm on the attention output
         if normalization == 'layernorm':
-            self.post_attention_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
         else:
-            self.post_attention_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+            self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         if self.layer_type == LayerType.decoder:
             self.inter_attention = ParallelAttention(
@@ -764,11 +764,11 @@ class ParallelTransformerLayer_(MegatronModule):
 
             # Layernorm on the attention output.
             if normalization == 'layernorm':
-                self.post_inter_attention_normalization = get_layer_norm(
+                self.post_inter_attention_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm
                 )
             else:
-                self.post_inter_attention_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.post_inter_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
         # MLP
         self.mlp = ParallelMLP(
@@ -832,7 +832,7 @@ class ParallelTransformerLayer_(MegatronModule):
         residual = hidden_states
         # Layer norm at the beginning of the transformer layer.
         if self.transformer_block_type in ['pre_ln', 'normformer']:
-            hidden_states = self.input_normalization(hidden_states)
+            hidden_states = self.input_layernorm(hidden_states)
 
         # Self attention.
         attention_output, attention_bias = self.self_attention(
@@ -870,10 +870,10 @@ class ParallelTransformerLayer_(MegatronModule):
 
         # Post-LN normalization after residual
         if self.transformer_block_type == 'post_ln':
-            normalization_output = self.input_normalization(layernorm_input)
+            normalization_output = self.input_layernorm(layernorm_input)
         elif self.transformer_block_type in ['pre_ln', 'normformer']:
             # Layer norm post the self attention.
-            normalization_output = self.post_attention_normalization(layernorm_input)
+            normalization_output = self.post_attention_layernorm(layernorm_input)
 
         if self.layer_type == LayerType.decoder:
             attention_output, attention_bias = self.inter_attention(
@@ -898,7 +898,7 @@ class ParallelTransformerLayer_(MegatronModule):
             )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
-            normalization_output = self.post_inter_attention_normalization(layernorm_input)
+            normalization_output = self.post_inter_attention_layernorm(layernorm_input)
 
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
@@ -915,7 +915,7 @@ class ParallelTransformerLayer_(MegatronModule):
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
 
         if self.transformer_block_type == 'post_ln':
-            output = self.post_attention_normalization(output)
+            output = self.post_attention_layernorm(output)
 
         if get_key_value:
             output = [output, presents]
