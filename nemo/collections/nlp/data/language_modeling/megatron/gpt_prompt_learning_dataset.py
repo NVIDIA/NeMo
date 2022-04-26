@@ -103,18 +103,18 @@ class GPTPromptLearningDataset(Dataset):
             truncation_field = self.task_templates[taskname]['truncate_field']
             answer_only_loss = self.task_templates[taskname]["answer_only_loss"]
             answer_field = self.task_templates[taskname]["answer_field"]
-            
+
             input_example = prompt_template
 
             self._input_sanity_checks(
-                total_virtual_tokens, 
-                virtual_token_splits, 
-                prompt_template, 
-                prompt_template_fields, 
+                total_virtual_tokens,
+                virtual_token_splits,
+                prompt_template,
+                prompt_template_fields,
                 truncation_field,
-                answer_only_loss, 
-                answer_field, 
-                doc
+                answer_only_loss,
+                answer_field,
+                doc,
             )
 
             # Format the input example according to the template
@@ -152,15 +152,15 @@ class GPTPromptLearningDataset(Dataset):
         logging.info(f'Skipped {skipped} sentences, sequence length too short or too long even after truncation')
 
     def _input_sanity_checks(
-        self, 
-        total_virtual_tokens, 
-        virtual_token_splits, 
-        prompt_template, 
-        prompt_template_fields, 
+        self,
+        total_virtual_tokens,
+        virtual_token_splits,
+        prompt_template,
+        prompt_template_fields,
         truncation_field,
-        answer_only_loss, 
-        answer_field, 
-        doc
+        answer_only_loss,
+        answer_field,
+        doc,
     ):
         # Sanity check amount of virtual token
         assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
@@ -187,7 +187,9 @@ class GPTPromptLearningDataset(Dataset):
         # Check that answer field checks if answer_only_loss was set to True
         if answer_only_loss and self.for_train:
             assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
-            assert answer_field in doc.keys(), f"answer_only_loss=True but the given answer_field '{answer_field}' is not in data json"
+            assert (
+                answer_field in doc.keys()
+            ), f"answer_only_loss=True but the given answer_field '{answer_field}' is not in data json"
             assert truncation_field != answer_field, "Answer field and truncation field should not match"
 
             answer_placeholder = "{" + answer_field + "}"
@@ -310,7 +312,7 @@ class GPTPromptLearningDataset(Dataset):
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
-       
+
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):

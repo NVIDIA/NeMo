@@ -530,14 +530,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
 
     def build_virtual_prompt_dataset(
-        self, 
-        dataset_paths, 
-        batch_size, 
-        for_train, 
-        drop_last, 
-        shuffle, 
-        num_workers, 
-        pin_memory
+        self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
     ):
         dataset = GPTPromptLearningDataset(
             datasets=dataset_paths,
