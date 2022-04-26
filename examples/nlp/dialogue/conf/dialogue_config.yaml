@@ -15,7 +15,7 @@
 pretrained_model: null # pretrained model from list_available_models()
 do_training: true # true for training mode, false for testing 
 trainer:
-  devices: 8 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
+  devices: 1 # number of GPUs (0 for CPU), or list of the GPUs to use e.g. [0, 1]
   num_nodes: 1
   max_epochs: 3
   max_steps: null # precedence over max_epochs
