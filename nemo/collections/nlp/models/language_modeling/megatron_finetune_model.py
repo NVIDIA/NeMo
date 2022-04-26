@@ -270,7 +270,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
             _ = metric(pred, label, category)
 
-        return {'loss': loss}
+        return {'loss': loss, 'preds': preds_text, 'labels': labels_text, 'categories': categories}
 
     def preds_and_labels_to_text(self, preds, labels):
         preds = preds.cpu().numpy().tolist()
