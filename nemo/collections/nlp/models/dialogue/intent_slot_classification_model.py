@@ -41,13 +41,13 @@ class IntentSlotClassificationModel(NLPModel):
         self.max_seq_length = cfg.dataset.max_seq_length
         self.cfg = cfg
         # Check the presence of data_dir.
-        if not cfg.data_dir or not os.path.exists(cfg.data_dir):
+        if not cfg.dataset.data_dir or not os.path.exists(cfg.dataset.data_dir):
             # Set default values of data_desc.
             self._set_defaults_data_desc(cfg)
         else:
-            self.data_dir = cfg.data_dir
+            self.data_dir = cfg.dataset.data_dir
             # Update configuration of data_desc.
-            self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
+            self._set_data_desc_to_cfg(cfg, cfg.dataset.data_dir, cfg.train_ds, cfg.validation_ds)
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
