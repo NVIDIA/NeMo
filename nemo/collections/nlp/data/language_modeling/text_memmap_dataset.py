@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from configparser import _section
 import os
 import time
 import pickle
@@ -63,34 +64,21 @@ class TextMemMapDataset(Dataset):
     """
     def __init__(self,
                  dataset_paths,
-                 cfg=None,
-                 trainer=None,
                  newline_int=10,
                  header_lines=1,
                  skip_lines=0,
                  workers=None,
-                 data_col=1,
-                 data_sep=','):
+        super().__init__()
+
         if len(dataset_paths) < 1:
             raise ValueError("files_list must contain at leat one file name")
 
-        super().__init__(cfg, trainer)
-
-        # load values from cfg
-        if cfg is not None:
-            newline_int = cfg.get('newline_int', 10)
-            header_lines = cfg.get('header_lines', 1)
-            skip_lines = cfg.get('skip_lines', 0)
-            data_col = cfg.get('data_col', 1)
-            data_sep = cfg.get('data_sep', ',')
 
         self.newline_int = newline_int
         # skip first N lines
         self._header_lines = header_lines
         self._skip_lines = skip_lines
         self.files_list = dataset_paths
-        self._data_col = data_col
-        self._data_sep = data_sep
         self.mdata_midx_size_list = None
         self.worker = workers
 
@@ -106,7 +94,6 @@ class TextMemMapDataset(Dataset):
 
         if is_ditributed:
             torch.distributed.barrier()
-        logging.info(f'Time building mem-mapped file: {time.time() - start_time}')
 
         logging.info(f"Loading data files")
         mdata_midx_size_list = [self.load_file(fn) for fn in self.files_list]
@@ -130,7 +117,7 @@ class TextMemMapDataset(Dataset):
 
     def __getitem__(self, idx):
         """
-        Return a string
+        Return a string from binary memmap
         """
         # Identify the file containing the record
         file_id = 0
@@ -138,12 +125,13 @@ class TextMemMapDataset(Dataset):
             if idx < end_idx:
                 break
             file_id += 1
-        file_row = idx - self.joint_midx[file_id]
 
+        file_row = idx - self.joint_midx[file_id]
         rec_start = self.mdata_midx_size_list[file_id][1][file_row]
         rec_end = self.mdata_midx_size_list[file_id][1][file_row + 1 + self._skip_lines]
         data = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
-        return data.split(self._data_sep)[self._data_col]
+
+        return data
 
     def load_file(self, fn):
         """
@@ -152,6 +140,7 @@ class TextMemMapDataset(Dataset):
         Returns:
             mdata - memorymap of np.int8
             midx - indices pointing to the end-of-line (or end of file) position
+            size - number of lines in file
         """
         logging.info(f"Loading {fn}")
         idx_fn = fn + ".idx"
@@ -168,7 +157,38 @@ class TextMemMapDataset(Dataset):
 
         return (mdata, midx, size)
     
-    
+
+class CSVMemMapDataset(TextMemMapDataset):
+    """
+    Allow per-line lazy access to multiple text files using numpy memmap.
+    """
+    def __init__(self,
+                 dataset_paths,
+                 newline_int=10,
+                 header_lines=1,
+                 skip_lines=0,
+                 workers=None,
+                 data_col=1,
+                 data_sep=','):
+        super().__init__(
+                 dataset_paths=dataset_paths,
+                 newline_int=newline_int,
+                 header_lines=header_lines,
+                 skip_lines=skip_lines,
+                 workers=workers,            
+        )
+        self._data_col = data_col
+        self._data_sep = data_sep
+
+    def __getitem__(self, idx):
+        """
+        Return a CSV field from binary memmap
+        """
+        data = super().__getitem__(idx)
+        
+        return data.split(self._data_sep)[self._data_col]
+
+
 def _build_memmap_index_files(newline_int, fn):
     """Helper function to build an index .idx file"""
     idx_fn = fn + ".idx"
@@ -206,8 +226,7 @@ def build_index_files(dataset_paths,
     # load all files into memmap
     start_time = time.time()
     with mp.Pool(workers) as p:
-        mdata_midx_size_list = p.map(partial(_build_memmap_index_files, newline_int),
+        build_status = p.map(partial(_build_memmap_index_files, newline_int),
                                      dataset_paths)
-    logging.info(f'Time building mem-mapped file: {time.time() - start_time}')
 
-    return mdata_midx_size_list
+    logging.info(f'Time building {sum(build_status)} mem-mapped file: {time.time() - start_time}')
