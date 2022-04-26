@@ -86,7 +86,7 @@ def get_encoder_model(
     if scaled_init_method is None:
         scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
 
-    if arch in ["transformer", "normformer"]:
+    if arch == "transformer":
         # Language encoder.
         encoder = MegatronTransformerEncoderModule(
             init_method=init_method,
