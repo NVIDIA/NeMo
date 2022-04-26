@@ -22,16 +22,19 @@ from dataclasses import dataclass
 
 import torch
 import numpy as np
+import multiprocessing as mp
+from functools import partial
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.utils import logging
-from ..utils.data_index import build_index_files
 
-__all__ = ['MoleculeCsvDatasetConfig', 'MoleculeCsvDataset']
+
+
+__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset']
 
 
 @dataclass
-class MoleculeCsvDatasetConfig():
+class TextMemMapDatasetConfig():
     dataset_path: str = ''
     dataset_files: str = 'data.csv'
     dataset_type: str = 'zinc_csv'
@@ -54,7 +57,7 @@ class MoleculeCsvDatasetConfig():
     dataloader_type: str = 'single'
 
 
-class MoleculeCsvDataset(MegatronDataset):
+class TextMemMapDataset(MegatronDataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
@@ -164,3 +167,47 @@ class MoleculeCsvDataset(MegatronDataset):
             raise ValueError(f'Memory Map for {fn} is not found')
 
         return (mdata, midx, size)
+    
+    
+def _build_memmap_index_files(newline_int, fn):
+    """Helper function to build an index .idx file"""
+    idx_fn = fn + ".idx"
+
+    # create data map
+    mdata = np.memmap(fn, dtype=np.uint8, mode='r')
+    if os.path.exists(idx_fn):
+        return None
+    else:
+        logging.info(f"Building idx file = {idx_fn}")
+        midx = np.where(mdata == newline_int)[0]
+        # add last item in case there is no new-line
+        if (len(midx) == 0) or (midx[-1]+1 != len(mdata)):
+            midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
+
+        size = len(mdata)
+        pickle.dump(dict(midx=midx, size=size), open(idx_fn, "wb"))
+        mdata._mmap.close()
+        del mdata
+
+        return True
+
+
+def build_index_files(dataset_paths,
+                      newline_int,
+                      workers=None):
+    """Auxiliary method to build multiple index .idx files"""
+    if len(dataset_paths) < 1:
+        raise ValueError("files_list must contain at leat one file name")
+
+    if workers is None:
+        workers = min(1, os.cpu_count() // 2)
+
+    logging.info(f"Building data files using {workers} workers")
+    # load all files into memmap
+    start_time = time.time()
+    with mp.Pool(workers) as p:
+        mdata_midx_size_list = p.map(partial(_build_memmap_index_files, newline_int),
+                                     dataset_paths)
+    logging.info(f'Time building mem-mapped file: {time.time() - start_time}')
+
+    return mdata_midx_size_list
