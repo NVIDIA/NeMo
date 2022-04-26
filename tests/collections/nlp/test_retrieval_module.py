@@ -46,6 +46,7 @@ except (ImportError, ModuleNotFoundError):
 class TestCrossAttn:
     @classmethod
     @pytest.mark.run_only_on('GPU')
+    @pytest.mark.skip()
     def setup_class(cls):
         os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         plugin = NLPDDPPlugin()
@@ -79,6 +80,7 @@ class TestCrossAttn:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip()
     def test_cross_attn(self):
         num_layers = 1
         init_method_std = 0.02
@@ -145,6 +147,7 @@ class TestCrossAttn:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip()
     def test_retrival_encoder(self):
 
         init_method_std = 0.02
@@ -193,6 +196,7 @@ class TestCrossAttn:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    @pytest.mark.skip()
     def test_retrival_decoder(self):
 
         init_method_std = 0.02
