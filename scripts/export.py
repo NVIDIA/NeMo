@@ -28,21 +28,14 @@
 
 import argparse
 import logging
-import os
 import sys
-import tempfile
-import traceback
-import warnings
-from dataclasses import dataclass
-from typing import Optional
 
-import pytorch_lightning as pl
 import torch
-from omegaconf import OmegaConf, open_dict
+from pytorch_lightning import Trainer
 
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable, typecheck
-from nemo.core.config import TrainerConfig
+from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
 
 try:
@@ -101,7 +94,7 @@ def nemo_export(argv):
         logger=False,
         checkpoint_callback=False,
     )
-    trainer = pl.Trainer(cfg_trainer)
+    trainer = Trainer(cfg_trainer)
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
