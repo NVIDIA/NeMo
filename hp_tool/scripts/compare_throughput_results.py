@@ -21,7 +21,6 @@ def main(cfg):
     candidate_configs = os.path.join(settings_cfg.get("logs"), "candidate_configs")
     final_result_logs = os.path.join(settings_cfg.get("logs"), "final_result")
 
-    min_avg_time = float("inf")
     result_models = []
     dirs = os.listdir(training_logs)
     for candidate_dir in dirs:

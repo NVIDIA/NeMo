@@ -4,33 +4,30 @@ import hydra
 import subprocess
 
 
-def search_inference_config(base_cfg, cfg):
+def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
     hp_cfg = cfg.get("search_config")
     cluster_cfg = cfg.get("cluster")
-    inference_settings_cfg = hp_cfg.get("inference_settings")
+    inference_cfg = hp_cfg.get("inference_settings")
 
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    input_seq_len = inference_settings_cfg.get("input_seq_len")
-    output_seq_len = inference_settings_cfg.get("output_seq_len")
-    top_n = inference_settings_cfg.get("top_n")
-    vocab_size = inference_settings_cfg.get("vocab_size")
-    start_id = inference_settings_cfg.get("start_id")
-    end_id = inference_settings_cfg.get("end_id")
-    tensor_parallel_sizes = [str(x) for x in inference_settings_cfg.get("tensor_parallel_sizes")]
-    pipeline_parallel_sizes = [str(x) for x in inference_settings_cfg.get("pipeline_parallel_sizes")]
-    max_batch_sizes = [str(x) for x in inference_settings_cfg.get("max_batch_sizes")]
+    bignlp_inference_path = cfg.get("bignlp_inference_path")
+    input_seq_len = inference_cfg.get("input_seq_len")
+    output_seq_len = inference_cfg.get("output_seq_len")
+    top_n = inference_cfg.get("top_n")
+    vocab_size = inference_cfg.get("vocab_size")
+    start_id = inference_cfg.get("start_id")
+    end_id = inference_cfg.get("end_id")
+    results_dir = inference_cfg.get("logs")
+    tensor_parallel_sizes = [str(x) for x in inference_cfg.get("tensor_parallel_sizes")]
+    pipeline_parallel_sizes = [str(x) for x in inference_cfg.get("pipeline_parallel_sizes")]
+    max_batch_sizes = [str(x) for x in inference_cfg.get("max_batch_sizes")]
 
-    inference_profile_path = os.path.join(
-        bignlp_hp_tool_path,
-        "BigNLP-Inference-Scripts/bignlp/infer_scripts/profile_model_with_random_weights.py",
-    )
+    inference_profile_path = os.path.join(bignlp_inference_path, "bignlp/infer_scripts/profile_model_with_random_weights.py")
     cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
-    navigator_config_path = os.path.join(
-        bignlp_hp_tool_path, "BigNLP-Inference-Scripts/conf/inference/profile_offline.yaml"
-    )
-    model_spec_dir = os.path.join(bignlp_hp_tool_path, "tmp_test_model")
-    if not os.path.isdir(model_spec_dir):
-        os.mkdir(model_spec_dir)
+    navigator_config_path = os.path.join(bignlp_inference_path, "conf/inference/profile_offline.yaml")
+
+    model_spec_dir = os.path.join(results_dir, "inference/model_spec")
+    os.mkdir(model_spec_dir, exist_ok=True)
     model_spec_path = os.path.join(model_spec_dir, "meta.yaml")
 
     # Create model_spec and save to yaml
@@ -55,14 +52,15 @@ def search_inference_config(base_cfg, cfg):
         f"--cluster-config-path {cluster_config_path} "
         f"--navigator-config-path {navigator_config_path} "
         f"--model-path {model_spec_dir} "
-        f"--model-name test_model "
+        f"--model-name {model_name}_{model_size_in_b} "
         f"--tensor-parallel-sizes {' '.join(tensor_parallel_sizes)} "
         f"--pipeline-parallel-sizes {' '.join(pipeline_parallel_sizes)} "
         f"--input-output-lengths {input_seq_len},{output_seq_len} "
         f"--max-batch-sizes {' '.join(max_batch_sizes)} "
         f"--top-n-configs {top_n} "
-        f"--workspace-path {bignlp_hp_tool_path + '/workspace_test'} "
+        f"--workspace-path {os.path.join(results_dir, 'inference/workspace')} "
     )
+    # TODO: add max latency.
 
     # Generates infer_workspace
     subprocess.check_output([inference_profile_cmd], shell=True)

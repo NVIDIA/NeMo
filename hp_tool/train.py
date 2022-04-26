@@ -51,7 +51,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_training(cfg, bignlp_hp_tool_path):
+def run_training(cfg, bignlp_hp_tool_path, model_name):
     """
     Main function to launch a training job, with the config given in cfg.
     """
@@ -79,13 +79,18 @@ def run_training(cfg, bignlp_hp_tool_path):
     else:
         os.makedirs(results_dir, exist_ok=True)
 
+    if model_name == "gpt3":
+        model, config = "gpt", "126m"
+    else:
+        model, config = "t5", "220m"
+
     # Shared between BCP and BCM
     scripts_dir = os.path.join(results_dir, "train_scripts")
     os.makedirs(scripts_dir, exist_ok=True)
     new_script_path = os.path.join(scripts_dir, f"{name}.sh")
-    code_path = "/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_gpt.py"
+    code_path = f"/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_{model}.py"
     train_cmd = (
-        f"HYDRA_FULL_ERROR=1 PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args}"
+        f"HYDRA_FULL_ERROR=1 PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args} training={model}/{config}"
     )
 
     nodes = train_cfg.trainer.num_nodes

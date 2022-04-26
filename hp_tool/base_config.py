@@ -53,12 +53,9 @@ def calculate_model_size(
             max_training_days, gpu_count, tflops_per_gpu, num_tokens_in_b, model_name
         )
     else:
-        max_training_days = 4.0
-        """
-        _estimate_training_time(
+        max_training_days = _estimate_training_time(
             model_size_in_b, num_tokens_in_b, gpu_count, tflops_per_gpu, model_name
         )
-        """
 
     print(
         f"You can train a {model_size_in_b}B parameter model in "
@@ -82,14 +79,13 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
         model_size_in_b: int, number of parameters to use for training.
     """
     try:
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "t5"]:
             return round(
                 (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
                 / (8 * num_tokens_in_b * 1e9) / 1e9,
                 2,
             )
-        elif model_name == "t5":
-            # TODO: @yuya to implement.
+        else:
             raise NotImplementedError
     except Exception:
         print("Input values were not valid.")
@@ -115,17 +111,17 @@ def _estimate_training_time(
     assert model_size_in_b > 0, "model_size_in_b must be larger than zero."
 
     try:
-        if model_name == "gpt3":
+        if model_name in ["gpt3", "t5"]:
             max_training_days = round(
                 (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
                 / (3600 * 24 * gpu_count * tflops_per_gpu * 1e12),
                 2,
             )
-        elif model_name == "t5":
-            # TODO: @yuya to implement.
+        else:
             raise NotImplementedError
     except Exception:
         print("Input values were not valid.")
+    return max_training_days
 
 
 def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
@@ -170,16 +166,18 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
     elif model_name == "t5":
         if model_size_in_b <= 1.0:
             gbs, tp, pp = 2048, 1, 1
-        elif model_size_in_b <= 4.0:
-            gbs, tp, pp = 2160, 2, 1
-        elif model_size_in_b <= 8.0:
+        elif model_size_in_b <= 5.0:
             gbs, tp, pp = 1920, 2, 1
         elif model_size_in_b <= 11.5:
             gbs, tp, pp = 1920, 4, 1
+        elif model_size_in_b <= 18.5:
+            gbs, tp, pp = 1920, 8, 1
         elif model_size_in_b <= 25.9:
             gbs, tp, pp = 1920, 8, 2
+        elif model_size_in_b <= 42.0:
+            gbs, tp, pp = 1920, 8, 4
         else:
-            print("No T5 model larger than 25B parameters is supported.")
+            print("No T5 model larger than 42B parameters is supported.")
             raise ValueError
     else:
         raise NotImplementedError

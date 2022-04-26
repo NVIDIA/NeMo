@@ -65,13 +65,13 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
 
-  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  megatron_amp_O2: True # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
   num_layers: 12
   hidden_size: 768
-  ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
+  ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 12
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -81,17 +81,17 @@ model:
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+  bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
-  activation: 'gelu'
+  activation: 'geglu'
 
   tokenizer:
     library: 'megatron'
     type: 'BertWordPieceCase'
     model: null
-    vocab_file: ${data_dir}/bpe/vocab.txt
+    vocab_file: ${data_dir}/vocab.txt
     merge_file: null
     num_sentinel_tokens: 100
 
@@ -107,8 +107,8 @@ model:
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
-  activations_checkpoint_method: null # 'uniform', 'block'
-  activations_checkpoint_num_layers: 1
+  activations_checkpoint_method: block # 'uniform', 'block'
+  activations_checkpoint_num_layers: 0
 
   optim:
     name: fused_adam
@@ -145,5 +145,5 @@ model:
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_prefix: # Should be weight path weight path... for a blended dataset
       - 1.0
-      - ${data_dir}/my-t5_00_text_document
+      - ${data_dir}/my-t5_00_bert_tokenizer_text_document
 

@@ -32,12 +32,12 @@ def _calculate_model_size(
         # 2 L F + 3 L P + H (2 + 4 L F + L (21 + 12 P) + 1 S + 1 V)
         proj_size = att_heads * kv_channels
         model_size = (
-            2 * num_layers * ffn_size
+            2 * num_layers * 1.5 * ffn_size
             + 3 * num_layers * proj_size
             + hidden_size
             * (
                 2
-                + 4 * num_layers * ffn_size
+                + 4 * num_layers * 1.5 * ffn_size
                 + num_layers * (21 + 12 * proj_size)
                 + seq_length
                 + vocab_size
@@ -95,19 +95,21 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
     elif model_name == "t5":
         kv, lr = 64, 1e-4
         if model_size_in_b < 0.1:
-            hs, att_h, ffn = 512, 6, 1536
+            hs, att_h, ffn = 512, 6, 1024
         elif model_size_in_b < 0.4:
-            hs, att_h, ffn = 768, 12, 3072
+            hs, att_h, ffn = 768, 12, 2048
         elif model_size_in_b < 1:
-            hs, att_h, ffn = 1024, 16, 4096
+            hs, att_h, ffn = 1024, 16, 2816
         elif model_size_in_b < 5:
-            hs, att_h, ffn = 2048, 32, 7680
+            hs, att_h, ffn = 2048, 32, 5120
         elif model_size_in_b < 15:
-            hs, att_h, ffn = 4096, 64, 15360
+            hs, att_h, ffn = 4096, 64, 10240
         elif model_size_in_b < 25.9:
-            hs, att_h, ffn = 5120, 80, 16384
+            hs, att_h, ffn = 5120, 80, 10880
+        elif model_size_in_b < 42.0:
+            hs, att_h, ffn = 6144, 96, 10880
         else:
-            raise ValueError("Model_size for T5 must be smaller than  parameters.")
+            raise ValueError("Model_size for T5 must be smaller than 42B parameters.")
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -147,10 +149,10 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
     
-    # Try multiples of 5
+    # Try multiples of 2
     margin = 0.01
-    for attempt in range(0, 10):
-        for layers in range(5, 201, 5):
+    for attempt in range(0, 6):
+        for layers in range(2, 201, 2):
             out_size = _calculate_model_size(
                 vocab_size=vocab_size,
                 seq_length=seq_length,
@@ -164,11 +166,11 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
-
-    # Try multiples of 2
+    
+    # Try multiples of 5
     margin = 0.01
     for attempt in range(0, 6):
-        for layers in range(2, 201, 2):
+        for layers in range(5, 201, 5):
             out_size = _calculate_model_size(
                 vocab_size=vocab_size,
                 seq_length=seq_length,

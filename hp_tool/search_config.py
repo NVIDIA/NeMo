@@ -76,4 +76,4 @@ def search_config(cfg):
     search_training_config(base_cfg, model_size_in_b, model_name, cfg)
 
     # Launch grid search for inference constraints
-    #search_inference_config(base_cfg=base_cfg, cfg=cfg)
+    #search_inference_config(model_size_in_b=model_size_in_b, model_name=model_name, base_cfg=base_cfg, cfg=cfg)

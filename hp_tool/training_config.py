@@ -15,10 +15,14 @@ def search_training_config(base_cfg, model_size, model_name, cfg):
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     #job_ids = None
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_size, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
+    search_cfg = cfg.get("search_config")
+    train_cfg = search_cfg.get("train_settings")
+    act_layers = train_cfg.get("act_ckpt_layers")
+
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name == "gpt3" else 2
 
@@ -26,7 +30,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
-        model_size_in_b=model_size_in_b, num_layers=num_layers, model_name=model_name
+        model_size_in_b=model_size_in_b, num_layers=num_layers, model_name=model_name, train_cfg=train_cfg
     )
 
     base_dir = f"{cfg.search_config.train_settings.logs}/candidate_configs"
@@ -34,10 +38,21 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
     max_minutes = cfg.search_config.train_settings.max_minutes_per_run
 
+    if model_size_in_b < 1.0:
+        act_multiple = 2
+    elif 1.0 <= model_size_in_b < 51.0:
+        act_multiple = 4
+    else:
+        act_multiple = 1
+
     valid_pp_list = []
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1)]
+            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0]
+            # Override ackt_ckpt_layers with the parameter in the config file.
+            if act_layers is not None:
+                act_ckpt_layers = act_layers
+
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
                     num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
@@ -53,7 +68,9 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     # Generate grid search configs.
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1)]
+            act_ckpt_layers = [x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0]
+            if act_layers is not None:
+                act_ckpt_layers = act_layers
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
                     new_cfg = utils.modify_cfg(
@@ -70,10 +87,14 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     return base_dir, results_cfgs
 
 
-def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
+def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
+    tp_sizes = train_cfg.get("tensor_parallel_sizes")
+    pp_sizes = train_cfg.get("pipeline_model_parallel_sizes")
+    mbs_sizes = train_cfg.get("micro_batch_sizes")
+
     multiplier = 1 if model_name == "gpt3" else 2
-    # TODO: @mausin Add 1 to valid_pp list for T5
-    valid_pp = [
+    init_pp = [] if model_name == "gpt3" else [1]
+    valid_pp = init_pp + [
         multiplier * x for x in range(1, num_layers + 1) if num_layers % x == 0
     ]  # Only divisors of num_layers are possible.
 
@@ -120,7 +141,6 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
             pp = [x for x in valid_pp if 29 < x < 131]
             mbs = [1, 2]
     elif model_name == "t5":
-        # TODO: @yuya to check.
         tp = [1, 2, 4, 8]
         pp = [1]
         mbs = [1, 2, 4, 6, 8, 12, 16]
@@ -130,19 +150,32 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name="gpt3"):
             # Add a check to make it work with the specified number of nodes.
         elif 1.0 < model_size_in_b <= 4.0:
             tp = [1, 2, 4]
-            mbs = [4, 6, 8, 12, 16, 24, 27, 32, 48]
+            mbs = [4, 6, 8, 12, 16, 24, 32, 48]
         elif 4.0 < model_size_in_b <= 8.0:
             tp = [2, 4, 8]
-            mbs = [4, 6, 8, 12, 16, 24, 27, 32]
+            mbs = [4, 6, 8, 12, 16, 24, 32]
         elif 8.0 < model_size_in_b <= 14.5:
             tp = [4, 8]
-            mbs = [1, 4, 6, 8, 12, 16, 24]
+            mbs = [2, 4, 6, 8, 12, 16, 24]
         elif 14.5 < model_size_in_b <= 25.9:
-            tp = [8]
+            tp = [4, 8]
+            pp = [x for x in valid_pp if 1 <= x <= 2]
+            mbs = [1, 2, 4, 6, 8]
+        elif 25.9 < model_size_in_b <= 42.0:
+            tp = [4, 8]
             pp = [x for x in valid_pp if 1 <= x <= 4]
-            mbs = [1, 2, 4, 8]
+            mbs = [1, 2, 4, 6, 8]
     else:
         raise NotImplementedError("Model name not implemented.")
+    
+    # Override the tp, pp, mbs search if indicated in the config params.
+    if tp_sizes is not None:
+        tp = tp_sizes
+    if pp_sizes is not None:
+        pp = pp_sizes
+    if mbs_sizes is not None:
+        mbs = mbs_sizes
+    
     return tp, pp, mbs
 
 
@@ -154,7 +187,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
         base_dir: str, location where the configs are stored.
         results_cfgs: list, list of config names.
         cfg: OmegaConf, the general config object.
-    Output:
+    Output
         job_ids: list, list of job ids for all the training jobs.
     """
     limit = cfg.search_config.train_settings.limit_search_runs
@@ -167,7 +200,7 @@ def launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg):
             new_cfg.training = conf
             # Add cluster config to new_cfg.
             new_cfg.cluster = cfg.cluster
-            job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path)
+            job_id = train.run_training(new_cfg, cfg.bignlp_hp_tool_path, model_name)
             if job_id is not None:
                 job_ids.append(job_id[:-1])
             if len(job_ids) == limit:
@@ -221,13 +254,14 @@ def create_bignlp_config(model_name, cfg):
     return new_cfg
 
 
-def launch_throughput_measure(dependency_list, model_size, cfg):
+def launch_throughput_measure(dependency_list, model_name, model_size_in_b, cfg):
     """Launch job that measures the throughput of each run in the grid search. This 
     job will get scheduled with dependencies on all the job ids in dependency_list, 
     so it will only start running once all the jobs are finished.
 
     Arguments:
         dependency_list: list, list of all the job_ids this job will depend on.
+        model_name: str, name of the model, i.e. gpt3, t5, mt5.
         model_size_in_b: float, model size in billions of parameters.
         cfg: OmegaCOnf, general config object.
     Output:
@@ -273,12 +307,12 @@ def launch_throughput_measure(dependency_list, model_size, cfg):
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
-        f"-o {final_log_dir}/compare_throughput_{model_size}b-%j.log "
-        f"-e {final_log_dir}/compare_throughput_{model_size}b-%j.error "
+        f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b-%j.log "
+        f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b-%j.error "
     )
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size}"
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,

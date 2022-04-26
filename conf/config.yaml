@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - cluster: bcm
-  - search_config: gpt3/5b
+  - search_config: t5/0.22b
   - override hydra/job_logging: stdout
 
 hydra:
@@ -9,9 +9,10 @@ hydra:
     dir: .
   output_subdir: null
 
-bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  # Path should end with bignlp-hp-tool
+bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  # Path should end with bignlp-hp-tool.
+bignlp_inference_path: ${bignlp_hp_tool_path}/../BigNLP-Inference-Scripts  # Path to the location of BigNLP-Inference-Scripts codebase.
 base_results_dir: ${bignlp_hp_tool_path}/results
-data_dir: /lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
+data_dir: /lustre/fsw/joc/big_nlp/t5/dataset/Pile
 
 training_container: nvcr.io/nvidian/bignlp-training:22.04.08-py
 container_mounts:
