@@ -25,7 +25,7 @@ import numpy as np
 import multiprocessing as mp
 from functools import partial
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
+from nemo.core import Dataset
 from nemo.utils import logging
 
 
@@ -57,7 +57,7 @@ class TextMemMapDatasetConfig():
     dataloader_type: str = 'single'
 
 
-class TextMemMapDataset(MegatronDataset):
+class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
