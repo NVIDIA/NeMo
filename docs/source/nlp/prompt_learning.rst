@@ -40,7 +40,7 @@ When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_
 
 P-tuning usually requires fewer virtual tokens per task to achieve good results but uses a higher number of parameters compared to prompt-tuning. For example, if you prompt tune a 125M parameter GPT model (with hidden size 768) on two tasks, using 100 virtual tokens per task, the total parameters tuned during prompt tuning would equal 153k (~.1% of the pre-trained model size). If you p-tune the same 125M GPT model on 2 tasks, using an LSTM with two layers and 10 tokens per task, you will be tuning 8.3M parameters (~6.6% of the pre-trained model size). The increased number of parameters used during p-tuning is mitigated by our ``prompt_table``. When p-tuned soft prompts are placed in the prompt table, only the parameters for the predicted virtual tokens are saved. This allows us to keep the benefit of tuning a larger number of parameters during training, while also preserving the parameter efficiency of prompt-tuning during inference and storing of the model.
 
-Because p-tuning shares parameters between tasks during training, p-tuning your model on multiple tasks that are similar might allow your model to share insight between tasks. In the same vein, p-tuning on many very different tasks at once might perform worse than prompt tuning, which tunes a distinct set of parameters per task. 
+Because p-tuning shares parameters between tasks during training, p-tuning your model on multiple tasks that are similar might allow your model to share insight between tasks. In the same vein, p-tuning on many very different tasks at once might perform worse than prompt tuning, which tunes a distinct set of parameters per task. **Generally we recommend using p-tuning over prompt tuning.**
 
 Users can also optionally tune the model's full parameters in addition to the soft prompt parameters. See ``model.lm_finetune`` in the Prompt Learning Config section for details on how to configure this. 
 
@@ -77,6 +77,7 @@ For example, given:
 
 the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home. VVV Premise: He didn't say a word. VVV Answer:``, where ``VVV`` are three virtual tokens.
 
+**We strongly recommend you place all virtual tokens at the very begining of your prompt template** like we do with the ``sentiment`` task example below. We've found this gives the best performance. 
 .. code::
 
   config.model.task_templates = [
@@ -119,6 +120,12 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
     * - **virtual_token_splits**
       - list of ints
       - specifies the number of virtual tokens that belong at each ``<|VIRTUAL_PROMPT_#|>`` marker. ``virtual_token_splits`` values should add up to ``total_virtual_tokens``. The number of ``virtual_token_splits`` should match the number of ``<|VIRTUAL_PROMPT_#|>`` markers.
+    * - **answer_only_loss**
+      - bool
+      - Whether to limit loss calculation to only the answer portion of the prompt during tuning. Strongly recommended for long prompts. 
+    * - **answer_field**
+      - string
+      - The field in the data json corresponding to the answer. The loss will only be calculated on this portion of the prompt if ``answer_only_loss`` is ``True``. The answer field must be at the end of the prompt template. 
     * - **truncate_field** 
       - string
       - specifies which field in the data json to truncate if the length of the input exceeds the maximum sequence length of the model. If ``truncate_field`` is set to ``None``, examples that are too long are simply dropped from the dataset.
@@ -259,6 +266,8 @@ Example Multi-Task P-Tuning Command After Prompt-Tuning
 ^^^^^^^^^^
 Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them. 
 
+In this example, the SQuAD task includes the question context as part of the prompt. Because the context is long, we recommend setting ``answer_only_loss`` to ``True`` for this task, and any task where a significant portion of the prompt is not a part of the answer. ``answer_only_loss`` tells the model to only calculate the cross entropy loss on the answer portion of the training example. Though we recommend placing all virtual tokens at the beginning of the prompt, we place them throughout the prompt in this example to demonstrate how to do so.
+
 .. code::
 
   name: multitask_p_tuning # ***
@@ -297,7 +306,9 @@ Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning p
     prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context <|VIRTUAL_PROMPT_1|> {question} <|VIRTUAL_PROMPT_2|> {context} <|VIRTUAL_PROMPT_3|>  Answer: {answer}" # *** 
     total_virtual_tokens: 16 # ***
     virtual_token_splits: [4, 4, 4, 4] # ***
-    truncate_field: null # ***
+    truncate_field: context # ***
+    answer_only_loss: True # ***
+    answer_field: 'answer # ***
 
   p_tuning: # ***
       dropout: 0.0 # ***
