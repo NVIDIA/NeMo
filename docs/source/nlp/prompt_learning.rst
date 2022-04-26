@@ -175,9 +175,6 @@ Prompt Learning Specific Config Values
    * - **model.p_tuning.num_layers**
      - int
      - Num layers in LSTM prompt encoder
-   * - **model.p_tuning.save_tuned_prompts_to_prompt_table**
-     - bool
-     - Whether to save p-tuned prompts to ``prompt_table`` after tuning. (``True`` strongly recommended)
    * - **model.tensor_model_parallel_size**
      - int
      - intra-layer model parallelism, must match the ``tensor_model_parallel_size`` of the GPT model given at ``language_model_path``
@@ -313,8 +310,7 @@ In this example, the SQuAD task includes the question context as part of the pro
   p_tuning: # ***
       dropout: 0.0 # ***
       num_layers: 2 # ***
-      save_tuned_prompts_to_prompt_table: True # ***
-
+      
   data:
     train_ds: ["data/squad_train.jsonl"] # ***
     validation_ds: ["data/squad_val.jsonl"] # ***
