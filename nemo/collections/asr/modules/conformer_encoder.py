@@ -504,11 +504,11 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         if shift_size is None:
             if isinstance(sampling_frames, list):
                 streaming_cfg.shift_size = [
-                    sampling_frames[0] + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
-                    sampling_frames[1] + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    sampling_frames[0] + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    sampling_frames[1] + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
                 ]
             else:
-                streaming_cfg.shift_size = sampling_frames + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
+                streaming_cfg.shift_size = sampling_frames * (1 + streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
 
             # streaming_cfg.shift_size = [
             #     1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
