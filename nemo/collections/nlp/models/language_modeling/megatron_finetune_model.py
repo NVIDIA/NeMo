@@ -364,7 +364,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # The consequence of not doing this is that training loop will never run validation.
         # NOTE: Prog bar is also broken as a result of this.
         global_batch_size_per_gpu = micro_batch_size * get_num_microbatches()
-        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_gpu) and check_validation_interval:
+        if (
+            self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_gpu)
+            and check_validation_interval
+        ):
             raise ValueError(
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
