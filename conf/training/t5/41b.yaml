@@ -1,5 +1,5 @@
 run:
-  name: t5_3b
+  name: t5_41b
   results_dir: ${base_results_dir}/${.name}
   time_limit: "15-00:00:00"
   dependency: "singleton"
