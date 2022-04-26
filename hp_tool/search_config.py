@@ -73,7 +73,9 @@ def search_config(cfg):
     )
 
     # Launch grid search for training constraints
-    search_training_config(base_cfg, model_size_in_b, model_name, cfg)
+    if cfg.get("run_training_hp_search"):
+        search_training_config(base_cfg, model_size_in_b, model_name, cfg)
 
     # Launch grid search for inference constraints
-    #search_inference_config(model_size_in_b=model_size_in_b, model_name=model_name, base_cfg=base_cfg, cfg=cfg)
+    if cfg.get("run_training_hp_search"):
+        search_inference_config(model_size_in_b=model_size_in_b, model_name=model_name, base_cfg=base_cfg, cfg=cfg)

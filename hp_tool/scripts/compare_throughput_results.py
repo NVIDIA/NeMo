@@ -34,6 +34,8 @@ def main(cfg):
                 ea.Reload()
                 try:
                     timing_list = ea.Scalars("train_step_timing")
+                    if len(timing_list) <= 6:
+                        continue
                     half_timing_list = timing_list[len(timing_list) // 2 :]
                     avg_global_step_time = calculate_average(half_timing_list)
                     result_models.append([candidate_dir, avg_global_step_time])

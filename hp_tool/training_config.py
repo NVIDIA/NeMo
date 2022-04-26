@@ -12,8 +12,8 @@ def search_training_config(base_cfg, model_size, model_name, cfg):
     # Generate candidate configs.
     base_dir, results_cfgs = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
-    job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
-    #job_ids = None
+    #job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
+    job_ids = None
     # Measure and compare throughputs for each config.
     launch_throughput_measure(job_ids, model_name, model_size, cfg)
 
@@ -38,10 +38,13 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
     max_minutes = cfg.search_config.train_settings.max_minutes_per_run
 
-    if model_size_in_b < 1.0:
-        act_multiple = 2
-    elif 1.0 <= model_size_in_b < 51.0:
-        act_multiple = 4
+    if model_name in ["t5", "mt5"]:
+        if model_size_in_b < 1.0:
+            act_multiple = 2
+        elif 1.0 <= model_size_in_b < 26.0:
+            act_multiple = 4
+        else:
+            act_multiple = 8
     else:
         act_multiple = 1
 
