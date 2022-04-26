@@ -688,6 +688,9 @@ def sample_sequence_batch(
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
 
+                # Replace sampled tokens w/ done token if EOD has already been sampled
+                new_tokens = switch(new_tokens, eod_id, is_done)
+
                 # Replace special soft prompt token ids with unk token ids
                 if isinstance(model, MegatronGPTPromptLearningModel):
                     pseudo_token_ids_start = model.pseudo_token_ids_start
@@ -876,6 +879,7 @@ def tab_sample_sequence_batch(
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
 
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
+                new_tokens = switch(new_tokens, eod_id, is_done)
                 tokens[:, context_length] = new_tokens
 
                 if output_logits is None:
