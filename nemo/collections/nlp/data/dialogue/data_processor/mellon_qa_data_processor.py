@@ -28,15 +28,17 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
     """Data Processor for Mellon QA dialogues. 
     """
 
-    def __init__(self, data_dir: str, tokenizer: object):
+    def __init__(self, data_dir: str, tokenizer: object, cfg=None):
         """
         Constructs DialogueMSMarcoDataProcessor
         Args:
             data_dir: path to data directory
             tokenizer: tokenizer object
+            cfg: cfg container for dataset
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
+        self.cfg = cfg
 
     def open_csv(self, filename):
         """
@@ -52,7 +54,7 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
         Process raw files into DialogueInputExample
         Args: 
             dataset_split: {train, dev, test}
-        For the assistant dataset, there is no explicit dev set (instead uses the test set as the dev set)
+        For the Mellon QA dataset, there is no explicit dev set (instead uses the test set as the dev set)
         Therefore, this function creates a dev set and a new train set from the train set.
         Dev set contains self.cfg.dev_proportion % of samples with the rest going into the train set
         Test set contains the whole dataset (Dev + Train) as this dataset is small (~100) and primarily used in a zero shot setting

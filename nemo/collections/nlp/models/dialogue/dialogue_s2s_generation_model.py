@@ -260,7 +260,7 @@ class DialogueS2SGenerationModel(NLPModel):
 
         if self._cfg.dataset.task == "ms_marco":
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, debug_mode=self.cfg.dataset.debug_mode
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
             )
         elif self._cfg.dataset.task == "sgd_generation":
             self.dialogues_processor = DialogueSGDDataProcessor(
@@ -271,7 +271,7 @@ class DialogueS2SGenerationModel(NLPModel):
             )
         elif self._cfg.dataset.task == "mellon_qa":
             self.dialogues_processor = DialogueMellonQADataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
             )
         else:
             raise ValueError("Only ms_marco, sgd_generation and mellon_qa supported for Dialogue GPT Generation Model")

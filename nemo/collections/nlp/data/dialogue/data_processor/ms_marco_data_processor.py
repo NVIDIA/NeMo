@@ -32,17 +32,18 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
        https://msmarco.blob.core.windows.net/msmarco/eval_v2.1_public.json.gz
     """
 
-    def __init__(self, data_dir: str, tokenizer: object, debug_mode=False):
+    def __init__(self, data_dir: str, tokenizer: object, cfg=None):
         """
         Constructs DialogueMSMarcoDataProcessor
         Args:
             data_dir: path to data directory
             tokenizer: tokenizer object
             debug_mode: reduce number of samples to load in order to increase speed of processing
+            cfg: cfg container for dataset
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
-        self.debug_mode = debug_mode
+        self.cfg = cfg
 
     def open_json(self, filename):
         """
@@ -83,7 +84,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
         elif dataset_split == "test":
             idxs = list(range(len(n_samples)))
 
-        if self.debug_mode:
+        if self.cfg.debug_mode:
             idxs = idxs[:1000]
 
         for i in idxs:

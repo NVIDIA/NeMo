@@ -102,9 +102,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             data_dir: path to data directory
             dialogues_example_dir: path to store processed dialogue examples
             tokenizer: tokenizer object
-            schemas: schema object 
-            schema_config: schema configuration
-            subsample: whether to balance positive and negative samples in dataset
+            cfg: cfg container for dataset
         """
         self.data_dir = data_dir
         self.cfg = cfg

@@ -54,7 +54,7 @@ class DialogueNearestNeighbourModel(NLPModel):
             )
         elif self._cfg.dataset.task == "design":
             self.data_processor = DialogueDesignDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer,
+                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
             )
         elif self._cfg.dataset.task == 'sgd':
             self.data_processor = DialogueSGDDataProcessor(

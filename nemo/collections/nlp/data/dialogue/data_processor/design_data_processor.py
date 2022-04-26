@@ -27,15 +27,17 @@ __all__ = ['DialogueDesignDataProcessor']
 class DialogueDesignDataProcessor(DialogueDataProcessor):
     """Data Processor for Design Dataset"""
 
-    def __init__(self, data_dir: str, tokenizer: object):
+    def __init__(self, data_dir: str, tokenizer: object, cfg=None):
         """
         Constructs DialogueDesignDataProcessor
         Args:
             data_dir: path to data directory
             tokenizer: tokenizer object
+            cfg: cfg container for dataset
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
+        self.cfg = cfg
 
     def open_csv(self, filename):
         """
