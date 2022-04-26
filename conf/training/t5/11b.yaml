@@ -1,7 +1,7 @@
 run:
   name: t5_3b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "40-00:00:00"
+  time_limit: "45-00:00:00"
   dependency: "singleton"
 
 name: megatron_t5
@@ -17,8 +17,8 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "39:23:30:00"
+  max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_time: "44:23:30:00"
   log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
@@ -53,7 +53,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 6
+  micro_batch_size: 12
   global_batch_size: 1920 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 4
   pipeline_model_parallel_size: 1
@@ -71,7 +71,7 @@ model:
   max_position_embeddings: ${.seq_length}
   num_layers: 24
   hidden_size: 4096
-  ffn_hidden_size: 15360  # Transformer FFN hidden size. 4 * hidden_size.
+  ffn_hidden_size: 10240  # Transformer FFN hidden size. 4 * hidden_size.
   num_attention_heads: 64
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
@@ -81,11 +81,11 @@ model:
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+  bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
-  activation: 'gelu'
+  activation: 'geglu'
 
   tokenizer:
     library: 'megatron'

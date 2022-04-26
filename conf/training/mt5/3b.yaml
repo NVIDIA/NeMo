@@ -133,7 +133,7 @@ model:
     seq_length: 512
     seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
@@ -142,7 +142,7 @@ model:
     mean_ngram_size: null
     geometric_dist: True
     permutation: False
-    whole_word_masking: True
+    whole_word_masking: False
     favor_longer_ngrams: False
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
