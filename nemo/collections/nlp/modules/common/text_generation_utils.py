@@ -879,7 +879,6 @@ def tab_sample_sequence_batch(
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
 
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
-                new_tokens = switch(new_tokens, eod_id, is_done)
                 tokens[:, context_length] = new_tokens
 
                 if output_logits is None:
