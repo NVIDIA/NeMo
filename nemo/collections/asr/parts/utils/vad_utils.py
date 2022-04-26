@@ -570,13 +570,22 @@ def vad_construct_pyannote_object_per_file(vad_table_filepath, groundtruth_RTTM_
     """
 
     pred = pd.read_csv(vad_table_filepath, sep="\t", header=None)
-    label = pd.read_csv(groundtruth_RTTM_file, sep=" ", delimiter=None, header=None)
-    label = label.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+    if groundtruth_RTTM_file.endswith(".pt"):
+        label = torch.load(groundtruth_RTTM_file)
+         # construct reference
+        reference = Annotation()
+        for speech_segment in label:
+            reference[Segment(speech_segment[0], speech_segment[1])] = 'Speech'
 
-    # construct reference
-    reference = Annotation()
-    for index, row in label.iterrows():
-        reference[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
+
+    else:
+        label = pd.read_csv(groundtruth_RTTM_file, sep=" ", delimiter=None, header=None)
+        label = label.rename(columns={3: "start", 4: "dur", 7: "speaker"})
+
+        # construct reference
+        reference = Annotation()
+        for index, row in label.iterrows():
+            reference[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
 
     # construct hypothsis
     hypothesis = Annotation()
@@ -630,6 +639,8 @@ def vad_tune_threshold_on_dev(
 
     for param in params_grid:
         try:
+            if param['onset'] == 0 and param['offset']==0:
+                continue
 
             # perform binarization, filtering accoring to param and write to rttm-like table
             vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
@@ -709,7 +720,8 @@ def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
         with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
             groundtruth_RTTM_files = fp.read().splitlines()
     elif os.path.isdir(groundtruth_RTTM):
-        groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
+        # groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
+        groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*"))
     else:
         raise ValueError(
             "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"

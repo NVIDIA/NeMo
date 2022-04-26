@@ -128,14 +128,14 @@ def main():
 
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
-    langs = ['spanish']
-    vad_exps = ["novad", "energy_vad"] 
-    models = ['nr_conformer_ctc',] 
+    langs = ['english']
+    vad_exps = ["neural_vad",] 
+    models = ['nr_citrinet',] 
 
     subset="test"
     single= False # True
     exp = "_single" if single else ""
-    res_file = f"res{exp}_asr_offline_multiple.csv"
+    res_file = f"res{exp}_asr_offline_multiple_tuned.csv"
     si_ratio =  False #True
 
     fixed_silence_set = {1}
@@ -146,7 +146,7 @@ def main():
                 fixed_silence_set.add((i,j))
 
     
-    final_output_folder = "final"
+    final_output_folder = "final_tuned"
     save_neural_vad = True
     os.makedirs(final_output_folder, exist_ok=True)
 
@@ -193,14 +193,33 @@ def main():
                                     if not si_ratio:
                                         left, right = 0, 0
                                     if use_model_path:
-                                        os.system(f'python ../transcribe_speech.py \
-                                            model_path={asr_model} \
-                                            dataset_manifest={input_manifest} \
-                                            batch_size=32 \
-                                            amp=True \
-                                            output_filename={novad_output_manifest} \
-                                            left={left} \
-                                            right={right}') 
+                                        if 'conformer_ctc' in asr_model:
+                                            os.system(f'python ../asr_chunked_inference/ctc/speech_to_text_buffered_infer_ctc.py \
+                                                --asr_model {asr_model} \
+                                                --test_manifest {input_manifest} \
+                                                --chunk_len_in_ms 20000 \
+                                                --output_path {novad_output_manifest} \
+                                                --batch_size 128 \
+                                                --model_stride 4 \
+                                                --total_buffer_in_secs 22')
+                                        elif 'conformer_transducer' in asr_model:
+                                            os.system(f'python ../asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py \
+                                                --asr_model {asr_model} \
+                                                --test_manifest {input_manifest} \
+                                                --chunk_len_in_secs 2.2 \
+                                                --output_path {novad_output_manifest} \
+                                                --batch_size 128 \
+                                                --model_stride 4 \
+                                                --total_buffer_in_secs 22')
+                                        else:
+                                            os.system(f'python ../transcribe_speech.py \
+                                                model_path={asr_model} \
+                                                dataset_manifest={input_manifest} \
+                                                batch_size=32 \
+                                                amp=True \
+                                                output_filename={novad_output_manifest} \
+                                                left={left} \
+                                                right={right}') 
                                         WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
                                         print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
@@ -220,11 +239,19 @@ def main():
                                     vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
 
                                     if vad_exp=="neural_vad":
+                                        # params = {
+                                        #     "onset": 0.5,
+                                        #     "offset": 0.5,
+                                        #     "min_duration_on": 0.5,
+                                        #     "min_duration_off": 0.5,
+                                        #     "pad_onset": 0.2,
+                                        #     "pad_offset": -0.2
+                                        # }
                                         params = {
-                                            "onset": 0.5,
-                                            "offset": 0.5,
+                                            "onset": 0,
+                                            "offset": 0.4,
                                             "min_duration_on": 0.5,
-                                            "min_duration_off": 0.5,
+                                            "min_duration_off": 1,
                                             "pad_onset": 0.2,
                                             "pad_offset": -0.2
                                         }
