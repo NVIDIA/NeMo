@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import torch
-from requests import head
 
-from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
@@ -107,7 +105,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         activation='gelu',
         onnx_safe=False,
         bias=True,
-        normalization="layernorm",
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
         hidden_steps=-1,
         hidden_blocks=1,
         headscale=False,
@@ -178,6 +177,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
+                transformer_block_type=transformer_block_type,
                 headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
@@ -238,6 +238,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
+                transformer_block_type=transformer_block_type,
                 headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )

@@ -114,7 +114,7 @@ class ParallelMLP(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
-        arch='transformer',
+        transformer_block_type='pre_ln',
         normalization='layernorm',
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
@@ -122,7 +122,7 @@ class ParallelMLP(MegatronModule):
         super(ParallelMLP, self).__init__()
         self.activation = activation
         self.bias = bias
-        self.arch = arch
+        self.transformer_block_type = transformer_block_type
         self.normalization = normalization
         self.layernorm_epsilon = layernorm_epsilon
         self.persist_layer_norm = persist_layer_norm
@@ -206,7 +206,7 @@ class ParallelMLP(MegatronModule):
         )
 
         # Normformer normalization
-        if arch == 'normformer':
+        if transformer_block_type == 'normformer':
             if normalization == 'layernorm':
                 self.normalization = get_layer_norm(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon, persist_layer_norm
@@ -239,7 +239,7 @@ class ParallelMLP(MegatronModule):
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
         # Normformer normalization
-        if self.arch == 'normformer':
+        if self.transformer_block_type == 'normformer':
             intermediate_parallel = self.normalization(intermediate_parallel)
 
         # [s, b, h]
@@ -301,7 +301,7 @@ class ParallelAttention(MegatronModule):
         # Headscale
         if headscale:
             self.head_scale_tensor = torch.nn.Parameter(
-                torch.ones(1, self.num_attention_heads_per_partition, 1, 1)
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
             )
 
         # Strided linear layer.
@@ -642,7 +642,6 @@ class ParallelTransformerLayer_(MegatronModule):
         layer_type=LayerType.encoder,
         self_attn_mask_type=AttnMaskType.padding,
         fp32_residual_connection=False,
-        apply_residual_connection_post_layernorm=False,
         precision=16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
@@ -660,7 +659,7 @@ class ParallelTransformerLayer_(MegatronModule):
         megatron_legacy=False,
         bias=True,
         normalization='layernorm',
-        arch='transformer',
+        transformer_block_type='pre_ln',
         headscale=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
@@ -674,7 +673,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.layer_number = layer_number
         self.layer_type = layer_type
         self.bias = bias
-        self.arch = arch
+        self.transformer_block_type = transformer_block_type
 
         if not bias and bias_dropout_fusion:
             raise ValueError(
@@ -684,14 +683,10 @@ class ParallelTransformerLayer_(MegatronModule):
         if normalization not in ['layernorm', 'rmsnorm']:
             raise ValueError(f'normalization must be either "layernorm" or "rmsnorm", found {normalization}')
 
-        if arch not in ['transformer', 'normformer']:
-            raise ValueError(f'arch must be either "transformer" or "normformer", found {arch}')
-
-        if arch == 'normformer' and apply_residual_connection_post_layernorm:
-            raise ValueError(f'Cannot use post-LN (apply_residual_connection_post_layernorm=True) with arc=normformer')
-
-        # if true apply residual connection post layer norm (like original bert)
-        self.apply_residual_connection_post_layernorm = apply_residual_connection_post_layernorm
+        if transformer_block_type not in ['pre_ln', 'post_ln', 'normformer']:
+            raise ValueError(
+                f'transformer_block_type must be either "pre_ln" or "post_ln" or "normformer", found {transformer_block_type}'
+            )
 
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
@@ -725,7 +720,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
 
         # Normformer normalization
-        if arch == 'normformer':
+        if transformer_block_type == 'normformer':
             if normalization == 'layernorm':
                 self.post_attention_normformer_norm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm
@@ -759,7 +754,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 headscale=headscale,
             )
             # Normformer normalization
-            if arch == 'normformer':
+            if transformer_block_type == 'normformer':
                 if normalization == 'layernorm':
                     self.post_inter_attention_normformer_norm = get_layer_norm(
                         hidden_size, layernorm_epsilon, persist_layer_norm
@@ -787,20 +782,20 @@ class ParallelTransformerLayer_(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
-            arch=arch,
+            transformer_block_type=transformer_block_type,
             normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
             persist_layer_norm=persist_layer_norm,
         )
 
-    def _get_bias_droput_add_func(self, arch='transformer', position_after='attention'):
+    def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
         """
         Returns a function that potentially fuses the dropout and bias addition.
 
         This function is particularly helpful for the normformer architecture that does not the fused kernel after attention layers, but can after the MLP.
         """
         # Normformer activations at this point have no bias vector since they've gone through another normalization layer.
-        if arch == 'normformer' and position_after == 'attention':
+        if transformer_block_type == 'normformer' and position_after == 'attention':
             bias_dropout_add_func = get_dropout_add(self.training)
         # Bias dropout add fused kernel
         elif self.bias and self.bias_dropout_fusion:
@@ -830,11 +825,17 @@ class ParallelTransformerLayer_(MegatronModule):
     ):
         # hidden_states: [b, s, h]
 
+        # Pre-LN: x -> LN -> MHA -> Residual -> LN -> MLP -> Residual
+        # Post-LN: x -> MHA -> Residual -> LN -> MLP -> Residual -> LN
+        # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
+
         # Layer norm at the beginning of the transformer layer.
-        normalization_output = self.input_normalization(hidden_states)
+        if self.transformer_block_type in ['pre_ln', 'normformer']:
+            hidden_states = self.input_normalization(hidden_states)
+
         # Self attention.
         attention_output, attention_bias = self.self_attention(
-            normalization_output,
+            hidden_states,
             attention_mask,
             layer_past=layer_past,
             get_key_value=get_key_value,
@@ -846,39 +847,41 @@ class ParallelTransformerLayer_(MegatronModule):
             attention_output, presents = attention_output
 
         # If normformer, apply norm on the output of the self attention.
-        if self.arch == 'normformer':
+        if self.transformer_block_type == 'normformer':
             # Normformer normalization
             attention_output = attention_output + attention_bias if attention_bias is not None else attention_output
             attention_output = self.post_attention_normformer_norm(attention_output)
             attention_bias = None
 
-        # Residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = normalization_output
-        else:
-            residual = hidden_states
+        residual = normalization_output
 
         # jit scripting for a nn.module (with dropout) is not
         # trigerring the fusion kernel. For now, we use two
         # different nn.functional routines to account for varying
         # dropout semantics during training and inference phases.
 
-        bias_dropout_add_func = self._get_bias_droput_add_func(arch=self.arch, position_after='attention')
+        bias_dropout_add_func = self._get_bias_droput_add_func(
+            transformer_block_type=self.transformer_block_type, position_after='attention'
+        )
 
         if attention_bias is not None:
             attention_bias = attention_bias.expand_as(residual)
 
         layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
-        # Layer norm post the self attention.
-        normalization_output = self.post_attention_normalization(layernorm_input)
+        # Post-LN normalization after residual
+        if self.transformer_block_type == 'post_ln':
+            normalization_output = self.input_normalization(layernorm_input)
+        elif self.transformer_block_type in ['pre_ln', 'normformer']:
+            # Layer norm post the self attention.
+            normalization_output = self.post_attention_normalization(layernorm_input)
 
         if self.layer_type == LayerType.decoder:
             attention_output, attention_bias = self.inter_attention(
                 normalization_output, enc_dec_attn_mask, encoder_output=encoder_output
             )
             # If normformer, apply norm on the output of the self attention.
-            if self.arch == 'normformer':
+            if self.transformer_block_type == 'normformer':
                 # Normformer normalization
                 attention_output = (
                     attention_output + attention_bias if attention_bias is not None else attention_output
@@ -886,21 +889,23 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_output = self.post_inter_attention_normformer_norm(attention_output)
                 attention_bias = None
 
-            # residual connection
-            if self.apply_residual_connection_post_layernorm:
-                residual = normalization_output
-            else:
-                residual = layernorm_input
+            residual = layernorm_input
 
             if attention_bias is not None:
                 attention_bias = attention_bias.expand_as(residual)
 
-            bias_dropout_add_func = self._get_bias_droput_add_func(arch=self.arch, position_after='attention')
+            bias_dropout_add_func = self._get_bias_droput_add_func(
+                transformer_block_type=self.transformer_block_type, position_after='attention'
+            )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
-            # Layer norm post the decoder attention
-            normalization_output = self.post_inter_attention_normalization(layernorm_input)
+            # Post-LN normalization after residual
+            if self.transformer_block_type == 'post_ln':
+                normalization_output = self.post_attention_normalization(layernorm_input)
+            elif self.transformer_block_type in ['pre_ln', 'normformer']:
+                # Layer norm post the self attention.
+                normalization_output = self.post_inter_attention_normalization(layernorm_input)
 
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
@@ -914,9 +919,14 @@ class ParallelTransformerLayer_(MegatronModule):
         if mlp_bias is not None:
             mlp_bias = mlp_bias.expand_as(residual)
 
-        bias_dropout_add_func = self._get_bias_droput_add_func(arch=self.arch, position_after='mlp')
+        bias_dropout_add_func = self._get_bias_droput_add_func(
+            transformer_block_type=self.transformer_block_type, position_after='mlp'
+        )
 
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
+
+        if self.transformer_block_type == 'post_ln':
+            output = self.post_inter_attention_normalization(output)
 
         if get_key_value:
             output = [output, presents]
@@ -1008,7 +1018,7 @@ class ParallelTransformer(MegatronModule):
         megatron_legacy=False,
         bias=True,
         normalization='layernorm',
-        arch='transformer',
+        transformer_block_type='transformer',
         headscale=False,
     ):
         super(ParallelTransformer, self).__init__()
@@ -1026,6 +1036,7 @@ class ParallelTransformer(MegatronModule):
         self.self_attn_mask_type = self_attn_mask_type
         self.model_type = model_type
         self.normalization = normalization
+        self.transformer_block_type = transformer_block_type
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
@@ -1068,7 +1079,7 @@ class ParallelTransformer(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 normalization=normalization,
-                arch=arch,
+                transformer_block_type=transformer_block_type,
                 headscale=headscale,
             )
 

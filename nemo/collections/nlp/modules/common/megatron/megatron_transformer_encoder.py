@@ -69,7 +69,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         activation='gelu',
         bias=True,
         normalization='layernorm',
-        arch='transformer',
+        transformer_block_type='pre_ln',
         headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
     ):
@@ -85,6 +85,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
         self.normalization = normalization
+        self.transformer_block_type = transformer_block_type
 
         if kv_channels is None:
 
@@ -123,7 +124,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             activation=activation,
             bias=bias,
             normalization=normalization,
-            arch=arch,
+            transformer_block_type=transformer_block_type,
             headscale=headscale,
             model_type=parent_model_type,
         )
