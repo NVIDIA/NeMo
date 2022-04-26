@@ -14,8 +14,8 @@ The Hyper-Parameter (HP) tool is intended to quickly iterate over different mode
 to quickly find the best configuration with minimal time and money spending. To achieve that, our 
 tool goes through different steps, as shown in the table below:
 
-| Feature                    | GPT-3 | T5 | mT5  |
-| -------------------------- | ----------------- |
+| Feature                    | GPT-3 | T5  | mT5 |
+| -------------------------- | ----- | --- | --- |
 | Model Size Recommendation  | Yes   | Yes | Yes |
 | Base Config Generation     | Yes   | Yes | Yes |
 | Training HP Search         | Yes   | Yes | Yes |
