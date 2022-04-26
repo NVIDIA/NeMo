@@ -471,6 +471,8 @@ class MTDataPreproc:
                         src_filename=src_fname,
                         tgt_filename=tgt_fname,
                         retrieval_indices_filename=retrieval_indices_fname,
+                        retrieval_db_src_filename=retrieval_db_src_fname,
+                        retrieval_db_tgt_filename=retrieval_db_tgt_fname,
                         lines_indices=lines_indices,
                         out_dir=out_dir,
                         num_batches_per_tarfile=num_batches_per_tarfile,
@@ -594,6 +596,8 @@ class MTDataPreproc:
         src_filename,
         tgt_filename,
         retrieval_indices_filename,
+        retrieval_db_src_filename,
+        retrieval_db_tgt_filename,
         lines_indices,
         out_dir,
         num_batches_per_tarfile,
@@ -641,7 +645,9 @@ class MTDataPreproc:
             min_seq_length=min_seq_length,
             src_fname=tmp_f_src.name,
             tgt_fname=tmp_f_tgt.name,
-            retrieval_indices_filename=retrieval_indices_filename,
+            retrieval_indices_fname=retrieval_indices_filename,
+            retrieval_db_src_fname=retrieval_db_src_filename,
+            retrieval_db_tgt_fname=retrieval_db_tgt_filename,
             num_tokens=tokens_in_batch,
             encoder_tokenizer_name=encoder_tokenizer_name,
             encoder_tokenizer_model=encoder_tokenizer_model,
@@ -959,7 +965,9 @@ class MTDataPreproc:
         min_seq_length,
         src_fname,
         tgt_fname,
-        retrieval_indices_filename,
+        retrieval_indices_fname,
+        retrieval_db_src_fname,
+        retrieval_db_tgt_fname,
         num_tokens,
         encoder_tokenizer_name,
         encoder_tokenizer_model,
@@ -983,7 +991,7 @@ class MTDataPreproc:
         (3) Adding pickle files to a tarfile until it reaches num_batches_per_tarfile.
         """
 
-        if retrieval_indices_filename is None:
+        if retrieval_indices_fname is None:
             dataset = TranslationDataset(
                 dataset_src=src_fname,
                 dataset_tgt=tgt_fname,
@@ -1001,6 +1009,9 @@ class MTDataPreproc:
             dataset = RetrievalTranslationDataset(
                 dataset_src=src_fname,
                 dataset_tgt=tgt_fname,
+                retrieval_indices=retrieval_indices_fname,
+                retrieval_db_src=retrieval_db_src_fname,
+                retrieval_db_tgt=retrieval_db_tgt_fname,
                 tokens_in_batch=num_tokens,
                 clean=True,
                 max_seq_length=max_seq_length,
@@ -1010,7 +1021,6 @@ class MTDataPreproc:
                 cache_ids=False,
                 cache_data_per_node=False,
                 use_cache=False,
-                retrieval_indices=retrieval_indices_filename,
                 retrieval_nns=nns,
             )
 

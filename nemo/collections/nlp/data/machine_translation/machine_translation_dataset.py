@@ -395,10 +395,10 @@ class RetrievalTranslationDataset(TranslationDataset):
             to_add = []
             to_add.extend(src_ids[i])
             for nn_id in self.nn_list[i].tolist():
-                if nn_id != i:
-                    # avoid adding the same sentence if train and index set are the same
-                    to_add.extend(src_retrieval_ids[nn_id])
-                    to_add.extend(tgt_retrieval_ids[nn_id])
+                # if nn_id != i: # TODO smy: Still check if retrieval dataset is main
+                # avoid adding the same sentence if train and index set are the same
+                to_add.extend(src_retrieval_ids[nn_id])
+                to_add.extend(tgt_retrieval_ids[nn_id])
             src_ids_extended.append(to_add)
         src_ids = src_ids_extended
 
