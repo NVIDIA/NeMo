@@ -829,6 +829,7 @@ class ParallelTransformerLayer_(MegatronModule):
         # Post-LN: x -> MHA -> Residual -> LN -> MLP -> Residual -> LN
         # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
 
+        residual = hidden_states
         # Layer norm at the beginning of the transformer layer.
         if self.transformer_block_type in ['pre_ln', 'normformer']:
             hidden_states = self.input_normalization(hidden_states)
@@ -852,8 +853,6 @@ class ParallelTransformerLayer_(MegatronModule):
             attention_output = attention_output + attention_bias if attention_bias is not None else attention_output
             attention_output = self.post_attention_normformer_norm(attention_output)
             attention_bias = None
-
-        residual = normalization_output
 
         # jit scripting for a nn.module (with dropout) is not
         # trigerring the fusion kernel. For now, we use two
@@ -899,22 +898,12 @@ class ParallelTransformerLayer_(MegatronModule):
             )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
-
-            # Post-LN normalization after residual
-            if self.transformer_block_type == 'post_ln':
-                normalization_output = self.post_attention_normalization(layernorm_input)
-            elif self.transformer_block_type in ['pre_ln', 'normformer']:
-                # Layer norm post the self attention.
-                normalization_output = self.post_inter_attention_normalization(layernorm_input)
+            normalization_output = self.post_inter_attention_normalization(layernorm_input)
 
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
 
-        # Second residual connection.
-        if self.apply_residual_connection_post_layernorm:
-            residual = normalization_output
-        else:
-            residual = layernorm_input
+        residual = layernorm_input
 
         if mlp_bias is not None:
             mlp_bias = mlp_bias.expand_as(residual)
@@ -926,7 +915,7 @@ class ParallelTransformerLayer_(MegatronModule):
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
 
         if self.transformer_block_type == 'post_ln':
-            output = self.post_inter_attention_normalization(output)
+            output = self.post_attention_normalization(output)
 
         if get_key_value:
             output = [output, presents]
