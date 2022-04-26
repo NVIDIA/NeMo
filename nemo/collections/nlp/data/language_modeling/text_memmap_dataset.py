@@ -17,6 +17,7 @@ from configparser import _section
 import os
 import time
 import pickle
+import tokenize
 
 from typing import Optional
 from dataclasses import dataclass
@@ -68,6 +69,7 @@ class TextMemMapDataset(Dataset):
                  header_lines=1,
                  skip_lines=0,
                  workers=None,
+                 tokenizer=None,
         super().__init__()
 
         if len(dataset_paths) < 1:
@@ -78,9 +80,9 @@ class TextMemMapDataset(Dataset):
         # skip first N lines
         self._header_lines = header_lines
         self._skip_lines = skip_lines
-        self.files_list = dataset_paths
-        self.mdata_midx_size_list = None
-        self.worker = workers
+        self._files_list = dataset_paths
+        self._worker = workers
+        self.tokenizer = tokenizer
 
         logging.info(f"Building data files")
         # load all files into memmap
@@ -90,13 +92,13 @@ class TextMemMapDataset(Dataset):
 
         if  not is_ditributed or \
             (is_ditributed and torch.distributed.get_rank() == 0):
-            build_index_files(dataset_paths, newline_int, workers=self.worker)
+            build_index_files(dataset_paths, newline_int, workers=self._worker)
 
         if is_ditributed:
             torch.distributed.barrier()
 
         logging.info(f"Loading data files")
-        mdata_midx_size_list = [self.load_file(fn) for fn in self.files_list]
+        mdata_midx_size_list = [self.load_file(fn) for fn in self._files_list]
 
         logging.info("Computing global indices")
         joint_midx = [0]
@@ -129,8 +131,20 @@ class TextMemMapDataset(Dataset):
         file_row = idx - self.joint_midx[file_id]
         rec_start = self.mdata_midx_size_list[file_id][1][file_row]
         rec_end = self.mdata_midx_size_list[file_id][1][file_row + 1 + self._skip_lines]
-        data = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
+        text = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
+        
+        data = self._build_data_from_text(text)
 
+        return data
+
+    def _build_data_from_text(self, text):
+        """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
+        # tokenize text if tokenizer is given
+        if self.tokenizer is not None:
+            data = self.tokenizer
+        else:
+            data = text
+        
         return data
 
     def load_file(self, fn):
@@ -155,8 +169,7 @@ class TextMemMapDataset(Dataset):
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
-        return (mdata, midx, size)
-    
+        return (mdata, midx, size)    
 
 class CSVMemMapDataset(TextMemMapDataset):
     """
@@ -180,13 +193,13 @@ class CSVMemMapDataset(TextMemMapDataset):
         self._data_col = data_col
         self._data_sep = data_sep
 
-    def __getitem__(self, idx):
-        """
-        Return a CSV field from binary memmap
-        """
-        data = super().__getitem__(idx)
-        
-        return data.split(self._data_sep)[self._data_col]
+
+    def _build_data_from_text(self, text):
+        """Return a CSV field from text"""
+        # get CSV field
+        text = text.split(self._data_sep)[self._data_col]
+        # tokenize
+        return super()._build_data_from_text(text)        
 
 
 def _build_memmap_index_files(newline_int, fn):
