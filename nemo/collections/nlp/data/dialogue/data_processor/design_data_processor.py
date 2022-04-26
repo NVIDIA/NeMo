@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import random
 
 import pandas as pd
 
@@ -50,8 +51,8 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
         Process raw files into DialogueInputExample
         Args: 
             dataset_split: {train, dev, test}
-        Train contains 90% of the dataset, Dev is the other 10% 
-        Test contains the whole dataset (Dev + Train)
+        Dev set contains self.cfg.dev_proportion % of samples with the rest going into the train set
+        Test set contains the whole dataset (Dev + Train) as this dataset is small (~100) and primarily used in a zero shot setting
         """
 
         examples = []
@@ -60,18 +61,19 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
         # remove disabled examples
         raw_examples = [raw_examples[i] for i in range(len(raw_examples)) if raw_examples[i]['disabled'] != 'yes']
 
-        if dataset_split == "train":
-            idxs = []
-            for idx in range(len(raw_examples)):
-                if idx % 10 != 0:
-                    idxs.append(idx)
-        elif dataset_split == "dev":
-            idxs = []
-            for idx in range(len(raw_examples)):
-                if idx % 10 == 0:
-                    idxs.append(idx)
+        n_samples = len(raw_examples)
+        if dataset_split in ["train", "dev"]:
+            n_dev = int(n_samples * (self.cfg.dev_proportion / 100))
+            dev_idxs = random.sample(list(range(n_samples)), n_dev)
+            if dataset_split == "dev":
+                idxs = dev_idxs
+            else:
+                dev_idxs_set = set(dev_idxs)
+                train_idxs = [idx for idx in list(range(n_samples)) if idx not in dev_idxs_set]
+                idxs = train_idxs
+
         elif dataset_split == "test":
-            idxs = list(range(len(raw_examples)))
+            idxs = list(range(len(n_samples)))
 
         all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
         all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))

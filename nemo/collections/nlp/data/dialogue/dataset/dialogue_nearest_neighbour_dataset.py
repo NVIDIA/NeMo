@@ -16,14 +16,14 @@
 
 import torch
 
-from nemo.core.classes import Dataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
 
 __all__ = ['DialogueNearestNeighbourDataset']
 
 
-class DialogueNearestNeighbourDataset(Dataset):
+class DialogueNearestNeighbourDataset(DialogueDataset):
     """
-    Dataset for training a NN model for zero shot intent recognition.
+    Dataset for training a Nearest Neighbour model for zero shot intent recognition.
     """
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):

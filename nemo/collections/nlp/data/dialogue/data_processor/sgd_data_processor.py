@@ -375,6 +375,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
 
     @staticmethod
     def convert_camelcase_to_lower(label):
+        """Converts camelcase to lowercase with spaces e.g. 'HelloWorld' --> 'hello world'"""
         if label.lower() == "none":
             return "none"
         label = label.split("_")[0]

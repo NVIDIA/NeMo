@@ -38,22 +38,22 @@ from nemo.collections.nlp.models.zero_shot_intent_recognition.zero_shot_intent_m
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
-__all__ = ['ZeroShotIntentModel']
+__all__ = ['DialogueZeroShotIntentModel']
 
 
-class ZeroShotIntentModel(TextClassificationModel):
+class DialogueZeroShotIntentModel(TextClassificationModel):
     """TextClassificationModel to be trained on two- or three-class textual entailment data, to be used for zero shot intent recognition."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
-        # zero shot intent classification loading
-        # cannot directly load as .nemo uses the pre-refactor model
-        # therefore transfer its attributes over
 
         if self.cfg.library == 'megatron':
+            # zero shot intent classification loading
+            # cannot directly load as .nemo uses the pre-refactor model
+            # therefore transfer its attributes over
             if self.cfg.original_nemo_checkpoint is not None:
-                original_model = ZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
+                original_model = DialogueZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
                 self.classifier = original_model.classifier
                 self.bert_model = original_model.bert_model
                 self.loss = original_model.loss
@@ -62,7 +62,7 @@ class ZeroShotIntentModel(TextClassificationModel):
             self.nli_model = AutoModelForSequenceClassification.from_pretrained('facebook/bart-large-mnli')
             self.bert_model = self.nli_model.model
             self.classifier = self.nli_model.classification_head
-            original_model = ZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
+            original_model = DialogueZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
             self.loss = original_model.loss
             self.classification_report = original_model.classification_report
             self.tokenizer = AutoTokenizer.from_pretrained('facebook/bart-large-mnli')
@@ -433,14 +433,14 @@ class ZeroShotIntentModel(TextClassificationModel):
             PretrainedModelInfo(
                 pretrained_model_name="zeroshotintent_en_bert_base_uncased",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/zeroshotintent_en_bert_base_uncased/versions/1.4.1/files/zeroshotintent_en_bert_base_uncased.nemo",
-                description="ZeroShotIntentModel trained by fine tuning BERT-base-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 84.9% and 84.8% on the matched and mismatched dev sets, respectively.",
+                description="DialogueZeroShotIntentModel trained by fine tuning BERT-base-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 84.9% and 84.8% on the matched and mismatched dev sets, respectively.",
             )
         )
         result.append(
             PretrainedModelInfo(
                 pretrained_model_name="zeroshotintent_en_megatron_uncased",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/zeroshotintent_en_megatron_uncased/versions/1.4.1/files/zeroshotintent_en_megatron_uncased.nemo",
-                description="ZeroShotIntentModel trained by fine tuning Megatron-BERT-345m=M-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 90.0% and 89.9% on the matched and mismatched dev sets, respectively",
+                description="DialogueZeroShotIntentModel trained by fine tuning Megatron-BERT-345m=M-uncased on the MNLI (Multi-Genre Natural Language Inference) dataset, which achieves an accuracy of 90.0% and 89.9% on the matched and mismatched dev sets, respectively",
             )
         )
         return result

@@ -18,14 +18,14 @@ from typing import Dict, Optional
 import numpy as np
 
 from nemo.collections.nlp.data.data_utils import get_stats
-from nemo.core.classes import Dataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
 
 __all__ = ['DialogueBERTDataset']
 
 
-class DialogueBERTDataset(Dataset):
+class DialogueBERTDataset(DialogueDataset):
 
     """
     Creates a dataset to use for the task of joint intent
@@ -54,15 +54,15 @@ class DialogueBERTDataset(Dataset):
         Args:
             dataset_split: dataset split
             dialogues_processor: Data generator for dialogues
-            tokenizer: tokenizer to split text into sub-word tokens
-            cfg: config dict for dataset
+            tokenizer: tokenizer
+            cfg: config container for dataset
         """
         self.cfg = cfg
         self.all_possible_labels = dialogues_processor.intents
         self.label_to_label_id = {self.all_possible_labels[i]: i for i in range(len(self.all_possible_labels))}
         self.all_possible_slots = dialogues_processor.slots
         self.slot_name_to_slot_id = {self.all_possible_slots[i]: i for i in range(len(self.all_possible_slots))}
-        self.empty_slot_name = self.all_possible_slots[-1]
+        self.empty_slot_name = 'O'
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
         self.features = self.features if self.cfg.num_samples == -1 else self.features[: self.cfg.num_samples]

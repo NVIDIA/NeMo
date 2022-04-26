@@ -261,15 +261,6 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
             else:
                 raise KeyError(output_mode)
 
-            # if not hasattr(tokenizer, 'tokens_to_ids'):
-            #     print('huggingface')
-            #     encoding = tokenizer(example.text_a, example.text_b, return_tensors='pt',
-            #             truncation_strategy='only_first', padding="max_length", max_length=self.cfg.max_seq_length)
-            #     print(encoding)
-            #     input_ids = encoding['input_ids']
-            #     segment_ids = encoding['token_type_ids']
-            #     input_mask = encoding['attention_mask']
-
             if ex_index < 5:
                 logging.info("*** Example ***")
                 logging.info("guid: %s" % (example.guid))

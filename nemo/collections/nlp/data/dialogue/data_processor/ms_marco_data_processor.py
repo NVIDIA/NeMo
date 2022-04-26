@@ -15,6 +15,7 @@
 
 import json
 import os
+import random
 from ast import literal_eval
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
@@ -37,6 +38,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
         Args:
             data_dir: path to data directory
             tokenizer: tokenizer object
+            debug_mode: reduce number of samples to load in order to increase speed of processing
         """
         self.data_dir = data_dir
         self._tokenizer = tokenizer
@@ -56,10 +58,9 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
         Process raw files into DialogueInputExample
         Args: 
             dataset_split: {train, dev, test}
-        For the assistant dataset, there is no explicit dev set (instead uses the test set as the dev set)
+        For the MS Marco dataset, there is no explicit dev set (instead uses the test set as the dev set)
         Therefore, this function creates a dev set and a new train set from the train set.
-        This is done by taking every 10th example and putting it into the dev set,
-        with all other examples going into the new train set.
+        Dev set contains self.cfg.dev_proportion % of samples with the rest going into the train set
         """
 
         examples = []
@@ -68,19 +69,19 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
 
         raw_examples = self.open_json("{}_v2.1.json".format(dataset_split_print[dataset_split]))
 
-        if dataset_split == "train":
-            idxs = []
-            for idx in range(len(raw_examples['answers'])):
-                if idx % 10 != 0:
-                    idxs.append(idx)
-        elif dataset_split == "dev":
-            idxs = []
-            for idx in range(len(raw_examples['answers'])):
-                if idx % 10 == 0:
-                    idxs.append(idx)
+        n_samples = len(raw_examples['answers'])
+        if dataset_split in ["train", "dev"]:
+            n_dev = int(n_samples * (self.cfg.dev_proportion / 100))
+            dev_idxs = random.sample(list(range(n_samples)), n_dev)
+            if dataset_split == "dev":
+                idxs = dev_idxs
+            else:
+                dev_idxs_set = set(dev_idxs)
+                train_idxs = [idx for idx in list(range(n_samples)) if idx not in dev_idxs_set]
+                idxs = train_idxs
 
         elif dataset_split == "test":
-            idxs = list(range(len(raw_examples['answers'])))
+            idxs = list(range(len(n_samples)))
 
         if self.debug_mode:
             idxs = idxs[:1000]

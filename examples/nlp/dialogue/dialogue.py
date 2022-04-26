@@ -49,9 +49,9 @@ from nemo.collections.nlp.models.dialogue.dialogue_gpt_classification_model impo
 from nemo.collections.nlp.models.dialogue.dialogue_gpt_generation_model import DialogueGPTGenerationModel
 from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model import DialogueNearestNeighbourModel
 from nemo.collections.nlp.models.dialogue.dialogue_s2s_generation_model import DialogueS2SGenerationModel
+from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_intent_model import DialogueZeroShotIntentModel
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
-from nemo.collections.nlp.models.dialogue.zero_shot_intent_model import ZeroShotIntentModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
@@ -78,11 +78,11 @@ def main(cfg: DictConfig) -> None:
     if 'bert' in cfg.model.language_model.pretrained_model_name:
         if cfg.model.dataset.task == 'sgd':
             if cfg.model.original_nemo_checkpoint is not None:
-                model_class = ZeroShotIntentModel
+                model_class = DialogueZeroShotIntentModel
             else:
                 model_class = SGDQAModel
         elif cfg.model.dataset.task in ['zero_shot', 'design']:
-            model_class = ZeroShotIntentModel
+            model_class = DialogueZeroShotIntentModel
         else:
             model_class = IntentSlotClassificationModel
     elif 'gpt' in cfg.model.language_model.pretrained_model_name.lower():

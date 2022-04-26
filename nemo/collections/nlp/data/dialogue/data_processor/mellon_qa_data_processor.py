@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import random
 
 import pandas as pd
 
@@ -53,8 +54,8 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
             dataset_split: {train, dev, test}
         For the assistant dataset, there is no explicit dev set (instead uses the test set as the dev set)
         Therefore, this function creates a dev set and a new train set from the train set.
-        This is done by taking every 10th example and putting it into the dev set,
-        with all other examples going into the new train set.
+        Dev set contains self.cfg.dev_proportion % of samples with the rest going into the train set
+        Test set contains the whole dataset (Dev + Train) as this dataset is small (~100) and primarily used in a zero shot setting
         """
 
         examples = []
@@ -69,18 +70,19 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
             and isinstance(example['Generative Question Answering '], str)
         ]
 
-        if dataset_split == "train":
-            idxs = []
-            for idx in range(len(raw_examples)):
-                if idx % 10 != 0:
-                    idxs.append(idx)
-        elif dataset_split == "dev":
-            idxs = []
-            for idx in range(len(raw_examples)):
-                if idx % 10 == 0:
-                    idxs.append(idx)
+        n_samples = len(raw_examples)
+        if dataset_split in ["train", "dev"]:
+            n_dev = int(n_samples * (self.cfg.dev_proportion / 100))
+            dev_idxs = random.sample(list(range(n_samples)), n_dev)
+            if dataset_split == "dev":
+                idxs = dev_idxs
+            else:
+                dev_idxs_set = set(dev_idxs)
+                train_idxs = [idx for idx in list(range(n_samples)) if idx not in dev_idxs_set]
+                idxs = train_idxs
+
         elif dataset_split == "test":
-            idxs = list(range(len(raw_examples)))
+            idxs = list(range(len(n_samples)))
 
         for i in idxs:
             utterance = str(raw_examples[i]['Question'])

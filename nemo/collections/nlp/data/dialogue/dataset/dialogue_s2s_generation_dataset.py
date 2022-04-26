@@ -15,10 +15,11 @@
 
 import torch
 
-from nemo.core.classes import Dataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
+from nemo.utils import logging
 
 
-class DialogueS2SGenerationDataset(Dataset):
+class DialogueS2SGenerationDataset(DialogueDataset):
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
         """ Constructor
         Designed for free form generation tasks such as Dialogue Response Generation 
@@ -26,6 +27,8 @@ class DialogueS2SGenerationDataset(Dataset):
         Args:
             dataset_split: dataset split
             dialogues_processor: dialogues processor
+            tokenizer: tokenizer
+            cfg: cfg container for dataset
         """
         self.cfg = cfg
         self.input_label_type = self.cfg.input_field
@@ -35,9 +38,9 @@ class DialogueS2SGenerationDataset(Dataset):
             dataset_split = dataset_split[0]
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        print("number of samples before filtering invalid samples: ", len(self.features))
+        logging.info("number of samples before filtering invalid samples: ", len(self.features))
         self.features = self.remove_invalid_samples(self.features)
-        print("number of samples after filtering invalid samples: ", len(self.features))
+        logging.info("number of samples after filtering invalid samples: ", len(self.features))
 
         if self.cfg.debug_mode:
             self.features = self.features[:16]

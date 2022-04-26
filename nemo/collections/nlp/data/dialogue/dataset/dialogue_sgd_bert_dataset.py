@@ -24,13 +24,13 @@ from typing import List
 
 import numpy as np
 
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
 from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import SGDInputExample
-from nemo.core.classes import Dataset
 
 __all__ = ['DialogueSGDBERTDataset']
 
 
-class DialogueSGDBERTDataset(Dataset):
+class DialogueSGDBERTDataset(DialogueDataset):
     '''
     Dataset Class 
         1. Performs Model-dependent (but Data-independent) operations (tokenization etc)
@@ -44,6 +44,10 @@ class DialogueSGDBERTDataset(Dataset):
         Args:
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
+            tokenizer: tokenizer
+            schemas: SGD schema for domain, intent and slots
+            schema_config: config dict for schemas
+            cfg: cfg container for dataset
         """
         self.dataset_split = dataset_split
         self.tokenizer = tokenizer

@@ -17,10 +17,11 @@ import copy
 
 import torch
 
-from nemo.core.classes import Dataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
+from nemo.utils import logging
 
 
-class DialogueGPTGenerationDataset(Dataset):
+class DialogueGPTGenerationDataset(DialogueDataset):
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
         """ Constructor
         Designed for free form generation tasks such as Dialogue Response Generation 
@@ -28,6 +29,8 @@ class DialogueGPTGenerationDataset(Dataset):
         Args:
             dataset_split: dataset split
             dialogues_processor: dialogues processor
+            tokenizer: tokenizer
+            cfg: cfg container for dataset
         """
         self.cfg = cfg
         self.input_label_type = self.cfg.input_field
@@ -38,9 +41,9 @@ class DialogueGPTGenerationDataset(Dataset):
             dataset_split = dataset_split[0]
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        print("number of samples before filtering invalid samples: ", len(self.features))
+        logging.info("number of samples before filtering invalid samples: ", len(self.features))
         self.features = self.remove_invalid_samples(self.features)
-        print("number of samples after filtering invalid samples: ", len(self.features))
+        logging.info("number of samples after filtering invalid samples: ", len(self.features))
 
         if self.cfg.debug_mode:
             self.features = self.features[:16]
@@ -93,14 +96,15 @@ class DialogueGPTGenerationDataset(Dataset):
     def __getitem__(self, idx: int):
 
         '''
-        State how the input and output samples look like
-
-        This template can be changed
-
-        Training example: 
-            e.g. response: <response> fluent_response: <fluent_response> (only loss on <fluent_response> is not masked) # input_label_type = response, output_label_type = fluent_response
-            e.g. utterance: <utterance> response: <response> (only loss on <response> is not masked) # input_label_type = utterance, output_label_type = response
-            e.g. passage: <passage> utterance: <utterance> response: <response> (only loss on <response> is not masked) # input_label_type = passage+utterance, output_label_type = response
+        For each example, this function determines the format of input and output sequences based on user-specified conguration.
+        This is controlled by model.dataset.input_field and model.dataset.output_field
+        For instance:
+            If model.dataset.input_field == response and model.dataset.output_field == fluent_response:
+                Input = "response: <response>" and output = "response: <response> fluent_response: <fluent_response>" (with loss calculated from <fluent_response> only)
+            If model.dataset.input_field == utterance and model.dataset.output_field == response:
+                Input = "utterance: <utterance>" and output = "utterance: <utterance> response: <response>" (with loss calculated from <response> only) 
+            If model.dataset.input_field == passage+utterance and model.dataset.output_field == response:
+                Input = "passage: <passage> utterance: <utterance>" and output="passage: <passage> utterance: <utterance> response: <response>" (with loss calculated from <response> only) 
         '''
         ex = self.features[idx].data
 

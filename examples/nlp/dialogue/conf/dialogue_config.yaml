@@ -122,6 +122,9 @@ model:
     class_balancing: null # or weighted_loss
     num_classes: 3 
 
+    # Mellon QA, MS Marco and Design task
+    dev_proportion: 10 # These datasets do not have a dedicated dev set, therefore need to split train into a new train and dev. Indicate an integer (5-90) for the proporton for dev set 
+
   train_ds:
     ds_item: "train"
     prefix: train

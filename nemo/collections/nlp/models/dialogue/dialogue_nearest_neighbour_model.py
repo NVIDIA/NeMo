@@ -39,7 +39,7 @@ __all__ = ['DialogueNearestNeighbourModel']
 
 
 class DialogueNearestNeighbourModel(NLPModel):
-    """TextClassificationModel to be trained on two- or three-class textual entailment data, to be used for zero shot intent recognition."""
+    """Dialogue Nearest Neighbour Model identifies the intent of an utterance using the cosine similarity between sentence embeddings of the utterance and various label descriptions """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.cfg = cfg

@@ -20,10 +20,11 @@ from collections import defaultdict
 
 import torch
 
-from nemo.core.classes import Dataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
+from nemo.utils import logging
 
 
-class DialogueGPTClassificationDataset(Dataset):
+class DialogueGPTClassificationDataset(DialogueDataset):
     '''
     Designed for classification tasks such as intent/domain classification as well as slot tagging
 
@@ -39,6 +40,8 @@ class DialogueGPTClassificationDataset(Dataset):
         Args:
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
+            tokenizer: tokenizer
+            cfg: cfg container for dataset
         """
         self.cfg = cfg
 
@@ -150,8 +153,8 @@ class DialogueGPTClassificationDataset(Dataset):
             feature_len = self.get_n_tokens_in_sentence(lm_feature)
             max_sample_length = max(max_sample_length, feature_len)
             lm_features.append(lm_feature)
-        print("max feature length per sample with label: ", max_sample_length)
-        print(
+        logging.info("max feature length per sample with label: ", max_sample_length)
+        logging.info(
             "please adjust max seq len to at least {} * ({} + 1) = {} but not too much more for efficiency".format(
                 max_sample_length, self.cfg.few_shot, max_sample_length * (1 + self.cfg.few_shot)
             )
