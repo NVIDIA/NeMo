@@ -754,7 +754,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if isinstance(tgt_file_list, str):
                 tgt_file_list = [tgt_file_list]
             if cfg.get("retrieval", False):
-                retrieval_file_list = cfg.retrieval_file_name
+                retrieval_file_list = cfg.retrieval_indices
                 if isinstance(retrieval_file_list, str):
                     retrieval_file_list = [retrieval_file_list]
 
@@ -795,7 +795,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                         use_cache=cfg.get("use_cache", False),
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                         prepend_id=multilingual_ids[idx] if multilingual else None,
-                        number_nearest_neighbors=cfg.get("number_nearest_neighbors", 2),
+                        retrieval_nns=cfg.get("retrieval_nns", 2),
                     )
                 dataset.batchify(encoder_tokenizer, decoder_tokenizer)
                 datasets.append(dataset)
@@ -872,33 +872,33 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             raise ValueError('The same number of filepaths must be passed in for source and target validation.')
 
         if cfg.get("retrieval", False):
-            retrieval_file_name = cfg.get('retrieval_file_name')
-            retrieval_src_file_name = cfg.get('retrieval_src_file_name')
-            retrieval_tgt_file_name = cfg.get('retrieval_tgt_file_name')
-            if retrieval_file_name is None or retrieval_src_file_name is None or retrieval_tgt_file_name is None:
+            retrieval_indices = cfg.get('retrieval_indices')
+            retrieval_db_src = cfg.get('retrieval_db_src')
+            retrieval_db_tgt = cfg.get('retrieval_db_tgt')
+            if retrieval_indices is None or retrieval_db_src is None or retrieval_db_tgt is None:
                 raise ValueError(
-                    'Validation dataloader needs cfg.retrieval_file_name, cfg.retrieval_src_file_name, cfg.retrieval_tgt_file_name \
+                    'Validation dataloader needs cfg.retrieval_indices, cfg.retrieval_db_src, cfg.retrieval_db_tgt \
                     to not be None for retrieval mode.'
                 )
             else:
-                if isinstance(retrieval_file_name, str):
-                    retrieval_file_list = [retrieval_file_name]
-                elif isinstance(retrieval_file_name, ListConfig):
-                    retrieval_file_list = retrieval_file_name
+                if isinstance(retrieval_indices, str):
+                    retrieval_file_list = [retrieval_indices]
+                elif isinstance(retrieval_indices, ListConfig):
+                    retrieval_file_list = retrieval_indices
                 else:
-                    raise ValueError("cfg.retrieval_file_name must be string or list of strings")
-                if isinstance(retrieval_src_file_name, str):
-                    retrieval_src_file_list = [retrieval_src_file_name]
-                elif isinstance(retrieval_src_file_name, ListConfig):
-                    retrieval_src_file_list = retrieval_src_file_name
+                    raise ValueError("cfg.retrieval_indices must be string or list of strings")
+                if isinstance(retrieval_db_src, str):
+                    retrieval_src_file_list = [retrieval_db_src]
+                elif isinstance(retrieval_db_src, ListConfig):
+                    retrieval_src_file_list = retrieval_db_src
                 else:
-                    raise ValueError("cfg.retrieval_src_file_name must be string or list of strings")
-                if isinstance(retrieval_tgt_file_name, str):
-                    retrieval_tgt_file_list = [retrieval_tgt_file_name]
-                elif isinstance(retrieval_tgt_file_name, ListConfig):
-                    retrieval_tgt_file_list = retrieval_tgt_file_name
+                    raise ValueError("cfg.retrieval_db_src must be string or list of strings")
+                if isinstance(retrieval_db_tgt, str):
+                    retrieval_tgt_file_list = [retrieval_db_tgt]
+                elif isinstance(retrieval_db_tgt, ListConfig):
+                    retrieval_tgt_file_list = retrieval_db_tgt
                 else:
-                    raise ValueError("cfg.retrieval_tgt_file_name must be string or list of strings")
+                    raise ValueError("cfg.retrieval_db_tgt must be string or list of strings")
             if len(src_file_list) != len(retrieval_file_list):
                 raise ValueError('The same number of filepaths must be passed in for source and retrieval validation.')
 
@@ -943,7 +943,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                     prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
-                    number_nearest_neighbors=cfg.get("number_nearest_neighbors", 3),
+                    retrieval_nns=cfg.get("retrieval_nns", 3),
                 )
                 dataset.batchify(encoder_tokenizer, decoder_tokenizer, val=True)
             datasets.append(dataset)

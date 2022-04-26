@@ -65,10 +65,11 @@ class TranslationDataConfig:
     concat_sampling_technique: Optional[str] = 'temperature'
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
-    retrieval_file_name: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
-    retrieval_src_file_name: Optional[Any] = None  # Any = str or List[str] # file with src of nns to retrieve
-    retrieval_tgt_file_name: Optional[Any] = None  # Any = str or List[str] # file with tgt of nns to retrieve
-    number_nearest_neighbors: int = 2  # number of nearest neighbors to retrieve
+    # Currently indices can be a list but the dbs are singular
+    retrieval_indices: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
+    retrieval_db_src: Optional[Any] = None  # Any = str or List[str] (TODO) # file with src of nns to retrieve
+    retrieval_db_tgt: Optional[Any] = None  # Any = str or List[str] (TODO) # file with tgt of nns to retrieve
+    retrieval_nns: int = 1  # number of nearest neighbors to retrieve
 
 
 class TranslationDataset(Dataset):
@@ -299,16 +300,16 @@ class TranslationDataset(Dataset):
 
 class RetrievalTranslationDataset(TranslationDataset):
     """
-    A dataset for retrieval models
+    A dataset for retrieval nmt models. 
     """
 
     def __init__(
         self,
         dataset_src: str,
         dataset_tgt: str,
-        dataset_retrieval: str,
-        dataset_retrieval_src: str = None,
-        dataset_retrieval_tgt: str = None,
+        retrieval_indices: str,
+        retrieval_db_src: str = None,
+        retrieval_db_tgt: str = None,
         tokens_in_batch: int = 1024,
         clean: bool = False,
         max_seq_length: int = 512,
@@ -320,7 +321,7 @@ class RetrievalTranslationDataset(TranslationDataset):
         use_cache: bool = False,
         reverse_lang_direction: bool = False,
         prepend_id: int = None,
-        number_nearest_neighbors: int = 3,
+        retrieval_nns: int = 1,
     ):
         super(RetrievalTranslationDataset, self).__init__(
             dataset_src=dataset_src,
@@ -339,17 +340,19 @@ class RetrievalTranslationDataset(TranslationDataset):
         )
 
         # Select only the number of nns specified
-        self.nn_list = np.load(dataset_retrieval)[:, :number_nearest_neighbors]
+        self.nn_list = np.load(retrieval_indices)[:, :retrieval_nns]
 
-        if dataset_retrieval_src is None:
-            self.dataset_retrieval_src = dataset_src
+        if retrieval_db_src is None:
+            # Use the train dataset as the retrieval_database
+            self.retrieval_db_src = dataset_src
         else:
-            self.dataset_retrieval_src = dataset_retrieval_src
+            # Use the specified retrieval_database
+            self.retrieval_db_src = retrieval_db_src
 
-        if dataset_retrieval_tgt is None:
-            self.dataset_retrieval_tgt = dataset_tgt
+        if retrieval_db_tgt is None:
+            self.retrieval_db_tgt = dataset_tgt
         else:
-            self.dataset_retrieval_tgt = dataset_retrieval_tgt
+            self.retrieval_db_tgt = retrieval_db_tgt
 
     def batchify(self, tokenizer_src, tokenizer_tgt, val=False):
         src_ids = dataset_to_ids(
@@ -366,24 +369,26 @@ class RetrievalTranslationDataset(TranslationDataset):
             cache_data_per_node=self.cache_data_per_node,
             use_cache=self.use_cache,
         )
-        if val:
+        if self.retrieval_db_src is None or self.retrieval_db_tgt is None:
+            # default to using train dataset as retrieval_database
+            src_retrieval_ids = src_ids
+            tgt_retrieval_ids = tgt_ids
+        else:
+            # tokenize the retrieval_database
             src_retrieval_ids = dataset_to_ids(
-                self.dataset_retrieval_src,
+                self.retrieval_db_src,
                 tokenizer_src,
                 cache_ids=self.cache_ids,
                 cache_data_per_node=self.cache_data_per_node,
                 use_cache=self.use_cache,
             )
             tgt_retrieval_ids = dataset_to_ids(
-                self.dataset_retrieval_tgt,
+                self.retrieval_db_tgt,
                 tokenizer_tgt,
                 cache_ids=self.cache_ids,
                 cache_data_per_node=self.cache_data_per_node,
                 use_cache=self.use_cache,
             )
-        else:
-            src_retrieval_ids = src_ids
-            tgt_retrieval_ids = tgt_ids
 
         src_ids_extended = []
         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):

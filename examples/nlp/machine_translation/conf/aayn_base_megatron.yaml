@@ -48,6 +48,7 @@ model:
   pretrained_model_type: T5
   global_batch_size: 32 # This is just here to keep compute_consumed_samples() happy.
   micro_batch_size: 32 # This is just here to keep compute_consumed_samples() happy.
+  retrieval: False
 
   # Megatron params
   tensor_model_parallel_size: 1
@@ -98,6 +99,9 @@ model:
     concat_sampling_temperature: 5 # only used with ConcatTranslationDataset 
     concat_sampling_probabilities: null # only used with ConcatTranslationDataset 
     reverse_lang_direction: false
+    retrieval_db_src: null # retrieval database with src sentences
+    retrieval_db_tgt: null # retrieval database with tgt sentences
+    retrieval_indices: null # file with indices of nns to retrieve for train
 
   validation_ds:
     src_file_name: ???
@@ -110,6 +114,9 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    retrieval_db_src: null # retrieval database with src sentences
+    retrieval_db_tgt: null # retrieval database with tgt sentences
+    retrieval_indices: null # file with indices of nns to retrieve
 
   test_ds:
     src_file_name: ???
@@ -122,6 +129,9 @@ model:
     drop_last: false
     pin_memory: false
     num_workers: 8
+    retrieval_indices: null # file with indices of nns to retrieve
+    retrieval_db_src: null # retrieval database with src sentences
+    retrieval_db_tgt: null # retrieval database with tgt sentences
 
   optim:
     name: fused_adam
