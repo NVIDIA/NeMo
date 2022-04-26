@@ -66,7 +66,7 @@ class TestTrainingT5Config:
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null # manually set the checkpoint file to load from
-          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # rank at which decoder starts.
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
         
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -79,21 +79,21 @@ class TestTrainingT5Config:
           max_position_embeddings: ${.seq_length}
           num_layers: 12
           hidden_size: 768
-          ffn_hidden_size: 3072  # Transformer FFN hidden size. 4 * hidden_size.
+          ffn_hidden_size: 2048  # Transformer FFN hidden size. 4 * hidden_size.
           num_attention_heads: 12
           init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
           hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
           attention_dropout: 0.1 # Dropout probability in the attention layer.
-          kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+          kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
-          activation: 'gelu'
+          activation: 'geglu'
         
           tokenizer:
             library: 'megatron'
@@ -238,7 +238,7 @@ class TestTrainingT5Config:
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
           max_time: "14:23:30:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -274,12 +274,12 @@ class TestTrainingT5Config:
         
         model:
           # model parallelism
-          micro_batch_size: 27
-          global_batch_size: 2160 # will use more micro batches to reach global batch size
+          micro_batch_size: 24
+          global_batch_size: 1920 # will use more micro batches to reach global batch size
           tensor_model_parallel_size: 2
           pipeline_model_parallel_size: 1
           resume_from_checkpoint: null # manually set the checkpoint file to load from
-          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2} # rank at which decoder starts.
+          pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
         
           # model architecture
           make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
@@ -291,22 +291,22 @@ class TestTrainingT5Config:
           seq_length: 512
           max_position_embeddings: ${.seq_length}
           num_layers: 24
-          hidden_size: 1024
-          ffn_hidden_size: 16384  # Transformer FFN hidden size. 4 * hidden_size.
+          hidden_size: 2048
+          ffn_hidden_size: 5120  # Transformer FFN hidden size. 4 * hidden_size.
           num_attention_heads: 32
           init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
           hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
           attention_dropout: 0.1 # Dropout probability in the attention layer.
-          kv_channels: 128  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+          kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
-          activation: 'gelu'
+          activation: 'geglu'
         
           tokenizer:
             library: 'megatron'
