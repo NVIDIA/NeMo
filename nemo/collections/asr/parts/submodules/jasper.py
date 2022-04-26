@@ -22,7 +22,7 @@ from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
-from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 
@@ -36,14 +36,7 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {
-    "hardtanh": nn.Hardtanh,
-    "relu": nn.ReLU,
-    "selu": nn.SELU,
-    "swish": Swish,
-    "silu": nn.SiLU,
-    "gelu": nn.GELU,
-}
+jasper_activations = activation_registry
 
 
 def tds_uniform_(tensor, mode='fan_in'):

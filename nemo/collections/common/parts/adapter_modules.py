@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from torch import nn as nn
 
-from nemo.collections.asr.parts.submodules.jasper import jasper_activations
+from nemo.collections.common.parts.utils import activation_registry
 
 
 class LinearAdapter(nn.Module):
@@ -36,7 +36,7 @@ class LinearAdapter(nn.Module):
     def __init__(self, in_features, dim, activation: str = 'swish', norm_position="post"):
         super().__init__()
 
-        activation = jasper_activations[activation]()
+        activation = activation_registry[activation]()
         # If the activation can be executed in place, do so.
         if hasattr(activation, 'inplace'):
             activation.inplace = True

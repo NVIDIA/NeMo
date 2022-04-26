@@ -17,8 +17,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import ASRModel, EncDecCTCModel
-from nemo.collections.asr.parts.submodules import adapter_modules
-from nemo.core import NeuralModule
+from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import config_utils
 
@@ -222,7 +221,7 @@ class TestASRAdapterMixin:
 
         assert original_params > adapter_params
 
-    @pytest.mark.with_downloads()
+    # @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor_pretrained(self):
         # Check to/from config_dict:

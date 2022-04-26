@@ -17,7 +17,7 @@ import tempfile
 import onnx
 import pytest
 import torch.cuda
-from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.asr.models import (
     EncDecClassificationModel,
@@ -25,9 +25,8 @@ from nemo.collections.asr.models import (
     EncDecRNNTModel,
     EncDecSpeakerLabelModel,
 )
-from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
-from nemo.collections.asr.parts.submodules.adapter_modules import LinearAdapterConfig
 from nemo.collections.asr.parts.utils import asr_module_utils
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
