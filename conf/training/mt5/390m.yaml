@@ -10,7 +10,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 4
+  num_nodes: 8
   devices: 8
   accelerator: gpu
   precision: bf16

@@ -10,7 +10,7 @@ name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
-  num_nodes: 8
+  num_nodes: 4
   devices: 8
   accelerator: gpu
   precision: bf16
@@ -20,7 +20,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "17:23:30:00"
+  max_time: "06:23:30:00"
   log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
