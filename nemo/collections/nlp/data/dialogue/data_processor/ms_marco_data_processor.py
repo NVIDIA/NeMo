@@ -82,7 +82,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
                 idxs = train_idxs
 
         elif dataset_split == "test":
-            idxs = list(range(len(n_samples)))
+            idxs = list(range(n_samples))
 
         if self.cfg.debug_mode:
             idxs = idxs[:1000]

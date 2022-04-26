@@ -84,7 +84,7 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
                 idxs = train_idxs
 
         elif dataset_split == "test":
-            idxs = list(range(len(n_samples)))
+            idxs = list(range(n_samples)))
 
         for i in idxs:
             utterance = str(raw_examples[i]['Question'])

@@ -75,7 +75,7 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
                 idxs = train_idxs
 
         elif dataset_split == "test":
-            idxs = list(range(len(n_samples)))
+            idxs = list(range(n_samples))
 
         all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
         all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))
