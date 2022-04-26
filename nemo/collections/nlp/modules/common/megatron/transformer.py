@@ -1007,7 +1007,7 @@ class ParallelTransformer(MegatronModule):
         megatron_legacy=False,
         bias=True,
         normalization='layernorm',
-        transformer_block_type='transformer',
+        transformer_block_type='pre_ln',
         headscale=False,
     ):
         super(ParallelTransformer, self).__init__()
