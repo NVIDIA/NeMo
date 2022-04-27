@@ -258,8 +258,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
 
         if not batch_has_lang_information:
-            if mode == 'validation' and isinstance(self.cfg.data.validation_ds.names, ListConfig):
+            if (
+                mode == 'validation'
+                and hasattr(self.cfg.data.validation_ds, "names")
+                and isinstance(self.cfg.data.validation_ds.names, ListConfig)
+            ):
                 categories = [self.cfg.data.validation_ds.names[dataloader_idx]] * len(preds_text)
+            elif (
+                mode == 'test'
+                and hasattr(self.cfg.data.test_ds, "names")
+                and isinstance(self.cfg.data.test_ds.names, ListConfig)
+            ):
+                categories = [self.cfg.data.test_ds.names[dataloader_idx]] * len(preds_text)
             else:
                 categories = [None] * len(preds_text)
         else:
@@ -395,27 +405,27 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             check_validation_interval=True,
         )
 
-    def setup_eval_data(self, datasets):
+    def setup_eval_data(self, datasets, data_cfg):
         dataloaders = []
         for dataset in datasets:
-            validation_dl = self.build_data_loader(
+            eval_dl = self.build_data_loader(
                 dataset,
-                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
-                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
-                shuffle=self.cfg.data.validation_ds.shuffle,
-                num_workers=self.cfg.data.validation_ds.num_workers,
-                pin_memory=self.cfg.data.validation_ds.pin_memory,
-                drop_last=self.cfg.data.validation_ds.drop_last,
+                micro_batch_size=data_cfg.micro_batch_size,
+                global_batch_size=data_cfg.global_batch_size,
+                shuffle=data_cfg.shuffle,
+                num_workers=data_cfg.num_workers,
+                pin_memory=data_cfg.pin_memory,
+                drop_last=data_cfg.drop_last,
                 check_validation_interval=False,
             )
-            dataloaders.append(validation_dl)
+            dataloaders.append(eval_dl)
         return dataloaders
 
     def setup_validation_data(self):
-        self._validation_dl = self.setup_eval_data(self._validation_ds)
+        self._validation_dl = self.setup_eval_data(self._validation_ds, self.cfg.data.validation_ds)
 
     def setup_test_data(self):
-        self._test_dl = self.setup_eval_data(self._test_ds)
+        self._test_dl = self.setup_eval_data(self._test_ds, self.cfg.data.test_ds)
 
     def _build_train_dataset(self, data_cfg):
         """Build the training dataset."""
