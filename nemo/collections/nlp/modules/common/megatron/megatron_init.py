@@ -84,16 +84,13 @@ def initialize_model_parallel_for_nemo(
 
     if global_batch_size and micro_batch_size is not None:
         # TODO: add rampup_batch_size here when we have it implemented
-        try:
-            setup_microbatch_calculator(
-                rank=global_rank,
-                global_batch_size=global_batch_size,
-                micro_batch_size=micro_batch_size,
-                data_parallel_size=app_state.data_parallel_size,
-                rampup_batch_size=None,
-            )
-        except:
-            pass
+        setup_microbatch_calculator(
+            rank=global_rank,
+            global_batch_size=global_batch_size,
+            micro_batch_size=micro_batch_size,
+            data_parallel_size=app_state.data_parallel_size,
+            rampup_batch_size=None,
+        )
 
     app_state._is_megatron_initialized = True
 
