@@ -31,7 +31,7 @@ model:
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
 
   data:
-    test_ds:
+    validation_ds:
       task_name: 'xnli'
       file_path: ${data_dir}/glue_data/xnli/xnli.test.tsv # Path to the TSV file for XNLI test
       global_batch_size: 32
