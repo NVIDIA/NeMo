@@ -22,12 +22,17 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
     pipeline_parallel_sizes = [str(x) for x in inference_cfg.get("pipeline_parallel_sizes")]
     max_batch_sizes = [str(x) for x in inference_cfg.get("max_batch_sizes")]
 
-    inference_profile_path = os.path.join(bignlp_inference_path, "bignlp/infer_scripts/profile_model_with_random_weights.py")
+    inference_profile_path = os.path.join(
+        bignlp_inference_path,
+        "bignlp/infer_scripts/profile_model_with_random_weights.py",
+    )
     cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
-    navigator_config_path = os.path.join(bignlp_inference_path, "conf/inference/profile_offline.yaml")
+    navigator_config_path = os.path.join(
+        bignlp_inference_path, "conf/inference/profile_offline.yaml"
+    )
 
     model_spec_dir = os.path.join(results_dir, "inference/model_spec")
-    os.mkdir(model_spec_dir, exist_ok=True)
+    os.makedirs(model_spec_dir, exist_ok=True)
     model_spec_path = os.path.join(model_spec_dir, "meta.yaml")
 
     # Create model_spec and save to yaml

@@ -37,10 +37,14 @@ def calculate_model_size(
     assert (
         isinstance(gpu_count, int) and gpu_count > 0
     ), "gpu_count must be an int larger than zero."
-    assert max_training_days is None or isinstance(max_training_days, float) or isinstance(
-        max_training_days, int
+    assert (
+        max_training_days is None
+        or isinstance(max_training_days, float)
+        or isinstance(max_training_days, int)
     ), "max_training_days must be int or float."
-    assert max_training_days is None or max_training_days > 0, "max_training_days must be larger than zero."
+    assert (
+        max_training_days is None or max_training_days > 0
+    ), "max_training_days must be larger than zero."
     assert (
         isinstance(tflops_per_gpu, int) and tflops_per_gpu > 0
     ), "tflops_per_gpu must be an int larger than zero."
@@ -50,11 +54,19 @@ def calculate_model_size(
 
     if model_size_in_b is None:
         model_size_in_b = _estimate_model_size(
-            max_training_days, gpu_count, tflops_per_gpu, num_tokens_in_b, model_name
+            max_training_days=max_training_days,
+            gpu_count=gpu_count,
+            tflops_per_gpu=tflops_per_gpu,
+            num_tokens_in_b=num_tokens_in_b,
+            model_name=model_name,
         )
     else:
         max_training_days = _estimate_training_time(
-            model_size_in_b, num_tokens_in_b, gpu_count, tflops_per_gpu, model_name
+            model_size_in_b=model_size_in_b,
+            gpu_count=gpu_count,
+            tflops_per_gpu=tflops_per_gpu,
+            num_tokens_in_b=num_tokens_in_b,
+            model_name=model_name,
         )
 
     print(
@@ -82,7 +94,8 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
         if model_name in ["gpt3", "t5"]:
             return round(
                 (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
-                / (8 * num_tokens_in_b * 1e9) / 1e9,
+                / (8 * num_tokens_in_b * 1e9)
+                / 1e9,
                 2,
             )
         else:
@@ -163,7 +176,7 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
         else:
             print("No GPT-3 model larger than 1.1T parameters is supported.")
             raise ValueError
-    elif model_name == "t5":
+    elif model_name in ["t5", "mt5"]:
         if model_size_in_b <= 1.0:
             gbs, tp, pp = 2048, 1, 1
         elif model_size_in_b <= 5.0:
@@ -174,10 +187,10 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
             gbs, tp, pp = 1920, 8, 1
         elif model_size_in_b <= 25.9:
             gbs, tp, pp = 1920, 8, 2
-        elif model_size_in_b <= 42.0:
+        elif model_size_in_b <= 43.0:
             gbs, tp, pp = 1920, 8, 4
         else:
-            print("No T5 model larger than 42B parameters is supported.")
+            print("No T5 model larger than 43B parameters is supported.")
             raise ValueError
     else:
         raise NotImplementedError
@@ -240,7 +253,12 @@ def generate_base_config(
         base_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] = project
 
     # MODEL
-    layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(model_size_in_b=model_size_in_b, vocab_size=vocab_size, seq_length=seq_length, model_name=model_name)
+    layers, hs, att_h, ffn, kv, lr = utils.calculate_model_size_params(
+        model_size_in_b=model_size_in_b,
+        vocab_size=vocab_size,
+        seq_length=seq_length,
+        model_name=model_name,
+    )
     base_cfg["model"]["num_layers"] = int(layers)
     base_cfg["model"]["global_batch_size"] = int(gbs)
     base_cfg["model"]["hidden_size"] = int(hs)
@@ -249,7 +267,9 @@ def generate_base_config(
         base_cfg["model"]["ffn_hidden_size"] = int(ffn)
     if kv is not None:
         base_cfg["model"]["kv_channels"] = int(kv)
-    base_cfg["model"]["init_method_std"] = round(0.64 / math.sqrt(hs), 6) if model_name == "gpt3" else 0.015
+    base_cfg["model"]["init_method_std"] = (
+        round(0.64 / math.sqrt(hs), 6) if model_name == "gpt3" else 0.015
+    )
     base_cfg["model"]["optim"]["lr"] = lr
     base_cfg["model"]["optim"]["sched"]["min_lr"] = round(lr * 0.1, 8)
     if model_name == "gpt3":
@@ -262,7 +282,8 @@ def generate_base_config(
     else:
         base_cfg["model"]["optim"]["sched"]["warmup_ratio"] = 0.01
 
-
-    with open(f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w") as f:
+    with open(
+        f"{cfg.search_config.train_settings.logs}/base_cfg_{model_size_in_b}b.yaml", "w"
+    ) as f:
         yaml.dump(base_cfg, f)
     return base_cfg

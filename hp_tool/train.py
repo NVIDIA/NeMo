@@ -80,18 +80,18 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
         os.makedirs(results_dir, exist_ok=True)
 
     if model_name == "gpt3":
-        model, config = "gpt", "126m"
-    else:
-        model, config = "t5", "220m"
+        model, pretrain_file, config = "gpt3", "gpt", "126m"
+    elif model_name == "t5":
+        model, pretrain_file, config = "t5", "t5", "220m"
+    elif model_name == "mt5":
+        model, pretrain_file, config = "mt5", "t5", "390m"
 
     # Shared between BCP and BCM
     scripts_dir = os.path.join(results_dir, "train_scripts")
     os.makedirs(scripts_dir, exist_ok=True)
     new_script_path = os.path.join(scripts_dir, f"{name}.sh")
-    code_path = f"/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_{model}.py"
-    train_cmd = (
-        f"HYDRA_FULL_ERROR=1 PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args} training={model}/{config}"
-    )
+    code_path = f"/opt/bignlp/bignlp-scripts/bignlp/train_scripts/pretrain_{pretrain_file}.py"
+    train_cmd = f"HYDRA_FULL_ERROR=1 PYTHONPATH=/opt/bignlp/bignlp-scripts:$PYTHONPATH python3 -u {code_path} {hydra_args} training={model}/{config}"
 
     nodes = train_cfg.trainer.num_nodes
     ntasks_per_node = train_cfg.trainer.devices

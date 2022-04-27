@@ -5,7 +5,7 @@ train_settings:
   max_training_days: 16 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 100
-  max_minutes_per_run: 40 # 20 minute default running time.
+  max_minutes_per_run: 35 # 20 minute default running time.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
   seq_length: 512  # Sequence length for training GPT3 model.

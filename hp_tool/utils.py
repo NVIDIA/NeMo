@@ -28,7 +28,7 @@ def _calculate_model_size(
             )
             / 1e9
         )
-    elif model_name == "t5":
+    elif model_name in ["t5", "mt5"]:
         # 2 L F + 3 L P + H (2 + 4 L F + L (21 + 12 P) + 1 S + 1 V)
         proj_size = att_heads * kv_channels
         model_size = (
@@ -46,8 +46,10 @@ def _calculate_model_size(
     return model_size
 
 
-def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=2048, model_name="gpt3"):
-    """Calculates the parameters that affect model_size: hidden size, attention heads, 
+def calculate_model_size_params(
+    model_size_in_b, vocab_size=51200, seq_length=2048, model_name="gpt3"
+):
+    """Calculates the parameters that affect model_size: hidden size, attention heads,
     KV channels, and FFN size. It also calculates the learning rate.
 
     Arguments:
@@ -56,7 +58,7 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
         vocab_size: int, size of the vocabulary to use for training.
         model_name: str, name of the model to be trained, i.e. gpt3, t5, mt5...
     Output:
-        
+
     """
     ffn, kv = None, None  # Only needed for some models.
     if model_name == "gpt3":
@@ -106,10 +108,29 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
             hs, att_h, ffn = 4096, 64, 10240
         elif model_size_in_b < 25.9:
             hs, att_h, ffn = 5120, 80, 10880
-        elif model_size_in_b < 42.0:
+        elif model_size_in_b < 43.0:
             hs, att_h, ffn = 6144, 96, 10880
         else:
-            raise ValueError("Model_size for T5 must be smaller than 42B parameters.")
+            raise ValueError("Model_size for T5 must be smaller than 43B parameters.")
+    elif model_name == "mt5":
+        kv, lr = 64, 1e-4
+        if model_size_in_b < 0.25:
+            hs, att_h, ffn = 512, 6, 1024
+        elif model_size_in_b < 0.5:
+            hs, att_h, ffn = 768, 12, 2048
+        elif model_size_in_b < 1.2:
+            hs, att_h, ffn = 1024, 16, 2816
+        elif model_size_in_b < 5:
+            hs, att_h, ffn = 2048, 32, 5120
+        elif model_size_in_b < 15:
+            hs, att_h, ffn = 4096, 64, 10240
+        elif model_size_in_b < 25.9:
+            hs, att_h, ffn = 5120, 80, 10880
+        elif model_size_in_b < 43.0:
+            hs, att_h, ffn = 6144, 96, 10880
+        else:
+            raise ValueError("Model_size for mT5 must be smaller than 43B parameters.")
+
     else:
         raise NotImplementedError("Model name is not valid.")
 
@@ -148,7 +169,7 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
-    
+
     # Try multiples of 2
     margin = 0.01
     for attempt in range(0, 6):
@@ -166,7 +187,7 @@ def calculate_model_size_params(model_size_in_b, vocab_size=51200, seq_length=20
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
-    
+
     # Try multiples of 5
     margin = 0.01
     for attempt in range(0, 6):

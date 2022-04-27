@@ -1,10 +1,12 @@
 run:
-  name: t5_220m
+  name: mt5_390m
   results_dir: ${base_results_dir}/${.name}
   time_limit: "7-00:00:00"
   dependency: "singleton"
+  preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
+  blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
 
-name: megatron_t5
+name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -17,7 +19,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 1000000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   max_time: "06:23:30:00"
   log_every_n_steps: 1
   val_check_interval: 2000
@@ -30,10 +32,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
-  name: megatron_t5
+  name: megatron_mt5
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_t5
+    project: nemo_mt5
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -44,7 +46,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mt5--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
   log_step_timing: True
   step_timing_kwargs:
@@ -53,7 +55,7 @@ exp_manager:
 
 model:
   # model parallelism
-  micro_batch_size: 64
+  micro_batch_size: 32
   global_batch_size: 2048 # will use more micro batches to reach global batch size
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
@@ -76,7 +78,7 @@ model:
   init_method_std: 0.015  # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability in the attention layer.
-  kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
+  kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
@@ -88,10 +90,10 @@ model:
   activation: 'geglu'
 
   tokenizer:
-    library: 'megatron'
-    type: 'BertWordPieceCase'
-    model: null
-    vocab_file: ${data_dir}/vocab.txt
+    library: 'sentencepiece'
+    type: null
+    model: ${data_dir}/mt5_tokenizer.model
+    vocab_file: null
     merge_file: null
     num_sentinel_tokens: 100
 
@@ -127,11 +129,11 @@ model:
 
   data:
     data_impl: mmap
-    splits_string: "999982,9,9"
+    splits_string: "999892,99,9"
     seq_length: 512
     seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
@@ -140,9 +142,9 @@ model:
     mean_ngram_size: null
     geometric_dist: True
     permutation: False
-    whole_word_masking: True
+    whole_word_masking: False
     favor_longer_ngrams: False
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_prefix: # Should be weight path weight path... for a blended dataset
+    data_prefix: # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
       - 1.0
-      - ${data_dir}/my-t5_00_bert_tokenizer_text_document  # TODO: @mausin ${data_dir}/my-t5_00_text_document 
+      - ${data_dir}/mc4_lv_mt5_tokenizer_text_document # TODO: @mausin ${data_dir}/mc4/preprocessed/fr_000-008_text_document
