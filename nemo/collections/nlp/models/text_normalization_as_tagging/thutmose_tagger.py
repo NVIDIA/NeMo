@@ -304,7 +304,9 @@ class ThutmoseTaggerModel(NLPModel):
             example.features["tag_labels"] = tag_preds
             example.features["semiotic_labels"] = semiotic_preds
             tag_labels = [self.id_2_tag[label_id] for label_id in example.get_token_labels("tag_labels")]
-            semiotic_labels = [self.id_2_semiotic[label_id] for label_id in example.get_token_labels("semiotic_labels")]
+            semiotic_labels = [
+                self.id_2_semiotic[label_id] for label_id in example.get_token_labels("semiotic_labels")
+            ]
 
             prediction, inp_str, tag_str, tag_with_swap_str = example.editing_task.realize_output(tag_labels)
             all_preds.append(
@@ -316,7 +318,8 @@ class ThutmoseTaggerModel(NLPModel):
                 + "\t"
                 + tag_with_swap_str
                 + "\t"
-                + " ".join(semiotic_labels))
+                + " ".join(semiotic_labels)
+            )
 
         return all_preds
 
