@@ -41,7 +41,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class TestCrossAttn:
+class TestRetrievalModule:
     @classmethod
     @pytest.mark.run_only_on('GPU')
     # @pytest.mark.skip()
@@ -50,13 +50,17 @@ class TestCrossAttn:
         # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         plugin = NLPDDPPlugin()
 
-        TP_SIZE = 2
+        GPUS = 1
+
+        TP_SIZE = GPUS
         PP_SIZE = 1
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
 
-        trainer = Trainer(plugins=plugin, devices=2, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None)
+        trainer = Trainer(
+            plugins=plugin, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None
+        )
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
