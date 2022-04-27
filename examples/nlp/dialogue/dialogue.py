@@ -53,24 +53,22 @@ from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_intent_model import
 from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.exp_manager import exp_manager
-
-try:
-    from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 
 @hydra_runner(config_path="conf", config_name="dialogue_config")
 def main(cfg: DictConfig) -> None:
     pl.seed_everything(42)
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
-    plugin = NLPDDPPlugin() if HAVE_APEX else None
+
+    try:
+        plugin = NLPDDPPlugin()
+    except (ImportError, ModuleNotFoundError):
+        plugin = None
 
     trainer = pl.Trainer(**cfg.trainer, plugins=plugin)
 
