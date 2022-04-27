@@ -16,9 +16,7 @@
 """Processing data for megatron pretraining."""
 
 import argparse
-import os
-import sys
-import time
+import glob
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import build_index_files
 
@@ -38,9 +36,14 @@ def main():
     )
     args = parser.parse_args()
 
+    # expand all dataset_paths
+    dataset_paths = []
+    for ds in args.dataset_paths:
+        dataset_paths.extend(glob.glob([ds]))
+        
     # build index files in parallel
     build_index_files(
-        dataset_paths=args.dataset_paths,
+        dataset_paths=dataset_paths,
         newline_int=args.newline_int,
         workers=args.workers,
     )

@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import os
-
 import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
+
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -29,21 +30,22 @@ class SequenceToSequenceDataset(Dataset):
         self,
         src_file_name: str,
         tgt_file_name: str,
-        tokenizer: TokenizerSpec,
+        src_tokenizer: TokenizerSpec,
+        tgt_tokenizer: TokenizerSpec,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
     ):
         self.src_file_name = src_file_name
         self.tgt_file_name = tgt_file_name
-        self.tokenizer = tokenizer
+        self.src_tokenizer = src_tokenizer
+        self.tgt_tokenizer = tgt_tokenizer
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
-        if not os.path.exists(self.src_file_name):
-            raise FileNotFoundError(f"Source file {self.src_file_name} not found")
-        if not os.path.exists(self.tgt_file_name):
-            raise FileNotFoundError(f"Source file {self.src_file_name} not found")
         assert self.max_src_seq_length > 0
         assert self.max_tgt_seq_length > 0
+
+        # TODO: continue here
+        self.src_dataset = TextMemMapDataset
         self._get_examples()
 
     def __len__(self):
