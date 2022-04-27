@@ -44,30 +44,22 @@ class SequenceToSequenceDataset(Dataset):
         assert self.max_src_seq_length > 0
         assert self.max_tgt_seq_length > 0
 
-        # TODO: continue here
-        self.src_dataset = TextMemMapDataset
-        self._get_examples()
+        self.src_dataset = TextMemMapDataset(dataset_paths=[src_file_name], tokenizer=src_tokenizer)
+        self.tgt_dataset = TextMemMapDataset(dataset_paths=[tgt_file_name], tokenizer=tgt_tokenizer)
+        assert len(self.src_dataset) == len(self.tgt_dataset), "src and tgt has different number of lines"
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, idx):
         example = self.examples[idx]
-        text_enc = example['src']
-        text_dec = example['tgt'][:-1]
-        labels = example['tgt'][1:]
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        src = self.self.src_dataset[idx]
+        tgt = self.self.tgt_dataset[idx]
 
-    def _get_examples(self):
-        self.examples = []
-        with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
-            for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
-                if i % 10000 == 0 and i != 0:
-                    logging.info(f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}")
-                src = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(src.strip()) + [self.tokenizer.eos_id]
-                tgt = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(tgt.strip()) + [self.tokenizer.eos_id]
-                if len(src) <= self.max_src_seq_length and len(tgt) < self.max_tgt_seq_length:
-                    self.examples.append({'src': src, 'tgt': tgt})
+        text_enc = src
+        text_dec = tgt[:-1]
+        labels = tgt[1:]
+        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
 
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
