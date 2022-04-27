@@ -56,6 +56,7 @@ class TextMemMapDataset(Dataset):
                  skip_lines=0,
                  workers=None,
                  tokenizer=None,
+        ):
         super().__init__()
 
         if len(dataset_paths) < 1:
