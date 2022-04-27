@@ -80,7 +80,7 @@ def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
     Returns:
     valid_nodes: list, all the valid node counts.
     """
-        try:
+    try:
         highest = int(gbs * pp * tp / (gpus_per_node * mbs))
         valid_nodes = []
         for nodes in range(max(1, int(tp*pp/gpus_per_node)), min(highest+1, max_node_count+1)):
