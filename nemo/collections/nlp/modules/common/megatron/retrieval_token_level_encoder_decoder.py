@@ -16,6 +16,7 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
     MegatronTransformerEncoderDecoderModule,
@@ -77,7 +78,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         vocab_size,
         hidden_size,
         max_position_embeddings,
-        num_layers,
         num_attention_heads,
         ffn_hidden_size,
         apply_query_key_layer_scaling=True,
@@ -108,8 +108,11 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         hidden_blocks=1,
         add_encoder=True,
         add_decoder=True,
-        layer_type=None,
         chunk_size=64,
+        enc_num_layers=4,  # total number of encoder layers
+        dec_num_layers=6,  # total number of decoder layers
+        enc_cross_attention=[3],  # layer numbers for cross attention
+        dec_cross_attention=[3, 5]  # layer numbers for chunked cross attention
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -140,11 +143,17 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             self._embedding_key = "embedding"
 
         if add_encoder:
+            enc_layer_types = []
+            for i in range(enc_num_layers):
+                if i in enc_cross_attention:
+                    enc_layer_types.append(LayerType.retrieval_encoder)
+                else:
+                    enc_layer_types.append(LayerType.encoder)
             self.encoder = get_encoder_model(
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
-                num_layers=num_layers,
+                num_layers=enc_num_layers,
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
@@ -172,39 +181,31 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 parent_model_type=ModelType.encoder_and_decoder,
-                layer_type=layer_type,
+                layer_type=enc_layer_types,
                 chunk_size=chunk_size,
             )
             self._encoder_key = "encoder"
 
         if add_decoder:
-            # If this is the decoder first stage
-            if pre_process:
-                # If the encoder also lies on this rank (PP = 1), then just assign embeddings directly.
-                if hasattr(self, 'encoder_embedding'):
-                    self.decoder_embedding = self.encoder_embedding
+            pre_decoder_num_layers = min(dec_cross_attention)
+            pre_decoder_layer_types = []
+            for i in range(pre_decoder_num_layers):
+                pre_decoder_layer_types.append(LayerType.encoder)
+
+            post_decoder_num_layers = dec_num_layers - pre_decoder_num_layers
+            post_decoder_layer_types = []
+            for i in range(post_decoder_num_layers):
+                if i + pre_decoder_layer_types in dec_cross_attention:
+                    post_decoder_layer_types.append(LayerType.retrieval_decoder)
                 else:
-                    # This is the case where PP > 1 and first decoder first stage.
-                    # We initialize decoder embeddings, but set them to zero since we they're tied with the encoder embeddings.
-                    # A later initialize_embedding call will synchronize the embeddings.
-                    self.decoder_embedding = Embedding(
-                        hidden_size=hidden_size,
-                        vocab_size=vocab_size,
-                        max_sequence_length=max_position_embeddings,
-                        init_method=init_method_normal(init_method_std),
-                        num_tokentypes=num_tokentypes,
-                        use_cpu_initialization=use_cpu_initialization,
-                        embedding_dropout_prob=hidden_dropout,
-                    )
-                    self.decoder_embedding.zero_parameters()
+                    post_decoder_layer_types.append(LayerType.encoder)
 
-                self._decoder_embedding_key = "decoder_embedding"
-
-            self.decoder = get_decoder_model(
+            # it is used to process the inputs for encoder to use as context (H in the paper)
+            self.pre_decoder = get_decoder_model(
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
-                num_layers=num_layers,
+                num_layers=pre_decoder_num_layers,
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
@@ -232,10 +233,48 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 activation=activation,
                 bias=bias,
                 parent_model_type=ModelType.encoder_and_decoder,
-                layer_type=layer_type,
+                layer_type=pre_decoder_layer_types,
                 chunk_size=chunk_size,
             )
-            self._decoder_key = "decoder"
+
+            # it is where the chunked cross attention happens
+            self.post_decoder = get_decoder_model(
+                arch="retro",
+                hidden_size=hidden_size,
+                ffn_hidden_size=ffn_hidden_size,
+                num_layers=post_decoder_num_layers,
+                num_attention_heads=num_attention_heads,
+                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                kv_channels=kv_channels,
+                init_method=init_method_normal(init_method_std),
+                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                pre_process=pre_process,
+                post_process=post_process,
+                init_method_std=init_method_std,
+                use_cpu_initialization=use_cpu_initialization,
+                hidden_dropout=hidden_dropout,
+                attention_dropout=attention_dropout,
+                precision=precision,
+                fp32_residual_connection=fp32_residual_connection,
+                activations_checkpoint_method=activations_checkpoint_method,
+                activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+                layernorm_epsilon=layernorm_epsilon,
+                bias_gelu_fusion=bias_gelu_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
+                masked_softmax_fusion=masked_softmax_fusion,
+                persist_layer_norm=persist_layer_norm,
+                openai_gelu=openai_gelu,
+                onnx_safe=onnx_safe,
+                hidden_steps=hidden_steps,
+                hidden_blocks=hidden_blocks,
+                activation=activation,
+                bias=bias,
+                parent_model_type=ModelType.encoder_and_decoder,
+                layer_type=post_decoder_layer_types,
+                chunk_size=chunk_size,
+            )
+            self._pre_decoder_key = "pre_decoder"
+            self._post_decoder_key = "post_decoder"
 
         self.initialize_word_embeddings(
             init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
@@ -275,75 +314,46 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
     def forward(
         self,
-        enc_input_ids,
-        enc_attn_mask,
-        dec_input_ids,
-        dec_attn_mask,
+        input_ids,
+        input_attn_mask,
+        retrieved_emb,
+        retrieved_attn_mask,
         token_type_ids=None,
         labels=None,
         enc_hidden_states=None,
         enc_output_mask=None,
-        output_enc_hidden_only=False,
-        enc_input=None,
+        input_emb=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
-        if enc_input is None:
+        if input_emb is None:
             if self.pre_process and self.add_encoder:
                 # encoder embeddings
-                enc_position_ids = build_position_ids(enc_input_ids)
-                enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+                input_position_ids = build_position_ids(input_ids)
+                input_emb = self.encoder_embedding(input_ids, input_position_ids, token_type_ids=token_type_ids)
             else:
-                enc_input = None
+                input_emb = None
 
-        if output_enc_hidden_only:
-            enc_output = self.enc_dec_model.encode(
-                enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
-            )
-            return enc_output
-        else:
-            if self.pre_process and self.add_decoder:
-                dec_position_ids = build_position_ids(dec_input_ids)
-                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
-            else:
-                # Note: This is when the decoder itself is split across PP ranks.
-                dec_input = None
+        if self.add_decoder:
+            hidden = self.pre_decoder(input_emb, input_attn_mask)
+        
+        if self.add_encoder:
+            retrieved_emb = self.encoder(retrieved_emb, retrieved_attn_mask, context_attn_mask=input_attn_mask, encoder_output=hidden)
 
-            output = self.enc_dec_model(
-                enc_input=enc_input,
-                enc_attn_mask=enc_attn_mask,
-                dec_input=dec_input,
-                dec_attn_mask=dec_attn_mask,
-                enc_layer_past=None,
-                enc_get_key_value=False,
-                enc_output=None,
-                dec_layer_past=None,
-                dec_get_key_value=False,
-            )
+        if self.add_decoder:
+            token_logits = self.post_decoder(hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb)
 
-            if self.post_process and self.add_decoder:
-                dec_output, enc_output = output
-                # project decoder output to vocabulary-size dimensions
-                token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
-
-                if labels is not None:
-                    # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
-                    if self.fp16_cross_entropy:
-                        assert token_logits.dtype == torch.half
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
-                    else:
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
-                    return tokens_loss
+            if labels is not None:
+                # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
+                if self.fp16_cross_entropy:
+                    assert token_logits.dtype == torch.half
+                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                 else:
-                    return token_logits
-
-            elif self.add_decoder and not self.add_encoder:
-                decoder_output, _ = output
-                return decoder_output
+                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                return tokens_loss
             else:
-                encoder_output = output
-                return encoder_output
+                return token_logits
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
         """For easy load when model is combined with other heads,
@@ -354,13 +364,13 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
-        state_dict_[self._decoder_embedding_key] = self.decoder_embedding.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
         state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
-        state_dict_[self._decoder_key] = self.decoder.state_dict_for_save_checkpoint(
+        state_dict_[self._pre_decoder_key] = self.pre_decoder.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._post_decoder_key] = self.post_decoder.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
         state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
@@ -372,6 +382,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         """Customized load."""
 
         self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
-        self.decoder_embedding.load_state_dict(state_dict[self._decoder_embedding_key], strict=strict)
-        self.enc_dec_model.load_state_dict(state_dict[self._enc_dec_model_key], strict=strict)
+        self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
+        self.pre_decoder.load_state_dict(state_dict[self._pre_decoder_key], strict=strict)
+        self.post_decoder.load_state_dict(state_dict[self._post_decoder_key], strict=strict)
         self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
