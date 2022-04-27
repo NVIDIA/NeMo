@@ -1269,7 +1269,7 @@ class ParallelTransformer(MegatronModule):
         if self.post_process:
             # Reverting data format change [s b h] --> [b s h].
             hidden_states = hidden_states.transpose(0, 1).contiguous()
-            output = self.final_normalization(hidden_states)
+            output = self.final_layernorm(hidden_states)
         else:
             output = hidden_states
         if get_key_value:
