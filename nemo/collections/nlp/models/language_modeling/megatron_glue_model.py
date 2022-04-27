@@ -51,12 +51,14 @@ class MegatronT5GLUEModel(MegatronT5FinetuneModel):
     def build_train_valid_test_datasets(self, stage):
         logging.info('Building GLUE/XNLI datasets.')
         if stage != 'test':
-            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds)
+            # Wrap this in a list since the general finetuning parent class supports multi-validation.
+            self._validation_ds = [self._build_dataset(self.cfg.data.validation_ds)]
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
 
         if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
-                self._test_ds = self._build_dataset(self.cfg.data.test_ds)
+                # Wrap this in a list since the general finetuning parent class supports multi-validation.
+                self._test_ds = [self._build_dataset(self.cfg.data.test_ds)]
                 logging.info(f'Length of test dataset: {len(self._test_ds)}')
 
         if stage == 'validate' or stage == 'test':
