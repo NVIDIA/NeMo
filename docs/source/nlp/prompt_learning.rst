@@ -1,23 +1,26 @@
 Prompt Learning
 -------------
 
-Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoid cartographic forgetting issues often encountered when fine-tuning models.
+Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoid cartographic forgetting issues often encountered when fine-tuning models. 
+
+Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient decent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
 
 - Our prompt tuning implementation is based off Lester et. al’s EMNLP 2021 paper "`The Power of Scale for Parameter-Efficient Prompt Tuning <https://arxiv.org/abs/2104.08691>`_"
 - Our p-tuning implementation is based off Liu et al's paper "`GPT Understands, Too <https://arxiv.org/abs/2103.10385>`_"
 
-Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt tokens that can be optimized via gradient decent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
+Our continuous learning capability for combined p-tuning and prompt tuning with GPT style models is a NeMo specific extension of the author's original work.
+
 
 Terminology
 ^^^^^^^^^^
-We will be using the terms ``continuous``, ``soft``, and ``virtual`` interchangeably to refer to tokens inserted into the model prompt that have no concrete mapping to strings or characters within the model’s vocabulary. These virtual tokens exist in contrast to the ``discrete``, ``hard``, or ``real`` tokens that do make up the model’s vocabulary. Virtual tokens are purely 1D vectors with dimensionality equal to that of each real token embedding, matching the ``hidden_size`` hyperparameter. In training and inference, continuous token embeddings are inserted amoung discrete token embeddings according to a template you provide in the model's config. We will demonstrate how to do this below.
+We will be using the terms ``continuous``, ``soft``, and ``virtual`` token interchangeably to refer to embeddings inserted into the model prompt that have no concrete mapping to strings or characters within the model’s vocabulary. These virtual token embeddings exist in contrast to the ``discrete``, ``hard``, or ``real`` tokens that do make up the model’s vocabulary. Virtual tokens are purely 1D vectors with dimensionality equal to that of each real token embedding, matching the ``hidden_size`` hyperparameter. In training and inference, continuous token embeddings are inserted among discrete token embeddings according to a template you provide in the model's config. We will demonstrate how to do this below.
 
 When referring to p-tuning and prompt tuning together, we will be using the phrase prompt learning for simplicity.
 
 Prompt Tuning
 ^^^^^^^^^^^^^
 
-In prompt-tuning a pretrained GPT model, soft prompt embeddings are initialized as a 2D matrix of size ``total_virtual_tokens X hidden_size``. Each task the model is prompt-tuned to perform has its own 2D embedding matrix associated with it. Tasks do not share any parameters during traning or inference. All GPT model parameters are frozen and only the embedding parameters for each task are updated during training.
+In prompt-tuning a pretrained GPT model, soft prompt embeddings are initialized as a 2D matrix of size ``total_virtual_tokens X hidden_size``. Each task the model is prompt-tuned to perform has its own 2D embedding matrix associated with it. Tasks do not share any parameters during training or inference. All GPT model parameters are frozen and only the embedding parameters for each task are updated during training.
 
 In prompt tuning you can specify how the embeddings are initialized for each task. You can either
 
@@ -36,13 +39,13 @@ Using Both Prompt and P-Tuning
 
 A single pretrained GPT model can use both p-tuning and prompt-tuning. While you must decide to use either p-tuning or prompt-tuning for each task you want your model to perform, you can p-tune your model on a set of tasks *A*, then prompt tune your same model on a different set of tasks *B*, then finally run inference on tasks from both *A* and *B* at the same time. During prompt-tuning or p-tuning, tasks tuned at the same time must use the same number of virtual tokens. During inference, tasks using differing amounts of virtual tokens can be run at the same time.
 
-When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_encoder`` are automatically moved to the ``prompt_table`` where all prompt tuned and p-tuned soft prompts are stored. The LSTM ``prompt_encoder`` is then removed from the model. This allows us to preserve previously p-tuned soft prompts while still maintaining the ability to add new p-tuned or prompt-tuned soft prompts in the future. The ``prompt_table`` uses the ``taskname`` as a key to look up the correct virtual tokens for a specified task. The ``prompt_table``'s hash table data structure also makes it possible for each task to flexibly use a different amount of virtual tokens. 
+When p-tuning completes, prompt tuned virtual tokens from the p-tuning ``prompt_encoder`` are automatically moved to the ``prompt_table`` where all prompt tuned and p-tuned soft prompts are stored. The LSTM ``prompt_encoder`` is then removed from the model. This allows us to preserve previously p-tuned soft prompts while still maintaining the ability to add new p-tuned or prompt-tuned soft prompts in the future. The ``prompt_table`` uses the ``taskname`` as a key to look up the correct virtual tokens for a specified task. The ``prompt_table``'s hash table data structure also makes it possible for each task to flexibly use a different number of virtual tokens. 
 
 P-tuning usually requires fewer virtual tokens per task to achieve good results but uses a higher number of parameters compared to prompt-tuning. For example, if you prompt tune a 125M parameter GPT model (with hidden size 768) on two tasks, using 100 virtual tokens per task, the total parameters tuned during prompt tuning would equal 153k (~.1% of the pre-trained model size). If you p-tune the same 125M GPT model on 2 tasks, using an LSTM with two layers and 10 tokens per task, you will be tuning 8.3M parameters (~6.6% of the pre-trained model size). The increased number of parameters used during p-tuning is mitigated by our ``prompt_table``. When p-tuned soft prompts are placed in the prompt table, only the parameters for the predicted virtual tokens are saved. This allows us to keep the benefit of tuning a larger number of parameters during training, while also preserving the parameter efficiency of prompt-tuning during inference and storing of the model.
 
 Because p-tuning shares parameters between tasks during training, p-tuning your model on multiple tasks that are similar might allow your model to share insight between tasks. In the same vein, p-tuning on many very different tasks at once might perform worse than prompt tuning, which tunes a distinct set of parameters per task. **Generally we recommend using p-tuning over prompt tuning.**
 
-Users can also optionally tune the model's full parameters in addition to the soft prompt parameters. See ``model.lm_finetune`` in the Prompt Learning Config section for details on how to configure this. 
+Users can also optionally tune the model's full parameters in addition to the soft prompt parameters. See ``model.lm_finetune`` in the Prompt Learning Config section for details on how to configure this.
 
 Dataset Preprocessing
 ^^^^^^^^^^^^^^^^^^^^^
@@ -60,7 +63,7 @@ The prompt learning dataset accepts a list of json/dictionary objects or a list 
     {"taskname": "sentiment", "sentence": [SENTENCE_TEXT2], "label": [SENTIMENT_LABEL2]},
   ]
   
-These additional fields can be unlimited in number and will be used to help map different parts of the discrete text input to a prompt template that you define. We show how this mapping works and how to construct your prompt template in the `_Prompt_Formatting_` section. Data examples for each dataset can all be passed to the dataset class in one file, or in seprate ``.jsonl`` files in a list. 
+These additional fields can be unlimited in number and will be used to help map different parts of the discrete text input to a prompt template that you define. We show how this mapping works and how to construct your prompt template in the Prompt Formatting section. Data examples for each dataset can all be passed to the dataset class in one file, or in separate ``.jsonl`` files in a list.
   
 .. _data-example-label:
 
@@ -77,7 +80,7 @@ For example, given:
 
 the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home. VVV Premise: He didn't say a word. VVV Answer:``, where ``VVV`` are three virtual tokens.
 
-**We strongly recommend you place all virtual tokens at the very begining of your prompt template** like we do with the ``sentiment`` task example below. We've found this gives the best performance. 
+**We recommend you first try prompt learning by placing all virtual tokens at the very beginning of your prompt template** like we do with the ``sentiment`` task example below. We've found this gives strong performance. 
 .. code::
 
   config.model.task_templates = [
@@ -196,7 +199,7 @@ An example config file can be found at https://github.com/NVIDIA/NeMo/blob/main/
 Setting New Tasks
 ^^^^^^^^^^^^^^^^^
 
-After you p-tune or prompt-tune your model, you can always go back and p-tune or prompt-tune your model on more tasks without over writting the virtual prompts who've trained already. You can also use a different number of ``total_virtual_tokens`` between each training session as long as tasks ptuned or prompt tuned at the same time have the same number of ``total_virtual_tokens``. For this reason, when you ptune on a new task, you need to tell your model which of your tasks are new and which ones already exist (and thus you don't want to tune them). You do this by setting the ``new_tasks`` and ``existing_tasks`` values in the config file. 
+After you p-tune or prompt-tune your model, you can always go back and p-tune or prompt-tune your model on more tasks without over writing the virtual prompts who've trained already. You can also use a different number of ``total_virtual_tokens`` between each training session as long as tasks ptuned or prompt tuned at the same time have the same number of ``total_virtual_tokens``. For this reason, when you ptune on a new task, you need to tell your model which of your tasks are new and which ones already exist (and thus you don't want to tune them). You do this by setting the ``new_tasks`` and ``existing_tasks`` values in the config file.
 
 Example Multi-Task Prompt Tuning Command
 ^^^^^^^^^^
@@ -263,7 +266,7 @@ Example Multi-Task P-Tuning Command After Prompt-Tuning
 ^^^^^^^^^^
 Update ``multitask-prompt-learning.yaml`` from the example above with p-tuning parameters for the new task. Be sure to update ``model.existing_tasks`` with the tasknames from previous prompt learning runs and to use the ``.nemo`` file saved at the end of your last prompt learning session. Values different from the config above have stars commented next to them. 
 
-In this example, the SQuAD task includes the question context as part of the prompt. Because the context is long, we recommend setting ``answer_only_loss`` to ``True`` for this task, and any task where a significant portion of the prompt is not a part of the answer. ``answer_only_loss`` tells the model to only calculate the cross entropy loss on the answer portion of the training example. Though we recommend placing all virtual tokens at the beginning of the prompt, we place them throughout the prompt in this example to demonstrate how to do so.
+In this example, the SQuAD task includes the question context as part of the prompt. Because the context is long, we recommend setting ``answer_only_loss`` to ``True`` for this task, and any task where a significant portion of the prompt is not a part of the answer. ``answer_only_loss`` tells the model to only calculate the cross-entropy loss on the answer portion of the training example. Though we recommend placing all virtual tokens at the beginning of the prompt, we place them throughout the prompt in this example to demonstrate how to do so.
 
 .. code::
 
@@ -345,7 +348,7 @@ The inference file can contain a mix of prompts from all the tasks the model has
             pipeline_model_parallel_size=1 \
             prompts=[prompt1,prompt2]
             
-Prompts in this case should be a list of dictionary examples similar to the ones used during prompt learning. They should have keys that match the fields specified in the prompt template. Fields can be dropped from the prompt dict and their corresponding section of the prompt template will be automatically removed. 
+Prompts in this case should be a list of dictionary examples like the ones used during prompt learning. They should have keys that match the fields specified in the prompt template. Fields can be dropped from the prompt dict and their corresponding section of the prompt template will be automatically removed.
 
 For example, say the prompt template during p-tuning/prompt-tuning looked like:
 
@@ -371,7 +374,7 @@ And the dataset class will automatically format your input to have the form:
       '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
   ]
         
-Instead of prompt dicts, you can also pass in a list of string paths to .json files on which you want to run inference. Similarly for all other senarios, just add virtual_prompt_model=True if you're using a p-tuned/prompt-tuned model. 
+Instead of prompt dicts, you can also pass in a list of string paths to .json files on which you want to run inference. Similarly for all other scenarios, just add virtual_prompt_model=True if you're using a p-tuned/prompt-tuned model.
 
 Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 
