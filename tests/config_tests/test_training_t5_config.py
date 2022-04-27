@@ -115,8 +115,8 @@ class TestTrainingT5Config:
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
         
-          activations_checkpoint_method: null # 'uniform', 'block'
-          activations_checkpoint_num_layers: 1
+          activations_checkpoint_method: block # 'uniform', 'block'
+          activations_checkpoint_num_layers: 0
         
           optim:
             name: fused_adam
@@ -328,8 +328,8 @@ class TestTrainingT5Config:
           onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
           apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
         
-          activations_checkpoint_method: null # 'uniform', 'block'
-          activations_checkpoint_num_layers: 1
+          activations_checkpoint_method: block # 'uniform', 'block'
+          activations_checkpoint_num_layers: 0
         
           optim:
             name: fused_adam
