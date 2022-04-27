@@ -40,15 +40,17 @@ import pytorch_lightning as pl
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
+from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-def update_encoder_config_to_support_adapter(model_cfg, new_cfg):
+def update_encoder_config_to_support_adapter(model_cfg):
     with open_dict(model_cfg):
-        if 'Adapter' not in model_cfg.encoder._target_:
-            model_cfg.encoder._target_ = model_cfg.encoder._target_ + 'Adapter'
+        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        if adapter_metadata is not None:
+            model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
 
 
 def update_model_cfg(original_cfg, new_cfg):
@@ -78,12 +80,12 @@ def main(cfg):
 
     if cfg.model.pretrained_model is not None:
         model_cfg = ASRModel.from_pretrained(cfg.model.pretrained_model, return_config=True)
-        update_encoder_config_to_support_adapter(model_cfg, cfg)
+        update_encoder_config_to_support_adapter(model_cfg)
         model = ASRModel.from_pretrained(cfg.model.pretrained_model, override_config_path=model_cfg, trainer=trainer)
 
     else:
         model_cfg = ASRModel.restore_from(cfg.model.nemo_model, return_config=True)
-        update_encoder_config_to_support_adapter(model_cfg, cfg)
+        update_encoder_config_to_support_adapter(model_cfg)
         model = ASRModel.restore_from(cfg.model.nemo_model, override_config_path=model_cfg, trainer=trainer)
 
     # Setup model for finetuning (train and validation only)
