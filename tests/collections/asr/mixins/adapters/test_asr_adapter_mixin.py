@@ -18,7 +18,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.models import ASRModel, EncDecCTCModel
 from nemo.collections.common.parts import adapter_modules
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin, get_registered_adapter
 from nemo.utils import config_utils
 
 
@@ -117,6 +117,13 @@ class TestASRAdapterMixin:
         assert signatures_match
         assert cls_subset is None
         assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_adapter_registry_via_adapter_class(self, model):
+        # The encoder is already an adapter compatible class
+        metadata = get_registered_adapter(model.encoder.__class__)
+        assert metadata is not None
+        assert metadata.adapter_class == model.encoder.__class__
 
     @pytest.mark.unit
     def test_asr_multiple_adapter(self, model):

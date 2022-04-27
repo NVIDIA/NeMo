@@ -37,7 +37,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
@@ -853,11 +853,11 @@ class SpeakerDecoder(NeuralModule, Exportable):
         return out, embs[-1].squeeze(-1)
 
 
-class ConvASREncoderAdapter(ConvASREncoder, AdapterModuleMixin):
+class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
-        for jasper_block in self.encoder:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
             cfg = self._update_adapter_cfg_input_dim(jasper_block, cfg)
             jasper_block.add_adapter(name, cfg)
 
@@ -865,12 +865,12 @@ class ConvASREncoderAdapter(ConvASREncoder, AdapterModuleMixin):
         return any([jasper_block.is_adapter_available() for jasper_block in self.encoder])
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
-        for jasper_block in self.encoder:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
             jasper_block.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         names = set([])
-        for jasper_block in self.encoder:  # type: AdapterModuleMixin
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
             names.update(jasper_block.get_enabled_adapters())
 
         names = sorted(list(names))
@@ -948,3 +948,10 @@ class ConvASRDecoderClassificationConfig:
     init_mode: Optional[str] = "xavier_uniform"
     return_logits: bool = True
     pooling_type: str = 'avg'
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(ConvASREncoder) is None:
+    adapter_mixins.register_adapter(base_class=ConvASREncoder, adapter_class=ConvASREncoderAdapter)

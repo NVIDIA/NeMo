@@ -13,14 +13,90 @@
 # limitations under the License.
 
 from abc import ABC
-from dataclasses import is_dataclass
-from typing import List, Optional
+from dataclasses import dataclass, is_dataclass
+from typing import List, Optional, Union
 
 import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
+
+# Global registry of all adapters
+ADAPTER_REGISTRY = {}
+
+
+@dataclass
+class AdapterRegistryInfo:
+    base_class: type
+    adapter_class: type
+
+    # generated automatically
+    base_class_path: str = ""
+    adapter_class_path: str = ""
+
+    def __post_init__(self):
+        self.base_class_path = f'{self.base_class.__module__}.{self.base_class.__name__}'
+        self.adapter_class_path = f'{self.adapter_class.__module__}.{self.adapter_class.__name__}'
+
+
+def register_adapter(base_class: type, adapter_class: type):
+    """
+    Registers a pair (Base class, Adapter class) into the adapter registry, used for de-referencing.
+
+    Args:
+        base_class: A Class, which is the base class of the object.
+        adapter_class: A Class, which is the subclass of the base class, and implements the Adapter mixin methods.
+    """
+    global ADAPTER_REGISTRY
+    base_class_path = f'{base_class.__module__}.{base_class.__name__}'
+    adapter_class_path = f'{adapter_class.__module__}.{adapter_class.__name__}'
+
+    # test if base class already in registry
+    if base_class_path in ADAPTER_REGISTRY:
+        raise ValueError(f"`{base_class_path}` has already been added to the adapter registry !")
+
+    # test if adapter is a subclass of the base class
+    if not issubclass(adapter_class, base_class):
+        raise ValueError(f"`{adapter_class_path}` is not a sub-class of {base_class_path} !")
+
+    # register the base class : adapter class pair
+    ADAPTER_REGISTRY[base_class_path] = AdapterRegistryInfo(base_class=base_class, adapter_class=adapter_class)
+
+    # attach adapter class to base class
+    base_class._meta_adapter_class = adapter_class
+
+    # attach base class to adapter class
+    adapter_class._meta_base_class = base_class
+
+
+def get_registered_adapter(cls: Union[str, type]) -> Optional[AdapterRegistryInfo]:
+    """
+    Resolves a provided `cls` (whether str path to class, a registered base or an adapter class)
+    to obtain the metadata for the adapter.
+
+    Args:
+        cls: Can be a str (absolute path to a class), a base class or an adapter class (which have already
+            been registered).
+
+    Returns:
+        A AdapterRegistryInfo object if it could resolve successfully, otherwise None.
+    """
+    global ADAPTER_REGISTRY
+    if isinstance(cls, str):
+        cls = model_utils.import_class_by_path(cls)
+
+    # If an adapter class was provided, de-reference its base class
+    if hasattr(cls, '_meta_base_class'):
+        cls = cls._meta_base_class
+
+    class_path = f'{cls.__module__}.{cls.__name__}'
+
+    # If base class, check registry
+    if class_path in ADAPTER_REGISTRY:
+        return ADAPTER_REGISTRY[class_path]
+
+    return None
 
 
 class AdapterModuleMixin(ABC):

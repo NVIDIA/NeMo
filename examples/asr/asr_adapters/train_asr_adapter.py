@@ -64,6 +64,7 @@ import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -71,8 +72,9 @@ from nemo.utils.exp_manager import exp_manager
 
 def update_encoder_config_to_support_adapter(model_cfg, new_cfg):
     with open_dict(model_cfg):
-        if 'Adapter' not in model_cfg.encoder._target_:
-            model_cfg.encoder._target_ = model_cfg.encoder._target_ + 'Adapter'
+        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        if adapter_metadata is not None:
+            model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
 
 
 def update_model_cfg(original_cfg, new_cfg):
