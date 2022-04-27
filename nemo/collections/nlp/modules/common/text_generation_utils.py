@@ -447,7 +447,7 @@ def generate(
             )
         if task_ids is None:
             # Make a dummy tensor of -1s that won't be used during generation
-            task_ids = torch.neg(torch.ones(context_tokens_tensor.size(0)))
+            task_ids = torch.neg(torch.ones(context_tokens_tensor.size(0), dtype=torch.int64))
             task_ids = task_ids.to(device=context_tokens_tensor.get_device())
 
         send_generate_info(
@@ -687,6 +687,9 @@ def sample_sequence_batch(
                 # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
+
+                # Replace sampled tokens w/ done token if EOD has already been sampled
+                new_tokens = switch(new_tokens, eod_id, is_done)
 
                 # Replace special soft prompt token ids with unk token ids
                 if isinstance(model, MegatronGPTPromptLearningModel):
