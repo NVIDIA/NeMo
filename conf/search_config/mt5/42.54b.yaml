@@ -2,17 +2,16 @@ train_settings:
   model_size_in_b: 42.54 # unit in billion parameters
   num_nodes: 40
   gpus_per_node: 8
-  max_training_days: 40 # unit in days
+  max_training_days: 90 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
-  output_top_n: 100
-  max_minutes_per_run: 80 # 20 minute default running time.
+  output_top_n: 10  # The result will print the top N fastest training configs.
+  max_minutes_per_run: 80 # minutes per run for the grid search.
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 1000  # Unit in billions, typically 300B for GPT3 models.
-  seq_length: 512  # Sequence length for training GPT3 model.
   vocab_size: 250000
-  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/t5/220m
+  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/mt5/0.17b
   tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_size: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
   act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
  
@@ -23,7 +22,7 @@ inference_settings:
   input_seq_len: 60
   output_seq_len: 20
   top_n: 10
-  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/t5/220m
+  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/mt5/0.17b
   tensor_parallel_sizes: [1, 2, 4, 8]
   pipeline_parallel_sizes: [1, 2, 3, 4]
   max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]

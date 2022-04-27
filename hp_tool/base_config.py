@@ -90,10 +90,12 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
     Output:
         model_size_in_b: int, number of parameters to use for training.
     """
+    model_penalty = 0.87 if model_name == "mt5" else 1.0
     try:
-        if model_name in ["gpt3", "t5"]:
+        if model_name in ["gpt3", "t5", "mt5"]:
             return round(
-                (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
+                model_penalty 
+                * (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
                 / (8 * num_tokens_in_b * 1e9)
                 / 1e9,
                 2,
@@ -123,10 +125,12 @@ def _estimate_training_time(
     ), "model_size_in_b must be int or float."
     assert model_size_in_b > 0, "model_size_in_b must be larger than zero."
 
+    model_penalty = 1.15 if model_name == "mt5" else 1.0
     try:
-        if model_name in ["gpt3", "t5"]:
+        if model_name in ["gpt3", "t5", "mt5"]:
             max_training_days = round(
-                (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
+                model_penalty
+                * (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
                 / (3600 * 24 * gpu_count * tflops_per_gpu * 1e12),
                 2,
             )
@@ -190,8 +194,7 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
         elif model_size_in_b <= 43.0:
             gbs, tp, pp = 1920, 8, 4
         else:
-            print("No T5 model larger than 43B parameters is supported.")
-            raise ValueError
+            raise ValueError("No T5 model larger than 43B parameters is supported.")
     else:
         raise NotImplementedError
 

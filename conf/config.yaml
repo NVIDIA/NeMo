@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - cluster: bcm
-  - search_config: t5/2.8b
+  - search_config: gpt3/5b
   - override hydra/job_logging: stdout
 
 hydra:
@@ -14,8 +14,8 @@ run_inference_hp_search: True
 
 bignlp_hp_tool_path: /lustre/fsw/joc/big_nlp/nemo_gpt3/hp_tool/bignlp-hp-tool  # Path should end with bignlp-hp-tool.
 bignlp_inference_path: ${bignlp_hp_tool_path}/../BigNLP-Inference-Scripts  # Path to the location of BigNLP-Inference-Scripts codebase.
+data_dir: ${bignlp_hp_tool_path}/../bignlp-scripts/data
 base_results_dir: ${bignlp_hp_tool_path}/results
-data_dir: /lustre/fsw/joc/big_nlp/t5/dataset/Pile
 
 training_container: nvcr.io/nvidian/bignlp-training:22.04.08-py
 container_mounts:
@@ -23,7 +23,7 @@ container_mounts:
 
 wandb:  # Weights and Biases (W&B) logging.
     enable: True  # Whether to save logs to W&B.
-    api_key_file: ${bignlp_hp_tool_path}/api_key.txt  # Path to the file where the w&B api key is stored. Key must be on the first line.
+    api_key_file: null  # Path to the file where the w&B api key is stored. Key must be on the first line.
     project: bignlp-hp-tool  # Name of the W&B project to store the logs in. The name of the run will be populated automatically.
 
 # Do not modify the code below.
