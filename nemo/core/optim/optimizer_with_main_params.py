@@ -246,10 +246,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 # Deallocate grad memory.
                 param.grad = None
 
-                # Asynchronous gradients allreduce accross data_parallel ranks
-                if self._require_backward_grad_sync:
-                    main_param.grad.div_(get_data_parallel_world_size())
-                    torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
+            # Asynchronous gradients allreduce accross data_parallel ranks
+            if self._require_backward_grad_sync:
+                main_param.grad.div_(get_data_parallel_world_size())
+                torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
 
         return param_hook
 
