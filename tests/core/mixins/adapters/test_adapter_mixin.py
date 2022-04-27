@@ -50,7 +50,7 @@ class DefaultModel(NeuralModule, AdapterModuleMixin):
 
 def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
     cfg = {
-        '_target_': 'nemo.collections.asr.parts.submodules.adapter_modules.LinearAdapter',
+        '_target_': 'nemo.collections.common.parts.adapter_modules.LinearAdapter',
         'in_features': in_features,
         'dim': dim,
         'norm_position': norm_pos,
