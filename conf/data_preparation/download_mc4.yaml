@@ -18,4 +18,4 @@ rm_downloaded: False # Script will not remove downloaded after preprocessing
 nodes: 20
 cpus_per_node: 256 # 256 cpus for A100(80G)
 time_limit: "24:00:00"
-workers_per_node: 2 # Number of workers per node in preprocessing step.
+workers_per_node: 4 # Number of workers per node in preprocessing step.
