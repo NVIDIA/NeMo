@@ -25,7 +25,7 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
 from nemo import package_info
 from nemo.core import optim
@@ -1232,6 +1232,18 @@ class ModelPT(LightningModule, Model):
                 logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
         app_state = AppState()
         app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """
