@@ -62,7 +62,7 @@ if __name__ == '__main__':
     f_infer.close()
     assert len(lines_ref) == len(lines_infer), "number of lines doesn't match"
     for i in range(len(lines_infer)):
-        _, inp_str, _, tag_with_swap_str = lines_infer[i].strip().split("\t")
+        _, inp_str, _, tag_with_swap_str, _ = lines_infer[i].strip().split("\t")
         input_words = inp_str.split(" ")
         predicted_tags = tag_with_swap_str.split(" ")
         predicted_words = predicted_tags[:]

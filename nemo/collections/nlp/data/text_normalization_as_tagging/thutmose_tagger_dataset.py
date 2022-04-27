@@ -13,14 +13,15 @@
 # limitations under the License.
 
 
-from typing import List
+from typing import Dict, List, Optional
 
 import numpy as np
 
 from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder, read_input_file
 from nemo.core.classes.dataset import Dataset
+from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType, VoidType
 
-__all__ = ['ThutmoseTaggerDataset', 'ThutmoseTaggerTestDataset']
+__all__ = ["ThutmoseTaggerDataset", "ThutmoseTaggerTestDataset"]
 
 
 class ThutmoseTaggerDataset(Dataset):
@@ -33,6 +34,20 @@ class ThutmoseTaggerDataset(Dataset):
         example_builder: instance of BertExampleBuilder
     """
 
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+            "labels_mask": NeuralType(('B', 'T'), MaskType()),
+            "tag_labels": NeuralType(('B', 'T'), LabelsType()),
+            "semiotic_labels": NeuralType(('B', 'T'), LabelsType()),
+            "semiotic_spans": NeuralType(('B', 'T', 'C'), IntType()),
+        }
+
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
         self.examples = read_input_file(example_builder, input_file, infer=False)
 
@@ -40,13 +55,14 @@ class ThutmoseTaggerDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, idx: int):
-        input_ids = np.array(self.examples[idx].features['input_ids'])
-        input_mask = np.array(self.examples[idx].features['input_mask'])
-        segment_ids = np.array(self.examples[idx].features['segment_ids'])
-        labels_mask = np.array(self.examples[idx].features['labels_mask'])
-        labels = np.array(self.examples[idx].features['labels'])
-        semiotic_classes = np.array(self.examples[idx].features['semiotic_classes'])
-        return input_ids, input_mask, segment_ids, labels_mask, labels, semiotic_classes
+        input_ids = np.array(self.examples[idx].features["input_ids"])
+        input_mask = np.array(self.examples[idx].features["input_mask"])
+        segment_ids = np.array(self.examples[idx].features["segment_ids"])
+        labels_mask = np.array(self.examples[idx].features["labels_mask"])
+        tag_labels = np.array(self.examples[idx].features["tag_labels"])
+        semiotic_labels = np.array(self.examples[idx].features["semiotic_labels"])
+        semiotic_spans = np.array(self.examples[idx].features["semiotic_spans"])
+        return input_ids, input_mask, segment_ids, labels_mask, tag_labels, semiotic_labels, semiotic_spans
 
 
 class ThutmoseTaggerTestDataset(Dataset):
@@ -57,6 +73,16 @@ class ThutmoseTaggerTestDataset(Dataset):
         sents: list of strings
         example_builder: instance of BertExampleBuilder
     """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+               """
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_mask": NeuralType(('B', 'T'), MaskType()),
+            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+        }
 
     def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:
         self.examples = []
@@ -69,7 +95,7 @@ class ThutmoseTaggerTestDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, idx: int):
-        input_ids = np.array(self.examples[idx].features['input_ids'])
-        input_mask = np.array(self.examples[idx].features['input_mask'])
-        segment_ids = np.array(self.examples[idx].features['segment_ids'])
+        input_ids = np.array(self.examples[idx].features["input_ids"])
+        input_mask = np.array(self.examples[idx].features["input_mask"])
+        segment_ids = np.array(self.examples[idx].features["segment_ids"])
         return input_ids, input_mask, segment_ids

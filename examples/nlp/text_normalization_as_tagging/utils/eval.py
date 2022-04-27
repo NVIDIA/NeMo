@@ -110,6 +110,7 @@ if __name__ == "__main__":
 
     predictions = []
     predicted_tags = []
+    predicted_semiotic = []
     # load predictions
     with open(args.inference_file, "r", encoding="utf-8") as f:
         for line in f:
@@ -118,11 +119,12 @@ if __name__ == "__main__":
                 predictions.append(parts[0].casefold())
                 predicted_tags.append([])
                 continue
-            assert len(parts) == 4, "bad format: " + line
-            prediction, inp_str, tag_str, tags_with_swap_str = parts
+            assert len(parts) == 5, "bad format: " + line
+            prediction, inp_str, tag_str, tags_with_swap_str, semiotic = parts
             predictions.append(prediction.casefold())
             tags = tag_str.split(" ")
             predicted_tags.append(tags)
+            predicted_semiotic.append(semiotic)
 
     sentences_with_errors_on_digits = 0
     correct_sentences_disregarding_space = 0
@@ -150,6 +152,7 @@ if __name__ == "__main__":
             print("\tinput=", " ".join(inputs[i]))
             print("\ttags=", " ".join(predicted_tags[i]))
             print("\tpred=", predictions[i])
+            print("\tsemiotic=", predicted_semiotic[i])
             print("\tref=", references[i][-1])  # last reference is actual reference
             sentences_with_errors_on_digits += 1
         elif ok_all:
@@ -159,6 +162,7 @@ if __name__ == "__main__":
             print("\tinput=", " ".join(inputs[i]))
             print("\ttags=", " ".join(predicted_tags[i]))
             print("\tpred=", predictions[i])
+            print("\tsemiotic=", predicted_semiotic[i])
             print("\tref=", references[i][-1])  # last reference is actual reference
 
     wer = word_error_rate(refs_for_wer, preds_for_wer)

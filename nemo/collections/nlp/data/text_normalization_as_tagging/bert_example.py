@@ -50,10 +50,11 @@ class BertExample(object):
         input_ids: List[int],
         input_mask: List[int],
         segment_ids: List[int],
-        labels: List[int],
         labels_mask: List[int],
+        tag_labels: List[int],
+        semiotic_labels: List[int],
+        semiotic_spans: List[Tuple[int, int, int]],
         token_start_indices: List[int],
-        semiotic_classes: List[Tuple[int, int, int]],
         task: EditingTask,
         default_label: int,
     ) -> None:
@@ -63,11 +64,13 @@ class BertExample(object):
             input_ids: indices of tokens which constitute batches of masked text segments
             input_mask: bool tensor with 0s in place of source tokens to be masked
             segment_ids: bool tensor with 0's and 1's to denote the text segment type
-            labels: indices of tokens which should be predicted from each of the
+            tag_labels: indices of tokens which should be predicted from each of the
                 corresponding input tokens
             labels_mask: bool tensor with 0s in place of label tokens to be masked
             token_start_indices: the indices of the WordPieces that start a token.
-            semiotic_classes: list of tuples (class_id, start_wordpiece_idx, end_wordpiece_idx), end is exclusive
+            semiotic_labels: indices of semiotic classes which should be predicted from each of the
+                corresponding input tokens
+            semiotic_spans: list of tuples (class_id, start_wordpiece_idx, end_wordpiece_idx), end is exclusive
             task: Example Text-Editing Task used by the LaserTagger model during inference.
             default_label: The default label for the KEEP tag-ID
         """
@@ -75,19 +78,21 @@ class BertExample(object):
         if not (
             input_len == len(input_mask)
             and input_len == len(segment_ids)
-            and input_len == len(labels)
             and input_len == len(labels_mask)
+            and input_len == len(tag_labels)
+            and input_len == len(semiotic_labels)
         ):
             raise ValueError('All feature lists should have the same length ({})'.format(input_len))
 
         self.features = OrderedDict(
             [
-                ('input_ids', input_ids),
-                ('input_mask', input_mask),
-                ('segment_ids', segment_ids),
-                ('labels', labels),
-                ('labels_mask', labels_mask),
-                ('semiotic_classes', semiotic_classes),
+                ("input_ids", input_ids),
+                ("input_mask", input_mask),
+                ("segment_ids", segment_ids),
+                ("labels_mask", labels_mask),
+                ("tag_labels", tag_labels),
+                ("semiotic_labels", semiotic_labels),
+                ("semiotic_spans", semiotic_spans),
             ]
         )
         self._token_start_indices = token_start_indices
@@ -104,27 +109,27 @@ class BertExample(object):
                 with ID 0.
         """
         pad_len = max_seq_length - len(self.features['input_ids'])
-        self.features["semiotic_classes"].extend(
-            [(-1, -1, -1)] * (max_semiotic_length - len(self.features['semiotic_classes']))
+        self.features["semiotic_spans"].extend(
+            [(-1, -1, -1)] * (max_semiotic_length - len(self.features["semiotic_spans"]))
         )
         for key in self.features:
-            if key == "semiotic_classes":
+            if key == "semiotic_spans":
                 continue
-            pad_id = pad_token_id if (key == 'input_ids') else 0
+            pad_id = pad_token_id if (key == "input_ids") else 0
             self.features[key].extend([pad_id] * pad_len)
             if len(self.features[key]) != max_seq_length:
                 raise ValueError(
-                    '{} has length {} (should be {}).'.format(key, len(self.features[key]), max_seq_length)
+                    "{} has length {} (should be {}).".format(key, len(self.features[key]), max_seq_length)
                 )
 
-    def get_token_labels(self) -> List[int]:
+    def get_token_labels(self, features_key: str) -> List[int]:
         """Returns labels/tags for the original tokens, not for wordpieces."""
         labels = []
         for idx in self._token_start_indices:
             # For unmasked and untruncated tokens, use the label in the features, and
             # for the truncated tokens, use the default label.
-            if idx < len(self.features['labels']) and self.features['labels_mask'][idx]:
-                labels.append(self.features['labels'][idx])
+            if idx < len(self.features[features_key]) and self.features["labels_mask"][idx]:
+                labels.append(self.features[features_key][idx])
             else:
                 labels.append(self._default_label)
         return labels
@@ -147,7 +152,6 @@ class BertExampleBuilder(object):
             semiotic_classes: Mapping from semiotic classes to their ids.
             tokenizer: Tokenizer object.
             max_seq_length: Maximum sequence length.
-            converter: Converter from text targets to tags.
         """
         self._label_map = label_map
         self._semiotic_classes = semiotic_classes
@@ -155,7 +159,7 @@ class BertExampleBuilder(object):
         self._max_seq_length = max_seq_length
         self._max_semiotic_length = max(4, int(max_seq_length / 2))
         self._pad_id = self._tokenizer.pad_token_id
-        self._keep_tag_id = self._label_map['KEEP']
+        self._keep_tag_id = self._label_map["KEEP"]
 
     def build_bert_example(
         self, source: str, target: Optional[str] = None, semiotic_info: Optional[str] = None, infer: bool = False
@@ -178,30 +182,32 @@ class BertExampleBuilder(object):
                 return None
         else:
             # If target is not provided, we set all target labels to KEEP.
-            tags = [Tag('KEEP') for _ in task.source_tokens]
-        labels = [self._label_map[str(tag)] for tag in tags]
-        tokens, labels, token_start_indices = self._split_to_wordpieces(task.source_tokens, labels)
+            tags = [Tag("KEEP") for _ in task.source_tokens]
+        source_tags = [self._label_map[str(tag)] for tag in tags]
+        tokens, tag_labels, token_start_indices = self._split_to_wordpieces(task.source_tokens, source_tags)
 
         tokens = self._truncate_list(tokens)
-        labels = self._truncate_list(labels)
+        tag_labels = self._truncate_list(tag_labels)
 
-        input_tokens = ['[CLS]'] + tokens + ['[SEP]']
-        labels_mask = [0] + [1] * len(labels) + [0]
-        labels = [0] + labels + [0]
+        input_tokens = ["[CLS]"] + tokens + ["[SEP]"]
+        labels_mask = [0] + [1] * len(tag_labels) + [0]
+        tag_labels = [0] + tag_labels + [0]
+
+        assert "PLAIN" in self._semiotic_classes
+        plain_cid = self._semiotic_classes["PLAIN"]
+        semiotic_labels = [plain_cid] * len(tag_labels)  # we use the same mask for semiotic labels as for tag labels
 
         input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)
         input_mask = [1] * len(input_ids)
         segment_ids = [0] * len(input_ids)
 
-        semiotic_classes = []
+        semiotic_spans = []
 
         if semiotic_info is not None:
 
             # translate class name to its id, translate coords from tokens to wordpieces
             semiotic_info_parts = semiotic_info.split(";")
             previous_end = 0
-            assert "PLAIN" in self._semiotic_classes
-            plain_cid = self._semiotic_classes["PLAIN"]
             for p in semiotic_info_parts:
                 if p == "":
                     break
@@ -218,11 +224,14 @@ class BertExampleBuilder(object):
                         if previous_end + 1 < len(token_start_indices)
                         else len(tokens)
                     )
-                    semiotic_classes.append((plain_cid, subtoken_start, subtoken_end))
+                    semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                     previous_end += 1
                 subtoken_start = token_start_indices[start]
                 subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(tokens)
-                semiotic_classes.append((cid, subtoken_start, subtoken_end))
+                if subtoken_end >= self._max_seq_length:  # possible if input_ids gets truncated to the max_seq_length
+                    break
+                semiotic_spans.append((cid, subtoken_start, subtoken_end))
+                semiotic_labels[subtoken_start:subtoken_end] = [cid] * (subtoken_end - subtoken_start)
                 previous_end = end
             while previous_end < len(token_start_indices):
                 subtoken_start = token_start_indices[previous_end]
@@ -231,18 +240,19 @@ class BertExampleBuilder(object):
                     if previous_end + 1 < len(token_start_indices)
                     else len(tokens)
                 )
-                semiotic_classes.append((plain_cid, subtoken_start, subtoken_end))
+                semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                 previous_end += 1
-        if len(input_ids) > self._max_seq_length or len(semiotic_classes) > self._max_semiotic_length:
+        if len(input_ids) > self._max_seq_length or len(semiotic_spans) > self._max_semiotic_length:
             return None
         example = BertExample(
             input_ids=input_ids,
             input_mask=input_mask,
             segment_ids=segment_ids,
-            labels=labels,
             labels_mask=labels_mask,
+            tag_labels=tag_labels,
+            semiotic_labels=semiotic_labels,
+            semiotic_spans=semiotic_spans,
             token_start_indices=token_start_indices,
-            semiotic_classes=semiotic_classes,
             task=task,
             default_label=self._keep_tag_id,
         )
@@ -302,11 +312,11 @@ class BertExampleBuilder(object):
         tags = []
         for t in target_tokens:
             if t == "<SELF>":
-                tags.append(Tag('KEEP'))
+                tags.append(Tag("KEEP"))
             elif t == "<DELETE>":
-                tags.append(Tag('DELETE'))
+                tags.append(Tag("DELETE"))
             else:
-                tags.append(Tag('DELETE|' + t))
+                tags.append(Tag("DELETE|" + t))
         return tags
 
 
@@ -333,5 +343,5 @@ def read_input_file(
         if example is None:
             continue
         examples.append(example)
-    logging.info(f'Done. {len(examples)} examples converted.')
+    logging.info(f"Done. {len(examples)} examples converted.")
     return examples

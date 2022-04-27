@@ -215,6 +215,7 @@ def get_labeled_corpus() -> None:
 
     keys2replacements = {}
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
+    assert len(alignment_files) > 0, "Did not found any such files: " + args.giza_dir + "/*/" + args.alignment_filename
     for af in alignment_files:
         with open(af, "r", encoding="utf-8") as f:
             for line in f:
@@ -223,7 +224,7 @@ def get_labeled_corpus() -> None:
                 if key in keys2replacements and keys2replacements[key] != replacements:
                     logging.warning("keys2replacements[key] != replacements", keys2replacements[key], replacements)
                 keys2replacements[key] = replacements
-    print(len(keys2replacements))
+    print("size of phrase-to-replacements dictionary =", len(keys2replacements))
     out = open(args.out_filename, "w", encoding="utf-8")
     input_paths = sorted([os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)])
     for inputname in input_paths:
