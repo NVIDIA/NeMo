@@ -23,5 +23,8 @@ www.ourdailynews.com/123-sm~WWW dot ourdailynews dot com slash one two three das
 sdf@gmail.com.sm~sdf at gmail dot com dot SM
 sdf@gmail.com/123-sm~sdf at gmail dot com slash one two three dash SM
 sdf@gmail.abc/123-sm~sdf at gmail dot ABC slash one two three dash SM
-ourdailynews.com/123-sm~ourdailynews dot com / one hundred twenty three-sm
+ourdailynews.com/123-sm~ourdailynews dot com slash one two three dash SM
+ourdailynews.abc~ourdailynews . abc
+ourdailynews.abc/123-sm~ourdailynews . abc/one hundred twenty three-sm
 file:///c/code/NeMo/docs/build/html/processing/intro.html~file semicolon slash slash slash c slash code slash NeMo slash docs slash build slash html slash processing slash intro dot HTML
+file:///photos/image.jpg~file semicolon slash slash slash photos slash image dot jpeg

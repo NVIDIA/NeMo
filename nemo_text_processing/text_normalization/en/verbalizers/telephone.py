@@ -44,7 +44,6 @@ class TelephoneFst(GraphFst):
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
             + delete_space
-            + add_separator
             + insert_space,
             0,
             1,

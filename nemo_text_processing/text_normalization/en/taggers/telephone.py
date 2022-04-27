@@ -23,6 +23,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     plurals,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
+from numpy import insert
 
 try:
     import pynini
@@ -35,7 +36,7 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone, which includes country code, number part and extension 
+    Finite state transducer for classifying telephone, and IP, and SSN which includes country code, number part and extension 
     country code optional: +*** 
     number part: ***-***-****, or (***) ***-****
     extension optional: 1-9999
@@ -57,15 +58,15 @@ class TelephoneFst(GraphFst):
         digit = pynini.invert(pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))).optimize() | zero
 
         telephone_prompts = pynini.string_file(get_abs_path("data/telephone/telephone_prompt.tsv"))
-        ip_prompts = pynini.string_file(get_abs_path("data/telephone/ip_prompt.tsv"))
         country_code = (
-            pynini.closure(pynini.cross("+", "plus "), 0, 1) + pynini.closure(digit + insert_space, 0, 2) + digit
+            pynini.closure(telephone_prompts + delete_extra_space, 0, 1)
+            + pynini.closure(pynini.cross("+", "plus "), 0, 1)
+            + pynini.closure(digit + insert_space, 0, 2)
+            + digit
+            + pynutil.insert(",")
         )
-        country_code = (
-            pynutil.insert("country_code: \"")
-            + ((telephone_prompts + delete_extra_space + pynini.closure(country_code, 0, 1)) | country_code)
-            + pynutil.insert("\"")
-        )
+        country_code |= telephone_prompts
+        country_code = pynutil.insert("country_code: \"") + country_code + pynutil.insert("\"")
         country_code = country_code + pynini.closure(pynutil.delete("-"), 0, 1) + delete_space + insert_space
 
         area_part_default = pynini.closure(digit + insert_space, 2, 2) + digit
@@ -98,16 +99,31 @@ class TelephoneFst(GraphFst):
         graph = plurals._priority_union(number_part + extension, graph, NEMO_SIGMA).optimize()
 
         # ip
-        digit_to_str_graph = pynini.compose(
-            NEMO_DIGIT ** (1, 3), digit + pynini.closure(pynutil.insert(" ") + digit)
-        ).optimize()
+        ip_prompts = pynini.string_file(get_abs_path("data/telephone/ip_prompt.tsv"))
+        digit_to_str_graph = digit + pynini.closure(pynutil.insert(" ") + digit, 0, 2)
         ip_graph = digit_to_str_graph + (pynini.cross(".", " dot ") + digit_to_str_graph) ** 3
         graph |= (
             pynini.closure(
-                pynutil.insert("country_code: \"") + ip_prompts + delete_extra_space + pynutil.insert("\""), 0, 1
+                pynutil.insert("country_code: \"") + ip_prompts + pynutil.insert("\"") + delete_extra_space, 0, 1
             )
             + pynutil.insert("number_part: \"")
             + ip_graph.optimize()
+            + pynutil.insert("\"")
+        )
+        # ssn
+        ssn_prompts = pynini.string_file(get_abs_path("data/telephone/ssn_prompt.tsv"))
+        three_digit_part = digit + (pynutil.insert(" ") + digit) ** 2
+        two_digit_part = digit + pynutil.insert(" ") + digit
+        four_digit_part = digit + (pynutil.insert(" ") + digit) ** 3
+        ssn_separator = pynini.cross("-", ", ")
+        ssn_graph = three_digit_part + ssn_separator + two_digit_part + ssn_separator + four_digit_part
+
+        graph |= (
+            pynini.closure(
+                pynutil.insert("country_code: \"") + ssn_prompts + pynutil.insert("\"") + delete_extra_space, 0, 1
+            )
+            + pynutil.insert("number_part: \"")
+            + ssn_graph.optimize()
             + pynutil.insert("\"")
         )
 
