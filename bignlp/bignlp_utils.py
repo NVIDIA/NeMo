@@ -80,16 +80,12 @@ def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
     Returns:
     valid_nodes: list, all the valid node counts.
     """
-    assert isinstance(gbs, int) and gbs > 0, "gbs must be an integer larger than zero."
-    assert isinstance(mbs, int) and mbs > 0, "mbs must be an integer larger than zero."
-    assert isinstance(tp, int) and tp > 0, "tp must be an integer larger than zero."
-    assert isinstance(pp, int) and pp > 0, "pp must be an integer larger than zero."
-    assert isinstance(gpus_per_node, int) and gpus_per_node > 0, "gpus_per_node must be an integer larger than zero."
-    assert isinstance(max_node_count, int) and max_node_count > 0, "max_node_count must be an integer larger than zero."
-    
-    highest = int(gbs * pp * tp / (gpus_per_node * mbs))
-    valid_nodes = []
-    for nodes in range(1, min(highest+1, max_node_count+1)):
-        if gbs % (nodes * gpus_per_node * mbs / (tp * pp)) == 0:
-            valid_nodes.append(nodes)
-    return valid_nodes
+        try:
+        highest = int(gbs * pp * tp / (gpus_per_node * mbs))
+        valid_nodes = []
+        for nodes in range(max(1, int(tp*pp/gpus_per_node)), min(highest+1, max_node_count+1)):
+            if gbs % (mbs * nodes * gpus_per_node / (tp * pp)) == 0 and (nodes * gpus_per_node) % (tp * pp) == 0:
+                valid_nodes.append(nodes)
+        return valid_nodes
+    except:
+        print("Invalid arguments passed.")
