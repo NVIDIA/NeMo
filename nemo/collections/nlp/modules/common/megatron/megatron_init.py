@@ -30,10 +30,7 @@ try:
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
     )
-    from apex.transformer.microbatches import (
-        ConstantNumMicroBatches,
-        RampupBatchsizeNumMicroBatches,
-    )
+    from apex.transformer.microbatches import ConstantNumMicroBatches
     from apex.transformer.pipeline_parallel.utils import setup_microbatch_calculator
     from apex.transformer.utils import ensure_divisibility
 
