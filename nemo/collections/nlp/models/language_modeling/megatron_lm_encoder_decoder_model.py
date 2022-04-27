@@ -124,9 +124,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer_model", self._cfg.tokenizer.model),
+            vocab_file=self.register_artifact("tokenizer_vocab_file", self._cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("tokenizer_merge_file", self._cfg.tokenizer.merge_file),
             legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
         )
 
