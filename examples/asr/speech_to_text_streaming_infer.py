@@ -262,7 +262,7 @@ def main():
             print(sample["audio_filepath"])
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(
-                    f"Starting to stream samples from {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
+                    f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
                 )
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
