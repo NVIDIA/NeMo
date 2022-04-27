@@ -20,6 +20,7 @@ import glob
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import build_index_files
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Builds vocabulary from regex tokenizer. Outputs .model (regular expression) and .vocab (learned vocabualry)",
@@ -31,7 +32,9 @@ def main():
         '--newline_int', type=int, default=10, help='Int value to split text (default: newline "\\n"',
     )
     parser.add_argument(
-        '--workers', type=int, default=None,
+        '--workers',
+        type=int,
+        default=None,
         help='Number of workers to parse files in parallel (default: max(cpu num // 2, 1)',
     )
     args = parser.parse_args()
@@ -40,13 +43,12 @@ def main():
     dataset_paths = []
     for ds in args.dataset_paths:
         dataset_paths.extend(glob.glob([ds]))
-        
+
     # build index files in parallel
     build_index_files(
-        dataset_paths=dataset_paths,
-        newline_int=args.newline_int,
-        workers=args.workers,
+        dataset_paths=dataset_paths, newline_int=args.newline_int, workers=args.workers,
     )
+
 
 if __name__ == '__main__':
     main()

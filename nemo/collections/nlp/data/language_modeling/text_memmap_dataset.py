@@ -13,24 +13,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from configparser import _section
-import os
-import time
-import pickle
-import tokenize
-
-from typing import Optional
-from dataclasses import dataclass
-
-import torch
-import numpy as np
 import multiprocessing as mp
+import os
+import pickle
+import time
+import tokenize
+from configparser import _section
+from dataclasses import dataclass
 from functools import partial
+from typing import Optional
+
+import numpy as np
+import torch
 
 from nemo.core import Dataset
 from nemo.utils import logging
-
-
 
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
 
