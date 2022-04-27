@@ -52,7 +52,6 @@ class MoneyFst(GraphFst):
 
         integer_part = decimal.integer
 
-
         #  *** currency_maj
         graph_integer = integer_part + keep_space + maj
 
@@ -61,10 +60,8 @@ class MoneyFst(GraphFst):
 
         if not deterministic:
             fractional = pynutil.insert("and ") + fractional
-        
-        graph_integer_with_minor = (
-            integer_part + keep_space + maj + keep_space + fractional + delete_preserve_order
-        )
+
+        graph_integer_with_minor = integer_part + keep_space + maj + keep_space + fractional + delete_preserve_order
 
         # *** point *** currency_maj
         graph_decimal = decimal.numbers + keep_space + maj
