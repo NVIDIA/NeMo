@@ -34,7 +34,6 @@ from nemo.utils import logging
 
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
 
-
 @dataclass
 class TextMemMapDatasetConfig():
     dataset_path: str = ''
@@ -45,19 +44,6 @@ class TextMemMapDatasetConfig():
     skip_lines: int = 0
     data_col: int = 1
     data_sep: str = ','
-    micro_batch_size: int = 1
-    use_iterable: bool = False
-    map_data: bool = False
-    encoder_augment: bool = True
-    encoder_mask: bool = False
-    decoder_augment: bool = False
-    canonicalize_input: bool = True # TODO remove when CSV data processing updated
-    drop_last: bool = False
-    shuffle: bool = False
-    num_workers: Optional[int] = None
-    pin_memory: bool = True # TODO: remove this if value is fixed
-    dataloader_type: str = 'single'
-
 
 class TextMemMapDataset(Dataset):
     """
