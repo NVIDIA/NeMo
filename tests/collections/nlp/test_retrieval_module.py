@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-import os
-
 import pytest
 import torch
 from einops import rearrange
@@ -43,20 +41,26 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class TestCrossAttn:
+class TestRetrievalModule:
     @classmethod
     @pytest.mark.run_only_on('GPU')
+    # @pytest.mark.skip()
     def setup_class(cls):
-        os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
+        # import os
+        # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         plugin = NLPDDPPlugin()
 
-        TP_SIZE = 2
+        GPUS = 1
+
+        TP_SIZE = GPUS
         PP_SIZE = 1
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
 
-        trainer = Trainer(plugins=plugin, devices=2, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None)
+        trainer = Trainer(
+            plugins=plugin, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None
+        )
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
@@ -76,9 +80,11 @@ class TestCrossAttn:
         if trainer.strategy.launcher is not None:
             trainer.strategy.launcher.launch(dummy, trainer=trainer)
         trainer.strategy.setup_environment()
+        torch.distributed.barrier()
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    # @pytest.mark.skip()
     def test_cross_attn(self):
         num_layers = 1
         init_method_std = 0.02
@@ -145,6 +151,7 @@ class TestCrossAttn:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    # @pytest.mark.skip()
     def test_retrival_encoder(self):
 
         init_method_std = 0.02
@@ -193,6 +200,7 @@ class TestCrossAttn:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
+    # @pytest.mark.skip()
     def test_retrival_decoder(self):
 
         init_method_std = 0.02
