@@ -32,7 +32,7 @@ from nemo.utils import logging
 
 
 
-__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset']
+__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
 
 
 @dataclass
@@ -76,7 +76,7 @@ class TextMemMapDataset(Dataset):
             raise ValueError("files_list must contain at leat one file name")
 
 
-        self.newline_int = newline_int
+        self._newline_int = newline_int
         # skip first N lines
         self._header_lines = header_lines
         self._skip_lines = skip_lines
@@ -167,6 +167,11 @@ class TextMemMapDataset(Dataset):
             idx_dict = pickle.load(open(idx_fn, 'rb'))
             midx = idx_dict['midx']
             size = idx_dict['size']
+            # test for mismatch in expected newline_int
+            if 'newline_int' in idx_dict:
+                newline_int = idx_dict['newline_int']
+                if self._newline_int != newline_int:
+                    logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
@@ -219,7 +224,8 @@ def _build_memmap_index_files(newline_int, fn):
             midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
 
         size = len(mdata)
-        pickle.dump(dict(midx=midx, size=size), open(idx_fn, "wb"))
+        data = dict(midx=midx, size=size, newline_int=newline_int)
+        pickle.dump(data, open(idx_fn, "wb"))
         mdata._mmap.close()
         del mdata
 
