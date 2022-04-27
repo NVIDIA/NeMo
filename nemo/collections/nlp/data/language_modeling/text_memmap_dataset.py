@@ -31,8 +31,9 @@ from nemo.utils import logging
 
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
 
+
 @dataclass
-class TextMemMapDatasetConfig():
+class TextMemMapDatasetConfig:
     dataset_path: str = ''
     dataset_files: str = 'data.csv'
     dataset_type: str = 'zinc_csv'
@@ -42,23 +43,19 @@ class TextMemMapDatasetConfig():
     data_col: int = 1
     data_sep: str = ','
 
+
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
-    def __init__(self,
-                 dataset_paths,
-                 newline_int=10,
-                 header_lines=1,
-                 skip_lines=0,
-                 workers=None,
-                 tokenizer=None,
-        ):
+
+    def __init__(
+        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, tokenizer=None,
+    ):
         super().__init__()
 
         if len(dataset_paths) < 1:
             raise ValueError("files_list must contain at leat one file name")
-
 
         self._newline_int = newline_int
         # skip first N lines
@@ -71,11 +68,9 @@ class TextMemMapDataset(Dataset):
         logging.info(f"Building data files")
         # load all files into memmap
         start_time = time.time()
-        is_ditributed = torch.distributed.is_available() and \
-            torch.distributed.is_initialized()
+        is_ditributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
-        if  not is_ditributed or \
-            (is_ditributed and torch.distributed.get_rank() == 0):
+        if not is_ditributed or (is_ditributed and torch.distributed.get_rank() == 0):
             build_index_files(dataset_paths, newline_int, workers=self._worker)
 
         if is_ditributed:
@@ -116,7 +111,7 @@ class TextMemMapDataset(Dataset):
         rec_start = self.mdata_midx_size_list[file_id][1][file_row]
         rec_end = self.mdata_midx_size_list[file_id][1][file_row + 1 + self._skip_lines]
         text = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
-        
+
         # parse raw text (e.g., tokenize)
         data = self._build_data_from_text(text)
 
@@ -129,7 +124,7 @@ class TextMemMapDataset(Dataset):
             data = self.tokenizer.text_to_ids(text)
         else:
             data = text
-        
+
         return data
 
     def load_file(self, fn):
@@ -159,37 +154,33 @@ class TextMemMapDataset(Dataset):
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
-        return (mdata, midx, size)    
+        return (mdata, midx, size)
+
 
 class CSVMemMapDataset(TextMemMapDataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
-    def __init__(self,
-                 dataset_paths,
-                 newline_int=10,
-                 header_lines=1,
-                 skip_lines=0,
-                 workers=None,
-                 data_col=1,
-                 data_sep=','):
+
+    def __init__(
+        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, data_col=1, data_sep=','
+    ):
         super().__init__(
-                 dataset_paths=dataset_paths,
-                 newline_int=newline_int,
-                 header_lines=header_lines,
-                 skip_lines=skip_lines,
-                 workers=workers,            
+            dataset_paths=dataset_paths,
+            newline_int=newline_int,
+            header_lines=header_lines,
+            skip_lines=skip_lines,
+            workers=workers,
         )
         self._data_col = data_col
         self._data_sep = data_sep
-
 
     def _build_data_from_text(self, text):
         """Return a CSV field from text"""
         # get CSV field
         text = text.split(self._data_sep)[self._data_col]
         # tokenize
-        return super()._build_data_from_text(text)        
+        return super()._build_data_from_text(text)
 
 
 def _build_memmap_index_files(newline_int, fn):
@@ -204,7 +195,7 @@ def _build_memmap_index_files(newline_int, fn):
         logging.info(f"Building idx file = {idx_fn}")
         midx = np.where(mdata == newline_int)[0]
         # add last item in case there is no new-line
-        if (len(midx) == 0) or (midx[-1]+1 != len(mdata)):
+        if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
             midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
 
         size = len(mdata)
@@ -216,9 +207,7 @@ def _build_memmap_index_files(newline_int, fn):
         return True
 
 
-def build_index_files(dataset_paths,
-                      newline_int,
-                      workers=None):
+def build_index_files(dataset_paths, newline_int, workers=None):
     """Auxiliary method to build multiple index .idx files"""
     if len(dataset_paths) < 1:
         raise ValueError("files_list must contain at leat one file name")
@@ -230,7 +219,6 @@ def build_index_files(dataset_paths,
     # load all files into memmap
     start_time = time.time()
     with mp.Pool(workers) as p:
-        build_status = p.map(partial(_build_memmap_index_files, newline_int),
-                                     dataset_paths)
+        build_status = p.map(partial(_build_memmap_index_files, newline_int), dataset_paths)
 
     logging.info(f'Time building {sum(build_status)} mem-mapped file: {time.time() - start_time}')
