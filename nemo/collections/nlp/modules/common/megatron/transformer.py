@@ -1111,9 +1111,9 @@ class ParallelTransformer(MegatronModule):
         if self.post_process:
             # Final layer norm before output.
             if normalization == 'layernorm':
-                self.final_normalization = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+                self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
             else:
-                self.final_normalization = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+                self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
     def _get_layer(self, layer_number):
         return self.layers[layer_number]
