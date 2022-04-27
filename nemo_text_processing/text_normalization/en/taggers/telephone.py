@@ -55,7 +55,7 @@ class TelephoneFst(GraphFst):
         zero = pynini.cross("0", "zero")
         if not deterministic:
             zero |= pynini.cross("0", pynini.union("o", "oh"))
-        digit = pynini.invert(pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))).optimize() | zero
+        digit = pynini.invert(pynini.string_file(get_abs_path("data/number/digit.tsv"))).optimize() | zero
 
         telephone_prompts = pynini.string_file(get_abs_path("data/telephone/telephone_prompt.tsv"))
         country_code = (

@@ -53,7 +53,7 @@ class FractionFst(GraphFst):
 
         graph = pynini.closure(integer + pynini.accep(" "), 0, 1) + (numerator + denominator)
         graph |= pynini.closure(integer + (pynini.accep(" ") | pynutil.insert(" ")), 0, 1) + pynini.compose(
-            pynini.string_file(get_abs_path("data/cardinal/fraction.tsv")), (numerator + denominator)
+            pynini.string_file(get_abs_path("data/number/fraction.tsv")), (numerator + denominator)
         )
 
         self.graph = graph

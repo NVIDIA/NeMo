@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, GraphFst, get_abs_path, TO_UPPER
 
 try:
     import pynini
     from pynini.lib import pynutil
 
     delete_space = pynutil.delete(" ")
+    quantities =  pynini.string_file(get_abs_path("data/number/thousand.tsv"))
+    quantity_abbr = pynini.string_file(get_abs_path("data/number/quantity_abbr.tsv")) 
+    quantities |=  (TO_UPPER @ quantity_abbr| quantity_abbr)
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -36,31 +39,21 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstL
         cardinal_up_to_hundred: cardinal FST
     """
     numbers = cardinal_up_to_hundred
-    suffix = pynini.union(
-        "million",
-        "billion",
-        "trillion",
-        "quadrillion",
-        "quintillion",
-        "sextillion",
-        pynini.cross("M", "million"),
-        pynini.cross("K", "thousand"),
-        pynini.cross("B", "billion"),
-    )
+    quantity_wo_thousand = pynini.project(quantities, "input") - pynini.union("k", "K", "thousand")
     res = (
         pynutil.insert("integer_part: \"")
         + numbers
         + pynutil.insert("\"")
         + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynutil.insert("quantity: \"")
-        + suffix
+        + (quantity_wo_thousand @ quantities)
         + pynutil.insert("\"")
     )
     res |= (
         decimal
         + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynutil.insert("quantity: \"")
-        + (suffix | "thousand")
+        + quantities
         + pynutil.insert("\"")
     )
     return res
