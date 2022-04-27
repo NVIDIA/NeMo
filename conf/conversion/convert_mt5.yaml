@@ -4,7 +4,7 @@ run:
   time_limit: "2:00:00"
   ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
   convert_name: convert_nemo
-  model_train_name: mt5_220m
+  model_train_name: mt5_390m
   train_dir: ${base_results_dir}/${.model_train_name}
   results_dir: ${.train_dir}/${.convert_name}
   output_path: ${.train_dir}/${.convert_name}
@@ -15,7 +15,7 @@ model:
   checkpoint_folder: ${conversion.run.train_dir}/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
   hparams_file: ${conversion.run.train_dir}/hparams.yaml
-  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
+  tensor_model_parallel_size: 1 # 1 for 170m and 390m, 2 for 3b
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   vocab_file: null
