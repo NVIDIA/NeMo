@@ -29,7 +29,6 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
        Please agree to the Terms of Use before downloading data at 
        https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
        https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz
-       https://msmarco.blob.core.windows.net/msmarco/eval_v2.1_public.json.gz
     """
 
     def __init__(self, data_dir: str, tokenizer: object, cfg=None):
