@@ -539,7 +539,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
 
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
-        self.streaming_cfg = streaming_cfg
 
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
@@ -553,6 +552,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     m.cache_drop_size = streaming_cfg.cache_drop_size
                     streaming_cfg.last_time_num += 1
 
+        self.streaming_cfg = streaming_cfg
         self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
