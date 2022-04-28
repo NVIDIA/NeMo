@@ -25,10 +25,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     create_masked_lm_predictions,
     get_samples_mapping,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
+from nemo.core import Dataset
 
 
-class T5Dataset(MegatronDataset):
+class T5Dataset(Dataset):
     def __init__(
         self,
         cfg,
