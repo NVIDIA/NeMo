@@ -77,7 +77,7 @@ class RangeFst(GraphFst):
         if not deterministic or lm:
             # cardinal ----
             cardinal_to_cardinal_graph = (
-                cardinal + delete_space + pynini.cross("-", pynini.union(" to ", "minus")) + delete_space + cardinal
+                cardinal + delete_space + pynini.cross("-", pynini.union(" to ", " minus ")) + delete_space + cardinal
             )
 
             range_graph |= cardinal_to_cardinal_graph | (
