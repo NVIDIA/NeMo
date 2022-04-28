@@ -188,7 +188,7 @@ def _build_memmap_index_files(newline_int, fn):
     # create data map
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
     if os.path.exists(idx_fn):
-        return None
+        return False
     else:
         logging.info(f"Building idx file = {idx_fn}")
         midx = np.where(mdata == newline_int)[0]
