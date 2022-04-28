@@ -654,7 +654,12 @@ class ParallelChunkedCrossAttention(MegatronModule):
         # context is assumed to have dimension [num_chunks, num_neighbors, context_token_len, batch, dimension]
         chunk_size = self.chunk_size
 
-        b, n, num_chunks, num_retrieved = hidden_states.shape[1], hidden_states.shape[0], *context.shape[-5:-3]
+        b, n, num_chunks, num_retrieved = (
+            hidden_states.shape[1],
+            hidden_states.shape[0],
+            context.shape[-5],
+            context.shape[-4],
+        )
 
         # if sequence length less than chunk size, do an early return
 
