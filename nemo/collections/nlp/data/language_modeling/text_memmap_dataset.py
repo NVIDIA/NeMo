@@ -28,7 +28,7 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
-
+__idx_version__ = '0.1' # .idx index file version
 
 @dataclass
 class TextMemMapDatasetConfig:
@@ -155,6 +155,10 @@ class TextMemMapDataset(Dataset):
                 newline_int = idx_dict['newline_int']
                 if self._newline_int != newline_int:
                     logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
+
+            idx_version = idx_dict.get('version', '0.0')
+            if __idx_version__ != idx_version:
+                raise RuntimeError(f"Version mismatch: Please delete existing '.idx' files. Expected version = {__idx_version__}, but file version = {idx_version}")
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
@@ -203,7 +207,7 @@ def _build_memmap_index_files(newline_int, fn):
             midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
 
         size = len(mdata)
-        data = dict(midx=midx, size=size, newline_int=newline_int)
+        data = dict(midx=midx, size=size, newline_int=newline_int, version=__idx_version__)
         pickle.dump(data, open(idx_fn, "wb"))
         mdata._mmap.close()
         del mdata
