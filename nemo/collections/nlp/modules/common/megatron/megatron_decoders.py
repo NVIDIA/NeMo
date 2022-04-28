@@ -78,6 +78,8 @@ def get_decoder_model(
     hidden_steps=-1,
     hidden_blocks=1,
     parent_model_type=ModelType.encoder_or_decoder,
+    layer_type=None,
+    chunk_size=64,
 ):
     """Build language model and return along with the key to save."""
 

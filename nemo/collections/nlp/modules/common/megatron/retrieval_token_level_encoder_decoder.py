@@ -14,26 +14,22 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
-    MegatronTransformerEncoderDecoderModule,
-)
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
     init_method_normal,
-    parallel_lm_logits,
     scaled_init_method_normal,
 )
 
 try:
     from apex.transformer import tensor_parallel
-    from apex.transformer.enums import AttnMaskType, ModelType
+    from apex.transformer.enums import ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -42,36 +38,12 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
     ModelType = ApexGuardDefaults()
 
-__all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
 
-
-class MegatronTokenLevelHead(MegatronModule):
-    """Masked LM head for token-based encoder-decoder models (e.g., T5)
-
-    Arguments:
-        mpu_vocab_size: model parallel size of vocabulary.
-        parallel_output: wether output logits being distributed or not.
-    """
-
-    def __init__(self, mpu_vocab_size, parallel_output):
-        super(MegatronTokenLevelHead, self).__init__()
-
-        self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
-        self.bias.model_parallel = True
-        self.bias.partition_dim = 0
-        self.bias.stride = 1
-        self.parallel_output = parallel_output
-
-    def forward(self, hidden_states, word_embeddings_weight):
-        output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
-        return output
-
-
-# TODO: add soft prompts as an Embedding sub-class
+__all__ = ["MegatronRetrievalTokenLevelEncoderDecoderModule"]
 
 
 class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
-    """Token-based (input/output is tokens) encoder-decoder model (e.g. T5 Language model.)"""
+    """Token-based (input/output is tokens) retrieval encoder-decoder model"""
 
     def __init__(
         self,
@@ -112,7 +84,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         enc_num_layers=4,  # total number of encoder layers
         dec_num_layers=6,  # total number of decoder layers
         enc_cross_attention=[3],  # layer numbers for cross attention
-        dec_cross_attention=[3, 5]  # layer numbers for chunked cross attention
+        dec_cross_attention=[3, 5],  # layer numbers for chunked cross attention
+        add_position_embedding=False,
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -139,6 +112,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_tokentypes=num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=hidden_dropout,
+                add_position_embedding=add_position_embedding,
             )
             self._embedding_key = "embedding"
 
@@ -158,7 +132,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                scaled_init_method=scaled_init_method_normal(init_method_std, enc_num_layers),
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=init_method_std,
@@ -195,7 +169,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             post_decoder_num_layers = dec_num_layers - pre_decoder_num_layers
             post_decoder_layer_types = []
             for i in range(post_decoder_num_layers):
-                if i + pre_decoder_layer_types in dec_cross_attention:
+                if i + pre_decoder_num_layers in dec_cross_attention:
                     post_decoder_layer_types.append(LayerType.retrieval_decoder)
                 else:
                     post_decoder_layer_types.append(LayerType.encoder)
@@ -210,7 +184,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                scaled_init_method=scaled_init_method_normal(init_method_std, pre_decoder_num_layers),
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=init_method_std,
@@ -247,7 +221,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, num_layers),
+                scaled_init_method=scaled_init_method_normal(init_method_std, post_decoder_num_layers),
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=init_method_std,
@@ -284,34 +258,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
             self._tokens_head_key = 'tokens_head'
 
-    def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
-        # This is usually handled in schedules.py but some inference code still
-        # gives us non-lists or None
-
-        if not isinstance(input_tensor, list):
-            input_tensor = [input_tensor]
-
-        if self.add_encoder and self.add_decoder:
-            assert (
-                len(input_tensor) == 1
-            ), 'input_tensor should only be length 1 for stage with both encoder and decoder'
-            self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
-        elif self.add_encoder:
-            assert len(input_tensor) == 1, 'input_tensor should only be length 1 for stage with only encoder'
-            self.enc_dec_model.encoder.set_input_tensor(input_tensor[0])
-        elif self.add_decoder:
-            if len(input_tensor) == 2:
-                self.enc_dec_model.decoder.set_input_tensor(input_tensor[0])
-                self.enc_dec_model.encoder_hidden_state = input_tensor[1]
-            elif len(input_tensor) == 1:
-                self.enc_dec_model.decoder.set_input_tensor(None)
-                self.enc_dec_model.encoder_hidden_state = input_tensor[0]
-            else:
-                raise Exception('input_tensor must have either length 1 or 2')
-        else:
-            raise Exception('Stage must have at least either encoder or decoder')
-
     def forward(
         self,
         input_ids,
@@ -320,8 +266,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         retrieved_attn_mask,
         token_type_ids=None,
         labels=None,
-        enc_hidden_states=None,
-        enc_output_mask=None,
         input_emb=None,
     ):
         """
@@ -342,7 +286,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             retrieved_emb = self.encoder(retrieved_emb, retrieved_attn_mask, context_attn_mask=input_attn_mask, encoder_output=hidden)
 
         if self.add_decoder:
-            token_logits = self.post_decoder(hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb)
+            dec_output = self.post_decoder(hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb)
+            token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:
                 # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
