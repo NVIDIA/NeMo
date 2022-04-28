@@ -43,10 +43,19 @@ Neural Type classes
     :members:
     :member-order: bysource
 
+Neural Type Checking
+--------------------
+
+.. autoclass:: nemo.core.classes.common.typecheck
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
 Experiment manager
 ------------------
 
 .. autoclass:: nemo.utils.exp_manager.exp_manager
     :show-inheritance:
     :members:
+    :special-members: __call__
     :member-order: bysource

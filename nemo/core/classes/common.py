@@ -793,6 +793,42 @@ class Model(Typing, Serialization, FileIO):
 
 
 class typecheck:
+    """
+    A decorator which performs input-output neural type checks, and attaches
+    neural types to the output of the function that it wraps.
+
+    Requires that the class inherit from `nemo.core.Typing` in order to perform
+    type checking, and will raise an error if that is not the case.
+
+    # Usage (Class level type support)
+
+    .. code-block:: python
+
+        @typecheck()
+        def fn(self, arg1, arg2, ...):
+            ...
+
+    # Usage (Function level type support)
+
+    .. code-block:: python
+
+        @typecheck(input_types=..., output_types=...)
+        def fn(self, arg1, arg2, ...):
+            ...
+
+    Points to be noted:
+
+    1) The brackets () in `@typecheck()` are necessary.
+
+        You will encounter a TypeError: __init__() takes 1 positional argument but X
+        were given without those brackets.
+
+    2) The function can take any number of positional arguments during definition.
+
+        When you call this function, all arguments must be passed using kwargs only.
+
+    """
+
     class TypeState(Enum):
         """
         Placeholder to denote the default value of type information provided.
@@ -808,34 +844,6 @@ class typecheck:
         output_types: Union[TypeState, Dict[str, NeuralType]] = TypeState.UNINITIALIZED,
         ignore_collections: bool = False,
     ):
-        """
-        A decorator which performs input-output neural type checks, and attaches
-        neural types to the output of the function that it wraps.
-
-        Requires that the class inherit from `nemo.core.Typing` in order to perform
-        type checking, and will raise an error if that is not the case.
-
-        # Usage (Class level type support)
-        @typecheck()
-        def fn(self, arg1, arg2, ...):
-            ...
-
-        # Usage (Function level type support)
-        @typecheck(input_types=..., output_types=...)
-        def fn(self, arg1, arg2, ...):
-            ...
-
-        Points to be noted:
-        1) The brackets () in `@typecheck()` are necessary.
-
-            You will encounter a TypeError: __init__() takes 1 positional argument but X
-            were given without those brackets.
-
-        2) The function can take any number of positional arguments during definition.
-
-            When you call this function, all arguments must be passed using kwargs only.
-
-        """
         self.input_types = input_types
         self.output_types = output_types
 
