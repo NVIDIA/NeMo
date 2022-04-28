@@ -24,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
     MegatronRetrievalTransformerEncoderModule,
 )
+from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import MegatronRetrievalTokenLevelEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -102,11 +103,11 @@ class TestRetrievalModule:
         rot_dim = dim // num_attention_heads
         rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
 
-        hidden = torch.rand(input_length, batch).cuda().half()  # (seq, batch, dim)
+        hidden = torch.randint(0, vocab_size, (input_length, batch)).cuda()  # (seq, batch, dim)
         hidden_mask = (hidden != pad_id).cuda()
         hidden_emb = torch.rand(input_length, batch, dim).cuda().half()  # (seq, batch, dim)
 
-        retrieved = torch.randint(0, vocab_size, (chunks, neighbors, context_chunk_size, batch)).cuda().half()
+        retrieved = torch.randint(0, vocab_size, (chunks, neighbors, context_chunk_size, batch)).cuda()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch)
 
         # context attention mask [b, np, sq, sk]
@@ -166,11 +167,11 @@ class TestRetrievalModule:
         input_length = chunks * text_chunk_size
         vocab_size = 20000
 
-        hidden = torch.rand(batch, input_length).cuda().half()  # (batch, seq, dim)
+        hidden = torch.randint(0, vocab_size, (batch, input_length)).cuda()  # (seq, batch, dim)
         hidden_mask = (hidden != pad_id).cuda()
 
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda().half()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
         retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
@@ -216,13 +217,13 @@ class TestRetrievalModule:
         vocab_size = 20000
         # rot_dim = dim // num_attention_heads
         # rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
-        hidden = torch.rand(batch, input_length).cuda().half()  # (batch, seq, dim)
+        hidden = torch.randint(0, vocab_size, (batch, input_length)).cuda()  # (seq, batch, dim)
         hidden_mask = (hidden != pad_id).cuda()
 
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
 
         # context_chunk_size = 128
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda().half()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
         # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation)
 
         # context attention mask [b, np, sq, sk]
@@ -257,3 +258,49 @@ class TestRetrievalModule:
             .half()
         )
         out = decoder(hidden_emb, hidden_mask, context_attn_mask=context_mask, encoder_output=retrieved_emb)
+
+
+    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.unit
+    # @pytest.mark.skip()
+    def test_encoder_decoder_module(self):
+        # rotary pos emb dim
+        batch = 2
+        neighbors = 2
+        dim = 128
+        pad_id = 19999
+        num_attention_heads = 8
+        chunks = 32
+        text_chunk_size = 64
+        input_length = chunks * text_chunk_size
+        vocab_size = 20000
+        enc_num_layers = 4
+        dec_num_layers = 6
+        enc_cross_attention = [3]  # layer numbers for cross attention
+        dec_cross_attention = [3, 5]  # layer numbers for cross attention
+
+        hidden = torch.randint(0, vocab_size, (batch, input_length)).cuda()  # (seq, batch, dim)
+
+        hidden_mask = (hidden != pad_id).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
+
+        pad_id = vocab_size - 1
+        context_mask = (retrieved != pad_id).cuda()
+        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
+
+        encoder_decoder = MegatronRetrievalTokenLevelEncoderDecoderModule(
+            vocab_size=vocab_size,
+            hidden_size=dim,
+            max_position_embeddings=input_length,
+            num_attention_heads=num_attention_heads,
+            ffn_hidden_size=dim * 4,
+            precision=16,
+            chunk_size=text_chunk_size,
+            enc_num_layers=enc_num_layers,
+            dec_num_layers=dec_num_layers,
+            enc_cross_attention=enc_cross_attention,
+            dec_cross_attention=dec_cross_attention,
+            add_position_embedding=False,
+        ).cuda().half()
+
+        out = encoder_decoder(hidden, hidden_mask, retrieved_emb=retrieved_emb, retrieved_attn_mask=context_mask)

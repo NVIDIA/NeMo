@@ -19,13 +19,15 @@ from einops import rearrange, repeat
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
-from nemo.collections.nlp.modules.common.megatron.utils import build_attention_mask_3d
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_attention_mask_3d
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
     HAVE_APEX = False
 
 
@@ -181,7 +183,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
             pos_emb=attn_pos_emb,
         )
-
+        # revert back to original retrieved shape
+        enc_output = rearrange(enc_output, '(b k r) n d -> b k r n d', b=b, k=k)
         return enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
@@ -313,20 +316,27 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         # expected dec_attn_mask shape [batch, seq_len]
         # expected encoder_input shape [batch, num_chunks, num_neighbors, retrival_seq_len, dim]
         # expected context_attn_mask shape [batch, num_chunks, num_neighbors, retrival_seq_len]
-        b, k, r, rn, dim = encoder_output.shape
 
         # batch, seq_len, dim
         _, n, _ = dec_input.shape
 
         num_seq_chunks = n // self.chunk_size
-        assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
+
+        if encoder_output is not None:
+            b, k, r, rn, dim = encoder_output.shape
+            assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
 
         device = dec_input.device
         # need to add extra chunk size, since it will be shifted
         self_attn_emb = self.rotary_pos_emb(n, device=device)
         cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, device=device)
-        cross_attn_k_pos_emb = self.rotary_pos_emb(rn, device=device, offset=0)
-        attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+
+        if encoder_output is not None:
+            cross_attn_k_pos_emb = self.rotary_pos_emb(rn, device=device, offset=0)
+            attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+        else:
+            attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, None)
+
 
         # # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
@@ -334,13 +344,16 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         )
         dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
 
-        dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
-        context_attn_mask = rearrange(context_attn_mask, 'b k r n -> (b k) (r n)')
+        if encoder_output is not None:
+            dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
+            context_attn_mask = rearrange(context_attn_mask, 'b k r n -> (b k) (r n)')
 
-        enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
-        )
-        enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+            enc_dec_attn_mask_3d = build_attention_mask_3d(
+                source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+            )
+            enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+        else:
+            enc_dec_attn_mask_3d = None
 
         # transformer encoder
         enc_output = self.model(
