@@ -13,7 +13,12 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space, delete_extra_space
+from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_DIGIT,
+    GraphFst,
+    convert_space,
+    delete_extra_space,
+)
 
 try:
     import pynini
@@ -44,7 +49,7 @@ class RangeFst(GraphFst):
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
         cardinal = cardinal.graph_with_and
-        
+
         approx = pynini.cross("~", "approximately") + delete_extra_space
 
         # TIME
@@ -67,18 +72,18 @@ class RangeFst(GraphFst):
         # ADDITION
         range_graph = cardinal + pynini.closure(pynini.cross("+", " plus ") + cardinal, 1)
         range_graph |= cardinal + pynini.closure(pynini.cross(" + ", " plus ") + cardinal, 1)
-        range_graph |= (approx + cardinal)
-        
+        range_graph |= approx + cardinal
+
         if not deterministic or lm:
             # cardinal ----
             cardinal_to_cardinal_graph = (
                 cardinal + delete_space + pynini.cross("-", pynini.union(" to ", "minus")) + delete_space + cardinal
             )
 
-            range_graph |= (cardinal_to_cardinal_graph | (
+            range_graph |= cardinal_to_cardinal_graph | (
                 cardinal + delete_space + pynini.cross(":", " to ") + delete_space + cardinal
-            ))
-            
+            )
+
             # MULTIPLY
             for x in [" x ", "x"]:
                 range_graph |= cardinal + pynini.closure(
@@ -87,7 +92,7 @@ class RangeFst(GraphFst):
 
             for x in ["*", " * "]:
                 range_graph |= cardinal + pynini.closure(pynini.cross(x, " times ") + cardinal, 1)
-            
+
             # supports "No. 12" -> "Number 12"
             range_graph |= (
                 (pynini.cross(pynini.union("NO", "No"), "Number") | pynini.cross("no", "number"))
