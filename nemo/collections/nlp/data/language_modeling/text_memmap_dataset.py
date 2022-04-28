@@ -225,9 +225,9 @@ def build_index_files(dataset_paths, newline_int, workers=None):
         raise ValueError("files_list must contain at leat one file name")
 
     if workers is None:
-        workers = min(1, os.cpu_count() // 2)
+        workers = max(1, os.cpu_count() // 2)
 
-    logging.info(f"Building data files using {workers} workers")
+    logging.info(f"Processing {len(dataset_paths)} data files using {workers} workers")
     # load all files into memmap
     start_time = time.time()
     with mp.Pool(workers) as p:
