@@ -42,7 +42,7 @@ def main():
     # expand all dataset_paths
     dataset_paths = []
     for ds in args.dataset_paths:
-        dataset_paths.extend(glob.glob([ds]))
+        dataset_paths.extend(glob.glob(ds))
 
     # build index files in parallel
     build_index_files(
