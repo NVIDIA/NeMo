@@ -20,11 +20,13 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
+    MegatronRetrievalTokenLevelEncoderDecoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
     MegatronRetrievalTransformerDecoderModule,
     MegatronRetrievalTransformerEncoderModule,
 )
-from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import MegatronRetrievalTokenLevelEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelChunkedCrossAttention
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -259,10 +261,9 @@ class TestRetrievalModule:
         )
         out = decoder(hidden_emb, hidden_mask, context_attn_mask=context_mask, encoder_output=retrieved_emb)
 
-
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
+    @pytest.mark.skip()
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
         batch = 2
@@ -288,19 +289,23 @@ class TestRetrievalModule:
         context_mask = (retrieved != pad_id).cuda()
         retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
 
-        encoder_decoder = MegatronRetrievalTokenLevelEncoderDecoderModule(
-            vocab_size=vocab_size,
-            hidden_size=dim,
-            max_position_embeddings=input_length,
-            num_attention_heads=num_attention_heads,
-            ffn_hidden_size=dim * 4,
-            precision=16,
-            chunk_size=text_chunk_size,
-            enc_num_layers=enc_num_layers,
-            dec_num_layers=dec_num_layers,
-            enc_cross_attention=enc_cross_attention,
-            dec_cross_attention=dec_cross_attention,
-            add_position_embedding=False,
-        ).cuda().half()
+        encoder_decoder = (
+            MegatronRetrievalTokenLevelEncoderDecoderModule(
+                vocab_size=vocab_size,
+                hidden_size=dim,
+                max_position_embeddings=input_length,
+                num_attention_heads=num_attention_heads,
+                ffn_hidden_size=dim * 4,
+                precision=16,
+                chunk_size=text_chunk_size,
+                enc_num_layers=enc_num_layers,
+                dec_num_layers=dec_num_layers,
+                enc_cross_attention=enc_cross_attention,
+                dec_cross_attention=dec_cross_attention,
+                add_position_embedding=False,
+            )
+            .cuda()
+            .half()
+        )
 
         out = encoder_decoder(hidden, hidden_mask, retrieved_emb=retrieved_emb, retrieved_attn_mask=context_mask)

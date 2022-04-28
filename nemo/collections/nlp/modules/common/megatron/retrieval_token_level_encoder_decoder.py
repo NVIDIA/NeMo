@@ -281,12 +281,16 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
         if self.add_decoder:
             hidden = self.pre_decoder(input_emb, input_attn_mask)
-        
+
         if self.add_encoder:
-            retrieved_emb = self.encoder(retrieved_emb, retrieved_attn_mask, context_attn_mask=input_attn_mask, encoder_output=hidden)
+            retrieved_emb = self.encoder(
+                retrieved_emb, retrieved_attn_mask, context_attn_mask=input_attn_mask, encoder_output=hidden
+            )
 
         if self.add_decoder:
-            dec_output = self.post_decoder(hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb)
+            dec_output = self.post_decoder(
+                hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb
+            )
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:
@@ -309,9 +313,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
-        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
+        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
         state_dict_[self._pre_decoder_key] = self.pre_decoder.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )

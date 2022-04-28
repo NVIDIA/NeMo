@@ -337,7 +337,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         else:
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, None)
 
-
         # # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
             source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
