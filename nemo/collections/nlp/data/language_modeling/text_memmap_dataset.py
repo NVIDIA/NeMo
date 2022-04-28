@@ -105,7 +105,7 @@ class TextMemMapDataset(Dataset):
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
         file_idx = idx - self.midx_bins[file_id]
-        mdata, midx = self.mdata_midx_size_list[file_id]
+        mdata, midx = self.mdata_midx_list[file_id]
         # load sample
         if file_idx == 0:
             i = 0
@@ -233,4 +233,4 @@ def build_index_files(dataset_paths, newline_int, workers=None):
     with mp.Pool(workers) as p:
         build_status = p.map(partial(_build_memmap_index_files, newline_int), dataset_paths)
 
-    logging.info(f'Time building {sum(build_status)} / {len(build_status)} mem-mapped file: {datetime.timedelta(seconds=time.time() - start_time)}')    
+    logging.info(f'Time building {sum(build_status)} / {len(build_status)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')    
