@@ -22,25 +22,25 @@ For each category of tasks, there exists several Data Processors to convert raw 
 
 Currently, the supported task categories are:
 
-+----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+
-| **Task Category**                                        | **Tasks**                        |   **Models**                                                                     |                                                                                     
-+----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+
-| Domain / Intent Classification                           | Schema Guided Dialogue           | Dialogue GPT Classification Model                                                |
-+ with slot filling                                        +----------------------------------+----------------------------------------------------------------------------------+
-|                                                          | Assistant                        | SGDQA (BERT-Based Schema Guided Dialogue Question Answering model)               | 
-+                                                          +----------------------------------+----------------------------------------------------------------------------------+
-|                                                          |                                  | Intent Slot Classification Model                                                 |
-+----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+
-| Intent Classification                                    | Zero Shot Food Ordering          | Dialogue GPT Classification Model                                                |
-+                                                          +----------------------------------+----------------------------------------------------------------------------------+
-|                                                          | Omniverse Design                 | Dialogue Nearest Neighbour Model                                                 |
-+                                                          +----------------------------------+----------------------------------------------------------------------------------+
-|                                                          |                                  | Dialogue Zero Shot Intent Model (Based on MNLI pretraining)                      |
-+----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+
-| Sequence Generation                                      | Schema Guided Dialogue Generation| Dialogue GPT Generation Model                                                    |
-+                                                          +----------------------------------+----------------------------------------------------------------------------------+
-|                                                          | MS Marco NLGen                   | Dialogue S2S Generation Model                                                    |
-+----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+
++----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+| **Task Category**                                        | **Tasks**                        |   **Models**                                                                     | **Supported Options for model.language_model.pretrained_model_name** | **Supported options for model.library**  |                                                                       
++----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+| Domain / Intent Classification                           | Schema Guided Dialogue           | Dialogue GPT Classification Model                                                | gpt2, gpt2-{medium, large, xl}, microsoft/DialoGPT-{small, medium}   | Huggingface, Megatron                    |
++ with slot filling                                        +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          | Assistant                        | SGDQA (BERT-Based Schema Guided Dialogue Question Answering model)               | bert-base-cased                                                      | Megatron                                 |
++                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          |                                  | Intent Slot Classification Model                                                 | bert-base-uncased                                                    | Megatron                                 |
++----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+| Intent Classification                                    | Zero Shot Food Ordering          | Dialogue GPT Classification Model                                                | gpt2, gpt2-{medium, large, xl}, microsoft/DialoGPT-{small, medium}   | Huggingface, Megatron                    |
++                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          | Omniverse Design                 | Dialogue Nearest Neighbour Model                                                 | sentence-transformers/*                                              | Huggingface                              |
++                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          |                                  | Dialogue Zero Shot Intent Model (Based on MNLI pretraining)                      | bert-base-uncased                                                    | Huggingface, Megatron                    |
++----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+| Sequence Generation                                      | Schema Guided Dialogue Generation| Dialogue GPT Generation Model                                                    | gpt2, gpt2-{medium, large, xl}, microsoft/DialoGPT-{small, medium}   | Huggingface, Megatron                    |
++                                                          +----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
+|                                                          | MS Marco NLGen                   | Dialogue S2S Generation Model                                                    | facebook/bart-{base, large}, t5-{small, base, large, 3b, 11b}        | Huggingface, Megatron                    |
++----------------------------------------------------------+----------------------------------+----------------------------------------------------------------------------------+----------------------------------------------------------------------+------------------------------------------+
 
 **Configuration** 
 
@@ -69,8 +69,9 @@ Arguments that very commonly need to be edited for all models and tasks
 - :code:`model.dataset.data_dir`: the dataset directory
 - :code:`model.dataset.dialogues_example_dir`: the directory to store prediction files
 - :code:`model.dataset.debug_mode`: whether to run in debug mode with a very small number of samples [True, False]
-- :code:`model.language_model.pretrained_model_name`: language model to use, which causes different Dialogue Models to be loaded (see dialogue.py for details) [t5-base, facebook/bart-large, bert-base-uncased, sentence-transformers/all-MiniLM-L6-v2, microsoft/DialoGPT-small]
+- :code:`model.language_model.pretrained_model_name`: language model to use, which causes different Dialogue Models to be loaded (see table above for options in each model class) 
 - :code:`model.library`: library to load language model from [huggingface or megatron]
+- :code:`model.language_model.lm_checkpoint`: specifying a trained checkpoint (.bin / .ckpt / .nemo). The only exception is for DialogueZeroShotIntentModel, which can be configured at :code:`model.original_nemo_checkpoint`` instead For trained checkpoints, see :code:`list_available_models()`` for each model class and then downloading the file to a local directory
 
 **Obtaining data**
 
@@ -86,11 +87,18 @@ https://msmarco.blob.core.windows.net/msmarco/train_v2.1.json.gz
 https://msmarco.blob.core.windows.net/msmarco/dev_v2.1.json.gz
 https://msmarco.blob.core.windows.net/msmarco/eval_v2.1_public.json.gz
 
+Then remove unused samples (optional, but otherwise, this would require significantly more CPU RAM ~25GB)
+
+:code: `python ../NeMo/examples/nlp/dialogue/remove_ms_marco_samples_without_wellFormedAnswers.py --filename train_v2.1.json`
+:code: `python ../NeMo/examples/nlp/dialogue/remove_ms_marco_samples_without_wellFormedAnswers.py --filename dev_v2.1.json`
+
 Task: Assistant 
 
 :code: `git clone https://github.com/xliuhw/NLU-Evaluation-Data`
 
-Then convert the dataset into the required format
+Then unzip it 
+
+Finally, convert the dataset into the required format
 
 .. code::
 
@@ -114,6 +122,8 @@ Connect to an instance with a GPU (**Runtime** -> **Change runtime type** -> sel
 An example script on how to train the model can be found here: `NeMo/examples/nlp/dialogue/dialogue.py <https://github.com/NVIDIA/NeMo/blob/stable/examples/nlp/dialogue/dialogue.py>`__.
 
 The following is an example of the command for training the model:
+
+Code for training a model with three public datasets (from above) are available in the Jupyter/Colab notebook `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/dialogue.ipynb>`__)
 
 .. code::
 

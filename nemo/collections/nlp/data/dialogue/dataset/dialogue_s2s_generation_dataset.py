@@ -16,7 +16,6 @@
 import torch
 
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
-from nemo.utils import logging
 
 
 class DialogueS2SGenerationDataset(DialogueDataset):
@@ -38,9 +37,7 @@ class DialogueS2SGenerationDataset(DialogueDataset):
             dataset_split = dataset_split[0]
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        logging.info("number of samples before filtering invalid samples: {}".format(len(self.features)))
         self.features = self.remove_invalid_samples(self.features)
-        logging.info("number of samples after filtering invalid samples: {}".format(len(self.features)))
 
         if self.cfg.debug_mode:
             self.features = self.features[:16]

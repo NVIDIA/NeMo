@@ -38,7 +38,7 @@ model:
   save_model: False # save validation model checkpoints
 
   language_model:
-    pretrained_model_name: gpt2 # main config to select model (between bert, gpt2, t5/bart based models) there are many possible options from NGC and Huggingface including [t5-base, facebook/bart-large, bert-base-uncased, sentence-transformers/all-MiniLM-L6-v2, microsoft/DialoGPT-small]
+    pretrained_model_name: gpt2 # main config to select model (between bert, gpt2, t5/bart based models) see docs/source/nlp/dialogue.rst for full list of options
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null

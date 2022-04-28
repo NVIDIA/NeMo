@@ -46,7 +46,11 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         self.cfg = cfg
 
         if self.cfg.target_template == "with_slots" and self.cfg.eval_mode != "generation":
-            raise ValueError("slot-filling is not supported by eval_mode {}".format(self.cfg.eval_mode))
+            raise ValueError(
+                "slot-filling is not supported by eval_mode {}, please set model.dataset.eval_mode=generation instead".format(
+                    self.cfg.eval_mode
+                )
+            )
         if self.cfg.target_template != "with_slots" and self.cfg.field == "slots":
             raise ValueError("please set model.dataset.target_template='with_slots' if model.dataset.field='slots'")
         self.label_type = self.cfg.field
@@ -153,7 +157,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             feature_len = self.get_n_tokens_in_sentence(lm_feature)
             max_sample_length = max(max_sample_length, feature_len)
             lm_features.append(lm_feature)
-        logging.info("max feature length per sample with label: ", max_sample_length)
+        logging.info("max feature length per sample with label: ".format(max_sample_length))
         logging.info(
             "please adjust max seq len to at least {} * ({} + 1) = {} but not too much more for efficiency".format(
                 max_sample_length, self.cfg.few_shot, max_sample_length * (1 + self.cfg.few_shot)

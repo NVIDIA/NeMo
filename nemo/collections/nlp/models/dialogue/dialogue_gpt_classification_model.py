@@ -46,7 +46,7 @@ class DialogueGPTClassificationModel(NLPModel):
         self.cfg = cfg
         self.eval_mode = cfg.dataset.eval_mode
         self.data_prepared = False
-
+        self.epoch_number = 0
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
@@ -169,9 +169,8 @@ class DialogueGPTClassificationModel(NLPModel):
         )
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        epoch_number = self.current_epoch if hasattr(self, 'current_epoch') else 0
         filename = os.path.join(
-            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{epoch_number}.jsonl"
+            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{self.epoch_number}.jsonl"
         )
 
         DialogueClassificationMetrics.save_predictions(
@@ -217,6 +216,12 @@ class DialogueGPTClassificationModel(NLPModel):
         self.log('slot_recall', slot_recall)
         self.log('slot_f1', slot_f1)
         self.log('slot_joint_goal_accuracy', slot_joint_goal_accuracy)
+
+        if mode == 'val':
+            self.epoch_number += 1
+            if self.cfg.save_model:
+                filename = '{}/epoch-{}-model.bin'.format(self.cfg.dataset.dialogues_example_dir, self.epoch_number)
+                torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
         return self.eval_step_helper(batch=batch, mode='test')
