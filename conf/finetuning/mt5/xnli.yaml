@@ -3,7 +3,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   convert_name: convert_nemo
-  model_train_name: mt5_220m
+  model_train_name: mt5_390m
   task_name: "xnli"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 

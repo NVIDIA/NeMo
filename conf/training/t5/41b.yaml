@@ -1,7 +1,7 @@
 run:
   name: t5_41b
   results_dir: ${base_results_dir}/${.name}
-  time_limit: "15-00:00:00"
+  time_limit: "90-00:00:00"
   dependency: "singleton"
 
 name: megatron_t5
@@ -18,7 +18,7 @@ trainer:
   replace_sampler_ddp: False
   max_epochs: null
   max_steps: 1066667 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
-  max_time: "14:23:30:00"
+  max_time: "89:23:30:00"
   log_every_n_steps: 10
   val_check_interval: 2000
   limit_val_batches: 50
