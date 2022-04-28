@@ -187,11 +187,6 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
             }
             example = DialogueInputExample(input_example)
             examples.append(example)
-        import json
-
-        for example in examples[:10]:
-            print(json.dumps(example.data, indent=4))
-        raise ValueError
         return examples
 
     def get_train_examples(self):

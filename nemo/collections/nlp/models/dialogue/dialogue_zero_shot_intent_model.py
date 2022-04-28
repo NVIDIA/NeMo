@@ -34,7 +34,6 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models import TextClassificationModel
-from nemo.collections.nlp.models.zero_shot_intent_recognition.zero_shot_intent_model import ZeroShotIntentModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
