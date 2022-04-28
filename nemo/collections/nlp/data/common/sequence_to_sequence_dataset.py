@@ -14,7 +14,6 @@
 
 import os
 
-import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec

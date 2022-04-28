@@ -58,6 +58,9 @@ model:
       max_src_seq_length: 512
       max_tgt_seq_length: 128
       drop_last: True
+      concat_sampling_technique: temperature # When providing a list of datasets, this arg defines the sampling strategy. Options: ['temperature', 'random']
+      concat_sampling_temperature: 5 # When providing a list of datasets, this arg defines the sampling temperature when strategy='temperature'
+      concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
 
     validation_ds:
       src_file_name: ??? # Path to the txt file corresponding to the source data.

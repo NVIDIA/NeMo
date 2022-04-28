@@ -461,17 +461,17 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             datasets.append(dataset)
 
         if len(datasets) > 1:
-            if len(datasets) > 1:
-                dataset = ConcatDataset(
-                    datasets=datasets,
-                    sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
-                    sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
-                    sampling_probabilities=data_cfg.get(
-                        'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
-                    ),
-                    global_rank=parallel_state.get_data_parallel_rank(),
-                    world_size=parallel_state.get_data_parallel_world_size(),
-                )
+            dataset = ConcatDataset(
+                datasets=datasets,
+                sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
+                sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
+                sampling_probabilities=data_cfg.get(
+                    'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
+                ),
+                global_rank=parallel_state.get_data_parallel_rank(),
+                world_size=parallel_state.get_data_parallel_world_size(),
+            )
+            return dataset
         else:
             return datasets[0]
 
