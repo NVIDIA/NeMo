@@ -191,7 +191,7 @@ class GPTDataset(Dataset):
                 "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
 
-        super().__init__(cfg, trainer=trainer)
+        super().__init__()
         self.name = name
         self.indexed_dataset = indexed_dataset
 

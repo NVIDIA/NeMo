@@ -51,7 +51,7 @@ class T5Dataset(Dataset):
         whole_word_masking=True,
         favor_long_ngrams=False,
     ):
-        super().__init__(cfg, trainer=trainer)
+        super().__init__()
 
         # Params to store.
         self.name = name
