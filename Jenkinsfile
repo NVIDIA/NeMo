@@ -586,6 +586,23 @@ pipeline {
       }
     }
 
+    stage('L2: Hehehe') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Test hehehe') {
+          steps {
+            sh 'echo Hehehe'
+          }
+        }
+      }
+    }
+
     stage('L2: Segmentation Tool') {
       when {
             anyOf {
@@ -862,6 +879,11 @@ pipeline {
             exp_manager=null'
           }
         }
+       stage('Hahaha') {
+          steps {
+            sh 'echo Hahaha!!!'
+          }
+
        stage('Duplex Text Normalization with Tarred dataset') {
           steps {
             sh 'cd examples/nlp/duplex_text_normalization && \
@@ -885,7 +907,6 @@ pipeline {
             data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
             data.test_ds.use_cache=false \
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
-
           }
         }
         stage('Text normalization as tagging (Thutmose Tagger)') {
