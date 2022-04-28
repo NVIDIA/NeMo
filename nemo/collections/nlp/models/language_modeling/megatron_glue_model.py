@@ -21,11 +21,13 @@ from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
     TextToTextXNLIDataset,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.utils import AppState, logging
+from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.utils import AppState, app_state, logging
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -48,7 +50,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
         self.init_consumed_samples = 0
-
+        self.init_global_step = 0
         if stage == 'predict':
             return
 
@@ -94,6 +96,12 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 )
                 dec_mask = torch.nn.functional.pad(
                     dec_mask, (0, max_dec_seq_lenth - dec_mask.shape[1], 0, 0), 'constant', 0
+                )
+                labels = torch.nn.functional.pad(
+                    labels, (0, max_dec_seq_lenth - labels.shape[1], 0, 0), 'constant', self.tokenizer.pad_id
+                )
+                loss_mask = torch.nn.functional.pad(
+                    loss_mask, (0, max_dec_seq_lenth - loss_mask.shape[1], 0, 0), 'constant', 0
                 )
             text_enc_list.append(text_enc)
             text_dec_list.append(text_dec)
@@ -144,7 +152,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
                 langs_list,
             )
 
-    def on_validation_model_eval(self):
+    def on_validation_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
@@ -153,18 +161,57 @@ class MegatronT5GLUEModel(MegatronT5Model):
             micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_eval()
+        return super().on_validation_epoch_start()
 
-    def on_validation_model_train(self):
+    def on_test_epoch_start(self):
         app_state = AppState()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=self.cfg.data.train_ds.global_batch_size,
-            micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+            global_batch_size=self.cfg.data.test_ds.global_batch_size,
+            micro_batch_size=self.cfg.data.test_ds.micro_batch_size,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        return super().on_validation_model_train()
+        return super().on_test_epoch_start()
+
+    def on_validation_epoch_end(self):
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.train_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        # When running `trainer.validate()`, the training dataset is not available.
+        else:
+            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self.cfg.data.validation_ds.global_batch_size,
+                micro_batch_size=self.cfg.data.validation_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        return super().on_validation_epoch_end()
+
+    def training_step(self, batch, batch_idx):
+        micro_batch_size = batch[0]['text_enc'].size(0)
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.train_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        return super().training_step(batch, batch_idx)
 
     def inference_step(self, batch, batch_idx):
         batch_has_lang_information = len(batch[0]) == 7
@@ -177,8 +224,22 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             processed_batch = batch
 
+        micro_batch_size = processed_batch[0]['text_enc'].size(0)
+
+        # This should happen only on the last batch of the dataset.
+        if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=micro_batch_size
+                * parallel_state.get_data_parallel_world_size()
+                * get_num_microbatches(),
+                micro_batch_size=micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
         # Call parent validation step to get the loss.
-        loss = super().validation_step(processed_batch, batch_idx, reconfigure_microbatch_size=True)
+        loss = super().validation_step(processed_batch, batch_idx)
 
         # Remainder of the code is to run the decoding loop, and compute accuracies.
         if batch_has_lang_information:
@@ -226,7 +287,7 @@ class MegatronT5GLUEModel(MegatronT5Model):
         else:
             averaged_loss = super().test_epoch_end(outputs)
         accuracy = self.acc_metric.compute()
-        self.log(f'{mode}_loss', averaged_loss)
+        # Loss is logged in the parent epoch end class.
         self.log(f'{mode}_acc', accuracy['acc'])
         if hasattr(self.cfg, 'eval_languages'):
             for lang in self.cfg.eval_languages:
@@ -274,7 +335,11 @@ class MegatronT5GLUEModel(MegatronT5Model):
         # But now, it is implicit in the apex fwd/bwd functions and so we need to check for this somewhere.
         # The consequence of not doing this is that training loop will never run validation.
         # NOTE: Prog bar is also broken as a result of this.
-        if self.trainer.val_check_interval > (sampler.num_samples // global_batch_size) and check_validation_interval:
+        global_batch_size_per_data_parallel_rank = global_batch_size // parallel_state.get_data_parallel_world_size()
+        if (
+            self.trainer.val_check_interval > (sampler.num_samples // global_batch_size_per_data_parallel_rank)
+            and check_validation_interval
+        ):
             raise ValueError(
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
@@ -350,13 +415,25 @@ class MegatronT5GLUEModel(MegatronT5Model):
             self._validation_ds = self._build_dataset(self.cfg.data.validation_ds)
             logging.info(f'Length of val dataset: {len(self._validation_ds)}')
 
-        if stage != 'validation':
+        if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 self._test_ds = self._build_dataset(self.cfg.data.test_ds)
                 logging.info(f'Length of test dataset: {len(self._test_ds)}')
 
-        if stage == 'validation' or stage == 'test':
+        if stage == 'validate' or stage == 'test':
             return
         self._train_ds = self._build_dataset(self.cfg.data.train_ds)
         logging.info(f'Length of train dataset: {len(self._train_ds)}')
         logging.info(f'Finished building GLUE/XNLI datasets.')
+
+    def on_train_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_validation_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_test_start(self) -> None:
+        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
