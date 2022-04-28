@@ -303,12 +303,14 @@ class ThutmoseTaggerModel(NLPModel):
             example.features["labels_mask"] = [0] + [1] * (len(semiotic_preds) - 2) + [0]
             example.features["tag_labels"] = tag_preds
             example.features["semiotic_labels"] = semiotic_preds
-            tag_labels = [self.id_2_tag[label_id] for label_id in example.get_token_labels("tag_labels")]
+            tags = [self.id_2_tag[label_id] for label_id in example.get_token_labels("tag_labels")]
             semiotic_labels = [
                 self.id_2_semiotic[label_id] for label_id in example.get_token_labels("semiotic_labels")
             ]
 
-            prediction, inp_str, tag_str, tag_with_swap_str = example.editing_task.realize_output(tag_labels)
+            prediction, inp_str, tag_str, tag_with_swap_str = example.editing_task.realize_output(
+                tags, semiotic_labels
+            )
             all_preds.append(
                 prediction
                 + "\t"

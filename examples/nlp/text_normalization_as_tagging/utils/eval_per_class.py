@@ -36,19 +36,24 @@ The script generates:
     files (<output_file>.<semiotic_class>) with sentences, containing errors in this semiotic span.
 
 """
+import glob
+import os
 
 from argparse import ArgumentParser
 from collections import Counter
 
-
-parser = ArgumentParser(description='Compare inference output with multi-reference, print report per class')
-parser.add_argument('--inference_file', type=str, required=True, help='Path to inference file 1')
-parser.add_argument('--reference_file', type=str, required=True, help='Path to reference file')
-parser.add_argument('--output_file', type=str, required=True, help='Path to output file')
+parser = ArgumentParser(description="Compare inference output with multi-reference, print report per class")
+parser.add_argument("--inference_file", type=str, required=True, help="Path to inference file 1")
+parser.add_argument("--reference_file", type=str, required=True, help="Path to reference file")
+parser.add_argument("--output_file", type=str, required=True, help="Path to output file")
 args = parser.parse_args()
 
 # Main code
 if __name__ == '__main__':
+
+    # delete all class-specific reports, as they are created in the append mode
+    for f in glob.glob(args.output_file + ".*"):
+        os.remove(f)
 
     total_count = Counter()
     correct_count = Counter()
@@ -62,7 +67,7 @@ if __name__ == '__main__':
     f_infer.close()
     assert len(lines_ref) == len(lines_infer), "number of lines doesn't match"
     for i in range(len(lines_infer)):
-        _, inp_str, _, tag_with_swap_str, _ = lines_infer[i].strip().split("\t")
+        _, inp_str, _, tag_with_swap_str, semiotic = lines_infer[i].strip().split("\t")
         input_words = inp_str.split(" ")
         predicted_tags = tag_with_swap_str.split(" ")
         predicted_words = predicted_tags[:]
@@ -113,7 +118,8 @@ if __name__ == '__main__':
                     out_sem.write("\tinput=" + " ".join(input_words) + "\n")
                     out_sem.write("\ttags=" + " ".join(predicted_tags) + "\n")
                     out_sem.write("\tpred=" + " ".join(predicted_words) + "\n")
-                    out_sem.write("\tref=" + parts[2] + "\n")
+                    out_sem.write("\tsemiotic=" + semiotic + "\n")
+                    out_sem.write("\tref=" + parts[1] + "\n")
                     out_sem.close()
 
     f_out.write("class\ttotal\tcorrect\terrors\taccuracy\n")

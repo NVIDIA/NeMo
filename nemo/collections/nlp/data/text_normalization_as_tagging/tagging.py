@@ -139,11 +139,12 @@ class EditingTask(object):
         self.first_tokens.append(len(self.source_tokens))
         self.source_tokens.extend(token_list)
 
-    def realize_output(self, tags: List[Tag]) -> Tuple[str, str, str, str]:
+    def realize_output(self, tags: List[Tag], semiotic_labels: List[str]) -> Tuple[str, str, str, str]:
         """Realize output text based on the source tokens and predicted tags.
 
         Args:
             tags: Predicted tags (one for each token in `self.source_tokens`).
+            semiotic_labels: Predicted semiotic labels (one for each token in `self.source_tokens`).
 
         Returns:
             The realizer output text.
@@ -152,10 +153,12 @@ class EditingTask(object):
             ValueError: If the number of tags doesn't match the number of source
                 tokens.
         """
-        if len(tags) != len(self.source_tokens):
+        if len(tags) != len(self.source_tokens) or len(tags) != len(semiotic_labels):
             raise ValueError(
                 'The number of tags ({}) should match the number of '
-                'source tokens ({})'.format(len(tags), len(self.source_tokens))
+                'source tokens ({}) and semiotic labels({})'.format(
+                    len(tags), len(self.source_tokens), len(semiotic_labels)
+                )
             )
 
         sequence = []
@@ -166,11 +169,12 @@ class EditingTask(object):
                 sequence.append(Token(inp_token, "<SELF>", inp_token))
             else:
                 sequence.append(Token(inp_token, "<DELETE>", ""))
-
+        assert len(sequence) == len(semiotic_labels)
         out_tokens_with_swap = [t.out for t in sequence]
         out_tags_with_swap = [t.tag for t in sequence]
         out_tags_without_swap = [t.tag for t in sequence]
-        last_self_token_id = -1
+        previous_semiotic_label_end = -1
+        current_semiotic_label = ""
         for i in range(len(sequence)):
             if sequence[i].swap == SwapType.SHORT_LEFT or sequence[i - 1].swap == SwapType.SHORT_RIGHT:
                 out_tokens_with_swap[i - 1], out_tokens_with_swap[i] = (
@@ -178,13 +182,14 @@ class EditingTask(object):
                     out_tokens_with_swap[i - 1],
                 )
                 out_tags_with_swap[i - 1], out_tags_with_swap[i] = out_tags_with_swap[i], out_tags_with_swap[i - 1]
-            if sequence[i].tag == "<SELF>":
-                last_self_token_id = i
-            if sequence[i].swap == SwapType.LONG_LEFT and last_self_token_id > -1 and i - last_self_token_id >= 2:
+            if semiotic_labels[i] != current_semiotic_label:
+                previous_semiotic_label_end = i - 1
+                current_semiotic_label = semiotic_labels[i]
+            if sequence[i].swap == SwapType.LONG_LEFT:
                 token = out_tokens_with_swap.pop(i)
                 tag = out_tags_with_swap.pop(i)
-                out_tokens_with_swap.insert(last_self_token_id + 1, token)
-                out_tags_with_swap.insert(last_self_token_id + 1, tag)
+                out_tokens_with_swap.insert(previous_semiotic_label_end + 1, token)
+                out_tags_with_swap.insert(previous_semiotic_label_end + 1, tag)
 
         # detokenize
         output_tokens_str = " ".join(out_tokens_with_swap).replace("<", "").replace(">", "")

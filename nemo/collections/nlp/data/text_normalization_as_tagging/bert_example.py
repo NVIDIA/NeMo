@@ -204,7 +204,7 @@ class BertExampleBuilder(object):
         semiotic_spans = []
 
         if semiotic_info is not None:
-
+            # e.g. semiotic_info="CARDINAL 7 8;DATE 9 12"
             # translate class name to its id, translate coords from tokens to wordpieces
             semiotic_info_parts = semiotic_info.split(";")
             previous_end = 0
@@ -222,12 +222,12 @@ class BertExampleBuilder(object):
                     subtoken_end = (
                         token_start_indices[previous_end + 1]
                         if previous_end + 1 < len(token_start_indices)
-                        else len(tokens)
+                        else len(input_ids) - 1
                     )
                     semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                     previous_end += 1
                 subtoken_start = token_start_indices[start]
-                subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(tokens)
+                subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(input_ids) - 1
                 if subtoken_end >= self._max_seq_length:  # possible if input_ids gets truncated to the max_seq_length
                     break
                 semiotic_spans.append((cid, subtoken_start, subtoken_end))
@@ -238,7 +238,7 @@ class BertExampleBuilder(object):
                 subtoken_end = (
                     token_start_indices[previous_end + 1]
                     if previous_end + 1 < len(token_start_indices)
-                    else len(tokens)
+                    else len(input_ids) - 1
                 )
                 semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                 previous_end += 1
