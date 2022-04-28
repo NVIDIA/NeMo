@@ -37,8 +37,6 @@ class TelephoneFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="telephone", kind="verbalize", deterministic=deterministic)
 
-        add_separator = pynutil.insert(",")  # between components
-
         optional_country_code = pynini.closure(
             pynutil.delete("country_code: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)

@@ -25,7 +25,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 try:
     import pynini
     from pynini.lib import pynutil
-    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -84,9 +83,9 @@ class ElectronicFst(GraphFst):
         protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
         # email
         graph = username + domain_graph
-        # abc.com
+        # abc.com, abc.com/123-sm
         graph |= domain_common_graph
-        # www.abc.com/sdafsdf, or https://www.abc.com/asdfad
+        # www.abc.com/sdafsdf, or https://www.abc.com/asdfad or www.abc.abc/asdfad
         graph |= protocol + pynutil.insert(" ") + domain_graph
 
         final_graph = self.add_tokens(graph)

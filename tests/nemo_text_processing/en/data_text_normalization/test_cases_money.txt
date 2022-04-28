@@ -2,6 +2,9 @@ $2~two dollars
 $2.00~two dollars
 ₩460 billion~four hundred sixty billion won
 ¥30 billion~thirty billion yen
+¥30 b~thirty billion yen
+¥30b~thirty billion yen
+¥30B~thirty billion yen
 $45 billion~forty five billion dollars
 $0.2 million~zero point two million dollars
 $2.5 million~two point five million dollars

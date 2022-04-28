@@ -49,7 +49,7 @@ def get_quantity(
         + pynutil.insert("\"")
         + pynini.closure(pynutil.delete(" "), 0, 1)
         + pynutil.insert("quantity: \"")
-        + (quantity_wo_thousand @ quantities)
+        + (quantity_wo_thousand @ (quantities| quantities_abbr))
         + pynutil.insert("\"")
     )
     if include_abbr:

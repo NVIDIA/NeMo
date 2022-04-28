@@ -59,7 +59,7 @@ class MoneyFst(GraphFst):
         fractional = fractional_part + delete_extra_space + min
 
         if not deterministic:
-            fractional = pynutil.insert("and ") + fractional
+            fractional |= pynutil.insert("and ") + fractional
 
         graph_integer_with_minor = integer_part + keep_space + maj + keep_space + fractional + delete_preserve_order
 

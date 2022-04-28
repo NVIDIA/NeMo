@@ -136,7 +136,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(telephone_graph, 1.1)
                 | pynutil.add_weight(electonic_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
-                | pynutil.add_weight(range_graph, 1.1)
+                # | pynutil.add_weight(range_graph, 1.1)
                 | pynutil.add_weight(serial_graph, 1.1001)  # should be higher than the rest of the classes
             )
 

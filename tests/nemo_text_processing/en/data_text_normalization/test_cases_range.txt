@@ -11,6 +11,6 @@ from 2-10~from two - ten
 5pm-7 pm~five PM to seven PM
 4:00 am - 8:12 pm~four AM to eight twelve PM
 978-0~nine hundred and seventy eight - zero
-1960s-80s-nineteen sixties to eighties
-1960s-1980s-nineteen sixties to nineteen eighties
-1960-80-nineteen sixty to eighty
+1960s-80s~nineteen sixties to eighties
+1960s-1980s~nineteen sixties to nineteen eighties
+1960-80~nineteen sixty to eighty

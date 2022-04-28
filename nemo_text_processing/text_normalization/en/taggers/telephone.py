@@ -23,7 +23,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     plurals,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-from numpy import insert
 
 try:
     import pynini
