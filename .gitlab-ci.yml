@@ -1,7 +1,7 @@
 # Build only on MR or main branches
 .only-default: &only-default
   only:
-    - master
+    - main
     - merge_requests
   tags:
     - V100
