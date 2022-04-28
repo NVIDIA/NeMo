@@ -207,12 +207,17 @@ def _build_memmap_index_files(newline_int, fn):
     else:
         logging.info(f"Building idx file = {idx_fn}")
         midx = np.where(mdata == newline_int)[0]
+        midx_dtype = midx.dtype
         # add last item in case there is no new-line
         if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
-            AAA
-            print(f"{midx[-1]} {len(mdata)}")
-            midx = np.asarray(midx.tolist() + [len(midx) + 1], dtype=midx.dtype)
+            midx = np.asarray(midx.tolist() + [len(midx) + 1], dtype=midx_dtype)
 
+        # remove empty lines from end of file
+        midx = midx.tolist()
+        while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
+            midx.pop(-1)
+        midx = np.asarray(midx, dtype=midx_dtype)
+        
         data = dict(midx=midx, newline_int=newline_int, version=__idx_version__)
         pickle.dump(data, open(idx_fn, "wb"))
         mdata._mmap.close()
