@@ -37,7 +37,6 @@ class TextMemMapDatasetConfig:
     dataset_type: str = 'zinc_csv'
     newline_int: int = 10
     header_lines: int = 1
-    skip_lines: int = 0
     data_col: int = 1
     data_sep: str = ','
     sort_dataset_paths: bool = True
@@ -49,7 +48,7 @@ class TextMemMapDataset(Dataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
+        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
         super().__init__()
 
@@ -59,7 +58,6 @@ class TextMemMapDataset(Dataset):
         self._newline_int = newline_int
         # skip first N lines
         self._header_lines = header_lines
-        self._skip_lines = skip_lines
         self._files_list = dataset_paths
         self._worker = workers
         self.tokenizer = tokenizer
@@ -80,41 +78,43 @@ class TextMemMapDataset(Dataset):
 
         logging.info(f"Loading data files")
         start_time = time.time()
-        mdata_midx_size_list = [self.load_file(fn) for fn in self._files_list]
-        logging.info(f'Time loading {len(mdata_midx_size_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')
+        mdata_midx_list = [self.load_file(fn) for fn in self._files_list]
+        logging.info(f'Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')
 
         logging.info("Computing global indices")
-        joint_midx = [0]
-        for i in range(len(mdata_midx_size_list)):
-            midx = mdata_midx_size_list[i][1]
-            joint_midx.append(joint_midx[-1] + (len(midx) - header_lines))
+        midx_bins = np.cumsum([(len(midx) - header_lines) for _, midx in mdata_midx_list])
 
-        self.joint_midx = joint_midx
-        self.mdata_midx_size_list = mdata_midx_size_list
+        self.midx_bins = midx_bins
+        self.mdata_midx_list = mdata_midx_list
 
     def __del__(self):
-        if self.mdata_midx_size_list:
-            for mdata, midx, size in self.mdata_midx_size_list:
+        if self.mdata_midx_list:
+            for mdata, midx in self.mdata_midx_list:
                 mdata._mmap.close()
 
     def __len__(self):
-        return self.joint_midx[-1]
+        return self.midx_bins[-1]
 
     def __getitem__(self, idx):
         """
         Return a string from binary memmap
         """
+        if idx >= self.midx_bins[-1]:
+            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
+        
         # Identify the file containing the record
-        file_id = 0
-        for end_idx in self.joint_midx[1:]:
-            if idx < end_idx:
-                break
-            file_id += 1
+        file_id = np.digitize(idx, self.midx_bins, right=False)
+        file_idx = idx - self.midx_bins[file_id]
+        mdata, midx = self.mdata_midx_size_list[file_id]
+        # load sample
+        if file_idx == 0:
+            i = 0
+            j = midx[1]
+        else: 
+            i = midx[file_idx] + 1 # ignore newline
+            j = midx[file_idx + 1] 
 
-        file_row = idx - self.joint_midx[file_id]
-        rec_start = self.mdata_midx_size_list[file_id][1][file_row]
-        rec_end = self.mdata_midx_size_list[file_id][1][file_row + 1 + self._skip_lines]
-        text = self.mdata_midx_size_list[file_id][0][rec_start:rec_end].tobytes().decode("ascii")
+        text = mdata[i:j].tobytes().decode("ascii")
 
         # parse raw text (e.g., tokenize)
         data = self._build_data_from_text(text)
@@ -149,20 +149,24 @@ class TextMemMapDataset(Dataset):
         if os.path.exists(idx_fn):
             idx_dict = pickle.load(open(idx_fn, 'rb'))
             midx = idx_dict['midx']
-            size = idx_dict['size']
+            # test for header
+            if len(midx) < self._header_lines:
+                raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
+            
             # test for mismatch in expected newline_int
             if 'newline_int' in idx_dict:
                 newline_int = idx_dict['newline_int']
                 if self._newline_int != newline_int:
                     logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
 
+            # test for version mismatch (useful to force recreation of .idx)
             idx_version = idx_dict.get('version', '0.0')
             if __idx_version__ != idx_version:
                 raise RuntimeError(f"Version mismatch: Please delete existing '.idx' files. Expected version = {__idx_version__}, but file version = {idx_version}")
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
-        return (mdata, midx, size)
+        return (mdata, midx)
 
 
 class CSVMemMapDataset(TextMemMapDataset):
@@ -171,14 +175,15 @@ class CSVMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, data_col=1, data_sep=','
+        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True, data_col=1, data_sep=','
     ):
         super().__init__(
             dataset_paths=dataset_paths,
             newline_int=newline_int,
             header_lines=header_lines,
-            skip_lines=skip_lines,
             workers=workers,
+            tokenizer=tokenizer,
+            sort_dataset_paths=sort_dataset_paths,
         )
         self._data_col = data_col
         self._data_sep = data_sep
@@ -206,8 +211,7 @@ def _build_memmap_index_files(newline_int, fn):
         if (len(midx) == 0) or (midx[-1] + 1 != len(mdata)):
             midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
 
-        size = len(mdata)
-        data = dict(midx=midx, size=size, newline_int=newline_int, version=__idx_version__)
+        data = dict(midx=midx, newline_int=newline_int, version=__idx_version__)
         pickle.dump(data, open(idx_fn, "wb"))
         mdata._mmap.close()
         del mdata
