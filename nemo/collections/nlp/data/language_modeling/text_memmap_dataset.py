@@ -28,7 +28,8 @@ from nemo.core import Dataset
 from nemo.utils import logging
 
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
-__idx_version__ = '0.1' # .idx index file version
+__idx_version__ = '0.1'  # .idx index file version
+
 
 @dataclass
 class TextMemMapDatasetConfig:
@@ -81,7 +82,9 @@ class TextMemMapDataset(Dataset):
         logging.info(f"Loading data files")
         start_time = time.time()
         mdata_midx_list = [self.load_file(fn) for fn in self._files_list]
-        logging.info(f'Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')
+        logging.info(
+            f'Time loading {len(mdata_midx_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}'
+        )
 
         logging.info("Computing global indices")
         midx_bins = np.cumsum([(len(midx) - header_lines) for _, midx in mdata_midx_list])
@@ -103,19 +106,19 @@ class TextMemMapDataset(Dataset):
         """
         if idx >= self.midx_bins[-1]:
             raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
-        
+
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
-        base_idx = self.midx_bins[file_id-1] if file_id > 0 else 0
+        base_idx = self.midx_bins[file_id - 1] if file_id > 0 else 0
         file_idx = idx - base_idx + self._header_lines
         mdata, midx = self.mdata_midx_list[file_id]
         # load sample
         if file_idx == 0:
             i = 0
             j = midx[1]
-        else: 
-            i = midx[file_idx-1] + 1 # ignore newline
-            j = midx[file_idx] 
+        else:
+            i = midx[file_idx - 1] + 1  # ignore newline
+            j = midx[file_idx]
 
         text = mdata[i:j].tobytes().decode("ascii")
 
@@ -155,7 +158,7 @@ class TextMemMapDataset(Dataset):
             # test for header
             if len(midx) < self._header_lines:
                 raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
-            
+
             # test for mismatch in expected newline_int
             if 'newline_int' in idx_dict:
                 newline_int = idx_dict['newline_int']
@@ -165,7 +168,9 @@ class TextMemMapDataset(Dataset):
             # test for version mismatch (useful to force recreation of .idx)
             idx_version = idx_dict.get('version', '0.0')
             if __idx_version__ != idx_version:
-                raise RuntimeError(f"Version mismatch: Please delete existing '.idx' files. Expected version = {__idx_version__}, but file version = {idx_version}")
+                raise RuntimeError(
+                    f"Version mismatch: Please delete existing '.idx' files. Expected version = {__idx_version__}, but file version = {idx_version}"
+                )
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
 
@@ -178,7 +183,15 @@ class CSVMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True, data_col=1, data_sep=','
+        self,
+        dataset_paths,
+        newline_int=10,
+        header_lines=1,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
+        data_col=1,
+        data_sep=',',
     ):
         super().__init__(
             dataset_paths=dataset_paths,
@@ -220,7 +233,7 @@ def _build_memmap_index_files(newline_int, fn):
         while len(midx) > 1 and (midx[-1] - midx[-2]) < 2:
             midx.pop(-1)
         midx = np.asarray(midx, dtype=midx_dtype)
-        
+
         data = dict(midx=midx, newline_int=newline_int, version=__idx_version__)
         pickle.dump(data, open(idx_fn, "wb"))
         mdata._mmap.close()
@@ -243,4 +256,6 @@ def build_index_files(dataset_paths, newline_int, workers=None):
     with mp.Pool(workers) as p:
         build_status = p.map(partial(_build_memmap_index_files, newline_int), dataset_paths)
 
-    logging.info(f'Time building {sum(build_status)} / {len(build_status)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')    
+    logging.info(
+        f'Time building {sum(build_status)} / {len(build_status)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}'
+    )
