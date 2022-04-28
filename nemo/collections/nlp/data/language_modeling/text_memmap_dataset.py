@@ -104,7 +104,8 @@ class TextMemMapDataset(Dataset):
         
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
-        file_idx = idx - self.midx_bins[file_id]
+        base_idx = self.midx_bins[file_id-1] if file_id > 0 else 0
+        file_idx = idx - base_idx + self._header_lines
         mdata, midx = self.mdata_midx_list[file_id]
         # load sample
         if file_idx == 0:
