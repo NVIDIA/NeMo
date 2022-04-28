@@ -51,7 +51,7 @@ class TestRetrievalModule:
     def setup_class(cls):
         if not torch.cuda.is_available():
             return
-        GPUS = 2
+        GPUS = 1
         # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         # os.environ["LOCAL_RANK"] = '0'
         # os.environ["RANK"] = '0'
