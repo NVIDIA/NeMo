@@ -40,6 +40,7 @@ class TextMemMapDatasetConfig:
     skip_lines: int = 0
     data_col: int = 1
     data_sep: str = ','
+    sort_dataset_paths: bool = True
 
 
 class TextMemMapDataset(Dataset):
@@ -48,7 +49,7 @@ class TextMemMapDataset(Dataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, tokenizer=None,
+        self, dataset_paths, newline_int=10, header_lines=1, skip_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
         super().__init__()
 
@@ -62,6 +63,10 @@ class TextMemMapDataset(Dataset):
         self._files_list = dataset_paths
         self._worker = workers
         self.tokenizer = tokenizer
+        self._sort_dataset_paths = sort_dataset_paths
+
+        if sort_dataset_paths:
+            self._files_list = sorted(self._files_list)
 
         logging.info(f"Building data files")
         # load all files into memmap
