@@ -32,6 +32,7 @@ __idx_version__ = '0.1' # .idx index file version
 
 @dataclass
 class TextMemMapDatasetConfig:
+    # FIXME: update defaults header_lines=0
     dataset_path: str = ''
     dataset_files: str = 'data.csv'
     dataset_type: str = 'zinc_csv'
@@ -47,6 +48,7 @@ class TextMemMapDataset(Dataset):
     Allow per-line lazy access to multiple text files using numpy memmap.
     """
 
+    # FIXME: header_lines=0 by default
     def __init__(
         self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
@@ -112,8 +114,8 @@ class TextMemMapDataset(Dataset):
             i = 0
             j = midx[1]
         else: 
-            i = midx[file_idx] + 1 # ignore newline
-            j = midx[file_idx + 1] 
+            i = midx[file_idx-1] + 1 # ignore newline
+            j = midx[file_idx] 
 
         text = mdata[i:j].tobytes().decode("ascii")
 
