@@ -91,7 +91,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=False, #True if step_num > 0 else False, # True
+                    drop_extra_pre_encoded=True if step_num > 0 else False, # True
                     return_transcribtion=True,
                     onnx_model=onnx_model
                 )
