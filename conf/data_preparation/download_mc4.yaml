@@ -1,3 +1,4 @@
+dataset: mc4
 download_mc4: True  # Whether to download the mC4 dataset from the internet.
 preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
 mc4_dir: ${data_dir}/mc4 # Path to (m)C4 dataset repo.

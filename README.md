@@ -367,7 +367,7 @@ data_preparation: download_mc4
 training: mt5/390m
 conversion: convert_mt5
 finetuning: mt5/xnli
-evaluation: t5/xnli
+evaluation: mt5/xnli
 
 run_data_preparation: True
 run_training: True
@@ -402,7 +402,7 @@ speed. The data preparation can be parallelized by using up to 30 nodes.
 
 
 **mC4**: We provide utilities to download and prepare [mC4](https://www.tensorflow.org/datasets/catalog/c4)
-dataset ([processed version](https://huggingface.co/datasets/allenai/c4)). Multilingual C4 (mC4) 
+dataset ([allen-ai version](https://huggingface.co/datasets/allenai/c4)). Multilingual C4 (mC4) 
 has 101 languages and is generated from 71 [Common Crawl](https://commoncrawl.org/) dumps. 
 It is recommended to store this repository and the datasets in a file system
 shared by all the nodes (gpfs) in the case of Slurm based clusters, and in a shared 
@@ -413,7 +413,8 @@ We curated 24 languages as our default language list. The raw size of default la
 Parallelization is enabled in downloading and preprocessing scripts. It will help to automatically
 distribute and balance the work on multi-node systems and provide significant speed up.
 Downloading and preprocessing the default language list takes approximately 7 hours 
-assuming a 30 MB/s download speed and parallelization by using 20 nodes. 
+assuming a 30 MB/s download speed and parallelization by using 20 nodes. The preprocessed dataset has a size 
+of around 12 TB.
 
 Currently, we don't support training with more than 25 languages, see [Known Issues].
 
@@ -609,30 +610,29 @@ bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 ```
 
 
-##### 4.1.2.2. Data Preparation for T5 Models
-<a id="markdown-data-preparation-for-t5-models" name="data-preparation-for-t5-models"></a>
+##### 4.1.2.3. Data Preparation for mT5 Models
+<a id="markdown-data-preparation-for-mt5-models" name="data-preparation-for-mt5-models"></a>
 The `data_preparation` parameter in `conf/config.yaml` specifies which file to use for data preparation
-configuration purposes. The `data_preparation` parameter needs to be specified as `download_t5_pile` for
-preparing the Pile dataset for T5 models. The config file can be found in 
-`conf/data_preparation/download_t5_pile.yaml`. GPT-3 models and T5 models use
-different tokenizer and vocab files. The default parameters can be found in the
-corresponding config files.
+configuration purposes. The `data_preparation` parameter needs to be specified as `download_mc4` for
+preparing the mC4 dataset for T5 models. The config file can be found in 
+`conf/data_preparation/download_mc4.yaml`. mT5 models use SentencePiece multilingual tokenzier.
 
 To download a reduced portion of the dataset to run tests, the 
-`file_numbers` parameter can be updated to download only one of the 
-shards by changing `“0-29”` to `“0”` (the syntax must be a combination of
-numbers separated by dashes "-" or commas ",").
- For example, `file_numbers`=`"0,3,5-7"` will download and prepare 
-files 0, 3, 5, 6, and 7.
+`languages` parameter can be updated to download only one of the 
+languages by changing it to `lv`. The list of all 101 languages can be
+found in [mC4 dataset](https://www.tensorflow.org/datasets/catalog/c4#c4multilingual).
+
+The data preparation can be parallelized by using multiple nodes (default 20 nodes) to download and preprocess 
+all language files in parallel.
+
 
 ###### 4.1.2.2.1. Slurm
 <a id="markdown-41221-slurm" name="41221-slurm"></a>
 
 First, ensure the cluster configuration settings in the `conf/cluster/bcm.yaml` file are correct.
 The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to `bcm`.
-Then, modify the `time_limit` or any other parameter related to the job in the `download_t5_pile.yaml`
-file for T5 models.
-The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
+Then, modify the `time_limit` or any other parameter related to the job in the `download_mc4.yaml`
+file for mT5 models.
 
 Example:
 
@@ -659,7 +659,7 @@ In order to run the data preparation script on Base Command Platform, set the
 from the command line, using hydra. 
 By default, the data preparation script will download the data into the `bignlp-scripts/data/` directory.
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
-is visible across multiple jobs later on. The vocab and merge files should also be 
+is visible across multiple jobs later on. The tokenizer model file should also be 
 stored to the same workspace as the dataset. The data preparation code 
 must be launched in a multi-node job, and can be parallelized to use between 2 and 30 nodes, 
 for faster parallel preparation of the dataset.
@@ -667,41 +667,47 @@ for faster parallel preparation of the dataset.
 With Base Command Platform, the 700+ GB dataset can be downloaded once and then
 shared by multiple users in the same ACE by setting the permissions of the `bignlp_data_ws` workspace.
 
-To run the data preparation pipeline for T5 models, run:
+To run the data preparation pipeline for mT5 models, run:
 ```
-python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_t5_pile run_data_preparation=True \
+python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_mc4 run_data_preparation=True \
 run_training=False run_conversion=False run_finetuning=False run_evaluation=False run_finetuning=False \
-cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_t5 \
-base_results_dir=/mount/results data_preparation.file_numbers='0-29' \
-data_preparation.vocab_save_dir=/mount/data/bpe >> /results/data_t5_log.txt 2>&1
+cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results data_preparation.languages="'cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh'" \
+data_preparation.nodes=20 data_preparation.workers_per_node=4 >> /results/data_mt5_log.txt 2>&1
 ```
 
 The command above assumes you want to prepare the entire dataset (files 0-29), and you mounted the data 
 workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
-also be redirected to the `/results/data_t5_log.txt` file, to be able to download the logs from NGC. 
+also be redirected to the `/results/data_mt5_log.txt` file, to be able to download the logs from NGC. 
 Any other parameter can also be added to the command to modify its behavior.
 
 ###### 4.1.2.2.3. Common
 <a id="markdown-41223-common" name="41223-common"></a>
 
-Set the configuration for the data preparation job for T5 models in the YAML file:
+Set the configuration for the data preparation job for mT5 models in the YAML file:
 ```yaml
-dataset: pile
-download_the_pile: True    # Whether to download the pile dataset from the internet.
-the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"    # Source URL to download The Pile dataset from.
-file_numbers: "0-29"    # The pile dataset consists of 30 files (0-29), choose which ones to download.
-preprocess_data: True    # True to preprocess the data from a jsonl file, False otherwise.
-download_vocab_url: "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt"    # URL to download the vocab from.
-download_merges_url: null
-vocab_save_dir: ${data_dir}/bpe
-merges_save_dir: ${data_dir}/bpe
-tokenizer_type: BertWordPieceCase # T5 models use BertWordPieceCase tokenizer
-log_dir: ${base_results_dir}/data_preparation/t5_pile_logs    # Where to save the logs
-rm_downloaded: True # Extract script will remove downloaded zst after extraction
-rm_extracted: True # Preprocess script will remove extracted files after preproc.
-nodes: 30
-time_limit: "4:00:00"
-bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
+dataset: mc4
+download_mc4: True  # Whether to download the mC4 dataset from the internet.
+preprocess_data: True  # True to preprocess the data from a json.gz file, False otherwise.
+mc4_dir: ${data_dir}/mc4 # Path to (m)C4 dataset repo.
+git_lfs_dir: ${.mc4_dir}/lfs # Path to store git lfs files.
+download_vocab_url: https://storage.googleapis.com/t5-data/vocabs/mc4.250000.100extra/sentencepiece.vocab # URL to download the vocab from.
+download_tokenizer_url: https://storage.googleapis.com/t5-data/vocabs/mc4.250000.100extra/sentencepiece.model # URL to download tokenizer from
+vocab_save_dir: ${.mc4_dir}/bpe
+tokenizer_save_dir: ${.mc4_dir}/bpe
+tokenizer_model: ${.tokenizer_save_dir}/mt5_tokenizer.model
+languages: cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh # language list in mC4 dataset to download and preprocess. Use `all` to download and preprocess all languages or specify language list as `en,es,ko,zh,...`
+use_cleaned_english: True # whether to use cleaned version of english data
+softlinks_dir: ${.mc4_dir}/softlinks # Path to languages soft links for preprocessing
+preprocessed_dir: ${.mc4_dir}/preprocessed
+download_worker_mapping: ${.mc4_dir}/download_mapping
+preprocess_worker_mapping: ${.mc4_dir}/preprocess_mapping
+log_dir: ${base_results_dir}/data_preparation/mc4_logs  # Where to save the logs
+rm_downloaded: False # Script will not remove downloaded after preprocessing
+nodes: 20
+cpus_per_node: 256 # 256 cpus for A100(80G)
+time_limit: "24:00:00"
+workers_per_node: 4 # Number of workers per node in preprocessing step.
 ```
 
 
