@@ -19,10 +19,11 @@ Example format:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-dir", type=str, default="data/assistent/NLU-Evaluation-Data-master")
-    parser.add_argument("--nemo-format-dir", type=str, default="data/assistent/nemo-format")
-    parser.add_argument("--output-dir", type=str, default="data/assistent")
-    parser.add_argument("--save-name-base", type=str, default="assistent")
+    parser.add_argument("--source-dir", type=str, default="data/assistant/NLU-Evaluation-Data-master")
+    parser.add_argument("--nemo-format-dir", type=str, default="data/assistant/nemo-format")
+    parser.add_argument("--output-dir", type=str, default="data/assistant")
+    parser.add_argument("--save-name-base", type=str, default="assistant")
+    parser.add_argument("--make-ground-truth", action='store_true')
     parser.add_argument("--include-options", action='store_true')
     parser.add_argument("--random-seed", type=int, default=42)
     args = parser.parse_args()
@@ -70,12 +71,18 @@ def main():
     test_save_path = f"{args.output_dir}/{args.save_name_base}_test.jsonl"
 
     process_data_for_prompt_learning(
-        test_utterance_lines, test_slot_lines, intent_dict, slot_dict, test_save_path, args.include_options,
+        test_utterance_lines,
+        test_slot_lines,
+        intent_dict,
+        slot_dict,
+        test_save_path,
+        args.include_options,
+        make_ground_truth=args.make_ground_truth,
     )
 
 
 def process_data_for_prompt_learning(
-    utterance_lines, slot_lines, intent_dict, slot_dict, save_path, include_options,
+    utterance_lines, slot_lines, intent_dict, slot_dict, save_path, include_options, make_ground_truth=False
 ):
     """
     Formats each line in the utterance file as a json object 
@@ -115,7 +122,7 @@ def process_data_for_prompt_learning(
             }
 
         # Dont want test examples to have labels
-        if "_test" not in save_path:
+        if "_test" not in save_path or make_ground_truth:
             example_json["label"] = f"\nIntent: {intent_label}\nSlots: {slot_labels}"
 
         save_file.write(json.dumps(example_json) + "\n")

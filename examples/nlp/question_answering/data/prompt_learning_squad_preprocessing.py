@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--data-dir", type=str, default="data/SQuAD")
     parser.add_argument("--file-name", type=str, default="train-v2.0.json")
     parser.add_argument("--save-name-base", type=str, default="squad")
+    parser.add_argument("--make-ground-truth", action='store_true')
     parser.add_argument("--random-seed", type=int, default=1234)
     parser.add_argument("--train-percent", type=float, default=0.8)
     args = parser.parse_args()
@@ -34,10 +35,10 @@ def main():
     data = data_dict['data']
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(data, save_name_base, args.train_percent, args.random_seed)
+    process_data(data, save_name_base, args.train_percent, args.random_seed, args.make_ground_truth)
 
 
-def process_data(data, save_name_base, train_percent, random_seed):
+def process_data(data, save_name_base, train_percent, random_seed, make_ground_truth=False):
     data = extract_questions(data)
 
     # Data examples are currently grouped by topic, shuffle topic groups
@@ -63,7 +64,7 @@ def process_data(data, save_name_base, train_percent, random_seed):
 
     gen_file(train_set, save_name_base, 'train')
     gen_file(val_set, save_name_base, 'val')
-    gen_file(test_set, save_name_base, 'test')
+    gen_file(test_set, save_name_base, 'test', make_ground_truth)
 
 
 def extract_questions(data):
@@ -96,7 +97,7 @@ def extract_questions(data):
     return processed_data
 
 
-def gen_file(data, save_name_base, split_type):
+def gen_file(data, save_name_base, split_type, make_ground_truth=False):
     save_path = f"{save_name_base}_{split_type}.jsonl"
     print(f"Saving {split_type} split to {save_path}")
 
@@ -104,7 +105,7 @@ def gen_file(data, save_name_base, split_type):
         for example_json in tqdm(data):
 
             # Dont want labels in the test set
-            if split_type == "test":
+            if split_type == "test" and not make_ground_truth:
                 del example_json["answer"]
 
             save_file.write(json.dumps(example_json) + '\n')
