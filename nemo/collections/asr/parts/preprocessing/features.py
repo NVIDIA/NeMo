@@ -200,7 +200,6 @@ class FilterbankFeatures(nn.Module):
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
         self.stft_pad_amount = (self.n_fft - self.hop_length) // 2 if exact_pad else None
 
-        logging.info("STFT using torch")
         if exact_pad:
             logging.info("STFT using exact pad")
         torch_windows = {
@@ -294,11 +293,8 @@ class FilterbankFeatures(nn.Module):
             return self.log_zero_guard_value
 
     def get_seq_len(self, seq_len):
-        if isinstance(self.stft, STFT):
-            pad_amount = self.stft.pad_amount * 2
-        else:
-            # Assuming that center is True is stft_pad_amount = 0
-            pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
+        # Assuming that center is True is stft_pad_amount = 0
+        pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
         seq_len = torch.floor((seq_len + pad_amount - self.n_fft) / self.hop_length) + 1
         return seq_len.to(dtype=torch.long)
 
