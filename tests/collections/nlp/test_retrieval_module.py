@@ -52,7 +52,7 @@ class TestRetrievalModule:
         # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         plugin = NLPDDPPlugin()
 
-        GPUS = 1
+        GPUS = 2
 
         TP_SIZE = GPUS
         PP_SIZE = 1
@@ -86,7 +86,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
+    @pytest.mark.skip()
     def test_cross_attn(self):
         num_layers = 1
         init_method_std = 0.02
@@ -153,7 +153,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
+    @pytest.mark.skip()
     def test_retrival_encoder(self):
 
         init_method_std = 0.02
@@ -202,7 +202,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
+    @pytest.mark.skip()
     def test_retrival_decoder(self):
 
         init_method_std = 0.02
@@ -263,7 +263,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
+    @pytest.mark.skip()
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
         batch = 2
@@ -280,7 +280,9 @@ class TestRetrievalModule:
         enc_cross_attention = [3]  # layer numbers for cross attention
         dec_cross_attention = [3, 5]  # layer numbers for cross attention
 
-        hidden = torch.randint(0, vocab_size, (batch, input_length)).cuda()  # (seq, batch, dim)
+        all_tokens = torch.randint(0, vocab_size, (batch, input_length + 1)).cuda()  # (seq, batch, dim)
+        hidden = all_tokens[:, :-1]
+        labels = all_tokens[:, 1:]
 
         hidden_mask = (hidden != pad_id).cuda()
         retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
@@ -308,4 +310,6 @@ class TestRetrievalModule:
             .half()
         )
 
-        out = encoder_decoder(hidden, hidden_mask, retrieved_emb=retrieved_emb, retrieved_attn_mask=context_mask)
+        out = encoder_decoder(
+            hidden, hidden_mask, retrieved_emb=retrieved_emb, retrieved_attn_mask=context_mask, labels=labels
+        )
