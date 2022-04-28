@@ -209,6 +209,7 @@ def _build_memmap_index_files(newline_int, fn):
         midx = np.where(mdata == newline_int)[0]
         # add last item in case there is no new-line
         if (len(midx) == 0) or (midx[-1] != len(mdata)):
+            print(f"{midx[-1]} {len(mdata)}")
             midx = np.asarray(midx.tolist() + [len(midx)], dtype=midx.dtype)
 
         data = dict(midx=midx, newline_int=newline_int, version=__idx_version__)
