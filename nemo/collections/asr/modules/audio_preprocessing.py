@@ -146,13 +146,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             frame_splicing (int): Defaults to 1
             exact_pad (bool): If True, sets stft center to False and adds padding, such that num_frames = audio_length
                 // hop_length. Defaults to False.
-            stft_exact_pad (bool): If True, uses pytorch_stft and convolutions with
-                padding such that num_frames = num_samples / hop_length. If False,
-                stft_conv will be used to determine how stft will be performed.
-                Defaults to False. TODO:This feature is deprecated and will be removed in 1.1.0
-            stft_conv (bool): If True, uses pytorch_stft and convolutions. If
-                False, uses torch.stft. TODO:This feature is deprecated and will be removed in 1.1.0
-                Defaults to False
             pad_value (float): The value that shorter mels are padded with.
                 Defaults to 0
             mag_power (float): The power that the linear spectrogram is raised to
@@ -220,8 +213,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         pad_to=16,
         frame_splicing=1,
         exact_pad=False,
-        stft_exact_pad=False,
-        stft_conv=False,
         pad_value=0,
         mag_power=2.0,
         rng=None,
@@ -260,8 +251,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             pad_to=pad_to,
             frame_splicing=frame_splicing,
             exact_pad=exact_pad,
-            stft_exact_pad=stft_exact_pad,
-            stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
             rng=rng,
@@ -679,8 +668,6 @@ class AudioToMelSpectrogramPreprocessorConfig:
     pad_to: int = 16
     frame_splicing: int = 1
     exact_pad: bool = False
-    stft_exact_pad: bool = False
-    stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
     rng: Optional[str] = None
