@@ -25,7 +25,7 @@ __all__ = ['MegatronT5GLUEModel']
 
 
 class MegatronT5GLUEModel(MegatronT5FinetuneModel):
-    """GLUE Model that Inherits from MegatronT5Model instead."""
+    """GLUE Model that Inherits from MegatronT5FinetuneModel and overrides the dataset building."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
