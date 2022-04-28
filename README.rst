@@ -68,7 +68,7 @@ Key Features
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
     * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_   
-    * `Prompt Tuning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/megatron_finetuning.html#prompt-tuning>`_
+    * `Prompt Tuning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
@@ -122,6 +122,26 @@ FAQ can be found on NeMo's `Discussions board <https://github.com/NVIDIA/NeMo/di
 
 Installation
 ------------
+
+Conda
+~~~~~
+
+We recommend installing NeMo in a fresh Conda environment.
+
+.. code-block:: bash
+
+    conda create --name nemo python==3.8
+    conda activate nemo
+
+Install PyTorch using their `configurator <https://pytorch.org/get-started/locally/>`_. 
+
+.. code-block:: bash
+
+    conda install pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch
+
+.. note::
+
+  The command used to install PyTorch may depend on your system.
 
 Pip
 ~~~

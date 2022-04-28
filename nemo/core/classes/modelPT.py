@@ -294,7 +294,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -483,21 +487,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
-                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -1206,7 +1199,7 @@ class ModelPT(LightningModule, Model):
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
-            if trainer.num_gpus > 1:
+            if trainer.num_devices > 1:
                 logging.warning(DDP_WARN)
                 return False
 
@@ -1238,8 +1231,8 @@ class ModelPT(LightningModule, Model):
 
         if trainer is not None:
             if isinstance(trainer, Trainer):
-                if trainer.num_gpus and trainer.num_nodes:
-                    self.world_size = trainer.num_gpus * trainer.num_nodes
+                if trainer.num_devices and trainer.num_nodes:
+                    self.world_size = trainer.num_devices * trainer.num_nodes
             else:
                 logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
         app_state = AppState()

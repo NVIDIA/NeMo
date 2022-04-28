@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,8 +38,37 @@ class RomanFst(GraphFst):
         super().__init__(name="roman", kind="verbalize", deterministic=deterministic)
         suffix = OrdinalFst().suffix
 
-        integer = pynini.closure(NEMO_NOT_QUOTE)
-        integer |= pynini.closure(pynutil.insert("the "), 0, 1) + integer @ suffix
-        graph = pynutil.delete("integer: \"") + integer + pynutil.delete("\"")
+        cardinal = pynini.closure(NEMO_NOT_QUOTE)
+        ordinal = pynini.compose(cardinal, suffix)
+
+        graph = (
+            pynutil.delete("key_cardinal: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + pynini.accep(" ")
+            + pynutil.delete("integer: \"")
+            + cardinal
+            + pynutil.delete("\"")
+        ).optimize()
+
+        graph |= (
+            pynutil.delete("default_cardinal: \"default\" integer: \"") + cardinal + pynutil.delete("\"")
+        ).optimize()
+
+        graph |= (
+            pynutil.delete("default_ordinal: \"default\" integer: \"") + ordinal + pynutil.delete("\"")
+        ).optimize()
+
+        graph |= (
+            pynutil.delete("key_the_ordinal: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + pynini.accep(" ")
+            + pynutil.delete("integer: \"")
+            + pynini.closure(pynutil.insert("the "), 0, 1)
+            + ordinal
+            + pynutil.delete("\"")
+        ).optimize()
+
         delete_tokens = self.delete_tokens(graph)
         self.fst = delete_tokens.optimize()

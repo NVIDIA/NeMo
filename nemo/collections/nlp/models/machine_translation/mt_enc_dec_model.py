@@ -64,7 +64,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         cfg = model_utils.maybe_update_config_version(cfg)
 
@@ -141,7 +141,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 self.target_processor_list,
                 self.multilingual_ids,
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
-                self.src_language, self.tgt_language, self.encoder_tokenizer,
+                self.src_language,
+                self.tgt_language,
+                self.encoder_tokenizer,
+                self.encoder_tokenizer_library,
+                self.decoder_tokenizer_library,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
@@ -249,14 +253,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id)
 
     @classmethod
-    def setup_multilingual_ids_and_processors(cls, src_language, tgt_language, tokenizer, tokenizer_library):
+    def setup_multilingual_ids_and_processors(
+        cls, src_language, tgt_language, encoder_tokenizer, encoder_tokenizer_library, decoder_tokenizer_library
+    ):
         multilingual_ids = []
         if isinstance(src_language, ListConfig):
             for lng in src_language:
                 multilingual_ids.append(None)
         else:
             for lng in tgt_language:
-                multilingual_ids.append(tokenizer.token_to_id("<" + lng + ">"))
+                multilingual_ids.append(encoder_tokenizer.token_to_id("<" + lng + ">"))
 
         if isinstance(src_language, ListConfig):
             tgt_language = [tgt_language] * len(src_language)
@@ -267,7 +273,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         target_processor_list = []
         for src_lng, tgt_lng in zip(src_language, tgt_language):
             src_prcsr, tgt_prscr = MTEncDecModel.setup_pre_and_post_processing_utils(
-                src_lng, tgt_lng, tokenizer_library, tokenizer_library
+                src_lng, tgt_lng, encoder_tokenizer_library, decoder_tokenizer_library
             )
             source_processor_list.append(src_prcsr)
             target_processor_list.append(tgt_prscr)
@@ -866,9 +872,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if encoder_tokenizer_library == 'byte-level':
             source_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            self.source_processor = EnJaProcessor(source_lang)
+            source_processor = EnJaProcessor(source_lang)
         elif source_lang == 'ja-mecab':
-            self.source_processor = JaMecabProcessor()
+            source_processor = JaMecabProcessor()
         elif source_lang == 'zh':
             source_processor = ChineseProcessor()
         elif source_lang == 'hi':
@@ -881,9 +887,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         if decoder_tokenizer_library == 'byte-level':
             target_processor = ByteLevelProcessor()
         elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
-            self.target_processor = EnJaProcessor(target_lang)
+            target_processor = EnJaProcessor(target_lang)
         elif target_lang == 'ja-mecab':
-            self.target_processor = JaMecabProcessor()
+            target_processor = JaMecabProcessor()
         elif target_lang == 'zh':
             target_processor = ChineseProcessor()
         elif target_lang == 'hi':
@@ -974,7 +980,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return src, src_mask
 
-    # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
     @torch.no_grad()
     def translate(
         self,
@@ -989,8 +994,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         Should be regular text, this method performs its own tokenization/de-tokenization
         Args:
             text: list of strings to translate
-            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
-            target_lang: if not None, corresponding MosesDecokenizer will be run
+            source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not "ignore", corresponding MosesDecokenizer will be run
+            return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            log_timing: if True, prints timing information.
         Returns:
             list of translated strings
         """
@@ -1047,6 +1054,38 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 return_val = (return_val, timing)
 
         return return_val
+
+    def itn_translate_tn(
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
+        inverse_normalizer=None,
+        normalizer=None,
+    ) -> List[str]:
+        """
+        Calls the translate() method with the option of running ITN (inverse text-normalization) on the input adn TN (text-normalization) on the output.
+        Pipeline : ITN -> translate -> TN
+        NOTE: ITN and TN objects must be initialized with the right languages.
+        Args:
+            text: list of strings to translate
+            source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not "ignore", corresponding MosesDecokenizer will be run
+            return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            log_timing: if True, prints timing information.
+            inverse_normalizer: instance of nemo_text_processing.inverse_text_normalization.inverse_normalize.InverseNormalizer
+            normalizer: instance of nemo_text_processing.text_normalization.normalize.Normalizer
+        Returns:
+            list of translated strings
+        """
+        if inverse_normalizer is not None:
+            text = [inverse_normalizer.normalize(example) for example in text]
+        translations = self.translate(text, source_lang, target_lang, return_beam_scores, log_timing)
+        if normalizer is not None:
+            translations = [normalizer.normalize(example) for example in translations]
+        return translations
 
     def export(self, output: str, input_example=None, **kwargs):
         encoder_exp, encoder_descr = self.encoder.export(
