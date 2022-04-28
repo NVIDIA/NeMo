@@ -129,7 +129,7 @@ def get_encoder_model(
             bias=bias,
             parent_model_type=parent_model_type,
         )
-    if arch == "retro":
+    elif arch == "retro":
         encoder = MegatronRetrievalTransformerEncoderModule(
             init_method=init_method,
             output_layer_init_method=scaled_init_method,

@@ -49,11 +49,9 @@ except (ImportError, ModuleNotFoundError):
 class TestRetrievalModule:
     @classmethod
     def setup_class(cls):
-        import os
-
         if not torch.cuda.is_available():
             return
-        GPUS = 1
+        GPUS = 2
         # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
         # os.environ["LOCAL_RANK"] = '0'
         # os.environ["RANK"] = '0'

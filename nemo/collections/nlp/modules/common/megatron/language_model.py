@@ -161,6 +161,8 @@ class Embedding(MegatronModule):
         init_method: weight initialization method
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
+        use_cpu_initialization: whether to initialize the weights in CPU
+        add_position_embedding: flag for controlling whether to add position embedding to the input.
     """
 
     def __init__(
