@@ -45,9 +45,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
+@pytest.mark.run_only_on('GPU')
 class TestRetrievalModule:
     @classmethod
-    @pytest.mark.run_only_on('GPU')
     def setup_class(cls):
         import os
 
@@ -87,7 +87,6 @@ class TestRetrievalModule:
         trainer.strategy.setup_environment()
         torch.distributed.barrier()
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_cross_attn(self):
         num_layers = 1
@@ -153,7 +152,6 @@ class TestRetrievalModule:
             hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb
         )
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_retrival_encoder(self):
 
@@ -201,7 +199,6 @@ class TestRetrievalModule:
         )
         out = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_retrival_decoder(self):
 
@@ -261,7 +258,6 @@ class TestRetrievalModule:
         )
         out = decoder(hidden_emb, hidden_mask, context_attn_mask=context_mask, encoder_output=retrieved_emb)
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
