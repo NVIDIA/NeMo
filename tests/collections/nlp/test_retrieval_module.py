@@ -89,7 +89,6 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
     def test_cross_attn(self):
         num_layers = 1
         init_method_std = 0.02
@@ -156,7 +155,6 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
     def test_retrival_encoder(self):
 
         init_method_std = 0.02
@@ -205,7 +203,6 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
     def test_retrival_decoder(self):
 
         init_method_std = 0.02
@@ -266,7 +263,6 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    # @pytest.mark.skip()
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
         batch = 2
