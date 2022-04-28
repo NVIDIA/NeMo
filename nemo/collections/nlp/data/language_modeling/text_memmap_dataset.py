@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import multiprocessing as mp
 import os
 import pickle
 import time
-import tokenize
 from dataclasses import dataclass
 from functools import partial
 from typing import Optional
@@ -65,7 +65,6 @@ class TextMemMapDataset(Dataset):
 
         logging.info(f"Building data files")
         # load all files into memmap
-        start_time = time.time()
         is_ditributed = torch.distributed.is_available() and torch.distributed.is_initialized()
 
         if not is_ditributed or (is_ditributed and torch.distributed.get_rank() == 0):
@@ -75,7 +74,9 @@ class TextMemMapDataset(Dataset):
             torch.distributed.barrier()
 
         logging.info(f"Loading data files")
+        start_time = time.time()
         mdata_midx_size_list = [self.load_file(fn) for fn in self._files_list]
+        logging.info(f'Time loading {len(mdata_midx_size_list)} mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}')
 
         logging.info("Computing global indices")
         joint_midx = [0]
@@ -219,4 +220,4 @@ def build_index_files(dataset_paths, newline_int, workers=None):
     with mp.Pool(workers) as p:
         build_status = p.map(partial(_build_memmap_index_files, newline_int), dataset_paths)
 
-    logging.info(f'Time building {sum(build_status)} mem-mapped file: {time.time() - start_time}')
+    logging.info(f'Time building {sum(build_status)} / {len(build_status)} mem-mapped file: {datetime.timedelta(seconds=time.time() - start_time)}')    
