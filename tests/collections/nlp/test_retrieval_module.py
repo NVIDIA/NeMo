@@ -16,6 +16,7 @@
 import pytest
 import torch
 from einops import rearrange
+from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
@@ -48,20 +49,22 @@ class TestRetrievalModule:
     @classmethod
     @pytest.mark.run_only_on('GPU')
     def setup_class(cls):
-        # import os
+        import os
+
+        GPUS = 1
         # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
-        plugin = NLPDDPPlugin()
-
-        GPUS = 2
-
+        os.environ["LOCAL_RANK"] = '0'
+        os.environ["RANK"] = '0'
+        os.environ["WORLD_SIZE"] = '1'
+        plugins = [NLPDDPPlugin()]
+        plugins.append(TorchElasticEnvironment())
         TP_SIZE = GPUS
         PP_SIZE = 1
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
-
         trainer = Trainer(
-            plugins=plugin, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None
+            plugins=plugins, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None, log_gpu_memory=None
         )
 
         initialize_model_parallel_for_nemo(
@@ -86,7 +89,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_cross_attn(self):
         num_layers = 1
         init_method_std = 0.02
@@ -153,7 +156,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_retrival_encoder(self):
 
         init_method_std = 0.02
@@ -202,7 +205,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_retrival_decoder(self):
 
         init_method_std = 0.02
@@ -263,7 +266,7 @@ class TestRetrievalModule:
 
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
-    @pytest.mark.skip()
+    # @pytest.mark.skip()
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
         batch = 2
