@@ -259,7 +259,7 @@ def main():
         raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
     args.checkpoint_name = os.path.basename(checkpoint_list[0])
 
-    # Create hparam override file for vocab and merge
+    # Create hparam override file for vocab ,merge, and etc.
     hparams_override_file = None
     if hparams_file is not None:
         hparams_override_file = os.path.join(args.output_path, "hparams_override.yaml")
@@ -272,6 +272,9 @@ def main():
         if is_global_rank_zero():
             with open(hparams_override_file, 'w') as f:
                 OmegaConf.save(config=conf, f=f)
+
+        # Force activations_checkpoint_method to be None
+        conf.cfg.activations_checkpoint_method = None
 
         while not os.path.exists(hparams_override_file):
             time.sleep(1)
