@@ -312,9 +312,7 @@ class BertExampleBuilder(object):
         """
         target_tokens = target.split(" ")
         if len(target_tokens) != len(task.source_tokens):
-            raise ValueError(
-                "Length mismatch: " + str(task.source_tokens) + "\n" + target
-            )
+            raise ValueError("Length mismatch: " + str(task.source_tokens) + "\n" + target)
         tags = []
         for t in target_tokens:
             if t == "<SELF>":
