@@ -16,7 +16,7 @@
 # Adapting the model
 
 python train_asr_adapter.py \
-    --config-path="conf/" \
+    --config-path="../conf/asr_adapters" \
     --config-name="asr_adaptation.yaml" \
     model.pretrained_model=null \
     model.nemo_model=null \
