@@ -74,7 +74,13 @@ def main(cfg: DictConfig) -> None:
             for x in outputs:
                 all_preds.append(x)
             batch = []
-    assert len(all_preds) == len(lines), "all_preds=" + str(len(all_preds)) + "; lines=" + str(len(lines))
+    if len(all_preds) != len(lines):
+        raise ValueError(
+            "number of input lines and predictions is different: predictions="
+            + str(len(all_preds))
+            + "; lines="
+            + str(len(lines))
+        )
     out_file = cfg.inference.out_file
     with open(f"{out_file}", "w", encoding="utf-8") as f_out:
         f_out.write("\n".join(all_preds))

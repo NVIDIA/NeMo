@@ -140,7 +140,8 @@ def get_replacement_vocab() -> None:
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     for fn in alignment_files:
         fn_parts = fn.split("/")
-        assert len(fn_parts) >= 2
+        if len(fn_parts) < 2:
+            raise ValueError("Bad filename: " + fn)
         semiotic_class = fn_parts[-2]
         class_vocab = Counter()
         with open(fn, "r", encoding="utf-8") as f:
@@ -151,7 +152,8 @@ def get_replacement_vocab() -> None:
                 src, dst, replacement, freq = t
                 inputs = src.split(" ")
                 replacements = replacement.split(" ")
-                assert len(inputs) == len(replacements), "mismatch in: " + line
+                if len(inputs) != len(replacements):
+                    raise ValueError("Length mismatch in: " + line)
                 for inp, rep in zip(inputs, replacements):
                     if inp == rep:  # skip same words
                         continue
@@ -184,7 +186,8 @@ def filter_by_vocab() -> None:
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     for fn in alignment_files:
         fn_parts = fn.split("/")
-        assert len(fn_parts) >= 2
+        if len(fn_parts) < 2:
+            raise ValueError("Bad filename: " + fn)
         semiotic_class = fn_parts[-2]
         out = open(args.giza_dir + "/" + semiotic_class + "/" + args.out_filename, "w", encoding="utf-8")
         with open(fn, "r", encoding="utf-8") as f:
@@ -215,7 +218,8 @@ def get_labeled_corpus() -> None:
 
     keys2replacements = {}
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
-    assert len(alignment_files) > 0, "Did not found any such files: " + args.giza_dir + "/*/" + args.alignment_filename
+    if len(alignment_files) == 0:
+        raise ValueError("Did not found any such files: " + args.giza_dir + "/*/" + args.alignment_filename)
     for af in alignment_files:
         with open(af, "r", encoding="utf-8") as f:
             for line in f:
@@ -243,7 +247,7 @@ def main() -> None:
     elif args.mode == "get_labeled_corpus":
         get_labeled_corpus()
     else:
-        assert False, "unknown mode"
+        raise ValueError("unknown mode: " + args.mode)
 
 
 if __name__ == "__main__":

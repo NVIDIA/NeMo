@@ -56,17 +56,35 @@ def fill_alignment_matrix(
     [[3, 0, 0, 0]
      [0, 2, 2, 3]]
     """
-    assert fline2 is not None and gline2 is not None, "empty params"
-    assert fline3 is not None and gline3 is not None, "empty params"
+    if fline2 is None or gline2 is None or fline3 is None or gline3 is None:
+        raise ValueError(f"empty params")
     srctokens = gline2.split()
     dsttokens = fline2.split()
     pattern = r"([^ ]+) \(\{ ([^\(\{\}\)]*) \}\)"
     src2dst = re.findall(pattern, fline3.replace("({ })", "({  })"))
     dst2src = re.findall(pattern, gline3.replace("({ })", "({  })"))
-    assert len(src2dst) == len(srctokens) + 1, (
-        "len(src2dst)=" + str(len(src2dst)) + "; len(srctokens)" + str(len(srctokens)) + "\n" + gline2 + "\n" + fline3
-    )
-    assert len(dst2src) == len(dsttokens) + 1
+    if len(src2dst) != len(srctokens) + 1:
+        raise ValueError(
+            "length mismatch: len(src2dst)="
+            + str(len(src2dst))
+            + "; len(srctokens)"
+            + str(len(srctokens))
+            + "\n"
+            + gline2
+            + "\n"
+            + fline3
+        )
+    if len(dst2src) != len(dsttokens) + 1:
+        raise ValueError(
+            "length mismatch: len(dst2src)="
+            + str(len(dst2src))
+            + "; len(dsttokens)"
+            + str(len(dsttokens))
+            + "\n"
+            + fline2
+            + "\n"
+            + gline3
+        )
     matrix = np.zeros((len(srctokens), len(dsttokens)))
     for i in range(1, len(src2dst)):
         token, to_str = src2dst[i]
@@ -241,9 +259,8 @@ def main() -> None:
         if cache_key in cache:
             out.write(cache[cache_key] + "\n")
             continue
-        assert fline1 != "" and gline1 != "", "files do not match"
-        assert fline2 != "" and gline2 != "", "files do not match"
-        assert fline3 != "" and gline3 != "", "files do not match"
+        if fline1 == "" or gline1 == "" or fline2 == "" or gline2 == "" or fline3 == "" or gline3 == "":
+            raise ValueError("Empty line: " + str(n))
         try:
             matrix, srctokens, dsttokens = fill_alignment_matrix(fline2, fline3, gline2, gline3)
         except Exception:
@@ -262,9 +279,13 @@ def main() -> None:
             if check_monotonicity(matrix):
                 targets = get_targets(matrix, dsttokens)
                 targets_from_back = get_targets_from_back(matrix, dsttokens)
-                assert len(targets) == len(srctokens), (
-                    "len(targets)=;" + str(len(targets)) + "; len(srctokens)=" + str(len(srctokens))
-                )
+                if len(targets) != len(srctokens):
+                    raise ValueError(
+                        "targets length doesn't match srctokens length: len(targets)="
+                        + str(len(targets))
+                        + "; len(srctokens)="
+                        + str(len(srctokens))
+                    )
                 leftside_align = " ".join(targets)
                 rightside_align = " ".join(targets_from_back)
 

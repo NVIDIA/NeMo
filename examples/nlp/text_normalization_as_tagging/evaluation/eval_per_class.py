@@ -65,7 +65,13 @@ if __name__ == '__main__':
     lines_infer = f_infer.readlines()
     f_ref.close()
     f_infer.close()
-    assert len(lines_ref) == len(lines_infer), "number of lines doesn't match"
+    if len(lines_ref) != len(lines_infer):
+        raise ValueError(
+            "Number of lines doesn't match: len(lines_ref)="
+            + str(len(lines_ref))
+            + "; len(lines_infer)="
+            + str(len(lines_infer))
+        )
     for i in range(len(lines_infer)):
         _, inp_str, _, tag_with_swap_str, semiotic = lines_infer[i].strip().split("\t")
         input_words = inp_str.split(" ")
@@ -81,7 +87,8 @@ if __name__ == '__main__':
                 predicted_words[k] = predicted_words[k].replace(">", "").replace("<", "")
 
         parts = lines_ref[i].strip().split("\t")
-        assert len(parts) >= 2 and len(parts) <= 3, "bad format: " + lines_ref[i]
+        if len(parts) < 2 or len(parts) > 3:
+            raise ValueError("Bad format: " + lines_ref[i])
         if len(parts) == 3:  # there are non-trivial semiotic spans
             spans = parts[2].split(";")
             for span in spans:

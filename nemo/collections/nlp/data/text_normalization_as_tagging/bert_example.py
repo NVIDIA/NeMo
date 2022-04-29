@@ -193,7 +193,8 @@ class BertExampleBuilder(object):
         labels_mask = [0] + [1] * len(tag_labels) + [0]
         tag_labels = [0] + tag_labels + [0]
 
-        assert "PLAIN" in self._semiotic_classes
+        if "PLAIN" not in self._semiotic_classes:
+            raise KeyError("PLAIN should be in self._semiotic_classes")
         plain_cid = self._semiotic_classes["PLAIN"]
         semiotic_labels = [plain_cid] * len(tag_labels)  # we use the same mask for semiotic labels as for tag labels
 
@@ -212,11 +213,15 @@ class BertExampleBuilder(object):
                 if p == "":
                     break
                 c, start, end = p.split(" ")
-                assert c in self._semiotic_classes
+                if c not in self._semiotic_classes:
+                    raise KeyError("c=" + c + " not found in self._semiotic_classes")
                 cid = self._semiotic_classes[c]
                 start = int(start)
                 end = int(end)
-                assert start < len(token_start_indices)
+                if start >= len(token_start_indices):
+                    raise IndexError(
+                        "start=" + str(start) + " is outside len(token_start_indices)=" + str(len(token_start_indices))
+                    )
                 while previous_end < start:
                     subtoken_start = token_start_indices[previous_end]
                     subtoken_end = (
@@ -306,9 +311,10 @@ class BertExampleBuilder(object):
             List of tagging.Tag objects.
         """
         target_tokens = target.split(" ")
-        assert len(target_tokens) == len(task.source_tokens), (
-            "len mismatch: " + str(task.source_tokens) + "\n" + target
-        )
+        if len(target_tokens) != len(task.source_tokens):
+            raise ValueError(
+                "Length mismatch: " + str(task.source_tokens) + "\n" + target
+            )
         tags = []
         for t in target_tokens:
             if t == "<SELF>":
@@ -334,7 +340,8 @@ def read_input_file(
         examples: List of converted examples(features and Editing Tasks)
     """
 
-    assert path.exists(input_filename), "Cannot find file: " + input_filename
+    if not path.exists(input_filename):
+        raise ValueError("Cannot find file: " + input_filename)
     examples = []
     for i, (source, target, semiotic_info) in enumerate(yield_sources_and_targets(input_filename)):
         if len(examples) % 1000 == 0:

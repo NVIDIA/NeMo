@@ -19,7 +19,8 @@ to obtain separate "parallel" corpora for each semiotic class.
 
 USAGE Example:
 1. Download the Google TN dataset from https://www.kaggle.com/google-nlu/text-normalization
-2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`). Then there will a folder named `en_with_types`.
+2. Unzip the English subset (e.g., by running `tar zxvf  en_with_types.tgz`).
+   Then there will a folder named `en_with_types`.
 3. Run python google_data_preprocessing_before_alignment.py
      which will produce a file data.tsv in its --output-dir
 4. [Optional]. sort -u and rewrite data.tsv
@@ -33,7 +34,8 @@ USAGE Example:
         --lang={en,ru}
 
 
-Each corpus will be stored within <--data-dir> in the subdirectory with the name of the semiotic class, containing files ready to be fed to Giza++:
+Each corpus will be stored within <--data-dir> in the subdirectory with the name of the semiotic class,
+ containing files ready to be fed to Giza++:
     src - written form, tokenized as characters
     dst - spoken form, tokenized as words
     run.sh - script for running Giza++
@@ -72,7 +74,8 @@ def prepare_subcorpora_from_data() -> None:
                 parts = line.strip().split("\t")
                 if len(parts) < 3:
                     continue
-                assert len(parts) == 3, "expect 3 parts, got " + str(len(parts))
+                if len(parts) != 3:
+                    raise ValueError("Expect 3 parts, got " + str(len(parts)))
                 semiotic_class, written, spoken = parts[0], parts[1].strip(), parts[2].strip()
                 if spoken == "<self>":
                     continue
@@ -91,7 +94,8 @@ def prepare_subcorpora_from_data() -> None:
                 cache_vcb[semiotic_class][(src, dst)] += 1
     for sem in semiotic_vcb:
         classdir = join(args.out_dir, sem)
-        assert isdir(classdir), "no directory: " + classdir
+        if not isdir(classdir):
+            raise ValueError("No such directory: " + classdir)
         print(classdir, " has ", semiotic_vcb[sem], " instances")
         with open(join(classdir, "run.sh"), "w") as out:
             out.write("GIZA_PATH=\"" + args.giza_dir + "\"\n")

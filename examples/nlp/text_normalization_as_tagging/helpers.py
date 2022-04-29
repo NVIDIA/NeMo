@@ -65,7 +65,8 @@ def instantiate_model_and_trainer(
             if pretrained_cfg not in ThutmoseTaggerModel.get_available_model_names():
                 raise (
                     ValueError(
-                        f"{pretrained_cfg} not in the list of available Tagger models. Select from {ThutmoseTaggerModel.list_available_models()}"
+                        f"{pretrained_cfg} not in the list of available Tagger models."
+                        f"Select from {ThutmoseTaggerModel.list_available_models()}"
                     )
                 )
             model = ThutmoseTaggerModel.from_pretrained(pretrained_cfg)

@@ -165,7 +165,13 @@ class ThutmoseTaggerModel(NLPModel):
                     span_predictions.append(cid)
                 else:
                     span_predictions.append(self.tag_classification_report.num_classes - 1)  # this stands for WRONG
-            assert len(span_labels) == len(span_predictions)
+            if len(span_labels) != len(span_predictions):
+                raise ValueError(
+                    "Length mismatch: len(span_labels)="
+                    + str(len(span_labels))
+                    + "; len(span_predictions)="
+                    + str(len(span_predictions))
+                )
             self.tag_classification_report(
                 torch.tensor(span_predictions).to(self.device), torch.tensor(span_labels).to(self.device)
             )
@@ -186,7 +192,14 @@ class ThutmoseTaggerModel(NLPModel):
                 else:
                     # this stands for WRONG
                     multiword_span_predictions.append(self.tag_classification_report.num_classes - 1)
-            assert len(multiword_span_labels) == len(multiword_span_predictions)
+            if len(multiword_span_labels) != len(multiword_span_predictions):
+                raise ValueError(
+                    "Length mismatch: len(multiword_span_labels)="
+                    + str(len(multiword_span_labels))
+                    + "; len(multiword_span_predictions)="
+                    + str(len(multiword_span_predictions))
+                )
+
             self.tag_multiword_classification_report(
                 torch.tensor(multiword_span_predictions).to(self.device),
                 torch.tensor(multiword_span_labels).to(self.device),
@@ -195,7 +208,7 @@ class ThutmoseTaggerModel(NLPModel):
         # Update semiotic classification_report
         predictions, labels = semiotic_preds.tolist(), semiotic_labels.tolist()
         for prediction, label, semiotic in zip(predictions, labels, semiotic_spans):
-            # Here we want to track whether the predicted output matches ground truth labels for each whole semiotic span
+            # Here we want to track whether the predicted output matches ground truth labels for whole semiotic span
             # so we construct the special input for classification report, for example:
             #   label = [PLAIN, PLAIN, DATE, PLAIN, LETTERS, PLAIN]
             #   pred = [PLAIN, PLAIN, WRONG, PLAIN, LETTERS, PLAIN]
@@ -209,7 +222,13 @@ class ThutmoseTaggerModel(NLPModel):
                     span_predictions.append(cid)
                 else:
                     span_predictions.append(self.tag_classification_report.num_classes - 1)  # this stands for WRONG
-            assert len(span_labels) == len(span_predictions)
+            if len(span_labels) != len(span_predictions):
+                raise ValueError(
+                    "Length mismatch: len(span_labels)="
+                    + str(len(span_labels))
+                    + "; len(span_predictions)="
+                    + str(len(span_predictions))
+                )
             self.semiotic_classification_report(
                 torch.tensor(span_predictions).to(self.device), torch.tensor(span_labels).to(self.device)
             )

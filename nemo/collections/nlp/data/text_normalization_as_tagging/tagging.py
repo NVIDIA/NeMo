@@ -169,7 +169,13 @@ class EditingTask(object):
                 sequence.append(Token(inp_token, "<SELF>", inp_token))
             else:
                 sequence.append(Token(inp_token, "<DELETE>", ""))
-        assert len(sequence) == len(semiotic_labels)
+        if len(sequence) != len(semiotic_labels):
+            raise ValueError(
+                "Length mismatch: len(sequence)="
+                + str(len(sequence))
+                + "; len(semiotic_labels)="
+                + str(len(semiotic_labels))
+            )
         out_tokens_with_swap = [t.out for t in sequence]
         out_tags_with_swap = [t.tag for t in sequence]
         out_tags_without_swap = [t.tag for t in sequence]

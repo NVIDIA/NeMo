@@ -71,7 +71,8 @@ if __name__ == "__main__":
         for line in f:
             multi_references = []
             parts = line.strip().split("\t")
-            assert len(parts) >= 2 and len(parts) <= 3, "bad format: " + line
+            if len(parts) < 2 or len(parts) > 3:
+                raise ValueError("Bad format: " + line)
             words = parts[0].split()
             inputs.append(words)
             if len(parts) == 3:  # there are non-trivial semiotic spans
@@ -122,7 +123,8 @@ if __name__ == "__main__":
                 predictions.append(parts[0].casefold())
                 predicted_tags.append([])
                 continue
-            assert len(parts) == 5, "bad format: " + line
+            if len(parts) != 5:
+                raise ValueError("Bad format: " + line)
             prediction, inp_str, tag_str, tags_with_swap_str, semiotic = parts
             predictions.append(prediction.casefold())
             tags = tag_str.split(" ")
@@ -132,7 +134,15 @@ if __name__ == "__main__":
     sentences_with_errors_on_digits = 0
     correct_sentences_disregarding_space = 0
 
-    assert len(inputs) == len(predictions) == len(references)
+    if len(inputs) != len(predictions) or len(inputs) != len(references):
+        raise ValueError(
+            "Length mismatch: len(inputs)="
+            + str(len(inputs))
+            + "; len(predictions)="
+            + str(len(predictions))
+            + "; len(references)="
+            + str(len(references))
+        )
 
     refs_for_wer = []
     preds_for_wer = []

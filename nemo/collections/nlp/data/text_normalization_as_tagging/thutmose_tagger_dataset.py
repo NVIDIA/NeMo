@@ -88,7 +88,8 @@ class ThutmoseTaggerTestDataset(Dataset):
         self.examples = []
         for source in sents:
             example = example_builder.build_bert_example(source, infer=True)
-            assert example is not None, "cannot build example from: " + source
+            if example is None:
+                raise ValueError("Cannot build example from: " + source)
             self.examples.append(example)
 
     def __len__(self):
