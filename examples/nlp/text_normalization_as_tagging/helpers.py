@@ -72,5 +72,10 @@ def instantiate_model_and_trainer(
         else:
             raise ValueError(f"{model_name} is unknown model type")
 
+    # Setup train and validation data
+    if do_training:
+        model.setup_training_data(train_data_config=cfg.data.train_ds)
+        model.setup_validation_data(val_data_config=cfg.data.validation_ds)
+
     logging.info(f"Model {model_name} -- Device {model.device}")
     return trainer, model
