@@ -110,7 +110,7 @@ def add_global_adapter_cfg(model, global_adapter_cfg):
         model.update_adapter_cfg(model.cfg.adapters)
 
 
-@hydra_runner(config_path="conf", config_name="asr_adaptation.yaml")
+@hydra_runner(config_path="../conf/asr_adapters", config_name="asr_adaptation.yaml")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
