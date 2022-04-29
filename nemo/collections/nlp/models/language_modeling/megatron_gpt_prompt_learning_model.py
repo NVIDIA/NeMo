@@ -436,8 +436,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, batch, batch_idx):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-        print(input_ids)
-        print(labels)
 
         with torch.no_grad():
             output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
