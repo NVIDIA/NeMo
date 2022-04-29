@@ -282,7 +282,7 @@ def main():
         streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
         logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
         end_time = time.time()
-        logging.info(f"It tooks: {round(end_time - start_time, 2)}s")
+        logging.info(f"The whole process took: {round(end_time - start_time, 2)}s")
 
 if __name__ == '__main__':
     main()
