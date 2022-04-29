@@ -25,11 +25,13 @@ USAGE Example:
 4. [Optional]. sort -u and rewrite data.tsv
 5. Clone https://github.com/moses-smt/giza-pp.git, run "make" from its root folder.
 6. Run this script
-     python prepare_corpora_for_alignment.py \
+     python ${NEMO}/examples/nlp/text_normalization_as_tagging/dataset_preparation/prepare_corpora_for_alignment.py \
         --data_dir=<--output-dir from the previous step> \
-        --outdir=<destination directory for giza alignment folders>
-        --giza-dir="/home/aleksandraa/programs/giza-pp/GIZA++-v2"
-        --mckls-binary="/home/aleksandraa/programs/giza-pp/mkcls-v2/mkcls"
+        --out_dir=<destination directory for giza alignment folders> \
+        --giza_dir=/.../giza-pp/GIZA++-v2 \
+        --mckls_binary=/.../giza-pp/mkcls-v2/mkcls \
+        --lang={en,ru}
+
 
 Each corpus will be stored within <--data-dir> in the subdirectory with the name of the semiotic class, containing files ready to be fed to Giza++:
     src - written form, tokenized as characters

@@ -29,6 +29,9 @@ The reference file is a tsv file in which
     the third column (optional) contains additional acceptable references for semiotic spans in this sentence.
     E.g.
         mizoguchi akiko september twenty ten    mizoguchi akiko september 2010     DATE 2 5 | sept 2010 | sep. 2010 ...
+ (to get a reference file see the last steps in examples/nlp/text_normalization_as_tagging/prepare_dataset_en.sh,
+   starting from ".../examples/nlp/text_normalization_as_tagging/evaluation/get_multi_reference_vocab.py"
+ )
 
 The script outputs the following metrics:
     Word Error Rate (WER) - an automatic metric commonly used in ASR.

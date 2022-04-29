@@ -58,7 +58,7 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparati
 ##exclude punct class
 rm -r ${ALIGNMENT_DIR}/punct
 
-## for better GIZA++ alignments I mix in examples from other classes
+## for better GIZA++ alignments mix in examples from other classes
 ## they will append to the tail of "src" and "dst" files and they will not have corresponding freqs in "freq" file
 ## all these appended lines will be skipped in the get_replacement_vocab step
 for fn in "src" "dst"
@@ -139,38 +139,38 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparati
 
 ## Here we put some voluntary thresholds on how many tags we take.
 ## Tags with low frequencies are likely to be derived from sporadic alignment mistakes
-grep -v "0__" replacement_vocab_full.txt.verbatim | head -n 108 > replacement_vocab_verbatim.txt
-grep -v "0__" replacement_vocab_full.txt.time | head -n 148 > replacement_vocab_time.txt
-grep -v "0__" replacement_vocab_full.txt.telephone | head -n 52 > replacement_vocab_telephone.txt
-head -n 0 replacement_vocab_full.txt.plain > replacement_vocab_plain.txt
-grep -v "0__" replacement_vocab_full.txt.ordinal | head -n 251 > replacement_vocab_ordinal.txt
-grep -v "0__" replacement_vocab_full.txt.money | grep -v "a__" | head -n 532 > replacement_vocab_money.txt
-grep -v "0__" replacement_vocab_full.txt.measure | head -n 488 > replacement_vocab_measure.txt
-head -n 257 replacement_vocab_full.txt.letters > replacement_vocab_letters.txt
-grep -v "0__" replacement_vocab_full.txt.fraction | head -n 169 > replacement_vocab_fraction.txt
-head -n 276 replacement_vocab_full.txt.electronic > replacement_vocab_electronic.txt
-head -n 73 replacement_vocab_full.txt.digit > replacement_vocab_digit.txt
-grep -v "0__" replacement_vocab_full.txt.decimal | head -n 149 > replacement_vocab_decimal.txt
-grep -v "0__" replacement_vocab_full.txt.date | grep -v "[0-9]-[0-9]" | grep -v "[0-9]\,[0-9]" | grep -v "[0-9]\.[0-9]" | grep -v "[0-9]\/[0-9]" | head -n 554 > replacement_vocab_date.txt
-grep -v "0__" replacement_vocab_full.txt.cardinal | head -n 402 > replacement_vocab_cardinal.txt
-head -n 137 replacement_vocab_full.txt.address > replacement_vocab_address.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.verbatim | head -n 108 > ${WORK_DIR}/replacement_vocab_verbatim.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.time | head -n 148 > ${WORK_DIR}/replacement_vocab_time.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.telephone | head -n 52 > ${WORK_DIR}/replacement_vocab_telephone.txt
+head -n 0 ${WORK_DIR}/replacement_vocab_full.txt.plain > ${WORK_DIR}/replacement_vocab_plain.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.ordinal | head -n 251 > ${WORK_DIR}/replacement_vocab_ordinal.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.money | grep -v "a__" | head -n 532 > ${WORK_DIR}/replacement_vocab_money.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.measure | head -n 488 > ${WORK_DIR}/replacement_vocab_measure.txt
+head -n 257 ${WORK_DIR}/replacement_vocab_full.txt.letters > ${WORK_DIR}/replacement_vocab_letters.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.fraction | head -n 169 > ${WORK_DIR}/replacement_vocab_fraction.txt
+head -n 276 ${WORK_DIR}/replacement_vocab_full.txt.electronic > ${WORK_DIR}/replacement_vocab_electronic.txt
+head -n 73 ${WORK_DIR}/replacement_vocab_full.txt.digit > ${WORK_DIR}/replacement_vocab_digit.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.decimal | head -n 149 > ${WORK_DIR}/replacement_vocab_decimal.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.date | grep -v "[0-9]-[0-9]" | grep -v "[0-9]\,[0-9]" | grep -v "[0-9]\.[0-9]" | grep -v "[0-9]\/[0-9]" | head -n 554 > ${WORK_DIR}/replacement_vocab_date.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.cardinal | head -n 402 > ${WORK_DIR}/replacement_vocab_cardinal.txt
+head -n 137 ${WORK_DIR}/replacement_vocab_full.txt.address > ${WORK_DIR}/replacement_vocab_address.txt
 
 ## concatenate all tags in a single vocabulary (repetitions don't matter)
-cat replacement_vocab_address.txt \
-  replacement_vocab_cardinal.txt \
-  replacement_vocab_date.txt \
-  replacement_vocab_decimal.txt \
-  replacement_vocab_digit.txt \
-  replacement_vocab_electronic.txt \
-  replacement_vocab_fraction.txt \
-  replacement_vocab_letters.txt \
-  replacement_vocab_measure.txt \
-  replacement_vocab_money.txt \
-  replacement_vocab_ordinal.txt \
-  replacement_vocab_plain.txt \
-  replacement_vocab_telephone.txt \
-  replacement_vocab_time.txt \
-  replacement_vocab_verbatim.txt > replacement_vocab.select.txt
+cat ${WORK_DIR}/replacement_vocab_address.txt \
+  ${WORK_DIR}/replacement_vocab_cardinal.txt \
+  ${WORK_DIR}/replacement_vocab_date.txt \
+  ${WORK_DIR}/replacement_vocab_decimal.txt \
+  ${WORK_DIR}/replacement_vocab_digit.txt \
+  ${WORK_DIR}/replacement_vocab_electronic.txt \
+  ${WORK_DIR}/replacement_vocab_fraction.txt \
+  ${WORK_DIR}/replacement_vocab_letters.txt \
+  ${WORK_DIR}/replacement_vocab_measure.txt \
+  ${WORK_DIR}/replacement_vocab_money.txt \
+  ${WORK_DIR}/replacement_vocab_ordinal.txt \
+  ${WORK_DIR}/replacement_vocab_plain.txt \
+  ${WORK_DIR}/replacement_vocab_telephone.txt \
+  ${WORK_DIR}/replacement_vocab_time.txt \
+  ${WORK_DIR}/replacement_vocab_verbatim.txt > ${WORK_DIR}/replacement_vocab.select.txt
 
 ## Here we loop once again through the alignments and discard those examples that are not fully covered
 ## by our restricted tag vocabulary

@@ -15,7 +15,7 @@
 
 import re
 from itertools import groupby
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 """Utility functions for Thutmose Tagger."""
 

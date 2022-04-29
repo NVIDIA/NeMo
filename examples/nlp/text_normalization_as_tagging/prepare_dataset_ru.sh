@@ -151,36 +151,36 @@ python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/dataset_preparati
 
 ## Here we put some voluntary thresholds on how many tags we take.
 ## Tags with low frequencies are likely to be derived from sporadic alignment mistakes
-head -n 57 replacement_vocab_full.txt.verbatim > replacement_vocab_verbatim.txt
-grep -v "0__" replacement_vocab_full.txt.time | head -n 106 > replacement_vocab_time.txt
-grep -v "0__" replacement_vocab_full.txt.telephone | head -n 134 > replacement_vocab_telephone.txt
-head -n 763 replacement_vocab_full.txt.plain > replacement_vocab_plain.txt
-head -n 1397 replacement_vocab_full.txt.ordinal > replacement_vocab_ordinal.txt
-grep -v "0__" replacement_vocab_full.txt.money | grep -v '0\$' | head -n 294 > replacement_vocab_money.txt
-grep -v "0__" replacement_vocab_full.txt.measure | head -n 508 > replacement_vocab_measure.txt
-cp replacement_vocab_full.txt.letters replacement_vocab_letters.txt
-head -n 163 replacement_vocab_full.txt.fraction > replacement_vocab_fraction.txt
-head -n 262 replacement_vocab_full.txt.electronic > replacement_vocab_electronic.txt
-cp replacement_vocab_full.txt.digit replacement_vocab_digit.txt
-head -n 270 replacement_vocab_full.txt.decimal > replacement_vocab_decimal.txt
-head -n 271 replacement_vocab_full.txt.date > replacement_vocab_date.txt
-head -n 455 replacement_vocab_full.txt.cardinal > replacement_vocab_cardinal.txt
+head -n 57 ${WORK_DIR}/replacement_vocab_full.txt.verbatim > ${WORK_DIR}/replacement_vocab_verbatim.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.time | head -n 106 > ${WORK_DIR}/replacement_vocab_time.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.telephone | head -n 134 > ${WORK_DIR}/replacement_vocab_telephone.txt
+head -n 763 ${WORK_DIR}/replacement_vocab_full.txt.plain > ${WORK_DIR}/replacement_vocab_plain.txt
+head -n 1397 ${WORK_DIR}/replacement_vocab_full.txt.ordinal > ${WORK_DIR}/replacement_vocab_ordinal.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.money | grep -v '0\$' | head -n 294 > ${WORK_DIR}/replacement_vocab_money.txt
+grep -v "0__" ${WORK_DIR}/replacement_vocab_full.txt.measure | head -n 508 > ${WORK_DIR}/replacement_vocab_measure.txt
+cp ${WORK_DIR}/replacement_vocab_full.txt.letters ${WORK_DIR}/replacement_vocab_letters.txt
+head -n 163 ${WORK_DIR}/replacement_vocab_full.txt.fraction > ${WORK_DIR}/replacement_vocab_fraction.txt
+head -n 262 ${WORK_DIR}/replacement_vocab_full.txt.electronic > ${WORK_DIR}/replacement_vocab_electronic.txt
+cp ${WORK_DIR}/replacement_vocab_full.txt.digit ${WORK_DIR}/replacement_vocab_digit.txt
+head -n 270 ${WORK_DIR}/replacement_vocab_full.txt.decimal > ${WORK_DIR}/replacement_vocab_decimal.txt
+head -n 271 ${WORK_DIR}/replacement_vocab_full.txt.date > ${WORK_DIR}/replacement_vocab_date.txt
+head -n 455 ${WORK_DIR}/replacement_vocab_full.txt.cardinal > ${WORK_DIR}/replacement_vocab_cardinal.txt
 
 ## concatenate all tags in a single vocabulary (repetitions don't matter)
-cat replacement_vocab_cardinal.txt \
-  replacement_vocab_date.txt \
-  replacement_vocab_decimal.txt \
-  replacement_vocab_digit.txt \
-  replacement_vocab_electronic.txt \
-  replacement_vocab_fraction.txt \
-  replacement_vocab_letters.txt \
-  replacement_vocab_measure.txt \
-  replacement_vocab_money.txt \
-  replacement_vocab_ordinal.txt \
-  replacement_vocab_plain.txt \
-  replacement_vocab_telephone.txt \
-  replacement_vocab_time.txt \
-  replacement_vocab_verbatim.txt > replacement_vocab.select.txt
+cat ${WORK_DIR}/replacement_vocab_cardinal.txt \
+  ${WORK_DIR}/replacement_vocab_date.txt \
+  ${WORK_DIR}/replacement_vocab_decimal.txt \
+  ${WORK_DIR}/replacement_vocab_digit.txt \
+  ${WORK_DIR}/replacement_vocab_electronic.txt \
+  ${WORK_DIR}/replacement_vocab_fraction.txt \
+  ${WORK_DIR}/replacement_vocab_letters.txt \
+  ${WORK_DIR}/replacement_vocab_measure.txt \
+  ${WORK_DIR}/replacement_vocab_money.txt \
+  ${WORK_DIR}/replacement_vocab_ordinal.txt \
+  ${WORK_DIR}/replacement_vocab_plain.txt \
+  ${WORK_DIR}/replacement_vocab_telephone.txt \
+  ${WORK_DIR}/replacement_vocab_time.txt \
+  ${WORK_DIR}/replacement_vocab_verbatim.txt > ${WORK_DIR}/replacement_vocab.select.txt
 
 ## Here we loop once again through the alignments and discard those examples that are not fully covered
 ## by our restricted tag vocabulary
