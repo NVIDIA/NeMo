@@ -118,10 +118,9 @@ class TestRetrievalModule:
         retrieved_emb = torch.rand(chunks, neighbors, context_chunk_size, batch, dim).cuda().half()
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch, hidden)
 
-        device = retrieved.device
         # need to add extra chunk size, since it will be shifted
-        cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, device=device, offset=0)
-        cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size, device=device)
+        cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, offset=0)
+        cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size)
         cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
 
         dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
@@ -149,7 +148,7 @@ class TestRetrievalModule:
         )
 
         out, bias = cross_attn(
-            hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, pos_emb=cross_attn_pos_emb
+            hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, rotary_pos_emb=cross_attn_pos_emb
         )
 
     @pytest.mark.unit
@@ -231,11 +230,6 @@ class TestRetrievalModule:
         retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
         # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation, hidden)
 
-        # device = retrieved.device
-        # need to add extra chunk size, since it will be shifted
-        # cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, device=device, offset=0)
-        # cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size, device=device)
-        # cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         layer_type = [LayerType.encoder, LayerType.retrieval_decoder, LayerType.encoder, LayerType.retrieval_decoder]
         num_layers = len(layer_type)
 

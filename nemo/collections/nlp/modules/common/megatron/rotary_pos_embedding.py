@@ -26,8 +26,8 @@ class RotaryEmbedding(nn.Module):
         inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer('inv_freq', inv_freq)
 
-    def forward(self, max_seq_len, *, device, offset=0):
-        seq = torch.arange(max_seq_len, device=device) + offset
+    def forward(self, max_seq_len, offset=0):
+        seq = torch.arange(max_seq_len, device=self.inv_freq.device) + offset
         freqs = einsum('i , j -> i j', seq.type_as(self.inv_freq), self.inv_freq)
         # first part even vector components, second part odd vector components,
         #  2 * dim in dimension size

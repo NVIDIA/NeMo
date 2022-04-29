@@ -50,7 +50,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        encoder_attn_mask_type=AttnMaskType.padding,
+        attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -76,7 +76,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.init_method = init_method
-        self.model_attn_mask_type = encoder_attn_mask_type
+        self.model_attn_mask_type = attn_mask_type
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
@@ -121,7 +121,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
         )
-        rot_dim = hidden_size // num_attention_heads
+        rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         self.rotary_pos_emb = RotaryEmbedding(rot_dim)
         self.chunk_size = chunk_size
         self._model_key = 'model'
@@ -157,10 +157,9 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
         context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
 
-        device = retrieved.device
         # need to add extra chunk size, since it will be shifted
-        cross_attn_q_pos_emb = self.rotary_pos_emb(rn, device=device, offset=0)
-        cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, device=device)
+        cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
+        cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size)
         attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
 
         # # convert to Megatron mask
@@ -182,7 +181,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             get_key_value=get_key_value,
             encoder_output=embed_as_context,
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
-            pos_emb=attn_pos_emb,
+            rotary_pos_emb=attn_pos_emb,
         )
         # revert back to original retrieved shape
         enc_output = rearrange(enc_output, '(b k r) n d -> b k r n d', b=b, k=k)
@@ -224,7 +223,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        encoder_attn_mask_type=AttnMaskType.causal,
+        attn_mask_type=AttnMaskType.causal,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -250,7 +249,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.init_method = init_method
-        self.model_attn_mask_type = encoder_attn_mask_type
+        self.model_attn_mask_type = attn_mask_type
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
@@ -295,7 +294,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
         )
-        rot_dim = hidden_size // num_attention_heads
+        rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         self.rotary_pos_emb = RotaryEmbedding(rot_dim)
         self.chunk_size = chunk_size
         self._model_key = 'model'
@@ -326,14 +325,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         if encoder_output is not None:
             b, k, r, rn, dim = encoder_output.shape
             assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
-
-        device = dec_input.device
         # need to add extra chunk size, since it will be shifted
-        self_attn_emb = self.rotary_pos_emb(n, device=device)
-        cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, device=device)
+        self_attn_emb = self.rotary_pos_emb(n)
+        cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1)
 
         if encoder_output is not None:
-            cross_attn_k_pos_emb = self.rotary_pos_emb(rn, device=device, offset=0)
+            cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         else:
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, None)
@@ -363,7 +360,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             get_key_value=get_key_value,
             encoder_output=encoder_output,
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
-            pos_emb=attn_pos_emb,
+            rotary_pos_emb=attn_pos_emb,
         )
 
         return enc_output
