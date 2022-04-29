@@ -18,7 +18,7 @@ pretrained_model: null # pretrained Punctuation and Capitalization model from li
 # punctuation_en_bert or punctuation_en_distilbert
 # or your_model.nemo
 trainer:
-  devices: 2 # the number of gpus, 0 for CPU
+  devices: -1 # the number of gpus, 0 for CPU
   num_nodes: 1
   max_epochs: 100
   max_steps: null # precedence over max_epochs
@@ -26,8 +26,6 @@ trainer:
   gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: "gpu"
-  auto_select_gpus: True
-  strategy: ddp
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
@@ -81,7 +79,7 @@ model:
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    n_jobs: 24
+    n_jobs: 0
 
     # Path to tarred dataset metadata file. Required if tarred dataset is used. Metadata file is a JSON file which
     # contains total number of batches in the dataset, a list of paths to tar files and paths to label vocabularies.
@@ -117,7 +115,7 @@ model:
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    n_jobs: 24
+    n_jobs: 0
 
     # For more details see `train_ds` section.
     tar_metadata_file: null
