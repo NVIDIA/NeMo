@@ -481,7 +481,7 @@ class ParallelAttention(MegatronModule):
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
                 k_pos_emb = k_pos_emb[:, :, :end, :]
-                pos_emb = (q_pos_emb, k_pos_emb)
+                rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -688,14 +688,14 @@ class ParallelChunkedCrossAttention(MegatronModule):
         q_pos_emb = F.pad(q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding, 0), value=0.0)
 
         k_pos_emb = repeat(k_pos_emb, 'n b h d -> (r n) b h d', r=num_retrieved)
-        pos_emb = (q_pos_emb, k_pos_emb)
+        rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
         # reshape so we have chunk to chunk attention, without breaking causality
 
         x = rearrange(x, '(k n) b d -> n (b k) d', k=num_chunks)
         context = rearrange(context, 'k r n b d -> (r n) (b k) d')
         # cross attention
-        out, bias = self.cross_attention(x, attention_mask, encoder_output=context, rotary_pos_emb=pos_emb)
+        out, bias = self.cross_attention(x, attention_mask, encoder_output=context, rotary_pos_emb=rotary_pos_emb)
 
         # reshape back to original sequence
 
@@ -1183,7 +1183,7 @@ class ParallelTransformer(MegatronModule):
 
         return num_layers
 
-    def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb):
+    def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
@@ -1192,10 +1192,10 @@ class ParallelTransformer(MegatronModule):
                 attention_mask = inputs[1]
                 encoder_output = inputs[2]
                 enc_dec_attn_mask = inputs[3]
-                pos_emb = inputs[4]
+                rotary_pos_emb = inputs[4]
                 for index in range(start, end):
                     layer = self._get_layer(index)
-                    x_ = layer(x_, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb)
+                    x_ = layer(x_, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb)
                 return x_
 
             return custom_forward
@@ -1215,7 +1215,7 @@ class ParallelTransformer(MegatronModule):
                     attention_mask,
                     encoder_output,
                     enc_dec_attn_mask,
-                    pos_emb,
+                    rotary_pos_emb,
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
@@ -1225,11 +1225,11 @@ class ParallelTransformer(MegatronModule):
             for l in range(self.num_layers):
                 if l < self.activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(
-                        custom(l, l + 1), hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb
+                        custom(l, l + 1), hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
                     )
                 else:
                     hidden_states = custom(l, l + 1)(
-                        hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, pos_emb
+                        hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
                     )
         else:
             raise ValueError("Invalid activation checkpoint method.")
