@@ -95,7 +95,7 @@ Set `do_training` to `false` and `do_testing` to `true` to perform evaluation wi
 """
 
 
-@hydra_runner(config_path="conf", config_name="testing")
+@hydra_runner(config_path="conf", config_name="punctuation_capitalization_lexical_audio_config")
 def main(cfg: DictConfig) -> None:
     torch.manual_seed(42)
     cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationLexicalAudioConfig()), cfg)
