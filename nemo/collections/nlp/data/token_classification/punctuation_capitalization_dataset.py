@@ -959,7 +959,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.verbose = verbose
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
-        self._use_features = use_features
+        self.use_features = use_features
 
         master_device = is_global_rank_zero()
         self.features_pkl = self._get_path_to_pkl_features(self.text_file, cache_dir, max_seq_length, num_samples)
@@ -1020,7 +1020,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
         self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
-        if not self._use_features:
+        if not self.use_features:
             return
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
@@ -1526,7 +1526,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         return punct_labels_file, capit_labels_file
 
     def __len__(self) -> int:
-        if self._use_features:
+        if self.use_features:
             return len(self.batches)
         return len(self.input_ids)
 
@@ -1596,7 +1596,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
                 ``False``, then this items is missing).
         """
-        if self._use_features:
+        if self.use_features:
             return self.batches[idx]
         return {'input_ids': self.input_ids[idx], 'subtokens_mask': self.subtokens_mask[idx],
                 'punct_labels': self.punct_labels[idx], 'capit_labels': self.capit_labels[idx]}
