@@ -992,7 +992,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 **23B configuration:**
 
-The 23B model uses the bf16 data type. It can be trained in about 40 days using 40 nodes with 8 GPUs per node. The model includes 36
+The 23B model uses the bf16 data type. It can be trained in about 55 days using 40 nodes with 8 GPUs per node. The model includes 36
 transformer layers, a hidden size of 5120, a feedforward network size of 10880, and 64 attention heads with GeGLU activation function. The
 sequence length is 512, and the optimizer is Adam. This model uses tensor
 parallelism of 4 and pipeline parallelism of 2. For the details on all the parameters, see the `t5/23b.yaml`
@@ -1009,7 +1009,7 @@ And run:
 python3 main.py
 ```
 
-To train a 23B model on Base Command Platform cluster on 20 nodes, use the command:
+To train a 23B model on Base Command Platform cluster on 40 nodes, use the command:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py training=t5/23b run_training=True \
 run_data_preparation=False run_conversion=False run_finetuning=False    run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
@@ -1018,6 +1018,37 @@ training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas).
+
+
+**41B configuration:**
+
+The 41B model uses the bf16 data type. It can be trained in about 91 days using 40 nodes with 8 GPUs per node. The model includes 36
+transformer layers, a hidden size of 6144, a feedforward network size of 10880, and 96 attention heads with GeGLU activation function. The
+sequence length is 512, and the optimizer is Adam. This model uses tensor
+parallelism of 4 and pipeline parallelism of 4. For the details on all the parameters, see the `t5/23b.yaml`
+config file.
+
+To train a 41B model, modify the `conf/config.yaml` file to set:
+```yaml
+training: t5/41b
+run_training: True
+```
+
+And run:
+```
+python3 main.py
+```
+
+To train a 41B model on Base Command Platform cluster on 40 nodes, use the command:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py training=t5/41b run_training=True \
+run_data_preparation=False run_conversion=False run_finetuning=False run_evaluation=False bignlp_path=/opt/bignlp/bignlp-scripts \
+data_dir=/mount/data/the_pile_t5 base_results_dir=/mount/results training.trainer.num_nodes=\$NGC_ARRAY_SIZE \
+training.model.tokenizer.vocab_file=/mount/data/bpe/vocab.txt cluster_type=bcp
+```
+The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
+directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas).
+
 
 
 #### 4.2.3. Predefined Configurations of mT5 models
@@ -1094,10 +1125,6 @@ training.trainer.num_nodes=\$NGC_ARRAY_SIZE cluster_type=bcp
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas). 
 
-To train with a different number of nodes, the relevant parameters 
-(e.g. `accumulate_grad_batches`) can be adjusted either in the appropriate yaml config file or 
-from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). 
-For Base Command Platform, all jobs must be launched in multi-node mode.
 
 
 
