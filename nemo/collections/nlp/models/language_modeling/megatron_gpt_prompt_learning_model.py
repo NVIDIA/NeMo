@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import re
 from typing import Any, Dict, List, Optional, Union
 
@@ -49,13 +50,13 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronGPTPromptLearningModel']
 
 
-class VirtualPromptStyle:
+class VirtualPromptStyle(enum.Enum):
     P_TUNING = 'p_tuning'
     PROMPT_TUNING = 'prompt-tuning'
     INFERENCE = 'inference'
 
 
-class VirtualPromptSource:
+class VirtualPromptSource(enum.Enum):
     PROMPT_TABLE = 'prompt_table'
     PROMPT_ENCODER = 'prompt_encoder'
 
