@@ -35,6 +35,13 @@ args = parser.parse_args()
 
 
 def filter_file(inp_filename: str, out_filename: str, error_vcb: Set) -> None:
+    """Filter out whole sentences containing bad itn conversions. The output format is the same as input.
+
+    Args:
+        inp_filename: Name of input file in Google TN Dataset format.
+        out_filename: Name of output file in Google TN Dataset format.
+        error_vcb: Set of tuples with erroneous conversion, e.g. ("CARDINAL", "two", "132")
+    """
     out = open(out_filename, "w", encoding="utf-8")
     sent_lines = []
     sent_is_ok = True

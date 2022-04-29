@@ -20,10 +20,16 @@ The inference works on a raw file (no labels required).
 Each line of the input file represents a single example for inference.
     Specify inference.from_file and inference.batch_size parameters.
 
-    python normalization_as_tagging_infer.py \
-        pretrained_model=PATH_TO_TRAINED_MODEL \
-        inference.from_file=PATH_TO_RAW_TEXT_FILE \
-        inference.out_file=PATH_TO_OUTPUT_FILE \
+USAGE Example:
+1. Train a model, or use a pretrained checkpoint.
+2. Run:
+    export TOKENIZERS_PARALLELISM=false
+    python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/normalization_as_tagging_infer.py \
+      pretrained_model=./training.nemo \
+      inference.from_file=./input.txt \
+      inference.out_file=./output.txt \
+      model.max_sequence_len=1024 #\
+      inference.batch_size=128
 
 This script uses the `/examples/nlp/text_normalization_as_tagging/conf/thutmose_tagger_itn_config.yaml`
 config file by default. The other option is to set another config file via command

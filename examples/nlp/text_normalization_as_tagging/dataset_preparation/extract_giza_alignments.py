@@ -37,6 +37,25 @@ args = parser.parse_args()
 def fill_alignment_matrix(
     fline2: str, fline3: str, gline2: str, gline3: str
 ) -> Tuple[np.ndarray, List[str], List[str]]:
+    """Parse Giza++ direct and reverse alignment results and represent them as an alignment matrix
+
+    Args:
+        fline2: e.g. "_2 0 1 4_"
+        fline3: e.g. "NULL ({ }) twenty ({ 1 }) fourteen ({ 2 3 4 })"
+        gline2: e.g. "twenty fourteen"
+        gline3: e.g. "NULL ({ }) _2 ({ 1 }) 0 ({ }) 1 ({ }) 4_ ({ 2 })"
+
+    Returns:
+        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
+         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
+         words were aligned only in one direction, 0 - no alignment.
+        srctokens: e.g. ["twenty", "fourteen"]
+        dsttokens: e.g. ["_2", "0", "1", "4_"]
+
+    For example, the alignment matrix for the above example may look like:
+    [[3, 0, 0, 0]
+     [0, 2, 2, 3]]
+    """
     assert fline2 is not None and gline2 is not None, "empty params"
     assert fline3 is not None and gline3 is not None, "empty params"
     srctokens = gline2.split()
@@ -69,6 +88,13 @@ def fill_alignment_matrix(
 
 
 def check_monotonicity(matrix: np.ndarray) -> bool:
+    """Check if alignment is monotonous - i.e. the relative order is preserved (no swaps).
+
+    Args:
+        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
+         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
+         words were aligned only in one direction, 0 - no alignment.
+    """
     is_sorted = lambda k: np.all(k[:-1] <= k[1:])
 
     a = np.argwhere(matrix == 3)
@@ -80,6 +106,26 @@ def check_monotonicity(matrix: np.ndarray) -> bool:
 
 
 def get_targets(matrix: np.ndarray, dsttokens: List[str]) -> List[str]:
+    """Join some of the destination tokens, so that their number becomes the same as the number of input words.
+    Unaligned tokens tend to join to the left aligned token.
+
+    Args:
+        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
+         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
+         words were aligned only in one direction, 0 - no alignment.
+        dsttokens: e.g. ["_2", "0", "1", "4_"]
+    Returns:
+        targets: list of string tokens, with one-to-one correspondence to matrix.shape[0]
+
+    Example:
+        If we get
+            matrix=[[3, 0, 0, 0]
+                    [0, 2, 2, 3]]
+            dsttokens=["_2", "0", "1", "4_"]
+        it gives
+            targets = ["_201", "4_"]
+        Actually, this is a mistake instead of ["_20", "14_"]. That will be further corrected by regular expressions.
+    """
     targets = []
     last_covered_dst_id = -1
     for i in range(len(matrix)):
@@ -117,6 +163,27 @@ def get_targets(matrix: np.ndarray, dsttokens: List[str]) -> List[str]:
 
 
 def get_targets_from_back(matrix: np.ndarray, dsttokens: List[str]) -> List[str]:
+    """Join some of the destination tokens, so that their number becomes the same as the number of input words.
+    Unaligned tokens tend to join to the right aligned token.
+
+    Args:
+        matrix: a numpy array of shape (src_len, dst_len) filled with [0, 1, 2, 3], where 3 means a reliable alignment
+         the corresponding words were aligned to one another in direct and reverse alignment runs, 1 and 2 mean that the
+         words were aligned only in one direction, 0 - no alignment.
+        dsttokens: e.g. ["_2", "0", "1", "4_"]
+    Returns:
+        targets: list of string tokens, with one-to-one correspondence to matrix.shape[0]
+
+    Example:
+        If we get
+            matrix=[[3, 0, 0, 0]
+                    [0, 2, 2, 3]]
+            dsttokens=["_2", "0", "1", "4_"]
+        it gives
+            targets = ["_2", "014_"]
+        Actually, this is a mistake instead of ["_20", "14_"]. That will be further corrected by regular expressions.
+    """
+
     targets = []
     last_covered_dst_id = len(dsttokens)
     for i in range(len(matrix) - 1, -1, -1):

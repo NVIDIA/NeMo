@@ -14,7 +14,7 @@
 
 
 """
-This script contains an example on how to train a ThutmoseTaggerModel for itn.
+This script contains an example on how to train a ThutmoseTaggerModel for inverse text normalization(ITN).
 
 This script uses the `/examples/nlp/text_normalization_as_tagging/conf/thutmose_tagger_itn_config.yaml`
 config file by default. The other option is to set another config file via command
@@ -24,21 +24,32 @@ at the example config file to see the list of parameters used for training.
 USAGE Example:
 1. Obtain a processed dataset
 2. Run:
-# python normalization_as_tagging_train.py \
-        data.validation_ds.data_path=PATH_TO_VALIDATION_FILE \
-        data.train_ds.data_path=PATH_TO_TRAIN_FILE \
-        lang={en,ru}
+    python ${NEMO_PATH}/examples/nlp/text_normalization_as_tagging/normalization_as_tagging_train.py \
+      lang=${LANG} \
+      data.validation_ds.data_path=${DATA_PATH}/valid.tsv \
+      data.train_ds.data_path=${DATA_PATH}/train.tsv \
+      data.train_ds.batch_size=128 \
+      data.train_ds.num_workers=8 \
+      model.language_model.pretrained_model_name=${LANGUAGE_MODEL} \
+      model.label_map=${DATA_PATH}/label_map.txt \
+      model.semiotic_classes=${DATA_PATH}/semiotic_classes.txt \
+      model.optim.lr=3e-5 \
+      trainer.devices=[1] \
+      trainer.num_nodes=1 \
+      trainer.accelerator=gpu \
+      trainer.strategy=ddp \
+      trainer.max_epochs=5
 
 Information on the arguments:
 
 Most arguments in the example config file are quite self-explanatory (e.g.,
 `model.optim.lr` refers to the learning rate for training the model).
+
 Some arguments we want to mention are:
 
 + lang: The language of the dataset.
-+ model.transformer: This is the backbone BERT model (depends on the language)
-+ decoder_model.nemo_path: This is the path where the final trained decoder model
-will be saved to.
++ model.language_model.pretrained_model_name: This is the backbone BERT model (depends on the language)
+e.g. bert-base-uncased (English), DeepPavlov/rubert-base-cased (Russian)
 """
 
 from helpers import ITN_MODEL, instantiate_model_and_trainer

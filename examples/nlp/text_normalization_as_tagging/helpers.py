@@ -41,7 +41,9 @@ def instantiate_model_and_trainer(
         trainer: A PyTorch Lightning trainer
         model: A ThutmoseTaggerModel
     """
-    assert model_name in MODEL_NAMES
+
+    if model_name not in MODEL_NAMES:
+        raise ValueError(f"{model_name} is unknown model type")
 
     # Get configs for the corresponding models
     trainer_cfg = cfg.get("trainer")
@@ -49,27 +51,26 @@ def instantiate_model_and_trainer(
     pretrained_cfg = cfg.get("pretrained_model", None)
     trainer = pl.Trainer(**trainer_cfg)
     if not pretrained_cfg:
-        logging.info(f'Initializing {model_name} model')
+        logging.info(f"Initializing {model_name} model")
         if model_name == ITN_MODEL:
             model = ThutmoseTaggerModel(model_cfg, trainer=trainer)
+        else:
+            raise ValueError(f"{model_name} is unknown model type")
     elif os.path.exists(pretrained_cfg):
-        logging.info(f'Restoring pretrained {model_name} model from {pretrained_cfg}')
+        logging.info(f"Restoring pretrained {model_name} model from {pretrained_cfg}")
         model = ThutmoseTaggerModel.restore_from(pretrained_cfg)
     else:
-        logging.info(f'Loading pretrained model {pretrained_cfg}')
+        logging.info(f"Loading pretrained model {pretrained_cfg}")
         if model_name == ITN_MODEL:
             if pretrained_cfg not in ThutmoseTaggerModel.get_available_model_names():
                 raise (
                     ValueError(
-                        f'{pretrained_cfg} not in the list of available Tagger models. Select from {ThutmoseTaggerModel.list_available_models()}'
+                        f"{pretrained_cfg} not in the list of available Tagger models. Select from {ThutmoseTaggerModel.list_available_models()}"
                     )
                 )
             model = ThutmoseTaggerModel.from_pretrained(pretrained_cfg)
+        else:
+            raise ValueError(f"{model_name} is unknown model type")
 
-    # Setup train and validation data
-    if do_training:
-        model.setup_training_data(train_data_config=cfg.data.train_ds)
-        model.setup_validation_data(val_data_config=cfg.data.validation_ds)
-
-    logging.info(f'Model {model_name} -- Device {model.device}')
+    logging.info(f"Model {model_name} -- Device {model.device}")
     return trainer, model

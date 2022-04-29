@@ -586,23 +586,6 @@ pipeline {
       }
     }
 
-    stage('L2: Hehehe') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
-        stage('Test hehehe') {
-          steps {
-            sh 'echo Hehehe'
-          }
-        }
-      }
-    }
-
     stage('L2: Segmentation Tool') {
       when {
             anyOf {
@@ -879,12 +862,7 @@ pipeline {
             exp_manager=null'
           }
         }
-       stage('Hahaha') {
-          steps {
-            sh 'echo Hahaha!!!'
-          }
-
-       stage('Duplex Text Normalization with Tarred dataset') {
+        stage('Duplex Text Normalization with Tarred dataset') {
           steps {
             sh 'cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
@@ -909,26 +887,29 @@ pipeline {
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
           }
         }
-        stage('Text normalization as tagging (Thutmose Tagger)') {
-          steps {
-            sh 'cd examples/nlp/normalization_as_tagging && \
-	        python normalization_as_tagging_train.py \
-	        lang="en" \
-            data.validation_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/valid.tsv \
-            data.train_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/train.tsv \
-            data.train_ds.batch_size=2 \
-            data.train_ds.num_workers=2 \
-            model.language_model.pretrained_model_name=bert-base-uncased \
-            model.label_map=/home/TestData/nlp/text_normalization_as_tagging/en_mini/label_map.txt \
-            model.semiotic_classes=/home/TestData/nlp/text_normalization_as_tagging/en_mini/semiotic_classes.txt \
-            exp_manager.create_checkpoint_callback=false \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            trainer.accelerator=gpu \
-            trainer.strategy=ddp \
-            +trainer.fast_dev_run=true'
-          }
-        }
+        //this is a new test by @aleksandraa
+        //cannot run it in a fork, Jenkins doesn't see it
+        //need to uncomment, when given writing permissions to NeMo
+        //stage('Text normalization as tagging (Thutmose Tagger)') {
+        //  steps {
+        //    sh 'cd examples/nlp/normalization_as_tagging && \
+	    //    python normalization_as_tagging_train.py \
+	    //    lang="en" \
+        //    data.validation_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/valid.tsv \
+        //    data.train_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/train.tsv \
+        //    data.train_ds.batch_size=2 \
+        //    data.train_ds.num_workers=2 \
+        //    model.language_model.pretrained_model_name=bert-base-uncased \
+        //    model.label_map=/home/TestData/nlp/text_normalization_as_tagging/en_mini/label_map.txt \
+        //    model.semiotic_classes=/home/TestData/nlp/text_normalization_as_tagging/en_mini/semiotic_classes.txt \
+        //    exp_manager.create_checkpoint_callback=false \
+        //    trainer.devices=1 \
+        //    trainer.num_nodes=1 \
+        //    trainer.accelerator=gpu \
+        //    trainer.strategy=ddp \
+        //    +trainer.fast_dev_run=true'
+        //  }
+        //}
       }
     }
     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)

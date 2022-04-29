@@ -42,7 +42,7 @@ from collections import Counter
 from os import listdir, mkdir
 from os.path import isdir, join
 from shutil import rmtree
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import get_src_and_dst_for_alignment
+from examples.nlp.text_normalization_as_tagging.dataset_preparation.utils import get_src_and_dst_for_alignment
 
 parser = ArgumentParser(description='Split corpus to subcorpora for giza alignment')
 parser.add_argument('--data_dir', type=str, required=True, help='Path to folder with data')
@@ -54,6 +54,8 @@ args = parser.parse_args()
 
 
 def prepare_subcorpora_from_data() -> None:
+    """Preprocess a corpus in Google TN Dataset format, extract TN-ITN phrase pairs, prepare input for GIZA++ alignment.
+    """
     semiotic_vcb = Counter()
     cache_vcb = {}
     filenames = []
