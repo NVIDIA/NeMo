@@ -1699,10 +1699,10 @@ conversion.run.model_train_name=mt5_390m \
 base_results_dir=/mount/results conversion.run.results_dir=/mount/results/mt5_390m/convert_nemo \
 conversion.model.checkpoint_folder=/mount/results/mt5_390m/checkpoints \
 conversion.model.tensor_model_parallel_size=1 conversion.model.pipeline_model_parallel_size=1 \
->> /results/convert_t5_log.txt 2>&1
+>> /results/convert_mt5_log.txt 2>&1
 ```
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
-The stdout and stderr outputs will also be redirected to the `/results/convert_t5_log.txt` file, to be able to download the logs from NGC.
+The stdout and stderr outputs will also be redirected to the `/results/convert_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 ### 4.8. Model Fine-tuning
