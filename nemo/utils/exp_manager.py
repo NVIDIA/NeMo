@@ -33,8 +33,6 @@ from pytorch_lightning.callbacks.timer import Interval, Timer
 from pytorch_lightning.loggers import LoggerCollection as _LoggerCollection
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from pytorch_lightning.strategies.ddp import DDPStrategy
-from pytorch_lightning.trainer.states import RunningStage
-from pytorch_lightning.utilities.distributed import rank_zero_info
 
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
@@ -118,6 +116,9 @@ class ExpManagerConfig:
     # logs timing of train/val/test steps
     log_step_timing: Optional[bool] = True
     step_timing_kwargs: Optional[StepTimingParams] = StepTimingParams()
+    # Configures creation of log files for different ranks
+    log_local_rank_0_only: Optional[bool] = False
+    log_global_rank_0_only: Optional[bool] = False
 
 
 class TimingCallback(Callback):
@@ -218,7 +219,10 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
                 Defaults to True.
             - files_to_copy (list): A list of files to copy to the experiment logging directory. Defaults to None which
                 copies no files.
-
+            - log_local_rank_0_only (bool): Whether to only create log files for local rank 0. Defaults to False.
+                Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
+            - log_global_rank_0_only (bool): Whether to only create log files for global rank 0. Defaults to False.
+                Set this to True if you are using DDP with many GPUs and do not want many log files in your exp dir.
     returns:
         log_dir (Path): The final logging directory where logging files are saved. Usually the concatenation of
             exp_dir, name, and version.
@@ -283,17 +287,25 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     logging.info(f'Experiments will be logged at {log_dir}')
     trainer._default_root_dir = log_dir
 
+    if cfg.log_local_rank_0_only is True and cfg.log_global_rank_0_only is True:
+        raise ValueError(
+            f"Cannot set both log_local_rank_0_only and log_global_rank_0_only to True. Please set either one or neither."
+        )
+
+    # This is set if the env var NEMO_TESTING is set to True.
+    nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
+
     # Handle logging to file
-    if get_envbool(NEMO_ENV_VARNAME_TESTING, False) or world_size <= 32:
-        # If NEMO_TESTING is set (debug mode) or if less than 32 ranks save all log files
+    # Logs local rank 0 only
+    if local_rank == 0 and cfg.log_local_rank_0_only is True and nemo_testing is False:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
-    elif world_size <= 256 and local_rank == 0:
-        # If less than 256 ranks, try to save 1 log file per "machine"
+    # Logs only on global rank 0
+    elif global_rank == 0 and cfg.log_global_rank_0_only is True and not nemo_testing is False:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
-    elif global_rank == 0:
-        # If running more than 256 ranks, only save 1 log file
+    # Logs on all ranks.
+    else:
         log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
         logging.add_file_handler(log_file)
 
@@ -799,6 +811,8 @@ class NeMoModelCheckpoint(ModelCheckpoint):
 
         # Load the best model and then re-save it
         if self.save_best_model:
+            # wait for all processes
+            trainer.training_type_plugin.barrier("SaveBestCheckpointConnector.resume_end")
             if self.best_model_path == "":
                 logging.warning(
                     f"{self} was told to save the best checkpoint at the end of training, but no saved checkpoints "
@@ -904,24 +918,9 @@ class StatelessTimer(Timer):
     def __init__(self, duration: timedelta = None, interval: str = Interval.step, verbose: bool = True,) -> None:
         super().__init__(duration, interval, verbose)
 
-    def on_save_checkpoint(self, trainer, pl_module, checkpoint) -> Dict[str, Any]:
-        return
+    # Override PTL Timer's state dict to not store elapsed time information so that we can restore and continue training.
+    def state_dict(self) -> Dict[str, Any]:
+        return {}
 
-    def on_load_checkpoint(self, trainer, pl_module, callback_state) -> None:
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         return
-
-    def _check_time_remaining(self, trainer) -> None:
-        # Default timer only checks for train time exceeding max_time, this includes time for all stages.
-        train_duration = self.time_elapsed(RunningStage.TRAINING)
-        validation_duration = self.time_elapsed(RunningStage.VALIDATING)
-        test_duration = self.time_elapsed(RunningStage.TESTING)
-        total_duration = train_duration + validation_duration + test_duration
-        should_stop = total_duration >= self._duration
-        # should_stop = trainer.training_type_plugin.broadcast(should_stop)
-        should_stop = trainer.training_type_plugin.reduce_boolean_decision(should_stop)
-        trainer.should_stop = trainer.should_stop or should_stop
-        if should_stop and self._verbose:
-            rank_zero_info(f"Time limit reached. Signaling Trainer to stop.")
-            rank_zero_info(
-                f"Spent {timedelta(seconds=train_duration)} seconds on training, {timedelta(seconds=validation_duration)} seconds on validation and {timedelta(seconds=test_duration)} seconds on testing"
-            )

@@ -28,7 +28,6 @@ from nemo.collections.nlp.modules.common import SequenceClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['TextClassificationModel']
@@ -80,12 +79,11 @@ class TextClassificationModel(NLPModel, Exportable):
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
         """
-        if self._cfg.tokenizer.get('library', '') == 'megatron':
-            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
-        else:
-            hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 

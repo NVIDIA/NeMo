@@ -14,6 +14,7 @@
 
 import torch
 
+from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import bias_dropout_add_fused_inference
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
@@ -99,10 +100,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
         bias_gelu_fusion=True,
+        bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         openai_gelu=False,
         activation='gelu',
         onnx_safe=False,
+        bias=True,
         hidden_steps=-1,
         hidden_blocks=1,
         add_encoder=True,
@@ -161,6 +164,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
                 layernorm_epsilon=layernorm_epsilon,
                 bias_gelu_fusion=bias_gelu_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
@@ -168,6 +172,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                bias=bias,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -217,6 +222,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
                 layernorm_epsilon=layernorm_epsilon,
                 bias_gelu_fusion=bias_gelu_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
@@ -224,6 +230,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                bias=bias,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -272,7 +279,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         enc_attn_mask,
         dec_input_ids,
         dec_attn_mask,
-        tokentype_ids=None,
+        token_type_ids=None,
         labels=None,
         enc_hidden_states=None,
         enc_output_mask=None,
@@ -285,7 +292,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if self.pre_process and self.add_encoder:
             # encoder embeddings
             enc_position_ids = build_position_ids(enc_input_ids)
-            enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, tokentype_ids=tokentype_ids)
+            enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
         else:
             enc_input = None
 
@@ -297,7 +304,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         else:
             if self.pre_process and self.add_decoder:
                 dec_position_ids = build_position_ids(dec_input_ids)
-                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, tokentype_ids=tokentype_ids)
+                dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
