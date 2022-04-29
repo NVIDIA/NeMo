@@ -112,8 +112,9 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
            f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
            f"--vocab_file={vocab_file} " \
            f"--merge_file={merge_file} " \
-           f"--tokenizer_model={tokenizer_model}"
-
+           f"--tokenizer_model={tokenizer_model} "
+    if cfg.get("cluster_type") == "bcp":
+        args += "--bcp "
     args = args.replace(" ", " \\\n  ")
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
 
