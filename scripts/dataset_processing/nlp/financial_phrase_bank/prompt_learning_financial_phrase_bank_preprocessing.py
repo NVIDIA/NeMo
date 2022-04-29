@@ -5,7 +5,6 @@ import random
 from tqdm import tqdm
 
 
-
 """
 Dataset preprocessing script for the Financial Phrase Bank Sentiement dataset: 
 https://www.researchgate.net/profile/Pekka_Malo/publication/251231364_FinancialPhraseBank-v10/data/0c96051eee4fb1d56e000000/FinancialPhraseBank-v10.zip

@@ -48,14 +48,17 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronGPTPromptLearningModel']
 
+
 class VirtualPromptStyle:
     P_TUNING = 'p_tuning'
     PROMPT_TUNING = 'prompt-tuning'
     INFERENCE = 'inference'
 
-class VirtualPromptSource: 
+
+class VirtualPromptSource:
     PROMPT_TABLE = 'prompt_table'
     PROMPT_ENCODER = 'prompt_encoder'
+
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """

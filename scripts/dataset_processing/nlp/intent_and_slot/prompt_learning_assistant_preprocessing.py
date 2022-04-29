@@ -5,6 +5,7 @@ import random
 from assistant_utils import process_assistant
 from tqdm import tqdm
 
+
 """
 Dataset preprocessing script for the Assistant dataset: https://github.com/xliuhw/NLU-Evaluation-Data/archive/master.zip
 Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
