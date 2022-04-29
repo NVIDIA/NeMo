@@ -35,6 +35,7 @@ class SaveRestoreConnector:
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_extracted_dir = None
 
     def save_to(self, model, save_path: str):
         """
@@ -109,7 +110,21 @@ class SaveRestoreConnector:
         app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                # Check if self.model_extracted_dir is set, and is a valid path
+                if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
+                    # Log that NeMo will use the provided `model_extracted_dir`
+                    logging.info(
+                        f"Restoration will occur within pre-extracted directory : " f"`{self.model_extracted_dir}`."
+                    )
+
+                    # Override `tmpdir` above with the pre-extracted `model_extracted_dir`
+                    tmpdir = self.model_extracted_dir
+
+                else:
+                    # Extract the nemo file into the temporary directory
+                    self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+
+                # Change current working directory to
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, self.model_config_yaml)
@@ -152,6 +167,16 @@ class SaveRestoreConnector:
         return (conf, instance, state_dict)
 
     def modify_state_dict(self, conf, state_dict):
+        """
+        Utility method that allows to modify the state dict before loading parameters into a model.
+
+        Args:
+            conf: A model level OmegaConf object.
+            state_dict: The state dict restored from the checkpoint.
+
+        Returns:
+            A potentially modified state dict.
+        """
         if conf.get('megatron_amp_O2', False):
             new_state_dict = {}
             for key in state_dict.keys():
@@ -161,6 +186,14 @@ class SaveRestoreConnector:
         return state_dict
 
     def load_instance_with_state_dict(self, instance, state_dict, strict):
+        """
+        Utility method that loads a model instance with the (potentially modified) state dict.
+
+        Args:
+            instance: ModelPT subclass instance.
+            state_dict: The state dict (which may have been modified)
+            strict: Bool, whether to perform strict checks when loading the state dict.
+        """
         instance.load_state_dict(state_dict, strict=strict)
         instance._set_model_restore_state(is_being_restored=False)
 
@@ -186,6 +219,7 @@ class SaveRestoreConnector:
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: An optional Trainer object, passed to the model constructor.
 
         Example:
             ```
@@ -442,6 +476,7 @@ class SaveRestoreConnector:
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
+
         # we start with an assumption of uncompressed tar,
         # which should be true for versions 1.7.0 and above
         tar_header = "r:"
@@ -479,3 +514,11 @@ class SaveRestoreConnector:
     @model_weights_ckpt.setter
     def model_weights_ckpt(self, path: str):
         self._model_weights_ckpt = path
+
+    @property
+    def model_extracted_dir(self) -> Optional[str]:
+        return self._model_extracted_dir
+
+    @model_extracted_dir.setter
+    def model_extracted_dir(self, path: Optional[str]):
+        self._model_extracted_dir = path
