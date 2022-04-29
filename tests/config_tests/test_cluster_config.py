@@ -10,6 +10,7 @@ class TestClusterConfig:
         account: null
         exclusive: True
         gpus_per_task: 1
+        gpus_per_node: null
         mem: 0
         overcommit: False
         job_name_prefix: "bignlp-"
