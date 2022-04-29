@@ -54,45 +54,6 @@ class RequestDataset(Dataset):
         inp_enc = torch.tensor((context_enc + continuation_enc)[-(self.max_length + 1):])
         return inp_enc, conti_len
 
-
-class EvalGPTModel(MegatronGPTModel):
-    def predict_step(self, batch, batch_idx, dataloader_idx=None):
-        request, positions, tokens_to_generate, compute_logprobs = MegatronGPTModel._bucketize_gpt_inference(
-            batch, False
-        )
-        response = self.compute_logprobs(request, positions)
-        if is_global_rank_zero():
-            _, lens, _, _, conti_lens = batch
-            batch_size = len(lens)
-            assert len(response) == batch_size, "Response's length not equal to batch size."
-            res = []
-            for index in range(batch_size):
-                conti_len = conti_lens[index]
-
-                inp_tokens = response[index][1]
-                assert len(inp_tokens) == lens[index], "Mismatch in input tokens length."
-
-                log_probs = response[index][2]
-                log_probs = log_probs[-conti_len:]
-
-                greedy_tokens = log_probs.argmax(dim=-1)
-                greedy_tokens = self.tokenizer.ids_to_tokens(
-                    greedy_tokens.cpu().numpy().tolist())
-
-                conti_tokens = inp_tokens[-conti_len:]
-                # conti_tokens = self.tokenizer.ids_to_tokens(conti_tokens.cpu().numpy().tolist())
-                max_equal = (greedy_tokens == conti_tokens)
-
-                log_probs = log_probs.cpu().to(torch.float32)
-                conti_enc = torch.tensor(self.tokenizer.tokens_to_ids(conti_tokens))
-                conti_probs = torch.gather(log_probs, 1, conti_enc.unsqueeze(-1)).squeeze(-1)
-
-                res.append((float(conti_probs.sum()), bool(max_equal), greedy_tokens, conti_tokens))
-            return res
-
-        return None
-
-
 def setup_trainer_and_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
@@ -241,7 +202,6 @@ class NeMo_GPT3LM_TP_PP(LM):
 
         res = []
         for batch in tqdm.tqdm(request_dl):
-            # print(batch, batch[0].shape)
             inputs = (batch[0].cuda(), batch[1].cuda())
             response = generate(
                 self.gpt3,

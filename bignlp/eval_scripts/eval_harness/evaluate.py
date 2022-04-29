@@ -230,6 +230,8 @@ def main():
     args = eval_args
 
     assert args is not None
+    if args.model == "nemo-gpt3":
+        args.model = "nemo-gpt3-tp-pp"
     if "nemo-gpt3" in args.model:
         assert args.device == 'cuda', "devices == 'cuda' are required to run nemo evaluations."
 
