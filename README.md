@@ -294,6 +294,26 @@ cluster, the config file in the subfolder of `conf/cluster/bcm.yaml` has the
 parameters to set the generic cluster related information, such as the 
 `partition` or `account` parameters.
 
+The NUMA mapping can also be configured from the `conf/config.yaml` file. The 
+mapping should be automatic; the code will read the number of CPU cores available 
+in your cluster, and provide the best possible mapping, to maximize performance. 
+The mapping is enabled by default, but it can be disabled by setting 
+`enable: False` in the `numa_mapping` section of the `conf/config.yaml` file. 
+The type of mapping can also be configured using the same file. See the full 
+config parameters below:
+
+```yaml
+numa_mapping:
+  enable: True  # Set to False to disable all mapping (performance will suffer).
+  mode: unique_contiguous  # One of: all, single, single_unique, unique_interleaved or unique_contiguous.
+  scope: node  # Either node or socket.
+  cores: all_logical  # Either all_logical or single_logical.
+  balanced: True  # Whether to assing an equal number of physical cores to each process.
+  min_cores: 1  # Minimum number of physical cores per process.
+  max_cores: 8  # Maximum number of physical cores per process. Can be null to use all available cores.
+```
+
+
 **Slurm**: The `bignlp_path` parameter will automatically be mounted to the
 container at the same path as in the local file system. Any additional
 directories that should be mounted must be specified using the
