@@ -323,15 +323,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             self.register_buffer('att_mask', att_mask, persistent=False)
 
-    def streaming_forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        return self.forward_for_export(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-        )
-
     @typecheck()
     def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)

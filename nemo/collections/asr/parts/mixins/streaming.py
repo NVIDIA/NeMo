@@ -28,10 +28,6 @@ class StreamingEncoderMixin(ABC):
     def get_initial_cache_state(self, batch_size, dtype, device):
         pass
 
-    @abstractmethod
-    def streaming_forward(self, batch_size, dtype, device):
-        pass
-
     @staticmethod
     def to_numpy(tensor):
         if tensor is None:

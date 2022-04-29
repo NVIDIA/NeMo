@@ -168,18 +168,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
 
-    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
-        """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
-        Args:
-            query (torch.Tensor): (batch, time1, size)
-            key (torch.Tensor): (batch, time2, size)
-            value(torch.Tensor): (batch, time2, size)
-            mask (torch.Tensor): (batch, time1, time2)
-            pos_emb (torch.Tensor) : (batch, time1, size)
-        Returns:
-            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
-        """
-        # assume key and values are the same
+    def do_caching(self, key, value, cache, cache_next):
         if cache is not None:
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
@@ -196,7 +185,22 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             #print(q_keep_size, cache_next_length, q_length, self.cache_drop_size)
             cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
             cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
+        return key, value, cache, cache_next
 
+    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
+        """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
+        Args:
+            query (torch.Tensor): (batch, time1, size)
+            key (torch.Tensor): (batch, time2, size)
+            value(torch.Tensor): (batch, time2, size)
+            mask (torch.Tensor): (batch, time1, time2)
+            pos_emb (torch.Tensor) : (batch, time1, size)
+        Returns:
+            output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
+        """
+        key, value, cache_next = self.do_caching(x=None, cache=cache, cache_next=cache_next)
+
+        # assume key and values are the same
         q, k, v = self.forward_qkv(query, key, value)
         q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 

@@ -117,7 +117,7 @@ class CausalConv1D(nn.Conv1d):
             dtype=dtype,
         )
 
-    def forward(self, x, cache=None, cache_next=None):
+    def do_caching(self, x, cache=None, cache_next=None):
         if cache is None:
             x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
@@ -138,6 +138,9 @@ class CausalConv1D(nn.Conv1d):
             cache_next[:, :, :-x_keep_size] = cache[:, :, cache_keep_size:]
             input_x_kept = input_x[:, :, :x_keep_size]
             cache_next[:, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
+        return x, cache_next
 
+    def forward(self, x, cache=None, cache_next=None):
+        x, cache_next = self.do_caching(x, cache=cache, cache_next=cache_next)
         x = super().forward(x)
         return x
