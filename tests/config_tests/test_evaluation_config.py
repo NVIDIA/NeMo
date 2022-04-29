@@ -35,7 +35,7 @@ class TestEvaluationT5Config:
         model:
           restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          megatron_amp_O2: True # Enable O2 optimization for megatron amp
+  megatron_amp_O2: False # Enable O2 optimization for megatron amp
         
           data:
             validation_ds:
