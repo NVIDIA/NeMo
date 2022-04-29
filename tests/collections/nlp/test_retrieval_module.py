@@ -250,7 +250,7 @@ class TestRetrievalModule:
             .cuda()
             .half()
         )
-        out = decoder(hidden_emb, hidden_mask, context_attn_mask=context_mask, encoder_output=retrieved_emb)
+        out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
 
     @pytest.mark.unit
     def test_encoder_decoder_module(self):

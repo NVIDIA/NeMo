@@ -289,7 +289,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
 
         if self.add_decoder:
             dec_output = self.post_decoder(
-                hidden, input_attn_mask, context_attn_mask=retrieved_attn_mask, encoder_output=retrieved_emb
+                hidden, input_attn_mask, retrieved_attn_mask=retrieved_attn_mask, retrieved_emb=retrieved_emb
             )
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 

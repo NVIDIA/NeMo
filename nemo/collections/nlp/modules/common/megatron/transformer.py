@@ -1262,6 +1262,7 @@ class ParallelTransformer(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
+        retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1287,11 +1288,11 @@ class ParallelTransformer(MegatronModule):
             hidden_states = self.input_tensor
 
         if encoder_output is not None:
-            if len(encoder_output.shape) == 5:
-                # this is retrival decoder, need special transpose
-                encoder_output = rearrange(encoder_output, 'b k r n d -> k r n b d').contiguous()
-            else:
-                encoder_output = encoder_output.transpose(0, 1).contiguous()
+            encoder_output = encoder_output.transpose(0, 1).contiguous()
+        elif retrieved_emb is not None:
+            assert len(retrieved_emb.shape) == 5
+            # this is retrival decoder, need special transpose
+            encoder_output = rearrange(retrieved_emb, 'b k r n d -> k r n b d').contiguous()
 
         if self.activations_checkpoint_method is not None:
             hidden_states = self._checkpointed_forward(

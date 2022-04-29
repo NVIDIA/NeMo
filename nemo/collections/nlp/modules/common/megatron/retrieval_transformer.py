@@ -307,29 +307,30 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self,
         dec_input,
         dec_attn_mask,
-        context_attn_mask=None,
-        encoder_output=None,
+        retrieved_attn_mask=None,
+        retrieved_emb=None,
         layer_past=None,
         get_key_value=False,
     ):
         # expected dec_input shape [batch, seq_len, dim]
         # expected dec_attn_mask shape [batch, seq_len]
-        # expected encoder_input shape [batch, num_chunks, num_neighbors, retrival_seq_len, dim]
-        # expected context_attn_mask shape [batch, num_chunks, num_neighbors, retrival_seq_len]
+        # expected retrieved_input shape [batch, num_chunks, num_neighbors, retrival_seq_len, dim]
+        # expected retrieved_attn_mask shape [batch, num_chunks, num_neighbors, retrival_seq_len]
 
         # batch, seq_len, dim
         _, n, _ = dec_input.shape
 
         num_seq_chunks = n // self.chunk_size
 
-        if encoder_output is not None:
-            b, k, r, rn, dim = encoder_output.shape
-            assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
-        # need to add extra chunk size, since it will be shifted
+        if retrieved_emb is not None:
+            b, k, r, rn, dim = retrieved_emb.shape
+            assert (
+                k == num_seq_chunks
+            ), f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'  # need to add extra chunk size, since it will be shifted
         self_attn_emb = self.rotary_pos_emb(n)
         cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1)
 
-        if encoder_output is not None:
+        if retrieved_emb is not None:
             cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         else:
@@ -341,12 +342,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         )
         dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
 
-        if encoder_output is not None:
+        if retrieved_emb is not None:
             dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
-            context_attn_mask = rearrange(context_attn_mask, 'b k r n -> (b k) (r n)')
+            retrieved_attn_mask = rearrange(retrieved_attn_mask, 'b k r n -> (b k) (r n)')
 
             enc_dec_attn_mask_3d = build_attention_mask_3d(
-                source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+                source_mask=dec_attn_mask, target_mask=retrieved_attn_mask, attn_mask_type=AttnMaskType.padding,
             )
             enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
         else:
@@ -358,7 +359,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             dec_attn_mask_3d,
             layer_past=layer_past,
             get_key_value=get_key_value,
-            encoder_output=encoder_output,
+            encoder_output=None,
+            retrieved_emb=retrieved_emb,
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
             rotary_pos_emb=attn_pos_emb,
         )
