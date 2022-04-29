@@ -139,6 +139,7 @@ class GradBucket(object):
 
         return None
 
+
 class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     """
     Float16 optimizer wrapper for half precision (fp16 and bf16) data types.
@@ -244,7 +245,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         # Assign the grad buffer offset to main parameters
                         if self._contiguous_grad_bucket:
                             num_elements[i] -= param.data.nelement()
-                            main_param.grad, grad_chunk_info = self._main_grad_buffers[i].get(param.data.shape, num_elements[i])
+                            main_param.grad, grad_chunk_info = self._main_grad_buffers[i].get(
+                                param.data.shape, num_elements[i]
+                            )
                             # Add a pointer to main_grad in model param for first-last stage embedding param reduction
                             param.main_grad = main_param.grad
 
