@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import json
 
 import torch
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.core import Dataset
 from nemo.utils import logging
 
@@ -33,7 +35,7 @@ class GPTPromptLearningDataset(Dataset):
         self,
         datasets,
         tokenizer,
-        virtual_prompt_source: str,
+        virtual_prompt_source: enum,
         task_templates: dict,
         pseudo_tokens,
         pad_token_id: str,
@@ -133,10 +135,10 @@ class GPTPromptLearningDataset(Dataset):
 
             # Skip example if the final length doesn't fit length requirements even after truncation
             if self.min_seq_length <= len(input_ids) <= self.max_seq_length:
-                if self.virtual_prompt_source == "prompt-encoder":
+                if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                     taskname_id = self.tokenizer.text_to_ids(taskname)
 
-                elif self.virtual_prompt_source == "prompt-table":
+                elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
 
                 # Find answer field indices if training and answer_only_loss is True
@@ -282,13 +284,13 @@ class GPTPromptLearningDataset(Dataset):
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
         # Pad taskname_ids to be the same length for the prompt encoder
-        if self.virtual_prompt_source == "prompt-encoder":
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
             taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == "prompt-table":
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
             taskname_ids = torch.tensor(taskname_ids)
 
         batch_max = max(len(ids) for ids in input_ids)

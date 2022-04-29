@@ -26,7 +26,12 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import PromptEncoder, PromptTable
+from nemo.collections.nlp.modules.common import (
+    PromptEncoder, 
+    PromptTable, 
+    VirtualPromptSource,
+    VirtualPromptStyle, 
+)
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
@@ -48,17 +53,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ['MegatronGPTPromptLearningModel']
-
-
-class VirtualPromptStyle(enum.Enum):
-    P_TUNING = 'p_tuning'
-    PROMPT_TUNING = 'prompt-tuning'
-    INFERENCE = 'inference'
-
-
-class VirtualPromptSource(enum.Enum):
-    PROMPT_TABLE = 'prompt_table'
-    PROMPT_ENCODER = 'prompt_encoder'
 
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
@@ -122,7 +116,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.virtual_prompt_style = cfg.virtual_prompt_style.lower()
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style.lower())
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
@@ -352,11 +346,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return discrete_token_embeds
 
         # Get virtual token embeddings from the prompt table or prompt encoder
-        if self.virtual_prompt_source == 'prompt-table':
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
             virtual_token_embeds = [self.prompt_table(task_id_num) for task_id_num in taskname_ids]
             virtual_token_embeds = torch.stack(virtual_token_embeds)
 
-        elif self.virtual_prompt_source == 'prompt-encoder':
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             taskname_embeddings = self.word_embeddings(taskname_ids)
             virtual_token_embeds = self.prompt_encoder(taskname_embeddings=taskname_embeddings)
 
