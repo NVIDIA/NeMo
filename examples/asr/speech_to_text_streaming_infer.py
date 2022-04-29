@@ -102,7 +102,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
-        step_num += 1
+
     final_streaming_tran = extract_transcribtions(transcribed_texts)
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
 
