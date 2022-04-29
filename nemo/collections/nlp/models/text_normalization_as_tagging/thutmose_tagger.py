@@ -98,7 +98,6 @@ class ThutmoseTaggerModel(NLPModel):
 
         self.hidden_size = cfg.hidden_size
 
-        #self.tag_logits = TokenClassifier(
         self.logits = TokenClassifier(
             self.hidden_size, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
         )
@@ -116,7 +115,6 @@ class ThutmoseTaggerModel(NLPModel):
     def forward(self, input_ids, input_mask, segment_ids):
 
         src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
-        #tag_logits = self.tag_logits(hidden_states=src_hiddens)
         tag_logits = self.logits(hidden_states=src_hiddens)
         semiotic_logits = self.semiotic_logits(hidden_states=src_hiddens)
         return tag_logits, semiotic_logits
