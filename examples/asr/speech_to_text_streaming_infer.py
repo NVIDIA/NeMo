@@ -45,6 +45,16 @@ def extract_transcribtions(hyps):
     return transcribtions
 
 
+def calc_drop_extra_pre_encoded(asr_model, step_num):
+    #return True
+    if asr_model.encoder.streaming_cfg.pre_encode_cache_size == 0:
+        return False
+    if step_num == 0:
+        return False
+    else:
+        return True
+
+
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, onnx_model=None):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
@@ -91,7 +101,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=False, #True if step_num > 0 else False, # True
+                    drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
                     return_transcribtion=True,
                     onnx_model=onnx_model
                 )
@@ -283,6 +293,7 @@ def main():
         logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
         end_time = time.time()
         logging.info(f"The whole process took: {round(end_time - start_time, 2)}s")
+
 
 if __name__ == '__main__':
     main()
