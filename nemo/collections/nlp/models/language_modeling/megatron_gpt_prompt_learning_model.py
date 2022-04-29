@@ -48,6 +48,14 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['MegatronGPTPromptLearningModel']
 
+class VirtualPromptStyle:
+    P_TUNING = 'p_tuning'
+    PROMPT_TUNING = 'prompt-tuning'
+    INFERENCE = 'inference'
+
+class VirtualPromptSource: 
+    PROMPT_TABLE = 'prompt_table'
+    PROMPT_ENCODER = 'prompt_encoder'
 
 class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     """
@@ -113,15 +121,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.virtual_prompt_style = cfg.virtual_prompt_style.lower()
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
-        if self.virtual_prompt_style in ['prompt-tuning', 'inference']:
-            self.virtual_prompt_source = 'prompt-table'
+        if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
-        elif self.virtual_prompt_style == 'p-tuning':
-            self.virtual_prompt_source = 'prompt-encoder'
+        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+            self.virtual_prompt_source = VirtualPromptSource.PROMPT_ENCODER
         else:
             raise ValueError(
-                f"\nvirtual prompt style '{cfg.virtual_prompt_type}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
+                f"\nvirtual prompt style '{cfg.virtual_prompt_style}' not recognized, please use one of 'prompt-tuning' or 'p-tuning'"
             )
 
         self._reduced_loss_buffer = []
@@ -461,25 +469,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == "p-tuning":
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
-        self.virtual_prompt_style = 'inference'
-        self.virtual_prompt_source = 'prompt-table'
+        self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
+        self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
 
         # Move new tags to existing tag list for loading during inference later
         with open_dict(self.cfg):
             self.cfg.existing_tasks = self.existing_tasks + self.new_tasks
             self.cfg.new_tasks = []
-            self.cfg.virtual_prompt_style = 'inference'
+            self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE
 
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
-        if stage == 'predict' or self.virtual_prompt_style == 'inference':
+        if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
             self.freeze_existing_virtual_prompt_params()
             return
 
@@ -487,9 +495,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
-        if self.virtual_prompt_style == 'prompt-tuning':
+        if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
             self.init_new_prompts()
-        elif self.virtual_prompt_style == 'p-tuning':
+        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
             self.init_prompt_encoder()
 
         self.setup_training_data()
