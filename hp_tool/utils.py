@@ -332,6 +332,8 @@ def convert_to_cli(cfg):
         elif k == "checkpoint_name":
             v = v.replace("=", "\=")
             result += f"{k}='{v}' "
+        elif k == "container":
+            continue
         else:
             result += f"{k}={convert_to_null(v)} "
     return result

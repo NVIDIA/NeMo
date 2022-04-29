@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestmT5Config:
-
     def test_mt5_config_0_17b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/0.17b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/0.17b.yaml")
         s = """
         train_settings:
           model_size_in_b: 0.17
@@ -36,10 +35,12 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/0.17b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/0.17b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_mt5_config_0_39b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/0.39b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/0.39b.yaml")
         s = """
         train_settings:
           model_size_in_b: 0.39
@@ -71,10 +72,12 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/0.39b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/0.39b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_mt5_config_3_2b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/3.2b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/3.2b.yaml")
         s = """
         train_settings:
           model_size_in_b: 3.2
@@ -106,10 +109,12 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/3.2b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/3.2b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_mt5_config_11_9b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/11.9b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/11.9b.yaml")
         s = """
         train_settings:
           model_size_in_b: 11.9
@@ -141,10 +146,12 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/11.9b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/11.9b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_mt5_config_24_65b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/24.65b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/24.65b.yaml")
         s = """
         train_settings:
           model_size_in_b: 24.65
@@ -176,10 +183,12 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/24.65b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/24.65b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_mt5_config_42_54b(self):
-        conf = OmegaConf.load('conf/search_config/mt5/42.54b.yaml')
+        conf = OmegaConf.load("conf/search_config/mt5/42.54b.yaml")
         s = """
         train_settings:
           model_size_in_b: 42.54
@@ -211,5 +220,6 @@ class TestmT5Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/mt5/42.54b.yaml must be set to {expected} but it currently is {conf}."
-
+        assert (
+            expected == conf
+        ), f"conf/search_config/mt5/42.54b.yaml must be set to {expected} but it currently is {conf}."

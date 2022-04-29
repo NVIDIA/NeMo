@@ -21,6 +21,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
     tensor_parallel_sizes = [str(x) for x in inference_cfg.get("tensor_parallel_sizes")]
     pipeline_parallel_sizes = [str(x) for x in inference_cfg.get("pipeline_parallel_sizes")]
     max_batch_sizes = [str(x) for x in inference_cfg.get("max_batch_sizes")]
+    max_latency_ms = inference_cfg.get("max_latency_ms")
 
     inference_profile_path = os.path.join(
         bignlp_inference_path,
@@ -31,7 +32,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
         bignlp_inference_path, "conf/inference/profile_offline.yaml"
     )
 
-    model_spec_dir = os.path.join(results_dir, "inference/model_spec")
+    model_spec_dir = os.path.join(results_dir, "inference/model_spec.ft")
     os.makedirs(model_spec_dir, exist_ok=True)
     model_spec_path = os.path.join(model_spec_dir, "meta.yaml")
 
@@ -62,6 +63,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
         f"--pipeline-parallel-sizes {' '.join(pipeline_parallel_sizes)} "
         f"--input-output-lengths {input_seq_len},{output_seq_len} "
         f"--max-batch-sizes {' '.join(max_batch_sizes)} "
+        f"--max-latency-ms {max_latency_ms} "
         f"--top-n-configs {top_n} "
         f"--workspace-path {os.path.join(results_dir, 'inference/workspace')} "
     )

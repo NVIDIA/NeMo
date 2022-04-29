@@ -147,4 +147,4 @@ model:
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_prefix: # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
       - 1.0
-      - ${data_dir}/mc4_lv_mt5_tokenizer_text_document # TODO: @mausin ${data_dir}/mc4/preprocessed/fr_000-008_text_document
+      - ${data_dir}/mc4/preprocessed/fr_000-008_text_document

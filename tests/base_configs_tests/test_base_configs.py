@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestBaseConfigs:
-
     def test_gpt3_base_config(self):
-        conf = OmegaConf.load('base_configs/gpt3.yaml')
+        conf = OmegaConf.load("base_configs/gpt3.yaml")
         s = """
         run:
           name: gpt3_126m
@@ -137,10 +136,12 @@ class TestBaseConfigs:
               - ${data_dir}/my-gpt3_00_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"base_configs/gpt3.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"base_configs/gpt3.yaml must be set to {expected} but it currently is {conf}."
+
     def test_t5_base_config(self):
-        conf = OmegaConf.load('base_configs/t5.yaml')
+        conf = OmegaConf.load("base_configs/t5.yaml")
         s = """
         run:
           name: t5_220m
@@ -292,10 +293,12 @@ class TestBaseConfigs:
               - ${data_dir}/my-t5_00_bert_tokenizer_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"base_configs/t5.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"base_configs/t5.yaml must be set to {expected} but it currently is {conf}."
 
     def test_mt5_base_config(self):
-        conf = OmegaConf.load('base_configs/mt5.yaml')
+        conf = OmegaConf.load("base_configs/mt5.yaml")
         s = """
         run:
           name: mt5_390m
@@ -449,7 +452,6 @@ class TestBaseConfigs:
               - ${data_dir}/mc4/preprocessed/fr_000-008_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"base_configs/mt5.yaml must be set to {expected} but it currently is {conf}."
-
-
-
+        assert (
+            expected == conf
+        ), f"base_configs/mt5.yaml must be set to {expected} but it currently is {conf}."

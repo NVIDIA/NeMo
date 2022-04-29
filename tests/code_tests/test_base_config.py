@@ -39,11 +39,10 @@ class TestEstimateModelSize:
         output_size = bc._estimate_model_size(**params)
         assert output_size == pytest.approx(
             expected=expected, rel=self.margin
-        ), \
-        f"Output of _estimate_model_size should be approximately {expected}, "
+        ), f"Output of _estimate_model_size should be approximately {expected}, "
         f"but it is {output_size}. Inputs: max_training_days={training_days}, gpu_count={gpus}, "
         f"tflops_per_gpu={tflops}, num_tokens_in_b={tokens}, model_name={model_name}."
-    
+
     def test_estimate_training_time_not_implemented_error(self):
         params = {
             "max_training_days": 1,
@@ -95,11 +94,10 @@ class TestEstimateTrainingTime:
         output_days = bc._estimate_training_time(**params)
         assert output_days == pytest.approx(
             expected=expected, rel=self.margin
-        ), \
-        f"Output of _estimate_training_time should be approximately {expected}, "
+        ), f"Output of _estimate_training_time should be approximately {expected}, "
         f"but it is {output_days}. Inputs: model_size_in_b={model_size}, gpu_count={gpus}, "
         f"tflops_per_gpu={tflops}, num_tokens_in_b={tokens}, model_name={model_name}."
-    
+
     def test_estimate_training_time_not_implemented_error(self):
         params = {
             "model_size_in_b": 1,

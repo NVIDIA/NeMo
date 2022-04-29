@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestConfig:
-
     def test_config(self):
-        conf = OmegaConf.load('conf/config.yaml')
+        conf = OmegaConf.load("conf/config.yaml")
         s = """
         defaults:
           - _self_
@@ -26,7 +25,7 @@ class TestConfig:
         base_results_dir: ${bignlp_hp_tool_path}/results
 
         training_container: nvcr.io/ea-bignlp/bignlp-training:22.04-py3
-        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.04-py3
+        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.03-py3
         container_mounts:
             - null
 
@@ -38,5 +37,6 @@ class TestConfig:
         search_config_value: ${hydra:runtime.choices.search_config}
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/config.yaml must be set to {expected} but it currently is {conf}."
-
+        assert (
+            expected == conf
+        ), f"conf/config.yaml must be set to {expected} but it currently is {conf}."

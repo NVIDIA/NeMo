@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestGPT3Config:
-
     def test_gpt3_config_0_126b(self):
-        conf = OmegaConf.load('conf/search_config/gpt3/0.126b.yaml')
+        conf = OmegaConf.load("conf/search_config/gpt3/0.126b.yaml")
         s = """
         train_settings:
           model_size_in_b: 0.126
@@ -32,15 +31,17 @@ class TestGPT3Config:
           output_seq_len: 20
           top_n: 10
           logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [1]
+          tensor_parallel_sizes: [1, 2]
           pipeline_parallel_sizes: [1]
           max_batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/gpt3/0.126b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/gpt3/0.126b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_gpt3_config_5b(self):
-        conf = OmegaConf.load('conf/search_config/gpt3/5b.yaml')
+        conf = OmegaConf.load("conf/search_config/gpt3/5b.yaml")
         s = """
         train_settings:
           model_size_in_b: 5
@@ -73,10 +74,12 @@ class TestGPT3Config:
           max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/gpt3/5b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/gpt3/5b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_gpt3_config_20b(self):
-        conf = OmegaConf.load('conf/search_config/gpt3/20b.yaml')
+        conf = OmegaConf.load("conf/search_config/gpt3/20b.yaml")
         s = """
         train_settings:
           model_size_in_b: 20.0
@@ -104,15 +107,17 @@ class TestGPT3Config:
           max_latency_ms: 5000
           top_n: 10
           logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [8]
-          pipeline_parallel_sizes: [1, 2, 3, 4]
-          max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
+          tensor_parallel_sizes: [4, 8]
+          pipeline_parallel_sizes: [1]
+          max_batch_sizes: [1, 2, 4, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/gpt3/20b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/search_config/gpt3/20b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_gpt3_config_40b(self):
-        conf = OmegaConf.load('conf/search_config/gpt3/40b.yaml')
+        conf = OmegaConf.load("conf/search_config/gpt3/40b.yaml")
         s = """
         train_settings:
           model_size_in_b: 40
@@ -140,14 +145,17 @@ class TestGPT3Config:
           max_latency_ms: 5000
           top_n: 10
           logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [8]
-          pipeline_parallel_sizes: [1, 2, 3, 4]
-          max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
+          tensor_parallel_sizes: [4, 8]
+          pipeline_parallel_sizes: [1]
+          max_batch_sizes: [1, 2, 4, 8, 16, 32, 64, 256]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/gpt3/40b.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/search_config/gpt3/40b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_gpt3_config_175b(self):
-        conf = OmegaConf.load('conf/search_config/gpt3/175b.yaml')
+        conf = OmegaConf.load("conf/search_config/gpt3/175b.yaml")
         s = """
         train_settings:
           model_size_in_b: 175
@@ -175,9 +183,11 @@ class TestGPT3Config:
           max_latency_ms: 10000
           top_n: 10
           logs: ${base_results_dir}/${search_config_value}
-          tensor_parallel_sizes: [8]
-          pipeline_parallel_sizes: [1, 2, 3, 4, 8]
-          max_batch_sizes: [1, 2, 8, 16, 32, 64]
+          tensor_parallel_sizes: [4, 8]
+          pipeline_parallel_sizes: [1]
+          max_batch_sizes: [1, 2, 4, 8, 16, 32, 64]
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/search_config/gpt3/175b.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/search_config/gpt3/175b.yaml must be set to {expected} but it currently is {conf}."

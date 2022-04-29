@@ -94,7 +94,7 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
     try:
         if model_name in ["gpt3", "t5", "mt5"]:
             return round(
-                model_penalty 
+                model_penalty
                 * (max_training_days * 3600 * 24 * gpu_count * tflops_per_gpu * 1e12)
                 / (8 * num_tokens_in_b * 1e9)
                 / 1e9,
@@ -102,8 +102,10 @@ def _estimate_model_size(max_training_days, gpu_count, tflops_per_gpu, num_token
             )
         else:
             raise NotImplementedError
-    except Exception:
+    except ValueError:
         print("Input values were not valid.")
+    except ZeroDivisionError:
+        print("Cannot divide by zero. This can happen if num_tokens_in_b is zero.")
 
 
 def _estimate_training_time(
@@ -128,7 +130,7 @@ def _estimate_training_time(
     model_penalty = 1.15 if model_name == "mt5" else 1.0
     try:
         if model_name in ["gpt3", "t5", "mt5"]:
-            max_training_days = round(
+            return round(
                 model_penalty
                 * (model_size_in_b * 1e9 * 8 * num_tokens_in_b * 1e9)
                 / (3600 * 24 * gpu_count * tflops_per_gpu * 1e12),
@@ -136,9 +138,10 @@ def _estimate_training_time(
             )
         else:
             raise NotImplementedError
-    except Exception:
+    except ValueError:
         print("Input values were not valid.")
-    return max_training_days
+    except ZeroDivisionError:
+        print("Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero.")
 
 
 def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):

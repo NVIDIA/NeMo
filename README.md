@@ -180,7 +180,8 @@ inference_settings:
 ```
 
 #### 2.1.1. Base Config Generation
-Every time we call `python3 main.py`, a base configuration will be stored for the given model 
+Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
+and it will be saved to the `logs` directory indicated in your config files.
 
 
 #### 2.1.2. Training HP Search

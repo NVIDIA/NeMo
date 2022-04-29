@@ -1,18 +1,23 @@
-partition: luna
-account: joc
-exclusive: True
-gpus_per_task: null
-mem: 0
-overcommit: True
-job_name_prefix: "joc-bignlp_gpt3:"
-
+# Do not use any hydra interpolation for the cluster and env configs below.
 cluster:
   type: pyxis
-  account: joc
-  partition: luna
+  account: null
+  partition: null
   srun_args: ["--mpi", "pmix"]
-  support_gpus_allocation: False
+  support_gpus_allocation: True
 env:
-  job_name_prefix: "joc-bignlp_gpt3:"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3
+  job_name_prefix: "bignlp_hp_tool:"
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.04-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.03-py3
+ 
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: True
+
+# Do not modify below this line, use the values above instead.
+partition: ${.cluster.partition}
+account: ${.cluster.account}
+job_name_prefix: ${.env.job_name_prefix}
+
