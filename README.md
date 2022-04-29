@@ -414,7 +414,7 @@ Parallelization is enabled in downloading and preprocessing scripts. It will hel
 distribute and balance the work on multi-node systems and provide significant speed up.
 Downloading and preprocessing the default language list takes approximately 7 hours 
 assuming a 30 MB/s download speed and parallelization by using 20 nodes. The preprocessed dataset has a size 
-of around 12 TB.
+of around 12 TB. It's recommended to use a file system with larger than 20 TB storage to prepare the data.
 
 Currently, we don't support training with more than 25 languages, see [Known Issues].
 
@@ -672,7 +672,7 @@ To run the data preparation pipeline for mT5 models, run:
 python3 /opt/bignlp/bignlp-scripts/main.py data_preparation=download_mc4 run_data_preparation=True \
 run_training=False run_conversion=False run_finetuning=False run_evaluation=False run_finetuning=False \
 cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
-base_results_dir=/mount/results data_preparation.languages="'cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh'" \
+base_results_dir=/mount/results data_preparation.languages=\'cs,da,de,el,en,es,fi,fr,hi,hu,it,ja,ko,lt,lv,nl,no,pl,pt,ro,ru,sk,sv,zh\' \
 data_preparation.nodes=20 data_preparation.workers_per_node=4 >> /results/data_mt5_log.txt 2>&1
 ```
 
@@ -1973,9 +1973,9 @@ To run the evaluation pipeline to evaluate a 126M GPT-3 model checkpoint stored 
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
 run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
-base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/data/bpe/vocab.json \
-evaluation.model.merge_file=/mount/data/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
-evaluation.model.checkpoint_path=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
+base_results_dir=/mount/results evaluation.model.vocab_file=/mount/data/bpe/vocab.json \
+evaluation.model.merge_file=/mount/data/bpe/merges.txt evaluation.run.results_dir=/mount/results/gpt3_126m/evaluation \
+evaluation.model.checkpoint_folder=/mount/results/gpt3_126m/checkpoints evaluation.model.eval_batch_size=16 \
 evaluation.model.tensor_model_parallel_size=1 \
 >> /results/eval_gpt3_log.txt 2>&1
 ```
