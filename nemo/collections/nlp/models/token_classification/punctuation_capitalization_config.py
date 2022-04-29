@@ -21,6 +21,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
     legacy_data_config_to_new_data_config,
+    PunctuationCapitalizationLexicalAudioEvalDataConfig, PunctuationCapitalizationLexicalAudioTrainDataConfig,
 )
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig
@@ -213,6 +214,21 @@ class PunctuationCapitalizationModelConfig:
 
 
 @dataclass
+class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalizationModelConfig):
+    train_ds: Optional[PunctuationCapitalizationLexicalAudioTrainDataConfig] = None
+    """A configuration for creating training dataset and data loader."""
+
+    validation_ds: Optional[PunctuationCapitalizationLexicalAudioEvalDataConfig] = None
+    """A configuration for creating validation datasets and data loaders."""
+
+    test_ds: Optional[PunctuationCapitalizationLexicalAudioEvalDataConfig] = None
+    """A configuration for creating test datasets and data loaders."""
+
+    pretrained_audio_encoder: str = MISSING
+    """A configuration for restoring pretrained audio encoder"""
+
+
+@dataclass
 class PunctuationCapitalizationConfig(NemoConfig):
     """
     A config for punctuation model training and testing.
@@ -248,6 +264,12 @@ class PunctuationCapitalizationConfig(NemoConfig):
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name=name, files_to_copy=[])
     """A configuration with various NeMo training options such as output directories, resuming from checkpoint,
     tensorboard and W&B logging, and so on. For possible options see :ref:`exp-manager-label`."""
+
+
+@dataclass
+class PunctuationCapitalizationLexicalAudioConfig(PunctuationCapitalizationConfig):
+    model: PunctuationCapitalizationLexicalAudioModelConfig = PunctuationCapitalizationLexicalAudioModelConfig()
+
 
 
 def is_legacy_model_config(model_cfg: DictConfig) -> bool:

@@ -848,7 +848,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def _remove_margins(tensor: torch.Tensor, margin_size: int, keep_left: bool, keep_right: bool) -> torch.Tensor:
         tensor = tensor.detach().clone()
         if not keep_left:
-            tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
+            tensor = tensor[margin_size + 1:]  # remove left margin and CLS token
         if not keep_right:
             tensor = tensor[: tensor.shape[0] - margin_size - 1]  # remove right margin and SEP token
         return tensor
@@ -939,7 +939,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
+        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0]:]], axis=0)
         return acc_prob
 
     def _apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:

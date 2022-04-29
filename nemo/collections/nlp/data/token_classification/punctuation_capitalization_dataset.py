@@ -17,6 +17,8 @@ __all__ = [
     'LABEL_ID_DIR_FOR_NEMO_CHECKPOINT',
     'Progress',
     'PunctuationCapitalizationEvalDataConfig',
+    'PunctuationCapitalizationLexicalAudioTrainDataConfig',
+    'PunctuationCapitalizationLexicalAudioEvalDataConfig',
     'PunctuationCapitalizationTrainDataConfig',
     'create_label_ids',
     'create_masks_and_segment_ids',
@@ -164,6 +166,22 @@ class PunctuationCapitalizationDataConfigBase:
 
     persistent_workers: bool = True
     """See ``torch.utils.data.DataLoader`` documentation."""
+
+
+@dataclass
+class PunctuationCapitalizationLexicalAudioTrainDataConfig(PunctuationCapitalizationDataConfigBase):
+    ds_item: Optional[Any] = MISSING
+    audio_manifest_filepath: Optional[str] = MISSING
+    sample_rate: int = 8000
+    batch_size: int = 32
+
+
+@dataclass
+class PunctuationCapitalizationLexicalAudioEvalDataConfig(PunctuationCapitalizationDataConfigBase):
+    ds_item: Optional[Any] = MISSING
+    audio_manifest_filepath: Optional[str] = MISSING
+    sample_rate: int = 8000
+    batch_size: int = 32
 
 
 @dataclass
@@ -867,30 +885,31 @@ class BertPunctuationCapitalizationDataset(Dataset):
         }
 
     def __init__(
-        self,
-        text_file: Union[str, os.PathLike],
-        labels_file: Union[str, os.PathLike],
-        max_seq_length: int,
-        tokenizer: TokenizerSpec,
-        num_samples: int = -1,
-        tokens_in_batch: int = 5000,
-        pad_label: str = 'O',
-        punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
-        capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
-        ignore_extra_tokens: bool = False,
-        ignore_start_end: bool = True,
-        use_cache: bool = True,
-        cache_dir: Optional[Union[str, os.PathLike]] = None,
-        get_label_frequencies: bool = False,
-        label_info_save_dir: Optional[Union[str, os.PathLike]] = None,
-        punct_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
-        capit_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
-        add_masks_and_segment_ids_to_batch: bool = True,
-        verbose: bool = True,
-        n_jobs: Optional[int] = 0,
-        tokenization_progress_queue: Optional[mp.Queue] = None,
-        batch_mark_up_progress_queue: Optional[mp.Queue] = None,
-        batch_building_progress_queue: Optional[mp.Queue] = None,
+            self,
+            text_file: Union[str, os.PathLike],
+            labels_file: Union[str, os.PathLike],
+            max_seq_length: int,
+            tokenizer: TokenizerSpec,
+            num_samples: int = -1,
+            tokens_in_batch: int = 5000,
+            pad_label: str = 'O',
+            punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
+            capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
+            ignore_extra_tokens: bool = False,
+            ignore_start_end: bool = True,
+            use_cache: bool = True,
+            cache_dir: Optional[Union[str, os.PathLike]] = None,
+            get_label_frequencies: bool = False,
+            label_info_save_dir: Optional[Union[str, os.PathLike]] = None,
+            punct_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
+            capit_label_vocab_file: Optional[Union[str, os.PathLike]] = None,
+            add_masks_and_segment_ids_to_batch: bool = True,
+            verbose: bool = True,
+            n_jobs: Optional[int] = 0,
+            tokenization_progress_queue: Optional[mp.Queue] = None,
+            batch_mark_up_progress_queue: Optional[mp.Queue] = None,
+            batch_building_progress_queue: Optional[mp.Queue] = None,
+            use_features: bool = True
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
         if isinstance(punct_label_ids, DictConfig):
@@ -928,6 +947,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.verbose = verbose
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
+        self._use_features = use_features
 
         master_device = is_global_rank_zero()
         self.features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
@@ -986,6 +1006,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
+        if not self._use_features:
+            return
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
@@ -1389,7 +1411,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         return punct_labels_file, capit_labels_file
 
     def __len__(self) -> int:
-        return len(self.batches)
+        if self._use_features:
+            return len(self.batches)
+        return len(self.input_ids)
 
     def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
@@ -1457,4 +1481,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 ``ignore_start_end``, ``ignore_extra_tokens`` (if ``self.add_masks_and_segment_ids_to_batch`` is
                 ``False``, then this items is missing).
         """
-        return self.batches[idx]
+        if self._use_features:
+            return self.batches[idx]
+        return {'input_ids': self.input_ids[idx], 'subtokens_mask': self.subtokens_mask[idx],
+                'punct_labels': self.punct_labels[idx], 'capit_labels': self.capit_labels[idx]}
