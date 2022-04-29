@@ -60,6 +60,7 @@ def get_args():
     parser.add_argument("--vocab_file", type=str, default=None, required=False, help="Path to vocab file.")
     parser.add_argument("--merge_file", type=str, default=None, required=False, help="Path to merge file.")
     parser.add_argument("--tokenizer_model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer for mT5.")
+    parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
     args = parser.parse_args()
     return args
@@ -79,6 +80,7 @@ if __name__ == '__main__':
     vocab_file = args.vocab_file
     merge_file = args.merge_file
     tokenizer_model = args.tokenizer_model
+    bcp = args.bcp
 
     # Checkpoint search
     if checkpoint_name == "latest":
@@ -125,7 +127,8 @@ if __name__ == '__main__':
            f"--hparams_file={hparams_override_file} " \
            f"--nemo_file_path={nemo_file_path} " \
            f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
-           f"--pipeline_model_parallel_size={pipeline_model_parallel_size}"
+           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} "
+    args += "--bcp " if bcp else ""
 
     args = args.replace(" ", " \\\n  ")
     cmd_str = f"python3 -u {code_path} \\\n  {args}"
