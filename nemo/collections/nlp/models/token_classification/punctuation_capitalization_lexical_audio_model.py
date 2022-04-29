@@ -45,13 +45,12 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             self, input_ids: torch.Tensor, attention_mask: torch.Tensor, token_type_ids: Optional[torch.Tensor] = None,
             features: torch.Tensor = None, features_length: torch.Tensor = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if self._cfg.tokenizer.get('library', '') == 'megatron':
-            lexical_hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids,
-                                                       lm_labels=None)
-        else:
-            lexical_hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        lexical_hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        if isinstance(lexical_hidden_states, tuple):
+            lexical_hidden_states = lexical_hidden_states[0]
+
         processed_signal, processed_signal_length = self.audio_encoder.preprocessor(
             input_signal=features, length=features_length,
         )
