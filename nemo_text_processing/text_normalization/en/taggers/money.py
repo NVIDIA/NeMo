@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,9 +27,9 @@ try:
     import pynini
     from pynini.lib import pynutil
 
-    min_singular = pynini.string_file(get_abs_path("data/currency/currency_minor_singular.tsv"))
-    min_plural = pynini.string_file(get_abs_path("data/currency/currency_minor_plural.tsv"))
-    maj_singular = pynini.string_file((get_abs_path("data/currency/currency.tsv")))
+    min_singular = pynini.string_file(get_abs_path("data/money/currency_minor_singular.tsv"))
+    min_plural = pynini.string_file(get_abs_path("data/money/currency_minor_plural.tsv"))
+    maj_singular = pynini.string_file((get_abs_path("data/money/currency_major.tsv")))
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -59,9 +58,9 @@ class MoneyFst(GraphFst):
     def __init__(self, cardinal: GraphFst, decimal: GraphFst, deterministic: bool = True):
         super().__init__(name="money", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph_with_and
-        graph_decimal_final = decimal.final_graph_wo_negative
+        graph_decimal_final = decimal.final_graph_wo_negative_w_abbr
 
-        maj_singular_labels = load_labels(get_abs_path("data/currency/currency.tsv"))
+        maj_singular_labels = load_labels(get_abs_path("data/money/currency_major.tsv"))
         maj_unit_plural = convert_space(maj_singular @ SINGULAR_TO_PLURAL)
         maj_unit_singular = convert_space(maj_singular)
 
