@@ -6,7 +6,26 @@ from tqdm import tqdm
 
 
 """
-Financial Phrase Bank Dataset preprocessing script for p-tuning/prompt-tuning.
+Dataset preprocessing script for the SQuAD dataset: https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json
+Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
+
+Inputs:
+    data-dir: (str) The directory where the squad dataset was downloaded, files will be saved here
+    file-name: (str) Name of the input file you want to process
+    save-name-base: (str) The base name for each of the train, val, and test files. If save-name-base were 'squad' for
+                    example, the files would be saved as squad_train.jsonl, squad_val.jsonl, and squad_test.jsonl
+    make-ground-truth: (bool) If true, test files will include answers, if false, test files will not include answers. 
+    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
+    train-percent: (float) Precentage of data that should be used for the train split. The val and test splits will be made
+                    by splitting the remaining data evenly. 
+
+Saves train, val, and test files for the SQuAD dataset.
+
+The SQuAD dataset consists of various topics like Beyoncé, IPod, and Symbiosis. Each topic has several paragraphs 
+associated with it, and each paragraph has several questions and answers related to it. When we separated the 
+train/validation/test splits, we separated them on the topic level. For example, if the training set contains paragraphs 
+and questions about the topic Beyoncé, neither the validation nor test sets will contain any questions on this topic. 
+All questions about a certain topic are isolated to one split of the data.
 
 An example of the processed output written to file:
     

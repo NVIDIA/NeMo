@@ -5,8 +5,25 @@ import random
 from tqdm import tqdm
 
 
+
 """
-Financial Phrase Bank Dataset preprocessing script for p-tuning/prompt-tuning.
+Dataset preprocessing script for the Financial Phrase Bank Sentiement dataset: 
+https://www.researchgate.net/profile/Pekka_Malo/publication/251231364_FinancialPhraseBank-v10/data/0c96051eee4fb1d56e000000/FinancialPhraseBank-v10.zip
+
+Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
+
+Inputs:
+    data-dir: (str) The unziped directory where the Financial PhraseBank dataset was downloaded, files will be saved here
+    file-name: (str) Name of the input file you want to process
+    save-name-base: (str) The base name for each of the train, val, and test files. If save-name-base were 'financial_phrase_bank' for
+                    example, the files would be saved as financial_phrase_bank_train.jsonl, financial_phrase_bank_val.jsonl, and 
+                    financial_phrase_bank_test.jsonl
+    make-ground-truth: (bool) If true, test files will include labels, if false, test files will not include labels
+    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
+    train-percent: (float) Precentage of data that should be used for the train split. The val and test splits will be made
+                    by splitting the remaining data evenly. 
+
+Saves train, val, and test files for the Financial PhraseBank dataset.
 
 An example of the processed output written to file:
     

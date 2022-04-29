@@ -5,9 +5,24 @@ import random
 from assistant_utils import process_assistant
 from tqdm import tqdm
 
-
 """
-Example format:
+Dataset preprocessing script for the Assistant dataset: https://github.com/xliuhw/NLU-Evaluation-Data/archive/master.zip
+Converts the dataset into a jsonl format that can be used for p-tuning/prompt tuning in NeMo. 
+
+Inputs:
+    source-dir: (str) The unziped directory where the assistant dataset was downloaded
+    nemo-format-dir: (str) The directory where intermediate preprocessed files will be saved
+    output-dir: (str) The directory where the final train, val, and test files will be saved
+    save-name-base: (str) The base name for each of the train, val, and test files. If save-name-base were 'assistant' for
+                    example, the files would be saved as assistant_train.jsonl, assistant_val.jsonl, and assistant_test.jsonl
+    make-ground-truth: (bool) If true, test files will include answers, if false, test files will not include answers
+    include-options: (bool) If true, all intent and slot options will be added to the jsonl file under the key names 
+                     'intent options' and 'slot_options'. This will be added in addition to 'taskname', 'utterance', and 'label'.
+    random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
+
+Saves train, val, and test files for the assitant dataset.
+
+Example Output format (with include-options = False):
     
     {"taskname": "intent_and_slot", "utterance": "who was john dillinger", "label": "\nIntent: qa_factoid\nSlots: person(john dillinger)"}
     {"taskname": "intent_and_slot", "utterance": "can you play my favorite music", "label": "\nIntent: play_music\nSlots: None"}
