@@ -82,7 +82,7 @@ def generate_cmd_prefix(cfg, code_dir):
         wandb_cmd = f"wandb login {wandb_api_key}; "
 
     # Write command to launch training.
-    cmd_prefix = f'{wandb_cmd} cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/temp_root/.cache/"; {nccl_cmd}'
+    cmd_prefix = f'{wandb_cmd} cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/tmp/.cache/"; {nccl_cmd}'
     return cmd_prefix
 
 
