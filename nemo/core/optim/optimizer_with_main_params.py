@@ -186,13 +186,14 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         # used with tensor parallel only (no pipeline parallelism)
         self._async_grad_allreduce = async_grad_allreduce
-        self._grad_allreduce_chunk_size_mb = grad_allreduce_chunk_size_mb
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
             self._require_backward_grad_sync = True
+            self._grad_allreduce_chunk_size_mb = grad_allreduce_chunk_size_mb
         else:
             self._require_backward_grad_sync = False
+            self._grad_allreduce_chunk_size_mb = 0
 
         # Dummy tensor needed for apex multi-apply tensor.
         self._dummy_overflow_buf = None
