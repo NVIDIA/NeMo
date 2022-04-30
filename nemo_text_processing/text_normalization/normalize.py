@@ -15,13 +15,18 @@
 import itertools
 import os
 import re
+import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
-import sys
 
-from nemo_text_processing.text_normalization.data_loader_utils import get_installation_msg, pre_process, load_file, write_file
+from nemo_text_processing.text_normalization.data_loader_utils import (
+    get_installation_msg,
+    load_file,
+    pre_process,
+    write_file,
+)
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -112,7 +117,9 @@ class Normalizer:
             self.processor = None
             print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
-    def normalize_list(self, texts: List[str], verbose=False, punct_pre_process: bool = False, punct_post_process: bool = False) -> List[str]:
+    def normalize_list(
+        self, texts: List[str], verbose=False, punct_pre_process: bool = False, punct_post_process: bool = False
+    ) -> List[str]:
         """
         NeMo text normalizer
 
@@ -125,7 +132,9 @@ class Normalizer:
         res = []
         for input in tqdm(texts):
             try:
-                text = self.normalize(input, verbose=verbose, punct_pre_process=punct_pre_process, punct_post_process=punct_post_process)
+                text = self.normalize(
+                    input, verbose=verbose, punct_pre_process=punct_pre_process, punct_post_process=punct_post_process
+                )
             except:
                 print(input)
                 raise Exception
@@ -397,7 +406,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
-    
+
     normalizer = Normalizer(
         input_case=args.input_case,
         cache_dir=args.cache_dir,
@@ -419,9 +428,12 @@ if __name__ == "__main__":
         data = load_file(args.input_file)
 
         print("- Data: " + str(len(data)) + " sentences")
-        normalizer_prediction = normalizer.normalize_list(data, verbose=args.verbose, 
-                punct_pre_process=args.punct_pre_process,
-                punct_post_process=args.punct_post_process,)
+        normalizer_prediction = normalizer.normalize_list(
+            data,
+            verbose=args.verbose,
+            punct_pre_process=args.punct_pre_process,
+            punct_post_process=args.punct_post_process,
+        )
         if args.output_file:
             write_file(args.output_file, normalizer_prediction)
             print(f"- Normalized. Writing out to {args.output_file}")

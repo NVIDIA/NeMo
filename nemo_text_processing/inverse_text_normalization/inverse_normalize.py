@@ -16,7 +16,12 @@ from argparse import ArgumentParser
 from time import perf_counter
 from typing import List
 
-from nemo_text_processing.text_normalization.data_loader_utils import check_installation, get_installation_msg, load_file, write_file
+from nemo_text_processing.text_normalization.data_loader_utils import (
+    check_installation,
+    get_installation_msg,
+    load_file,
+    write_file,
+)
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.token_parser import TokenParser
 
@@ -127,7 +132,7 @@ if __name__ == "__main__":
         lang=args.language, cache_dir=args.cache_dir, overwrite_cache=args.overwrite_cache
     )
     print(f'Time to generate graph: {round(perf_counter() - start_time, 2)} sec')
-    
+
     if args.input_string:
         print(inverse_normalizer.inverse_normalize(args.input_string, verbose=args.verbose))
     elif args.input_file:

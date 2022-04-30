@@ -256,7 +256,6 @@ def get_installation_msg():
     return msg
 
 
-
 def load_file(file_path: str) -> List[str]:
     """
     Load given text file into list of string.
