@@ -1,7 +1,0 @@
-PLAIN	on	<self>
-DATE	22 july 2012	the twenty second of july twenty twelve
-PLAIN	they	<self>
-PLAIN	worked	<self>
-PLAIN	until	<self>
-TIME	12:00	twelve o'clock
-<eos>	<eos>
