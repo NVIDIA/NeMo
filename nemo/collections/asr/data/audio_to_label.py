@@ -13,16 +13,23 @@
 # limitations under the License.
 import io
 import os
-from typing import Dict, List, Optional, Union
+import json
+import pickle 
+
+from typing import Any, Dict, List, Optional, Union
 
 import braceexpand
 import torch
 import webdataset as wd
+from collections import Counter
 
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.common.parts.preprocessing import collections
+from nemo.collections.common.parts.preprocessing.collections import MSDDSpeechLabel
+from nemo.collections.common.parts.preprocessing import manifest, parsers
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import EncodedRepresentation
 from nemo.utils import logging
 
 # List of valid file formats (prioritized by order of importance)
@@ -127,17 +134,15 @@ def _fixed_seq_collate_fn(self, batch):
         if has_audio:
             sig_len = sig_len.item()
             chunck_len = sig_len - fixed_length
-
             if chunck_len < 0:
                 repeat = fixed_length // sig_len
                 rem = fixed_length % sig_len
                 sub = sig[-rem:] if rem > 0 else torch.tensor([])
                 rep_sig = torch.cat(repeat * [sig])
                 sig = torch.cat((rep_sig, sub))
+
             new_audio_lengths.append(torch.tensor(fixed_length))
-
             audio_signal.append(sig)
-
         tokens.append(tokens_i)
 
     if has_audio:
@@ -863,3 +868,318 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
 
     def vad_frame_seq_collate_fn(self, batch):
         return _vad_frame_seq_collate_fn(self, batch)
+
+
+class _AudioMSDDDataset(Dataset):
+    """
+    """
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        """Returns definitions of module output ports.
+        """
+
+        output_types = {
+            'audio_signal': NeuralType(
+                ('B', 'T'),
+                AudioSignal(freq=self._sample_rate)
+                if self is not None and hasattr(self, '_sample_rate')
+                else AudioSignal(),
+            ),
+            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+        }
+
+        output_types.update(
+            {
+                'targets': NeuralType(('B', 'T', 'C'), LabelsType()),
+                'ivectors': NeuralType(('B', 'D', 'C'), AcousticEncodedRepresentation()),
+            }
+        )
+        return output_types
+
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        emb_dir_path: str,
+        emb_dict: Dict,
+        emb_seq: Dict,
+        clus_label_dict: Dict,
+        soft_label_thres: float,
+        featurizer,
+        max_spks: int,
+        bi_ch_infer: bool,
+    ):
+        super().__init__()
+        self.collection = MSDDSpeechLabel(
+            manifests_files=manifest_filepath.split(','),
+            emb_dict=emb_dict,
+            emb_seq=emb_seq,
+            clus_label_dict=clus_label_dict,
+            is_regression_task=False,
+            max_spks=max_spks,
+            bi_ch_infer=bi_ch_infer,
+        )
+        self.featurizer = featurizer
+        self.emb_dir_path = emb_dir_path
+        self.emb_dict = emb_dict
+        self.emb_seq = emb_seq
+        self.clus_label_dict = clus_label_dict
+        self.ROUND = 2
+        self.decim = 10 ** self.ROUND
+        self.fr_per_sec = 100
+        self.soft_label_thres = soft_label_thres
+        self.bi_ch_infer = bi_ch_infer
+        self.max_spks = max_spks
+        self.meta_folder_name= 'msdd_meta_files'
+        self.pred_rttms_base_path = os.path.join(self.emb_dir_path, 'pred_rttms')
+        self.meta_path = os.path.join(self.pred_rttms_base_path, self.meta_folder_name)
+        if not os.path.exists(self.meta_path):
+            os.makedirs(self.meta_path)
+        elif self.bi_ch_infer:
+            for file in os.scandir(self.meta_path):
+                os.remove(file.path)
+
+
+    def __len__(self):
+        return len(self.collection)
+   
+    def s2n(self, x):
+        return round(float(x), self.ROUND)
+    
+    def parse_rttm_multiscale(self, sample, tup_spks=None):
+        base_scale_idx = max(self.emb_dict.keys())
+        rttm_path = sample.rttm_file
+        rttm_lines = self.read_rttm_file(rttm_path)
+        uniq_id = self.get_uniq_id(rttm_path)
+        sample_end = (sample.offset + sample.duration)
+        stt_list, end_list = [], []
+        speaker_list = []
+        if tup_spks:
+            mapping_dict = self.emb_dict[base_scale_idx][uniq_id]['mapping']
+            inv_map = {v: k for k, v in mapping_dict.items()}
+            bi_ch_infer_spks = []
+            for spk_idx in tup_spks[0]:
+                spk_str = f'speaker_{spk_idx}'
+                if spk_str in inv_map:
+                    bi_ch_infer_spks.append(inv_map[spk_str])
+            for line in rttm_lines:
+                rttm = line.strip().split()
+                start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+                if speaker in bi_ch_infer_spks:
+                    end_list.append(end)
+                    stt_list.append(start)
+                    speaker_list.append(speaker)
+
+        else:
+            for line in rttm_lines:
+                rttm = line.strip().split()
+                start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+                end_list.append(end)
+                stt_list.append(start)
+                speaker_list.append(speaker)
+
+        max_len = max(end_list)
+        total_fr_len = int(max_len*self.decim)
+        sorted_speakers = sorted(list(set(speaker_list)))
+        spk_num = len(sorted_speakers)
+        if spk_num > self.max_spks:
+            raise ValueError(f"Number of speaker {spk_num} should be less than or equal to self.max_num_speakers {self.max_num_speakers}")
+        dur_fr = int(max_len * self.fr_per_sec)
+        target = torch.zeros(dur_fr, self.max_spks)
+        for stt, end, spk in zip(stt_list, end_list, speaker_list):
+            spk = int(self.emb_dict[base_scale_idx][uniq_id]['mapping'][spk].split('_')[1])
+            stt_fr, end_fr = int(round(stt, 2)*self.fr_per_sec), int(round(end, 2)*self.fr_per_sec)
+            if tup_spks == None:
+                target[stt_fr:end_fr, spk] = 1
+            else:
+                idx = tup_spks[0].index(spk)
+                target[stt_fr:end_fr, idx] = 1
+        
+        seg_target = []
+        for (seg_stt, seg_end, label_int) in self.clus_label_dict[uniq_id]:
+            seg_stt_fr, seg_end_fr = int(seg_stt * self.fr_per_sec), int(seg_end * self.fr_per_sec)
+            soft_label_vec = torch.sum(target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
+            label_vec = (soft_label_vec > self.soft_label_thres).int()
+            seg_target.append(label_vec)
+            seg_target_tensor = torch.stack(seg_target)
+        return seg_target_tensor
+
+    def read_rttm_file(self, rttm_path):
+        return open(rttm_path).readlines()
+
+    def get_uniq_id(self, rttm_path):
+        return rttm_path.split('/')[-1].split('.rttm')[0]
+    
+    def getRepeatedList(self, mapping_argmat, score_mat_size):
+        """
+        Count the numbers in the mapping dictionary and create lists that contain
+        repeated indices to be used for creating the repeated affinity matrix for
+        fusing the affinity values.
+        """
+        count_dict = dict(Counter(mapping_argmat))
+        repeat_list = []
+        for k in range(score_mat_size):
+            if k in count_dict:
+                repeat_list.append(count_dict[k])
+            else:
+                repeat_list.append(0)
+        return repeat_list
+    
+    def get_filename(self, sample, tup_spks=None):
+        if tup_spks:
+            tup_str = f"{tup_spks[0][0]}_{tup_spks[0][1]}"
+            msdd_file_name = os.path.basename(sample.rttm_file).replace('.rttm', f'.msdd.{tup_str}.pkl')
+        else:
+            msdd_file_name = os.path.basename(sample.rttm_file).replace('.rttm', f'.msdd.pkl')
+        fn = os.path.join(self.meta_path, msdd_file_name)
+        return fn
+
+    def check_target_file(self, sample, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        return os.path.exists(fn)
+
+    def load_rttm_target_file(self, sample, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        with open(fn, 'rb') as handle:
+            targets = pickle.load(handle)
+        return targets, fn
+    
+    def save_rttm_target_file(self, sample, targets, tup_spks=None):
+        fn = self.get_filename(sample, tup_spks)
+        with open(fn, 'wb') as handle:
+            pickle.dump(targets, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        return fn
+    
+    def __getitem__(self, index):
+        sample = self.collection[index]
+        offset = sample.offset
+
+        if sample.offset is None:
+            sample.offset = 0
+        
+        if self.bi_ch_infer:
+            if self.check_target_file(sample, self.collection[index].tup_spks):
+                targets, fn = self.load_rttm_target_file(sample, self.collection[index].tup_spks)
+            else:
+                targets = self.parse_rttm_multiscale(sample, self.collection[index].tup_spks)
+                fn = self.save_rttm_target_file(sample, targets, self.collection[index].tup_spks)
+        else:
+            if self.check_target_file(sample):
+                targets, fn = self.load_rttm_target_file(sample)
+            else:
+                targets = self.parse_rttm_multiscale(sample)
+                fn = self.save_rttm_target_file(sample, targets)
+        targets = targets.float()
+        uniq_id = self.get_uniq_id(sample.rttm_file)
+        scale_n = len(self.emb_dict.keys())
+        _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)]) 
+
+        if self.bi_ch_infer:
+            avg_embs = _avg_embs[:, : , self.collection[index].tup_spks[0]]
+        else:
+            avg_embs = _avg_embs
+
+        if avg_embs.shape[2] > self.max_spks:
+            raise ValueError(f" avg_embs.shape[2] {avg_embs.shape[2]} should be less than or equal to self.max_num_speakers {self.max_spks}")
+        
+        feats = []
+        for scale_index in range(scale_n):
+            # repeat_mat = torch.tensor(self.emb_seq["session_scale_mapping"][uniq_id][scale_index])
+            repeat_mat = self.emb_seq["session_scale_mapping"][uniq_id][scale_index]
+            feats.append(self.emb_seq[scale_index][uniq_id][repeat_mat, :])
+        feats_out= torch.stack(feats).permute(1, 0, 2)
+        feats_len = feats_out.shape[0]
+        return feats_out, feats_len, targets, avg_embs
+
+def _msdd_collate_fn(self, batch):
+    packed_batch = list(zip(*batch))
+    feats, feats_len, targets, ivectors = packed_batch
+    feats_list, flen_list, targets_list, ivectors_list = [], [], [], []
+    max_audio_len = max(feats_len)
+    max_target_len = max([x.shape[0] for x in targets])
+
+    for feature, feat_len, target, ivector in batch:
+        flen_list.append(feat_len)
+        ivectors_list.append(ivector)
+        if feat_len < max_audio_len:
+            pad_a = (0, 0, 0, 0, 0,  max_audio_len - feat_len)
+            pad_t = (0, 0, 0, max_target_len - target.shape[0])
+            padded_feature = torch.nn.functional.pad(feature, pad_a)
+            padded_target = torch.nn.functional.pad(target, pad_t)
+            feats_list.append(padded_feature)
+            targets_list.append(padded_target)
+        else:
+            targets_list.append(target.clone().detach())
+            feats_list.append(feature.clone().detach())
+    
+    feats = torch.stack(feats_list)
+    feats_len = torch.tensor(flen_list)
+    targets = torch.stack(targets_list)
+    ivectors = torch.stack(ivectors_list)
+    return feats, feats_len, targets, ivectors
+    
+class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
+    """
+    Dataset class that loads a json file containing paths to audio files,
+    rttm files and number of speakers.
+
+    Example:
+    {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
+    "rttm_filepath": "/path/to/diar_label_0.rttm}
+    ...
+    {"audio_filepath": "/path/to/audio_wav_n.wav", "num_speakers": 2,
+    "rttm_filepath": "/path/to/diar_label_n.rttm}
+
+    Args:
+        manifest_filepath (str): 
+             Path to manifest json as described above. Can
+            be comma-separated paths.
+        manifest_filepath (str):
+                
+        emb_dir_path (str):
+            
+        emb_dict (Dict):
+
+        emb_seq (Dict):
+
+        clus_label_dict (Dict):
+
+        soft_label_thres (float):
+            A threshold that determines the label of 
+        featurizer:
+            Featurizer instance for generating features from the raw waveform.
+        max_spks (int):
+            Integer value that limits the number of speakers.
+        bi_ch_infer (bool):
+            This variable should be True if dataloader is created for an inference task.
+    """
+
+    def __init__(
+        self,
+        *,
+        manifest_filepath: str,
+        emb_dir_path: str,
+        emb_dict: Dict,
+        emb_seq: Dict,
+        clus_label_dict: Dict,
+        soft_label_thres: float,
+        featurizer,
+        max_spks: int,
+        bi_ch_infer: bool,
+    ):
+        super().__init__(
+            manifest_filepath=manifest_filepath,
+            emb_dir_path=emb_dir_path,
+            emb_dict=emb_dict,
+            emb_seq=emb_seq,
+            clus_label_dict=clus_label_dict,
+            soft_label_thres=soft_label_thres,
+            featurizer=featurizer,
+            max_spks=max_spks,
+            bi_ch_infer=bi_ch_infer,
+        )
+
+    def msdd_collate_fn(self, batch):
+        return _msdd_collate_fn(self, batch)
+

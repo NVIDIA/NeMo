@@ -252,6 +252,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self.log('loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
+        print('learning_rate', self._optimizer.param_groups[0]['lr'])
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()

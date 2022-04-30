@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+from itertools import combinations
 import json
 import os
 from typing import Any, Dict, List, Optional, Union
@@ -251,7 +252,7 @@ class SpeechLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
+        for audio_file, duration, rttm_file, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -261,7 +262,7 @@ class SpeechLabel(_Collection):
                 duration_filtered += duration
                 continue
 
-            data.append(output_type(audio_file, duration, command, offset))
+            data.append(output_type(audio_file, duration, rttm_file, offset))
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
@@ -480,3 +481,177 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
 
         return item
+
+class DiarizationLabel(_Collection):
+    """List of audio-label correspondence with preprocessing."""
+
+    OUTPUT_TYPE = collections.namedtuple(typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset tup_spks',)
+
+    def __init__(
+        self,
+        audio_files: List[str],
+        durations: List[float],
+        rttm_files: List[Union[int, str]],
+        offsets: List[Optional[float]],
+        max_spks: List[Optional[float]],
+        tuple_2ch: List[Optional[float]],
+        min_duration: Optional[float] = None,
+        max_duration: Optional[float] = None,
+        max_number: Optional[int] = None,
+        do_sort_by_duration: bool = False,
+        index_by_file_id: bool = False,
+    ):
+        """Instantiates audio-label manifest with filters and preprocessing.
+
+        Args:
+            audio_files: List of audio files.
+            durations: List of float durations.
+            rttm_files: List of rttm_files.
+            offsets: List of offsets or None.
+            min_duration: Minimum duration to keep entry with (default: None).
+            max_duration: Maximum duration to keep entry with (default: None).
+            max_number: Maximum number of samples to collect.
+            do_sort_by_duration: True if sort samples list by duration.
+            index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
+        """
+
+        if index_by_file_id:
+            self.mapping = {}
+        output_type = self.OUTPUT_TYPE
+        data, duration_filtered = [], 0.0
+        for audio_file, duration, rttm_file, offset, tup_spks in zip(audio_files, durations, rttm_files, offsets, tuple_2ch):
+            if duration == None:
+                duration = 0
+
+            data.append(output_type(audio_file, duration, rttm_file, offset, tup_spks))
+
+            if index_by_file_id:
+                file_id, _ = os.path.splitext(os.path.basename(audio_file))
+                self.mapping[file_id] = len(data) - 1
+
+            # Max number of entities filter.
+            if len(data) == max_number:
+                break
+
+        if do_sort_by_duration:
+            if index_by_file_id:
+                logging.warning("Tried to sort dataset by duration, but cannot since index_by_file_id is set.")
+            else:
+                data.sort(key=lambda entity: entity.duration)
+
+        logging.info(
+            "Filtered duration for loading collection is %f.", duration_filtered,
+        )
+        logging.info(f"Total {len(data)} session files loaded accounting to")
+
+        super().__init__(data)
+
+class MSDDSpeechLabel(DiarizationLabel):
+    """`SpeechLabel` collector from structured json files."""
+
+    def __init__(self, 
+                 manifests_files: Union[str, List[str]], 
+                 emb_dict: Dict, 
+                 emb_seq: Dict,
+                 clus_label_dict: Dict,
+                 is_regression_task=False, 
+                 subsample_rate=4,
+                 max_spks=5,
+                 bi_ch_infer=False,
+                 *args, **kwargs):
+        """Parse lists of audio files, durations and transcripts texts.
+
+        Args:
+            manifests_files: Either single string file or list of such -
+                manifests to yield items from.
+            is_regression_task: It's a regression task
+            *args: Args to pass to `SpeechLabel` constructor.
+            **kwargs: Kwargs to pass to `SpeechLabel` constructor.
+        """
+        self.emb_dict = emb_dict
+        self.clus_label_dict = clus_label_dict
+        self.subsample_rate = subsample_rate
+        self.bi_ch_infer=bi_ch_infer
+        audio_files, durations, rttm_files, offsets, tuple_2ch = [], [], [], [], []
+        if self.bi_ch_infer:
+            for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
+                uniq_id = self.get_uniq_id(item['rttm_file'])
+                # Use the estimated speakers (mapping is calculated from evaluation)
+                _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
+                if len(_sess_spk_dict) == 1:
+                    spk_comb_list = [(0,1)]
+                else:
+                    sess_spk_dict = { int(v.split('_')[-1]) : k for k, v in _sess_spk_dict.items() }
+                    spk_digits = [ int(v.split('_')[1]) for k, v in _sess_spk_dict.items() ]
+                    spk_comb_list = [x for x in combinations(spk_digits, 2)]  
+                for tup_spks in spk_comb_list:
+                    audio_files.append(item['audio_file'])
+                    durations.append(item['duration'])
+                    rttm_files.append(item['rttm_file'])
+                    offsets.append(item['offset'])
+                    tuple_2ch.append([tup_spks, sess_spk_dict])
+
+        else:
+            for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
+                audio_files.append(item['audio_file'])
+                durations.append(item['duration'])
+                rttm_files.append(item['rttm_file'])
+                offsets.append(item['offset'])
+                tuple_2ch.append(None)
+
+        super().__init__(audio_files, durations, rttm_files, offsets, max_spks, tuple_2ch, *args, **kwargs)
+
+    def read_rttm_file(self, rttm_path):
+        """Read RTTM files from the given path.
+        """
+        return open(rttm_path).readlines()
+    
+    def s2n(self, x):
+        return round(float(x), 2)
+    
+    def get_uniq_id(self, rttm_path):
+        return rttm_path.split('/')[-1].split('.rttm')[0]
+    
+    def get_speakers_from_rttm(self, rttm_path):
+        rttm_lines = self.read_rttm_file(rttm_path)
+        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
+        uniq_id = self.get_uniq_id(rttm_path)
+        speaker_list = set()
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+            speaker_list.add(speaker)
+
+        spk_num = len(set(speaker_list))
+        return spk_num, sorted(list(speaker_list))
+
+    def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        item = json.loads(line)
+
+        # Audio file
+        if 'audio_filename' in item:
+            item['audio_file'] = item.pop('audio_filename')
+        elif 'audio_filepath' in item:
+            item['audio_file'] = item.pop('audio_filepath')
+        else:
+            raise ValueError(
+                f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
+            )
+        item['audio_file'] = os.path.expanduser(item['audio_file'])
+        uniq_id = item['rttm_filepath'].split('/')[-1].split('.rttm')[0]
+        item['uniq_id'] = uniq_id
+
+        # Duration.
+        if 'duration' not in item:
+            raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
+
+        item = dict(
+            audio_file=item['audio_file'],
+            uniq_id=item['uniq_id'], 
+            duration=item['duration'],
+            rttm_file=item['rttm_filepath'],
+            offset=item.get('offset', None),
+        )
+
+        return item
+
