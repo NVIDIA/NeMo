@@ -17,7 +17,7 @@ from abc import ABC
 import torch
 
 
-class _AbstractAdapterStrategy(ABC):
+class AbstractAdapterStrategy(ABC):
     def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         Forward method that defines how the output of the adapter should be merged with the input, or if it
@@ -48,7 +48,7 @@ class _AbstractAdapterStrategy(ABC):
         return self.forward(*args, **kwargs)
 
 
-class ResidualAddAdapterStrategy(_AbstractAdapterStrategy):
+class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
     def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
         A basic strategy, comprising of a residual connection over the input, after forward pass by

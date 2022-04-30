@@ -185,7 +185,7 @@ class TestAdapterMixin:
 
     @pytest.mark.unit
     def test_forward_linear_replaced_strategy(self):
-        class MultiplyAdapterStrategy(adapter_mixin_strategies._AbstractAdapterStrategy):
+        class MultiplyAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrategy):
             def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: AdapterModuleMixin):
                 out = adapter(input)
                 return input * out

@@ -321,7 +321,7 @@ class AdapterModuleMixin(ABC):
             if hasattr(adapter_module, 'adapter_strategy'):
                 strategy = (
                     adapter_module.adapter_strategy
-                )  # type: 'nemo.core.classes.mixins.adapter_mixin_strategies._AbstractAdapterStrategy'
+                )  # type: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy'
             else:
                 raise AttributeError(
                     f"Adapter module `{adapter_name}` does not set the value `adapter_strategy` ! "
