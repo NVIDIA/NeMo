@@ -1,20 +1,24 @@
 .. _wfst_deployment:
 
-NeMo Text Processing Deployment
-===============================
+Deploy to Production with C++ backend
+=====================================
 
-NeMo provides a tool for deployment of :doc:`NeMo Inverse Text Normalization (ITN) <wfst_inverse_text_normalization>` and :doc:`NeMo Text Normalization (TN) <wfst_text_normalization>` for production :cite:`textprocessing-deployment-zhang2021nemo`.
-It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-deployment-sparrowhawk` -- an open-source version of Google Kestrel :cite:`textprocessing-deployment-ebden2015kestrel`.
-The scripts for deployment could be found at `NeMo/tools/text_processing_deployment <https://github.com/NVIDIA/NeMo/tree/main/tools/text_processing_deployment>`_.
+NeMi provides tools to deploy :doc:`TN and ITN <wfst_text_normalization>` for production :cite:`textprocessing-deployment-zhang2021nemo`.
+It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-deployment-sparrowhawk` -- an open-source C++ framework by Google.
 
 Requirements
 ------------
 
-:doc:`nemo_text_processing <intro>` package
+* :doc:`nemo_text_processing <wfst_text_normalization>` package
+* `Docker <https://www.docker.com/>`_
+* `NeMo source code <https://github.com/NVIDIA/NeMo>`_
 
 
 Usage
 -----
+
+The relevant scripts can be found in the folder `NeMo/tools/text_processing_deployment <https://github.com/NVIDIA/NeMo/tree/main/tools/text_processing_deployment>`_.
+
 
 Starts docker container with production backend with plugged in grammars. This is entry point script.
 
