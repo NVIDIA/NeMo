@@ -30,6 +30,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ['PromptTable', 'VirtualPromptSource', 'VirtualPromptStyle']
 
+
 class VirtualPromptStyle(enum.Enum):
     P_TUNING = 'p-tuning'
     PROMPT_TUNING = 'prompt-tuning'
@@ -39,6 +40,7 @@ class VirtualPromptStyle(enum.Enum):
 class VirtualPromptSource(enum.Enum):
     PROMPT_TABLE = 'prompt_table'
     PROMPT_ENCODER = 'prompt_encoder'
+
 
 class PromptTable(NeuralModule, Exportable):
     def __init__(self, existing_tasks, task_templates, task_id_num_to_name, hidden_size):

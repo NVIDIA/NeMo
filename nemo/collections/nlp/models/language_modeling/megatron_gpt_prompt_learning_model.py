@@ -26,12 +26,7 @@ from torch.utils.data import DataLoader, Dataset
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import (
-    PromptEncoder, 
-    PromptTable, 
-    VirtualPromptSource,
-    VirtualPromptStyle, 
-)
+from nemo.collections.nlp.modules.common import PromptEncoder, PromptTable, VirtualPromptSource, VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
