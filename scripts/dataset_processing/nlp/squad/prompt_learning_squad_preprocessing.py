@@ -47,7 +47,7 @@ An example of the processed output written to file:
         "taskname": "squad", 
         "context": "Red is the traditional color of warning and danger. In the Middle Ages, a red flag announced that the defenders of a town or castle would fight to defend it, and a red flag hoisted by a warship meant they would show no mercy to their enemy. In Britain, in the early days of motoring, motor cars had to follow a man with a red flag who would warn horse-drawn vehicles, before the Locomotives on Highways Act 1896 abolished this law. In automobile races, the red flag is raised if there is danger to the drivers. In international football, a player who has made a serious violation of the rules is shown a red penalty card and ejected from the game.", 
         "question": "What did a red flag signal in the Middle Ages?", 
-        "answer": "defenders of a town or castle would fight to defend it"
+        "answer": " defenders of a town or castle would fight to defend it"
     },
 
 
@@ -123,7 +123,7 @@ def extract_questions(data):
                 except:
                     continue
 
-                example_json = {"taskname": "squad", "context": context, "question": question, "answer": answer}
+                example_json = {"taskname": "squad", "context": context, "question": question, "answer": " " + answer}
                 processed_topic_data.append(example_json)
         processed_data.append(processed_topic_data)
 

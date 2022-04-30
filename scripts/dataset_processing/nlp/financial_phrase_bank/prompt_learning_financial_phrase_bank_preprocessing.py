@@ -40,12 +40,12 @@ Saves train, val, and test files for the Financial PhraseBank dataset.
 
 An example of the processed output written to file:
     
-    {"taskname": "sentiment", "sentence": "In the Baltic countries , sales fell by 42.6 % .", "label": "negative"}
-    {"taskname": "sentiment", "sentence": "Danske Bank is Denmark 's largest bank with 3.5 million customers .", "label": "neutral"}
-    {"taskname": "sentiment", "sentence": "The total value of the deliveries is some EUR65m .", "label": "neutral"}
-    {"taskname": "sentiment", "sentence": "Operating profit margin increased from 11.2 % to 11.7 % .", "label": "positive"}
-    {"taskname": "sentiment", "sentence": "It will also strengthen Ruukki 's offshore business .", "label": "positive"}
-    {"taskname": "sentiment", "sentence": "Sanoma News ' advertising sales decreased by 22 % during the year .", "label": "negative"}
+    {"taskname": "sentiment", "sentence": "In the Baltic countries , sales fell by 42.6 % .", "label": " negative"}
+    {"taskname": "sentiment", "sentence": "Danske Bank is Denmark 's largest bank with 3.5 million customers .", "label": " neutral"}
+    {"taskname": "sentiment", "sentence": "The total value of the deliveries is some EUR65m .", "label": " neutral"}
+    {"taskname": "sentiment", "sentence": "Operating profit margin increased from 11.2 % to 11.7 % .", "label": " positive"}
+    {"taskname": "sentiment", "sentence": "It will also strengthen Ruukki 's offshore business .", "label": " positive"}
+    {"taskname": "sentiment", "sentence": "Sanoma News ' advertising sales decreased by 22 % during the year .", "label": " negative"}
 """
 
 
@@ -96,7 +96,7 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
 
             # Dont want labels in the test set
             if split_type != "test" or make_ground_truth:
-                example_json["label"] = label
+                example_json["label"] = " " + label
 
             save_file.write(json.dumps(example_json) + '\n')
 

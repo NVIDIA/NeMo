@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import re
 from typing import Any, Dict, List, Optional, Union
 
@@ -583,6 +582,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # default do greedy sampling
         if sampling_params is None:
             sampling_params = get_default_sampling_params()
+            sampling_params["add_BOS"] = self.cfg.data.get("add_bos", False)
 
         if length_params is None:
             length_params = get_default_length_params()
