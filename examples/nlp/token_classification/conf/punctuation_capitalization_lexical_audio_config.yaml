@@ -37,7 +37,7 @@ trainer:
 #  sync_batchnorm: true
 
 exp_manager:
-  exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
+  exp_dir: /results  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: Punctuation_and_Capitalization  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
