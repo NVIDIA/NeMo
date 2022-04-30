@@ -29,8 +29,8 @@ from argparse import ArgumentParser
 
 import torch
 from apex.transformer import parallel_state
-from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -83,8 +83,9 @@ def convert(local_rank, rank, world_size, args):
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
     if args.bcp:
-        trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu',
-                          plugins=[TorchElasticEnvironment()])
+        trainer = Trainer(
+            devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=[TorchElasticEnvironment()]
+        )
     else:
         trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
 
