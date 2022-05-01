@@ -205,6 +205,9 @@ class ConformerConvolution(nn.Module):
             self.batch_norm = nn.BatchNorm1d(d_model)
         elif norm_type == 'layer_norm':
             self.batch_norm = nn.LayerNorm(d_model)
+        elif norm_type.startswith('group_norm'):
+            num_groups = int(norm_type.replace("group_norm", ""))
+            self.batch_norm = nn.GroupNorm(num_groups=num_groups, num_channels=d_model)
         else:
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
