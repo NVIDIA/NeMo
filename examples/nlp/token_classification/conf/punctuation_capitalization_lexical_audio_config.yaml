@@ -91,7 +91,7 @@ model:
     # regular dataset.
     tar_shuffle_n: 1
 
-    audio_manifest_filepath: fisher_data/audio_manifest_train.json
+    audio_manifest_filepath: fisher_data/data/audio_manifest_train.json
     sample_rate: 8000
     num_workers: 24
 
@@ -120,7 +120,7 @@ model:
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: fisher_data/audio_manifest_valid.json
+    audio_manifest_filepath: fisher_data/data/audio_manifest_valid.json
     sample_rate: 8000
     num_workers: 24
 
@@ -150,7 +150,7 @@ model:
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: fisher_data/audio_manifest_test.json
+    audio_manifest_filepath: fisher_data/data/audio_manifest_test.json
     sample_rate: 8000
     num_workers: 24
 
