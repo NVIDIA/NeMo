@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.core.classes.mixins.adapter_mixin_strategies import ResidualAddAdapterStrategy
-from nemo.core.classes.mixins.adapter_mixins import (
-    AdapterModelPTMixin,
-    AdapterModuleMixin,
-    get_registered_adapter,
-    register_adapter,
-)
+"""Transformer."""
+import enum
+
+
+class LayerType(enum.Enum):
+    encoder = 1
+    decoder = 2
+    retrieval_encoder = 3
+    retrieval_decoder = 4
