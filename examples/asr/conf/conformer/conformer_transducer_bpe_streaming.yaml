@@ -38,8 +38,8 @@ model:
     batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
-    pin_memory: false
-    use_start_end_token: true
+    pin_memory: true
+    use_start_end_token: false
     trim_silence: false
     max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
     min_duration: 0.1
@@ -57,8 +57,8 @@ model:
     batch_size: 16
     shuffle: false
     num_workers: 8
-    pin_memory: false
-    use_start_end_token: true
+    pin_memory: true
+    use_start_end_token: false
 
   test_ds:
     manifest_filepath: null
@@ -66,12 +66,12 @@ model:
     batch_size: 16
     shuffle: false
     num_workers: 8
-    pin_memory: false
-    use_start_end_token: true
+    pin_memory: true
+    use_start_end_token: false
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   tokenizer:
-    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
     type: wpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   preprocessor:
@@ -105,9 +105,9 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: striding # vggnet or striding
+    subsampling: striding # vggnet, striding or stacking
     subsampling_factor: 4 # must be power of 2
-    subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
+    subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true
 
     # Feed forward module's params
