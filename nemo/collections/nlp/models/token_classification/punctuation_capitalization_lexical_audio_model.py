@@ -27,8 +27,8 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         super().__init__(cfg, trainer)
         self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder)  # Only CTC models?
         del self.audio_encoder.decoder
-        self.fusion = TransformerDecoder(num_layers=4, hidden_size=768, inner_size=2048, num_attention_heads=4)
-        self.audio_proj = Linear(256, 768)
+        self.fusion = TransformerDecoder(num_layers=4, hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1], inner_size=2048, num_attention_heads=4)
+        self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model, self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
