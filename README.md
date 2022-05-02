@@ -181,11 +181,71 @@ inference_settings:
 
 #### 2.1.1. Base Config Generation
 Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
-and it will be saved to the `logs` directory indicated in your config files.
+and it will be saved to the `logs` directory indicated in your config files. The base configuration 
+consists of a YAML file that can be run using the NeMo-Megatron training container. However, this 
+base configuration has not yet been optimized to achieve the highest possible throughput, this will 
+be achieved in step 2.1.2.
 
 
 #### 2.1.2. Training HP Search
-A
+To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
+in the `conf/config.yaml` file. The model used to search the best training HPs must be selected 
+using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter 
+will be set to `gpt3/5b`, so our tool will search the optimal training HPs for a 5B parameter GPT-3 
+model. The configuration for this model can be found in the `conf/search_config/gpt3/5b.yaml` file. 
+To configure the behavior of the HP search, the following parameters can be modified in the 
+correspoinding YAML file: 
+
+```yaml
+train_settings:
+  model_size_in_b: 5 # unit in billion parameters
+  num_nodes: 20
+  gpus_per_node: 8
+  max_training_days: 5 # unit in days
+  limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
+  output_top_n: 10  # The result will print the top N fastest training configs.
+  max_minutes_per_run: 40 # minutes per run for the grid search.
+  tflops_per_gpu: 140  # Estimated tflops per GPU.
+  num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
+  vocab_size: 51200
+  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/gpt3/126m
+  tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
+```
+
+The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
+the tool will provide a config and HPs for a model of that size. The `num_nodes` parameter indicates 
+how many nodes will be used to train this model to full convergence, after the HP search is finished. 
+Therefore, it will be ignored by the HP search tool, and it will only be used when generating the 
+final config YAML files. The `gpus_per_node` parameter indicates how many GPUs are available in each 
+node. The `max_training_days` parameter shows how many days this model will be trained for, when 
+training to full convergence. It will be written to the final config YAML files. This parameter can 
+also be used when `model_size_in_b` is set to `null`, as you will see in section 2.2. The 
+`limit_search_runs` parameter can be used to limit the number of configs that will be searched 
+during the HP search stage. We recommend selecting a value between 30 and 100 for this parameter. 
+The tool will probably need to search at least 30 different configs to find the optimal one. However, 
+if the compute is available in your cluster, we recommend increasing this parameter to a value close 
+to 100. The `output_top_n` parameter can be used to configure how much detail the output summary file 
+will include. By default, when set to 10, it will output the top 10 configurations. The 
+`max_minutes_per_run` parameter indicates how long to run each configuration for, in minutes. We 
+recommend using at least 20 minutes per run for the smaller models, and increasing it to over 60 
+minutes for the larger models. The `tflops_per_gpu` parameter provides an estimate of the TFLOPs 
+each GPU can achieve when training LLMs with NeMo-Megatron. This value is only used to provide an 
+estimate of how long the model will take to train for full convergence, so you can know the time to 
+train before you even begin training your model. The `num_tokens_in_b` parameter indicates how many 
+billions of tokens you will train your model for, when training to full convergence. It will be used 
+when estimating how long it will take to train the model, to the desired number of tokens. The 
+`vocab_size` parameter must show the vocabulary size that will be used during training. The `logs` 
+parameter can be used to configure where the result logs will be saved. By default, this directory 
+will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. Finally, 
+the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
+parameters can be used to override the heuristics that choose the grid search space for these 
+four parameters. If these are left as `null`, our tool will select appropriate values. However, 
+if you wish to override them, you can use these parameters. For example, if you only wish to search 
+for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
+`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `null`.  
 
 #### 2.1.3. Inference HP Search
 A
