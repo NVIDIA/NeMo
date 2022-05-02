@@ -151,7 +151,7 @@ container_mounts:
     - null
 ```
 
-### 2.1. Running Pre-Defined Configs
+### 2.2. Running Pre-Defined Configs
 <a id="markdown-running-pre-defined-configs" name="running-pre-defined-configs"></a>
 
 The pre-defined configs we provide have been well tested, and the outputs produced by the HP tool 
@@ -172,7 +172,7 @@ to run the training and inference HP searches, respectively. If any of these two
 to `False`, the corresponding pipeline will not be executed. Once these parameters are set, we can 
 run the tool calling `python3 main.py`. 
 
-#### 2.1.1. Model Config
+#### 2.2.1. Model Config
 <a id="markdown-model-config" name="model-config"></a>
 
 To run the `gpt3/5b` config, we need to set up the `conf/search_config/gpt3/5b.yaml` file correctly.
@@ -209,7 +209,7 @@ inference_settings:
   max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
 ```
 
-#### 2.1.2. Base Config Generation
+#### 2.2.2. Base Config Generation
 <a id="markdown-base-config-generation" name="base-config-generation"></a>
 
 Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
@@ -219,7 +219,7 @@ base configuration has not yet been optimized to achieve the highest possible th
 be achieved in step 2.1.2.
 
 
-#### 2.1.3. Training HP Search
+#### 2.2.3. Training HP Search
 <a id="markdown-training-hp-search" name="training-hp-search"></a>
 
 To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
@@ -281,7 +281,7 @@ if you wish to override them, you can use these parameters. For example, if you 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `null`.  
 
-#### 2.1.4. Inference HP Search
+#### 2.2.4. Inference HP Search
 <a id="markdown-inference-hp-search" name="inference-hp-search"></a>
 
 To run the inferencei HP search pipeline, the parameter `run_inference_hp_search` must be set to `True`
@@ -318,7 +318,7 @@ list of values to generate the desired HP search. In this case, these values can
 must be provided by the user.
 
 
-### 2.2. Running Custom Model Size Configs
+### 2.3. Running Custom Model Size Configs
 <a id="markdown-running-custom-model-size-configs" name="running-custom-model-size-configs"></a>
 
 The HP Tool is capable of recommending a model size, based on your hardware and training time 
@@ -341,7 +341,7 @@ the suggested model size. If `run_training_hp_search` or `run_inference_hp_searc
 configuration yaml file as input. The tool will behave the same way as when using a pre-defined 
 config.
 
-### 2.3. Interpreting The Results
+### 2.4. Interpreting The Results
 <a id="markdown-interpreting-the-results" name="interpreting-the-results"></a>
 
 When the tool generates the base configuration for a model, it will be saved inside the directory 
@@ -373,7 +373,7 @@ memory usage under 98% to avoid this issue. To save some memory, the recommendat
 increasing the activation checkpointing layers by one each time. The performance will suffer 
 slightly, but the memory footprint will be reduced.
 
-### 2.4. Logging Runs with Weights and Biases (W&B)
+### 2.5. Logging Runs with Weights and Biases (W&B)
 <a id="markdown-logging-runs-with-wandb" name="logging-runs-with-wandb"></a>
 
 Weights and Biases (W&B) can be used to log all the training search runs. To achieve this, the 
