@@ -55,6 +55,10 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
     """
     Main function to launch a training job, with the config given in cfg.
     """
+    # Resolve OmegaConf interpolations first.
+    cfg["cluster"]["partition"] = cfg["cluster"]["partition"]
+    cfg["cluster"]["account"] = cfg["cluster"]["account"]
+    cfg["cluster"]["job_name_prefix"] = cfg["cluster"]["job_name_prefix"]
     del cfg["cluster"]["cluster"]
     del cfg["cluster"]["env"]
 
