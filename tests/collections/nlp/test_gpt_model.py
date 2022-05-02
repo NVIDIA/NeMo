@@ -15,6 +15,7 @@
 from omegaconf import DictConfig
 import pytest
 from pytorch_lightning import Trainer
+import torch
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
@@ -33,10 +34,10 @@ def model_cfg():
         'resume_from_checkpoint': None,
         'encoder_seq_length': 512,
         'max_position_embeddings': 512,
-        'num_layers': 12,
-        'hidden_size': 768,
-        'ffn_hidden_size': 3072,
-        'num_attention_heads': 12,
+        'num_layers': 1,
+        'hidden_size': 128,
+        'ffn_hidden_size': 128 * 4,
+        'num_attention_heads': 2,
         'init_method_std': 0.02,
         'hidden_dropout': 0.1,
         'kv_channels': None,
@@ -150,3 +151,6 @@ class TestGPTModel:
     @pytest.mark.unit
     def test_constructor(self, gpt_model):
         assert isinstance(gpt_model, MegatronGPTModel)
+
+        num_weights = gpt_model.num_weights
+        assert num_weights == 6702976
