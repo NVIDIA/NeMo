@@ -14,6 +14,7 @@
 
 """Transformer based language model."""
 
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -23,7 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer.enums import AttnMaskType, LayerType, ModelType
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -70,6 +71,9 @@ class MegatronTransformerDecoderModule(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
+        headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
     ):
         super(MegatronTransformerDecoderModule, self).__init__()
@@ -83,6 +87,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
+        self.normalization = normalization
 
         if kv_channels is None:
 
@@ -121,7 +126,10 @@ class MegatronTransformerDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
             model_type=parent_model_type,
+            transformer_block_type=transformer_block_type,
+            headscale=headscale,
         )
         self._model_key = 'model'
 
