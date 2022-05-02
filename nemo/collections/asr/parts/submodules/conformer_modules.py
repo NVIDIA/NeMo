@@ -15,14 +15,13 @@
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
-from nemo.core.classes.mixins import AccessMixin
-
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 

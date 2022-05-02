@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import DictConfig
 from abc import ABC
 from contextlib import contextmanager
 from enum import Enum
 from typing import Dict, Iterator, List, Optional, Union
 
 import torch
+from omegaconf import DictConfig
 
 _ACCESS_CFG = DictConfig({"access_all_intermediate": False, "detach": False, "convert_to_cpu": False})
 

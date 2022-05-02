@@ -20,10 +20,10 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.core.classes.mixins import AccessMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType, VoidType
 from nemo.utils import logging
 
