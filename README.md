@@ -3460,9 +3460,8 @@ given Global Batch Size (GBS).
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
-SuperPOD using a different number of nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes, we achieve 15.67x
-speedup. The table and chart below show the performance results.
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 15.67x
+speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
 |         |                                                                 |                            |                |                | Nodes    |                |                 |
@@ -3535,6 +3534,23 @@ given Global Batch Size (GBS).
 |--------|------|------------|----------|--------------------|-------------------------|----------------------|
 | 160        | 1920 | 512                | 1T             | 1.134              | 911,065                 | 14                   |
 
+
+#### 6.3.2. Training Performance Results
+<a id="markdown-training-performance-results" name="training-performance-results"></a>
+Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
+
+We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 13.68x
+speedup. We are actively working on improving the scaling performance for mT5 models. 
+The table and chart below show the performance results.
+
+
+|         |                                    |             |        |         | Nodes    |          |           |
+|---------|------------------------------------|-------------|--------|---------|----------|----------|-----------|
+|         |                                    | 1           | 2      | 4       | 5        | 10       | 20        |
+|         | Tokens per Second                  | 87654 |  170637 | 325295 | 393846 | 731429 | 1198829  |
+| 3B      | Perfect Linear Scaling (Tokens)    | 87654 |  175308 | 350616 | 438270 | 876540 | 1753081  |
+|         | Speed-up                           | 1x    |  1.95x  | 3.71x  | 4.49x  | 8.34x  | 13.68x  |
 
 
 ## 7. Changelog
