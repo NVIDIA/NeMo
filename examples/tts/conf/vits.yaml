@@ -122,11 +122,11 @@ model:
       # drop_last: false
       # shuffle: true
       # batch_size: 32
-      num_workers: 4
+      num_workers: 8
       pin_memory: false
 
     batch_sampler:
-      batch_size: 32
+      batch_size: 96
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -200,7 +200,7 @@ trainer:
   devices: 2
   accelerator: gpu
   strategy: ddp
-  precision: 32
+  precision: 16
   max_epochs: 1000000
   accumulate_grad_batches: 1
   # gradient_clip_val: 1000.0
@@ -211,7 +211,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_fp32
+  exp_dir: ../exps/vits_bs96
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -220,7 +220,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_fp32
+    name: vits_bs96
     project: ${name}
     entity: nvidia
   resume_if_exists: false
