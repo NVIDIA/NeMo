@@ -69,7 +69,7 @@ class TestFinetuningT5Config:
               global_batch_size: 128
               micro_batch_size: 16
               shuffle: True
-              num_workers: 4
+              num_workers: 0
               pin_memory: True
               max_seq_length: 512
               drop_last: False

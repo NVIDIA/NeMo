@@ -62,7 +62,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: True
-      num_workers: 4
+      num_workers: 0  # Known issue: > 0 may not work
       pin_memory: True
       max_seq_length: 512
       drop_last: False
