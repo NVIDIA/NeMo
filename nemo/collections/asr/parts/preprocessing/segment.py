@@ -192,7 +192,11 @@ class AudioSegment(object):
 
         else:
             samples = np.pad(samples, (sample_rate * left, sample_rate * right),  mode='constant') 
-
+            # left = np.random.choice(a=[0, -3.0517578e-05, 3.0517578e-05], size=sample_rate * left,  p=[0.75, 0.125, 0.125])
+            # right = np.random.choice(a=[0, -3.0517578e-05, 3.0517578e-05], size=sample_rate * right,  p=[0.75, 0.125, 0.125])
+            # samples = np.hstack((left,samples))
+            # samples = np.hstack((samples,right))
+            
         return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @classmethod

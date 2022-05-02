@@ -90,7 +90,10 @@ def perform_energy_vad(input_manifest, output_manifest="generated_energy_ss_mani
 def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
 
     lang_model_table = {
+        'english-citrinet_2.0':  (False, False, True, ""),
+        'english-citrinet_ngc':  (False, False, False, "stt_en_citrinet_1024_gamma_0_25"),
         'english-nr_citrinet':  (False, False, True, "/home/fjia/models/english/Citrinet_Aug_1024_Gamma_0-25_NeMo_ASRSET_2.0_e200.nemo"),
+        'english-conformer_transducer':  (False, False, False, "stt_en_conformer_transducer_large"),
         'english-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/english/aug/rno8_bucket32_Aug_nemo2.0_d512_adamwlr5.0_wd1e-3_aug10x0.05spunigram1024_emit0_nodes32_bucketing_200e_b4.nemo"),
         'mandarin-citrinet': (True, True, False, "stt_zh_citrinet_1024_gamma_0_25"), # test 5000
         'french-citrinet':   (False, False, False, "stt_fr_citrinet_1024_gamma_0_25"), # test 2320
@@ -128,15 +131,17 @@ def main():
 
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
-    langs = ['english']
+    langs = ['english','spanish']
     vad_exps = ["neural_vad",] 
-    models = ['nr_citrinet',] 
+    models = ['nr_citrinet'] 
 
-    subset="test"
+
+    subset="dev"
     single= False # True
     exp = "_single" if single else ""
-    res_file = f"res{exp}_asr_offline_multiple_tuned.csv"
-    si_ratio =  False #True
+    res_file = f"res{exp}_asr_offline_multiple_fixSNR.csv"
+
+    si_ratio = False  #True
 
     fixed_silence_set = {1}
     if si_ratio:
@@ -145,8 +150,8 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    
-    final_output_folder = "final_tuned"
+    final_output_folder = "final_multiple_fixed"
+    # final_output_folder = "final_tuned"
     save_neural_vad = True
     os.makedirs(final_output_folder, exist_ok=True)
 
@@ -182,7 +187,8 @@ def main():
                                 input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
                             else:
                                 # silence only clean now need change
-                                input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
+                                # input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
+                                input_manifest = f"/data/syn_noise_augmented_fixed/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
 
                             if mode == "offline":
                                 if vad_exp =="novad":
@@ -239,22 +245,22 @@ def main():
                                     vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
 
                                     if vad_exp=="neural_vad":
-                                        # params = {
-                                        #     "onset": 0.5,
-                                        #     "offset": 0.5,
-                                        #     "min_duration_on": 0.5,
-                                        #     "min_duration_off": 0.5,
-                                        #     "pad_onset": 0.2,
-                                        #     "pad_offset": -0.2
-                                        # }
                                         params = {
-                                            "onset": 0,
-                                            "offset": 0.4,
+                                            "onset": 0.5,
+                                            "offset": 0.5,
                                             "min_duration_on": 0.5,
-                                            "min_duration_off": 1,
+                                            "min_duration_off": 0.5,
                                             "pad_onset": 0.2,
                                             "pad_offset": -0.2
                                         }
+                                        # params = {
+                                        #     "onset": 0,
+                                        #     "offset": 0.4,
+                                        #     "min_duration_on": 0.5,
+                                        #     "min_duration_off": 1,
+                                        #     "pad_onset": 0.2,
+                                        #     "pad_offset": -0.2
+                                        # }
                                         # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
                                         vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
                                         
