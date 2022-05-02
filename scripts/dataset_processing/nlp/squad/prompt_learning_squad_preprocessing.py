@@ -29,6 +29,8 @@ Inputs:
     save-name-base: (str) The base name for each of the train, val, and test files. If save-name-base were 'squad' for
                     example, the files would be saved as squad_train.jsonl, squad_val.jsonl, and squad_test.jsonl
     make-ground-truth: (bool) If true, test files will include answers, if false, test files will not include answers. 
+    include-topic-name: Whether to include the topic name for the paragraph in the data json. See the squad explaination
+                        below for more context on what is ment by 'topic name'.
     random-seed: (int) Random seed for repeatable shuffling of train/val/test splits. 
     train-percent: (float) Precentage of data that should be used for the train split. The val and test splits will be made
                     by splitting the remaining data evenly. 
@@ -60,6 +62,7 @@ def main():
     parser.add_argument("--file-name", type=str, default="train-v2.0.json")
     parser.add_argument("--save-name-base", type=str, default="squad")
     parser.add_argument("--make-ground-truth", action='store_true')
+    parser.add_argument("--include-topic-name", action='store_true')
     parser.add_argument("--random-seed", type=int, default=1234)
     parser.add_argument("--train-percent", type=float, default=0.8)
     args = parser.parse_args()
@@ -68,11 +71,13 @@ def main():
     data = data_dict['data']
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(data, save_name_base, args.train_percent, args.random_seed, args.make_ground_truth)
+    process_data(
+        data, save_name_base, args.train_percent, args.random_seed, args.include_topic_name, args.make_ground_truth
+    )
 
 
-def process_data(data, save_name_base, train_percent, random_seed, make_ground_truth=False):
-    data = extract_questions(data)
+def process_data(data, save_name_base, train_percent, random_seed, include_topic, make_ground_truth=False):
+    data = extract_questions(data, include_topic)
 
     # Data examples are currently grouped by topic, shuffle topic groups
     random.seed(random_seed)
@@ -100,7 +105,7 @@ def process_data(data, save_name_base, train_percent, random_seed, make_ground_t
     gen_file(test_set, save_name_base, 'test', make_ground_truth)
 
 
-def extract_questions(data):
+def extract_questions(data, include_topic):
     processed_data = []
 
     # Iterate over topics, want to keep them seprate in train/val/test splits
@@ -118,12 +123,16 @@ def extract_questions(data):
             for qa in qas:
                 question = qa['question']
 
-                try:
-                    answer = qa['answers'][0]['text']
-                except:
-                    continue
+                # try:
+                answer = qa['answers'][0]['text']
+                # except:
+                #    continue
 
                 example_json = {"taskname": "squad", "context": context, "question": question, "answer": " " + answer}
+
+                if include_topic:
+                    example_json["topic"] = topic
+
                 processed_topic_data.append(example_json)
         processed_data.append(processed_topic_data)
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import json
 
 import torch
@@ -35,7 +34,7 @@ class GPTPromptLearningDataset(Dataset):
         self,
         datasets,
         tokenizer,
-        virtual_prompt_source: enum,
+        virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
         pseudo_tokens,
         pad_token_id: str,
