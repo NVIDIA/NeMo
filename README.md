@@ -6,9 +6,23 @@ achieve the highest throughput and the lowest latency.
 
 ## Table of contents
 - [1. HP Tool Capabilities](#1-hp-tool-capabilities)
-
+    - [1.1. Model Size Recommendation](#11-model-size-recommendation)
+    - [1.2. Base Config Generation](#12-base-config-generation)
+    - [1.3. Training HP Search](#13-training-hp-search)
+    - [1.4. Inference HP Search](#14-inference-hp-search)
+- [2. Usage](#2-usage)
+    - [2.1. General Configuration](#21-general-configuration)
+    - [2.2. Running Pre-Defined Configs](#22-running-pre-defined-configs)
+        - [2.2.1. Model Config](#221-model-config)
+        - [2.2.2. Base Config Generation](#222-base-config-generation)
+        - [2.2.3. Training HP Search](#223-training-hp-search)
+        - [2.2.4. Inference HP Search](#224-inference-hp-search)
+    - [2.3. Running Custom Model Size Configs](#23-running-custom-model-size-configs)
+    - [2.4. Interpreting the Results](#24-interpreting-the-results)
+    - [2.5. Logging Runs with Weights and Biases (W&B)](#25-logging-runs-with-wandb)
 
 ## 1. HP Tool Capabilities
+<a id="markdown-hp-tool-capabilities" name="hp-tool-capabilities"></a>
 
 The Hyper-Parameter (HP) tool is intended to quickly iterate over different model configurations, 
 to quickly find the best configuration with minimal time and money spending. To achieve that, our 
@@ -26,6 +40,8 @@ tool provides several different capabilities, as shown in the table below:
 | Base Command Platform Based Clusters | No    | No  | No  |
 
 ### 1.1. Model Size Recommendation
+<a id="markdown-model-size-recommendation" name="model-size-recommendation"></a>
+
 For users who do not know what model size they wish to train, our tool is capable of recommending 
 a model size, given the hardware and training constraints. If the number of GPUs, the TFLOPS per GPU, 
 the maximum time to train, and the number of tokens to train for are known, then our tool can 
@@ -37,6 +53,8 @@ The tool will perform a best effort guess using heuristics, so the results might
 
 
 ### 1.2. Base Config Generation
+<a id="markdown-base-config-generation" name="base-config-generation"></a>
+
 If the model size is provided by the user, or after the model size is generated (as shown in section 1.1), 
 the tool will generate a base configuration for the given model. This configuration will be a valid, 
 runnable configuration in YAML format, which can be trained using NeMo-Megatron. However, this config 
@@ -44,6 +62,8 @@ will not be optimized at this stage.
 
 
 ### 1.3. Training HP Search
+<a id="markdown-training-hp-search" name="training-hp-search"></a>
+
 Given the input model size (generated in step 1.1) and the base configuration (generated in step 1.2), 
 the tool will now search over four different critical Hyper-Parameters, that have great impact on the 
 training throughput: Tensor Parallelism (TP), Pipeline Parallelism (PP), Micro Batch Size (MBS), 
@@ -63,6 +83,8 @@ Data Parallelism of 1 (DP=1) in most cases.
 
 
 ### 1.4. Inference HP Search
+<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
+
 The tool can also search the best HPs for inference purposes. It will empirically measure the 
 throughput and latency for each given configuration in the grid search space, and return a comprehensive 
 table with all the numbers. The tool will search over three different critical HPs, which have great 
@@ -79,9 +101,13 @@ Once all the jobs have finished running, the final result will be summarized in 
 
 
 ## 2. Usage
+<a id="markdown-usage" name="usage"></a>
+
 In this section, we will explain how to run each of the stages described in section 1. 
 
 ### 2.1. General Configuration
+<a id="markdown-general-configuration" name="general-configuration"></a>
+
 First, our configuration setup assumes that the `/opt/bignlp` directory has been copied from the container 
 to the local file system. And we assume that bignlp-hp-tool and BigNLP-Inference-Scripts are both 
 located inside the `bignlp` directory.
@@ -126,6 +152,8 @@ container_mounts:
 ```
 
 ### 2.1. Running Pre-Defined Configs
+<a id="markdown-running-pre-defined-configs" name="running-pre-defined-configs"></a>
+
 The pre-defined configs we provide have been well tested, and the outputs produced by the HP tool 
 have been verified manually. Running one of these configs will first generate a base config file for 
 the specified model size. Then, it will launch the training and inference grid search jobs. When 
@@ -145,6 +173,8 @@ to `False`, the corresponding pipeline will not be executed. Once these paramete
 run the tool calling `python3 main.py`. 
 
 #### 2.1.1. Model Config
+<a id="markdown-model-config" name="model-config"></a>
+
 To run the `gpt3/5b` config, we need to set up the `conf/search_config/gpt3/5b.yaml` file correctly.
 The config is split in two sections: `train_settings` and `inference_settings`. 
 
@@ -179,7 +209,9 @@ inference_settings:
   max_batch_sizes: [1, 2, 8, 16, 32, 64, 256]
 ```
 
-#### 2.1.1. Base Config Generation
+#### 2.1.2. Base Config Generation
+<a id="markdown-base-config-generation" name="base-config-generation"></a>
+
 Every time we call `python3 main.py`, a base configuration will be generated for the given model, 
 and it will be saved to the `logs` directory indicated in your config files. The base configuration 
 consists of a YAML file that can be run using the NeMo-Megatron training container. However, this 
@@ -187,7 +219,9 @@ base configuration has not yet been optimized to achieve the highest possible th
 be achieved in step 2.1.2.
 
 
-#### 2.1.2. Training HP Search
+#### 2.1.3. Training HP Search
+<a id="markdown-training-hp-search" name="training-hp-search"></a>
+
 To run the training HP search pipeline, the parameter `run_training_hp_search` must be set to `True` 
 in the `conf/config.yaml` file. The model used to search the best training HPs must be selected 
 using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter 
@@ -247,7 +281,9 @@ if you wish to override them, you can use these parameters. For example, if you 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
 `tensor_parallel_sizes: [1, 2]` and leave the other parameters as `null`.  
 
-#### 2.1.3. Inference HP Search
+#### 2.1.4. Inference HP Search
+<a id="markdown-inference-hp-search" name="inference-hp-search"></a>
+
 To run the inferencei HP search pipeline, the parameter `run_inference_hp_search` must be set to `True`
 in the `conf/config.yaml` file. The model used to search the best inference HPs must be selected
 using the `search_config` parameter in `conf/config.yaml`. For example, by default, this parameter
@@ -283,6 +319,8 @@ must be provided by the user.
 
 
 ### 2.2. Running Custom Model Size Configs
+<a id="markdown-running-custom-model-size-configs" name="running-custom-model-size-configs"></a>
+
 The HP Tool is capable of recommending a model size, based on your hardware and training time 
 constraints. For instance, if you want to train a GPT-3 model, but don't know what model size is 
 appropriate, you can input the number of nodes (and GPUs per node) available in your cluster, 
@@ -304,6 +342,8 @@ configuration yaml file as input. The tool will behave the same way as when usin
 config.
 
 ### 2.3. Interpreting The Results
+<a id="markdown-interpreting-the-results" name="interpreting-the-results"></a>
+
 When the tool generates the base configuration for a model, it will be saved inside the directory 
 specified in the `logs` parameter in your config files. By default, this will be 
 `.../bignlp-hp-tool/results/<model_name>/<model_size/`. As the default `search_config` value is 
@@ -334,6 +374,8 @@ increasing the activation checkpointing layers by one each time. The performance
 slightly, but the memory footprint will be reduced.
 
 ### 2.4. Logging Runs with Weights and Biases (W&B)
+<a id="markdown-logging-runs-with-wandb" name="logging-runs-with-wandb"></a>
+
 Weights and Biases (W&B) can be used to log all the training search runs. To achieve this, the 
 `wandb` parameters must be modified in the `conf/config.yaml` file. First, `enable` must be set to 
 `True`. Then, the `api_key_file` must be set to point to the path where the file which contains 
