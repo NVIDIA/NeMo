@@ -21,6 +21,7 @@ import os
 from tqdm import tqdm
 import pickle as pkl
 import numpy as np
+import shutil
 from typing import Dict, List, Optional, Union
 
 import librosa
@@ -47,6 +48,7 @@ from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 
+from nemo.utils import logging, model_utils
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
@@ -123,18 +125,75 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps):
         scale_mapping_argmat[scale_idx] = mapping_argmat
     return scale_mapping_argmat
 
+# def __init__(self, cfg: DictConfig, load_speaker_model=True):
+
+class NeuralDiarizer:
+    def __init__(self, cfg: DictConfig):# , load_speaker_model=True):
+        self._cfg = cfg
+        # ClusteringDiarizer.__init__(self, cfg=cfg, load_speaker_model=False)
+
+        self._init_msdd_model()
+        if load_speaker_model:
+            # self._init_speaker_model()
+            self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
+            self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
+            # shutil.rmtree(self._speaker_dir, ignore_errors=True)
+            if not os.path.exists(self._speaker_dir):
+                os.makedirs(self._speaker_dir)
+
+            # Clustering params
+            self._cluster_params = self._diarizer_params.clustering.parameters
+            self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        
+    def _init_msdd_model(self):
+        device = 'cuda'
+        if not torch.cuda.is_available():
+            device = 'cpu'
+            logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
+
+        if self._cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
+            logging.info(f"Using local speaker model from {self._cfg.diarizer.msdd_model.model_path}")
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=self._cfg.diarizer.msdd_model.model_path)
+        elif self._cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
+            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=self._cfg.diarizer.msdd_model.model_path)
+
+        self.transfer_diar_params_to_model_params()
+        return self.msdd_model.cfg
+
+    def transfer_diar_params_to_model_params(self):
+        self.msdd_model.cfg.test_ds.manifest_filepath = self._cfg.diarizer.manifest_filepath
+        self.msdd_model.cfg.test_ds.emb_dir = self._cfg.diarizer.out_dir
+        self.msdd_model.cfg.test_ds.num_spks = self._cfg.msdd_model.max_num_of_spks
+        self.msdd_model.cfg.base.diarizer.out_dir = self._cfg.msdd_model.test_ds.emb_dir
+        self.msdd_model.cfg_base = self._cfg
+        self.msdd_model._cfg_msdd = self.msdd_model.cfg
+        return self.msdd_model.cfg
+
 class ClusterEmbedding:
-    def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig,trainer: Trainer=None):
+    def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_base = cfg_base
         self._cfg_msdd = cfg_msdd_model
         self.max_num_of_spks = int(self.cfg_base.diarizer.clustering.parameters.max_num_speakers)
-        self.scale_n = 1
+        self.scale_n = None
         self.clus_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.clus_map_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
         self.multiscale_weights_list = None
-        self.sd_model = None
+        self.clusdiar_model = None
+        self.msdd_model = None
         self.run_clus_from_loaded_emb = False
+  
+    def load_speaker_model(self):
+        self._init_speaker_model()
+        self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
+        self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
+        if not os.path.exists(self._speaker_dir):
+            os.makedirs(self._speaker_dir)
+
+        # Clustering params
+        self._cluster_params = self._diarizer_params.clustering.parameters
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
 
     def prepare_cluster_embs_train(self):
         """
@@ -184,7 +243,11 @@ class ClusterEmbedding:
         all_scale_clus_label_dict = self.assign_labels_to_longer_segs(base_clus_label_dict, session_scale_mapping_dict)
         dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
         for scale_index in emb_scale_seq_dict.keys():
-            for uniq_id, emb_tensor in emb_scale_seq_dict[scale_index].items():
+            for uniq_id, _emb_tensor in emb_scale_seq_dict[scale_index].items():
+                if type(_emb_tensor) == list:
+                    emb_tensor = torch.tensor(np.array(_emb_tensor))
+                else:
+                    emb_tensor = _emb_tensor
                 clus_label_list = all_scale_clus_label_dict[scale_index][uniq_id]
                 spk_set = set(clus_label_list)
                 # Create a label array which identifies clustering result for each segment.
@@ -259,6 +322,7 @@ class ClusterEmbedding:
         """
         manifest_filepath = cfg_split_ds.manifest_filepath
         emb_dir = cfg_split_ds.emb_dir
+        # import ipdb; ipdb.set_trace()
         isEmbReady = True
         if os.path.exists(f'{emb_dir}/speaker_outputs/embeddings'):
             print(f"-- Embedding path exists {emb_dir}/speaker_outputs/embeddings")
@@ -270,7 +334,7 @@ class ClusterEmbedding:
                     print("---- Scale embeddings exist, but average embedding results do not exist. Calculating average emb result.")
                     score = self.run_multiscale_clustering(manifest_filepath, emb_scale_seq_dict, cfg_split_ds.emb_dir, run_clustering=False)
                     metric, speaker_mapping_dict = score
-                    session_scale_mapping_dict = self.get_scale_map(self.sd_model.embs_and_timestamps)
+                    session_scale_mapping_dict = self.get_scale_map(self.clusdiar_model.embs_and_timestamps)
                     emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(cfg_split_ds.emb_dir, 
                                                                                                               speaker_mapping_dict, 
                                                                                                               session_scale_mapping_dict)
@@ -299,7 +363,7 @@ class ClusterEmbedding:
                                                        emb_dir, 
                                                        run_clustering=True)
                 metric, speaker_mapping_dict = score
-                session_scale_mapping_dict = self.get_scale_map(self.sd_model.embs_and_timestamps)
+                session_scale_mapping_dict = self.get_scale_map(self.clusdiar_model.embs_and_timestamps)
                 emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(emb_dir, 
                                                                                                           speaker_mapping_dict, 
                                                                                                           session_scale_mapping_dict)
@@ -310,10 +374,11 @@ class ClusterEmbedding:
             print("--- Embedding path does not exist")
             self.cfg_base.diarizer.manifest_filepath = manifest_filepath
             self.cfg_base.diarizer.out_dir = emb_dir
-            self.sd_model = ClusteringDiarizer(cfg=self.cfg_base)
-            score = self.sd_model.diarize(batch_size=self.cfg_base.batch_size)
+            import ipdb; ipdb.set_trace
+            self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+            score = self.clusdiar_model.diarize(batch_size=self.cfg_base.batch_size)
             metric, speaker_mapping_dict = score 
-            session_scale_mapping_dict = self.get_scale_map(self.sd_model.embs_and_timestamps)
+            session_scale_mapping_dict = self.get_scale_map(self.clusdiar_model.embs_and_timestamps)
             emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.load_embeddings_from_pickle(emb_dir, 
                                                                                                       speaker_mapping_dict, 
                                                                                                       session_scale_mapping_dict)
@@ -341,59 +406,59 @@ class ClusterEmbedding:
         return self.time_stamps
 
     def load_embs_and_timestamps(self, manifest_filepath, emb_scale_seq_dict, out_dir, run_clustering=False):
-        for scale_idx, (window, shift) in self.sd_model.multiscale_args_dict['scale_dict'].items():
+        for scale_idx, (window, shift) in self.clusdiar_model.multiscale_args_dict['scale_dict'].items():
             subsegments_manifest_path = os.path.join(self._cfg_msdd.test_ds.emb_dir, 'speaker_outputs', f'subsegments_scale{scale_idx}.json')
             self.embeddings = emb_scale_seq_dict[scale_idx]
             self.time_stamps = self.extract_time_stamps(subsegments_manifest_path)
-            self.sd_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+            self.clusdiar_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
 
         self.embs_and_timestamps = get_embs_and_timestamps(
-            self.sd_model.multiscale_embeddings_and_timestamps, self.sd_model.multiscale_args_dict
+            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
         )
 
 
     def run_multiscale_clustering(self, manifest_filepath, emb_scale_seq_dict, emb_dir, run_clustering=False):
         self.cfg_base.diarizer.out_dir = emb_dir
-        if not self.sd_model:
-            self.sd_model = ClusteringDiarizer(cfg=self.cfg_base)
-        self.sd_model.AUDIO_RTTM_MAP = audio_rttm_map(manifest_filepath)
+        if not self.clusdiar_model:
+            self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+        self.clusdiar_model.AUDIO_RTTM_MAP = audio_rttm_map(manifest_filepath)
         
         if self.multiscale_weights_list:
-            self.sd_model.multiscale_args_dict['multiscale_weights'] = self.multiscale_weights_list
+            self.clusdiar_model.multiscale_args_dict['multiscale_weights'] = self.multiscale_weights_list
         
-        self.sd_model._out_dir = emb_dir
+        self.clusdiar_model._out_dir = emb_dir
         out_rttm_dir = os.path.join(emb_dir, 'pred_rttms')
 
         # Segmentation
-        for scale_idx, (window, shift) in self.sd_model.multiscale_args_dict['scale_dict'].items():
+        for scale_idx, (window, shift) in self.clusdiar_model.multiscale_args_dict['scale_dict'].items():
             subsegments_manifest_path = os.path.join(emb_dir, 'speaker_outputs', f'subsegments_scale{scale_idx}.json')
             self.embeddings = emb_scale_seq_dict[scale_idx]
             self.time_stamps = self.extract_time_stamps(subsegments_manifest_path)
-            self.sd_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
-        self.sd_model.embs_and_timestamps = get_embs_and_timestamps(
-            self.sd_model.multiscale_embeddings_and_timestamps, self.sd_model.multiscale_args_dict
+            self.clusdiar_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+        self.clusdiar_model.embs_and_timestamps = get_embs_and_timestamps(
+            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
         )
         
         if run_clustering:
             # Clustering
-            print("======== Custering params: ", self.sd_model._cluster_params)
+            print("======== Custering params: ", self.clusdiar_model._cluster_params)
             all_reference, all_hypothesis = perform_clustering(
-                embs_and_timestamps=self.sd_model.embs_and_timestamps,
-                AUDIO_RTTM_MAP=self.sd_model.AUDIO_RTTM_MAP,
+                embs_and_timestamps=self.clusdiar_model.embs_and_timestamps,
+                AUDIO_RTTM_MAP=self.clusdiar_model.AUDIO_RTTM_MAP,
                 out_rttm_dir=out_rttm_dir,
-                clustering_params=self.sd_model._cluster_params,
+                clustering_params=self.clusdiar_model._cluster_params,
             )
         else:
             all_hypothesis, all_reference, lines_cluster_labels = [], [], []
             no_references = False
-            for uniq_id, value in tqdm(self.sd_model.AUDIO_RTTM_MAP.items()):
+            for uniq_id, value in tqdm(self.clusdiar_model.AUDIO_RTTM_MAP.items()):
                 with open(f"{out_rttm_dir}/{uniq_id}.rttm") as f:
                     rttm_lines = f.readlines()
                 labels = self.convert_rttm_to_labels(rttm_lines)
 
                 hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
                 all_hypothesis.append([uniq_id, hypothesis])
-                base_scale_idx = max(self.sd_model.embs_and_timestamps[uniq_id]['scale_dict'].keys())
+                base_scale_idx = max(self.clusdiar_model.embs_and_timestamps[uniq_id]['scale_dict'].keys())
                 rttm_file = value.get('rttm_filepath', None)
                 if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
                     ref_labels = rttm_to_labels(rttm_file)
@@ -403,16 +468,16 @@ class ClusterEmbedding:
                     no_references = True
                     all_reference = []
 
-        self.sd_model._diarizer_params.collar = 0.0
-        self.sd_model._diarizer_params.ignore_overlap = False
+        self.clusdiar_model._diarizer_params.collar = 0.0
+        self.clusdiar_model._diarizer_params.ignore_overlap = False
         
         # Scoring
         self.score = score_labels(
-            self.sd_model.AUDIO_RTTM_MAP,
+            self.clusdiar_model.AUDIO_RTTM_MAP,
             all_reference,
             all_hypothesis,
-            collar=self.sd_model._diarizer_params.collar,
-            ignore_overlap=self.sd_model._diarizer_params.ignore_overlap,
+            collar=self.clusdiar_model._diarizer_params.collar,
+            ignore_overlap=self.clusdiar_model._diarizer_params.ignore_overlap,
         )
         return self.score
         
@@ -512,9 +577,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.cfg_msdd_model.validation_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
         self.cfg_msdd_model.test_ds.num_spks = self.cfg_msdd_model.max_num_of_spks
         ClusterEmbedding.__init__(self, 
-                                  cfg_base=self.cfg_msdd_model.base, 
-                                  cfg_msdd_model=self.cfg_msdd_model, 
-                                  trainer=trainer)
+                                  cfg_base=self.cfg_msdd_model.base,
+                                  cfg_msdd_model=self.cfg_msdd_model)
         if trainer:
             self.load_split_emb_clus()
         super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
@@ -596,26 +660,26 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
 
-    @staticmethod
-    def extract_labels(data_layer_config):
-        labels = set()
-        manifest_filepath = data_layer_config.get('manifest_filepath', None)
-        if manifest_filepath is None:
-            logging.warning("No manifest_filepath was provided, no labels got extracted!")
-            return None
-        manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
+    # @staticmethod
+    # def extract_labels(data_layer_config):
+        # labels = set()
+        # manifest_filepath = data_layer_config.get('manifest_filepath', None)
+        # if manifest_filepath is None:
+            # logging.warning("No manifest_filepath was provided, no labels got extracted!")
+            # return None
+        # manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
 
-        for manifest_filepath in itertools.chain.from_iterable(manifest_filepaths):
-            collection = ASRSpeechLabel(
-                manifests_files=manifest_filepath,
-                min_duration=data_layer_config.get("min_duration", None),
-                max_duration=data_layer_config.get("max_duration", None),
-                index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
-            )
-            labels.update(collection.uniq_labels)
-        labels = list(labels)
-        logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
-        return labels
+        # for manifest_filepath in itertools.chain.from_iterable(manifest_filepaths):
+            # collection = ASRSpeechLabel(
+                # manifests_files=manifest_filepath,
+                # min_duration=data_layer_config.get("min_duration", None),
+                # max_duration=data_layer_config.get("max_duration", None),
+                # index_by_file_id=True,  # Must set this so the manifest lines can be indexed by file ID
+            # )
+            # labels.update(collection.uniq_labels)
+        # labels = list(labels)
+        # logging.warning(f"Total number of {len(labels)} found in all the manifest files.")
+        # return labels
 
     def replace_with_inferred_rttm(self, config):
         json_path = config['manifest_filepath']
@@ -792,4 +856,3 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             'test_loss': test_loss_mean,
             'test_f1_acc': f1_acc,
         }
-
