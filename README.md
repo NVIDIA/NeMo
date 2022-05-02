@@ -19,7 +19,7 @@ achieve the highest throughput and the lowest latency.
         - [2.2.4. Inference HP Search](#224-inference-hp-search)
     - [2.3. Running Custom Model Size Configs](#23-running-custom-model-size-configs)
     - [2.4. Interpreting the Results](#24-interpreting-the-results)
-    - [2.5. Logging Runs with Weights and Biases](#25-logging-runs-with-wandb)
+    - [2.5. Logging Runs with Weights and Biases](#25-logging-runs)
 
 ## 1. HP Tool Capabilities
 <a id="markdown-hp-tool-capabilities" name="hp-tool-capabilities"></a>
@@ -374,7 +374,7 @@ increasing the activation checkpointing layers by one each time. The performance
 slightly, but the memory footprint will be reduced.
 
 ### 2.5. Logging Runs with Weights and Biases
-<a id="markdown-logging-runs-with-wandb" name="logging-runs-with-wandb"></a>
+<a id="markdown-logging-runs" name="logging-runs"></a>
 
 Weights and Biases (W&B) can be used to log all the training search runs. To achieve this, the 
 `wandb` parameters must be modified in the `conf/config.yaml` file. First, `enable` must be set to 
