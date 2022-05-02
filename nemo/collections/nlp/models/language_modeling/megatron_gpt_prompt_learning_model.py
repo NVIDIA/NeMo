@@ -110,7 +110,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style.lower())
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:

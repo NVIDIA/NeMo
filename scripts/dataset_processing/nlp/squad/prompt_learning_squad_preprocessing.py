@@ -123,10 +123,10 @@ def extract_questions(data, include_topic):
             for qa in qas:
                 question = qa['question']
 
-                # try:
-                answer = qa['answers'][0]['text']
-                # except:
-                #    continue
+                try:
+                    answer = qa['answers'][0]['text']
+                except IndexError:
+                    continue
 
                 example_json = {"taskname": "squad", "context": context, "question": question, "answer": " " + answer}
 
