@@ -15,6 +15,8 @@
 import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
+from nemo.core.classes.mixins import AccessMixin
+
 
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
@@ -27,7 +29,7 @@ from nemo.utils import logging
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 
-class ConformerLayer(torch.nn.Module, AdapterModuleMixin):
+class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
 
     Args:
@@ -124,6 +126,9 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin):
         if self.is_adapter_available():
             # Call the adapters
             x = self.forward_enabled_adapters(x)
+
+        if self.access_cfg.get('access_all_intermediate', False):
+            self.register_accessible_tensor(tensor=x)
 
         return x
 

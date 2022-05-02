@@ -20,6 +20,7 @@ from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
+from nemo.core.classes.mixins import AccessMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -29,7 +30,7 @@ from nemo.utils import logging
 __all__ = ['SpeechEncDecSelfSupervisedModel']
 
 
-class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
+class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     """Base class for encoder-decoder models used for self-supervised encoder pre-training"""
 
     @classmethod
@@ -81,6 +82,9 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin):
             self.feat_pen, self.pen_factor = 0.0, self._cfg.feature_penalty
         else:
             self.feat_pen, self.pen_factor = None, None
+
+        if "access" in self._cfg:
+            set_access_cfg(self._cfg.access)
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:

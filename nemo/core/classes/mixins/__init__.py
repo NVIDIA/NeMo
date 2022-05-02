@@ -19,3 +19,4 @@ from nemo.core.classes.mixins.adapter_mixins import (
     get_registered_adapter,
     register_adapter,
 )
+from nemo.core.classes.mixins.access_mixins import AccessMixin, set_access_cfg

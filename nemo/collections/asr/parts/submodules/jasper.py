@@ -35,6 +35,7 @@ try:
     PYTORCH_QUANTIZATION_AVAILABLE = True
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
+from nemo.core.classes.mixins import AccessMixin
 
 jasper_activations = activation_registry
 
@@ -557,7 +558,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = context_window
 
 
-class JasperBlock(nn.Module, AdapterModuleMixin):
+class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -1043,6 +1044,9 @@ class JasperBlock(nn.Module, AdapterModuleMixin):
 
         if self.res is not None and self.dense_residual:
             return xs + [out], lens
+
+        if self.access_cfg.get('access_all_intermediate', False):
+            self.register_accessible_tensor(tensor=out)
 
         return [out], lens
 
