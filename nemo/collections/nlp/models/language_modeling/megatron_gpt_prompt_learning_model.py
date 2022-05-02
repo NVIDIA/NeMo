@@ -472,7 +472,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         with open_dict(self.cfg):
             self.cfg.existing_tasks = self.existing_tasks + self.new_tasks
             self.cfg.new_tasks = []
-            self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE
+            self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE.value
 
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
