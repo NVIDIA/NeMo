@@ -77,7 +77,7 @@ def filter_manifest_line(manifest_line):
 
 def count_and_consider_only(speakers, lines, min_count=10):
     """
-    consider speakers only if samples per speaker is atleast min_count
+    consider speakers only if samples per speaker is at least min_count
     """
     uniq_speakers, indices, counts = np.unique(speakers, return_index=True, return_counts=True)
     print("speaker count before filtering minimum number of speaker counts: ", len(uniq_speakers))
@@ -177,7 +177,7 @@ def main(scp, manifest, id, out, split=False, create_chunks=False, write_chunks=
     else:
         lines = read_manifest(manifest)
 
-    # lines = process_map(get_duration, lines, chunksize=100)
+    lines = process_map(get_duration, lines, chunksize=100)
 
     if create_chunks:
         print("creating chunk")
