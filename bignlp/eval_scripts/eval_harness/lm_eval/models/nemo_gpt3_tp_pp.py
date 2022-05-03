@@ -1,3 +1,4 @@
+# This model is for debugging only!
 from lm_eval.base import LM
 from lm_eval import utils
 import os

@@ -1973,7 +1973,7 @@ model:
     pipeline_model_parallel_size: 1
     model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
     precision: bf16 # must match training precision - 32, 16 or bf16
-    eval_batch_size: 16
+    eval_batch_size: 4
     vocab_file: ${data_dir}/bpe/vocab.json
     merge_file: ${data_dir}/bpe/merges.txt
 ```
