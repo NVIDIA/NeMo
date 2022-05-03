@@ -3622,8 +3622,7 @@ The table and chart below show the performance results.
 
 ## 8. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* T5 training performance regression ??
-* Deployment support for Nemo Megatron trained checkpoints is currently only supported for trained checkpoint configurations with pipeline parallelism equal 1
+* Deployment support for Nemo Megatron trained checkpoints is currently only supported for trained GPT-3 checkpoint configurations with pipeline parallelism equal 1
 * Selected configurations that used to work result in an out of memory (OOM) error while training on the NVIDIA DGX SuperPOD nodes
 
 | Model Architecture | Model Size | Data Type | AMP Type | \#Activation Checkpoint Layers | MBS | \#PP | \#TP |
