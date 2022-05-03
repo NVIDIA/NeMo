@@ -14,14 +14,12 @@
 
 import pytest
 import torch
-import torch.nn.functional as F
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 
