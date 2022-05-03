@@ -22,7 +22,6 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types.elements import AudioSignal
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
 
 
 class SpectrogramGenerator(ModelPT, ABC):

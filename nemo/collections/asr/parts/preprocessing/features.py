@@ -36,12 +36,8 @@ import math
 import random
 
 import librosa
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from librosa.util import tiny
-from torch.autograd import Variable
 
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
