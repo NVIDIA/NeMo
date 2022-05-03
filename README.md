@@ -274,14 +274,17 @@ backend installed.
 ##### 4.1.1.1. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
-The bignlp-scripts codebase is included as part of the training container. To
+The bignlp codebase is included as part of the training container. To
 copy it to a local directory in the cluster, it needs to be extracted from the
 container. To copy the code to a directory named /path/to/local/dir the
-following command can be executed. The BigNLP repository for Slurm has been
-verified on both Slurm-based DeepOps clusters as well as Base Command Manager.
+following command can be executed. The directory contains the bignlp-scripts 
+and BigNLP-Inference-Scripts codebases inside it. The BigNLP repository for 
+Slurm has beenverified on both Slurm-based DeepOps clusters as well as Base 
+Command Manager. 
+
 
 ```
-srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp/bignlp-scripts /workspace/mount_dir/"
+srun -p [partition] -N 1 --container-mounts=/path/to/local/dir:/workspace/mount_dir --container-image=[container_tag] bash -c "cp -r /opt/bignlp /workspace/mount_dir/"
 ```
 
 Install the BigNLP scripts dependencies on the head node of the cluster:
@@ -1213,7 +1216,7 @@ For Base Command Platform, this file can be stored in a dataset or workspace mou
 To enable the logging of the training metrics to W&B, the following training parameters must be set:
 ```yaml
 exp_manager:
-        create_wandb_logger: False
+        create_wandb_logger: True
         wandb_logger_kwargs:
             project: [W&B project name]
             name: [W&B run name]
