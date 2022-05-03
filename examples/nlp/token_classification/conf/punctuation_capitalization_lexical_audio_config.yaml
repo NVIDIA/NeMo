@@ -29,7 +29,7 @@ trainer:
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
-#  check_val_every_n_epoch: 1
+  #  check_val_every_n_epoch: 1
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step,
   # LR schedulers, apex, etc.
@@ -42,9 +42,9 @@ exp_manager:
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
   create_wandb_logger: true
-    wandb_logger_kwargs:
-      name: exp
-      project: proj
+  wandb_logger_kwargs:
+    name: exp
+    project: proj
 
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_medium
@@ -77,7 +77,7 @@ model:
     # batching. Examples which number of tokens do not differ much are added to the batch. This procedure reduces
     # number of pad tokens in a batch. A number of examples in a batch varies: longer input sequences -> less
     # examples in a batch.
-#    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
     batch_size: 32
     max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
@@ -113,7 +113,7 @@ model:
     shuffle: false
     num_samples: -1
     # See comment above `model.train_ds.tokens_in_batch` parameter for explanation.
-#    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
     batch_size: 32
     max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
@@ -142,7 +142,7 @@ model:
     shuffle: false
     num_samples: -1
     # See comment above `model.train_ds.tokens_in_batch` parameter for explanation.
-#    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
     batch_size: 32
     max_seq_length: 512
 
