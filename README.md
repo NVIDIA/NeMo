@@ -48,7 +48,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [4.5.3. mT5 Training](#453-mt5-training)
       - [4.5.3.1. Slurm](#4531-slurm)
       - [4.5.3.2. Base Command Platform](#4532-base-command-platform)
-  * [4.6. Resuming Training from Fewer Nodes](#46-resuming-training-from-fewer-nodes)
+  * [4.6. Resuming Training with Different Number of Nodes](#46-resuming-training-with-different-number-of-nodes)
   * [4.7. Checkpoint Conversion](#47-checkpoint-conversion)
     + [4.7.1. GPT-3 Conversion](#471-gpt-3-conversion)
       - [4.7.1.1. Common](#4711-common)
