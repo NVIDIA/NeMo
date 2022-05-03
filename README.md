@@ -30,7 +30,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [4.1.2.3. Data Preparation for mT5 Models](#4123-data-preparation-for-mt5-models)
         * [4.1.2.3.1. Slurm](#41231-slurm)
         * [4.1.2.3.2. Base Command Platform](#41232-base-command-platform)
-        * [4.1.2.2.3. Common](#41223-common-1)
+        * [4.1.2.3.3. Common](#41233-common-1)
   * [4.2. Training with Predefined Configurations](#42-training-with-predefined-configurations)
     + [4.2.1. Predefined Configurations of GPT-3 models](#421-predefined-configurations-of-gpt-3-models)
     + [4.2.2. Predefined Configurations of T5 models](#422-predefined-configurations-of-t5-models)
@@ -723,8 +723,8 @@ workspace in `/mount/data`, and the results workspace in `/mount/results`. The s
 also be redirected to the `/results/data_mt5_log.txt` file, to be able to download the logs from NGC. The full dataset may not fit into BCP workspaces. We recommand using a smaller subset of languages (total size is 1TB, e.g. `cs,da,de,el,fr,hi`).
 Any other parameter can also be added to the command to modify its behavior.
 
-###### 4.1.2.2.3. Common
-<a id="markdown-41223-common" name="41223-common"></a>
+###### 4.1.2.3.3. Common
+<a id="markdown-41233-common" name="41233-common"></a>
 
 Set the configuration for the data preparation job for mT5 models in the YAML file:
 ```yaml
