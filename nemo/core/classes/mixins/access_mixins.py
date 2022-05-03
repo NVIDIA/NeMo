@@ -13,17 +13,17 @@
 # limitations under the License.
 
 from abc import ABC
-from contextlib import contextmanager
-from enum import Enum
-from typing import Dict, Iterator, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig
 
-_ACCESS_CFG = DictConfig({"access_all_intermediate": False, "detach": False, "convert_to_cpu": False})
+_ACCESS_CFG = DictConfig({"detach": False, "convert_to_cpu": False})
+_ACCESS_ENABLED = False
 
 
 def set_access_cfg(cfg: 'DictConfig'):
+    if cfg is None or not isinstance(cfg, DictConfig):
+        raise TypeError(f"cfg must be a DictConfig")
     global _ACCESS_CFG
     _ACCESS_CFG = cfg
 
@@ -83,3 +83,17 @@ class AccessMixin(ABC):
         """
         global _ACCESS_CFG
         return _ACCESS_CFG
+
+    @property
+    def access_enabled(self):
+        """
+        Returns:
+            The global variable representing if we should register intermediate tensors
+        """
+        global _ACCESS_ENABLED
+        return _ACCESS_ENABLED
+
+    @access_enabled.setter
+    def access_enabled(self, access_enabled: bool):
+        global _ACCESS_ENABLED
+        _ACCESS_ENABLED = access_enabled

@@ -126,7 +126,7 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             # Call the adapters
             x = self.forward_enabled_adapters(x)
 
-        if self.access_cfg.get('access_all_intermediate', False):
+        if self.access_enabled:
             self.register_accessible_tensor(tensor=x)
 
         return x
