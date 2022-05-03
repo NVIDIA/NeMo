@@ -43,8 +43,8 @@ exp_manager:
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
   create_wandb_logger: true
     wandb_logger_kwargs:
-      name: null
-      project: null
+      name: exp
+      project: proj
 
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_medium
