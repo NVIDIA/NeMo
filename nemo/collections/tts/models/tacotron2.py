@@ -113,44 +113,26 @@ class Tacotron2Model(SpectrogramGenerator):
     def parser(self):
         if self._parser is not None:
             return self._parser
-        if self._validation_dl is not None:
-            return self._validation_dl.dataset.manifest_processor.parser
-        if self._test_dl is not None:
-            return self._test_dl.dataset.manifest_processor.parser
-        if self._train_dl is not None:
-            return self._train_dl.dataset.manifest_processor.parser
-
-        # Else construct a parser
-        # Try to get params from validation, test, and then train
-        params = {}
-        try:
-            params = self._cfg.validation_ds.dataset
-        except ConfigAttributeError:
-            pass
-        if params == {}:
-            try:
-                params = self._cfg.test_ds.dataset
-            except ConfigAttributeError:
-                pass
-        if params == {}:
-            try:
-                params = self._cfg.train_ds.dataset
-            except ConfigAttributeError:
-                pass
-
-        name = params.get('parser', None) or 'en'
-        unk_id = params.get('unk_index', None) or -1
-        blank_id = params.get('blank_index', None) or -1
-        do_normalize = params.get('normalize', True)
-        self._parser = parsers.make_parser(
-            labels=self.tokenizer.tokens, name=name, unk_id=unk_id, blank_id=blank_id, do_normalize=do_normalize,
-        )
+        
+        ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
+        if ds_class_name == "AudioToCharWithPriorAndPitchDataset" or ds_class_name == "TTSDataset":
+                self._parser = self.vocab.encode
+        else:
+            self._parser = parsers.make_parser(
+                labels=self._cfg.labels,
+                name='en',
+                unk_id=-1,
+                blank_id=-1,
+                do_normalize=True,
+                abbreviation_version="fastpitch",
+                make_table=False,
+            )
         return self._parser
 
     def parse(self, str_input: str) -> torch.tensor:
         tokens = self.parser(str_input)
         # Parser doesn't add bos and eos ids, so maunally add it
-        tokens = [self.num_tokens] + tokens + [self.num_tokens]
+        tokens = [self.num_tokens] + tokens + [self.num_tokens + 1]
         tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
 
         return tokens_tensor
