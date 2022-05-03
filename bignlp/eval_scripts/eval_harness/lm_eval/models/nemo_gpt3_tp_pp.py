@@ -129,6 +129,9 @@ class EvalGPTModel(MegatronGPTModel):
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=1,
             )
+
+            # Force soft prompts to be false
+            self.use_soft_prompts = False
             # For prompt tuned GPT models
             if self.use_soft_prompts:
                 if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
