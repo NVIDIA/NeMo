@@ -656,7 +656,7 @@ bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
 <a id="markdown-data-preparation-for-mt5-models" name="data-preparation-for-mt5-models"></a>
 The `data_preparation` parameter in `conf/config.yaml` specifies which file to use for data preparation
 configuration purposes. The `data_preparation` parameter needs to be specified as `download_mc4` for
-preparing the mC4 dataset for T5 models. The config file can be found in 
+preparing the mC4 dataset for mT5 models. The config file can be found in 
 `conf/data_preparation/download_mc4.yaml`. mT5 models use SentencePiece multilingual tokenzier.
 
 To download a reduced portion of the dataset to run tests, the 
@@ -720,7 +720,7 @@ data_preparation.nodes=20 data_preparation.workers_per_node=4 >> /results/data_m
 
 The command above assumes you want to prepare the mC4 dataset with 24 languages, and you mounted the data 
 workspace in `/mount/data`, and the results workspace in `/mount/results`. The stdout and stderr outputs will
-also be redirected to the `/results/data_mt5_log.txt` file, to be able to download the logs from NGC. 
+also be redirected to the `/results/data_mt5_log.txt` file, to be able to download the logs from NGC. The full dataset may not fit into BCP workspaces. We recommand using a smaller subset of languages (total size is 1TB, e.g. `cs,da,de,el,fr,hi`).
 Any other parameter can also be added to the command to modify its behavior.
 
 ###### 4.1.2.2.3. Common
@@ -966,7 +966,7 @@ The command above assumes that the data and results workspaces are mounted in th
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas). 
 
 To train with a different number of nodes, the relevant parameters 
-(e.g. `accumulate_grad_batches`) can be adjusted either in the appropriate yaml config file or 
+(e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
 from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
@@ -1096,7 +1096,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 #### 4.2.3. Predefined Configurations of mT5 models
 <a id="markdown-predefined-configurations-of-mt5-models" name="predefined-configurations-of-mt5-models"></a>
 
-We provide configuration files for three mT5 model sizes: 170M, 390M and
+We provide configuration files for three mT5 model sizes: 170M, 390M, and
 3B parameters. These configurations include carefully selected
 hyperparameters, which should be used as guidelines for any custom model
 configurations. The configuration files are provided in the `conf/training/mt5`
@@ -1133,7 +1133,7 @@ The command above assumes that the data and results workspaces are mounted in th
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas). 
 
 To train with a different number of nodes, the relevant parameters 
-(e.g. `accumulate_grad_batches`) can be adjusted either in the appropriate yaml config file or 
+(e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
 from the command line. More on this in [section 4.6](#46-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
@@ -1166,7 +1166,6 @@ training.trainer.num_nodes=\$NGC_ARRAY_SIZE cluster_type=bcp
 ```
 The command above assumes that the data and results workspaces are mounted in the `/mount/data` and `/mount/results` 
 directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number of nodes that will be used when creating the job (number of replicas). 
-
 
 
 
@@ -1431,8 +1430,8 @@ Then, use the python3 main.py command to launch the job and override the
 desired parameters from the training job parameters.
 
 
-### 4.6. Resuming Training from Fewer Nodes
-<a id="markdown-resuming-training-from-fewer-nodes" name="resuming-training-from-fewer-nodes"></a>
+### 4.6. Resuming Training with Different Number of Nodes
+<a id="markdown-resuming-training-with-different-number-of-nodes" name="resuming-training-with-different-number-of-nodes"></a>
 
 To be able to resume a training run with a different number of nodes, we recommend to keep
 the global batch size unchanged. This ensures that each training step will be
@@ -1440,9 +1439,9 @@ almost identical, regardless of the number of nodes. The number of nodes selecte
 compatible with the rest of the parameters: GBS must be a multiple of 
 (MBS * num_gpus) / (tensor_parallelism * pipeline parallelism)
 
-Where MBS is the micro batch size. For instance, the default GBS for the 5B GPT-3
+where MBS is the micro batch size. For instance, the default GBS for the 5B GPT-3
 model is 1440; the MBS is 2; the number of GPUs is 20\*8 = 160; 
-the `tensor_parallelism` value is set to 2; and the `pipeline_parallelism` value is set to 1
+the `tensor_parallelism` value is set to 2; and the `pipeline_parallelism` value is set to 1.
 Therefore, the GBS is set to a valid value:
 ```
 1440 % (2 * 160) / (2 * 1) == 0
@@ -1661,7 +1660,7 @@ The `run_conversion` parameter must be set to `True` to run the conversion pipel
 
 ##### 4.7.3.1. Common
 <a id="markdown-common" name="common"></a>
-To specify the input checkpoint to be used for conversion for T5 models, use the `model` parameters
+To specify the input checkpoint to be used for conversion for mT5 models, use the `model` parameters
 in `conf/conversion/convert_mt5.yaml`:
 ```yaml
 model:
@@ -3523,7 +3522,7 @@ speedup. We are actively working on improving the scaling performance for T5 mod
 #### 6.3.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 170M mT5 Model; 8 x 8 x A100 80GB for 390M mT5 Model; 20 x 8 x A100 80GB for 3B mT5 Model)
 
-We evaluated the 170M parameter, 390M parameter and 3B parameter mT5 models on XNLI
+We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on XNLI
 task. The results can be found in the table below. The user can 
 finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 finetuning section.
 
@@ -3541,7 +3540,7 @@ Training the 170M mT5 model to convergence takes 4 days, and the loss curve can 
 <img src="img/170M_mT5_loss_final.svg"/>
 
 The table below shows the converged training loss, the throughput, and the
-total time to train for the 170M T5 model, using a given number of GPUs and a
+total time to train for the 170M mT5 model, using a given number of GPUs and a
 given Global Batch Size (GBS).
 
 | \#GPUs | GBS    | Seq Length | \#Tokens | Loss  | Throughput (Tokens/sec) | Time to Train (days) |
@@ -3599,7 +3598,12 @@ The table and chart below show the performance results.
 <a id="markdown-changelog" name="changelog"></a>
 
 **NeMo Megatron 22.04**
-* Update predefined configs for training T5 models??
+* T5 with pipeline parallelism support (training only)
+* Switched from GeLU to GeGLU as activation function for T5
+* mT5 with tensor parallelism and pipeline parallelism support (training only)
+* 11B, 23B, and 41B T5 training configurations
+* 170M, 390M, and 3B mT5 training configurations
+* Automatic and configurable Non-Uniform Memory Access (NUMA) mapping
 
 **NeMo Megatron 22.03**
 * T5 with tensor parallelism support (optimized for <20B parameters, training only)
