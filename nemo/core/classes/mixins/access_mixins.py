@@ -84,16 +84,10 @@ class AccessMixin(ABC):
         global _ACCESS_CFG
         return _ACCESS_CFG
 
-    @property
-    def access_enabled(self):
-        """
-        Returns:
-            The global variable representing if we should register intermediate tensors
-        """
+    def is_access_enabled(self):
         global _ACCESS_ENABLED
         return _ACCESS_ENABLED
 
-    @access_enabled.setter
-    def access_enabled(self, access_enabled: bool):
+    def set_access_enabled(self, access_enabled: bool):
         global _ACCESS_ENABLED
         _ACCESS_ENABLED = access_enabled
