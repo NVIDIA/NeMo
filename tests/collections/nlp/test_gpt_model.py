@@ -14,11 +14,13 @@
 
 import pytest
 import torch
+import torch.nn.functional as F
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
@@ -27,6 +29,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 def model_cfg():
 
     model_cfg = {
+        'precision': 16,
         'micro_batch_size': 4,
         'global_batch_size': 8,
         'tensor_model_parallel_size': 1,
@@ -36,13 +39,13 @@ def model_cfg():
         'max_position_embeddings': 512,
         'num_layers': 1,
         'hidden_size': 128,
-        'ffn_hidden_size': 128 * 4,
+        'ffn_hidden_size': 512,
         'num_attention_heads': 2,
         'init_method_std': 0.02,
         'hidden_dropout': 0.1,
         'kv_channels': None,
         'apply_query_key_layer_scaling': True,
-        'layernorm_epsilon': '1e-5',
+        'layernorm_epsilon': 1e-5,
         'make_vocab_size_divisible_by': 128,
         'pre_process': True,
         'post_process': True,
@@ -52,8 +55,8 @@ def model_cfg():
             'library': 'megatron',
             'type': 'GPT2BPETokenizer',
             'model': None,
-            'vocab_file': None,
-            'merge_file': None,
+            'vocab_file': '/raid/data/gpt_vocab_merges/vocab.json',
+            'merge_file': '/raid/data/gpt_vocab_merges/merges.txt',
             'delimiter': None,
         },
         'native_amp_init_scale': 4294967296,
@@ -83,7 +86,7 @@ def model_cfg():
         },
         'optim': {
             'name': 'fused_adam',
-            'lr': '2e-4',
+            'lr': 2e-4,
             'weight_decay': 0.01,
             'betas': [0.9, 0.98],
             'sched': {'name': 'CosineAnnealing', 'warmup_steps': 500, 'constant_steps': 50000, 'min_lr': '2e-5'},
@@ -130,27 +133,73 @@ def gpt_model(model_cfg, trainer_cfg):
     return model
 
 
+@pytest.fixture()
+def test_text():
+    test_text = [
+        "hello, world",
+        "four score and seven years ago",
+        "Your time is limited",
+        "If you set goals rediculously high",
+    ]
+    return test_text
+
+
+@pytest.mark.run_only_on('GPU')
 class TestGPTModel:
-    @pytest.mark.unit
-    def test_tokenizer(self, model_cfg):
-
-        tokenizer_cfg = model_cfg['tokenizer']
-        # TODO: add vocab file to test tar
-        tokenizer_cfg['vocab_file'] = '/raid/data/gpt_vocab_merges/vocab.json'
-        tokenizer_cfg['merge_file'] = '/raid/data/gpt_vocab_merges/merges.txt'
-        tokenizer = get_nmt_tokenizer(
-            library=tokenizer_cfg['library'],
-            model_name=tokenizer_cfg['type'],
-            vocab_file=tokenizer_cfg['vocab_file'],
-            merges_file=tokenizer_cfg['merge_file'],
-        )
-        assert isinstance(tokenizer, AutoTokenizer)
-        assert tokenizer.name == 'GPT2Tokenizer'
-        assert tokenizer.vocab_size == 50257
-
     @pytest.mark.unit
     def test_constructor(self, gpt_model):
         assert isinstance(gpt_model, MegatronGPTModel)
 
         num_weights = gpt_model.num_weights
         assert num_weights == 6702976
+
+    @pytest.mark.unit
+    def test_tokenizer(self, gpt_model, test_text):
+
+        assert isinstance(gpt_model.tokenizer, AutoTokenizer)
+        assert gpt_model.tokenizer.name == 'GPT2Tokenizer'
+        assert gpt_model.tokenizer.vocab_size == 50257
+
+        ids = [gpt_model.tokenizer.text_to_ids(text) for text in test_text]
+
+        true_ids = [
+            [31373, 11, 995],
+            [14337, 4776, 290, 3598, 812, 2084],
+            [7120, 640, 318, 3614],
+            [1532, 345, 900, 4661, 2266, 291, 18117, 1029],
+        ]
+        assert sum([id_list == true_id_list for id_list, true_id_list in zip(ids, true_ids)]) == 4
+
+    @pytest.mark.unit
+    def test_forward(self, gpt_model, test_text):
+
+        gpt_model.cuda()
+
+        gpt_model.eval()
+
+        ids = [gpt_model.tokenizer.text_to_ids(text) for text in test_text]
+
+        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids]
+
+        masks_and_position_ids = [
+            get_ltor_masks_and_position_ids(id_tensor, gpt_model.tokenizer.eos_id, False, False, False)
+            for id_tensor in id_tensors
+        ]
+
+        output_tensors = []
+        with torch.no_grad():
+            for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
+                attn_mask, _, pos_ids = attn_mask_and_pos_ids
+                assert tokens.shape == pos_ids.shape
+                assert attn_mask.shape[2] == attn_mask.shape[3] == tokens.shape[1] == pos_ids.shape[1]
+                with torch.autocast('cuda', dtype=torch.float16):
+                    output_tensor = gpt_model.forward(
+                        tokens=tokens.cuda(),
+                        text_position_ids=pos_ids.cuda(),
+                        attention_mask=attn_mask.cuda(),
+                        labels=None,
+                    )
+                assert output_tensor.shape[1] == tokens.shape[1]
+                assert output_tensor.shape[2] == gpt_model.padded_vocab_size
+                assert output_tensor.dtype == torch.float16
+                output_tensors.append(output_tensor)
