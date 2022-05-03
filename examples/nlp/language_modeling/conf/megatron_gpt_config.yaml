@@ -82,6 +82,7 @@ model:
 
   # Megatron O2-style half-precision
   megatron_amp_O2: False # Enable O2-level automatic mixed precision using main parameters
+  grad_allreduce_chunk_size_mb: 125
 
   # miscellaneous
   seed: 1234

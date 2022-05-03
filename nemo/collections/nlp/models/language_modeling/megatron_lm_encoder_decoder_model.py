@@ -704,7 +704,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 fp32_grad_accum=fp32_grad_accum,
                 contiguous_grad_bucket=contiguous_grad_bucket,
                 async_grad_allreduce=async_grad_allreduce,
-                grad_allreduce_chunk_size_mb=self.cfg.get("grad_allreduce_chunk_size_mb", 125),
+                grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
             assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
