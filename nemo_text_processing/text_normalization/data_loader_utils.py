@@ -224,17 +224,13 @@ def post_process_punctuation(text: str) -> str:
 
 def pre_process(text: str) -> str:
     """
-    Adds space around punctuation marks
+    Optional text preprocessing before normalization (part of TTS TN pipeline)
 
     Args:
         text: string that may include semiotic classes
 
     Returns: text with spaces around punctuation marks
     """
-    space_both = '[]'
-    for punct in space_both:
-        text = text.replace(punct, ' ' + punct + ' ')
-
     # remove extra space
     text = re.sub(r' +', ' ', text)
     return text
