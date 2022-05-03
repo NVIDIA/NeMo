@@ -116,6 +116,7 @@ class ASRManifestProcessor:
         bos_id: Id of beginning of sequence symbol to append if not None.
         eos_id: Id of end of sequence symbol to append if not None.
         pad_id: Id of pad symbol. Defaults to 0.
+        path_prefix (str): Path prefix to concat to the begining of audio_file. Empty by default.
     """
 
     def __init__(
@@ -129,11 +130,13 @@ class ASRManifestProcessor:
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         index_by_file_id: bool = False,
+        path_prefix: str = '',
     ):
         self.parser = parser
 
         self.collection = collections.ASRAudioText(
             manifests_files=manifest_filepath,
+            path_prefix=path_prefix,
             parser=parser,
             min_duration=min_duration,
             max_duration=max_duration,
@@ -238,6 +241,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Id of end of sequence symbol to append if not None
         pad_id: Id of pad symbol. Defaults to 0
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        path_prefix (str):  Path prefix to concat to the begining of audio_file. Empty by default.
     """
 
     @property
@@ -267,6 +271,7 @@ class _AudioTextDataset(Dataset):
         eos_id: Optional[int] = None,
         pad_id: int = 0,
         return_sample_id: bool = False,
+        path_prefix: str = '',
     ):
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(",")
@@ -280,6 +285,7 @@ class _AudioTextDataset(Dataset):
             bos_id=bos_id,
             eos_id=eos_id,
             pad_id=pad_id,
+            path_prefix=path_prefix,
         )
         self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
         self.trim = trim
@@ -345,6 +351,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Id of beginning of sequence symbol to append if not None
         eos_id: Id of end of sequence symbol to append if not None
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        path_prefix (str):  Path prefix to concat to the begining of audio_file. Empty by default.
     """
 
     @property
@@ -378,6 +385,7 @@ class AudioToCharDataset(_AudioTextDataset):
         pad_id: int = 0,
         parser: Union[str, Callable] = 'en',
         return_sample_id: bool = False,
+        path_prefix: str = '',
     ):
         self.labels = labels
 
@@ -399,6 +407,7 @@ class AudioToCharDataset(_AudioTextDataset):
             eos_id=eos_id,
             pad_id=pad_id,
             return_sample_id=return_sample_id,
+            path_prefix=path_prefix,
         )
 
 
@@ -901,6 +910,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         use_start_end_token: Boolean which dictates whether to add [BOS] and [EOS]
             tokens to beginning and ending of speech respectively.
         return_sample_id (bool): whether to return the sample_id as a part of each sample
+        path_prefix (str):  Path prefix to concat to the begining of audio_file. Empty by default.
     """
 
     @property
@@ -928,6 +938,7 @@ class AudioToBPEDataset(_AudioTextDataset):
         trim: bool = False,
         use_start_end_token: bool = True,
         return_sample_id: bool = False,
+        path_prefix: str = '',
     ):
         if use_start_end_token and hasattr(tokenizer, 'bos_token'):
             bos_id = tokenizer.bos_id
@@ -970,6 +981,7 @@ class AudioToBPEDataset(_AudioTextDataset):
             pad_id=pad_id,
             trim=trim,
             return_sample_id=return_sample_id,
+            path_prefix=path_prefix,
         )
 
 

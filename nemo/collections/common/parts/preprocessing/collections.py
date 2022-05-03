@@ -192,7 +192,7 @@ class AudioText(_Collection):
 class ASRAudioText(AudioText):
     """`AudioText` collector from asr structured json files."""
 
-    def __init__(self, manifests_files: Union[str, List[str]], *args, **kwargs):
+    def __init__(self, manifests_files: Union[str, List[str]], path_prefix: str, *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
@@ -201,9 +201,9 @@ class ASRAudioText(AudioText):
             *args: Args to pass to `AudioText` constructor.
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
-
+        self.path_prefix = path_prefix
         ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs = [], [], [], [], [], [], [], []
-        for item in manifest.item_iter(manifests_files):
+        for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
@@ -215,6 +215,47 @@ class ASRAudioText(AudioText):
 
         super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs, *args, **kwargs)
 
+    def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        item = json.loads(line)
+
+        # Audio file
+        if 'audio_filename' in item:
+            item['audio_file'] = item.pop('audio_filename')
+        elif 'audio_filepath' in item:
+            item['audio_file'] = item.pop('audio_filepath')
+        else:
+            raise ValueError(
+                f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio file key."
+            )
+        item['audio_file'] = os.path.join(self.path_prefix, item['audio_file'])
+        item['audio_file'] = os.path.expanduser(item['audio_file'])
+
+        # Duration.
+        if 'duration' not in item:
+            raise ValueError(
+                f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
+            )
+
+        # Text.
+        if 'text' in item:
+            pass
+        elif 'text_filepath' in item:
+            with open(item.pop('text_filepath'), 'r') as f:
+                item['text'] = f.read().replace('\n', '')
+        elif 'normalized_text' in item:
+            item['text'] = item['normalized_text']
+
+        item = dict(
+            audio_file=item['audio_file'],
+            duration=item['duration'],
+            text=item.get('text', ""),
+            offset=item.get('offset', None),
+            speaker=item.get('speaker', None),
+            orig_sr=item.get('orig_sample_rate', None),
+            lang=item.get('lang', None),
+        )
+
+        return item
 
 class SpeechLabel(_Collection):
     """List of audio-label correspondence with preprocessing."""
