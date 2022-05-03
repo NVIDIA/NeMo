@@ -12,17 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from nemo.collections.tts.models.aligner import AlignerModel
-    from nemo.collections.tts.models.fastpitch import FastPitchModel
-    from nemo.collections.tts.models.hifigan import HifiGanModel
-    from nemo.collections.tts.models.mixer_tts import MixerTTSModel
-    from nemo.collections.tts.models.tacotron2 import Tacotron2Model
-    from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
-    from nemo.collections.tts.models.univnet import UnivNetModel
-    from nemo.collections.tts.models.waveglow import WaveGlowModel
-except ModuleNotFoundError:
-    pass
+from nemo.collections.tts.models.aligner import AlignerModel
+from nemo.collections.tts.models.fastpitch import FastPitchModel
+from nemo.collections.tts.models.hifigan import HifiGanModel
+from nemo.collections.tts.models.mixer_tts import MixerTTSModel
+from nemo.collections.tts.models.tacotron2 import Tacotron2Model
+from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
+from nemo.collections.tts.models.univnet import UnivNetModel
+from nemo.collections.tts.models.waveglow import WaveGlowModel
 
 __all__ = [
     "Tacotron2Model",
