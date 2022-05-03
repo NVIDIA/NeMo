@@ -173,8 +173,6 @@ class TestGPTModel:
     @pytest.mark.unit
     def test_forward(self, gpt_model, test_text):
 
-        gpt_model.cuda()
-
         gpt_model.eval()
 
         ids = [gpt_model.tokenizer.text_to_ids(text) for text in test_text]
