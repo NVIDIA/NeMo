@@ -15,7 +15,7 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_lexical_audio_dataset import \
     PunctuationCapitalizationLexicalAudioDataset
 from nemo.collections.nlp.metrics import ClassificationReport
-from nemo.collections.nlp.models import PunctuationCapitalizationModel
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import PunctuationCapitalizationModel
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
 from nemo.utils import logging
 
