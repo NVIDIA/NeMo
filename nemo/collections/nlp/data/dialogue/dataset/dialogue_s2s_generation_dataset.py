@@ -42,21 +42,22 @@ class DialogueS2SGenerationDataset(DialogueDataset):
         if self.cfg.debug_mode:
             self.features = self.features[:16]
 
-    def format_actions(self, actions):
+    @staticmethod
+    def format_actions(prompt_template, actions):
         actions_str = []
         for action in actions:
             act = action['act'].lower()
             slot = action['slot']
             value = action['values'][0] if action['values'] else ''
 
-            if self.cfg.prompt_template == 'values':
+            if prompt_template == 'values':
                 action_str = value
-            elif self.cfg.prompt_template == 'slots_values':
+            elif prompt_template == 'slots_values':
                 if value:
                     action_str = '{} ({})'.format(slot, value)
                 else:
                     action_str = slot
-            elif self.cfg.prompt_template == 'acts_slots_values':
+            elif prompt_template == 'acts_slots_values':
                 if value:
                     action_str = '{} {} ({})'.format(act, slot, value)
                 elif slot:
@@ -134,7 +135,9 @@ class DialogueS2SGenerationDataset(DialogueDataset):
                 ex["labels"][field] = ex[field]
 
         if 'system_actions' in ex:
-            ex["labels"]['system_actions'] = self.format_actions(ex['system_actions'])
+            ex["labels"]['system_actions'] = DialogueS2SGenerationDataset.format_actions(
+                self.cfg.prompt_template, ex['system_actions']
+            )
 
         input_sentence = self.format_prompt(ex)
         output_sentence = ex["labels"][self.output_label_type]
