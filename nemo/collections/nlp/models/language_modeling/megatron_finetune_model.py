@@ -52,15 +52,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             metric = ExactStringPerCategoryMatchMetric()
         # General Seq2seq finetuning
         else:
+            metric = metric_str2torchmetric[metric_name]
             if isinstance(data_cfg.src_file_name, ListConfig):
-                if hasattr(data_cfg, "names") and isinstance(data_cfg.names, ListConfig) and metric_name == 'accuracy':
-                    metric = ExactStringPerCategoryMatchMetric(self.cfg.data.validation_ds.names)
-                else:
-                    metric = ExactStringPerCategoryMatchMetric(
-                        [str(i) for i in range(len(self.cfg.data.test_ds.src_file_name))]
-                    )
+                metric = [metric() for _ in range(len(self.cfg.data.test_ds.src_file_name))]
             else:
-                metric = ExactStringPerCategoryMatchMetric()
+                metric = metric()
 
         return metric
 
@@ -333,7 +329,25 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             self.test_metric.reset()
 
+        if mode == 'validation' and self.cfg.data.validation_ds.write_predictions_to_file:
+            if parallel_state.get_data_parallel_world_size() > 1:
+                raise ValueError(f"Cannot write predictions to file when data parallel > 1. Current data parallel size : {parallel_state.get_data_parallel_world_size()}")
+            self.write_predictions_to_file(outputs)
+
         return averaged_loss, accuracy['acc']
+
+    def write_predictions_to_file(self, outputs, output_file_path):
+        if not output_file_path:
+            output_file_path = self.cfg.data.validation_ds.output_file_path
+        if not output_file_path:
+            raise ValueError("No output file path specified. Please specify one in the data config if you want to write predictions to a file.")
+        with open(output_file_path, 'w') as f:
+            for output in outputs:
+                for batch in output:
+                    for pred, label, category in zip(batch['preds'], batch['labels'], batch['categories']):
+                        f.write(f"{pred}\t{label}\t{category}\n")
+                    f.write('\n')
+                f.write('\n')
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
