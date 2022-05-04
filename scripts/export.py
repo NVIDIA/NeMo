@@ -61,7 +61,7 @@ def get_args(argv):
     args = parser.parse_args(argv)
     return args
 
-
+@torch.inference_mode()
 def nemo_export(argv):
     args = get_args(argv)
     loglevel = logging.INFO
@@ -98,9 +98,8 @@ def nemo_export(argv):
 
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
-        with torch.inference_mode():
-            # Restore instance from .nemo file using generic model restore_from
-            model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
+        # Restore instance from .nemo file using generic model restore_from
+        model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
     except Exception as e:
         logging.error(
             "Failed to restore model from NeMo file : {}. Please make sure you have the latest NeMo package installed with [all] dependencies.".format(
@@ -129,17 +128,17 @@ def nemo_export(argv):
         autocast = nullcontext
         model = model.to(device=args.device)
         model.eval()
-        with torch.inference_mode():
-            input_example = model.input_module.input_example(**in_args)
+        input_example = model.input_module.input_example(**in_args)
         if args.autocast:
             autocast = torch.cuda.amp.autocast
-        with autocast(), torch.inference_mode():
+        with autocast():
             logging.info(f"Getting output example")
             input_list, input_dict = parse_input_example(input_example)
             output_example = forward_method(model)(*input_list, **input_dict)
             logging.info(f"Exporting model with autocast={args.autocast}")
-            input_names = model.input_names
-            output_names = model.output_names
+            if args.runtime_check:
+                input_names = model.input_names
+                output_names = model.output_names
 
             _, descriptions = model.export(
                 out,
