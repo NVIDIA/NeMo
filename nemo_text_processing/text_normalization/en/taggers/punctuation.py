@@ -42,10 +42,14 @@ class PunctuationFst(GraphFst):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
         s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
 
+        punct_symbols_to_exclude = ["[", "]"]
         punct_unicode = [
-            chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P") and chr(i) not in "[]"
+            chr(i)
+            for i in range(sys.maxunicode)
+            if category(chr(i)).startswith("P") and chr(i) not in punct_symbols_to_exclude
         ]
         punct = pynini.union(*s) | pynini.union(*punct_unicode)
+        punct = pynini.closure(punct, 1)
 
         emphasis = (
             pynini.accep("<")

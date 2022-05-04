@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    MIN_NEG_WEIGHT,
     NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
@@ -46,15 +47,27 @@ class WordFst(GraphFst):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
         punct = PunctuationFst().graph
-        self.graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, punct.project("input")), 1)
+        punct_symbols = punct.project("input")
+        graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, punct_symbols), 1)
 
         if not deterministic:
-            self.graph = pynini.closure(
+            graph = pynini.closure(
                 pynini.difference(
-                    self.graph, pynini.union("$", "€", "₩", "£", "¥", "#", "$", "%") + pynini.closure(NEMO_DIGIT, 1)
+                    graph, pynini.union("$", "€", "₩", "£", "¥", "#", "$", "%") + pynini.closure(NEMO_DIGIT, 1)
                 ),
                 1,
             )
+
+        # to allow alpha with punctuation words "I'm", "O'Neil", "Then..." to be tagged as a word
+        # so that no extra spaces are added around punctuation mark
+        alpha_with_punct_graph = pynini.closure(
+            pynini.closure(punct_symbols)
+            + pynini.closure(NEMO_ALPHA)
+            + pynini.closure(punct_symbols, 1)
+            + pynini.closure(NEMO_ALPHA)
+        ).optimize()
+        alpha_with_punct_graph = pynutil.add_weight(alpha_with_punct_graph, MIN_NEG_WEIGHT).optimize()
+        graph |= alpha_with_punct_graph
 
         # leave phones of format [HH AH0 L OW1] untouched
         phoneme_unit = pynini.closure(NEMO_ALPHA, 1) + pynini.closure(NEMO_DIGIT)
@@ -64,5 +77,5 @@ class WordFst(GraphFst):
             + phoneme_unit
             + pynini.accep(pynini.escape("]"))
         )
-        self.graph = plurals._priority_union(convert_space(phoneme), self.graph, NEMO_SIGMA)
+        self.graph = plurals._priority_union(convert_space(phoneme), graph, NEMO_SIGMA)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

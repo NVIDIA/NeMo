@@ -251,7 +251,7 @@ class Normalizer:
             # do post-processing based on Moses detokenizer
             if self.processor:
                 output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
-                # output = post_process_punct(input=original_text, normalized_text=output)
+                output = post_process_punct(input=original_text, normalized_text=output)
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
         return output
