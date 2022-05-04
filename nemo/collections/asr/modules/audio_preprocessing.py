@@ -157,6 +157,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
                 Defaults to 0.0
             nb_max_freq (int) : Frequency above which all frequencies will be masked for narrowband augmentation.
                 Defaults to 4000
+            stft_exact_pad: Deprecated argument, kept for compatibility with older checkpoints.
+            stft_conv: Deprecated argument, kept for compatibility with older checkpoints.
         """
 
     def save_to(self, save_path: str):
@@ -218,6 +220,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         rng=None,
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
+        stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
+        stft_conv=False,  # Deprecated arguments; kept for config compatibility
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -256,6 +260,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             rng=rng,
             nb_augmentation_prob=nb_augmentation_prob,
             nb_max_freq=nb_max_freq,
+            stft_exact_pad=stft_exact_pad,  # Deprecated arguments; kept for config compatibility
+            stft_conv=stft_conv,  # Deprecated arguments; kept for config compatibility
         )
 
     def get_features(self, input_signal, length):
@@ -673,6 +679,8 @@ class AudioToMelSpectrogramPreprocessorConfig:
     rng: Optional[str] = None
     nb_augmentation_prob: float = 0.0
     nb_max_freq: int = 4000
+    stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
+    stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
 
 
 @dataclass
