@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.03-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.04-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -55,10 +55,6 @@ RUN git clone https://github.com/NVIDIA/TensorRT.git && \
 WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
-
-# install nemo_text_processing dependencies
-COPY nemo_text_processing /tmp/nemo/nemo_text_processing/
-RUN /bin/bash /tmp/nemo/nemo_text_processing/setup.sh
 
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
