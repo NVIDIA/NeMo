@@ -20,6 +20,7 @@ from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
 
+from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import get_installation_msg, pre_process
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
@@ -66,6 +67,7 @@ class Normalizer:
         overwrite_cache: bool = False,
         whitelist: str = None,
         lm: bool = False,
+        punct_post_process: bool = True,
     ):
         assert input_case in ["lower_cased", "cased"]
 
@@ -101,35 +103,71 @@ class Normalizer:
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        if lang != "en":
+            if NLP_AVAILABLE:
+                self.processor = MosesProcessor(lang_id=lang)
+            else:
+                self.processor = None
+                print("NeMo NLP is not available. Punctuation post-processing will be skipped")
+            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        else:
+            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic, punct_post_process=punct_post_process)
+
         self.parser = TokenParser()
         self.lang = lang
 
-        if NLP_AVAILABLE:
-            self.processor = MosesProcessor(lang_id=lang)
-        else:
-            self.processor = None
-            print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
-
-    def normalize_list(self, texts: List[str], verbose=False, punct_post_process: bool = False) -> List[str]:
+    def normalize_list(
+        self,
+        texts: List[str],
+        verbose: bool = False,
+        punct_pre_process: bool = False,
+        punct_post_process: bool = False,
+        batch_size: int = 1,
+        n_jobs: int = 1,
+    ) -> List[str]:
         """
         NeMo text normalizer
 
         Args:
             texts: list of input strings
             verbose: whether to print intermediate meta information
+            punct_pre_process: whether to do punctuation pre processing
+            punct_post_process: whether to do punctuation post processing
+            n_jobs: the maximum number of concurrently running jobs. If -1 all CPUs are used. If 1 is given,
+                no parallel computing code is used at all, which is useful for debugging. For n_jobs below -1,
+                (n_cpus + 1 + n_jobs) are used. Thus for n_jobs = -2, all CPUs but one are used.
+            batch_size: Number of examples for each process
 
         Returns converted list input strings
         """
-        res = []
-        for input in tqdm(texts):
-            try:
-                text = self.normalize(input, verbose=verbose, punct_post_process=punct_post_process)
-            except:
-                print(input)
-                raise Exception
-            res.append(text)
-        return res
+        # to save intermediate results to a file
+        batch = min(len(texts), batch_size)
+
+        try:
+            normalized_texts = Parallel(n_jobs=n_jobs)(
+                delayed(self.__process_batch)(texts[i : i + batch], verbose, punct_pre_process, punct_post_process)
+                for i in range(0, len(texts), batch)
+            )
+        except BaseException as e:
+            raise e
+        return normalized_texts
+
+    def __process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
+        """
+        Normalizes batch of text sequences
+        Args:
+            batch: list of texts
+            verbose: whether to print intermediate meta information
+            punct_pre_process: whether to do punctuation pre processing
+            punct_post_process: whether to do punctuation post processing
+        """
+        normalized_lines = [
+            self.normalize(
+                text, verbose=verbose, punct_pre_process=punct_pre_process, punct_post_process=punct_post_process
+            )
+            for text in tqdm(batch)
+        ]
+        return normalized_lines
 
     def _estimate_number_of_permutations_in_nested_dict(
         self, token_group: Dict[str, Union[OrderedDict, str, bool]]
@@ -247,7 +285,7 @@ class Normalizer:
                 raise ValueError(f"No permutations were generated from tokens {s}")
             output += ' ' + self.select_verbalizer(verbalizer_lattice)
         output = SPACE_DUP.sub(' ', output[1:])
-        if punct_post_process:
+        if self.lang != "en" and punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
                 output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
@@ -374,7 +412,7 @@ def parse_args():
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument(
-        "--punct_post_process", help="set to True to enable punctuation post processing", action="store_true"
+        "--punct_post_process", help="set to True to enable punctuation post processing.", action="store_true",
     )
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"

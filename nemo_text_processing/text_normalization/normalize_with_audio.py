@@ -230,6 +230,7 @@ class NormalizerWithAudio(Normalizer):
         pred_text: str,
         verbose: bool = False,
         remove_punct: bool = False,
+        cer_threshold: int = 100,
     ):
         """
         Selects the best normalization option based on the lowest CER
@@ -240,16 +241,20 @@ class NormalizerWithAudio(Normalizer):
             pred_text: ASR model transcript of the audio file corresponding to the normalized text
             verbose: whether to print intermediate meta information
             remove_punct: whether to remove punctuation before calculating CER
+            cer_threshold: if CER for pred_text is above the cer_threshold, no normalization will be performed
 
         Returns:
             normalized text with the lowest CER and CER value
         """
         if pred_text == "":
-            return input_text, 1000
+            return input_text, cer_threshold
 
         normalized_texts_cer = calculate_cer(normalized_texts, pred_text, remove_punct)
         normalized_texts_cer = sorted(normalized_texts_cer, key=lambda x: x[1])
         normalized_text, cer = normalized_texts_cer[0]
+
+        if cer > cer_threshold:
+            return input_text, cer
 
         if verbose:
             print('-' * 30)
@@ -338,11 +343,19 @@ def parse_args():
     parser.add_argument(
         "--lm", action="store_true", help="Set to True for WFST+LM. Only available for English right now."
     )
+    parser.add_argument(
+        "--cer_threshold",
+        default=100,
+        type=int,
+        help="if CER for pred_text is above the cer_threshold, no normalization will be performed",
+    )
     parser.add_argument("--batch_size", default=200, type=int, help="Number of examples for each process")
     return parser.parse_args()
 
 
-def _normalize_line(normalizer: NormalizerWithAudio, n_tagged, verbose, line: str, remove_punct, punct_post_process):
+def _normalize_line(
+    normalizer: NormalizerWithAudio, n_tagged, verbose, line: str, remove_punct, punct_post_process, cer_threshold
+):
     line = json.loads(line)
     pred_text = line["pred_text"]
 
@@ -356,6 +369,7 @@ def _normalize_line(normalizer: NormalizerWithAudio, n_tagged, verbose, line: st
         pred_text=pred_text,
         verbose=verbose,
         remove_punct=remove_punct,
+        cer_threshold=cer_threshold,
     )
     line["nemo_normalized"] = normalized_text
     line["CER_nemo_normalized"] = cer
@@ -370,13 +384,21 @@ def normalize_manifest(
     remove_punct: bool,
     punct_post_process: bool,
     batch_size: int,
+    cer_threshold: int,
 ):
     """
     Args:
         args.audio_data: path to .json manifest file.
     """
 
-    def __process_batch(batch_idx, batch, dir_name):
+    def __process_batch(batch_idx: int, batch: list[str], dir_name: str):
+        """
+        Normalizes batch of text sequences
+        Args:
+            batch: list of texts
+            batch_idx: batch index
+            dir_name: path to output directory to save results
+        """
         normalized_lines = [
             _normalize_line(
                 normalizer,
@@ -385,6 +407,7 @@ def normalize_manifest(
                 line=line,
                 remove_punct=remove_punct,
                 punct_post_process=punct_post_process,
+                cer_threshold=cer_threshold,
             )
             for line in tqdm(batch)
         ]
@@ -459,6 +482,7 @@ if __name__ == "__main__":
                 input_text=args.text,
                 verbose=args.verbose,
                 remove_punct=not args.no_remove_punct_for_cer,
+                cer_threshold=args.cer_threshold,
             )
             print(f"Transcript: {pred_text}")
             print(f"Normalized: {normalized_text}")
@@ -484,6 +508,7 @@ if __name__ == "__main__":
             remove_punct=not args.no_remove_punct_for_cer,
             punct_post_process=not args.no_punct_post_process,
             batch_size=args.batch_size,
+            cer_threshold=args.cer_threshold,
         )
     else:
         raise ValueError(

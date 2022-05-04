@@ -16,6 +16,7 @@ import sys
 from unicodedata import category
 
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 
 try:
     import pynini
@@ -48,7 +49,12 @@ class PunctuationFst(GraphFst):
             for i in range(sys.maxunicode)
             if category(chr(i)).startswith("P") and chr(i) not in punct_symbols_to_exclude
         ]
-        punct = pynini.union(*s) | pynini.union(*punct_unicode)
+
+        whitelist_symbols = load_labels(get_abs_path("data/whitelist/symbol.tsv"))
+        whitelist_symbols = [x[0] for x in whitelist_symbols]
+        self.punct_marks = [p for p in punct_unicode + list(s) if p not in whitelist_symbols]
+
+        punct = pynini.union(*self.punct_marks)
         punct = pynini.closure(punct, 1)
 
         emphasis = (
