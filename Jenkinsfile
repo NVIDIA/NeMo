@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'gitlab-master.nvidia.com/sandeepsub/nemo_containers:nemo-180-2203-ci-apex-8cc91ceaa8faa64451d90e11b8ad4732393b32aa'
+      image 'nvcr.io/nvidia/pytorch:22.04-py3'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -564,6 +564,35 @@ pipeline {
       }
     }
 
+    stage('L2: ASR Adapters') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('ASR Adapters') {
+          steps {
+            sh 'python examples/asr/asr_adapters/train_asr_adapter.py \
+            model.pretrained_model="stt_en_conformer_ctc_small" \
+            model.adapter.adapter_name="an4" \
+            model.adapter.in_features=176 \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.max_steps=5 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_adapters_results'
+            sh 'rm -rf examples/asr/speech_to_text_adapters_results'
+          }
+        }
+
+      }
+    }
+
     stage('L2: Speech Transcription') {
       when {
         anyOf {
@@ -724,7 +753,7 @@ pipeline {
         }
       }
     }
-    stage('L2: SGD-GEN') {
+    stage('L2: Dialogue Classification') {
       when {
         anyOf {
           branch 'main'
@@ -733,10 +762,10 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('SGD-GEN') {
+        stage('Dialogue: Intent and slot classification using GPT') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.language_model.lm_checkpoint=/home/TestData/nlp/gpt2/pytorch_model.bin\
             model.tokenizer.vocab_file=/home/TestData/nlp/gpt2/vocab.json\
@@ -760,10 +789,10 @@ pipeline {
             rm -rf sgd_gen_outputs'
           }
         }
-        stage('SGD-GEN Backward compatible with SGDQA') {
+        stage('Intent and slot classification using SGDQA') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/sgd_small \
             model.dataset.dialogues_example_dir=sgd_gen_bert_outputs \
             model.dataset.task_name=debug_sample \
@@ -772,9 +801,10 @@ pipeline {
             model.train_ds.batch_size=2 \
             model.validation_ds.batch_size=2 \
             model.test_ds.batch_size=2 \
+            model.dataset.num_tasks=6 \
             model.nemo_path=null \
             trainer.val_check_interval=0.0 \
-            trainer.devices=[1] \
+            trainer.devices=[0] \
             model.dataset.use_cache=false \
             model.language_model.pretrained_model_name=bert-base-cased \
             trainer.accelerator=gpu \
@@ -782,13 +812,38 @@ pipeline {
             rm -rf sgd_gen_bert_outputs'
           }
         }
-        stage('SGD-GEN Backward compatible with IntentSlotClassificationModel') {
+        stage('Intent and slot classification using IntentSlotClassificationModel') {
           steps {
-            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue_state_tracking_generative && \
-            python sgd_gen.py \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
             model.dataset.data_dir=/home/TestData/nlp/processed_assistant \
             model.dataset.dialogues_example_dir=sgd_gen_bert_intent_classification_outputs \
             model.dataset.task=assistant \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('Intent classification using ZeroShotIntentModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/drive_thru_revised \
+            model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \
+            model.dataset.dialogues_example_dir=sgd_gen_zero_shot_intent_classification_outputs \
+            model.dataset.task=zero_shot \
+            model.dataset.prompt_template="This example is" \
             trainer.max_steps=1 \
             trainer.max_epochs=1 \
             model.train_ds.batch_size=2 \
@@ -801,7 +856,166 @@ pipeline {
             model.language_model.pretrained_model_name=bert-base-uncased \
             trainer.accelerator=gpu \
             exp_manager=null  && \
-            rm -rf sgd_gen_bert_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+            rm -rf sgd_gen_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('Design Intent classification using ZeroShotIntentModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/design_dataset \
+            model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \
+            model.dataset.dialogues_example_dir=design_zero_shot_intent_classification_outputs \
+            model.dataset.task=design \
+            model.dataset.prompt_template="This example is related to" \
+            model.library=megatron \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf design_zero_shot_intent_classification_outputs && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('Design Intent classification using ZeroShotIntentModel BART Classifier') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/design_dataset \
+            model.original_nemo_checkpoint=/home/TestData/nlp/drive_thru_revised/zeroshotintent_en_bert_base_uncased.nemo \
+            model.dataset.dialogues_example_dir=design_zero_shot_intent_classification_bart_outputs \
+            model.dataset.task=design \
+            model.dataset.prompt_template="This example is related to" \
+            model.library=huggingface \
+            trainer.devices=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf design_zero_shot_intent_classification_bart_outputs && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('Design Intent classification using DialogueNearestNeighbourModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/design_dataset \
+            model.dataset.dialogues_example_dir=design_dialogue_nearest_neighbour_classification_outputs \
+            model.dataset.task=design \
+            model.dataset.prompt_template="" \
+            model.library=huggingface \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=sentence-transformers/all-MiniLM-L6-v2 \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf design_dialogue_nearest_neighbour_classification_outputs && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+      }
+    }
+    stage('L2: Dialogue Generation') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Dialogue: Answer Extender using DialogueS2SGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+            model.dataset.dialogues_example_dir=answer_extender_s2s \
+            model.dataset.task=ms_marco \
+            model.library=huggingface \
+            model.dataset.debug_mode=True \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[1] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=facebook/bart-large \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf answer_extender_s2s'
+          }
+        }
+        stage('Dialogue: SGD Based Answer Extender using DialogueS2SGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/sgd_small \
+            model.dataset.dialogues_example_dir=sgd_answer_extender_s2s \
+            model.dataset.task_name=debug_sample \
+            model.dataset.task=sgd_generation \
+            model.dataset.input_field=utterance+system_actions \
+            model.dataset.output_field=system_utterance \
+            model.dataset.use_cache=false \
+            model.dataset.system_utterance=next_turn \
+            model.dataset.debug_mode=True \
+            model.dataset.prompt_template=slots_values \
+            model.library=huggingface \
+            trainer.max_steps=1 \
+            trainer.max_epochs=1 \
+            model.train_ds.batch_size=2 \
+            model.validation_ds.batch_size=2 \
+            model.test_ds.batch_size=2 \
+            model.nemo_path=null \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.language_model.pretrained_model_name=facebook/bart-large \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf sgd_answer_extender_s2s'
+          }
+        }
+      }
+    }
+    stage('L2: Dialogue Generation Part 2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+            model.dataset.dialogues_example_dir=answer_extender \
+            model.library=huggingface \
+            model.dataset.task=ms_marco \
+            model.dataset.debug_mode=True \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=gpt2 \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf answer_extender'
           }
         }
       }
@@ -862,7 +1076,7 @@ pipeline {
             exp_manager=null'
           }
         }
-       stage('Duplex Text Normalization with Tarred dataset') {
+        stage('Duplex Text Normalization with Tarred dataset') {
           steps {
             sh 'cd examples/nlp/duplex_text_normalization && \
             python duplex_text_normalization_train.py \
@@ -885,9 +1099,31 @@ pipeline {
             data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
             data.test_ds.use_cache=false \
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
-
           }
         }
+        //this is a new test by @aleksandraa
+        //cannot run it in a fork, Jenkins doesn't see it
+        //need to uncomment, when given writing permissions to NeMo
+        //stage('Text normalization as tagging (Thutmose Tagger)') {
+        //  steps {
+        //    sh 'cd examples/nlp/normalization_as_tagging && \
+	    //    python normalization_as_tagging_train.py \
+	    //    lang="en" \
+        //    data.validation_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/valid.tsv \
+        //    data.train_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/train.tsv \
+        //    data.train_ds.batch_size=2 \
+        //    data.train_ds.num_workers=2 \
+        //    model.language_model.pretrained_model_name=bert-base-uncased \
+        //    model.label_map=/home/TestData/nlp/text_normalization_as_tagging/en_mini/label_map.txt \
+        //    model.semiotic_classes=/home/TestData/nlp/text_normalization_as_tagging/en_mini/semiotic_classes.txt \
+        //    exp_manager.create_checkpoint_callback=false \
+        //    trainer.devices=1 \
+        //    trainer.num_nodes=1 \
+        //    trainer.accelerator=gpu \
+        //    trainer.strategy=ddp \
+        //    +trainer.fast_dev_run=true'
+        //  }
+        //}
       }
     }
     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
@@ -2579,7 +2815,7 @@ pipeline {
         // TODO(Oktai15): update it in 1.8.0 version
         stage('T5 GLUE RTE') {
           steps {
-            sh "python examples/nlp/language_modeling/megatron_t5_glue.py \
+            sh "python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             trainer.devices=1 \
             trainer.accelerator=gpu \
             trainer.log_every_n_steps=1 \
@@ -2607,7 +2843,7 @@ pipeline {
         }
         stage('T5 GLUE XNLI') {
           steps {
-            sh "python examples/nlp/language_modeling/megatron_t5_glue.py \
+            sh "python examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py \
             -cn megatron_t5_config_finetune_glue_xnli \
             trainer.devices=1 \
             trainer.accelerator=gpu \
