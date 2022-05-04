@@ -2256,6 +2256,9 @@ Any other parameter can also be added to the command to modify its behavior.
 
 ## 5. Deploying the BigNLP model
 
+Note: A new inference container will be released in mid May. For customers looking to 
+do inference please use the 22.03 container. 
+
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
 Inference Server with FasterTransformer Backend on both single and multiple
 node environments.    NVIDIA Triton Inference Server supports many inference
