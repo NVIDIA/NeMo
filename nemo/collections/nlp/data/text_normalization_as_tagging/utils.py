@@ -119,6 +119,7 @@ def spoken_preprocessing(spoken: str) -> str:
 
     return spoken
 
+
 ## This function is used only in data preparation (examples/nlp/normalisation_as_tagging/dataset_preparation)
 def get_src_and_dst_for_alignment(
     semiotic_class: str, written: str, spoken: str, lang: str
