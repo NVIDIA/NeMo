@@ -583,9 +583,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
     def repeat_merge(cls, x, reps, pad):
         """Repeats `x` values according to `reps` tensor and merges."""
         return cls.merge(
-            tensors=[torch.repeat_interleave(text1, durs1) for text1, durs1 in zip(x, reps)],
-            value=pad,
-            dtype=x.dtype,
+            tensors=[torch.repeat_interleave(text1, durs1) for text1, durs1 in zip(x, reps)], value=pad, dtype=x.dtype,
         )
 
     @staticmethod
@@ -616,8 +614,7 @@ class AudioToCharWithDursF0Dataset(AudioToCharDataset):
         if self.blanking:
             text = [
                 self.interleave(
-                    x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank),
-                    y=t,
+                    x=torch.empty(len(t) + 1, dtype=torch.long, device=t.device).fill_(self.vocab.blank), y=t,
                 )
                 for t in text
             ]
@@ -1505,9 +1502,7 @@ class BucketingDataset(IterableDataset):
     """
 
     def __init__(
-        self,
-        dataset: IterableDataset,
-        bucketing_batch_size: int,
+        self, dataset: IterableDataset, bucketing_batch_size: int,
     ):
         self.wrapped_dataset = dataset
         self.bucketing_batch_size = bucketing_batch_size
