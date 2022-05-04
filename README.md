@@ -9,7 +9,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
 - [1. Model Overview](#1-model-overview)
 - [2. Feature Matrix](#2-feature-matrix)
   * [2.1. GPT-3 Models](#21-gpt-3-models)
-  * [2.2. T5/mT5 Models](#22-t5-mt5-models)
+  * [2.2. T5/mT5 Models](#22-t5mt5-models)
 - [3. Setup](#3-setup)
   * [3.1. Support Matrix](#31-support-matrix)
 - [4. Quick Start Guide](#4-quick-start-guide)
@@ -30,12 +30,12 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [4.1.2.3. Data Preparation for mT5 Models](#4123-data-preparation-for-mt5-models)
         * [4.1.2.3.1. Slurm](#41231-slurm)
         * [4.1.2.3.2. Base Command Platform](#41232-base-command-platform)
-        * [4.1.2.3.3. Common](#41233-common-1)
+        * [4.1.2.3.3. Common](#41233-common)
   * [4.2. Training with Predefined Configurations](#42-training-with-predefined-configurations)
-    + [4.2.1. Predefined Configurations of GPT-3 models](#421-predefined-configurations-of-gpt-3-models)
-    + [4.2.2. Predefined Configurations of T5 models](#422-predefined-configurations-of-t5-models)
-    + [4.2.3. Predefined Configurations of mT5 models](#423-predefined-configurations-of-mt5-models)
-    + [4.2.4. Training Logs with TensorBoard and Weights & Biases](#424-training-logs-with-tensorboard-and-weights---biases)
+    + [4.2.1. Predefined Configurations of GPT-3 Models](#421-predefined-configurations-of-gpt-3-models)
+    + [4.2.2. Predefined Configurations of T5 Models](#422-predefined-configurations-of-t5-models)
+    + [4.2.3. Predefined Configurations of mT5 Models](#423-predefined-configurations-of-mt5-models)
+    + [4.2.4. Training Logs with TensorBoard and Weights & Biases](#424-training-logs-with-tensorboard-and-weights--biases)
   * [4.3. Training with Custom Configurations](#43-training-with-custom-configurations)
   * [4.4. Bring Your Own Dataset](#44-bring-your-own-dataset)
   * [4.5. Model Training](#45-model-training)
@@ -62,13 +62,13 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [4.7.3.1. Common](#4731-common)
       - [4.7.3.2. Slurm](#4732-slurm)
       - [4.7.3.3. Base Command Platform](#4733-base-command-platform)
-  * [4.8. Model Fine-tuning](#48-model-fine-tuning)
-    + [4.8.1. T5 Fine-tuning](#481-t5-fine-tuning)
+  * [4.8. Model Finetuning](#48-model-finetuning)
+    + [4.8.1. T5 Finetuning](#481-t5-finetuning)
       - [4.8.1.1. Common](#4811-common)
       - [4.8.1.2. Slurm](#4812-slurm)
       - [4.8.1.3. Base Command Platform](#4813-base-command-platform)
-    + [4.8.2. mT5 Fine-tuning](#482-mt5-fine-tuning)
-      - [4.8.1.1. Common](#4811-common-1)
+    + [4.8.2. mT5 Finetuning](#482-mt5-finetuning)
+      - [4.8.2.1. Common](#4821-common)
       - [4.8.2.2. Slurm](#4822-slurm)
       - [4.8.2.3. Base Command Platform](#4823-base-command-platform)
   * [4.9. Model Evaluation](#49-model-evaluation)
@@ -84,18 +84,18 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [4.9.3.1. Common](#4931-common)
       - [4.9.3.2. Slurm](#4932-slurm)
       - [4.9.3.3. Base Command Platform](#4933-base-command-platform)
-- [5. Deploying the BigNLP model](#5-deploying-the-bignlp-model)
+- [5. Deploying the BigNLP Model](#5-deploying-the-bignlp-model)
   * [5.1. Model Inference Deployment Process](#51-model-inference-deployment-process)
   * [5.2. Prepare Environment](#52-prepare-environment)
     + [5.2.1. Slurm](#521-slurm)
     + [5.2.2. Base Command Platform](#522-base-command-platform)
-    + [5.3. Provide Model and Inference Configuration](#53-provide-model-and-inference-configuration)
+  * [5.3. Provide Model and Inference Configuration](#53-provide-model-and-inference-configuration)
     + [5.3.1. Predefined Configuration for Selected Models](#531-predefined-configuration-for-selected-models)
     + [5.3.2. Optimal Configuration Search](#532-optimal-configuration-search)
       - [5.3.2.1. Random Weights Checkpoint Benchmark](#5321-random-weights-checkpoint-benchmark)
       - [5.3.2.2. Trained Checkpoint Benchmark](#5322-trained-checkpoint-benchmark)
   * [5.4. Review Deployment Search Results](#54-review-deployment-search-results)
-  * [5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#55-prepare-nvidia-triton-model-repository-and-run-accuracy-performance-tests)
+  * [5.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#55-prepare-nvidia-triton-model-repository-and-run-accuracyperformance-tests)
   * [5.6. Run NVIDIA Triton Server with Selected Model Repository](#56-run-nvidia-triton-server-with-selected-model-repository)
   * [5.7. Text generation](#57-text-generation)
     + [5.7.1. Setup](#571-setup)
@@ -110,11 +110,11 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [6.1.3. Inference Performance](#613-inference-performance)
       - [6.1.3.1. 5B Model](#6131-5b-model)
       - [6.1.3.2. 5B Chatbot for Question Answering](#6132-5b-chatbot-for-question-answering)
-      - [6.1.3.3. 5B: Translation and Style Transfer](#6133-5b--translation-and-style-transfer)
+      - [6.1.3.3. 5B: Translation and Style Transfer](#6133-5b-translation-and-style-transfer)
       - [6.1.3.4. Summary for 5B Results](#6134-summary-for-5b-results)
       - [6.1.3.5. 20B Model](#6135-20b-model)
-      - [6.1.3.6. 20B: Chatbot for Question Answering](#6136-20b--chatbot-for-question-answering)
-      - [6.1.3.7. 20B: Translation and Style Transfer](#6137-20b--translation-and-style-transfer)
+      - [6.1.3.6. 20B: Chatbot for Question Answering](#6136-20b-chatbot-for-question-answering)
+      - [6.1.3.7. 20B: Translation and Style Transfer](#6137-20b-translation-and-style-transfer)
       - [6.1.3.8. Summary for 20B Results](#6138-summary-for-20b-results)
       - [6.1.3.9. Model Size and Performance](#6139-model-size-and-performance)
         * [6.1.3.9.1. Online Scenario](#61391-online-scenario)
@@ -180,7 +180,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
-<a id="markdown-t5-models" name="t5-models"></a>
+<a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
 
 | Feature                          | Training                                                 | Inference |
 |----------------------------------|----------------------------------------------------------|:---------:|
@@ -758,7 +758,7 @@ workers_per_node: 4 # Number of workers per node in preprocessing step.
 ### 4.2. Training with Predefined Configurations
 <a id="markdown-training-with-predefined-configurations" name="training-with-predefined-configurations"></a>
 
-#### 4.2.1. Predefined Configurations of GPT-3 models
+#### 4.2.1. Predefined Configurations of GPT-3 Models
 <a id="markdown-predefined-configurations-of-gpt-3-models" name="predefined-configurations-of-gpt-3-models"></a>
 
 We provide five configurations for several different GPT-3 model sizes: 126M, 5B, 20B, 
@@ -928,7 +928,7 @@ The command above assumes that the data and results workspaces are mounted in th
 directories respectively, and that the $NGC_ARRAY_SIZE will use the number of nodes selected when 
 creating the job (number of replicas).
 
-#### 4.2.2. Predefined Configurations of T5 models
+#### 4.2.2. Predefined Configurations of T5 Models
 <a id="markdown-predefined-configurations-of-t5-models" name="predefined-configurations-of-t5-models"></a>
 
 We provide configuration files for two T5 model sizes: 220M and
@@ -1095,7 +1095,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 
 
-#### 4.2.3. Predefined Configurations of mT5 models
+#### 4.2.3. Predefined Configurations of mT5 Models
 <a id="markdown-predefined-configurations-of-mt5-models" name="predefined-configurations-of-mt5-models"></a>
 
 We provide configuration files for three mT5 model sizes: 170M, 390M, and
@@ -1748,13 +1748,13 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/convert_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
-### 4.8. Model Fine-tuning
+### 4.8. Model Finetuning
 <a id="markdown-model-finetuning" name="model-finetuning"></a>
 
 We also provide an easy-to-use tool to help fine-tuning the trained checkpoints
 on GLUE tasks for T5 models and on XNLI for mT5 models. Fine-tuning for GPT-3 models are not supported.
 
-#### 4.8.1. T5 Fine-tuning
+#### 4.8.1. T5 Finetuning
 <a id="markdown-t5-finetuning" name="t5-finetuning"></a>
 
 The following downstream GLUE tasks are supported for T5 models: 
@@ -1851,7 +1851,7 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 
-#### 4.8.2. mT5 Fine-tuning
+#### 4.8.2. mT5 Finetuning
 <a id="markdown-mt5-finetuning" name="mt5-finetuning"></a>
 
 XNLI benchmark are supported for mT5 models.
@@ -1862,7 +1862,7 @@ file to use for fine-tuning purposes. The `run_finetuning` parameter must be set
 to `True` to run the fine-tuning pipeline. To fine-tune checkpoint on `xnli` task, set
 `finetuning` parameter to `mt5/xnli`, which can be found in `conf/finetuning/mt5/xnli.yaml`.
 
-##### 4.8.1.1. Common
+##### 4.8.2.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for finetuning, 
 use the `run.task_name` parameter. 
@@ -2254,7 +2254,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_mt5_
 Any other parameter can also be added to the command to modify its behavior.
 
 
-## 5. Deploying the BigNLP model
+## 5. Deploying the BigNLP Model
 
 Note: A new inference container will be released in mid May. For customers looking to 
 do inference please use the 22.03 container. 
@@ -2428,7 +2428,7 @@ workspace. Example Inference Script call:
         --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S) # name of the infer_workspace folder for this run
 ```
 
-#### 5.3. Provide Model and Inference Configuration
+### 5.3. Provide Model and Inference Configuration
 <a id="markdown-provide-model-and-inference-configurationn" name="provide-model-and-inference-configurationn"></a>
 
 #### 5.3.1. Predefined Configuration for Selected Models
@@ -3627,7 +3627,7 @@ The table and chart below show the performance results.
 
 ## 8. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* Deployment support for Nemo Megatron trained checkpoints is currently only supported for trained GPT-3 checkpoint configurations with pipeline parallelism equal 1
+* For customers looking to do inference please use the 22.03 container
 * Selected configurations that used to work result in an out of memory (OOM) error while training on the NVIDIA DGX SuperPOD nodes
 
 | Model Architecture | Model Size | Data Type | AMP Type | \#Activation Checkpoint Layers | MBS | \#PP | \#TP |
