@@ -175,7 +175,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
             dec_num_layers=self.cfg.get('dec_num_layers', 6),  # total number of decoder layers
             enc_cross_attention=self.cfg.get('enc_cross_attention', [3]),  # layer numbers for cross attention
             dec_cross_attention=self.cfg.get('dec_cross_attention', [3, 5]),  # layer numbers for chunked cross attention
-            add_position_embedding=self.cfg.get('add_position_embedding', False), # whether use the absolute postion encoding
+            add_position_embedding=self.cfg.get('add_position_embedding', False),  # whether use the absolute position encoding
         )
         return model
 
