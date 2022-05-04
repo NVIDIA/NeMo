@@ -151,7 +151,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.pitch_embedding_kernel_size,
             cfg.n_mel_channels,
         )
-        self._input_types = self._output_types = None
 
     def _get_default_text_tokenizer_conf(self):
         text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
@@ -260,7 +259,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
             "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
             "speaker": NeuralType(('B'), Index(), optional=True),
-            "pace": NeuralType(optional=True),
+            "pace": NeuralType(('B', 'T_text'), optional=True),
             "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
             "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
@@ -511,45 +510,29 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         return list_of_models
 
-    # Methods for model exportability
-    def _prepare_for_export(self, **kwargs):
-        super()._prepare_for_export(**kwargs)
-
-        # Define input_types and output_types as required by export()
-        self._input_types = {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "pitch": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "pace": NeuralType(('B', 'T_text'), optional=True),
-            "speaker": NeuralType(('B'), Index()),
-        }
-        self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
-        }
-
-    def _export_teardown(self):
-        self._input_types = self._output_types = None
-
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        disabled_inputs = set()
+        disabled_inputs = set(["durs", "spec", "attn_prior", "mel_lens", "input_lens"])
         if self.fastpitch.speaker_emb is None:
             disabled_inputs.add("speaker")
         return disabled_inputs
 
     @property
+    def disabled_deployment_output_names(self):
+        """Implement this method to return a set of output names disabled for export"""
+        disabled_outputs = set(["attn_soft", "attn_logprob", "attn_hard", "attn_hard_dur", "pitch"])
+        return disabled_outputs
+
+    @property
     def input_types(self):
-        return self._input_types
+        return self.fastpitch.input_types
 
     @property
     def output_types(self):
-        return self._output_types
+        return self.fastpitch.output_types
 
-    def input_example(self, max_batch=1, max_dim=256):
+    def input_example(self, max_batch=1, max_dim=44):
         """
         Generates input examples for tracing etc.
         Returns:
