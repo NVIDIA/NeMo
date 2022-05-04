@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -100,8 +101,9 @@ class Tacotron2Model(SpectrogramGenerator):
                 "Your config is using an old NeMo yaml configuration. Please ensure that the yaml matches the "
                 "current version in the main branch for future compatibility."
             )
+        
         self._parser = None
-        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.highfreq)
         self.text_embedding = nn.Embedding(self.num_tokens, 512)
         self.encoder = instantiate(self._cfg.encoder)
         self.decoder = instantiate(self._cfg.decoder)
@@ -115,9 +117,11 @@ class Tacotron2Model(SpectrogramGenerator):
             return self._parser
         
         ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
-        if ds_class_name == "AudioToCharWithPriorAndPitchDataset" or ds_class_name == "TTSDataset":
-                self._parser = self.vocab.encode
-        else:
+        if ds_class_name == "TTSDataset":
+            self._parser = None
+        elif ds_class_name == "AudioToCharDataset":
+            self._parser = self.vocab.encode
+        elif hasattr(self._cfg, "labels"):
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
                 name='en',
@@ -127,14 +131,27 @@ class Tacotron2Model(SpectrogramGenerator):
                 abbreviation_version="fastpitch",
                 make_table=False,
             )
+        else:
+            raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
+        
         return self._parser
 
-    def parse(self, str_input: str) -> torch.tensor:
-        tokens = self.parser(str_input)
-        # Parser doesn't add bos and eos ids, so maunally add it
-        tokens = [self.num_tokens] + tokens + [self.num_tokens + 1]
+    def parse(self, text: str, normalize=True) -> torch.Tensor:
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
+        if normalize and self.text_normalizer_call is not None:
+            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
+        
+        eval_phon_mode = contextlib.nullcontext()
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
+    
+        with eval_phon_mode:
+            if self.parser is not None:
+                tokens = self.parser(text)
+            else:
+                tokens = self.tokenizer.encode(text)
         tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
-
         return tokens_tensor
 
     @property
