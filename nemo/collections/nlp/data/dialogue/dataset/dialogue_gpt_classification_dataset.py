@@ -75,6 +75,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             label = label.replace('_', ' ')
         return label
 
+
     def __len__(self):
         return len(self.features)
 
@@ -113,6 +114,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
     @staticmethod
     def linearize_slots(slots):
+
         if not slots:
             return "None"
         return ", ".join(

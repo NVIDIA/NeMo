@@ -15,6 +15,7 @@
 
 import json
 import os
+
 from ast import literal_eval
 
 from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor

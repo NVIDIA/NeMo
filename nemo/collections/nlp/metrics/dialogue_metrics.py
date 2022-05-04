@@ -122,12 +122,12 @@ class DialogueClassificationMetrics(object):
     def split_label_and_slots(fields, with_slots=False):
         """
         Split target into label and slots when doing joint label (i.e. intent) classificaiton and slot filling
+
         For instance, split "reserve_restaurant\nslots: time_of_day(7pm), number_of_people(3)" into 
         label = "reserve_restaurant" and slots = ["time_of_day(7pm)", "number_of_people(3)"]
         Args:
             fields: list of strings 
         """
-
         labels = []
         slots_list = []
         for field in fields:
