@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import pytest
 import torch
 from omegaconf import DictConfig
@@ -24,7 +25,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 
 @pytest.fixture()
-def model_cfg():
+def model_cfg(test_data_dir):
 
     model_cfg = {
         'precision': 16,
@@ -53,8 +54,8 @@ def model_cfg():
             'library': 'megatron',
             'type': 'GPT2BPETokenizer',
             'model': None,
-            'vocab_file': '/raid/data/gpt_vocab_merges/vocab.json',
-            'merge_file': '/raid/data/gpt_vocab_merges/merges.txt',
+            'vocab_file': os.path.join(test_data_dir, 'nlp/gpt_vocab_merges/vocab.json'),
+            'merge_file': os.path.join(test_data_dir, 'nlp/gpt_vocab_merges/merges.txt'),
             'delimiter': None,
         },
         'native_amp_init_scale': 4294967296,
