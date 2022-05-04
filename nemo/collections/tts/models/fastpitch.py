@@ -38,7 +38,6 @@ from nemo.core.neural_types.elements import (
     RegressionValuesType,
     TokenDurationType,
     TokenIndex,
-    TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
