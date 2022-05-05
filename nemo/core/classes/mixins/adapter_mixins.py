@@ -162,7 +162,7 @@ class AdapterModuleMixin(ABC):
             self.adapter_cfg = OmegaConf.create({})
 
         # Resolve the module name and adapter name (if module name is provided)
-        _, adapter_name = self._resolve_adapter_name(name)
+        _, adapter_name = self._resolve_adapter_module_name(name)
 
         # Assert that name is globally unique to all adapters.
         if adapter_name in self.adapter_layer:
@@ -223,7 +223,7 @@ class AdapterModuleMixin(ABC):
                 # Enable/Disable the current adapter
                 self.adapter_cfg[key]['enabled'] = enabled
         else:
-            _, adapter_name = self._resolve_adapter_name(name)
+            _, adapter_name = self._resolve_adapter_module_name(name)
 
             # Cannot set the state of the global config for adapters
             if adapter_name == self.adapter_global_cfg_key:
@@ -243,7 +243,7 @@ class AdapterModuleMixin(ABC):
             A list of str names of each enabled adapter(s).
         """
         if not self.is_adapter_available():
-            raise ValueError("No adapter is available to get enabled/disabled state")
+            return []
 
         enabled_adapters = []
         for name, config in self.adapter_cfg.items():
@@ -354,11 +354,11 @@ class AdapterModuleMixin(ABC):
 
     # Utility methods
 
-    def _resolve_adapter_name(self, name: str) -> (str, str):
+    def _resolve_adapter_module_name(self, name: str) -> (str, str):
         if ':' in name:
-            splits = name.split(".")
+            splits = name.split(":")
             module_name = splits[0]
-            adapter_name = ".".join(splits[1:])
+            adapter_name = ":".join(splits[1:])
             return (module_name, adapter_name)
         else:
             # Prepare default module name
@@ -369,7 +369,7 @@ class AdapterModuleMixin(ABC):
             if hasattr(self, 'adapter_cfg') and self.adapter_cfg is not None:
                 cfg = self.adapter_cfg.get(self.adapter_global_cfg_key, {})
                 cfg = cfg.get(self.adapter_metadata_cfg_key, {})
-                cfg = cfg.get('module', {})
+                cfg = cfg.get('modules', {})
 
                 # Try to get the module for the given adapter name, if available, else use default.
                 module_name = cfg.get(name, '')
@@ -424,9 +424,19 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 if adapter_name == self.adapter_global_cfg_key:
                     continue
 
+                # Add the adapters back to the model during setup
                 self.add_adapter(name=adapter_name, cfg=adapter_cfg)
+
+                # Log the setup adapter name
+                module_name, adapter_name = self._resolve_adapter_module_name(adapter_name)
+
+                if module_name != '':
+                    full_adapter_name = f'{module_name}:{adapter_name}'
+                else:
+                    full_adapter_name = adapter_name
+
                 logging.info(
-                    f"Finished setup of adapter : '{adapter_name}'. Enabled: {adapter_cfg.get('enabled', True)}."
+                    f"Finished setup of adapter : '{full_adapter_name}'. Enabled: {adapter_cfg.get('enabled', True)}."
                 )
 
     def add_adapter(self, name: str, cfg: DictConfig):
@@ -448,7 +458,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             cfg = DictConfig(cfg)
 
         # Resolve the module name and adapter name (if provided for the first time)
-        module_name, adapter_name = self._resolve_adapter_name(name)
+        module_name, adapter_name = self._resolve_adapter_module_name(name)
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(cfg), open_dict(self.cfg):
@@ -468,7 +478,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 cfg['enabled'] = True
 
             # Assign the
-            self.cfg.adapters[name] = OmegaConf.create(cfg)
+            self.cfg.adapters[adapter_name] = OmegaConf.create(cfg)
 
             # Set the global config of adapters
             self.update_adapter_cfg(self.cfg.adapters)

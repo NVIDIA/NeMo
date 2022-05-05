@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import os
+import shutil
+import tempfile
 
 import pytest
 import torch
@@ -74,26 +77,29 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         # setup the config for adapters
         super().add_adapter(name, cfg)
 
+        # Resolve module name and adapter name
+        module_name, adapter_name = self._resolve_adapter_module_name(name)
+
         # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        global_config = self._get_global_cfg()
 
         # forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True):
+        # If module name is empty, it is a global adapter, otherwise it is a local adapter
+        if (module_name == '' and global_config.get('encoder_adapter', True)) or (module_name == 'encoder'):
             self.encoder.add_adapter(name, cfg)
 
-        if global_config.get('decoder_adapter', False):
+        if (module_name == '' and global_config.get('decoder_adapter', False)) or (module_name == 'decoder'):
             self.decoder.add_adapter(name, cfg)
 
     def set_enabled_adapters(self, name=None, enabled: bool = True):
         # check if valid model with some adapter support
         super().set_enabled_adapters(name, enabled)
 
+        # Resolve module name and adapter name
+        module_name, adapter_name = self._resolve_adapter_module_name(name)
+
         # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        global_config = self._get_global_cfg()
 
         # Forward the method call to the individual modules
         if global_config.get('encoder_adapter', True):
@@ -105,17 +111,12 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
     def get_enabled_adapters(self) -> list:
         enabled_adapters = super().get_enabled_adapters()
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
-
         # Forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True):
+        if isinstance(self.encoder, AdapterModuleMixin):
             encoder_adapters = self.encoder.get_enabled_adapters()
             enabled_adapters.extend(encoder_adapters)
 
-        if global_config.get('decoder_adapter', True):
+        if isinstance(self.decoder, AdapterModuleMixin):
             decoder_adapters = self.decoder.get_enabled_adapters()
             enabled_adapters.extend(decoder_adapters)
 
@@ -125,9 +126,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         adapters_available = super().is_adapter_available()
 
         # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        global_config = self._get_global_cfg()
 
         # Forward the method call to the individual modules
         if global_config.get('encoder_adapter', True):
@@ -156,13 +155,29 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         elif decoder_adapter and not isinstance(self.decoder, AdapterModuleMixin):
             raise ValueError("Decoder does not support adapters !")
 
+    def _resolve_adapter_module_name(self, name: str) -> (str, str):
+        # resolve name and module
+        valid_module_names = ['', 'encoder', 'decoder']
+        module_name, adapter_name = super()._resolve_adapter_module_name(name)
+
+        if module_name not in valid_module_names:
+            raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
+
+        return (module_name, adapter_name)
+
+    def _get_global_cfg(self):
+        global_config = DictConfig({})
+        if self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        return global_config
+
 
 class DefaultAdapterModel(ModelPT, DefaultModelAdapterMixin):
     def __init__(self, cfg, trainer=None):
         super().__init__(cfg, trainer=trainer)
 
-        self.encoder = instantiate(cfg.encoder)
-        self.decoder = instantiate(cfg.decoder)
+        self.encoder = instantiate(cfg.encoder)  # type: DefaultModuleAdapter
+        self.decoder = instantiate(cfg.decoder)  # type: DefaultModuleAdapter
 
         # Required to be called for adapter support
         self.setup_adapters()
@@ -173,7 +188,7 @@ class DefaultAdapterModel(ModelPT, DefaultModelAdapterMixin):
         return z
 
     def list_available_models(cls):
-        return None
+        return []
 
     def setup_training_data(self, train_data_config):
         self._update_dataset_config('train', train_data_config)
@@ -253,6 +268,105 @@ class TestAdapterModelMixin:
         model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
+
+    @pytest.mark.unit
+    def test_single_encoder_module_adapter(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        assert model.decoder.is_adapter_available() is False
+
+        adapter_cfg = model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[model.get_enabled_adapters()[0]] == 'encoder'  # encoder
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = os.path.join(tmpdir, 'temp.nemo')
+                model.save_to(path)
+                shutil.move(path, outer_tmpdir)
+
+            outer_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            new_model = DefaultAdapterModel.restore_from(outer_path)  # type: DefaultAdapterModel
+            assert isinstance(new_model, AdapterModelPTMixin)
+            assert len(new_model.get_enabled_adapters()) > 0
+            assert model.num_weights == new_model.num_weights
+            assert new_model.decoder.is_adapter_available() is False
+
+    @pytest.mark.unit
+    def test_single_decoder_module_adapter(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg())
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        assert model.encoder.is_adapter_available() is False
+
+        adapter_cfg = model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                path = os.path.join(tmpdir, 'temp.nemo')
+                model.save_to(path)
+                shutil.move(path, outer_tmpdir)
+
+            outer_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            new_model = DefaultAdapterModel.restore_from(outer_path)  # type: DefaultAdapterModel
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights == new_model.num_weights
+        assert new_model.encoder.is_adapter_available() is False
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+
+    @pytest.mark.unit
+    def test_single_adapter_default_metaconfig(self):
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+
+        adapter_cfg = model.cfg.adapters
+        assert model.adapter_global_cfg_key in adapter_cfg
+        assert model.adapter_metadata_cfg_key in adapter_cfg[model.adapter_global_cfg_key]
+
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        assert meta_cfg is not None
+        assert 'modules' in meta_cfg
+
+        modules_cfg = meta_cfg['modules']
+        assert modules_cfg is not None
+        assert modules_cfg[model.get_enabled_adapters()[0]] == ''  # default module
 
     @pytest.mark.unit
     def test_all_disabled_adapters(self):
