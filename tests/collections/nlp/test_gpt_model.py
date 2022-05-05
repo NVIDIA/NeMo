@@ -154,8 +154,8 @@ def test_text():
     return test_text
 
 
+@pytest.mark.run_only_on('GPU')
 class TestGPTModel:
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_constructor(self, gpt_model):
         assert isinstance(gpt_model, MegatronGPTModel)
@@ -163,7 +163,6 @@ class TestGPTModel:
         num_weights = gpt_model.num_weights
         assert num_weights == 6702976
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_tokenizer(self, gpt_model, test_text):
 
@@ -181,7 +180,6 @@ class TestGPTModel:
         ]
         assert sum([id_list == true_id_list for id_list, true_id_list in zip(ids, true_ids)]) == 4
 
-    @pytest.mark.run_only_on('GPU')
     @pytest.mark.parametrize(
         "precision",
         [
