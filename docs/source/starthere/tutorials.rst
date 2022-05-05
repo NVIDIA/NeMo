@@ -146,7 +146,7 @@ To run a tutorial:
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Text Processing
-     - Text (Inverse) Normalization for ASR and TTS
+     - Text Normalization and Inverse Normalization for ASR and TTS
      - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_
    * - Text Processing
      - Constructing Normalization Grammars with WFSTs

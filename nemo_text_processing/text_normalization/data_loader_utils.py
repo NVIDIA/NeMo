@@ -258,7 +258,7 @@ def get_installation_msg():
 
 def load_file(file_path: str) -> List[str]:
     """
-    Load given text file into list of string.
+    Loads given text file with separate lines into list of string.
 
     Args: 
         file_path: file path
