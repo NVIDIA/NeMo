@@ -99,6 +99,15 @@ def get_registered_adapter(cls: Union[str, type]) -> Optional[AdapterRegistryInf
     return None
 
 
+def _prepare_default_adapter_config(*, global_key, meta_key) -> DictConfig:
+    cfg = OmegaConf.create({})
+    cfg[global_key] = OmegaConf.create({})
+    cfg[global_key][meta_key] = OmegaConf.create({})
+    cfg[global_key][meta_key]['modules'] = OmegaConf.create({})
+
+    return cfg
+
+
 class AdapterModuleMixin(ABC):
     """ Generic Adapter Mixin that can augment any torch.nn.Module with Adapter module support.
 
@@ -126,6 +135,7 @@ class AdapterModuleMixin(ABC):
     """
 
     adapter_global_cfg_key = "global_cfg"
+    adapter_metadata_cfg_key = "adapter_meta_cfg"
 
     def add_adapter(self, name: str, cfg: DictConfig):
         """
@@ -151,21 +161,24 @@ class AdapterModuleMixin(ABC):
         if not hasattr(self, 'adapter_cfg'):
             self.adapter_cfg = OmegaConf.create({})
 
+        # Resolve the module name and adapter name (if module name is provided)
+        _, adapter_name = self._resolve_adapter_name(name)
+
         # Assert that name is globally unique to all adapters.
-        if name in self.adapter_layer:
+        if adapter_name in self.adapter_layer:
             raise ValueError(f"Adapter with name `{name}` already exists !")
 
         # Assert that name is not `adapter_global_cfg_key`
-        if name == self.adapter_global_cfg_key:
+        if adapter_name == self.adapter_global_cfg_key:
             raise ValueError(f"Adapters cannot have the reserved name : `{self.adapter_global_cfg_key}`")
 
         # Update internal config and instantiate the Adapter module
         with open_dict(cfg), open_dict(self.adapter_cfg):
             adapter_enabled = cfg.pop('enabled', True)
-            self.adapter_layer[name] = instantiate(cfg)
+            self.adapter_layer[adapter_name] = instantiate(cfg)
 
             cfg['enabled'] = adapter_enabled
-            self.adapter_cfg[name] = cfg
+            self.adapter_cfg[adapter_name] = cfg
 
     def is_adapter_available(self) -> bool:
         """
@@ -210,14 +223,17 @@ class AdapterModuleMixin(ABC):
                 # Enable/Disable the current adapter
                 self.adapter_cfg[key]['enabled'] = enabled
         else:
+            _, adapter_name = self._resolve_adapter_name(name)
+
             # Cannot set the state of the global config for adapters
-            if name == self.adapter_global_cfg_key:
+            if adapter_name == self.adapter_global_cfg_key:
                 raise ValueError(
-                    f'Cannot set the state of the global config of adapters, given name = `{self.adapter_global_cfg_key}`'
+                    f'Cannot set the state of the global config of adapters, '
+                    f'given name = `{self.adapter_global_cfg_key}`'
                 )
 
             # Enable/Disable just named adapter
-            self.adapter_cfg[name]['enabled'] = enabled
+            self.adapter_cfg[adapter_name]['enabled'] = enabled
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -239,6 +255,8 @@ class AdapterModuleMixin(ABC):
                 enabled_adapters.append(name)
 
         return enabled_adapters
+
+    # Inherited methods that dont need to be overridden
 
     def unfreeze_enabled_adapters(self, freeze_batchnorm: bool = True) -> None:
         """
@@ -334,6 +352,32 @@ class AdapterModuleMixin(ABC):
 
         return input
 
+    # Utility methods
+
+    def _resolve_adapter_name(self, name: str) -> (str, str):
+        if ':' in name:
+            splits = name.split(".")
+            module_name = splits[0]
+            adapter_name = ".".join(splits[1:])
+            return (module_name, adapter_name)
+        else:
+            # Prepare default module name
+            module_name = ''
+
+            # Can be following cases:
+            # 1) Adapters are being restored. In this case, we need to resolve the module name from the config
+            if hasattr(self, 'adapter_cfg') and self.adapter_cfg is not None:
+                cfg = self.adapter_cfg.get(self.adapter_global_cfg_key, {})
+                cfg = cfg.get(self.adapter_metadata_cfg_key, {})
+                cfg = cfg.get('module', {})
+
+                # Try to get the module for the given adapter name, if available, else use default.
+                module_name = cfg.get(name, '')
+
+            # If the above cases dont hold, no module name provided when the user is adding a new adapter.
+            # Just return whatever module name was resolved, or the default
+            return (module_name, name)
+
 
 class AdapterModelPTMixin(AdapterModuleMixin):
     """ Adapter Mixin that can augment a ModelPT subclass with Adapter support.
@@ -396,8 +440,6 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
             cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
         """
-        self._check_valid_model_with_adapter_support()
-
         # Convert to DictConfig from dict or Dataclass
         if is_dataclass(cfg):
             cfg = OmegaConf.structured(cfg)
@@ -405,18 +447,33 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         if not isinstance(cfg, DictConfig):
             cfg = DictConfig(cfg)
 
+        # Resolve the module name and adapter name (if provided for the first time)
+        module_name, adapter_name = self._resolve_adapter_name(name)
+
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(cfg), open_dict(self.cfg):
+            # Construct the minimum config required to be updated by adapter implementations
             if 'adapters' not in self.cfg:
-                self.cfg.adapters = OmegaConf.create({})
+                self.cfg.adapters = _prepare_default_adapter_config(
+                    global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key
+                )
 
+            # Inject the module name in the adapter metadata cfg
+            gcfg = self.adapter_global_cfg_key
+            mcfg = self.adapter_metadata_cfg_key
+            self.cfg.adapters[gcfg][mcfg]['modules'][adapter_name] = module_name
+
+            # By default, enable the adapter that is being added
             if 'enabled' not in cfg:
                 cfg['enabled'] = True
 
+            # Assign the
             self.cfg.adapters[name] = OmegaConf.create(cfg)
 
             # Set the global config of adapters
             self.update_adapter_cfg(self.cfg.adapters)
+
+            self._check_valid_model_with_adapter_support()
 
     def is_adapter_available(self) -> bool:
         """
@@ -433,7 +490,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         if 'adapters' in self.cfg:
             self.update_adapter_cfg(self.cfg.adapters)
 
-        return 'adapters' in self.cfg
+        return 'adapters' in self.cfg and len(self.get_enabled_adapters()) > 0
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         """

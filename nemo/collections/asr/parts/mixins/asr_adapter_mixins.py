@@ -92,7 +92,17 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             enabled or disabled, false only if no adapters exist.
         """
         config_contains_adapter = super().is_adapter_available()
-        return self.encoder.is_adapter_available() and config_contains_adapter
+
+        # Try to retrieve global adapter config
+        global_config = DictConfig({})
+        if self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+
+        # Forward the method call to the individual modules
+        if global_config.get('encoder_adapter', True):
+            config_contains_adapter |= self.encoder.is_adapter_available()
+
+        return config_contains_adapter
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         """
