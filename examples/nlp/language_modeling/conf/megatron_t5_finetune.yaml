@@ -27,11 +27,11 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_acc
+    monitor: validation_exact_string_match
     save_top_k: 10
     mode: max
     always_save_nemo: False # TODO: add support
-    filename: 'megatron_t5_finetune--{validation_acc:.3f}-{step}'
+    filename: 'megatron_t5_finetune--{validation_exact_string_match:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
 
@@ -75,6 +75,9 @@ model:
       max_src_seq_length: 512
       max_tgt_seq_length: 128
       drop_last: False # TODO: Figure out if there is a way to avoid dropping last.
+      write_predictions_to_file: False
+      prediction_file_path_prefix: null # Prefix of the file to write predictions to.
+      metric_name: "exact_string_match" # Name of the evaluation metric to use.
 
   optim:
     name: fused_adam

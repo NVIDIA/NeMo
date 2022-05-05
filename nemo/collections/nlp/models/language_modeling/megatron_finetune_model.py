@@ -16,7 +16,11 @@ from omegaconf import DictConfig, ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.data import ConcatDataset
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
+from nemo.collections.common.metrics import MetricStringToTorchMetric
+from nemo.collections.common.metrics.classification_accuracy import (
+    ExactStringMatchMetric,
+    ExactStringPerCategoryMatchMetric,
+)
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
@@ -39,26 +43,36 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-        self.val_metric = self.setup_metric(self.cfg.data.validation_ds)
+        self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
+        self.val_metric = torch.nn.ModuleList(self.val_metric)
         if hasattr(self.cfg.data, "test_ds"):
-            self.test_metric = self.setup_metric(self.cfg.data.test_ds)
+            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
+            self.test_metric = torch.nn.ModuleList(self.test_metric)
 
-    def setup_metric(self, data_cfg, metric_name='accuracy'):
-        # XNLI
+    def setup_metric(self, data_cfg):
+        # XNLI is a special case.
+        metric_name = "exact_string_match"
         if hasattr(self.cfg, "eval_languages"):
-            metric = ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)
-        # GLUE
-        elif hasattr(data_cfg, "task_name"):
-            metric = ExactStringPerCategoryMatchMetric()
-        # General Seq2seq finetuning
+            metric = [ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)]
         else:
-            metric = metric_str2torchmetric[metric_name]
-            if isinstance(data_cfg.src_file_name, ListConfig):
-                metric = [metric() for _ in range(len(self.cfg.data.test_ds.src_file_name))]
+            if not hasattr(data_cfg, "metric_name"):
+                metric = MetricStringToTorchMetric["exact_string_match"]
+            elif data_cfg.metric_name not in MetricStringToTorchMetric:
+                raise KeyError(
+                    f"{data_cfg.metric_name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                )
+            metric_name = data_cfg.metric_name
+            metric = MetricStringToTorchMetric[metric_name]
+            # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
+            if hasattr(data_cfg, "src_file_name"):
+                if isinstance(data_cfg.src_file_name, ListConfig):
+                    metric = [metric for _ in range(len(self.cfg.data.test_ds.src_file_name))]
+                else:
+                    metric = [metric]
             else:
-                metric = metric()
+                metric = [metric]
 
-        return metric
+        return metric, metric_name
 
     def setup(self, stage=None):
         # This is just to keep the parent class happy since we override its setup() method.
@@ -215,6 +229,24 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             )
         return super().training_step(batch, batch_idx)
 
+    def maybe_cast_to_float(self, pred, label, mode):
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        if metric_name != 'exact_string_match':
+            try:
+                # Detokenization sometimes adds a space between the decimal point ex: 5 . 0, so we need to remove it.
+                pred = float(pred.replace(' ', ''))
+            except ValueError:
+                pred = 0.0
+
+            try:
+                # Detokenization sometimes adds a space between the decimal point ex: 5 . 0, so we need to remove it.
+                label = float(label.replace(' ', ''))
+            except ValueError:
+                raise ValueError(f"Could not convert label {label} to a float.")
+            pred = torch.FloatTensor([pred]).to(self.device)
+            label = torch.FloatTensor([label]).to(self.device)
+        return pred, label
+
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
         batch_has_lang_information = len(batch[0]) == 7
         # XNLI Batches have language information that need to be removed before calling the parent validation step.
@@ -251,115 +283,147 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
         predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=30)
 
-        preds_text, labels_text = self.preds_and_labels_to_text(predicted_token_ids, labels)
+        # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
+        preds_text = self.ids_to_text(predicted_token_ids)
+        labels_text = self.ids_to_text(labels)
+        input_text = self.ids_to_text(tokens_enc)
 
         if not batch_has_lang_information:
-            if (
-                mode == 'validation'
-                and hasattr(self.cfg.data.validation_ds, "names")
-                and isinstance(self.cfg.data.validation_ds.names, ListConfig)
-            ):
-                categories = [self.cfg.data.validation_ds.names[dataloader_idx]] * len(preds_text)
-            elif (
-                mode == 'test'
-                and hasattr(self.cfg.data.test_ds, "names")
-                and isinstance(self.cfg.data.test_ds.names, ListConfig)
-            ):
-                categories = [self.cfg.data.test_ds.names[dataloader_idx]] * len(preds_text)
-            else:
-                categories = [None] * len(preds_text)
+            categories = [None] * len(preds_text)
         else:
             categories = langs
 
-        metric = self.val_metric if mode == 'validation' else self.test_metric
+        metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
         assert len(categories) == len(preds_text) == len(labels_text)
         for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
-            _ = metric(pred, label, category)
+            # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
+            pred, label = self.maybe_cast_to_float(pred, label, mode)
+            if batch_has_lang_information:
+                _ = metric(pred, label, category)
+            else:
+                _ = metric(pred, label)
 
-        return {'loss': loss, 'preds': preds_text, 'labels': labels_text, 'categories': categories}
+        return {
+            'loss': loss,
+            'preds': preds_text,
+            'labels': labels_text,
+            'categories': categories,
+            'inputs': input_text,
+        }
 
-    def preds_and_labels_to_text(self, preds, labels):
-        preds = preds.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
-        preds_text, labels_text = [], []
-        for _, (pred, label) in enumerate(zip(preds, labels)):
-            if self.tokenizer.eos_id in pred:
-                idx = pred.index(self.tokenizer.eos_id)
-                pred = pred[:idx]
+    def ids_to_text(self, batch_ids):
+        batch_ids = batch_ids.cpu().numpy().tolist()
+        texts = []
+        for ids in batch_ids:
+            if self.tokenizer.eos_id in ids:
+                idx = ids.index(self.tokenizer.eos_id)
+                ids = ids[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
             if hasattr(self.tokenizer, 'special_token_to_id'):
-                pred = [id for id in pred if id not in self.tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.tokenizer.special_token_to_id.values()]
-            pred = self.tokenizer.ids_to_text(pred)
-            label = self.tokenizer.ids_to_text(label)
-            preds_text.append(pred)
-            labels_text.append(label)
+                ids = [id for id in ids if id not in self.tokenizer.special_token_to_id.values()]
+            text = self.tokenizer.ids_to_text(ids)
+            texts.append(text)
 
-        return preds_text, labels_text
+        return texts
 
-    def inference_epoch_end(self, outputs, mode):
+    def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
+        # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
+        base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
+        # If the user provided names for each validation/test dataset, use those.
+        if hasattr(data_config, "names") and data_config.names is not None:
+            # With only a single validation/test dataset, the name is not a list.
+            if not isinstance(data_config.names, ListConfig):
+                name = data_config.names
+            else:
+                name = data_config.names[dataloader_idx]
+            return base_key + name
+        else:
+            return base_key + f"dataloader{dataloader_idx}"
+
+    def inference_epoch_end(self, outputs, mode, data_cfg):
         # Parent class will handle logging of the loss.
         if not outputs:
             return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
-        for _, output in enumerate(outputs):
-            if mode == 'validation':
-                averaged_loss = super().validation_epoch_end([x['loss'] for x in output])
+        averaged_loss = []
+        averaged_metric = []
+        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        # Log metrics for each provided validation/test dataset
+        for dataloader_idx, output in enumerate(outputs):
+            loss = super().validation_epoch_end([x['loss'] for x in output])
+            # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
+            loss_log_key = self._determine_log_key(data_cfg, dataloader_idx, "loss", mode)
+            # Determine the key used to log the eval metric based on the user provided name of the dataset or the dataloader index.
+            metric_log_key = self._determine_log_key(data_cfg, dataloader_idx, metric_name, mode)
+            self.log(loss_log_key, loss)
+            metric_object = (
+                self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
+            )
+            metric = metric_object.compute()
+            # Handle logging of GLUE/XNLI separately here. XNLI has a separate metric per language.
+            if isinstance(metric, dict):
+                # GLUE case:
+                if len(metric) == 1 and 'acc' in metric:
+                    metric = metric['acc']
+                    self.log(metric_log_key, metric)
+                    logging.info(f"{mode} {metric_name}: {metric}")
+                # XNLI case:
+                else:
+                    for k, v in metric.items():
+                        if k != 'acc' and 'total' not in k:
+                            self.log(metric_log_key + f'_{k}', v)
+                            logging.info(f"{mode} {metric_name} lang {k} : {v}")
             else:
-                averaged_loss = super().test_epoch_end([x['loss'] for x in output])
+                self.log(metric_log_key, metric)
+                logging.info(f"{mode} {metric_name}: {metric}")
+            metric_object.reset()
+            averaged_loss.append(loss)
+            averaged_metric.append(metric)
+            if data_cfg.get("write_predictions_to_file", False):
+                if parallel_state.get_data_parallel_world_size() > 1:
+                    raise ValueError(
+                        f"Cannot write predictions to file when data parallel > 1. Current data parallel size : {parallel_state.get_data_parallel_world_size()}"
+                    )
+                if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
+                    raise ValueError(
+                        f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
+                    )
+                filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
+                self.write_predictions_to_file(output, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
 
+        # Logging of the averaged metrics:
+        averaged_loss = sum(averaged_loss) / len(averaged_loss)
+        averaged_metric = sum(averaged_metric) / len(averaged_metric)
         if mode == 'validation':
-            accuracy = self.val_metric.compute()
-        else:
-            accuracy = self.test_metric.compute()
-        # Loss is logged in the parent epoch end class.
-        self.log(f'{mode}_acc', accuracy['acc'])
-        logging.info(f"{mode} accuracy: {accuracy['acc']}")
+            self.log("validation_loss", averaged_loss)
+            self.log(f"validation_{self.val_metric_name}", averaged_metric)
 
-        for k, v in accuracy.items():
-            if k != 'acc' and 'total' not in k:
-                logging.info(f"{mode} {k} accuracy: {v} total: {accuracy[k+'_total']}")
-                self.log(f'{mode}_{k}_acc', v)
+        return averaged_loss, averaged_metric
 
-        if mode == 'validation':
-            self.val_metric.reset()
-        else:
-            self.test_metric.reset()
-
-        if mode == 'validation' and self.cfg.data.validation_ds.write_predictions_to_file:
-            if parallel_state.get_data_parallel_world_size() > 1:
-                raise ValueError(f"Cannot write predictions to file when data parallel > 1. Current data parallel size : {parallel_state.get_data_parallel_world_size()}")
-            self.write_predictions_to_file(outputs)
-
-        return averaged_loss, accuracy['acc']
-
-    def write_predictions_to_file(self, outputs, output_file_path):
-        if not output_file_path:
-            output_file_path = self.cfg.data.validation_ds.output_file_path
-        if not output_file_path:
-            raise ValueError("No output file path specified. Please specify one in the data config if you want to write predictions to a file.")
-        with open(output_file_path, 'w') as f:
-            for output in outputs:
-                for batch in output:
-                    for pred, label, category in zip(batch['preds'], batch['labels'], batch['categories']):
-                        f.write(f"{pred}\t{label}\t{category}\n")
-                    f.write('\n')
-                f.write('\n')
+    def write_predictions_to_file(self, outputs, output_file_path_prefix):
+        with open(output_file_path_prefix + "_preds.txt", 'w', encoding='utf-8') as f_preds, open(
+            output_file_path_prefix + "_labels.txt", 'w', encoding='utf-8'
+        ) as f_labels, open(output_file_path_prefix + "_inputs.txt", 'w', encoding='utf-8') as f_input:
+            for batch in outputs:
+                for pred, label, input in zip(batch['preds'], batch['labels'], batch['inputs']):
+                    f_preds.write(f"{pred}\n")
+                    f_labels.write(f"{label}\n")
+                    f_input.write(f"{input}\n")
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
 
     def validation_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'validation')
+        _ = self.inference_epoch_end(outputs, 'validation', self.cfg.data.validation_ds)
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'test', dataloader_idx)
 
     def test_epoch_end(self, outputs):
-        _ = self.inference_epoch_end(outputs, 'test')
+        _ = self.inference_epoch_end(outputs, 'test', self.cfg.data.test_ds)
 
     def build_data_loader(
         self,
@@ -489,7 +553,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         else:
             return datasets[0]
 
-    def _build_eval_dataset(self, data_cfg, mode='train'):
+    def _build_eval_dataset(self, data_cfg):
         """Build the evaluation dataset."""
         if data_cfg.global_batch_size > data_cfg.micro_batch_size * parallel_state.get_data_parallel_world_size():
             raise ValueError(
@@ -526,20 +590,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 max_tgt_seq_length=data_cfg.max_tgt_seq_length,
             )
             datasets.append(dataset)
-
-        if mode == 'train' and len(datasets) > 1:
-            if len(datasets) > 1:
-                dataset = ConcatDataset(
-                    datasets=datasets,
-                    sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
-                    sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
-                    sampling_probabilities=data_cfg.get(
-                        'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
-                    ),
-                    global_rank=parallel_state.get_data_parallel_rank(),
-                    world_size=parallel_state.get_data_parallel_world_size(),
-                )
-            return dataset
 
         return datasets
 
