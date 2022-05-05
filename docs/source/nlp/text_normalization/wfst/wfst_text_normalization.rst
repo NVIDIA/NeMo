@@ -93,57 +93,26 @@ Additional Arguments:
 
     More details can be found in `NeMo/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_.
 
-Language Support
--------------------
-
-Currently supported languages and their language id used in the tool. 
+Language Support Matrix
+------------------------
 
 Text Normalization:
 
-+------------------+----------+
-| **Language**     | **ID**   |
-+------------------+----------+
-| English          | en       |
-+------------------+----------+
-| Spanish          | es       |
-+------------------+----------+
-| German           | de       |
-+------------------+----------+
-
-
-Inverse Text Normalization:
-
-+------------------+----------+
-| **Language**     | **ID**   |
-+------------------+----------+
-| English          | en       |
-+------------------+----------+
-| Spanish          | es       |
-+------------------+----------+
-| German           | de       |
-+------------------+----------+
-| French           | fr       |
-+------------------+----------+
-| Russian          | ru       |
-+------------------+----------+
-| Vietnamese       | vi       |
-+------------------+----------+
-
-
-Audio-based TN:
-
-+------------------+----------+
-| **Language**     | **ID**   |
-+------------------+----------+
-| English          | en       |
-+------------------+----------+
-| Spanish          | es       |
-+------------------+----------+
-| German           | de       |
-+------------------+----------+
-| Russian          | ru       |
-+------------------+----------+
-
++------------------+----------+----------+----------+--------------------+
+| **Language**     | **ID**   | **TN**   | **ITN**  | **Audio-based TN** |
++------------------+----------+----------+----------+--------------------+
+| English          | en       | x        | x        | x                  |
++------------------+----------+----------+----------+--------------------+
+| Spanish          | es       | x        | x        | x                  |
++------------------+----------+----------+----------+--------------------+
+| German           | de       | x        | x        | x                  |
++------------------+----------+----------+----------+--------------------+
+| French           | fr       |          | x        |                    |
++------------------+----------+----------+----------+--------------------+
+| Russian          | ru       |          | x        | x                  |
++------------------+----------+----------+----------+--------------------+
+| Vietnamese       | vi       |          | x        |                    |
++------------------+----------+----------+----------+--------------------+
 
 Grammar customization
 ---------------------
