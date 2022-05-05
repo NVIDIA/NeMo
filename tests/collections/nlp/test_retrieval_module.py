@@ -293,10 +293,48 @@ class TestRetrievalModule:
                 enc_cross_attention=enc_cross_attention,
                 dec_cross_attention=dec_cross_attention,
                 add_position_embedding=False,
+                eod_id=vocab_size - 2,
             )
             .cuda()
             .half()
         )
+
+        out = encoder_decoder(
+            hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask, labels=labels
+        )
+
+        # verify the attention mask matrix is correct
+
+        all_tokens = torch.tensor([[1, 2, vocab_size - 2, 3, vocab_size - 1, vocab_size - 2, 3, 4, 5]]).cuda()
+
+        encoder_decoder = (
+            MegatronRetrievalTokenLevelEncoderDecoderModule(
+                vocab_size=vocab_size,
+                hidden_size=dim,
+                max_position_embeddings=8,
+                num_attention_heads=num_attention_heads,
+                ffn_hidden_size=dim * 4,
+                precision=16,
+                chunk_size=4,
+                enc_num_layers=enc_num_layers,
+                dec_num_layers=dec_num_layers,
+                enc_cross_attention=enc_cross_attention,
+                dec_cross_attention=dec_cross_attention,
+                add_position_embedding=False,
+                eod_id=vocab_size - 2,
+            )
+            .cuda()
+            .half()
+        )
+
+        hidden = all_tokens[:, :-1]
+        labels = all_tokens[:, 1:]
+
+        hidden_mask = (hidden != pad_id).cuda()
+        retrieved = torch.randint(0, vocab_size, (1, 2, neighbors, 8)).cuda()
+
+        pad_id = vocab_size - 1
+        context_mask = (retrieved != pad_id).cuda()
 
         out = encoder_decoder(
             hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask, labels=labels

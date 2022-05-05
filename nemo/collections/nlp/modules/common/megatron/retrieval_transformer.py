@@ -311,6 +311,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         retrieved_emb=None,
         layer_past=None,
         get_key_value=False,
+        eod_positions=None,  # this is a tuple of eod positions returned from tensor.where(tensor == eod_id)
     ):
         # expected dec_input shape [batch, seq_len, dim]
         # expected dec_attn_mask shape [batch, seq_len]
@@ -341,6 +342,20 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
         dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
+        if eod_positions is not None:
+            # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
+            # so attention is not across eod, mask should be:
+            # [false, true,  true, true,  true, true,  true,  true]
+            # [false, false, true, true,  true, true,  true,  true]
+            # [false, false, false,true,  true, true,  true,  true]
+            # [true,  true,  true, false, true, true,  true,  true]
+            # [true,  true,  true, true,  true, true,  true,  true]
+            # [true,  true,  true, false, true, false, true,  true]
+            # [true,  true,  true, true,  true, true,  false, true]
+            # [true,  true,  true, true,  true, true,  false, false]
+            for batch, eod_pos in zip(*eod_positions):
+                eod_plus_one = eod_pos + 1
+                dec_attn_mask_3d[batch][eod_plus_one:, :eod_plus_one] = True
 
         if retrieved_emb is not None:
             dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)

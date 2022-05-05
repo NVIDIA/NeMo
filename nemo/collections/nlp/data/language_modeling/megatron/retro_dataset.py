@@ -65,6 +65,16 @@ class MockRETRODataset(MegatronDataset):
         labels = all_tokens[1:]
 
         hidden_mask = hidden != pad_id
+        # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
+        # so attention is not across eod, mask should be:
+        # [false, true,  true, true,  true, true,  true,  true]
+        # [false, false, true, true,  true, true,  true,  true]
+        # [false, false, false,true,  true, true,  true,  true]
+        # [true,  true,  true, false, true, true,  true,  true]
+        # [true,  true,  true, true,  true, true,  true,  true]
+        # [true,  true,  true, false, true, false, true,  true]
+        # [true,  true,  true, true,  true, true,  false, true]
+        # [true,  true,  true, true,  true, true,  false, false]
         retrieved = torch.randint(0, vocab_size, (chunks, neighbors, 2 * chunk_size))
 
         context_mask = retrieved != pad_id
