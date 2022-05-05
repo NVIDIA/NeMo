@@ -9,7 +9,12 @@ pipeline {
     timeout(time: 2, unit: 'HOURS')
     disableConcurrentBuilds()
   }
+
   stages {
+
+    stage('nvidia-smi'){
+      sh 'nvidia-smi'
+    }
 
     stage('Transformers Offline') {
       steps{
