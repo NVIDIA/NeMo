@@ -132,7 +132,7 @@ def read_manifest(manifest):
 
 def get_duration(json_line):
     dur = json_line['duration']
-    if dur is not None:
+    if dur is None:
         wav_path = json_line['audio_filepath']
         json_line['duration'] = sox.file_info.duration(wav_path)
     return json_line
