@@ -40,7 +40,6 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
-from nemo.
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -121,6 +120,9 @@ class MegatronRetrivalModel(MegatronBaseModel):
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
             legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
         )
+        # add pad special token
+        if not self.tokenizer.pad_id:
+            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
     def _build_vocab(self):
         """

@@ -49,15 +49,15 @@ class MockRETRODataset(MegatronDataset):
         vocab_size = self.tokenizer.vocab_size
 
         neighbors = self._cfg.data.neighbors
-        dim = self._cfg.data.retrival_dim
+        dim = self._cfg.data.retrieval_dim
         input_length = self._cfg.data.seq_length
-        chunks = input_length // dim
+        chunks = input_length // self._cfg.chunk_size
         chunk_size = self._cfg.chunk_size
-        pad_id = self.eos_id
+        pad_id = self.tokenizer.pad_id
 
-        all_tokens = torch.randint(0, vocab_size, (input_length + 1))
-        hidden = all_tokens[:, :-1]
-        labels = all_tokens[:, 1:]
+        all_tokens = torch.randint(0, vocab_size, (input_length + 1,))
+        hidden = all_tokens[:-1]
+        labels = all_tokens[1:]
 
         hidden_mask = (hidden != pad_id)
         retrieved = torch.randint(0, vocab_size, (chunks, neighbors, 2 * chunk_size))
