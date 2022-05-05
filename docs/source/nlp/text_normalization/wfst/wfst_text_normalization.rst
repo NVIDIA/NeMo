@@ -5,50 +5,144 @@ Text (Inverse) Normalization
 
 The `nemo_text_processing` Python package :cite:`textprocessing-norm-zhang2021nemo` is based on WFST grammars :cite:`textprocessing-norm-mohri2005weighted` and supports:
 
-1. Text Normalization (TN) converts text from written form into its verbalized form. It is used as a preprocessing step before Text to Speech (TTS). 
-2. Inverse text normalization (ITN) is a part of the Automatic Speech Recognition (ASR) post-processing pipeline and can be used to convert normalized ASR model outputs into written form to improve text readability.
-3. Audio-based TN uses an extended set of non-deterministic normalization grammars to normalize ASR training data for better ASR accuracy.
+1. Text Normalization (TN) converts text from written form into its verbalized form. It is used as a preprocessing step before Text to Speech (TTS). For example,
+
+.. code-block:: bash
+
+     "123" -> "one hundred twenty three"
+
+2. Inverse text normalization (ITN) is a part of the Automatic Speech Recognition (ASR) post-processing pipeline and can be used to convert normalized ASR model outputs into written form to improve text readability. For example,
+   
+.. code-block:: bash
+    
+     "one hundred twenty three" -> "123"
+
+3. Audio-based provides multiple normalization options. For example,
+
+.. code-block:: bash
+    
+     "123" -> "one hundred twenty three", "one hundred and twenty three", "one two three", "one twenty three" ...  
+
+The normalization which best reflects what is actually said in an audio is then picked. 
+Audio-based TN can be used to normalize ASR training data.
+
+    .. image:: images/task_overview.png
+        :align: center
+        :alt: Text TN and ITN
+        :scale: 50%
 
 
 Installation
 ------------
 
-`nemo_text_processing` is automatically installed with `nemo_toolkit`.
-See :doc:`NeMo Introduction <../../starthere/intro>` for installation details of `nemo_toolkit`.
+`nemo_text_processing` is automatically installed with `NeMo <https://github.com/NVIDIA/NeMo>`_.
 
 Quick Start Guide
 -----------------
 
+
+Text Normalization 
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    cd NeMo/nemo_text_processing/text_normalization/
+    python normalize.py --text="123" --language=en
+
+
+Inverse Text Normalization 
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    cd NeMo/nemo_text_processing/inverse_text_normalization/
+    python inverse_normalize.py --text="one hundred twenty three" --language=en
+
+
+Arguments:
+
+* ``text`` - Input text.
+* ``input_file`` - Input file with lines of input text. Only one of ``text`` or ``input_file`` is accepted.
+* ``output_file`` - Output file to save normalizations. Needed if ``input_file`` is specified.
+* ``language`` - language id.
+* ``input_case`` - Only for text normalization. ``lower_cased`` or ``cased``.
+* ``verbose`` - Outputs intermediate information.
+* ``cache_dir`` - Specifies a cache directory for compiled grammars. If grammars exist, this significantly improves speed. 
+* ``overwrite_cache`` - Updates grammars in cache.
+* ``whitelist`` - TSV file with custom mappings of written text to spoken form.
+
+
+
+Audio-based TN 
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    cd NeMo/nemo_text_processing/text_normalization/
+    python normalize_with_audio.py --text="123" --language="en" --n_tagged=10 --cache_dir="cache_dir" --audio_data="example.wav" --model="stt_en_conformer_ctc_large" 
+
+Additional Arguments:
+
+* ``text`` - Input text or `JSON manifest file <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/datasets.html#preparing-custom-asr-data>`_ with multiple audio paths.
+* ``audio_data`` - (Optional) Input audio.
+* ``model`` - `Off-shelf NeMo CTC ASR model name <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html#speech-recognition-languages>`_ or path to local NeMo model checkpoint ending on .nemo
+* ``n_tagged`` - number of normalization options to output.
+
+
 .. note::
 
-    Walk through `NeMo/tutorials/text_processing/Text_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_Normalization.ipynb>`_.
-
+    More details can be found in `NeMo/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`__ in `Google's Colab <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_.
 
 Language Support
 -------------------
-Languages are listed in decreasing order of grammar complexity.
 
-Deterministic TN: 
+Currently supported languages and their language id used in the tool. 
 
-* English
-* Spanish
-* German
+Text Normalization:
 
-Deterministic ITN: 
++------------------+----------+
+| **Language**     | **ID**   |
++------------------+----------+
+| English          | en       |
++------------------+----------+
+| Spanish          | es       |
++------------------+----------+
+| German           | de       |
++------------------+----------+
 
-* English
-* Spanish
-* German
-* French
-* Russian
-* Vietnamese
 
-Non-deterministic TN:
+Inverse Text Normalization:
 
-* English
-* Spanish
-* German
-* Russian
++------------------+----------+
+| **Language**     | **ID**   |
++------------------+----------+
+| English          | en       |
++------------------+----------+
+| Spanish          | es       |
++------------------+----------+
+| German           | de       |
++------------------+----------+
+| French           | fr       |
++------------------+----------+
+| Russian          | ru       |
++------------------+----------+
+| Vietnamese       | vi       |
++------------------+----------+
+
+
+Audio-based TN:
+
++------------------+----------+
+| **Language**     | **ID**   |
++------------------+----------+
+| English          | en       |
++------------------+----------+
+| Spanish          | es       |
++------------------+----------+
+| German           | de       |
++------------------+----------+
+| Russian          | ru       |
++------------------+----------+
 
 
 Grammar customization

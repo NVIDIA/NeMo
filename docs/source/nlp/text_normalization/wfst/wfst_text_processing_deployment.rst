@@ -3,8 +3,15 @@
 Deploy to Production with C++ backend
 =====================================
 
-NeMi provides tools to deploy :doc:`TN and ITN <wfst_text_normalization>` for production :cite:`textprocessing-deployment-zhang2021nemo`.
+NeMo provides tools to deploy :doc:`TN and ITN <wfst_text_normalization>` for production :cite:`textprocessing-deployment-zhang2021nemo`.
 It uses `Sparrowhawk <https://github.com/google/sparrowhawk>`_ :cite:`textprocessing-deployment-sparrowhawk` -- an open-source C++ framework by Google.
+The grammars written with NeMo can be exported into an `OpenFST <https://www.openfst.org/>`_ Archive File (FAR) and dropped into Sparrowhawk.
+
+    .. image:: images/deployment_pipeline.png
+        :align: center
+        :alt: Deployment pipeline
+        :scale: 50%
+
 
 Requirements
 ------------
@@ -32,7 +39,7 @@ Examples how to run:
 
 
 Arguments:
-^^^^^^^^^
+^^^^^^^^^^
 * ``GRAMMARS`` - ``tn_grammars`` or ``itn_grammars`` to export either TN or ITN grammars.
 * ``LANGUAGE`` - `en` for English. Click :doc:`here <wfst_text_normalization>` for full list of languages.
 * ``INPUT_CASE`` - ``cased`` or ``lower_cased`` (ITN has no differentiation between these two, only used for TN).
@@ -43,7 +50,7 @@ Arguments:
 Detailed pipeline
 -----------------
 
-`export_grammars.sh` in `wfst_deployment_quick_start`_ runs the following steps in sequence:
+`export_grammars.sh` runs the following steps in sequence:
 
 Go to script folder:
 
