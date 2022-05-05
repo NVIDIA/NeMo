@@ -339,3 +339,24 @@ class TestRetrievalModule:
         out = encoder_decoder(
             hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask, labels=labels
         )
+
+        mask3d = encoder_decoder.pre_decoder._calculate_dec_att_mask(
+            hidden_mask, torch.where(hidden_mask != vocab_size - 2)
+        )
+        expected = torch.tensor(
+            [
+                [
+                    [
+                        [False, True, True, True, True, True, True, True],
+                        [False, False, True, True, True, True, True, True],
+                        [False, False, False, True, True, True, True, True],
+                        [False, False, False, False, True, True, True, True],
+                        [True, True, True, True, True, True, True, True],
+                        [False, False, False, False, True, False, True, True],
+                        [False, False, False, False, True, False, False, True],
+                        [False, False, False, False, True, False, False, False],
+                    ]
+                ]
+            ]
+        ).cuda()
+        assert (mask3d == expected).all()

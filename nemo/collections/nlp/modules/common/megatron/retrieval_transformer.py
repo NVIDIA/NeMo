@@ -303,6 +303,28 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         """ See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
+    def _calculate_dec_att_mask(self, dec_attn_mask, eod_positions):
+        # # convert to Megatron mask
+        dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
+        )
+        dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
+        if eod_positions is not None:
+            # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
+            # so attention is not across eod, mask should be:
+            # [false, true,  true, true,  true, true,  true,  true]
+            # [false, false, true, true,  true, true,  true,  true]
+            # [false, false, false,true,  true, true,  true,  true]
+            # [true,  true,  true, false, true, true,  true,  true]
+            # [true,  true,  true, true,  true, true,  true,  true]
+            # [true,  true,  true, false, true, false, true,  true]
+            # [true,  true,  true, true,  true, true,  false, true]
+            # [true,  true,  true, true,  true, true,  false, false]
+            for batch, eod_pos in zip(*eod_positions):
+                eod_plus_one = eod_pos.item() + 1
+                dec_attn_mask_3d[batch][eod_plus_one:, :eod_plus_one] = True
+        return dec_attn_mask_3d
+
     def forward(
         self,
         dec_input,
@@ -337,25 +359,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         else:
             attn_pos_emb = (self_attn_emb, None, None)
 
-        # # convert to Megatron mask
-        dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
-        )
-        dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
-        if eod_positions is not None:
-            # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
-            # so attention is not across eod, mask should be:
-            # [false, true,  true, true,  true, true,  true,  true]
-            # [false, false, true, true,  true, true,  true,  true]
-            # [false, false, false,true,  true, true,  true,  true]
-            # [true,  true,  true, false, true, true,  true,  true]
-            # [true,  true,  true, true,  true, true,  true,  true]
-            # [true,  true,  true, false, true, false, true,  true]
-            # [true,  true,  true, true,  true, true,  false, true]
-            # [true,  true,  true, true,  true, true,  false, false]
-            for batch, eod_pos in zip(*eod_positions):
-                eod_plus_one = eod_pos + 1
-                dec_attn_mask_3d[batch][eod_plus_one:, :eod_plus_one] = True
+        dec_attn_mask_3d = self._calculate_dec_att_mask(dec_attn_mask, eod_positions)
 
         if retrieved_emb is not None:
             dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
