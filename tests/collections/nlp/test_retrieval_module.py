@@ -171,10 +171,10 @@ class TestRetrievalModule:
         hidden_mask = (hidden != pad_id).cuda()
 
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size)).cuda()
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
-        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
+        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * text_chunk_size, dim).cuda().half()
 
         layer_type = [LayerType.encoder, LayerType.retrieval_encoder, LayerType.encoder, LayerType.retrieval_encoder]
         num_layers = len(layer_type)
@@ -221,13 +221,13 @@ class TestRetrievalModule:
         hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
 
         # context_chunk_size = 128
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size)).cuda()
         # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation)
 
         # context attention mask [b, np, sq, sk]
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
-        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
+        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * text_chunk_size, dim).cuda().half()
         # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation, hidden)
 
         layer_type = [LayerType.encoder, LayerType.retrieval_decoder, LayerType.encoder, LayerType.retrieval_decoder]
@@ -274,11 +274,11 @@ class TestRetrievalModule:
         labels = all_tokens[:, 1:]
 
         hidden_mask = (hidden != pad_id).cuda()
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * chunks)).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size )).cuda()
 
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
-        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * chunks, dim).cuda().half()
+        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * text_chunk_size, dim).cuda().half()
 
         encoder_decoder = (
             MegatronRetrievalTokenLevelEncoderDecoderModule(

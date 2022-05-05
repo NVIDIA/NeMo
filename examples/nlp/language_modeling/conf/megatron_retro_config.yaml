@@ -45,7 +45,7 @@ model:
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet
 
   # model architecture
-  encoder_seq_length: 512
+  encoder_seq_length: 2048
   max_position_embeddings: ${.encoder_seq_length}
   num_layers: 12
   hidden_size: 768
