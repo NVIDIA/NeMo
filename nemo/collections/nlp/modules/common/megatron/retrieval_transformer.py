@@ -328,13 +328,13 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
                 k == num_seq_chunks
             ), f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'  # need to add extra chunk size, since it will be shifted
         self_attn_emb = self.rotary_pos_emb(n)
-        cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1)
 
         if retrieved_emb is not None:
+            cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1)
             cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         else:
-            attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, None)
+            attn_pos_emb = (self_attn_emb, None, None)
 
         # # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(

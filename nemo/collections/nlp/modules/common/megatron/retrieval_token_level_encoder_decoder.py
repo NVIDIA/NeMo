@@ -96,6 +96,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.add_abs_position_embedding = add_position_embedding  # whether use absolute position embedding
 
         if kv_channels is None:
             assert (
@@ -274,7 +275,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         if input_emb is None:
             if self.pre_process and self.add_encoder:
                 # encoder embeddings
-                input_position_ids = build_position_ids(input_ids)
+                if self.add_abs_position_embedding:
+                    input_position_ids = build_position_ids(input_ids)
+                else:
+                    input_position_ids = None
                 input_emb = self.encoder_embedding(input_ids, input_position_ids, token_type_ids=token_type_ids)
             else:
                 input_emb = None

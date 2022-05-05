@@ -15,10 +15,9 @@
 """RETRO Style dataset."""
 
 import torch
+
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_train_valid_test_split_,
-)
 from nemo.utils import logging
 
 # from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
@@ -32,7 +31,6 @@ from nemo.utils import logging
 
 
 class MockRETRODataset(MegatronDataset):
-
     def __init__(self, cfg, trainer, tokenizer, name, size):
         super().__init__(cfg, trainer=trainer)
         self.name = name
@@ -59,10 +57,10 @@ class MockRETRODataset(MegatronDataset):
         hidden = all_tokens[:-1]
         labels = all_tokens[1:]
 
-        hidden_mask = (hidden != pad_id)
+        hidden_mask = hidden != pad_id
         retrieved = torch.randint(0, vocab_size, (chunks, neighbors, 2 * chunk_size))
 
-        context_mask = (retrieved != pad_id)
+        context_mask = retrieved != pad_id
         retrieved_emb = torch.rand(chunks, neighbors, 2 * chunk_size, dim)
 
         return {
@@ -76,11 +74,7 @@ class MockRETRODataset(MegatronDataset):
 
 
 def build_mock_train_valid_test_datasets(
-    cfg,
-    trainer,
-    splits_string,
-    tokenizer,
-    mock_data_size,
+    cfg, trainer, splits_string, tokenizer, mock_data_size,
 ):
     """Build train, valid, and test datasets."""
 
@@ -103,13 +97,7 @@ def build_mock_train_valid_test_datasets(
     def build_dataset(index, name):
         dataset = None
         if splits[index + 1] > splits[index]:
-            dataset = MockRETRODataset(
-                cfg,
-                trainer,
-                tokenizer,
-                name,
-                splits[index+1] - splits[index],
-            )
+            dataset = MockRETRODataset(cfg, trainer, tokenizer, name, splits[index + 1] - splits[index],)
         return dataset
 
     train_dataset = build_dataset(0, 'train')

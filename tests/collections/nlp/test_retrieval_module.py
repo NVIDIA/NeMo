@@ -274,7 +274,7 @@ class TestRetrievalModule:
         labels = all_tokens[:, 1:]
 
         hidden_mask = (hidden != pad_id).cuda()
-        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size )).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size)).cuda()
 
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()

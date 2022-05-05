@@ -20,16 +20,18 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
     MegatronPretrainingRandomBatchSampler,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import MegatronRetrievalTokenLevelEncoderDecoderModule
+from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
+    MegatronRetrievalTokenLevelEncoderDecoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
@@ -50,9 +52,7 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_num_microbatches,
-    )
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -77,7 +77,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
         self._build_vocab()
 
-        #TODO does not support PP yet
+        # TODO does not support PP yet
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.model = self.model_provider_func(True, True, True, True)
 
@@ -169,12 +169,16 @@ class MegatronRetrivalModel(MegatronBaseModel):
             bias=self.cfg.get('bias', True),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
-            chunk_size=self.cfg.get('chunk_size', 64), # the chunk size used to retrive
+            chunk_size=self.cfg.get('chunk_size', 64),  # the chunk size used to retrive
             enc_num_layers=self.cfg.get('enc_num_layers', 4),  # total number of encoder layers
             dec_num_layers=self.cfg.get('dec_num_layers', 6),  # total number of decoder layers
             enc_cross_attention=self.cfg.get('enc_cross_attention', [3]),  # layer numbers for cross attention
-            dec_cross_attention=self.cfg.get('dec_cross_attention', [3, 5]),  # layer numbers for chunked cross attention
-            add_position_embedding=self.cfg.get('add_position_embedding', False), # whether use the absolute postion encoding
+            dec_cross_attention=self.cfg.get(
+                'dec_cross_attention', [3, 5]
+            ),  # layer numbers for chunked cross attention
+            add_position_embedding=self.cfg.get(
+                'add_position_embedding', False
+            ),  # whether use the absolute postion encoding
         )
         return model
 
@@ -216,11 +220,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
 
-        loss = self(input_tokens_id,
-                    input_attn_mask,
-                    retrieved_emb,
-                    retrieved_attn_mask,
-                    labels=labels)
+        loss = self(input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels=labels)
         loss_mask = input_attn_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
@@ -286,11 +286,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         retrieved_emb = batch['retrieved_emb']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-        loss = self(input_tokens_id,
-                    input_attn_mask,
-                    retrieved_emb,
-                    retrieved_attn_mask,
-                    labels=labels)
+        loss = self(input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels=labels)
         loss_mask = input_attn_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
@@ -311,8 +307,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            'consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
         )
         return averaged_loss
 
@@ -343,7 +338,6 @@ class MegatronRetrivalModel(MegatronBaseModel):
             logging.info(f'Length of test dataset: {len(self._test_ds)}')
         logging.info(f'Finished building RETRO datasets.')
         return self._train_ds, self._validation_ds, self._test_ds
-
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
         """Buld dataloader given an input dataset."""
