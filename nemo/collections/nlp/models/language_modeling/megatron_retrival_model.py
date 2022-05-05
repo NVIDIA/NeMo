@@ -20,6 +20,7 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -39,6 +40,7 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
+from nemo.
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -51,8 +53,6 @@ try:
     )
     from apex.transformer.pipeline_parallel.utils import (
         get_num_microbatches,
-        _reconfigure_microbatch_calculator,
-        get_micro_batch_size,
     )
 
     HAVE_APEX = True
@@ -71,9 +71,6 @@ class MegatronRetrivalModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-
-        # Make sure trainer.accumulate_grad_batches is 1.
-        self._validate_trainer()
 
         # build tokenizer (defaults to nemo supported tokenizers)
         self._build_tokenizer()
@@ -175,7 +172,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
             dec_num_layers=self.cfg.get('dec_num_layers', 6),  # total number of decoder layers
             enc_cross_attention=self.cfg.get('enc_cross_attention', [3]),  # layer numbers for cross attention
             dec_cross_attention=self.cfg.get('dec_cross_attention', [3, 5]),  # layer numbers for chunked cross attention
-            add_position_embedding=self.cfg.get('add_position_embedding', False),  # whether use the absolute position encoding
+            add_position_embedding=self.cfg.get('add_position_embedding', False), # whether use the absolute postion encoding
         )
         return model
 
@@ -210,7 +207,13 @@ class MegatronRetrivalModel(MegatronBaseModel):
         return super().on_pretrain_routine_start()
 
     def training_step(self, batch, batch_idx):
-        input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels = self.process_batch(batch)
+        input_tokens_id = batch['tokens']
+        input_attn_mask = batch['tokens_mask']
+        loss_mask = batch['loss_mask']
+        retrieved_emb = batch['retrieved_emb']
+        retrieved_attn_mask = batch['retrieved_emb_mask']
+        labels = batch['labels']
+
         loss = self(input_tokens_id,
                     input_attn_mask,
                     retrieved_emb,
@@ -275,7 +278,12 @@ class MegatronRetrivalModel(MegatronBaseModel):
                     grad_scaler.optimizer_update_skipped = None
 
     def validation_step(self, batch, batch_idx):
-        input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels = self.process_batch(batch)
+        input_tokens_id = batch['tokens']
+        input_attn_mask = batch['tokens_mask']
+        loss_mask = batch['loss_mask']
+        retrieved_emb = batch['retrieved_emb']
+        retrieved_attn_mask = batch['retrieved_emb_mask']
+        labels = batch['labels']
         loss = self(input_tokens_id,
                     input_attn_mask,
                     retrieved_emb,
@@ -307,7 +315,33 @@ class MegatronRetrivalModel(MegatronBaseModel):
         return averaged_loss
 
     def build_train_valid_test_datasets(self):
-        raise NotImplementedError("Please implement this method in child-class")
+        logging.info('Building RETRO datasets.')
+        global_batch_size = self.cfg.global_batch_size
+        max_train_steps = self.trainer.max_steps
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = self.trainer.limit_test_batches
+
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
+        self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
+            cfg=self.cfg,
+            trainer=self.trainer,
+            splits_string=self.cfg.data.splits_string,
+            tokenizer=self.tokenizer,
+            mock_data_size=self.cfg.data.get('mock_data_size', 10000),
+        )
+        if self._train_ds is not None:
+            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+        if self._validation_ds is not None:
+            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+        if self._test_ds is not None:
+            logging.info(f'Length of test dataset: {len(self._test_ds)}')
+        logging.info(f'Finished building RETRO datasets.')
+        return self._train_ds, self._validation_ds, self._test_ds
+
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
         """Buld dataloader given an input dataset."""
@@ -441,7 +475,10 @@ class MegatronRetrivalModel(MegatronBaseModel):
         app_state = AppState()
         consumed_samples = (
             self.init_consumed_samples
-            + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
+            + steps_since_resume
+            * app_state.data_parallel_size
+            * self.cfg.micro_batch_size
+            * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)
 
@@ -506,23 +543,6 @@ class MegatronRetrivalModel(MegatronBaseModel):
         else:
             # Not a Nvidia container. Dependency check is on users
             pass
-
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
-        """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
-            When using pipeline parallelism, we need the global batch to remain on the CPU,
-            since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline. 
-        """
-        return batch
-
-    def _validate_trainer(self):
-        """ Certain trainer configurations can break training.
-            Here we try to catch them and raise an error.
-        """
-        if self.trainer.accumulate_grad_batches > 1:
-            raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
-            )
 
     def list_available_models(self):
         pass
