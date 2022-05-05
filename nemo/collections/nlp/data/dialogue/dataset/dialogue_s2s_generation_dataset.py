@@ -44,6 +44,16 @@ class DialogueS2SGenerationDataset(DialogueDataset):
 
     @staticmethod
     def format_actions(prompt_template, actions):
+        """
+        Formats actions based on prompt_template 
+
+        Args:
+            prompt_template: determines whether acts, slot-names, slot-values are necessary in formatted actions
+            actions: list of actions, each a dict containing keys 'act', 'slot' and 'values' with their corresponding values as their attribute-values
+
+        Returns:
+            formatted_actions: string representations of actions, formatted based on the fields needed.
+        """
         actions_str = []
         for action in actions:
             act = action['act'].lower()
@@ -66,7 +76,7 @@ class DialogueS2SGenerationDataset(DialogueDataset):
                     action_str = act
             else:
                 raise ValueError(
-                    "Please set model.dataset.prompt_template to acts_slots_values, slots_values and values"
+                    "Please set model.dataset.prompt_template to acts_slots_values, slots_values or values"
                 )
             actions_str.append(action_str)
         return ' '.join(actions_str)

@@ -63,6 +63,8 @@ class DialogueDataProcessor(DataProcessor):
             dataset_split: train, dev or test
             n_samples: total number of samples
             dev_proportion: value from 1 to 99 that represent proportion of data in dev set
+        Returns:
+            idxs: indices for relevant samples
         """
 
         if dataset_split in ["train", "dev"]:
@@ -77,5 +79,8 @@ class DialogueDataProcessor(DataProcessor):
 
         elif dataset_split == "test":
             idxs = list(range(n_samples))
+
+        else:
+            raise ValueError("please select dataset split from train, dev and test")
 
         return idxs

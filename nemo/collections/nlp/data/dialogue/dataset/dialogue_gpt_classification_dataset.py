@@ -70,6 +70,14 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         self.lm_features = self.get_lm_samples()
 
     def transform(self, label):
+        """
+        Normalize labels by replacing underscore with space
+
+        Args:
+            label: str
+        Returns:
+            normalized_label: str
+        """
         if self.cfg.task == "assistant" and self.cfg.prompt_template != "prompt_tuning":
             label = label.replace('_', ' ')
         return label
@@ -112,7 +120,14 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
     @staticmethod
     def linearize_slots(slots):
+        """
+        Serialize slots into a linear text
 
+        Args:
+            slots: dict with each slot_name as key and possible slot values as value
+        Returns:
+            linear_slots: text based representation of slot names and values
+        """
         if not slots:
             return "None"
         return ", ".join(
