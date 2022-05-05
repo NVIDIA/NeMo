@@ -124,7 +124,6 @@ model:
     eod_mask_loss: False # Mask loss for the end of document tokens
     masked_lm_prob: 0.15 # Probability of replacing a token with mask.
     short_seq_prob: 0.1 # Probability of producing a short sequence.
-    retrieval_dim: 768  # retrieval context dimension
     neighbors: 2  # number of retrieved neighbors
     mock: True   # whether use mock dataset
     mock_data_size: 10000 # the mock dataset size

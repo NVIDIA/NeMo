@@ -278,7 +278,6 @@ class TestRetrievalModule:
 
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
-        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * text_chunk_size, dim).cuda().half()
 
         encoder_decoder = (
             MegatronRetrievalTokenLevelEncoderDecoderModule(
@@ -300,5 +299,5 @@ class TestRetrievalModule:
         )
 
         out = encoder_decoder(
-            hidden, hidden_mask, retrieved_emb=retrieved_emb, retrieved_attn_mask=context_mask, labels=labels
+            hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask, labels=labels
         )

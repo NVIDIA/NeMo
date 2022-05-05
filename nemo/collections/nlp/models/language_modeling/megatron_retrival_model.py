@@ -186,7 +186,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         self,
         input_ids,
         input_attn_mask,
-        retrieved_emb,
+        retrieved_ids,
         retrieved_attn_mask,
         token_type_ids=None,
         labels=None,
@@ -195,7 +195,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         output_tensor = self.model(
             input_ids=input_ids,
             input_attn_mask=input_attn_mask,
-            retrieved_emb=retrieved_emb,
+            retrieved_ids=retrieved_ids,
             retrieved_attn_mask=retrieved_attn_mask,
             token_type_ids=token_type_ids,
             labels=labels,
@@ -216,11 +216,11 @@ class MegatronRetrivalModel(MegatronBaseModel):
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
         loss_mask = batch['loss_mask']
-        retrieved_emb = batch['retrieved_emb']
+        retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
 
-        loss = self(input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels=labels)
+        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
         loss_mask = input_attn_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
@@ -283,10 +283,10 @@ class MegatronRetrivalModel(MegatronBaseModel):
         input_tokens_id = batch['tokens']
         input_attn_mask = batch['tokens_mask']
         loss_mask = batch['loss_mask']
-        retrieved_emb = batch['retrieved_emb']
+        retrieved_ids = batch['retrieved_ids']
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
-        loss = self(input_tokens_id, input_attn_mask, retrieved_emb, retrieved_attn_mask, labels=labels)
+        loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
         loss_mask = input_attn_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])

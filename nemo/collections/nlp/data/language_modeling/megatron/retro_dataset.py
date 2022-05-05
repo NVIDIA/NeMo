@@ -30,6 +30,7 @@ from nemo.utils import logging
 # from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 try:
     from apex.transformer import parallel_state
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -42,7 +43,7 @@ class MockRETRODataset(MegatronDataset):
         self.tokenizer = tokenizer
         self._cfg = cfg
         self.size = size
-        seed_val = parallel_state.get_data_parallel_rank()*131 + 97
+        seed_val = parallel_state.get_data_parallel_rank() * 131 + 97
         torch.manual_seed(seed_val)
 
     def __len__(self):
@@ -54,7 +55,6 @@ class MockRETRODataset(MegatronDataset):
         vocab_size = self.tokenizer.vocab_size
 
         neighbors = self._cfg.data.neighbors
-        dim = self._cfg.data.retrieval_dim
         input_length = self._cfg.data.seq_length
         chunks = input_length // self._cfg.chunk_size
         chunk_size = self._cfg.chunk_size
@@ -68,7 +68,6 @@ class MockRETRODataset(MegatronDataset):
         retrieved = torch.randint(0, vocab_size, (chunks, neighbors, 2 * chunk_size))
 
         context_mask = retrieved != pad_id
-        retrieved_emb = torch.rand(chunks, neighbors, 2 * chunk_size, dim)
 
         return {
             'tokens': hidden,
@@ -76,7 +75,7 @@ class MockRETRODataset(MegatronDataset):
             'tokens_mask': hidden_mask,
             'loss_mask': hidden_mask,
             'retrieved_emb_mask': context_mask,
-            'retrieved_emb': retrieved_emb,
+            'retrieved_ids': retrieved,
         }
 
 

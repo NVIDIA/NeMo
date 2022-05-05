@@ -263,7 +263,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self,
         input_ids,
         input_attn_mask,
-        retrieved_emb,
+        retrieved_ids,
         retrieved_attn_mask,
         token_type_ids=None,
         labels=None,
@@ -282,6 +282,14 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 input_emb = self.encoder_embedding(input_ids, input_position_ids, token_type_ids=token_type_ids)
             else:
                 input_emb = None
+
+        if self.add_abs_position_embedding:
+            seq_length = retrieved_ids.size(-1)
+            retrieved_position_ids = torch.arange(seq_length, dtype=torch.long, device=retrieved_ids.device)
+            retrieved_position_ids = retrieved_position_ids.unsqueeze(0).expand_as(retrieved_ids).clone()
+        else:
+            retrieved_position_ids = None
+        retrieved_emb = self.encoder_embedding(retrieved_ids, retrieved_position_ids)
 
         if self.add_decoder:
             hidden = self.pre_decoder(input_emb, input_attn_mask)
