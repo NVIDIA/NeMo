@@ -28,6 +28,11 @@ from nemo.utils import logging
 #     truncate_segments,
 # )
 # from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
+try:
+    from apex.transformer import parallel_state
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 class MockRETRODataset(MegatronDataset):
@@ -37,6 +42,8 @@ class MockRETRODataset(MegatronDataset):
         self.tokenizer = tokenizer
         self._cfg = cfg
         self.size = size
+        seed_val = parallel_state.get_data_parallel_rank()*131 + 97
+        torch.manual_seed(seed_val)
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
