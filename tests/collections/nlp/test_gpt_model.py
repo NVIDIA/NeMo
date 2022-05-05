@@ -119,7 +119,14 @@ def trainer_cfg():
 
 
 @pytest.fixture()
-def gpt_model(model_cfg, trainer_cfg):
+def precision():
+    return 32
+
+
+@pytest.fixture()
+def gpt_model(model_cfg, trainer_cfg, precision):
+    model_cfg['precision'] = precision
+    trainer_cfg['precision'] = precision
 
     plugins = [NLPDDPPlugin()]
 
@@ -169,8 +176,31 @@ class TestGPTModel:
         ]
         assert sum([id_list == true_id_list for id_list, true_id_list in zip(ids, true_ids)]) == 4
 
+    @pytest.mark.parametrize(
+        "precision",
+        [
+            32,
+            16,
+            pytest.param(
+                "bf16",
+                marks=pytest.mark.skipif(
+                    torch.cuda.get_device_capability()[0] < 8, reason='bfloat16 is not supported on this device'
+                ),
+            ),
+        ],
+    )
     @pytest.mark.unit
     def test_forward(self, gpt_model, test_text):
+
+        dtype = None
+        if gpt_model.cfg['precision'] == 32:
+            dtype = torch.float
+        elif gpt_model.cfg['precision'] == 16:
+            dtype = torch.float16
+        elif gpt_model.cfg['precision'] == 'bf16':
+            dtype = torch.bfloat16
+        else:
+            raise ValueError(f"precision: {gpt_model.cfg['precision']} is not supported.")
 
         gpt_model.eval()
 
@@ -189,7 +219,7 @@ class TestGPTModel:
                 attn_mask, _, pos_ids = attn_mask_and_pos_ids
                 assert tokens.shape == pos_ids.shape
                 assert attn_mask.shape[2] == attn_mask.shape[3] == tokens.shape[1] == pos_ids.shape[1]
-                with torch.autocast('cuda', dtype=torch.float16):
+                with torch.autocast('cuda', dtype=dtype):
                     output_tensor = gpt_model.forward(
                         tokens=tokens.cuda(),
                         text_position_ids=pos_ids.cuda(),
@@ -198,5 +228,5 @@ class TestGPTModel:
                     )
                 assert output_tensor.shape[1] == tokens.shape[1]
                 assert output_tensor.shape[2] == gpt_model.padded_vocab_size
-                assert output_tensor.dtype == torch.float16
+                assert output_tensor.dtype == dtype
                 output_tensors.append(output_tensor)
