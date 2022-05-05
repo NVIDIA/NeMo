@@ -112,17 +112,14 @@ class Tacotron2Model(SpectrogramGenerator):
         self.postnet = instantiate(self._cfg.postnet)
         self.loss = Tacotron2Loss()
         self.calculate_loss = True
-
+    
     @property
     def parser(self):
         if self._parser is not None:
             return self._parser
-        
         ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
         if ds_class_name == "TTSDataset":
             self._parser = None
-        elif ds_class_name == "AudioToCharDataset":
-            self._parser = self.vocab.encode
         elif hasattr(self._cfg, "labels"):
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
@@ -133,9 +130,10 @@ class Tacotron2Model(SpectrogramGenerator):
                 abbreviation_version="fastpitch",
                 make_table=False,
             )
+        elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+            self.parser = self.vocab.encode
         else:
             raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
-        
         return self._parser
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
