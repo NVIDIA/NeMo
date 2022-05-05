@@ -16,7 +16,6 @@
 
 import random
 
-
 from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
 
 __all__ = ['DialogueDataProcessor']
@@ -55,7 +54,6 @@ class DialogueDataProcessor(DataProcessor):
         """Gets a collection of `InputExample`s for the test set."""
         raise NotImplementedError()
 
-
     @staticmethod
     def get_relevant_idxs(dataset_split, n_samples, dev_proportion):
         """
@@ -81,4 +79,3 @@ class DialogueDataProcessor(DataProcessor):
             idxs = list(range(n_samples))
 
         return idxs
-

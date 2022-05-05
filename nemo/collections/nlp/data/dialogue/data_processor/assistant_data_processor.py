@@ -67,7 +67,6 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
             lines = [i.strip() for i in f.readlines()]
         return lines
 
-
     @staticmethod
     def get_continuous_slots(slot_ids, empty_slot_id, bio_slot_ids_to_unified_slot_ids):
 
@@ -101,7 +100,6 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
             slot_id_stack[i]: [position_stack[i][0], position_stack[i][-1] + 1]
             for i in range(len(position_stack))
             if slot_id_stack[i] != empty_slot_id
-
         }
 
         return slot_id_to_start_and_exclusive_end

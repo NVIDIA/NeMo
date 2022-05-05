@@ -18,7 +18,6 @@ import copy
 import torch
 
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
-from nemo.utils import logging
 
 
 class DialogueGPTGenerationDataset(DialogueDataset):

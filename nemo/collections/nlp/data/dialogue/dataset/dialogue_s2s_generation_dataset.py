@@ -139,7 +139,6 @@ class DialogueS2SGenerationDataset(DialogueDataset):
                 self.cfg.prompt_template, ex['system_actions']
             )
 
-
         input_sentence = self.format_prompt(ex)
         output_sentence = ex["labels"][self.output_label_type]
 

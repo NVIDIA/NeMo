@@ -15,7 +15,6 @@
 
 import copy
 import random
-import re
 from collections import defaultdict
 
 import torch
@@ -74,7 +73,6 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         if self.cfg.task == "assistant" and self.cfg.prompt_template != "prompt_tuning":
             label = label.replace('_', ' ')
         return label
-
 
     def __len__(self):
         return len(self.features)

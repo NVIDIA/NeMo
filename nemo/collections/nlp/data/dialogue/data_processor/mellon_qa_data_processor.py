@@ -74,7 +74,6 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
         n_samples = len(raw_examples)
         idxs = DialogueDataProcessor.get_relevant_idxs(dataset_split, n_samples, self.cfg.dev_proportion)
 
-
         for i in idxs:
             utterance = str(raw_examples[i]['Question'])
             answer = str(raw_examples[i]['Non Generative Question Answering '])

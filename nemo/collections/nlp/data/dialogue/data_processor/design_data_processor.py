@@ -66,7 +66,6 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
 
         idxs = DialogueDataProcessor.get_relevant_idxs(dataset_split, n_samples, self.cfg.dev_proportion)
 
-
         all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
         all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))
         for i in idxs:
