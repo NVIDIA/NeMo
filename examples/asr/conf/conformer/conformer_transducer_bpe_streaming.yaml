@@ -23,7 +23,7 @@
 name: "Conformer-Transducer-BPE"
 
 model:
-  sample_rate: &sample_rate 16000
+  sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
   log_prediction: true # enables logging sample predictions in the output during training
 
@@ -76,7 +76,7 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    sample_rate: *sample_rate
+    sample_rate:  ${model.sample_rate}
     normalize: "per_feature"
     window_size: 0.025
     window_stride: 0.01
@@ -86,7 +86,6 @@ model:
     frame_splicing: 1
     dither: 0.00001
     pad_to: 0
-    pad_value: 0.0
 
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
