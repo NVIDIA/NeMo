@@ -74,16 +74,18 @@ class Tacotron2Model(SpectrogramGenerator):
 
         # setup tokenizer
         self.tokenizer = None
-        self._setup_tokenizer(cfg)
-        assert self.tokenizer is not None
+        if hasattr(cfg, 'text_tokenizer'):
+            self._setup_tokenizer(cfg)
 
-        self.num_tokens = len(self.tokenizer.tokens)
-        self.tokenizer_pad = self.tokenizer.pad
-        self.tokenizer_unk = self.tokenizer.oov
+            self.num_tokens = len(self.tokenizer.tokens)
+            self.tokenizer_pad = self.tokenizer.pad
+            self.tokenizer_unk = self.tokenizer.oov
+            # assert self.tokenizer is not None
+        else:
+            self.num_tokens = len(cfg.labels) + 3
+        
 
         super().__init__(cfg=cfg, trainer=trainer)
-
-
 
         schema = OmegaConf.structured(Tacotron2Config)
         # ModelPT ensures that cfg is a DictConfig, but do this second check in case ModelPT changes
@@ -103,7 +105,7 @@ class Tacotron2Model(SpectrogramGenerator):
             )
         
         self._parser = None
-        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor, highfreq=cfg.highfreq)
+        self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
         self.text_embedding = nn.Embedding(self.num_tokens, 512)
         self.encoder = instantiate(self._cfg.encoder)
         self.decoder = instantiate(self._cfg.decoder)
@@ -147,10 +149,12 @@ class Tacotron2Model(SpectrogramGenerator):
             eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
     
         with eval_phon_mode:
-            if self.parser is not None:
-                tokens = self.parser(text)
-            else:
+            if self.tokenizer is not None:
                 tokens = self.tokenizer.encode(text)
+            else:
+                tokens = self.parser(text)
+                # Old parser doesn't add bos and eos ids, so maunally add it
+                tokens = [len(self._cfg.labels)] + tokens + [len(self._cfg.labels) + 1]
         tokens_tensor = torch.tensor(tokens).unsqueeze_(0).to(self.device)
         return tokens_tensor
 
