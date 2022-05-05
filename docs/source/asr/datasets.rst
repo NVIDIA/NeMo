@@ -74,7 +74,7 @@ are located in the remaining directories in an ``audio`` subdirectory.
 
    .. code-block:: bash
 
-     cd <nemo_root>/scripts
+     cd <nemo_root>/scripts/dataset_processing
      python fisher_audio_to_wav.py \
        --data_root=<fisher_root> --dest_root=<conversion_target_dir>
 
@@ -235,7 +235,7 @@ Conversion to Tarred Datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can easily convert your existing NeMo-compatible ASR datasets using the
-`conversion script here <https://github.com/NVIDIA/NeMo/blob/v1.0.2/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
+`conversion script here <https://github.com/NVIDIA/NeMo/blob/main/scripts/speech_recognition/convert_to_tarred_audio_dataset.py>`_.
 
 .. code::
 

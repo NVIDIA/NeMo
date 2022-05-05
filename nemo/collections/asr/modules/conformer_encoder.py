@@ -14,6 +14,7 @@
 
 import math
 from collections import OrderedDict
+from typing import List, Optional
 from omegaconf import ListConfig
 
 import torch
@@ -32,6 +33,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, LengthsType, NeuralType, SpectrogramType
 
@@ -224,10 +226,10 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     activation=nn.ReLU(),
                     is_causal=causal_downsampling,
                 )
-            self._feat_out = d_model
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
-            self._feat_out = d_model
+
+        self._feat_out = d_model
 
         if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
@@ -353,7 +355,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, ConvSubsampling) or isinstance(self.pre_encode, StackingSubsampling):
+        if isinstance(self.pre_encode, nn.Linear):
+            audio_signal = self.pre_encode(x=audio_signal)
+        else:
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
@@ -362,9 +366,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                 # TODO: find a better solution
                 length = (length - 2).float()
                 length = torch.clip(length, min=0).int()
-
-        else:
-            audio_signal = self.pre_encode(x=audio_signal)
 
         max_audio_length = audio_signal.size(1)
 
@@ -560,3 +561,33 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         )
 
         return cache_last_channel, cache_last_time
+
+
+class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conformer_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([conformer_layer.is_adapter_available() for conformer_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conformer_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(conformer_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(ConformerEncoder) is None:
+    adapter_mixins.register_adapter(base_class=ConformerEncoder, adapter_class=ConformerEncoderAdapter)

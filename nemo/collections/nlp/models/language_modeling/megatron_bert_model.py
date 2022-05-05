@@ -82,9 +82,9 @@ class MegatronBertModel(NLPModel):
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
             model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer_model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("merges_file", self.cfg.tokenizer.merge_file),
+            tokenizer_model=self.register_artifact("tokenizer.model", self.cfg.tokenizer.model),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self.cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("tokenizer.merge_file", self.cfg.tokenizer.merge_file),
         )
 
         vocab_size = self.tokenizer.vocab_size
@@ -119,21 +119,22 @@ class MegatronBertModel(NLPModel):
             activations_checkpoint_method=cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=cfg.get('layernorm_epsilon', 1e-5),
-            masked_softmax_fusion=cfg.get('masked_softmax_fusion', False),
-            bias_gelu_fusion=cfg.get('bias_gelu_fusion', False),
+            masked_softmax_fusion=cfg.get('masked_softmax_fusion', True),
+            bias_gelu_fusion=cfg.get('bias_gelu_fusion', True),
             onnx_safe=cfg.get('onnx_safe', False),
             add_binary_head=cfg.bert_binary_head,
+            megatron_legacy=cfg.get('megatron_legacy', False),
         )
 
-    def forward(self, tokens, attention_mask, tokentype_ids, lm_labels):
-        output_tensor = self.model(tokens, attention_mask, tokentype_ids=tokentype_ids, lm_labels=lm_labels)
+    def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
+        output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
         return output_tensor
 
     def training_step(self, batch, batch_idx):
         tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
         if not self.cfg.bert_binary_head:
             types = None
-        output_tensor = self(tokens, padding_mask, tokentype_ids=types, lm_labels=lm_labels)
+        output_tensor = self(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
         loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
         if 'sop loss' in loss_dict:
             lm_loss = loss_dict['lm loss']
@@ -176,7 +177,7 @@ class MegatronBertModel(NLPModel):
         tokens, types, sentence_order, loss_mask, lm_labels, padding_mask = self.process_batch(batch)
         if not self.cfg.bert_binary_head:
             types = None
-        output_tensor = self(tokens, padding_mask, tokentype_ids=types, lm_labels=lm_labels)
+        output_tensor = self(tokens, padding_mask, token_type_ids=types, lm_labels=lm_labels)
         loss_dict = self.loss_func(loss_mask, sentence_order, output_tensor)
         if 'sop loss' in loss_dict:
             lm_loss = loss_dict['lm loss']
@@ -417,15 +418,15 @@ class MegatronBertModel(NLPModel):
                 result.append(
                     PretrainedModelInfo(
                         pretrained_model_name=f"biomegatron345m_biovocab_{vocab_size}_{vocab}",
-                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}_{vocab}.nemo",
+                        location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m_biovocab_{vocab_size}_{vocab}/versions/1/files/BioMegatron345m-biovocab-{vocab_size}-{vocab}.nemo",
                         description="Megatron 345m parameters model with biomedical vocabulary ({vocab_size} size) {vocab}, pre-trained on PubMed biomedical text corpus.",
                     )
                 )
         for vocab in ['cased', 'uncased']:
             result.append(
                 PretrainedModelInfo(
-                    pretrained_model_name=f"biomegatron345m{vocab}",
-                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/megatron_bert_345m_{vocab}/versions/1/files/megatron_bert_345m_{vocab}.nemo",
+                    pretrained_model_name=f"biomegatron-bert-345m-{vocab}",
+                    location=f"https://api.ngc.nvidia.com/v2/models/nvidia/nemo/biomegatron345m{vocab}/versions/1/files/BioMegatron345m{vocab.capitalize()}.nemo",
                     description=f"Megatron pretrained on {vocab} biomedical dataset PubMed with 345 million parameters.",
                 )
             )
@@ -451,7 +452,10 @@ class MegatronBertModel(NLPModel):
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
         if nvidia_torch_version is not None:
             NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
-            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+            try:
+                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
+            except Exception:
+                NVIDIA_TORCH_MINOR = 0
 
             # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
             if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):

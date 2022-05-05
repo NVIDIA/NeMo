@@ -104,7 +104,7 @@ model:
 
     # Sub-sampling params
     subsampling: stacking # vggnet, striding, or stacking
-    subsampling_factor: 4 # must be power of 2
+    subsampling_factor: 3 # must be power of 2
     subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true
 
