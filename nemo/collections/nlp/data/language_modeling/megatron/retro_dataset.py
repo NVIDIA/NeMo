@@ -16,6 +16,10 @@
 
 import torch
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_train_valid_test_split_,
+)
+from nemo.utils import logging
 
 # from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
 #     create_masked_lm_predictions,
@@ -28,24 +32,25 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset impor
 
 
 class MockRETRODataset(MegatronDataset):
-    def __init__(
-        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seq_length, seed,
-    ):
+
+    def __init__(self, cfg, trainer, tokenizer, name, size):
         super().__init__(cfg, trainer=trainer)
         self.name = name
+        self.tokenizer = tokenizer
         self._cfg = cfg
+        self.size = size
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
         #    sample i --> [sample_idx[i], sample_idx[i+1])
-        return 10000
+        return self.size
 
     def __getitem__(self, idx):
         vocab_size = self.tokenizer.vocab_size
 
         neighbors = self._cfg.data.neighbors
         dim = self._cfg.data.retrival_dim
-        input_length = self._cfg.encoder_seq_length
+        input_length = self._cfg.data.seq_length
         chunks = input_length // dim
         chunk_size = self._cfg.chunk_size
         pad_id = self.eos_id
@@ -68,3 +73,47 @@ class MockRETRODataset(MegatronDataset):
             'retrieved_emb_mask': context_mask,
             'retrieved_emb': retrieved_emb,
         }
+
+
+def build_mock_train_valid_test_datasets(
+    cfg,
+    trainer,
+    splits_string,
+    tokenizer,
+    mock_data_size,
+):
+    """Build train, valid, and test datasets."""
+
+    splits = get_train_valid_test_split_(splits_string, mock_data_size)
+
+    # Print stats about the splits.
+    logging.info(' > dataset split:')
+
+    def print_split_stats(name, index):
+        logging.info('    {}:'.format(name))
+        logging.info(
+            '     document indices in [{}, {}) total of {} '
+            'documents'.format(splits[index], splits[index + 1], splits[index + 1] - splits[index])
+        )
+
+    print_split_stats('train', 0)
+    print_split_stats('validation', 1)
+    print_split_stats('test', 2)
+
+    def build_dataset(index, name):
+        dataset = None
+        if splits[index + 1] > splits[index]:
+            dataset = MockRETRODataset(
+                cfg,
+                trainer,
+                tokenizer,
+                name,
+                splits[index+1] - splits[index],
+            )
+        return dataset
+
+    train_dataset = build_dataset(0, 'train')
+    valid_dataset = build_dataset(1, 'valid')
+    test_dataset = build_dataset(2, 'test')
+
+    return (train_dataset, valid_dataset, test_dataset)
