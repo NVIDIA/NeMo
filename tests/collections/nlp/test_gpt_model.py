@@ -23,6 +23,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
+DEVICE_CAPABILITY = None
+if torch.cuda.is_available():
+    DEVICE_CAPABILITY = torch.cuda.get_device_capability()
+
 
 @pytest.fixture()
 def model_cfg(test_data_dir):
@@ -186,7 +190,8 @@ class TestGPTModel:
             pytest.param(
                 "bf16",
                 marks=pytest.mark.skipif(
-                    torch.cuda.get_device_capability()[0] < 8, reason='bfloat16 is not supported on this device'
+                    not DEVICE_CAPABILITY or DEVICE_CAPABILITY[0] < 8,
+                    reason='bfloat16 is not supported on this device',
                 ),
             ),
         ],
