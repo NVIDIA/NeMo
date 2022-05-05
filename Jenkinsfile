@@ -13,7 +13,9 @@ pipeline {
   stages {
 
     stage('nvidia-smi'){
-      sh 'nvidia-smi'
+      steps{
+        sh 'nvidia-smi'
+      }
     }
 
     stage('Transformers Offline') {
