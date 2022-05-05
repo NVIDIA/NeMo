@@ -100,11 +100,19 @@ def get_registered_adapter(cls: Union[str, type]) -> Optional[AdapterRegistryInf
     return None
 
 
-def _prepare_default_adapter_config(*, global_key, meta_key) -> DictConfig:
-    cfg = OmegaConf.create({})
-    cfg[global_key] = OmegaConf.create({})
-    cfg[global_key][meta_key] = OmegaConf.create({})
-    cfg[global_key][meta_key]['modules'] = OmegaConf.create({})
+def _prepare_default_adapter_config(*, global_key: str, meta_key: str, cfg: DictConfig = None) -> DictConfig:
+    if cfg is None:
+        cfg = OmegaConf.create({})
+
+    with open_dict(cfg):
+        if global_key not in cfg:
+            cfg[global_key] = OmegaConf.create({})
+
+        if meta_key not in cfg[global_key]:
+            cfg[global_key][meta_key] = OmegaConf.create({})
+
+        if 'modules' not in cfg[global_key][meta_key]:
+            cfg[global_key][meta_key]['modules'] = OmegaConf.create({})
 
     return cfg
 
@@ -479,9 +487,11 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         with open_dict(cfg), open_dict(self.cfg):
             # Construct the minimum config required to be updated by adapter implementations
             if 'adapters' not in self.cfg:
-                self.cfg.adapters = _prepare_default_adapter_config(
-                    global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key
-                )
+                self.cfg.adapters = OmegaConf.create({})
+
+            self.cfg.adapters = _prepare_default_adapter_config(
+                global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key, cfg=self.cfg.adapters,
+            )
 
             # If the adapter is not being restored, force unique name to be provided for all adapters.
             if hasattr(self, '_restoring_adapters') and self._restoring_adapters is not True:
