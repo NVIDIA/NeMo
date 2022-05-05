@@ -300,10 +300,18 @@ class TestAdapterModelMixin:
 
             outer_path = os.path.join(outer_tmpdir, 'temp.nemo')
             new_model = DefaultAdapterModel.restore_from(outer_path)  # type: DefaultAdapterModel
-            assert isinstance(new_model, AdapterModelPTMixin)
-            assert len(new_model.get_enabled_adapters()) > 0
-            assert model.num_weights == new_model.num_weights
-            assert new_model.decoder.is_adapter_available() is False
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights == new_model.num_weights
+        assert new_model.decoder.is_adapter_available() is False
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[model.get_enabled_adapters()[0]] == 'encoder'  # encoder
 
     @pytest.mark.unit
     def test_single_decoder_module_adapter(self):
