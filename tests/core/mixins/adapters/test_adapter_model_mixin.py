@@ -17,12 +17,12 @@ import tempfile
 
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
 from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
 
-from nemo.core import NeuralModule, ModelPT
-from nemo.core.classes.mixins import adapter_mixins, adapter_mixin_strategies
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin, AdapterModelPTMixin
+from nemo.core import ModelPT, NeuralModule
+from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
+from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
 
 
 class DefaultModule(NeuralModule):
@@ -615,3 +615,271 @@ class TestAdapterModelMixin:
         out = model(x)
         # result of adapter is zero tensor, output multiplied by adapter result should be zero
         assert (out > 0.0).any() == torch.tensor(False)
+
+    @pytest.mark.unit
+    def test_single_decoder_save_load_adapter_only_exact_name(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        assert model.encoder.is_adapter_available() is False
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                model.save_adapters(adapter_path, name='decoder:adapter_0')
+
+                model_path = os.path.join('temp.nemo')
+                model.save_to(model_path)
+
+                shutil.move(adapter_path, outer_tmpdir)
+                shutil.move(model_path, outer_tmpdir)
+
+            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
+            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+
+            # Assert size of this params
+            adapter_filesize = os.path.getsize(outer_adapter_path)
+            model_filesize = os.path.getsize(outer_model_path)
+
+            assert model_filesize > adapter_filesize
+
+            # restore adapter to new model (without any decoder adapter)
+            new_model = DefaultAdapterModel(cfg)
+            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights == new_model.num_weights
+        assert new_model.encoder.is_adapter_available() is False
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+
+    @pytest.mark.unit
+    def test_single_decoder_save_load_adapter_only_global_name(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(dim=5))
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        assert model.decoder.is_adapter_available() is False
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                model.save_adapters(adapter_path, name='adapter_0')
+
+                model_path = os.path.join('temp.nemo')
+                model.save_to(model_path)
+
+                shutil.move(adapter_path, outer_tmpdir)
+                shutil.move(model_path, outer_tmpdir)
+
+            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
+            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+
+            # Assert size of this params
+            adapter_filesize = os.path.getsize(outer_adapter_path)
+            model_filesize = os.path.getsize(outer_model_path)
+
+            assert model_filesize > adapter_filesize
+
+            # restore adapter to new model (without any encoder adapter)
+            new_model = DefaultAdapterModel(cfg)
+            new_model.load_adapters(outer_adapter_path, name='adapter_0')
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights == new_model.num_weights
+        assert new_model.decoder.is_adapter_available() is False
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == ''  # global adapter
+
+    @pytest.mark.unit
+    def test_multiple_decoder_save_load_adapter_only_exact_name(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name='encoder:adapter_1', cfg=get_adapter_cfg(dim=5))
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                model.save_adapters(adapter_path, name='decoder:adapter_0')
+
+                model_path = os.path.join('temp.nemo')
+                model.save_to(model_path)
+
+                shutil.move(adapter_path, outer_tmpdir)
+                shutil.move(model_path, outer_tmpdir)
+
+            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
+            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+
+            # Assert size of this params
+            adapter_filesize = os.path.getsize(outer_adapter_path)
+            model_filesize = os.path.getsize(outer_model_path)
+
+            assert model_filesize > adapter_filesize
+
+            # restore adapter to new model (without any decoder adapter)
+            new_model = DefaultAdapterModel(cfg)
+            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights > new_model.num_weights  # the new model has only one adapter not both
+        assert new_model.encoder.is_adapter_available() is False  # encoder adaper not available in new model
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+
+    @pytest.mark.unit
+    def test_multiple_decoder_save_load_adapter_dual_name(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        # one adapter will have module name, other will have global name
+        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg(dim=5))
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                model.save_adapters(adapter_path, name=None)  # save all adapters
+
+                model_path = os.path.join('temp.nemo')
+                model.save_to(model_path)
+
+                shutil.move(adapter_path, outer_tmpdir)
+                shutil.move(model_path, outer_tmpdir)
+
+            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
+            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+
+            # Assert size of this params
+            adapter_filesize = os.path.getsize(outer_adapter_path)
+            model_filesize = os.path.getsize(outer_model_path)
+
+            assert model_filesize > adapter_filesize
+
+            # restore adapter to new model (without any decoder adapter)
+            new_model = DefaultAdapterModel(cfg)
+            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')  # load just one adapter from 2 saved
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights > new_model.num_weights  # the new model has only one adapter not both
+        assert new_model.encoder.is_adapter_available() is False  # encoder adaper not available in new model
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+
+    @pytest.mark.unit
+    def test_single_decoder_save_load_adapter_only_partial_name(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        # build adapter with exact name in decoder module only
+        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        new_num_params = model.num_weights
+        assert new_num_params > original_num_params
+
+        assert model.encoder.is_adapter_available() is False
+
+        # save restore test
+        with tempfile.TemporaryDirectory() as outer_tmpdir:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                adapter_path = os.path.join(tmpdir, 'temp.pt')
+
+                # save adapter with partial name- just adapter_0
+                model.save_adapters(adapter_path, name='adapter_0')
+
+                model_path = os.path.join('temp.nemo')
+                model.save_to(model_path)
+
+                shutil.move(adapter_path, outer_tmpdir)
+                shutil.move(model_path, outer_tmpdir)
+
+            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
+            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+
+            # Assert size of this params
+            adapter_filesize = os.path.getsize(outer_adapter_path)
+            model_filesize = os.path.getsize(outer_model_path)
+
+            assert model_filesize > adapter_filesize
+
+            # restore adapter to new model (without any decoder adapter)
+            new_model = DefaultAdapterModel(cfg)
+
+            # load adapter with partial name only - just adapter_0 - should fail
+            with pytest.raises(KeyError):
+                new_model.load_adapters(outer_adapter_path, name='adapter_0')
+
+            # properly load with correct key
+            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+
+        assert isinstance(new_model, AdapterModelPTMixin)
+        assert len(new_model.get_enabled_adapters()) > 0
+        assert model.num_weights == new_model.num_weights
+        assert new_model.encoder.is_adapter_available() is False
+
+        adapter_cfg = new_model.cfg.adapters
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        modules_cfg = meta_cfg['modules']
+
+        assert modules_cfg is not None
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module

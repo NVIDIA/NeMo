@@ -16,6 +16,7 @@ from abc import ABC
 from dataclasses import dataclass, is_dataclass
 from typing import List, Optional, Union
 
+import torch
 import torch.nn as nn
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -126,8 +127,12 @@ class AdapterModuleMixin(ABC):
         -   `adapter_layer`: A torch.nn.ModuleDict(), whose keys are the names of the adapter (globally unique),
                 and values are the Adapter nn.Module().
         -   `adapter_cfg`: A OmegaConf DictConfig object that holds the config of the adapters that are initialized.
+        -   `adapter_name`: A str resolved name which is unique key globally, but more than one modules may share
+                this name.
         -   `adapter_global_cfg_key`: A str representing a key in the model config that can be provided by the user.
                 The value resolves to `global_cfg`, and can be overridden via `model.cfg.adapters.global_cfg.*`.
+        -   `adapter_metadata_cfg_key`: A str representing a key in the model config that is used to preserve the
+                metadata of the adapter config.
 
     **Note**: This module is **not** responsible for maintaining its config. Subclasses must ensure config is updated
         or preserved as needed. It is the responsibility of the subclasses to propagate the most up to date config to
@@ -163,6 +168,9 @@ class AdapterModuleMixin(ABC):
 
         # Resolve the module name and adapter name (if module name is provided)
         _, adapter_name = self._resolve_adapter_module_name(name)
+
+        # Add adapter_name to this module for later identification
+        self.adapter_name = adapter_name
 
         # Assert that name is globally unique to all adapters.
         if adapter_name in self.adapter_layer:
@@ -425,7 +433,14 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                     continue
 
                 # Add the adapters back to the model during setup
+                # Add a guard so that during restoration, unique name check is disabled
+                self._restoring_adapters = True
+
+                # Restore the unique adapter
                 self.add_adapter(name=adapter_name, cfg=adapter_cfg)
+
+                # Remove restoration guard
+                del self._restoring_adapters
 
                 # Log the setup adapter name
                 module_name, adapter_name = self._resolve_adapter_module_name(adapter_name)
@@ -467,6 +482,11 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 self.cfg.adapters = _prepare_default_adapter_config(
                     global_key=self.adapter_global_cfg_key, meta_key=self.adapter_metadata_cfg_key
                 )
+
+            # If the adapter is not being restored, force unique name to be provided for all adapters.
+            if hasattr(self, '_restoring_adapters') and self._restoring_adapters is not True:
+                if adapter_name in self.cfg.adapters:
+                    raise ValueError(f"Attempting to add multiple adapters with the same name ({adapter_name}) !")
 
             # Inject the module name in the adapter metadata cfg
             gcfg = self.adapter_global_cfg_key
@@ -572,6 +592,157 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         Should be implemented by the subclass.
         """
         pass
+
+    def save_adapters(self, filepath: str, name: str = None):
+        """
+        Utility method that saves only the adapter module(s), and not the entire model itself.
+        This allows the sharing of adapters which are often just a fraction of the size of the full model,
+        enabling easier deliver.
+
+        Note: The saved file is a pytorch compatible pickle file, containing the state dicts of the adapter(s),
+            as well as a binary representation of the adapter config.
+
+        Args:
+            filepath: A str filepath where the .pt file that will contain the adapter state dict.
+            name: Optional name of the adapter that will be saved to this file. If None is passed,
+                all adapters will be saved to the file. The name can be either the global name (adapter_name),
+                or the module level name (module:adapter_name).
+        """
+        output_dict = {}
+
+        # Normalize the name to a list of strings
+        if isinstance(name, str):
+            name = [name]
+
+        if name is None:
+            name = self.adapter_cfg.keys()
+
+        # Assert that the config must be present to save and restore the adapters.
+        if not hasattr(self.cfg, 'adapters'):
+            raise ValueError(
+                "The model has no adapter config, therefore it cannot save any adapter. "
+                "Please first add one or more adapters to generate the config."
+            )
+
+        # For each adapter name (either global adapter or module adapters)
+        for adapter_name in name:
+            if adapter_name != self.adapter_global_cfg_key:
+                # Resolve the adapter name into its components
+                module_name, adapter_name = self._resolve_adapter_module_name(adapter_name)
+
+                # Reconstruct a module adapter's original name. For global adapters, the '' is preserved.
+                if module_name == '':
+                    key = adapter_name
+                else:
+                    key = f'{module_name}:{adapter_name}'
+                output_dict[key] = []
+
+                # Search all modules with the following criterion -
+                # It must be an implementation of AdapterModuleMixin.
+                # It must have the attribute `adapter_name`.
+                # It must match the adapter name provided by the user.
+                for module in self.modules():
+                    if (
+                        isinstance(module, AdapterModuleMixin)
+                        and hasattr(module, 'adapter_name')
+                        and module.adapter_name == adapter_name
+                    ):
+                        # If all match, extract the state dict into a list of state dicts.
+                        # This is because one name can be shared within one model by multiple adapters bearing
+                        # a common name. This can occur when the adapter is common to a module which has multiple
+                        # layers and blocks, all of which require an adapter.
+                        state_dict = module.state_dict()
+                        output_dict[key].append(state_dict)
+
+        # Preserve the binary OmegaConf dictionary of the model's adapter config
+        output_dict['__cfg__'] = self.cfg.adapters
+
+        # Finally, save the adapter state dict(s).
+        torch.save(output_dict, filepath)
+
+    def load_adapters(self, filepath: str, name: str = None, map_location: str = None, strict: bool = True):
+        """
+        Utility method that restores only the adapter module(s), and not the entire model itself.
+        This allows the sharing of adapters which are often just a fraction of the size of the full model,
+        enabling easier deliver.
+
+        Note: During restoration, assumes that the model does not currently already have an adapter with
+            the name (if provided), or any adapter that shares a name with the state dict's modules
+            (if name is not provided). This is to ensure that each adapter name is globally unique
+            in a model.
+
+        Args:
+            filepath: Filepath of the .pt file.
+            name: Optional name of the adapter that will be saved to this file. If None is passed,
+                all adapters will be saved to the file. The name must be either the global name (adapter_name),
+                or the module level name (module:adapter_name), whichever exactly matches the state dict.
+            map_location: Pytorch flag, where to place the adapter(s) state dict(s).
+            strict: Pytorch flag, whether to load the weights of the adapter(s) strictly or not.
+        """
+        # Determine device
+        if map_location is None:
+            if torch.cuda.is_available():
+                map_location = 'cuda'
+            else:
+                map_location = 'cpu'
+
+        # Load the state dict and extract the internal config
+        state_dict = torch.load(filepath, map_location=map_location)
+        config = state_dict.pop('__cfg__')
+
+        # Normalize the name to a list of names (exact match with the state dict)
+        if isinstance(name, str):
+            name = [name]
+
+        if name is None:
+            name = list(config.keys())
+
+        # For all module:adapter names (note, for global modules, we ignore the module: part)
+        for module_adapter_name in name:
+            # Resolve the adapter name and extract the adapter's config from the checkpoint.
+            module_name, adapter_name = self._resolve_adapter_module_name(module_adapter_name)
+            adapter_cfg = config[adapter_name]
+
+            # Restore weights with exact key, if it fails, give useful error message.
+            try:
+                adapter_state = state_dict[module_adapter_name]
+            except KeyError:
+                all_keys = list(state_dict.keys())
+                raise KeyError(
+                    f"Requested to load adapter with name `{module_adapter_name}`, but could not "
+                    f"the adapter in the state dict. \nAvailable adapter names in state dict are: "
+                    f"{all_keys}"
+                )
+
+            # If key was found, add a new adapter with random weights
+            self.add_adapter(name=module_adapter_name, cfg=adapter_cfg)
+
+            # Determine apriori how many modules must be loaded from the state dict
+            # This is dont to guarentee that partial match does not occur, only exact match
+            # between state dict and the adapters parameters will be allowed.
+            modules_to_load = []  # type: List[torch.nn.Module]
+            for module in self.modules():
+                if (
+                    isinstance(module, AdapterModuleMixin)
+                    and hasattr(module, 'adapter_name')
+                    and module.adapter_name == adapter_name
+                ):
+                    modules_to_load.append(module)
+
+            # Assert that the number of states in the state dict matches the newly created adapter
+            if len(adapter_state) != len(modules_to_load):
+                raise ValueError(
+                    f"The number of adapters in current model ({len(modules_to_load)}) does not "
+                    f"match the number of modules in the state dict for adapter `{adapter_name}`: "
+                    f"({len(adapter_state)})"
+                )
+
+            # For the pair of (adapter_state_in_checkpoint, adapter_in_model), restore the weights
+            for state, module in zip(adapter_state, modules_to_load):
+                module.load_state_dict(state, strict=strict)
+
+            # delete the dictionaries to preserve memory for next adapter
+            del adapter_state, modules_to_load
 
     def update_adapter_cfg(self, cfg: DictConfig):
         """
