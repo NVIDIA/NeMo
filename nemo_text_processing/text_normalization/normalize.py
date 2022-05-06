@@ -21,7 +21,12 @@ from math import factorial
 from typing import Dict, List, Union
 
 from joblib import Parallel, delayed
-from nemo_text_processing.text_normalization.data_loader_utils import get_installation_msg, pre_process
+from nemo_text_processing.text_normalization.data_loader_utils import (
+    get_installation_msg,
+    load_file,
+    pre_process,
+    write_file,
+)
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -124,7 +129,7 @@ class Normalizer:
         punct_post_process: bool = False,
         batch_size: int = 1,
         n_jobs: int = 1,
-    ) -> List[str]:
+    ):
         """
         NeMo text normalizer
 
@@ -140,6 +145,7 @@ class Normalizer:
 
         Returns converted list input strings
         """
+
         # to save intermediate results to a file
         batch = min(len(texts), batch_size)
 
@@ -405,7 +411,10 @@ class Normalizer:
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("input_string", help="input string", type=str)
+    input = parser.add_mutually_exclusive_group()
+    input.add_argument("--text", dest="input_string", help="input string", type=str)
+    input.add_argument("--input_file", dest="input_file", help="input file path", type=str)
+    parser.add_argument('--output_file', dest="output_file", help="output file path", type=str)
     parser.add_argument("--language", help="language", choices=["en", "de", "es"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
@@ -431,6 +440,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
+
     normalizer = Normalizer(
         input_case=args.input_case,
         cache_dir=args.cache_dir,
@@ -439,11 +449,28 @@ if __name__ == "__main__":
         lang=args.language,
         punct_post_process=not args.no_punct_post_process,
     )
-    print(
-        normalizer.normalize(
-            args.input_string,
+    if args.input_string:
+        print(
+            normalizer.normalize(
+                args.input_string,
+                verbose=args.verbose,
+                punct_pre_process=args.punct_pre_process,
+                punct_post_process=args.punct_post_process,
+            )
+        )
+    elif args.input_file:
+        print("Loading data: " + args.input_file)
+        data = load_file(args.input_file)
+
+        print("- Data: " + str(len(data)) + " sentences")
+        normalizer_prediction = normalizer.normalize_list(
+            data,
             verbose=args.verbose,
             punct_pre_process=args.punct_pre_process,
             punct_post_process=not args.no_punct_post_process,
         )
-    )
+        if args.output_file:
+            write_file(args.output_file, normalizer_prediction)
+            print(f"- Normalized. Writing out to {args.output_file}")
+        else:
+            print(normalizer_prediction)
