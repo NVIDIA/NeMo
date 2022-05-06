@@ -2832,7 +2832,7 @@ pipeline {
             model.data.train_ds.task_name=rte \
             model.data.train_ds.global_batch_size=4 \
             model.data.train_ds.micro_batch_size=2 \
-            model.data.validation_ds.global_batch_size=4 \
+            model.data.validation_ds.global_batch_size=2 \
             model.data.validation_ds.micro_batch_size=2 \
             model.data.train_ds.file_path=/home/TestData/nlp/megatron_t5/data/train_ci.tsv \
             model.data.validation_ds.task_name=rte \
@@ -2860,9 +2860,9 @@ pipeline {
             model.pipeline_model_parallel_split_rank=0 \
             model.data.train_ds.global_batch_size=4 \
             model.data.train_ds.micro_batch_size=2 \
-            model.data.validation_ds.global_batch_size=4 \
+            model.data.validation_ds.global_batch_size=2 \
             model.data.validation_ds.micro_batch_size=2 \
-            model.data.test_ds.global_batch_size=4 \
+            model.data.test_ds.global_batch_size=2 \
             model.data.test_ds.micro_batch_size=2 \
             model.data.train_ds.task_name=rte \
             model.data.train_ds.file_path=/home/TestData/nlp/megatron_t5/data/train_ci.tsv \
