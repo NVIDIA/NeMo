@@ -421,7 +421,7 @@ def parse_args():
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument(
-        "--no_punct_post_process", help="set to True to enable punctuation post processing.", action="store_true",
+        "--no_punct_post_process", help="set to True to disable punctuation post processing.", action="store_true",
     )
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"
@@ -455,7 +455,7 @@ if __name__ == "__main__":
                 args.input_string,
                 verbose=args.verbose,
                 punct_pre_process=args.punct_pre_process,
-                punct_post_process=args.punct_post_process,
+                punct_post_process=not args.no_punct_post_process,
             )
         )
     elif args.input_file:
