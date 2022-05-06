@@ -699,6 +699,12 @@ class TestAdapterModelMixin:
         assert modules_cfg is not None
         assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
 
+        original_state_dict = model.decoder.adapter_layer.state_dict()
+        restored_state_dict = new_model.decoder.adapter_layer.state_dict()
+
+        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
+            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+
     @pytest.mark.unit
     def test_single_decoder_save_load_adapter_only_global_name(self):
         # create a model config, but do not add global_cfg to it
@@ -751,6 +757,12 @@ class TestAdapterModelMixin:
         assert modules_cfg is not None
         assert modules_cfg[new_model.get_enabled_adapters()[0]] == ''  # global adapter
 
+        original_state_dict = model.encoder.adapter_layer.state_dict()
+        restored_state_dict = new_model.encoder.adapter_layer.state_dict()
+
+        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
+            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+
     @pytest.mark.unit
     def test_multiple_decoder_save_load_adapter_only_exact_name(self):
         # create a model config, but do not add global_cfg to it
@@ -801,6 +813,12 @@ class TestAdapterModelMixin:
 
         assert modules_cfg is not None
         assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+
+        original_state_dict = model.decoder.adapter_layer.state_dict()
+        restored_state_dict = new_model.decoder.adapter_layer.state_dict()
+
+        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
+            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
 
     @pytest.mark.unit
     def test_multiple_decoder_save_load_adapter_dual_name(self):
@@ -853,6 +871,12 @@ class TestAdapterModelMixin:
 
         assert modules_cfg is not None
         assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+
+        original_state_dict = model.decoder.adapter_layer.state_dict()
+        restored_state_dict = new_model.decoder.adapter_layer.state_dict()
+
+        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
+            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
 
     @pytest.mark.unit
     def test_single_decoder_save_load_adapter_only_partial_name(self):
@@ -914,3 +938,9 @@ class TestAdapterModelMixin:
 
         assert modules_cfg is not None
         assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+
+        original_state_dict = model.decoder.adapter_layer.state_dict()
+        restored_state_dict = new_model.decoder.adapter_layer.state_dict()
+
+        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
+            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
