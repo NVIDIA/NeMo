@@ -154,7 +154,7 @@ class TestRetrievalModule:
         assert bias.shape == torch.Size([dim])
 
     @pytest.mark.unit
-    def test_retrival_encoder(self):
+    def test_retrieval_encoder(self):
 
         init_method_std = 0.02
 
@@ -202,7 +202,7 @@ class TestRetrievalModule:
         assert out.shape == torch.Size([batch, chunks, neighbors, 2 * text_chunk_size, dim])
 
     @pytest.mark.unit
-    def test_retrival_decoder(self):
+    def test_retrieval_decoder(self):
 
         init_method_std = 0.02
 

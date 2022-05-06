@@ -52,12 +52,12 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-__all__ = ["MegatronRetrivalModel"]
+__all__ = ["MegatronRetrievalModel"]
 
 
-class MegatronRetrivalModel(MegatronBaseModel):
+class MegatronRetrievalModel(MegatronBaseModel):
     """
-    Megatron Retrival enhanced language model
+    Megatron Retrieval enhanced language model
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Retrival Transformer."""
+"""Retrieval Transformer."""
 
 from einops import rearrange, repeat
 
@@ -139,8 +139,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         layer_past=None,
         get_key_value=False,
     ):
-        # expected enc_input shape [batch, num_chunks, num_neighbors, retrival_seq_len, dim]
-        # expected enc_attn_mask shape [batch, num_chunks, num_neighbors, retrival_seq_len]
+        # expected enc_input shape [batch, num_chunks, num_neighbors, retrieval_seq_len, dim]
+        # expected enc_attn_mask shape [batch, num_chunks, num_neighbors, retrieval_seq_len]
         # expected encoder_output shape [batch, seq_len, dim]
         b, k, r, rn, dim = enc_input.shape
 
