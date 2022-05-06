@@ -308,7 +308,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         dec_attn_mask_3d = build_attention_mask_3d(
             source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
         )
-        dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
         if eod_positions is not None:
             # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
             # so attention is not across eod, mask should be:
@@ -323,6 +322,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             for batch, eod_pos in zip(*eod_positions):
                 eod_plus_one = eod_pos.item() + 1
                 dec_attn_mask_3d[batch][eod_plus_one:, :eod_plus_one] = True
+        dec_attn_mask_3d = dec_attn_mask_3d[:, None, :, :]
         return dec_attn_mask_3d
 
     def forward(

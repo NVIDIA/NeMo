@@ -341,7 +341,7 @@ class TestRetrievalModule:
         )
 
         mask3d = encoder_decoder.pre_decoder._calculate_dec_att_mask(
-            hidden_mask, torch.where(hidden_mask != vocab_size - 2)
+            hidden_mask, torch.where(hidden == vocab_size - 2)
         )
         expected = torch.tensor(
             [
@@ -350,11 +350,11 @@ class TestRetrievalModule:
                         [False, True, True, True, True, True, True, True],
                         [False, False, True, True, True, True, True, True],
                         [False, False, False, True, True, True, True, True],
-                        [False, False, False, False, True, True, True, True],
+                        [True, True, True, False, True, True, True, True],
                         [True, True, True, True, True, True, True, True],
-                        [False, False, False, False, True, False, True, True],
-                        [False, False, False, False, True, False, False, True],
-                        [False, False, False, False, True, False, False, False],
+                        [True, True, True, False, True, False, True, True],
+                        [True, True, True, True, True, True, False, True],
+                        [True, True, True, True, True, True, False, False],
                     ]
                 ]
             ]
