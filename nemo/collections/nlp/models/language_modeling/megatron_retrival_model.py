@@ -179,7 +179,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
             add_position_embedding=self.cfg.get(
                 'add_position_embedding', False
             ),  # whether use the absolute postion encoding
-            eod_id=self.tokenizer.eod_id,
+            eod_id=self.tokenizer.eos_id,
         )
         return model
 
