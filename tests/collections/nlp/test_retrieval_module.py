@@ -16,7 +16,6 @@
 import pytest
 import torch
 from einops import rearrange
-from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
@@ -151,6 +150,8 @@ class TestRetrievalModule:
         out, bias = cross_attn(
             hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, rotary_pos_emb=cross_attn_pos_emb
         )
+        assert out.shape == torch.Size([input_length, batch, dim])
+        assert bias.shape == torch.Size([dim])
 
     @pytest.mark.unit
     def test_retrival_encoder(self):
@@ -198,6 +199,7 @@ class TestRetrievalModule:
             .half()
         )
         out = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
+        assert out.shape == torch.Size([batch, chunks, neighbors, 2 * text_chunk_size, dim])
 
     @pytest.mark.unit
     def test_retrival_decoder(self):
@@ -252,6 +254,7 @@ class TestRetrievalModule:
             .half()
         )
         out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
+        assert out.shape == torch.Size([batch, input_length, dim])
 
     @pytest.mark.unit
     def test_encoder_decoder_module(self):
@@ -303,6 +306,7 @@ class TestRetrievalModule:
         out = encoder_decoder(
             hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask, labels=labels
         )
+        assert out.shape == torch.Size([batch, input_length])
 
         # verify the attention mask matrix is correct
 

@@ -14,7 +14,7 @@
 
 import os
 import re
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -39,20 +39,12 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import ModelType
-    from apex.transformer import parallel_state, tensor_parallel
-    from apex.transformer.pipeline_parallel.schedules.common import build_model
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+    from apex.transformer import parallel_state
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -222,7 +214,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         labels = batch['labels']
 
         loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
-        loss_mask = input_attn_mask.float()
+        loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         self._reduced_loss_buffer.append(reduced_loss[0])
@@ -288,7 +280,7 @@ class MegatronRetrivalModel(MegatronBaseModel):
         retrieved_attn_mask = batch['retrieved_emb_mask']
         labels = batch['labels']
         loss = self(input_tokens_id, input_attn_mask, retrieved_ids, retrieved_attn_mask, labels=labels)
-        loss_mask = input_attn_mask.float()
+        loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         return reduced_loss
@@ -314,16 +306,16 @@ class MegatronRetrivalModel(MegatronBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
-        global_batch_size = self.cfg.global_batch_size
-        max_train_steps = self.trainer.max_steps
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        test_iters = self.trainer.limit_test_batches
+        # global_batch_size = self.cfg.global_batch_size
+        # max_train_steps = self.trainer.max_steps
+        # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        # test_iters = self.trainer.limit_test_batches
 
-        train_valid_test_num_samples = [
-            max_train_steps * global_batch_size,
-            eval_iters * global_batch_size,
-            test_iters * global_batch_size,
-        ]
+        # train_valid_test_num_samples = [
+        #     max_train_steps * global_batch_size,
+        #     eval_iters * global_batch_size,
+        #     test_iters * global_batch_size,
+        # ]
         self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
