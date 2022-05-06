@@ -131,13 +131,19 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-            "run_inverse": NeuralType(elements_type=IntType(), optional=True),
-            "sigma": NeuralType(optional=True),
-        }
+        if self.mode == OperationMode.infer:
+            return {
+                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            }
+        else:
+            return {
+                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "run_inverse": NeuralType(elements_type=IntType(), optional=True),
+                "sigma": NeuralType(optional=True),
+            }
 
     @property
     def output_types(self):

@@ -144,10 +144,12 @@ class BertModel(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
+        masked_softmax_fusion=False,
         bias_gelu_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         add_binary_head=True,
+        megatron_legacy=False,
     ):
         super(BertModel, self).__init__()
         # args = get_args()
@@ -184,9 +186,11 @@ class BertModel(MegatronModule):
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
+            masked_softmax_fusion=masked_softmax_fusion,
             bias_gelu_fusion=bias_gelu_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            megatron_legacy=megatron_legacy,
         )
 
         self.initialize_word_embeddings(
@@ -213,13 +217,15 @@ class BertModel(MegatronModule):
         """See megatron.model.transformer.set_input_tensor()"""
         self.language_model.set_input_tensor(input_tensor)
 
-    def forward(self, bert_model_input, attention_mask, tokentype_ids=None, lm_labels=None):
+    def forward(self, bert_model_input, attention_mask, token_type_ids=None, lm_labels=None):
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
         input_ids = bert_model_input
         position_ids = build_position_ids(input_ids)
 
-        lm_output = self.language_model(input_ids, position_ids, extended_attention_mask, tokentype_ids=tokentype_ids)
+        lm_output = self.language_model(
+            input_ids, position_ids, extended_attention_mask, token_type_ids=token_type_ids
+        )
 
         if self.post_process and self.add_binary_head:
             lm_output, pooled_output = lm_output

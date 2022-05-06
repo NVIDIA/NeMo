@@ -18,17 +18,21 @@ import shutil
 import tempfile
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, Generator, Iterator, List, Mapping, Optional, Sized, Union
 
 import pytorch_lightning as pl
 import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.loops.fit_loop import FitLoop
 from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.plugins.environments.cluster_environment import ClusterEnvironment
 from pytorch_lightning.plugins.io.checkpoint_plugin import CheckpointIO
 from pytorch_lightning.plugins.precision import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.plugins.training_type.ddp import DDPPlugin
+from pytorch_lightning.trainer.trainer import Trainer
 from pytorch_lightning.utilities.exceptions import MisconfigurationException
+from pytorch_lightning.utilities.fetching import DataFetcher
 from pytorch_lightning.utilities.types import _PATH
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn.parallel import DistributedDataParallel
@@ -41,6 +45,7 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
     HAVE_APEX = True
 
@@ -122,7 +127,7 @@ class NLPDDPPlugin(DDPPlugin):
 
         Args:
             global_rank (int): the global process index.
-            world_size (int): the total number of GPUs, num_nodes * num_gpus
+            world_size (int): the total number of GPUs, num_nodes * num_devices
             is_slurm_managing_tasks (bool, optional): is the cluster managed by SLURM.
         """
         app_state = AppState()
@@ -137,6 +142,7 @@ class NLPDDPPlugin(DDPPlugin):
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size_=app_state.tensor_model_parallel_size,
                     pipeline_model_parallel_size_=app_state.pipeline_model_parallel_size,
+                    pipeline_model_parallel_split_rank_=app_state.pipeline_model_parallel_split_rank,
                 )
 
                 # assert that fake tp and pp rank match after model parallel init
@@ -149,10 +155,14 @@ class NLPDDPPlugin(DDPPlugin):
                 app_state.data_parallel_size = parallel_state.get_data_parallel_world_size()
                 app_state.pipeline_model_parallel_group = parallel_state.get_pipeline_model_parallel_group()
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], filepath: _PATH) -> None:
+    def save_checkpoint(
+        self, checkpoint: Dict[str, Any], filepath: _PATH, storage_options: Optional[Any] = None
+    ) -> None:
+        app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
-        return super().save_checkpoint(checkpoint, filepath)
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any]) -> None:
         # Release strict state dict matching when using Megatron AMP-O2 to skip matching
@@ -184,20 +194,12 @@ class NLPDDPPlugin(DDPPlugin):
         return self.checkpoint_io.load_checkpoint(checkpoint_path)
 
     def remove_checkpoint(self, filepath: _PATH) -> None:
+        app_state = AppState()
         # PTL override to accomodate model parallel checkpoints
         filepath = inject_model_parallel_rank(filepath)
-        logging.info(f'Removing checkpoint: {filepath}')
-        return super().remove_checkpoint(filepath)
-
-    @property
-    def should_rank_save_checkpoint(self) -> bool:
-        # PTL override that determines if checkpoints should be saved based on rank
-        # for model parallel we need data_parallel_rank==0
-        app_state = AppState()
-        if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-            return app_state.data_parallel_rank == 0
-        else:
-            return super().should_rank_save_checkpoint
+        if self.is_global_zero or app_state.data_parallel_rank == 0:
+            logging.info(f'Removing checkpoint: {filepath}')
+            self.checkpoint_io.remove_checkpoint(filepath)
 
     @property
     def distributed_sampler_kwargs(self):
@@ -300,6 +302,62 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         else:
             return super().save_to(model, save_path)
+
+    def modify_state_dict(self, conf, state_dict):
+        if conf.get('megatron_legacy', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('bert_model.language_model', 'bert_model.model.language_model')
+                new_key = new_key.replace('transformer', 'encoder')
+                new_key = new_key.replace('.attention.', '.self_attention.')
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+        return state_dict
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+
+        Example:
+            ```
+            model = nemo.collections.nlp.models.TextClassification.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.nlp.models.TextClassification)
+            ```
+
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = super().load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple):
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+        super().load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        return instance
 
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
@@ -563,3 +621,25 @@ class MegatronHalfPrecisionPlugin(NativeMixedPrecisionPlugin):
             yield
         finally:
             pass
+
+
+class GlobalBatchDataFetcher(DataFetcher):
+    """ Overrides PTL DataFetcher. Used to fetch global batches."""
+
+    def __init__(self, prefetch_batches: int = 0, store_on_device: bool = False) -> None:
+
+        if not HAVE_APEX:
+            logging.warning("Apex was not found. Using model parallel or megatron models will error out.")
+
+        super().__init__(prefetch_batches=prefetch_batches, store_on_device=store_on_device)
+
+    def _fetch_next_batch(self, iterator: Iterator) -> None:
+        start_output = self.on_fetch_start()
+        batch = [next(iterator) for _ in range(get_num_microbatches())]
+        self.fetched += 1
+        if not self.prefetch_batches and self._has_len:
+            # when we don't prefetch but the dataloader is sized, we use the length for `done`
+            dataloader = self.dataloader
+            assert isinstance(dataloader, Sized)  # `_has_len` is True
+            self.done = self.fetched >= len(dataloader)
+        self.on_fetch_end(batch, start_output)

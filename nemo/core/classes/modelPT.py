@@ -25,7 +25,7 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
 from nemo import package_info
 from nemo.core import optim
@@ -123,8 +123,8 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
-        self.trainer = trainer  # reference required for self.*_rank
-        self._trainer = self.trainer  # alias for backward compatibility
+        self.set_trainer(trainer)
+
         self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
@@ -294,7 +294,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -439,9 +443,8 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
-
-        if self._optimizer_param_groups is None:
-            self.setup_optimizer_param_groups()
+        # Setup the optimizer parameter groups (by default use all parameters that are trainable)
+        self.setup_optimizer_param_groups()
 
         # If config was not explicitly passed to us
         if optim_config is None:
@@ -483,21 +486,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
-                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -1030,7 +1022,7 @@ class ModelPT(LightningModule, Model):
                         trainer = self.trainer
                         if (
                             hasattr(trainer, 'resume_from_checkpoint')
-                            and trainer.checkpoint_connector.resume_checkpoint_path is not None
+                            and trainer._checkpoint_connector.resume_checkpoint_path is not None
                         ):
                             logging.info(
                                 "Model training is being resumed via Pytorch Lightning.\n"
@@ -1206,7 +1198,7 @@ class ModelPT(LightningModule, Model):
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
-            if trainer.num_gpus > 1:
+            if trainer.num_devices > 1:
                 logging.warning(DDP_WARN)
                 return False
 
@@ -1223,7 +1215,7 @@ class ModelPT(LightningModule, Model):
         """
         self.trainer = trainer
         self._trainer = trainer
-        self.set_world_size(self._trainer)
+        self.set_world_size(trainer)
 
     def set_world_size(self, trainer: Trainer):
         """
@@ -1234,12 +1226,28 @@ class ModelPT(LightningModule, Model):
             trainer (Trainer): PyTorch Lightning Trainer object
         """
         # Update AppState with world information from trainer
-        if isinstance(trainer, Trainer):
-            app_state = AppState()
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
-        else:
-            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        self.world_size = 1
+
+        if trainer is not None:
+            if isinstance(trainer, Trainer):
+                if trainer.num_devices and trainer.num_nodes:
+                    self.world_size = trainer.num_devices * trainer.num_nodes
+            else:
+                logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        app_state = AppState()
+        app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """

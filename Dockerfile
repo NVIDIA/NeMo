@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.02-py3
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:22.04-py3
 
 
 # build an image that includes only the nemo dependencies, ensures that dependencies
@@ -56,10 +56,6 @@ WORKDIR /tmp/nemo
 COPY requirements .
 RUN for f in $(ls requirements*.txt); do pip install --disable-pip-version-check --no-cache-dir -r $f; done
 
-# install nemo_text_processing dependencies
-COPY nemo_text_processing /tmp/nemo/nemo_text_processing/
-RUN /bin/bash /tmp/nemo/nemo_text_processing/setup.sh
-
 # install k2, skip if installation fails
 COPY scripts /tmp/nemo/scripts/
 RUN /bin/bash /tmp/nemo/scripts/speech_recognition/k2/setup.sh; exit 0
@@ -70,7 +66,7 @@ COPY . .
 
 # start building the final container
 FROM nemo-deps as nemo
-ARG NEMO_VERSION=1.8.0
+ARG NEMO_VERSION=1.9.0
 
 # Check that NEMO_VERSION is set. Build will fail without this. Expose NEMO and base container
 # version information as runtime environment variable for introspection purposes

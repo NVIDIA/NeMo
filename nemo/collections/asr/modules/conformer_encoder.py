@@ -14,6 +14,7 @@
 
 import math
 from collections import OrderedDict
+from typing import List, Optional
 
 import torch
 import torch.distributed
@@ -21,9 +22,10 @@ import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
@@ -149,18 +151,23 @@ class ConformerEncoder(NeuralModule, Exportable):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
-            self.pre_encode = ConvSubsampling(
-                subsampling=subsampling,
-                subsampling_factor=subsampling_factor,
-                feat_in=feat_in,
-                feat_out=d_model,
-                conv_channels=subsampling_conv_channels,
-                activation=nn.ReLU(),
-            )
-            self._feat_out = d_model
+            if subsampling == 'stacking':
+                self.pre_encode = StackingSubsampling(
+                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model
+                )
+            else:
+                self.pre_encode = ConvSubsampling(
+                    subsampling=subsampling,
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=d_model,
+                    conv_channels=subsampling_conv_channels,
+                    activation=nn.ReLU(),
+                )
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
-            self._feat_out = d_model
+
+        self._feat_out = d_model
 
         if not untie_biases and self_attention_model == "rel_pos":
             d_head = d_model // n_heads
@@ -247,10 +254,11 @@ class ConformerEncoder(NeuralModule, Exportable):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, ConvSubsampling):
-            audio_signal, length = self.pre_encode(audio_signal, length)
-        else:
+        if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
+        else:
+            audio_signal, length = self.pre_encode(audio_signal, length)
+
         audio_signal, pos_emb = self.pos_enc(audio_signal)
         # adjust size
         max_audio_length = audio_signal.size(1)
@@ -302,3 +310,33 @@ class ConformerEncoder(NeuralModule, Exportable):
         mask = self.use_pad_mask
         self.use_pad_mask = on
         return mask
+
+
+class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conformer_layer.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([conformer_layer.is_adapter_available() for conformer_layer in self.layers])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            conformer_layer.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(conformer_layer.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(ConformerEncoder) is None:
+    adapter_mixins.register_adapter(base_class=ConformerEncoder, adapter_class=ConformerEncoderAdapter)

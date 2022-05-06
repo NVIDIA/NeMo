@@ -95,7 +95,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         model = PretrainedModelInfo(
             pretrained_model_name="stt_en_conformer_transducer_medium",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_medium",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_medium/versions/1.4.0/files/stt_en_conformer_transducer_medium.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_medium/versions/1.6.0/files/stt_en_conformer_transducer_medium.nemo",
         )
         results.append(model)
 
@@ -103,6 +103,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             pretrained_model_name="stt_en_conformer_transducer_large",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large/versions/1.6.0/files/stt_en_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_en_conformer_transducer_large_ls",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large_ls",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_en_conformer_transducer_large_ls/versions/1.8.0/files/stt_en_conformer_transducer_large_ls.nemo",
         )
         results.append(model)
 
@@ -145,6 +152,20 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             pretrained_model_name="stt_es_conformer_transducer_large",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_es_conformer_transducer_large",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_es_conformer_transducer_large/versions/1.8.0/files/stt_es_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_enes_conformer_transducer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_enes_conformer_transducer_large/versions/1.0.0/files/stt_enes_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_enes_contextnet_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_enes_contextnet_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_enes_contextnet_large/versions/1.0.0/files/stt_enes_contextnet_large.nemo",
         )
         results.append(model)
 
@@ -424,9 +445,15 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'batch_size': batch_size,
             'shuffle': False,
