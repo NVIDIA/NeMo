@@ -261,13 +261,19 @@ class AdapterModuleMixin(ABC):
         if not self.is_adapter_available():
             return []
 
+        # populate set of available modules (by name)
+        available_module_names = set([])
+        if hasattr(self, 'adapter_layer'):
+            available_module_names.update(list(self.adapter_layer.keys()))
+
         enabled_adapters = []
         for name, config in self.adapter_cfg.items():
             # Skip the global adapter config
             if name == self.adapter_global_cfg_key:
                 continue
 
-            if self.adapter_cfg[name]['enabled']:
+            # If name is in the current available modules, and it is enabled in the config
+            if name in available_module_names and self.adapter_cfg[name]['enabled']:
                 enabled_adapters.append(name)
 
         return enabled_adapters
@@ -571,7 +577,8 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 # Cannot set the state of the global config for adapters
                 if name == self.adapter_global_cfg_key:
                     raise ValueError(
-                        f'Cannot set the state of the global config of adapters, given name = `{self.adapter_global_cfg_key}`'
+                        f'Cannot set the state of the global config of adapters, '
+                        f'given name = `{self.adapter_global_cfg_key}`'
                     )
 
                 # Otherwise, update just the specified adapter.
