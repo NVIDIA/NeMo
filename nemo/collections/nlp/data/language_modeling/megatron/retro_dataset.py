@@ -20,14 +20,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.utils import logging
 
-# from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-#     create_masked_lm_predictions,
-#     create_tokens_and_tokentypes,
-#     get_a_and_b_segments,
-#     get_samples_mapping,
-#     truncate_segments,
-# )
-# from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
 try:
     from apex.transformer import parallel_state
 
@@ -47,8 +39,6 @@ class MockRETRODataset(MegatronDataset):
         torch.manual_seed(seed_val)
 
     def __len__(self):
-        # -1 is due to data structure used to retieve the index:
-        #    sample i --> [sample_idx[i], sample_idx[i+1])
         return self.size
 
     def __getitem__(self, idx):

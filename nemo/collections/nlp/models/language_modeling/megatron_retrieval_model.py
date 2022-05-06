@@ -70,7 +70,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self._build_vocab()
 
         # TODO does not support PP yet
-        # This means we can only use pipeline parallelism without the interleaved schedule.
         self.model = self.model_provider_func(True, True, True, True)
 
         self.setup_optimizer_param_groups()
@@ -306,16 +305,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
-        # global_batch_size = self.cfg.global_batch_size
-        # max_train_steps = self.trainer.max_steps
-        # eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
-        # test_iters = self.trainer.limit_test_batches
-
-        # train_valid_test_num_samples = [
-        #     max_train_steps * global_batch_size,
-        #     eval_iters * global_batch_size,
-        #     test_iters * global_batch_size,
-        # ]
         self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
             cfg=self.cfg,
             trainer=self.trainer,
@@ -394,11 +383,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.setup_training_data(self._cfg.data)
         self.setup_validation_data(self._cfg.data)
         self.setup_test_data(self._cfg.data)
-
-        # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.enc_dec_model.sync_initial_word_embeddings()
-            self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):

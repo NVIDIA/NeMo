@@ -52,12 +52,7 @@ class TestRetrievalModule:
         if not torch.cuda.is_available():
             return
         GPUS = 1
-        # os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
-        # os.environ["LOCAL_RANK"] = '0'
-        # os.environ["RANK"] = '0'
-        # os.environ["WORLD_SIZE"] = '1'
         plugins = [NLPDDPPlugin()]
-        # plugins.append(TorchElasticEnvironment())
         TP_SIZE = GPUS
         PP_SIZE = 1
         MB_SIZE = 4
