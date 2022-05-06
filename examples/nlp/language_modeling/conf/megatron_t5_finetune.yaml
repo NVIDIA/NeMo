@@ -66,7 +66,6 @@ model:
       src_file_name: ??? # Path to the txt file corresponding to the source data.
       tgt_file_name: ??? # Path to the txt file corresponding to the target data.
       names: null # If src/tgt file names are ListConfigs, the corresponding label is used to log metrics.
-      metric: 'accuracy' # Options: ['f1-micro', 'f1-macro', 'spearman-corr', 'pearson-corr', 'auroc']
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: False
