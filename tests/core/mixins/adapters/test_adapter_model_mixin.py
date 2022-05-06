@@ -26,6 +26,8 @@ from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, Adapter
 
 
 class DefaultModule(NeuralModule):
+    """ Define a default neural module (without adapter support)"""
+
     def __init__(self):
         super().__init__()
 
@@ -47,6 +49,8 @@ class DefaultModule(NeuralModule):
 
 
 class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
+    """ Subclass the DefaultModule, adding adapter module support"""
+
     def forward(self, x):
         x = super(DefaultModuleAdapter, self).forward(x)
 
@@ -60,6 +64,16 @@ class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
 
 
 class DefaultModelAdapterMixin(AdapterModelPTMixin):
+    """ Mixin class that implements this model's specific overrides to AdapterModelPTMixin
+    It will container two modules, an encoder and a decoder, and both can have adapters.
+    By default, encoder adapters are enabled, and decoder adapters are diabled. Decoder adapters
+    can be enabled via the global_cfg in model.cfg.adapters.
+
+    Checks and forwards functions to the corresponding modules.
+
+    It supports both global adapters and module adapters for testing purpose.
+    """
+
     def setup_adapters(self):
         supports_adapters = False
 
@@ -74,7 +88,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
             super().setup_adapters()
 
     def add_adapter(self, name: str, cfg: DictConfig):
-        # setup the config for adapters
+        # Setup the config for adapters
         super().add_adapter(name, cfg)
 
         # Resolve module name and adapter name
@@ -96,16 +110,16 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         super().set_enabled_adapters(name, enabled)
 
         # Resolve module name and adapter name
-        module_name, adapter_name = self._resolve_adapter_module_name(name)
+        module_name, _ = self._resolve_adapter_module_name(name)
 
         # Try to retrieve global adapter config
         global_config = self._get_global_cfg()
 
         # Forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True):
+        if global_config.get('encoder_adapter', True) or module_name in ('', 'encoder'):
             self.encoder.set_enabled_adapters(name, enabled)
 
-        if global_config.get('decoder_adapter', False):
+        if global_config.get('decoder_adapter', False) or module_name == 'decoder':
             self.decoder.set_enabled_adapters(name, enabled)
 
     def get_enabled_adapters(self) -> list:
@@ -126,13 +140,12 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         adapters_available = super().is_adapter_available()
 
         # Try to retrieve global adapter config
-        global_config = self._get_global_cfg()
-
         # Forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True):
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
+            print("Encoder is adapter available", self.encoder.is_adapter_available())
             adapters_available |= self.encoder.is_adapter_available()
 
-        if global_config.get('decoder_adapter', False):
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
             adapters_available |= self.decoder.is_adapter_available()
 
         return adapters_available
@@ -167,7 +180,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
     def _get_global_cfg(self):
         global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
+        if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
             global_config = self.adapter_cfg[self.adapter_global_cfg_key]
         return global_config
 
@@ -257,6 +270,9 @@ class TestAdapterModelMixin:
 
         with pytest.raises(ValueError):
             model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+
+        with pytest.raises(ValueError):
+            model.get_enabled_adapters()
 
     @pytest.mark.unit
     def test_single_adapter(self):
@@ -517,16 +533,31 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         origial_output = model(x)
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
+        # add encoder adapters
+        if enc:
+            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name='encoder:adapter_1', cfg=get_adapter_cfg())
 
-        model.set_enabled_adapters(name='adapter_0', enabled=False)
+        # add decoder adapters
+        if dec:
+            model.add_adapter(name='decoder:adapter_2', cfg=get_adapter_cfg())
+            model.add_adapter(name='decoder:adapter_3', cfg=get_adapter_cfg())
+
+        # disable encoder adapters
+        if enc:
+            model.set_enabled_adapters(name='adapter_0', enabled=False)
+
+        # disable decoder adapters
+        if dec:
+            model.set_enabled_adapters(name='adapter_3', enabled=False)
+
+        # perform forward
         new_output = model(x)
 
         if enc:
             assert model.encoder._adapter_names == ['adapter_1']
         if dec:
-            assert model.decoder._adapter_names == ['adapter_1']
+            assert model.decoder._adapter_names == ['adapter_2']
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
