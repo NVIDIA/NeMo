@@ -377,6 +377,22 @@ class AdapterModuleMixin(ABC):
     # Utility methods
 
     def _resolve_adapter_module_name(self, name: str) -> (str, str):
+        """
+        Utility method to resolve a given global/module adapter name to its components.
+        Always returns a tuple representing (module_name, adapter_name). ":" is used as the
+        delimiter for denoting the module name vs the adapter name.
+
+        Will attempt to also resolve a given adapter_name alone back to (module_name, adapter_name)
+        if the metadata config exists for access.
+
+        Args:
+            name: A global adapter, or a module adapter name (with structure module_name:adapter_name).
+
+        Returns:
+            A tuple representing (module_name, adapter_name). If a global adapter is provided,
+            module_name is set to ''.
+        """
+        # Attempt to split into module adapter name, iff : exists in the given name.
         if ':' in name:
             splits = name.split(":")
             module_name = splits[0]
