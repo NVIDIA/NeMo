@@ -17,10 +17,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
-from nemo.collections.common.metrics.classification_accuracy import (
-    ExactStringMatchMetric,
-    ExactStringPerCategoryMatchMetric,
-)
+from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
@@ -55,22 +52,29 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if hasattr(self.cfg, "eval_languages"):
             metric = [ExactStringPerCategoryMatchMetric(self.cfg.eval_languages)]
         else:
-            if not hasattr(data_cfg, "metric_name"):
+            if not hasattr(data_cfg, "metric"):
                 metric = MetricStringToTorchMetric["exact_string_match"]
-            elif data_cfg.metric_name not in MetricStringToTorchMetric:
-                raise KeyError(
-                    f"{data_cfg.metric_name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
-                )
-            metric_name = data_cfg.metric_name
+            else:
+                if not hasattr(data_cfg.metric, "name"):
+                    raise ValueError("Metric name is not provided in the metric config.")
+                if data_cfg.metric.name not in MetricStringToTorchMetric:
+                    raise KeyError(
+                        f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
+                    )
+            metric_name = data_cfg.metric.name
             metric = MetricStringToTorchMetric[metric_name]
             # GLUE will not have a "src_file_name" attribute and will always have only a single metric.
             if hasattr(data_cfg, "src_file_name"):
                 if isinstance(data_cfg.src_file_name, ListConfig):
-                    metric = [metric for _ in range(len(self.cfg.data.test_ds.src_file_name))]
+                    # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
+                    metric = [
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        for _ in range(len(self.cfg.data.test_ds.src_file_name))
+                    ]
                 else:
-                    metric = [metric]
+                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
             else:
-                metric = [metric]
+                metric = [metric()]  # GLUE does need to specify average or num_classes.
 
         return metric, metric_name
 
@@ -229,22 +233,44 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             )
         return super().training_step(batch, batch_idx)
 
-    def maybe_cast_to_float(self, pred, label, mode):
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-        if metric_name != 'exact_string_match':
+    def cast_for_metric(self, pred, label, metric_name):
+        if metric_name == 'exact_string_match':
+            return pred, label
+        pred = pred.replace(' ', '')
+        label = label.replace(' ', '')
+
+        # Correlation metrics require casting to float.
+        if metric_name in ['pearson_corr_coef', 'spearman_corr_coef']:
+            # Text-to-text model predictions may not always be valid floating point numbers.
             try:
-                # Detokenization sometimes adds a space between the decimal point ex: 5 . 0, so we need to remove it.
-                pred = float(pred.replace(' ', ''))
+                pred = float(pred)
             except ValueError:
                 pred = 0.0
 
             try:
-                # Detokenization sometimes adds a space between the decimal point ex: 5 . 0, so we need to remove it.
-                label = float(label.replace(' ', ''))
+                label = float(label)
             except ValueError:
-                raise ValueError(f"Could not convert label {label} to a float.")
+                raise ValueError(f'Could not convert {label} to float.')
+
             pred = torch.FloatTensor([pred]).to(self.device)
             label = torch.FloatTensor([label]).to(self.device)
+
+        # Other metrics require casting to integers.
+        elif metric_name in ['accuracy', 'auc', 'auroc', 'average_precision', 'f1']:
+            # Text-to-text model predictions may not always be valid integers.
+            try:
+                pred = int(pred)
+            except ValueError:
+                pred = 0
+
+            try:
+                label = int(label)
+            except ValueError:
+                raise ValueError(f'Could not convert {label} to int.')
+
+            pred = torch.LongTensor([pred]).to(self.device)
+            label = torch.LongTensor([label]).to(self.device)
+
         return pred, label
 
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
@@ -297,7 +323,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         assert len(categories) == len(preds_text) == len(labels_text)
         for _, (pred, label, category) in enumerate(zip(preds_text, labels_text, categories)):
             # To compute metrics like pearson or spearman correlation, we need to cast the predicted string and labels to floats.
-            pred, label = self.maybe_cast_to_float(pred, label, mode)
+            pred, label = self.cast_for_metric(
+                pred, label, self.val_metric_name if mode == 'validation' else self.test_metric_name
+            )
             if batch_has_lang_information:
                 _ = metric(pred, label, category)
             else:
@@ -639,11 +667,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
     def build_train_valid_test_datasets(self, stage):
         logging.info('Building datasets ...')
         if stage != 'test':
-            self._validation_ds = self._build_eval_dataset(self.cfg.data.validation_ds, mode='validation')
+            self._validation_ds = self._build_eval_dataset(self.cfg.data.validation_ds)
 
         if stage != 'validation':
             if hasattr(self.cfg.data, 'test_ds'):
-                self._test_ds = self._build_eval_dataset(self.cfg.data.test_ds, mode='test')
+                self._test_ds = self._build_eval_dataset(self.cfg.data.test_ds)
 
         if stage == 'validation' or stage == 'test':
             return
