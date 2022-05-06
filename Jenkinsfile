@@ -2352,7 +2352,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh "examples/nlp/language_modeling/megatron_retro_pretraining.py \
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
         trainer.accelerator=gpu \
@@ -2380,8 +2380,8 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True "
-        sh "examples/nlp/language_modeling/megatron_retro_pretraining.py \
+        model.data.mock=True"
+        sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
         trainer.accelerator=gpu \
@@ -2409,7 +2409,7 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True "
+        model.data.mock=True"
         sh "rm -rf examples/nlp/language_modeling/bert_retro_results"
       }
     }
