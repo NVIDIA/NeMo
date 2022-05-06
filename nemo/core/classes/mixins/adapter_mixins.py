@@ -590,15 +590,18 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                     logging.info(f"Setting adapter '{key}' status : Enabled = {enabled}")
 
             else:
+                # Resolve the module name and adapter name
+                module_name, adapter_name = self._resolve_adapter_module_name(name)
+
                 # Cannot set the state of the global config for adapters
-                if name == self.adapter_global_cfg_key:
+                if adapter_name == self.adapter_global_cfg_key:
                     raise ValueError(
                         f'Cannot set the state of the global config of adapters, '
                         f'given name = `{self.adapter_global_cfg_key}`'
                     )
 
                 # Otherwise, update just the specified adapter.
-                self.cfg.adapters[name]['enabled'] = enabled
+                self.cfg.adapters[adapter_name]['enabled'] = enabled
                 logging.info(f"Setting adapter '{name}' status : Enabled = {enabled}")
 
             self.update_adapter_cfg(self.cfg.adapters)

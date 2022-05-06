@@ -520,7 +520,7 @@ class TestAdapterModelMixin:
     @pytest.mark.unit
     @pytest.mark.parametrize('enc', [True, False])
     @pytest.mark.parametrize('dec', [True, False])
-    def test_multi_adapter_partial_forward(self, enc, dec):
+    def test_multi_adapter_partial_forward_global_module_different(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
 
@@ -559,6 +559,29 @@ class TestAdapterModelMixin:
         if dec:
             assert model.decoder._adapter_names == ['adapter_2']
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('name1', ['adapter_0', 'encoder:adapter_0'])
+    @pytest.mark.parametrize('name2', ['adapter_1', 'encoder:adapter_1'])
+    def test_multi_adapter_partial_forward_global_module_same_output(self, name1, name2):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 50)
+
+        cfg = get_model_config(in_features=50)
+        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=False)
+
+        model = DefaultAdapterModel(cfg)
+        original_output = model(x)
+
+        model.add_adapter(name=name1, cfg=get_adapter_cfg())
+        model.add_adapter(name=name2, cfg=get_adapter_cfg())
+
+        model.set_enabled_adapters(name=name1, enabled=False)
+        new_output = model(x)
+
+        resolved_name2 = model._resolve_adapter_module_name(name2)[-1]
+        assert model.get_enabled_adapters() == [resolved_name2]
+        assert torch.mean(torch.abs(original_output - new_output)) < 1e-5
 
     @pytest.mark.unit
     @pytest.mark.parametrize('enc', [True, False])

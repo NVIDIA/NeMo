@@ -191,7 +191,7 @@ class TestASRAdapterMixin:
         model.set_enabled_adapters(name=name1, enabled=False)
         new_output = model(input_signal=input_signal, input_signal_length=input_signal_length)[0]
 
-        resolved_name2 = model._resolve_adapter_module_name(name2)
+        resolved_name2 = model._resolve_adapter_module_name(name2)[-1]
         assert model.get_enabled_adapters() == [resolved_name2]
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
