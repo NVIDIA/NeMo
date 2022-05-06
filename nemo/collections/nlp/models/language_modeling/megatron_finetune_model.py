@@ -392,12 +392,20 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     raise ValueError(
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
-                
+
                 # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
                 gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
                 torch.distributed.all_gather_object(
                     gathered_outputs,
-                    [{'preds': x['preds'], 'labels': x['labels'], 'categories': x['categories'], 'inputs': x['inputs']} for x in output]
+                    [
+                        {
+                            'preds': x['preds'],
+                            'labels': x['labels'],
+                            'categories': x['categories'],
+                            'inputs': x['inputs'],
+                        }
+                        for x in output
+                    ],
                 )
 
                 # Figure out what the suffix of the file should be.
@@ -416,14 +424,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 if self.global_rank == 0:
                     for rank in range(0, parallel_state.get_data_parallel_world_size()):
                         for batch in gathered_outputs[rank]:
-                            for pred, label, input, category in zip(batch['preds'], batch['labels'], batch['inputs'], batch['categories']):
+                            for pred, label, input, category in zip(
+                                batch['preds'], batch['labels'], batch['inputs'], batch['categories']
+                            ):
                                 if input + label not in gt_inp_set:
                                     gt_inp_set.add(input + label)
                                     deduplicated_outputs['preds'].append(pred)
                                     deduplicated_outputs['labels'].append(label)
                                     deduplicated_outputs['categories'].append(category)
                                     deduplicated_outputs['inputs'].append(input)
-                self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
+                self.write_predictions_to_file(
+                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                )
                 torch.distributed.barrier()
 
         # Logging of the averaged metrics:
