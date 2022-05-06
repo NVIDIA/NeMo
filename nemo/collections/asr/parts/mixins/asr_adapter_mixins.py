@@ -68,20 +68,19 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
             cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
         """
+        # setup the config for adapters
         super().add_adapter(name=name, cfg=cfg)
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        # Resolve module name and adapter name
+        module_name, _ = self._resolve_adapter_module_name(name)
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(self.cfg):
             # Check if encoder adapters should be added
-            use_encoder_adapters = global_config.get('encoder_adapter', True)
-            if use_encoder_adapters:
+
+            if module_name in ('', 'encoder'):
                 # Dispatch the call to the encoder.
-                self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
+                self.encoder.add_adapter(name=name, cfg=cfg)
 
     def is_adapter_available(self) -> bool:
         """
@@ -93,13 +92,8 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         config_contains_adapter = super().is_adapter_available()
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
-
         # Forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True):
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             config_contains_adapter |= self.encoder.is_adapter_available()
 
         return config_contains_adapter
@@ -124,16 +118,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         super().set_enabled_adapters(name=name, enabled=enabled)
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
+        # Resolve the module name and adapter name
+        module_name, _ = self._resolve_adapter_module_name(name)
 
         # Check if encoder adapters should be used
-        use_encoder_adapters = global_config.get('encoder_adapter', True)
-
         # Dispatch the call to the encoder.
-        if use_encoder_adapters:
+        if module_name in ('', 'encoder'):
             self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
@@ -145,15 +135,8 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         enabled_adapters = super().get_enabled_adapters()
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
-
-        # Check if encoder adapters should be used
-        use_encoder_adapters = global_config.get('encoder_adapter', True)
-
-        if use_encoder_adapters:
+        # Check if encoder adapters should be used or are enabled
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             enabled_adapters.extend(self.encoder.get_enabled_adapters())
 
         return enabled_adapters
@@ -163,12 +146,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         Utility method to test if the subclass of this mixin is an appropriate subclass of ModelPT itself.
         """
         # Obtain the global adapter config if possible, otherwise use sensible defaults.
-        global_cfg = DictConfig({})
-        if hasattr(self, 'adapter_cfg'):
-            global_cfg = self.adapter_cfg
-
-            if self.adapter_global_cfg_key in global_cfg:
-                global_cfg = global_cfg[self.adapter_global_cfg_key]
+        global_cfg = self._get_global_cfg()
 
         # Test whether the encoder supports adapters
         use_encoder_adapter = global_cfg.get('encoder_adapter', True)
@@ -177,3 +155,37 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         if use_encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
             raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
+
+    def _resolve_adapter_module_name(self, name: str) -> (str, str):
+        """
+        Utility method to resolve a given global/module adapter name to its components.
+        Always returns a tuple representing (module_name, adapter_name). ":" is used as the
+        delimiter for denoting the module name vs the adapter name.
+
+        Will attempt to also resolve a given adapter_name alone back to (module_name, adapter_name)
+        if the metadata config exists for access.
+
+        Args:
+            name: A global adapter, or a module adapter name (with structure module_name:adapter_name).
+
+        Returns:
+            A tuple representing (module_name, adapter_name). If a global adapter is provided,
+            module_name is set to ''.
+        """
+        module_name, adapter_name = super()._resolve_adapter_module_name(name)
+
+        # resolve name and module onlt for valid modules
+        valid_module_names = ['', 'encoder']
+        if module_name not in valid_module_names:
+            raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
+
+        return (module_name, adapter_name)
+
+    def _get_global_cfg(self):
+        """
+        Utility method, to either extract or construct the global config inside adapters config.
+        """
+        global_config = DictConfig({})
+        if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        return global_config
