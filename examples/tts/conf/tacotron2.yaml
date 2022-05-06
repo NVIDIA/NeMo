@@ -103,7 +103,7 @@ model:
     dataloader_params:
       drop_last: false
       shuffle: false
-      batch_size: 1
+      batch_size: 24
       num_workers: 8
       pin_memory: false
 
