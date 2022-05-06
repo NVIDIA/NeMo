@@ -351,7 +351,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         averaged_loss = []
         averaged_metric = []
         metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-        # Log metrics for each provided validation/test dataset
+        # Log metrics for each provided validation/test dataset.
         for dataloader_idx, output in enumerate(outputs):
             loss = super().validation_epoch_end([x['loss'] for x in output])
             # Determine the key used to log the loss based on the user provided name of the dataset or the dataloader index.
@@ -370,7 +370,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     metric = metric['acc']
                     self.log(metric_log_key, metric)
                     logging.info(f"{mode} {metric_name}: {metric}")
-                # XNLI case:
+                # XNLI case where the metric dictionary contains the language and the computed metric as values.
                 else:
                     for k, v in metric.items():
                         if k != 'acc' and 'total' not in k:
@@ -380,19 +380,51 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 self.log(metric_log_key, metric)
                 logging.info(f"{mode} {metric_name}: {metric}")
             metric_object.reset()
+
             averaged_loss.append(loss)
             averaged_metric.append(metric)
+
+            # Write predictions, labels, and inputs to a file for each validation/test dataset.
             if data_cfg.get("write_predictions_to_file", False):
-                if parallel_state.get_data_parallel_world_size() > 1:
-                    raise ValueError(
-                        f"Cannot write predictions to file when data parallel > 1. Current data parallel size : {parallel_state.get_data_parallel_world_size()}"
-                    )
+
+                # Check if the user provided a prefix path to the file(s) they want to write.
                 if not hasattr(data_cfg, "output_file_path_prefix") or data_cfg.output_file_path_prefix is None:
                     raise ValueError(
                         f"Cannot write predictions to file when output_file_path_prefix is not set or present in the yaml config file."
                     )
+                
+                # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
+                gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+                torch.distributed.all_gather_object(
+                    gathered_outputs,
+                    [{'preds': x['preds'], 'labels': x['labels'], 'categories': x['categories'], 'inputs': x['inputs']} for x in output]
+                )
+
+                # Figure out what the suffix of the file should be.
                 filename_log_key = self._determine_log_key(data_cfg, dataloader_idx, None, mode)
-                self.write_predictions_to_file(output, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
+
+                # Keep a set of ground truths and inputs to write deduplicated predictions. Distributed Sampler may duplicate examples.
+                gt_inp_set = set()
+                deduplicated_outputs = {
+                    'preds': [],
+                    'labels': [],
+                    'categories': [],
+                    'inputs': [],
+                }
+
+                # PTL models have a self.global_rank attribute and we want to write to disk only on global rank 0.
+                if self.global_rank == 0:
+                    for rank in range(0, parallel_state.get_data_parallel_world_size()):
+                        for batch in gathered_outputs[rank]:
+                            for pred, label, input, category in zip(batch['preds'], batch['labels'], batch['inputs'], batch['categories']):
+                                if input + label not in gt_inp_set:
+                                    gt_inp_set.add(input + label)
+                                    deduplicated_outputs['preds'].append(pred)
+                                    deduplicated_outputs['labels'].append(label)
+                                    deduplicated_outputs['categories'].append(category)
+                                    deduplicated_outputs['inputs'].append(input)
+                self.write_predictions_to_file(deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}")
+                torch.distributed.barrier()
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
@@ -407,11 +439,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         with open(output_file_path_prefix + "_preds.txt", 'w', encoding='utf-8') as f_preds, open(
             output_file_path_prefix + "_labels.txt", 'w', encoding='utf-8'
         ) as f_labels, open(output_file_path_prefix + "_inputs.txt", 'w', encoding='utf-8') as f_input:
-            for batch in outputs:
-                for pred, label, input in zip(batch['preds'], batch['labels'], batch['inputs']):
-                    f_preds.write(f"{pred}\n")
-                    f_labels.write(f"{label}\n")
-                    f_input.write(f"{input}\n")
+            for pred, label, input in zip(outputs['preds'], outputs['labels'], outputs['inputs']):
+                f_preds.write(f"{pred}\n")
+                f_labels.write(f"{label}\n")
+                f_input.write(f"{input}\n")
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         return self.inference_step(batch, batch_idx, 'validation', dataloader_idx)
