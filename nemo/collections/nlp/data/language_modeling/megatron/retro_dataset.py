@@ -61,6 +61,9 @@ class MockRETRODataset(MegatronDataset):
         pad_id = self.tokenizer.pad_id
 
         all_tokens = torch.randint(0, vocab_size, (input_length + 1,))
+        # make sure the eod happens at the end of each chunk, can add paddings to it
+        # e.g. [..., id, id, pad, pad, pad, eod]  each has chunk_size, each sentence
+        # has length of multiple of chunk_size
         hidden = all_tokens[:-1]
         labels = all_tokens[1:]
 
