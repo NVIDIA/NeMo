@@ -182,7 +182,9 @@ class AdapterModuleMixin(ABC):
 
         # Assert that name is globally unique to all adapters.
         if adapter_name in self.adapter_layer:
-            raise ValueError(f"Adapter with name `{name}` already exists !")
+            raise ValueError(
+                f"Adapter with name `{name}` already exists ! Adapter names = {list(self.adapter_layer.keys())}"
+            )
 
         # Assert that name is not `adapter_global_cfg_key`
         if adapter_name == self.adapter_global_cfg_key:

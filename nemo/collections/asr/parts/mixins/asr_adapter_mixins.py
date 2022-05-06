@@ -119,11 +119,14 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         super().set_enabled_adapters(name=name, enabled=enabled)
 
         # Resolve the module name and adapter name
-        module_name, _ = self._resolve_adapter_module_name(name)
+        if name is not None:
+            module_name, _ = self._resolve_adapter_module_name(name)
+        else:
+            module_name = None
 
         # Check if encoder adapters should be used
         # Dispatch the call to the encoder.
-        if module_name in ('', 'encoder'):
+        if name is None or module_name in ('', 'encoder'):
             self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:

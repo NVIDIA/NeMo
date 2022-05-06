@@ -110,16 +110,19 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         super().set_enabled_adapters(name, enabled)
 
         # Resolve module name and adapter name
-        module_name, _ = self._resolve_adapter_module_name(name)
+        if name is not None:
+            module_name, _ = self._resolve_adapter_module_name(name)
+        else:
+            module_name = None
 
         # Try to retrieve global adapter config
         global_config = self._get_global_cfg()
 
         # Forward the method call to the individual modules
-        if global_config.get('encoder_adapter', True) or module_name in ('', 'encoder'):
+        if name is None or global_config.get('encoder_adapter', True) or module_name in ('', 'encoder'):
             self.encoder.set_enabled_adapters(name, enabled)
 
-        if global_config.get('decoder_adapter', False) or module_name == 'decoder':
+        if name is None or global_config.get('decoder_adapter', False) or module_name == 'decoder':
             self.decoder.set_enabled_adapters(name, enabled)
 
     def get_enabled_adapters(self) -> list:
@@ -407,6 +410,24 @@ class TestAdapterModelMixin:
         assert model.is_adapter_available() is False
 
     @pytest.mark.unit
+    def test_set_enabled_all_adapters_with_no_name(self):
+        cfg = get_model_config(in_features=50)
+        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=True)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name='decoder:adapter_1', cfg=get_adapter_cfg())
+        new_num_params = model.num_weights
+
+        model.set_enabled_adapters(enabled=False)
+
+        assert new_num_params > original_num_params
+        assert model.is_adapter_available() is True
+        assert len(model.get_enabled_adapters()) == 0
+
+    @pytest.mark.unit
     def test_enc_dec_enabled_adapters(self):
         cfg = get_model_config(in_features=50)
         cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=False)
@@ -447,6 +468,21 @@ class TestAdapterModelMixin:
         model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
+
+    @pytest.mark.unit
+    def test_multiple_adapter_non_unique_adapter_name(self):
+        cfg = get_model_config(in_features=50)
+        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=True)
+
+        model = DefaultAdapterModel(cfg)
+
+        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+
+        with pytest.raises(ValueError):
+            model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
+
+        with pytest.raises(ValueError):
+            model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg())
 
     @pytest.mark.unit
     @pytest.mark.parametrize('enc', [True, False])
