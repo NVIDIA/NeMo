@@ -707,6 +707,17 @@ class TestAdapterModelMixin:
         assert (out > 0.0).any() == torch.tensor(False)
 
     @pytest.mark.unit
+    def test_save_adapter_with_no_adapters_added(self):
+        # create a model config, but do not add global_cfg to it
+        # we want to test just module level adapter
+        cfg = get_model_config(in_features=50)
+
+        model = DefaultAdapterModel(cfg)
+
+        with pytest.raises(AttributeError):
+            model.save_adapters(filepath='temp.pt', name=None)
+
+    @pytest.mark.unit
     def test_single_decoder_save_load_adapter_only_exact_name(self):
         # create a model config, but do not add global_cfg to it
         # we want to test just module level adapter

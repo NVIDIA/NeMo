@@ -646,6 +646,9 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 all adapters will be saved to the file. The name can be either the global name (adapter_name),
                 or the module level name (module:adapter_name).
         """
+        if not hasattr(self, 'cfg') or 'adapters' not in self.cfg:
+            raise AttributeError("No adapters have been added to this model, so no adapters can be saved.")
+
         output_dict = {}
 
         # Normalize the name to a list of strings
@@ -653,7 +656,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             name = [name]
 
         if name is None:
-            name = self.adapter_cfg.keys()
+            name = self.cfg.adapters.keys()
 
         # Assert that the config must be present to save and restore the adapters.
         if not hasattr(self.cfg, 'adapters'):
