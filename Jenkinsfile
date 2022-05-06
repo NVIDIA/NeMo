@@ -2902,7 +2902,7 @@ pipeline {
             model.validation_ds.dataloader_params.batch_size=4 \
             model.validation_ds.dataloader_params.num_workers=1 \
             ~model.text_normalizer \
-            ~model.text_normalizer_call_kwargs
+            ~model.text_normalizer_call_kwargs \
             ~trainer.check_val_every_n_epoch \
           }
         }
