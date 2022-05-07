@@ -48,7 +48,7 @@ Args:
 --min_spkrs_count: min number of samples per speaker to consider and ignore otherwise
 """
 
-DURATIONS = [1, 2, 3, 4]
+DURATIONS = sorted([1, 2, 3, 4], reverse=True)
 MIN_ENERGY = 0.01
 CWD = os.getcwd()
 SAMPLE_RATE = 16000
@@ -67,10 +67,19 @@ def filter_manifest_line(manifest_line):
 
     if dur >= min(DURATIONS):
         signal, sr = l.load(audio_path, sr=SAMPLE_RATE)
-        remaining_dur = dur
-        temp_dur = random.choice(DURATIONS)
-        remaining_dur = remaining_dur - temp_dur
-        while remaining_dur >= 0:
+        remaining_dur = dur - start
+
+        segments = DURATIONS.copy()
+        mode = int(remaining_dur // sum(DURATIONS))
+        rem = remaining_dur % sum(DURATIONS)
+        segments = mode * segments
+
+        for val in DURATIONS:
+            if rem >= val:
+                segments.append(val)
+                rem = rem - val
+
+        for temp_dur in segments:
             segment_audio = signal[int(start * sr) : int(start * sr + temp_dur * sr)]
             if l.feature.rms(y=segment_audio).mean() > MIN_ENERGY:
                 final_string = '_' + str(start) + '_' + str(temp_dur)
@@ -89,8 +98,6 @@ def filter_manifest_line(manifest_line):
                 split_manifest.append(meta)
 
             start = start + temp_dur
-            temp_dur = random.choice(DURATIONS)
-            remaining_dur = remaining_dur - temp_dur
 
     return split_manifest
 
