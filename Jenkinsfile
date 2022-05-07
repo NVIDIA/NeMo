@@ -2363,10 +2363,9 @@ pipeline {
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         trainer.val_check_interval=20 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/bert_retro_results \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
         model.data.data_prefix='' \
         model.tensor_model_parallel_size=2 \
-        model.global_batch_size=4 \
         model.micro_batch_size=4 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
@@ -2392,10 +2391,9 @@ pipeline {
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         trainer.val_check_interval=20 \
-        exp_manager.exp_dir=examples/nlp/language_modeling/bert_retro_results \
+        exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
         model.data.data_prefix='' \
         model.tensor_model_parallel_size=2 \
-        model.global_batch_size=4 \
         model.micro_batch_size=4 \
         model.optim.name=fused_adam \
         model.optim.lr=2e-4 \
@@ -2410,7 +2408,7 @@ pipeline {
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
         model.data.mock=True"
-        sh "rm -rf examples/nlp/language_modeling/bert_retro_results"
+        sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }
     stage('L2: BioMegatron Bert NER Task') {

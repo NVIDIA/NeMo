@@ -40,7 +40,6 @@ exp_manager:
 
 model:
   # model parallelism 
-  global_batch_size: 4
   micro_batch_size: 4
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 # has to be one. not supporting pipeline parallel yet

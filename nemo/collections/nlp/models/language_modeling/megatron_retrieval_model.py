@@ -21,9 +21,9 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+    MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -70,19 +70,8 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self._build_vocab()
 
         # TODO does not support PP yet
-        self.model = self.model_provider_func(True, True, True, True)
-
+        self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
         self.setup_optimizer_param_groups()
-
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-
-        if self.megatron_amp_o2:
-
-            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
-
-            # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=cfg.precision)
 
         if self.cfg.precision == 32:
             self.autocast_dtype = torch.float
@@ -112,7 +101,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
             legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
         )
         # add pad special token
-        if not self.tokenizer.pad_id:
+        if not hasattr(self.tokenizer, "pad_id"):
+            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        elif hasattr(self.tokenizer, "pad_id") and self.tokenizer.pad_id is None:
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
     def _build_vocab(self):
@@ -329,35 +320,31 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         # Megatron sampler
-        if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
-            if self._cfg.data.dataloader_type == 'single':
-                batch_sampler = MegatronPretrainingBatchSampler(
+        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
+            if self.cfg.data.dataloader_type == 'single':
+                batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    micro_batch_size=self._cfg.micro_batch_size,
-                    global_batch_size=self._cfg.global_batch_size,
+                    micro_batch_size=self.cfg.micro_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                    drop_last=self._cfg.get('drop_last', True),
                 )
-            elif self._cfg.data.dataloader_type == 'cyclic':
-                batch_sampler = MegatronPretrainingRandomBatchSampler(
+            elif self.cfg.data.dataloader_type == 'cyclic':
+                batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
-                    micro_batch_size=self._cfg.micro_batch_size,
-                    global_batch_size=self._cffg.global_batch_size,
+                    micro_batch_size=self.cfg.micro_batch_size,
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
-                    drop_last=self._cfg.get('drop_last', True),
                 )
             else:
-                raise Exception(f'{self._cfg.dataloader_type} dataloader type is not supported.')
+                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
         else:
             raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, num_workers=self._cfg.data.num_workers, pin_memory=True,
+            dataset, batch_sampler=batch_sampler, num_workers=self.cfg.data.num_workers, pin_memory=True,
         )
 
     def setup(self, stage=None):
@@ -399,44 +386,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def configure_optimizers(self):
-        self.setup_optimization()
-
-        # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and self._optimizer is not None:
-            if self.cfg.precision == 'bf16':
-                fp32_grad_accum = True
-                contiguous_grad_bucket = True
-
-            elif self.cfg.precision == 16:
-                fp32_grad_accum = False
-                # TODO: contiguous grad bucket for fp16 is also planned to be supported
-                contiguous_grad_bucket = False
-
-            # TODO: this should be true when not using pipeline parallelism
-            # we will support that for bf16 when we have async handler from apex
-            # and we will support it for fp16 when we have it implemented in the O2 recipe
-            async_grad_allreduce = False
-
-            self._optimizer = MainParamsOptimizerWrapper(
-                self._optimizer,
-                fp32_grad_accum=fp32_grad_accum,
-                contiguous_grad_bucket=contiguous_grad_bucket,
-                async_grad_allreduce=async_grad_allreduce,
-            )
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
-            if hasattr(self._cfg.optim, 'sched'):
-                sched_config = self._cfg.optim.sched
-                sched_config['max_steps'] = self._trainer.max_steps
-                self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
-                )
-
-        if self._scheduler is None:
-            return self._optimizer
-        else:
-            return [self._optimizer], [self._scheduler]
-
     def get_parameters(self):
         params = []
         for param_group in self._optimizer_param_groups:
@@ -467,11 +416,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
         if clip_val <= 0:
             return
 
-        if self.megatron_amp_o2:
-            # grep fp32 master parameters for gradient clipping
-            parameters = self._optimizer.get_parameters()
-        else:
-            parameters = self.get_parameters()
+        parameters = self.get_parameters()
 
         grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
