@@ -73,6 +73,13 @@ model:
     global_cfg:
       encoder_adapter: True  # ASR adapter key, determines whether to add encoder adapter modules
 
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    # freq_masks will be merged with model config
+    # time_masks will be merged with model config
+    # freq_width will be merged with model config
+    # time_width will be merged with model config
+
   train_ds:
     # train dataset + dataloader config
     # sample_rate will be merged with model config
