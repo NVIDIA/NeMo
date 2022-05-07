@@ -1491,6 +1491,79 @@ pipeline {
             rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
           }
         }
+      }
+      post {
+        always {
+          sh 'pwd && ls nemo_* && rm -rf nemo_experiments && ls nemo_*'
+        }
+      }
+    }
+    stage('Punctuation & Capitalization tarred dataset') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
+        stage('create and use tarred dataset') {
+          steps {
+            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
+            usual_data=${data_dir}/wmt_wiki_10000 && \
+            tarred_data=${data_dir}/train_tarred && \
+            TIME=`date +"%Y-%m-%d-%T"` \
+            output=${data_dir}/output_${TIME} && \
+            tokens_in_batch=2000 && \
+            max_seq_length=512 && \
+            lm_model=distilbert-base-uncased && \
+            python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
+              --text ${usual_data}/input.txt \
+              --labels ${usual_data}/labels.txt \
+              --output_dir ${tarred_data} \
+              --tokens_in_batch ${tokens_in_batch} \
+              --max_seq_length 512 \
+              --lines_per_dataset_fragment 2000 \
+              --num_batches_per_tarfile 5 \
+              --tar_file_prefix punctuation_capitalization \
+              --tokenizer_name ${lm_model} \
+              --use_fast_tokenizer \
+              --pad_label O \
+              --n_jobs 3 && \
+            echo "Number of tarred files in dataset:" && \
+            ls ${tarred_data}/*.tar | wc -l && \
+            echo "Label id files in dataset:" && \
+            ls ${tarred_data}/*.csv && \
+            metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.train_ds.ds_item=${tarred_data} \
+              model.language_model.pretrained_model_name=${lm_model} \
+              model.train_ds.use_tarred_dataset=true \
+              model.train_ds.tar_metadata_file=${metadata_file} \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[0,1] \
+              trainer.accelerator="gpu" \
+              trainer.strategy=ddp \
+              trainer.max_epochs=1 \
+              +exp_manager.explicit_log_dir=${output} && \
+            rm -rf ${output}/* ${tarred_data}'
+          }
+        }
+      }
+    }
+    stage('Punctuation & Capitalization, Different ways of passing labels to model') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      stages {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.label_vocab_dir') {
           steps {
             sh 'cd examples/nlp/token_classification && \
@@ -1500,7 +1573,7 @@ pipeline {
             capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
             printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
             printf "O\nU\n" > "${capit_label_vocab}" && \
-            python punctuation_capitalization_train_evaluate.py \
+            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
@@ -1517,7 +1590,7 @@ pipeline {
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
               +do_testing=false && \
-            python punctuation_capitalization_train_evaluate.py \
+            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
@@ -1538,7 +1611,7 @@ pipeline {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            python punctuation_capitalization_train_evaluate.py \
+            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
               --config-path /home/TestData/nlp/token_classification_punctuation \
               --config-name punctuation_capitalization_config_with_ids \
               model.train_ds.use_tarred_dataset=false \
@@ -1554,7 +1627,7 @@ pipeline {
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
               +do_testing=false && \
-            python punctuation_capitalization_train_evaluate.py \
+            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
