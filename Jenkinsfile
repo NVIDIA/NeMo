@@ -1512,7 +1512,7 @@ pipeline {
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
+              trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
@@ -1527,7 +1527,7 @@ pipeline {
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
+              trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
