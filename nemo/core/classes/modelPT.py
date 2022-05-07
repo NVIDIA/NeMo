@@ -1301,6 +1301,12 @@ class ModelPT(LightningModule, Model):
             Changes to this config are not reflected in the state of the model.
             Please create a new model using an updated config to properly update the model.
         """
+        self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
+
+        # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
+        if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
+            self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
+
         return self._cfg
 
     @cfg.setter
