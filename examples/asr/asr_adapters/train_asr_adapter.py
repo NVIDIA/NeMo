@@ -142,7 +142,14 @@ def main(cfg):
 
     # Setup optimizer
     cfg.model.optim = update_model_cfg(model.cfg.optim, cfg.model.optim)
+    model.cfg.optim = cfg.model.optim  # Update the model's config
     model.setup_optimization(cfg.model.optim)
+
+    # Setup spec augmentation
+    if 'spec_augment' in cfg.model:
+        cfg.model.spec_augment = update_model_cfg(model.cfg.spec_augment, cfg.model.spec_augment)
+        model.cfg.spec_augment = cfg.model.spec_augment  # Update model's config
+        model.spec_augmentation = model.from_config_dict(cfg.model.spec_augment)
 
     # Setup adapters
     with open_dict(cfg.model.adapter):
@@ -167,6 +174,9 @@ def main(cfg):
     model = model.train()
     # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
     model.unfreeze_enabled_adapters()
+
+    # Update model config prior to training
+    model.cfg = model.cfg
 
     # Finally, train model
     trainer.fit(model)
