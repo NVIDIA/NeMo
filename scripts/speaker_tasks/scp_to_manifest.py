@@ -14,7 +14,6 @@
 
 import argparse
 import json
-import multiprocessing
 import os
 import random
 
@@ -31,23 +30,28 @@ random.seed(42)
 This scipt converts a scp file where each line contains  
 <absolute path of wav file> 
 to a manifest json file. 
+Optionally post processes the manifest file to create dev and train split for speaker embedding 
+training, also optionally chunk an audio file in to segments of random DURATIONS and create those
+wav files in CWD. 
+
+While creating chunks, if audio is not sampled at 16Khz, it resamples to 16Khz and write the wav file.
 Args: 
 --scp: scp file name
 --manifest(optional): if you already have manifest file, but would like to process it for creating chunks and splitting then use manifest ignoring scp
 --id: index of speaker label in filename present in scp file that is separated by '/'
 --out: output manifest file name
---split: True / False if you would want to split the  manifest file for training purposes
+--split: if you would want to split the  manifest file for training purposes
         you may not need this for test set. output file names is <out>_<train/dev>.json
         Defaults to False
---create_chunks: bool if you would want to chunk each manifest line to chunks of 3 sec or less
+--create_chunks:if you would want to chunk each manifest line to chunks of 4 sec or less
         you may not need this for test set, Defaults to False
---write_chunks: writes chunked files based on offset to {current working directory}/chunks/{label}/{original_file_name}_{offset}_{duration}.wav
 --min_spkrs_count: min number of samples per speaker to consider and ignore otherwise
 """
 
-DURATIONS = [1.5, 2, 3]
+DURATIONS = [1.5, 2, 3, 4]
 MIN_ENERGY = 0.01
-CWD = './'
+CWD = os.getcwd()
+SAMPLE_RATE = 16000
 
 
 def filter_manifest_line(manifest_line):
@@ -55,19 +59,35 @@ def filter_manifest_line(manifest_line):
     audio_path = manifest_line['audio_filepath']
     start = manifest_line.get('offset', 0)
     dur = manifest_line['duration']
+    label = manifest_line['label']
+    endname = os.path.splitext(audio_path.split(label, 1)[-1])[0]
+    to_path = os.path.join(CWD, 'chunks', label)
+    to_path = os.path.join(to_path, endname[1:])
+    os.makedirs(os.path.dirname(to_path), exist_ok=True)
 
     if dur >= min(DURATIONS):
-        signal, sr = l.load(audio_path, sr=None)
+        signal, sr = l.load(audio_path, sr=SAMPLE_RATE)
         remaining_dur = dur
         temp_dur = random.choice(DURATIONS)
         remaining_dur = remaining_dur - temp_dur
         while remaining_dur >= 0:
             segment_audio = signal[int(start * sr) : int(start * sr + temp_dur * sr)]
             if l.feature.rms(y=segment_audio).mean() > MIN_ENERGY:
+                final_string = '_' + str(start) + '_' + str(temp_dur)
+                final_string = final_string.replace('.', '-')
+                to_file = to_path + final_string + '.wav'
+
+                start = int(float(start * sr))
+                end = start + int(float(temp_dur * sr))
+                chunk = signal[start:end]
+                sf.write(to_file, chunk, sr)
+
                 meta = manifest_line.copy()
-                meta['offset'] = start
+                meta['audio_filepath'] = to_file
+                meta['offset'] = 0
                 meta['duration'] = temp_dur
                 split_manifest.append(meta)
+
             start = start + temp_dur
             temp_dur = random.choice(DURATIONS)
             remaining_dur = remaining_dur - temp_dur
@@ -146,51 +166,27 @@ def get_labels(lines):
     return labels
 
 
-def write_audio_file(line):
-    filename = line['audio_filepath']
-    label = line['label']
-    offset = line['offset']
-    duration = line['duration']
-    basename = os.path.basename(filename).replace('.wav', '')
-    to_path = os.path.join(CWD, 'chunks', label)
-    os.makedirs(to_path, exist_ok=True)
-    to_path = os.path.join(to_path, basename)
-    final_string = '_' + str(offset) + '_' + str(duration)
-    final_string = final_string.replace('.', '-')
-    samples, sr = sf.read(filename)
-    start = int(float(offset * sr))
-    end = start + int(float(duration * sr))
-    chunk = samples[start:end]
-    to_file = to_path + final_string + '.wav'
-    sf.write(to_file, chunk, sr)
-
-    line['offset'] = 0
-    line['audio_filepath'] = to_file
-    return line
-
-
-def main(scp, manifest, id, out, split=False, create_chunks=False, write_chunks=False, min_count=10, workers=4):
+def main(scp, manifest, id, out, split=False, create_chunks=False, min_count=10):
     if os.path.exists(out):
         os.remove(out)
     if scp:
         lines = read_file(scp_file=scp, id=id)
+        lines = process_map(get_duration, lines, chunksize=100)
+        out_file = os.path.splitext(scp)[0] + '_manifest.json'
+        write_file(out_file, lines, range(len(lines)))
     else:
         lines = read_manifest(manifest)
 
     lines = process_map(get_duration, lines, chunksize=100)
 
     if create_chunks:
-        print("creating chunk")
+        print("creating and writing chunks to {}".format(CWD))
         lines = process_map(filter_manifest_line, lines, chunksize=100)
         temp = []
         for line in lines:
             temp.extend(line)
         del lines
         lines = temp
-
-    if create_chunks and write_chunks:
-        print("writing chunks created before as new wav files")
-        lines = process_map(write_audio_file, lines, chunksize=100)
 
     speakers = [x['label'] for x in lines]
 
@@ -231,13 +227,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--create_chunks",
-        help="bool if you would want to chunk each manifest line to chunks of 3 sec or less",
-        required=False,
-        action='store_true',
-    )
-    parser.add_argument(
-        "--write_chunks",
-        help="bool if you would want to write the chunks created with --create_chunk to CWD ",
+        help="bool if you would want to chunk each manifest line to chunks of 4 sec or less",
         required=False,
         action='store_true',
     )
@@ -247,20 +237,9 @@ if __name__ == "__main__":
         type=int,
         help="min number of samples per speaker to consider and ignore otherwise",
     )
-    parser.add_argument(
-        "--num_workers", default=multiprocessing.cpu_count(), type=int, help="Workers to process dataset."
-    )
 
     args = parser.parse_args()
 
     main(
-        args.scp,
-        args.manifest,
-        args.id,
-        args.out,
-        args.split,
-        args.create_chunks,
-        args.write_chunks,
-        args.min_spkrs_count,
-        args.num_workers,
+        args.scp, args.manifest, args.id, args.out, args.split, args.create_chunks, args.min_spkrs_count,
     )
