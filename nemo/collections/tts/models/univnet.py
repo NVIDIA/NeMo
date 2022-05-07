@@ -340,7 +340,9 @@ class UnivNetModel(Vocoder, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['features'], max_dim), device=par.device, dtype=par.dtype)
+        mel = torch.randn(
+            (max_batch, self.cfg['preprocessor']['features'], max_dim), device=par.device, dtype=par.dtype
+        )
         return ({'spec': mel},)
 
     def forward_for_export(self, spec):
