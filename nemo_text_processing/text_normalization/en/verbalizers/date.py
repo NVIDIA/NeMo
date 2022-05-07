@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +14,7 @@
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
+    NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -23,6 +23,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 try:
     import pynini
     from pynini.lib import pynutil
+    from pynini.examples import plurals
 
     PYNINI_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):
@@ -41,7 +42,7 @@ class DateFst(GraphFst):
             for False multiple transduction are generated (used for audio-based normalization)
     """
 
-    def __init__(self, ordinal: GraphFst, deterministic: bool = True):
+    def __init__(self, ordinal: GraphFst, deterministic: bool = True, lm: bool = False):
         super().__init__(name="date", kind="verbalize", deterministic=deterministic)
 
         month = pynini.closure(NEMO_NOT_QUOTE, 1)
@@ -69,7 +70,8 @@ class DateFst(GraphFst):
         graph_mdy = (
             month + pynini.closure(delete_extra_space + day, 0, 1) + pynini.closure(delete_extra_space + year, 0, 1)
         )
-        if not deterministic:
+        # may 5 -> may five
+        if not deterministic and not lm:
             graph_mdy |= (
                 month
                 + pynini.closure(delete_extra_space + day_cardinal, 0, 1)
@@ -97,8 +99,9 @@ class DateFst(GraphFst):
         )
 
         final_graph = (
-            (graph_mdy | year | pynutil.add_weight(graph_dmy, 0.001)) + delete_space + optional_preserve_order
+            (plurals._priority_union(graph_mdy, pynutil.add_weight(graph_dmy, 0.0001), NEMO_SIGMA) | year)
+            + delete_space
+            + optional_preserve_order
         )
-
         delete_tokens = self.delete_tokens(final_graph)
         self.fst = delete_tokens.optimize()
