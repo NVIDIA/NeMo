@@ -41,9 +41,9 @@ mcfg = DictConfig(
 
 pcfg = DictConfig(
     {
-        "_target_": "nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures",
+        "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
         "dither": 0.0,
-        "nfilt": 80,
+        "features": 80,
         "stft_conv": False,
     }
 )

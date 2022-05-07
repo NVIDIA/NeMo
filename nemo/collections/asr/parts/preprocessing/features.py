@@ -152,7 +152,7 @@ class FilterbankFeatures(nn.Module):
         normalize="per_feature",
         n_fft=None,
         preemph=0.97,
-        nfilt=64,
+        features=64,
         lowfreq=0,
         highfreq=None,
         log=True,
@@ -230,13 +230,13 @@ class FilterbankFeatures(nn.Module):
         self.log = log
         self.dither = dither
         self.frame_splicing = frame_splicing
-        self.nfilt = nfilt
+        self.features = features
         self.preemph = preemph
         self.pad_to = pad_to
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
-            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=nfilt, fmin=lowfreq, fmax=highfreq),
+            librosa.filters.mel(sr=sample_rate, n_fft=self.n_fft, n_mels=features, fmin=lowfreq, fmax=highfreq),
             dtype=torch.float,
         ).unsqueeze(0)
         self.register_buffer("fb", filterbanks)
@@ -275,7 +275,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"n_fft: {self.n_fft}")
         logging.debug(f"win_length: {self.win_length}")
         logging.debug(f"hop_length: {self.hop_length}")
-        logging.debug(f"n_mels: {nfilt}")
+        logging.debug(f"n_mels: {features}")
         logging.debug(f"fmin: {lowfreq}")
         logging.debug(f"fmax: {highfreq}")
         logging.debug(f"using grads: {use_grads}")

@@ -92,9 +92,9 @@ model:
       num_workers: 8
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
     dither: 0.0
-    nfilt: ${n_mels}
+    features: ${n_mels}
     frame_splicing: 1
     highfreq: ${fmax}
     log: true

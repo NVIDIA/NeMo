@@ -138,7 +138,7 @@ class GlowVocoder(Vocoder):
                 raise AttributeError(
                     f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class "
                     "to have audio_to_melspec_precessor defined to obtain stft parameters. "
-                    "audio_to_melspec_precessor requires n_fft, hop_length, win_length, window, and nfilt to be "
+                    "audio_to_melspec_precessor requires n_fft, hop_length, win_length, window, and features to be "
                     "defined."
                 ) from e
 
@@ -161,12 +161,12 @@ class GlowVocoder(Vocoder):
 
         if self.n_mel is None:
             try:
-                self.n_mel = self.audio_to_melspec_precessor.nfilt
+                self.n_mel = self.audio_to_melspec_precessor.features
             except AttributeError as e:
                 raise AttributeError(
                     f"{self} could not find a valid audio_to_melspec_precessor. GlowVocoder requires child class to "
                     "have audio_to_melspec_precessor defined to obtain stft parameters. audio_to_melspec_precessor "
-                    "requires nfilt to be defined."
+                    "requires features to be defined."
                 ) from e
 
     def update_bias_spect(self):

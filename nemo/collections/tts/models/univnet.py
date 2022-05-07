@@ -55,7 +55,7 @@ class UnivNetModel(Vocoder, Exportable):
         # We use separate preprocessor for training, because we need to pass grads and remove pitch fmax limitation
         self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
         self.generator = instantiate(
-            cfg.generator, n_mel_channels=cfg.preprocessor.nfilt, hop_length=cfg.preprocessor.n_window_stride
+            cfg.generator, n_mel_channels=cfg.preprocessor.features, hop_length=cfg.preprocessor.n_window_stride
         )
         self.mpd = MultiPeriodDiscriminator(cfg.discriminator.mpd, debug=cfg.debug if "debug" in cfg else False)
         self.mrd = MultiResolutionDiscriminator(cfg.discriminator.mrd, debug=cfg.debug if "debug" in cfg else False)
@@ -340,7 +340,7 @@ class UnivNetModel(Vocoder, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
+        mel = torch.randn((max_batch, self.cfg['preprocessor']['features'], max_dim), device=par.device, dtype=par.dtype)
         return ({'spec': mel},)
 
     def forward_for_export(self, spec):

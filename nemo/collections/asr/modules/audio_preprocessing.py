@@ -245,7 +245,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             normalize=normalize,
             n_fft=n_fft,
             preemph=preemph,
-            nfilt=features,
+            features=features,
             lowfreq=lowfreq,
             highfreq=highfreq,
             log=log,

@@ -47,8 +47,8 @@ model:
       num_workers: 4
 
   preprocessor:
-    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
-    nfilt: ${n_mel_channels}
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    features: ${n_mel_channels}
     lowfreq: ${lowfreq}
     highfreq: ${highfreq}
     n_fft: ${n_fft}
