@@ -31,6 +31,7 @@ try:
     from nemo.collections.tts.models.uniglow import UniGlowModel
     from nemo.collections.tts.models.univnet import UnivNetModel
     from nemo.collections.tts.models.waveglow import WaveGlowModel
+    from nemo.collections.tts.models.radtts import RadTTSModel
 except ModuleNotFoundError:
     pass
 
@@ -57,4 +58,5 @@ __all__ = [
     "AlignerModel",
     "MixerTTSModel",
     "UnivNetModel",
+    "RadTTSModel",
 ]
