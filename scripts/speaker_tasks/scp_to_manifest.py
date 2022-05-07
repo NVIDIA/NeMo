@@ -48,7 +48,7 @@ Args:
 --min_spkrs_count: min number of samples per speaker to consider and ignore otherwise
 """
 
-DURATIONS = [1.5, 2, 3, 4]
+DURATIONS = [1, 2, 3, 4]
 MIN_ENERGY = 0.01
 CWD = os.getcwd()
 SAMPLE_RATE = 16000
@@ -77,9 +77,9 @@ def filter_manifest_line(manifest_line):
                 final_string = final_string.replace('.', '-')
                 to_file = to_path + final_string + '.wav'
 
-                start = int(float(start * sr))
-                end = start + int(float(temp_dur * sr))
-                chunk = signal[start:end]
+                c_start = int(float(start * sr))
+                c_end = c_start + int(float(temp_dur * sr))
+                chunk = signal[c_start:c_end]
                 sf.write(to_file, chunk, sr)
 
                 meta = manifest_line.copy()
