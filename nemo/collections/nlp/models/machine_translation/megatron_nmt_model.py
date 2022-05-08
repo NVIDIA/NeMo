@@ -13,6 +13,7 @@
 # limitations under the License.
 import itertools
 import random
+import re
 from typing import Optional
 
 import numpy as np
@@ -28,6 +29,10 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.common.megatron_sequence_to_sequence_dataset import MegatronSequenceToSequenceDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
+
 from nemo.utils import AppState, logging
 
 try:
@@ -79,7 +84,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
-        self.init_consumed_samples = 0  # This is just to keep the parent class happy.
+        resume_checkpoint_path = self.trainer._checkpoint_connector.resume_from_checkpoint_fit_path
+        if resume_checkpoint_path:
+            try:
+                init_consumed_samples = int(
+                    float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
+                )
+            except (ValueError, TypeError):
+                logging.warning("Cannot parse the checkpoint file to get the consumed samples. This is expected if you are not using memmap datasets.")
+                init_consumed_samples = 0
+        else:
+            init_consumed_samples = 0
+        self.init_consumed_samples = init_consumed_samples
         if stage == 'predict':
             return
 
@@ -90,6 +106,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         self.setup_training_data(self._cfg.train_ds)
         self.setup_validation_data(self._cfg.validation_ds)
         self.setup_test_data(self._cfg.test_ds)
+
+        # when using pipeline model parallel the final stage need to initialize word embeddings
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            self.enc_dec_model.sync_initial_word_embeddings()
+            self.enc_dec_model.sync_initial_position_embeddings()
 
     def _build_tokenizer(self):
         # Instantiates tokenizers and register to be saved with NeMo Model archive
@@ -150,31 +171,33 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def training_step(self, batch, batch_idx):
-        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
-        batch = self.process_global_batch_for_tarred_datasets(batch)
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=batch['text_enc'].size(0),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
+            # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+            batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+            batch = self.process_global_batch_for_tarred_datasets(batch)
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=batch['text_enc'].size(0),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
         return super().training_step(batch, batch_idx)
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
-        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
-        batch = self.process_global_batch_for_tarred_datasets(batch)
-        app_state = AppState()
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=batch['text_enc'].size(0),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if self._cfg.test_ds.dataset_type in ['tarred', 'text']:
+            # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+            batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+            batch = self.process_global_batch_for_tarred_datasets(batch)
+            app_state = AppState()
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=batch['text_enc'].size(0),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = super().validation_step(batch, batch_idx)
         tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
@@ -390,7 +413,31 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         # TODO: Figure out how to set global rank and world size for model parallel.
         if hasattr(self, '_train_ds'):
-            self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds)
+            if train_data_config.dataset_type in ['tarred', 'text']:
+                self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds)
+            elif train_data_config.dataset_type in ['bin_memmap', 'text_memmap']:
+                consumed_samples = self.compute_consumed_samples(0)
+                self._train_dl = self._setup_megatron_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds, consumed_samples=consumed_samples)
+
+    def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
+        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        batch_sampler = MegatronPretrainingBatchSampler(
+            total_samples=len(dataset),
+            consumed_samples=consumed_samples,
+            micro_batch_size=cfg.micro_batch_size,
+            global_batch_size=cfg.global_batch_size,
+            data_parallel_rank=parallel_state.get_data_parallel_rank(),
+            data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            drop_last=True,
+        )
+
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            collate_fn=dataset._collate_fn,
+            num_workers=cfg.num_workers,
+            pin_memory=True,
+        )
 
     def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
@@ -414,15 +461,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def build_train_valid_test_datasets(self):
-        self._train_ds = MTEncDecModel._setup_dataset_from_config(
-            cfg=self._cfg.train_ds,
-            encoder_tokenizer=self.encoder_tokenizer,
-            decoder_tokenizer=self.decoder_tokenizer,
-            global_rank=parallel_state.get_data_parallel_rank(),
-            world_size=parallel_state.get_data_parallel_world_size(),
-            multilingual=self.multilingual,
-            multilingual_ids=self.multilingual_ids,
-        )
+        """Builds the train, validation, and test datasets."""
+
+        # Builds datasets if the type is tarred or from raw text without memmap.
+        if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
+            self._train_ds = self.build_tarred_train_dataset()
+        elif self._cfg.train_ds.dataset_type == 'bin_memmap':
+            self._train_ds = self.build_bin_memmap_dataset_from_config(self._cfg.train_ds)
+        elif self._cfg.train_ds.dataset_type == 'text_memmap':
+            self._train_ds = self.build_text_memmap_dataset_from_config(self._cfg.train_ds)
+
         self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
             cfg=self._cfg.validation_ds,
             multilingual=self.multilingual,
@@ -439,6 +487,79 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
             )
+
+    def build_bin_memmap_dataset_from_config(self, cfg: DictConfig):
+        """Builds a memmap dataset from a existing binary based o nthe provided config."""
+        is_src_listconfig = isinstance(cfg.src_file_name, ListConfig)
+        is_tgt_listconfig = isinstance(cfg.tgt_file_name, ListConfig)
+        # If multilingual, make sure both source and target are list configs
+        if self.multilingual:
+            if not (is_src_listconfig and is_tgt_listconfig):
+                raise ValueError(f"Multilingual datasets must be configured with a ListConfig for both src_file_name and tgt_file_name")
+        if is_src_listconfig and not is_tgt_listconfig or is_tgt_listconfig and not is_src_listconfig:
+            raise ValueError(f"Datasets must be configured with a ListConfig for both src_file_name and tgt_file_name or neither. Found only one of them as listconfig.")
+
+        if is_src_listconfig and is_tgt_listconfig:
+            if len(cfg.src_file_name) != len(cfg.tgt_file_name):
+                raise ValueError(f"Datasets must have the same number of files in src_file_name and tgt_file_name")
+
+            if cfg.concat_sampling_probabilities is None or not isinstance(cfg.concat_sampling_probabilities, ListConfig):
+                raise ValueError(f"concat_sampling_probabilities must be a ListConfig with the same number of files in src_file_name and tgt_file_name, found {cfg.concat_sampling_probabilities}")
+            if len(cfg.concat_sampling_probabilities) != len(cfg.src_file_name):
+                raise ValueError(f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}")
+
+            datasets = []
+            for src_file, tgt_fille in zip(cfg.src_file_name, cfg.file_file_name):
+                dataset = MegatronSequenceToSequenceDataset(
+                    src_dataset_prefix=src_file,
+                    tgt_dataset_prefix=tgt_fille,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    max_encoder_seq_length=cfg.max_seq_length,
+                    max_decoder_seq_length=cfg.max_seq_length,
+                    start_index=0,
+                    end_index=None,
+                    data_impl="mmap",
+                    skip_warmup=True,
+                    dataset_index_sampling_override=False,
+                )
+                datasets.append(dataset)
+            dataset = BlendableDataset(
+                datasets=datasets,
+                weights=cfg.concat_sampling_probabilities
+            )
+        else:
+            dataset = MegatronSequenceToSequenceDataset(
+                src_dataset_prefix=cfg.src_file_name,
+                tgt_dataset_prefix=cfg.tgt_file_name,
+                src_tokenizer=self.encoder_tokenizer,
+                tgt_tokenizer=self.decoder_tokenizer,
+                max_encoder_seq_length=cfg.max_seq_length,
+                max_decoder_seq_length=cfg.max_seq_length,
+                start_index=0,
+                end_index=None,
+                data_impl="mmap",
+                skip_warmup=True,
+                dataset_index_sampling_override=False,
+            )
+        return dataset
+
+    def build_text_memmap_dataset_from_config(self, cfg: DictConfig):
+        pass
+
+    def build_tarred_train_dataset(self):
+        return MTEncDecModel._setup_dataset_from_config(
+            cfg=self._cfg.train_ds,
+            encoder_tokenizer=self.encoder_tokenizer,
+            decoder_tokenizer=self.decoder_tokenizer,
+            global_rank=parallel_state.get_data_parallel_rank(),
+            world_size=parallel_state.get_data_parallel_world_size(),
+            multilingual=self.multilingual,
+            multilingual_ids=self.multilingual_ids,
+        )
+
+    def build_megatron_train_valid_test_datasets(self):
+        self._validate_megatron_data_config(self._cfg.train_ds)
 
     def list_available_models(self):
         pass
