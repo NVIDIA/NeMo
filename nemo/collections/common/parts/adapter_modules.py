@@ -34,7 +34,7 @@ class LinearAdapter(nn.Module):
             will occur in the first layer or the last layer. Certain architectures may prefer one over the other.
     """
 
-    def __init__(self, in_features, dim, activation: str = 'swish', norm_position="post", dropout: float = 0.0):
+    def __init__(self, in_features, dim, activation: str = 'swish', norm_position: str = "post", dropout: float = 0.0):
         super().__init__()
 
         activation = activation_registry[activation]()
@@ -62,7 +62,7 @@ class LinearAdapter(nn.Module):
             )
 
         if dropout > 0.0:
-            self.dropout = nn.Dropout(dropout, inplace=True)
+            self.dropout = nn.Dropout(dropout)
         else:
             self.dropout = None
 
