@@ -1611,9 +1611,16 @@ pipeline {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
           steps {
             sh 'cd examples/nlp/token_classification && \
+            conf_path=/home/TestData/nlp/token_classification_punctuation && \
+            conf_name=punctuation_capitalization_config_with_ids && \
+            cp conf/punctuation_capitalization_config.yaml "${conf_path}/${conf_name}.yaml" && \
+            sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
+              "${conf_path}/${conf_name}.yaml" && \
+            sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
+              "${conf_path}/${conf_name}.yaml" && \
             CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
-              --config-path /home/TestData/nlp/token_classification_punctuation \
-              --config-name punctuation_capitalization_config_with_ids \
+              --config-path "${conf_path}" \
+              --config-name "${conf_name}" \
               model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
               model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
@@ -1622,7 +1629,7 @@ pipeline {
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
+              trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
@@ -1637,11 +1644,12 @@ pipeline {
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
-              trainer.gpus=[0,1] \
+              trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
+            rm -rf /home/TestData/nlp/token_classification_punctuation/output/* && \
+            rm "${conf_path}/${conf_name}.yaml"'
           }
         }
       }
