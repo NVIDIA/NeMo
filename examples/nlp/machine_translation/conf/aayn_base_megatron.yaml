@@ -102,6 +102,7 @@ model:
     retrieval_db_src: null # retrieval database with src sentences
     retrieval_db_tgt: null # retrieval database with tgt sentences
     retrieval_indices: null # file with indices of nns to retrieve for train
+    retrieval_nns: 1 # number of nearest neighbors to append
 
   validation_ds:
     src_file_name: ???
@@ -117,6 +118,7 @@ model:
     retrieval_db_src: null # retrieval database with src sentences
     retrieval_db_tgt: null # retrieval database with tgt sentences
     retrieval_indices: null # file with indices of nns to retrieve
+    retrieval_nns: 1 # number of nearest neighbors to append
 
   test_ds:
     src_file_name: ???
@@ -132,6 +134,8 @@ model:
     retrieval_indices: null # file with indices of nns to retrieve
     retrieval_db_src: null # retrieval database with src sentences
     retrieval_db_tgt: null # retrieval database with tgt sentences
+    retrieval_nns: 1 # number of nearest neighbors to append
+
 
   optim:
     name: fused_adam

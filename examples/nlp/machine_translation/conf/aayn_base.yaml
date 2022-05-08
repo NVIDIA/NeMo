@@ -42,6 +42,8 @@ model:
     retrieval_indices: null # file with indices of nns to retrieve for train
     retrieval_db_src: null
     retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
+
 
   validation_ds:
     src_file_name: ???
@@ -57,6 +59,8 @@ model:
     retrieval_indices: null # file with indices of nns to retrieve fro val
     retrieval_db_src: null
     retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
+
 
   test_ds:
     src_file_name: ???
@@ -72,6 +76,7 @@ model:
     retrieval_indices: null
     retrieval_db_src: null
     retrieval_db_tgt: null
+    retrieval_nns: 1 # number of nearest neighbors to append
 
   optim:
     name: adam

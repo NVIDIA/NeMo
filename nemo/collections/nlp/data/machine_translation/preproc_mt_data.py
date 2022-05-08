@@ -264,7 +264,7 @@ class MTDataPreproc:
                             world_size=self.world_size,
                             n_jobs=cfg.train_ds.get('n_preproc_jobs', -2),
                             tar_file_prefix=cfg.train_ds.get('tar_file_prefix', 'parallel'),
-                            nns=cfg.train_ds.get('retrieval_nns', 2),
+                            nns=cfg.train_ds.get('retrieval_nns', 1),
                         )
                         metadata_file_list.append(self.train_metadata_file)
                     # update config
@@ -409,7 +409,7 @@ class MTDataPreproc:
         world_size,
         n_jobs=-2,
         tar_file_prefix='parallel',
-        nns=2,
+        nns=1,
         encoder_tokenizer_legacy=False,
         decoder_tokenizer_legacy=False,
     ):

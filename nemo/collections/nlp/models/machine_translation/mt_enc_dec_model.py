@@ -942,8 +942,8 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     cache_data_per_node=cfg.get("cache_data_per_node", False),
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
-                    prepend_id=self.multilingual_ids[prepend_idx] if self.multilingual else None,
-                    retrieval_nns=cfg.get("retrieval_nns", 3),
+                    prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
+                    retrieval_nns=cfg.get("retrieval_nns", 2),
                 )
                 dataset.batchify(encoder_tokenizer, decoder_tokenizer, val=True)
             datasets.append(dataset)

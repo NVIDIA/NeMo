@@ -252,10 +252,7 @@ class TranslationDataset(Dataset):
             if not buckets[indices[i]]:
                 i = i + 1
 
-        if not batches[-1]:
-            batches.pop(-1)
-
-        return batches
+        if not batches[-1]: batches.pop(-1) return batches
 
     def clean_src_and_target(
         self,
