@@ -296,6 +296,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return self.eval_epoch_end(outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
+        if not outputs:
+            return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
@@ -564,14 +566,28 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def list_available_models(self):
         pass
 
+    def on_validation_epoch_end(self):
+        app_state = AppState()
+        if hasattr(self, "_train_ds"):
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=self._cfg.train_ds.global_batch_size,
+                micro_batch_size=self._cfg.train_ds.micro_batch_size,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
     def on_train_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+        if self._cfg.train_ds.dataset_type in ['text', 'tarred']:
+            self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
 
     def on_validation_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
-        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
+        if self._cfg.validation_ds.dataset_type in ['text', 'tarred']:
+            self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+            self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
 
     def on_test_start(self) -> None:
-        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
+        if self._cfg.test_ds.dataset_type in ['text', 'tarred']:
+            self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
