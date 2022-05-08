@@ -64,6 +64,7 @@ model:
     dim: 32  # The hidden dimension of the adapter, as chosen by user, but small values are preferred to reduce param count.
     activation: swish
     norm_position: 'post'  # Can be `pre` or `post`
+    dropout: 0.0  # float, dropout for the adapter
 
     # Optional global config available to all adapters at a global level.
     # A global config is shared across every layer of the adapters, defining global properties rather

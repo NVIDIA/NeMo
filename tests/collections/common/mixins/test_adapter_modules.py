@@ -44,8 +44,39 @@ class TestAdapterModules:
 
         with torch.no_grad():
             assert adapter.module[-1].weight.sum() == 0
-            if hasattr(adapter.module[-1], 'bias'):
-                adapter.module[-1].bias.sum() == 0
+            if hasattr(adapter.module[-1], 'bias') and adapter.module[-1].bias is not None:
+                assert adapter.module[-1].bias.sum() == 0
+
+            out = adapter(x)
+            assert out.sum() <= 1e-8
+
+    @pytest.mark.unit
+    def test_linear_adapter_dropout(self):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 50)
+
+        adapter = adapter_modules.LinearAdapter(in_features=50, dim=5, dropout=0.5)
+
+        with torch.no_grad():
+            assert adapter.module[-1].weight.sum() == 0
+            if hasattr(adapter.module[-1], 'bias') and adapter.module[-1].bias is not None:
+                assert adapter.module[-1].bias.sum() == 0
+
+            out = adapter(x)
+            assert out.sum() <= 1e-8
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('norm_position', ['pre', 'post'])
+    def test_linear_adapter_norm_position(self, norm_position):
+        torch.random.manual_seed(0)
+        x = torch.randn(2, 50)
+
+        adapter = adapter_modules.LinearAdapter(in_features=50, dim=5, norm_position=norm_position)
+
+        with torch.no_grad():
+            assert adapter.module[-1].weight.sum() == 0
+            if hasattr(adapter.module[-1], 'bias') and adapter.module[-1].bias is not None:
+                assert adapter.module[-1].bias.sum() == 0
 
             out = adapter(x)
             assert out.sum() <= 1e-8
