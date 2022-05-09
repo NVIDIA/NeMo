@@ -259,6 +259,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
 
+        self.pre_layers_norm = LayerNorm(d_model)
+
         self.layers = nn.ModuleList()
         for i in range(n_layers):
             layer = ConformerLayer(
@@ -402,6 +404,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
 
         #print(audio_signal.shape)
 
+        audio_signal = self.pre_layers_norm(audio_signal)
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
                 x=audio_signal,
