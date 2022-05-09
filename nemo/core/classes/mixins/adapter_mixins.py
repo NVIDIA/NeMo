@@ -746,6 +746,10 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             module_name, adapter_name = self._resolve_adapter_module_name(module_adapter_name)
             adapter_cfg = config[adapter_name]
 
+            # Skip the global config key
+            if adapter_name == self.adapter_global_cfg_key:
+                continue
+
             # Restore weights with exact key, if it fails, give useful error message.
             try:
                 adapter_state = state_dict[module_adapter_name]

@@ -795,7 +795,8 @@ class TestAdapterModelMixin:
             assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
 
     @pytest.mark.unit
-    def test_single_decoder_save_load_adapter_only_global_name(self):
+    @pytest.mark.parametrize('restore_name', [None, 'adapter_0'])
+    def test_single_decoder_save_load_adapter_only_global_name(self, restore_name):
         # create a model config, but do not add global_cfg to it
         # we want to test just module level adapter
         cfg = get_model_config(in_features=50)
@@ -832,7 +833,7 @@ class TestAdapterModelMixin:
 
             # restore adapter to new model (without any encoder adapter)
             new_model = DefaultAdapterModel(cfg)
-            new_model.load_adapters(outer_adapter_path, name='adapter_0')
+            new_model.load_adapters(outer_adapter_path, name=restore_name)
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
