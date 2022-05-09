@@ -14,7 +14,9 @@
 
 from dataclasses import dataclass
 
+from hydra.utils import instantiate
 from torch import nn as nn
+from typing import Optional
 
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import adapter_mixin_strategies
@@ -34,7 +36,15 @@ class LinearAdapter(nn.Module):
             will occur in the first layer or the last layer. Certain architectures may prefer one over the other.
     """
 
-    def __init__(self, in_features, dim, activation: str = 'swish', norm_position: str = "post", dropout: float = 0.0):
+    def __init__(
+        self,
+        in_features: int,
+        dim: int,
+        activation: str = 'swish',
+        norm_position: str = "post",
+        dropout: float = 0.0,
+        adapter_strategy: adapter_mixin_strategies.ResidualAddAdapterStrategyConfig = None,
+    ):
         super().__init__()
 
         activation = activation_registry[activation]()
@@ -67,7 +77,9 @@ class LinearAdapter(nn.Module):
             self.dropout = None
 
         # set default adapter strategy
-        self.adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategy()
+        if adapter_strategy is None:
+            adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+        self.adapter_strategy = instantiate(adapter_strategy)
 
         # reset parameters
         self.reset_parameters()
@@ -98,4 +110,5 @@ class LinearAdapterConfig:
     activation: str = 'swish'
     norm_position: str = 'post'
     dropout: float = 0.0
+    adapter_strategy: Optional[dict] = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
     _target_: str = "{0}.{1}".format(LinearAdapter.__module__, LinearAdapter.__name__)
