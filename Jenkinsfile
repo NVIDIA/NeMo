@@ -1501,8 +1501,8 @@ pipeline {
     stage('Punctuation & Capitalization tarred dataset') {
       when {
         anyOf {
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'r1.9.0'
+          changeRequest target: 'r1.9.0'
         }
       }
       failFast true
@@ -1558,8 +1558,8 @@ pipeline {
     stage('Punctuation & Capitalization, Different ways of passing labels to model') {
       when {
         anyOf {
-          branch 'main'
-          changeRequest target: 'main'
+          branch 'r1.9.0'
+          changeRequest target: 'r1.9.0'
         }
       }
       failFast true
