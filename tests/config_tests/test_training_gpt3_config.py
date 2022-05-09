@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestTrainingGPT3Config:
-
     def test_training_gpt3_config_126m(self):
-        conf = OmegaConf.load('conf/training/gpt3/126m.yaml')
+        conf = OmegaConf.load("conf/training/gpt3/126m.yaml")
         s = """
         run:
           name: gpt3_126m
@@ -194,10 +193,12 @@ class TestTrainingGPT3Config:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/gpt3/126m.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/training/gpt3/126m.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_config_5b(self):
-        conf = OmegaConf.load('conf/training/gpt3/5b.yaml')
+        conf = OmegaConf.load("conf/training/gpt3/5b.yaml")
         s = """
         run:
           name: gpt3_5b
@@ -387,10 +388,12 @@ class TestTrainingGPT3Config:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/gpt3/5b.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/training/gpt3/5b.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_config_20b(self):
-        conf = OmegaConf.load('conf/training/gpt3/20b.yaml')
+        conf = OmegaConf.load("conf/training/gpt3/20b.yaml")
         s = """
         run:
           name: gpt3_20b
@@ -582,10 +585,12 @@ class TestTrainingGPT3Config:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/gpt3/20b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/training/gpt3/20b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_training_config_40b(self):
-        conf = OmegaConf.load('conf/training/gpt3/40b.yaml')
+        conf = OmegaConf.load("conf/training/gpt3/40b.yaml")
         s = """
         run:
           name: gpt3_40b
@@ -775,10 +780,12 @@ class TestTrainingGPT3Config:
               - ${data_dir}/my-gpt3_29_text_document
                 """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/gpt3/40b.yaml must be set to {expected} but it currently is {conf}."
-    
+        assert (
+            expected == conf
+        ), f"conf/training/gpt3/40b.yaml must be set to {expected} but it currently is {conf}."
+
     def test_training_config_175b(self):
-        conf = OmegaConf.load('conf/training/gpt3/175b.yaml')
+        conf = OmegaConf.load("conf/training/gpt3/175b.yaml")
         s = """
         run:
           name: gpt3_175b
@@ -968,6 +975,6 @@ class TestTrainingGPT3Config:
               - ${data_dir}/my-gpt3_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/gpt3/175b.yaml must be set to {expected} but it currently is {conf}."
- 
- 
+        assert (
+            expected == conf
+        ), f"conf/training/gpt3/175b.yaml must be set to {expected} but it currently is {conf}."

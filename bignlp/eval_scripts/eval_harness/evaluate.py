@@ -18,54 +18,90 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import Meg
 from nemo.utils.get_rank import is_global_rank_zero
 
 from importlib import reload
+
 reload(logging)
 from lm_eval import models, tasks, evaluator, base, utils
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
+)
 logger = logging.getLogger(__name__)
-
 
 
 def parse_args(parser_main):
     # parser = argparse.ArgumentParser()
-    parser = parser_main.add_argument_group(title='evaluate-tasks')
+    parser = parser_main.add_argument_group(title="evaluate-tasks")
     # Experiment
-    parser.add_argument('--name', dest='experiment_name', type=str, default='',
-                        help='A string identifier/name for the experiment to be run '
-                             '- it will be appended to the output directory name, before the timestamp')
-    parser.add_argument('--comment', type=str, default='', help='An optional comment/description of the experiment. '
-                                                                'Will be included in the configuration JSON file and '
-                                                                'potentially other output files.')
-    parser.add_argument('--no_timestamp', action='store_true',
-                        help='If set, a timestamp and random suffix will NOT be appended to the output directory name '
-                             '(unless no `name` is specified)')
-    parser.add_argument('--tasks', default="all_tasks")
-    parser.add_argument('--cache_dir', default="")
-    parser.add_argument('--eval_seed', type=int, default=1234,
-                        help='Random seed used for python, numpy, [pytorch, and cuda.]')
-    parser.add_argument('--limit', type=int, default=None,
-                        help='If specified, will limit evaluation set to this number of samples')
+    parser.add_argument(
+        "--name",
+        dest="experiment_name",
+        type=str,
+        default="",
+        help="A string identifier/name for the experiment to be run "
+        "- it will be appended to the output directory name, before the timestamp",
+    )
+    parser.add_argument(
+        "--comment",
+        type=str,
+        default="",
+        help="An optional comment/description of the experiment. "
+        "Will be included in the configuration JSON file and "
+        "potentially other output files.",
+    )
+    parser.add_argument(
+        "--no_timestamp",
+        action="store_true",
+        help="If set, a timestamp and random suffix will NOT be appended to the output directory name "
+        "(unless no `name` is specified)",
+    )
+    parser.add_argument("--tasks", default="all_tasks")
+    parser.add_argument("--cache_dir", default="")
+    parser.add_argument(
+        "--eval_seed",
+        type=int,
+        default=1234,
+        help="Random seed used for python, numpy, [pytorch, and cuda.]",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="If specified, will limit evaluation set to this number of samples",
+    )
     # I/O
-    parser.add_argument('--output_path', type=str, default='.',
-                        help="Path to output root directory. Must exist. An experiment directory containing metrics, "
-                             "predictions, configuration etc will be created inside.")
-    parser.add_argument('--serialize_predictions', action="store_true",
-                        help="If set, the model's predictions (and other information) will be serialized to disk.")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default=".",
+        help="Path to output root directory. Must exist. An experiment directory containing metrics, "
+        "predictions, configuration etc will be created inside.",
+    )
+    parser.add_argument(
+        "--serialize_predictions",
+        action="store_true",
+        help="If set, the model's predictions (and other information) will be serialized to disk.",
+    )
     # H/W configuration
-    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=1)
     # Warning: cuda device is the only way it could work.
-    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument("--device", type=str, default="cuda")
     # Model
-    parser.add_argument('--model', required=True)
+    parser.add_argument("--model", required=True)
 
-    parser.add_argument("--nemo_model", type=str, default=None, required=False, help="Pass path to model's .nemo file")
+    parser.add_argument(
+        "--nemo_model",
+        type=str,
+        default=None,
+        required=False,
+        help="Pass path to model's .nemo file",
+    )
     parser.add_argument(
         "--checkpoint_folder",
         type=str,
         default=None,
         required=False,
         help="If not using a .nemo file. Path to PTL checkpoints saved during training. Ex: "
-             "/raid/nemo_experiments/megatron_gpt/checkpoints",
+        "/raid/nemo_experiments/megatron_gpt/checkpoints",
     )
     parser.add_argument(
         "--checkpoint_name",
@@ -73,13 +109,19 @@ def parse_args(parser_main):
         default=None,
         required=False,
         help="If not using a .nemo file. Name of checkpoint to be used. Ex: "
-             "megatron_gpt--val_loss=6.34-step=649-last.ckpt",
+        "megatron_gpt--val_loss=6.34-step=649-last.ckpt",
     )
     parser.add_argument(
-        "--tensor_model_parallel_size", type=int, default=1, required=False,
+        "--tensor_model_parallel_size",
+        type=int,
+        default=1,
+        required=False,
     )
     parser.add_argument(
-        "--pipeline_model_parallel_size", type=int, default=1, required=False,
+        "--pipeline_model_parallel_size",
+        type=int,
+        default=1,
+        required=False,
     )
     parser.add_argument(
         "--hparams_file",
@@ -90,26 +132,38 @@ def parse_args(parser_main):
     )
     parser.add_argument("--precision", default=16, help="PyTorch Lightning Trainer precision flag")
 
-    parser.add_argument('--vocab_file', default=None)
-    parser.add_argument('--merge_file', default=None)
+    parser.add_argument("--vocab_file", default=None)
+    parser.add_argument("--merge_file", default=None)
 
     # Prompt
-    parser.add_argument('--provide_description', action="store_true")
-    parser.add_argument('--num_fewshot', type=int, default=0)
-    parser.add_argument("--filter_shots", action='store_true',
-                        help="Filter examples used as shots in the prompt, "
-                             "e.g. exclude examples of the same type as the sample under evaluation.")
+    parser.add_argument("--provide_description", action="store_true")
+    parser.add_argument("--num_fewshot", type=int, default=0)
+    parser.add_argument(
+        "--filter_shots",
+        action="store_true",
+        help="Filter examples used as shots in the prompt, "
+        "e.g. exclude examples of the same type as the sample under evaluation.",
+    )
     # HANS
-    parser.add_argument("--ratio_positive", type=float, default=None,
-                        help='Ratio of examples with a positive label')
-    parser.add_argument("--mix_mode", type=str, default='shuffle',
-                        choices=['shuffle', 'interleave_first', 'interleave_last', 'pos_first', 'neg_first'],
-                        help='How to mix (arrange order of) positive and negative shot examples in the prompt')
-    parser.add_argument("--interleave_width", type=int, default=1,
-                        help='The number of consecutive examples with the same label, when `mix_mode` is interleave')
+    parser.add_argument(
+        "--ratio_positive", type=float, default=None, help="Ratio of examples with a positive label"
+    )
+    parser.add_argument(
+        "--mix_mode",
+        type=str,
+        default="shuffle",
+        choices=["shuffle", "interleave_first", "interleave_last", "pos_first", "neg_first"],
+        help="How to mix (arrange order of) positive and negative shot examples in the prompt",
+    )
+    parser.add_argument(
+        "--interleave_width",
+        type=int,
+        default=1,
+        help="The number of consecutive examples with the same label, when `mix_mode` is interleave",
+    )
 
     # Generation tasks
-    parser.add_argument("--generate-max-token", type=int, default=0, help='Max tokens to generate.')
+    parser.add_argument("--generate-max-token", type=int, default=0, help="Max tokens to generate.")
 
     # return parser.parse_args()
     return parser_main
@@ -117,7 +171,7 @@ def parse_args(parser_main):
 
 def can_write_output(lm: Union[base.CachingLM, base.LM], args: argparse.Namespace) -> bool:
     """Only 1 process should print and dump results, this function would only return True
-       for 1 of the processes that has full output
+    for 1 of the processes that has full output
     """
     if isinstance(lm, base.CachingLM):
         return True
@@ -146,7 +200,9 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
     if not os.path.isdir(output_path):
         raise IOError(
             "Root directory '{}', where the directory of the experiment will be created, must exist".format(
-                output_path))
+                output_path
+            )
+        )
 
     output_path = os.path.join(output_path, args.experiment_name)
 
@@ -158,30 +214,33 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
         output_path += "_" + formatted_timestamp + "_" + rand_suffix
         # random.seed(args.eval_seed)
     args.output_path = output_path
-    args.pred_dir = os.path.join(output_path, 'predictions')
+    args.pred_dir = os.path.join(output_path, "predictions")
     utils.create_dirs([args.pred_dir])
 
     # Add file logging besides stdout
     # file_handler = logging.FileHandler(os.path.join(args.output_path, 'output.log'))
     # logger.addHandler(file_handler)
 
-    logger.info('Command:\n{}'.format(' '.join(sys.argv)))  # command used to run program
+    logger.info("Command:\n{}".format(" ".join(sys.argv)))  # command used to run program
 
     # Save configuration as a (pretty) json file
     config = args.__dict__
-    # # TODO: Raises an error, because some megatron arguments are non-serializable 
+    # # TODO: Raises an error, because some megatron arguments are non-serializable
     # with open(os.path.join(output_path, 'full_configuration.json'), 'w') as fp:
     #     json.dump(config, fp, indent=4)
 
-    with open(os.path.join(output_path, 'command.txt'), 'w') as fp:
-        fp.write(' '.join(sys.argv))  # command used to run program
+    with open(os.path.join(output_path, "command.txt"), "w") as fp:
+        fp.write(" ".join(sys.argv))  # command used to run program
         fp.write("\nUnknown args: {}".format(unknown_args))
 
     try:
-        git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'],
-                                           cwd=os.path.dirname(os.path.abspath(__file__))).decode()
-        git_diff = subprocess.check_output(['git', 'diff'], cwd=os.path.dirname(os.path.abspath(__file__))).decode()
-        with open(os.path.join(output_path, 'git.txt'), 'w') as fp:
+        git_hash = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=os.path.dirname(os.path.abspath(__file__))
+        ).decode()
+        git_diff = subprocess.check_output(
+            ["git", "diff"], cwd=os.path.dirname(os.path.abspath(__file__))
+        ).decode()
+        with open(os.path.join(output_path, "git.txt"), "w") as fp:
             fp.write("Git hash: {}\n".format(git_hash))
             fp.write(git_diff)
         logger.info("Git hash: {}".format(git_hash))
@@ -195,7 +254,7 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
         for opt in local_config:
             if opt in config:
                 local_config[opt] = config[opt]
-        with open(os.path.join(output_path, 'eval_configuration.json'), 'w') as fp:
+        with open(os.path.join(output_path, "eval_configuration.json"), "w") as fp:
             json.dump(local_config, fp, indent=4)
 
     logger.info("Stored configuration file(s) in '{}'".format(output_path))
@@ -203,7 +262,9 @@ def setup_output_dir(args, local_args=None, unknown_args=None):
     return args
 
 
-def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
+def _inject_model_parallel_rank(
+    filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1
+):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -214,9 +275,9 @@ def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline
         dirname = os.path.dirname(filepath)
         basename = os.path.basename(filepath)
         if pipeline_model_parallel_size is None or pipeline_model_parallel_size == 1:
-            filepath = f'{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}'
+            filepath = f"{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}"
         else:
-            filepath = f'{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}'
+            filepath = f"{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}"
         return filepath
     else:
         return filepath
@@ -231,8 +292,7 @@ def main():
 
     assert args is not None
     if "nemo-gpt3" in args.model:
-        assert args.device == 'cuda', "devices == 'cuda' are required to run nemo evaluations."
-
+        assert args.device == "cuda", "devices == 'cuda' are required to run nemo evaluations."
 
     checkpoint_folder = args.checkpoint_folder
     checkpoint_name = args.checkpoint_name
@@ -244,19 +304,27 @@ def main():
 
     # Checkpoint search
     if checkpoint_name == "latest":
-        checkpoints = os.path.join(checkpoint_folder, '*.ckpt')
-        checkpoints = _inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
+        checkpoints = os.path.join(checkpoint_folder, "*.ckpt")
+        checkpoints = _inject_model_parallel_rank(
+            checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size
+        )
         checkpoint_list = glob.glob(checkpoints)
         latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
         checkpoint_name = os.path.basename(latest_checkpoint)
 
     checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = _inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
+    checkpoint = _inject_model_parallel_rank(
+        checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
+    )
     checkpoint_list = glob.glob(checkpoint)
     if len(checkpoint_list) > 1:
-        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
+        raise ValueError(
+            "Too many checkpoints fit the checkpoint name pattern in conversion config."
+        )
     if len(checkpoint_list) == 0:
-        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
+        raise ValueError(
+            "No checkpoint found with the checkpoint name pattern in conversion config."
+        )
     args.checkpoint_name = os.path.basename(checkpoint_list[0])
 
     # Create hparam override file for vocab ,merge, and etc.
@@ -273,7 +341,7 @@ def main():
         conf.cfg.activations_checkpoint_method = None
 
         if is_global_rank_zero():
-            with open(hparams_override_file, 'w') as f:
+            with open(hparams_override_file, "w") as f:
                 OmegaConf.save(config=conf, f=f)
 
         while not os.path.exists(hparams_override_file):
@@ -290,8 +358,10 @@ def main():
         args = setup_output_dir(args, eval_args, unknown_args)
 
         if args.limit:
-            logger.warning("At most {} samples will be used. --limit SHOULD ONLY BE USED FOR TESTING. "
-                           "REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.".format(args.limit))
+            logger.warning(
+                "At most {} samples will be used. --limit SHOULD ONLY BE USED FOR TESTING. "
+                "REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.".format(args.limit)
+            )
 
         if args.filter_shots:
             logger.info("Few-shot example shots will be filtered")
@@ -305,32 +375,48 @@ def main():
     task_dict = tasks.get_task_dict(task_names, args.cache_dir)
 
     if args.serialize_predictions:
-        no_serialization = [name for name, task in task_dict.items() if not hasattr(task, "serialize_results")]
-        if len(no_serialization):  # Only serialize for those that have implemented the method, instead of raising exception
+        no_serialization = [
+            name for name, task in task_dict.items() if not hasattr(task, "serialize_results")
+        ]
+        if len(
+            no_serialization
+        ):  # Only serialize for those that have implemented the method, instead of raising exception
             logger.error(
                 f"Model outputs for {no_serialization} task(s) will not be dumped. Please check the implementation of {no_serialization} to "
-                f"make sure you have implemented serialize_results.")
+                f"make sure you have implemented serialize_results."
+            )
             raise Exception(
-                f"args.serialize_predictions is set for dumping results, but tasks: {no_serialization} do not implement the serialize_results method")
+                f"args.serialize_predictions is set for dumping results, but tasks: {no_serialization} do not implement the serialize_results method"
+            )
 
     utils.set_seed(args.eval_seed)
-    results = evaluator.evaluate(lm, task_dict, args.provide_description, args.num_fewshot, args.limit,
-                                 filter_shots=args.filter_shots, serialize_predictions=args.serialize_predictions,
-                                 ratio_positive=args.ratio_positive, mix_mode=args.mix_mode,
-                                 interleave_width=args.interleave_width)
+    results = evaluator.evaluate(
+        lm,
+        task_dict,
+        args.provide_description,
+        args.num_fewshot,
+        args.limit,
+        filter_shots=args.filter_shots,
+        serialize_predictions=args.serialize_predictions,
+        ratio_positive=args.ratio_positive,
+        mix_mode=args.mix_mode,
+        interleave_width=args.interleave_width,
+    )
 
     if write_permission:
         summary = json.dumps(results["results"], indent=2)
-        logger.info('\n' + summary)
-        with open(os.path.join(args.output_path, 'metrics.json'), mode='w') as fp:
+        logger.info("\n" + summary)
+        with open(os.path.join(args.output_path, "metrics.json"), mode="w") as fp:
             fp.write(summary)
 
-        if ("output" in results):
+        if "output" in results:
             # TODO(GEO): maybe add a for loop over "taskX" in results['output'][taskX] to store each task separately
             # Store predictions, prompts, labels etc per document as a (pretty) json file
-            predictions_filepath = os.path.join(args.pred_dir, args.experiment_name + "_predictions.json")
+            predictions_filepath = os.path.join(
+                args.pred_dir, args.experiment_name + "_predictions.json"
+            )
             logger.info("Stored predictions in '{}'".format(predictions_filepath))
-            with open(predictions_filepath, mode='w') as fp:
+            with open(predictions_filepath, mode="w") as fp:
                 json.dump(results, fp, indent=4)
 
         # MAKE TABLE
@@ -346,28 +432,36 @@ def main():
         for k, dic in results["results"].items():
             version = results["versions"][k]
             for m, v in dic.items():
-                if m.endswith("_stderr"): continue
+                if m.endswith("_stderr"):
+                    continue
 
                 if m + "_stderr" in dic:
                     se = dic[m + "_stderr"]
 
-                    values.append([k, version, m, '%.4f' % v, '±', '%.4f' % se])
+                    values.append([k, version, m, "%.4f" % v, "±", "%.4f" % se])
                 else:
-                    values.append([k, version, m, '%.4f' % v, '', ''])
+                    values.append([k, version, m, "%.4f" % v, "", ""])
                 k = ""
                 version = ""
         md_writer.value_matrix = values
         latex_writer.value_matrix = values
 
         if hparams_override_file is not None:
-            os.rename(hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml"))
+            os.rename(
+                hparams_override_file, os.path.join(args.output_path, "hparams_override.yaml")
+            )
 
         logger.info(
-            f"{args.model}, limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}")
-        logger.info('\n' + md_writer.dumps())
+            f"{args.model}, limit: {args.limit}, provide_description: {args.provide_description}, num_fewshot: {args.num_fewshot}, batch_size: {args.batch_size}"
+        )
+        logger.info("\n" + md_writer.dumps())
 
         total_time = time.time() - total_start_time
-        logger.info("Total runtime: {} hours, {} minutes, {} seconds".format(*utils.readable_time(total_time)))
+        logger.info(
+            "Total runtime: {} hours, {} minutes, {} seconds".format(
+                *utils.readable_time(total_time)
+            )
+        )
         logger.info("Evaluation complete!")
 
 

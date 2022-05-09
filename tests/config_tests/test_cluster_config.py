@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestClusterConfig:
-    
     def test_cluster_bcm_config(self):
-        conf = OmegaConf.load('conf/cluster/bcm.yaml')
+        conf = OmegaConf.load("conf/cluster/bcm.yaml")
         s = """
         partition: null
         account: null
@@ -16,4 +15,6 @@ class TestClusterConfig:
         job_name_prefix: "bignlp-"
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/cluster/bcm.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/cluster/bcm.yaml must be set to {expected} but it currently is {conf}."

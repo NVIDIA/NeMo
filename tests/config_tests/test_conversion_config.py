@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestConversionT5Config:
-    
     def test_conversion_t5_config(self):
-        conf = OmegaConf.load('conf/conversion/convert_t5.yaml')
+        conf = OmegaConf.load("conf/conversion/convert_t5.yaml")
         s = """
         run:
           job_name: convert_${conversion.run.model_train_name}
@@ -30,13 +29,14 @@ class TestConversionT5Config:
           merge_file: null
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/conversion/convert_t5.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/conversion/convert_t5.yaml must be set to {expected} but it currently is {conf}."
 
 
 class TestConversionGPT3Config:
-    
     def test_conversion_gpt3_config(self):
-        conf = OmegaConf.load('conf/conversion/convert_gpt3.yaml')
+        conf = OmegaConf.load("conf/conversion/convert_gpt3.yaml")
         s = """
         run:
           job_name: convert_${conversion.run.model_train_name}
@@ -62,4 +62,6 @@ class TestConversionGPT3Config:
           merge_file: ${data_dir}/bpe/merges.txt
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/conversion/convert_gpt3.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/conversion/convert_gpt3.yaml must be set to {expected} but it currently is {conf}."

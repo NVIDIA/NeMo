@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestFinetuningT5Config:
-    
     def test_finetuning_t5_config(self):
-        conf = OmegaConf.load('conf/finetuning/t5/mnli.yaml')
+        conf = OmegaConf.load("conf/finetuning/t5/mnli.yaml")
         s = """
         run:
           name: ${.task_name}_${.model_train_name}
@@ -91,4 +90,6 @@ class TestFinetuningT5Config:
             weight_decay: 0.1
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/finetuning/t5/mnli.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/finetuning/t5/mnli.yaml must be set to {expected} but it currently is {conf}."

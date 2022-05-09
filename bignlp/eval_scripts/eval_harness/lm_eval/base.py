@@ -205,7 +205,7 @@ class Task(abc.ABC):
         """
         Draw k samples from the training dataset using random generator `rnd`.
         If `filter_func` is provided, it will be used to filter examples/documents (keep or exclude from sampling)
-        
+
         :param k: number of examples to be included in the prompt
         :param rnd: initialized random number generator object, e.g. rnd = random.Random(1337)
         :param filter_func: function taking an iterable and returning an iterable a potentially smaller, filtered iterable
@@ -214,8 +214,9 @@ class Task(abc.ABC):
         """
         if self._training_docs is None:
             self._training_docs = list(self.training_docs())
-            self._examples = list(zip(range(len(self._training_docs)),
-                                      self._training_docs))  # NOTE: compute each time if necessary to save memory
+            self._examples = list(
+                zip(range(len(self._training_docs)), self._training_docs)
+            )  # NOTE: compute each time if necessary to save memory
 
         if filter_func is not None:
             examples = filter_func(self._examples)
@@ -234,7 +235,7 @@ class Task(abc.ABC):
 
     @abc.abstractmethod
     def construct_requests(self, doc, ctx):
-        """ Uses RequestFactory to construct Requests and returns an iterable of
+        """Uses RequestFactory to construct Requests and returns an iterable of
         Requests which will be sent to the LM.
         Each document has as many requests as loglikelihoods to be calculated (multiple choice questions).
 
@@ -257,7 +258,8 @@ class Task(abc.ABC):
         """
         if mode not in ResultPreprocessing:
             raise ValueError(
-                f'Invalid mode, expected type {ResultPreprocessing.__name__} but got {type(mode).__name__}')
+                f"Invalid mode, expected type {ResultPreprocessing.__name__} but got {type(mode).__name__}"
+            )
 
         if mode is ResultPreprocessing.NONE:
             preprocessed = results
@@ -270,7 +272,7 @@ class Task(abc.ABC):
                 else:
                     preprocessed.append(result)
         else:
-            raise RuntimeError(f'Unimplemented mode: {mode}')
+            raise RuntimeError(f"Unimplemented mode: {mode}")
 
         return preprocessed
 
@@ -334,12 +336,17 @@ class Task(abc.ABC):
 
         :return: iterable of tuples (doc_id, doc): filtered iterable of shot examples
         """
-        raise (NotImplementedError(
-            '`filter_shots` must be implemented in child Task in order to use `filter_shot_examples=True`'))
+        raise (
+            NotImplementedError(
+                "`filter_shots` must be implemented in child Task in order to use `filter_shot_examples=True`"
+            )
+        )
 
-    def fewshot_context(self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs):
+    def fewshot_context(
+        self, doc, num_fewshot, provide_description, rnd, filter_shot_examples=False, **kwargs
+    ):
         """Construct and format full prompt string for a given sample, optionally including description and shot examples
-        :param doc: document object corresponding to the sample under examination 
+        :param doc: document object corresponding to the sample under examination
         :param num_fewshot: number of examples to be included in the prompt
         :param provide_description: (bool), whether to prepend natural language description
         :param rnd: initialized random number generator object, e.g. rnd = random.Random(1337)
@@ -349,7 +356,9 @@ class Task(abc.ABC):
         """
 
         raw_description = self.fewshot_description()
-        description = (raw_description + "\n===\n\n") if provide_description and raw_description else ""
+        description = (
+            (raw_description + "\n===\n\n") if provide_description and raw_description else ""
+        )
 
         if num_fewshot == 0:
             labeled_examples = ""
@@ -358,15 +367,22 @@ class Task(abc.ABC):
             # for sets with no training docs, draw from other set *but ensure no overlap with current doc*
             if self.has_training_docs():
                 if filter_shot_examples:
-                    fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd,
-                                                      filter_func=partial(self.filter_shots, doc=doc), **kwargs)
+                    fewshotex = self.fewshot_examples(
+                        k=num_fewshot,
+                        rnd=rnd,
+                        filter_func=partial(self.filter_shots, doc=doc),
+                        **kwargs,
+                    )
                 else:
                     fewshotex = self.fewshot_examples(k=num_fewshot, rnd=rnd, **kwargs)
             else:
                 if self._fewshot_docs is None:
                     self._fewshot_docs = list(
-                        self.validation_docs() if self.has_validation_docs() else self.test_docs())
-                    self._fewshot_docs = list(zip(range(len(self._fewshot_docs)), self._fewshot_docs))
+                        self.validation_docs() if self.has_validation_docs() else self.test_docs()
+                    )
+                    self._fewshot_docs = list(
+                        zip(range(len(self._fewshot_docs)), self._fewshot_docs)
+                    )
                 if filter_shot_examples:
                     fewshotex = self.filter_shots(self._fewshot_docs, doc)
                 else:
@@ -379,9 +395,10 @@ class Task(abc.ABC):
                 fewshotex = [x for x in fewshotex if x != doc][:num_fewshot]
 
             shot_ids, shot_docs = zip(*fewshotex)
-            labeled_examples = "\n\n".join(
-                [self.doc_to_text(doc) + self.doc_to_target(doc) for doc in shot_docs]
-            ) + "\n\n"
+            labeled_examples = (
+                "\n\n".join([self.doc_to_text(doc) + self.doc_to_target(doc) for doc in shot_docs])
+                + "\n\n"
+            )
 
         example = self.doc_to_text(doc)  # the document of interest, main part of the prompt
         prompt_str = description + labeled_examples + example  # the formatted prompt string
@@ -390,16 +407,16 @@ class Task(abc.ABC):
 
 class MultipleChoiceTask(Task):
     def doc_to_target(self, doc):
-        return " " + doc['choices'][doc['gold']]
+        return " " + doc["choices"][doc["gold"]]
 
     def construct_requests(self, doc, ctx):
         lls = [
-                  rf.loglikelihood(ctx, " {}".format(choice))[0]
-                  for choice in doc['choices']  # get likelihoods
-              ] + [
-                  rf.loglikelihood(ctx, " {}".format(choice))[2]
-                  for choice in doc['choices']  # get tokens
-              ]
+            rf.loglikelihood(ctx, " {}".format(choice))[0]
+            for choice in doc["choices"]  # get likelihoods
+        ] + [
+            rf.loglikelihood(ctx, " {}".format(choice))[2]
+            for choice in doc["choices"]  # get tokens
+        ]
         return lls
 
     def process_results(self, doc, results):
@@ -410,8 +427,8 @@ class MultipleChoiceTask(Task):
         choice_tokens = results[num_choices:]
         assert len(logprobs) == len(choice_tokens)
         normed_logprobs = [lp / len(x) for lp, x in zip(logprobs, choice_tokens)]
-        acc = 1. if np.argmax(logprobs) == gold else 0.
-        acc_norm = 1. if np.argmax(normed_logprobs) == gold else 0
+        acc = 1.0 if np.argmax(logprobs) == gold else 0.0
+        acc_norm = 1.0 if np.argmax(normed_logprobs) == gold else 0
 
         # NOTE(zhunliu): the previous normed setting is not ideal, norm by char
         # completion_len = np.array([float(len(i)) for i in doc["choices"]])
@@ -456,14 +473,13 @@ class MultipleChoiceTask(Task):
 
     def get_answer_ctx(self):
         """Return the answer-prompting string for the question.
-           Most QA tasks has the format of "Question: xxx\nAnswer: "
-           In this case the answer-prompting string is "Answer: "
+        Most QA tasks has the format of "Question: xxx\nAnswer: "
+        In this case the answer-prompting string is "Answer: "
         """
         raise NotImplementedError
 
 
 class PerplexityTask(Task, abc.ABC):
-
     def has_training_docs(self):
         return False
 
@@ -498,34 +514,34 @@ class PerplexityTask(Task, abc.ABC):
         return req
 
     def process_results(self, doc, results):
-        loglikelihood, = results
+        (loglikelihood,) = results
         words = self.count_words(doc)
         bytes = self.count_bytes(doc)
         return {
             "word_perplexity": (loglikelihood, words),
             "byte_perplexity": (loglikelihood, bytes),
-            "bits_per_byte": (-loglikelihood, self.count_bytes(doc))
+            "bits_per_byte": (-loglikelihood, self.count_bytes(doc)),
         }
 
     def aggregation(self):
         return {
             "word_perplexity": weighted_perplexity,
             "byte_perplexity": weighted_perplexity,
-            "bits_per_byte": weighted_mean
+            "bits_per_byte": weighted_mean,
         }
 
     def count_bytes(self, doc):
         return len(doc.encode("utf-8"))
 
     def count_words(self, doc):
-        """ Downstream tasks with custom word boundaries should override this! """
+        """Downstream tasks with custom word boundaries should override this!"""
         return len(re.split(r"\s+", doc))
 
 
 req_ret_lens = {
-    'loglikelihood': 4,
-    'greedy_until': None,
-    'loglikelihood_rolling': None,
+    "loglikelihood": 4,
+    "greedy_until": None,
+    "loglikelihood_rolling": None,
 }
 
 import os
@@ -536,7 +552,7 @@ from sqlitedict import SqliteDict
 
 def hash_args(attr, args):
     dat = json.dumps([attr] + list(args))
-    return hashlib.sha256(dat.encode('utf-8')).hexdigest()
+    return hashlib.sha256(dat.encode("utf-8")).hexdigest()
 
 
 class CacheHook:
@@ -558,7 +574,8 @@ class CachingLM:
     def __init__(self, lm, cache_db):
         self.lm = lm
         self.cache_db = cache_db
-        if os.path.dirname(cache_db): os.makedirs(os.path.dirname(cache_db), exist_ok=True)
+        if os.path.dirname(cache_db):
+            os.makedirs(os.path.dirname(cache_db), exist_ok=True)
         self.dbdict = SqliteDict(cache_db, autocommit=True)
 
         # add hook to lm
@@ -588,7 +605,8 @@ class CachingLM:
             # stick the new ones back into the list and also cache any of the new ones
             resptr = 0
             for req, r in zip(remaining_reqs, rem_res):
-                while res[resptr] is not None: resptr += 1
+                while res[resptr] is not None:
+                    resptr += 1
 
                 res[resptr] = r
 
@@ -608,7 +626,7 @@ class CachingLM:
 class Request:
     def __init__(self, type, args, index=None):
         if type not in req_ret_lens.keys():
-            raise NotImplementedError('The request type {} is not implemented!'.format(type))
+            raise NotImplementedError("The request type {} is not implemented!".format(type))
 
         self.type = type
         self.args = args
@@ -616,14 +634,14 @@ class Request:
 
     def __iter__(self):
         if req_ret_lens[self.type] is None:
-            raise IndexError('This request type does not return multiple arguments!')
+            raise IndexError("This request type does not return multiple arguments!")
         i = 0
         for i in range(req_ret_lens[self.type]):
             yield Request(self.type, self.args, i)
 
     def __getitem__(self, i):
         if req_ret_lens[self.type] is None:
-            raise IndexError('This request type does not return multiple arguments!')
+            raise IndexError("This request type does not return multiple arguments!")
         return Request(self.type, self.args, i)
 
     def __eq__(self, other):

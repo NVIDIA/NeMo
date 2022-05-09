@@ -82,7 +82,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         utils.download_single_file(
             url=download_vocab_url,
             save_dir=vocab_save_dir,
-            file_name="vocab.json" if download_vocab_url.endswith("json") else "vocab.txt"
+            file_name="vocab.json" if download_vocab_url.endswith("json") else "vocab.txt",
         )
 
     # Download merges
@@ -94,10 +94,16 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             file_name="merges.txt",
         )
 
-    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/download.py")
-    extract_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/extract.py")
-    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/preprocess.py")
-    
+    download_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/download.py"
+    )
+    extract_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/extract.py"
+    )
+    preprocess_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/pile_dataprep_scripts/preprocess.py"
+    )
+
     # BCM config
     cluster_cfg = cfg.get("cluster")
     if cfg.get("cluster_type") == "bcm" and cluster_cfg is not None:
@@ -142,7 +148,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             dependency = job_id_1.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
-
             # Extract The Pile dataset files
             extract_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/extract_script.sh"
@@ -168,7 +173,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             )
             dependency = job_id_2.decode("utf-8")
             print(f"Submitted Extract script with job id: {dependency}")
-
 
         assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
         if preprocess_data:
@@ -200,15 +204,19 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.get("cluster_type") == "bcp":
+
         def get_launcher(nnodes, npernode, cmd):
-            if utils.is_tool('bcprun'):
-                launcher = "NGC_ARRAY_TYPE=MPIJob " + \
-                    f"bcprun --nnodes {nnodes} --npernode {npernode} " + \
-                    f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+            if utils.is_tool("bcprun"):
+                launcher = (
+                    "NGC_ARRAY_TYPE=MPIJob "
+                    + f"bcprun --nnodes {nnodes} --npernode {npernode} "
+                    + f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+                )
             else:
-                launcher = \
-                    f"mpirun --allow-run-as-root " + \
-                    f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+                launcher = (
+                    f"mpirun --allow-run-as-root "
+                    + f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+                )
             return launcher
 
         joblog = os.path.join(log_dir, "data_joblog.log")
@@ -220,8 +228,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {download_code_path} {hydra_args}"
             launchcmd = get_launcher(nnodes, 1, cmd)
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted Download script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"Download CMD:\n{launchcmd}", file=jlog)
@@ -236,8 +244,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {extract_code_path} {hydra_args}"
             launchcmd = get_launcher(nnodes, 1, cmd)
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted extract script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"Extract CMD:\n{launchcmd}", file=jlog)
@@ -251,12 +259,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
         if preprocess_data:
             # Preprocess the dataset
-            megatron_dir = '/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron'
+            megatron_dir = "/opt/bignlp/NeMo/nemo/collections/nlp/data/language_modeling/megatron"
             # Remove compiled helpers lib to avoid race condition
-            compiled_helpers_lib = os.path.join(
-                megatron_dir, 'compiled_helpers_lib')
-            clean = f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || ' + \
-                    f'rm "{compiled_helpers_lib}" \''
+            compiled_helpers_lib = os.path.join(megatron_dir, "compiled_helpers_lib")
+            clean = (
+                f'bash -c \'[ ! -e "{compiled_helpers_lib}" ] || '
+                + f'rm "{compiled_helpers_lib}" \''
+            )
             cleancmd = get_launcher(nnodes, 1, clean)
             os.system(cleancmd)
 
@@ -264,8 +273,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {preprocess_code_path} {hydra_args}"
             launchcmd = get_launcher(nnodes, preproc_npernode, cmd)
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted preprocess script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"Preprocess CMD:\n{launchcmd}", file=jlog)

@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestConfig:
-
     def test_config(self):
-        conf = OmegaConf.load('conf/config.yaml')
+        conf = OmegaConf.load("conf/config.yaml")
         s = """
         defaults:
           - _self_
@@ -58,5 +57,6 @@ class TestConfig:
         conversion_config: ${hydra:runtime.choices.conversion}
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/config.yaml must be set to {expected} but it currently is {conf}."
-
+        assert (
+            expected == conf
+        ), f"conf/config.yaml must be set to {expected} but it currently is {conf}."

@@ -13,14 +13,19 @@ from pytorch_lightning.trainer.trainer import Trainer
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import (
+    fake_initialize_model_parallel,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_ltor_masks_and_position_ids,
 )
 from nemo.utils.app_state import AppState
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate,
+    get_computeprob_response,
+)
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
@@ -28,8 +33,11 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 from apex.transformer import tensor_parallel, parallel_state
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)-15s | %(name)-7s | %(levelname)-8s: %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 class RequestDataset(Dataset):
     def __init__(self, requests, tokenizer) -> None:
@@ -44,22 +52,28 @@ class RequestDataset(Dataset):
     def __getitem__(self, index):
         context, continuation = self.requests[index]
         context_enc = self.tokenizer.text_to_ids(context) if isinstance(context, str) else context
-        continuation_enc = self.tokenizer.text_to_ids(continuation) if isinstance(continuation, str) else continuation
+        continuation_enc = (
+            self.tokenizer.text_to_ids(continuation)
+            if isinstance(continuation, str)
+            else continuation
+        )
         # sanity check
         assert len(context_enc) > 0
         assert len(continuation_enc) > 0
         assert len(continuation_enc) <= self.max_length
 
         conti_len = len(continuation_enc)
-        inp_enc = torch.tensor((context_enc + continuation_enc)[-(self.max_length + 1):])
+        inp_enc = torch.tensor((context_enc + continuation_enc)[-(self.max_length + 1) :])
         return inp_enc, conti_len
+
 
 def setup_trainer_and_model(args):
     """Setup model and optimizer."""
     torch.set_grad_enabled(False)
 
-    assert args.nemo_model is not None or \
-           (args.checkpoint_folder is not None and args.checkpoint_name is not None), "Path to checkpoints is required."
+    assert args.nemo_model is not None or (
+        args.checkpoint_folder is not None and args.checkpoint_name is not None
+    ), "Path to checkpoints is required."
 
     # cast precision to int if 32 or 16
     if args.precision in ["32", "16"]:
@@ -78,12 +92,15 @@ def setup_trainer_and_model(args):
 
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+        app_state.model_parallel_size = (
+            args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+        )
         (
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
             app_state.model_parallel_size,
-            _, _,
+            _,
+            _,
         ) = fake_initialize_model_parallel(
             world_size=app_state.model_parallel_size,
             rank=trainer.global_rank,
@@ -93,18 +110,22 @@ def setup_trainer_and_model(args):
 
     if args.nemo_model is not None:
         logger.info(f"**** Loading checkpoint from {args.nemo_model}")
-        model = MegatronGPTModel.restore_from(
-            restore_path=args.nemo_model, trainer=trainer
-        )
+        model = MegatronGPTModel.restore_from(restore_path=args.nemo_model, trainer=trainer)
     else:
         if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
             app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
             app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
 
-        logger.info(f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}")
+        logger.info(
+            f"**** Loading checkpoint from {args.checkpoint_folder} - {args.checkpoint_name}"
+        )
         # inject model parallel rank
-        checkpoint_path = inject_model_parallel_rank(os.path.join(args.checkpoint_folder, args.checkpoint_name))
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        checkpoint_path = inject_model_parallel_rank(
+            os.path.join(args.checkpoint_folder, args.checkpoint_name)
+        )
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
 
     model.freeze()
 
@@ -113,6 +134,7 @@ def setup_trainer_and_model(args):
 
 def hacky_DDP_initialize(model):
     if parallel_state.is_unitialized():
+
         class RequestDataSet(Dataset):
             def __init__(self, sentences):
                 super().__init__()
@@ -136,13 +158,13 @@ class NeMo_GPT3LM_TP_PP(LM):
         super().__init__()
 
         # get nemo megatron
-        logger.info(f'**** Building GPT model ...')
+        logger.info(f"**** Building GPT model ...")
         self.trainer, self.gpt3 = setup_trainer_and_model(args)
         self.tokenizer = self.gpt3.tokenizer
         self.gpt3.eval()
 
-        self.max_length = self.gpt3.cfg.get('max_position_embeddings')
-        assert self.tokenizer.text_to_ids('hello\n\nhello') == [31373, 198, 198, 31373]
+        self.max_length = self.gpt3.cfg.get("max_position_embeddings")
+        assert self.tokenizer.text_to_ids("hello\n\nhello") == [31373, 198, 198, 31373]
 
         self.truncate = truncate
         self.batch_size = batch_size
@@ -172,7 +194,9 @@ class NeMo_GPT3LM_TP_PP(LM):
         def pad_collate(batch, eos_id=50256):
             tokens = [item[0] for item in batch]
             conti_lens = [item[1] for item in batch]
-            lens = [len(token)-1 for token in tokens]  # fake delete last token by reducing input len
+            lens = [
+                len(token) - 1 for token in tokens
+            ]  # fake delete last token by reducing input len
             max_len = max(lens)
 
             tokens_pad = pad_sequence(tokens, batch_first=False, padding_value=eos_id)
@@ -198,7 +222,9 @@ class NeMo_GPT3LM_TP_PP(LM):
 
         reord = utils.Reorderer(requests, _collate)
         request_ds = RequestDataset(reord.get_reordered(), self.gpt3.tokenizer)
-        request_dl = DataLoader(request_ds, collate_fn=pad_collate, batch_size=self.batch_size, shuffle=False)
+        request_dl = DataLoader(
+            request_ds, collate_fn=pad_collate, batch_size=self.batch_size, shuffle=False
+        )
 
         res = []
         for batch in tqdm.tqdm(request_dl):
@@ -222,33 +248,40 @@ class NeMo_GPT3LM_TP_PP(LM):
             if is_global_rank_zero():
                 input_token_ids_batch, _, lens, conti_lens = batch
                 batch_size = len(lens)
-                assert len(response['token_ids']) == batch_size, "Response's length not equal to batch size."
+                assert (
+                    len(response["token_ids"]) == batch_size
+                ), "Response's length not equal to batch size."
 
                 for index in range(batch_size):
                     inp_len = lens[index]
                     conti_len = conti_lens[index]
 
-                    inp_token_ids = input_token_ids_batch[index].tolist()[:inp_len+1]  # recover fake deleted token
-                    response_token_ids = response['token_ids'][index][:inp_len]
+                    inp_token_ids = input_token_ids_batch[index].tolist()[
+                        : inp_len + 1
+                    ]  # recover fake deleted token
+                    response_token_ids = response["token_ids"][index][:inp_len]
 
                     assert response_token_ids == inp_token_ids[:-1], f"Mismatch in input tokens."
 
-                    log_probs = response['full_logprob'][index][:inp_len]  # torch.tensor
+                    log_probs = response["full_logprob"][index][:inp_len]  # torch.tensor
                     log_probs = log_probs[-conti_len:]
 
                     greedy_tokens = log_probs.argmax(dim=-1)
                     greedy_tokens = self.tokenizer.ids_to_tokens(
-                        greedy_tokens.cpu().numpy().tolist())
+                        greedy_tokens.cpu().numpy().tolist()
+                    )
 
                     conti_token_ids = inp_token_ids[-conti_len:]
                     conti_tokens = self.tokenizer.ids_to_tokens(conti_token_ids)
 
-                    max_equal = (greedy_tokens == conti_tokens)
+                    max_equal = greedy_tokens == conti_tokens
                     log_probs = log_probs.cpu().to(torch.float32)
                     conti_enc = torch.tensor(self.tokenizer.tokens_to_ids(conti_tokens))
                     conti_probs = torch.gather(log_probs, 1, conti_enc.unsqueeze(-1)).squeeze(-1)
 
-                    res.append((float(conti_probs.sum()), bool(max_equal), greedy_tokens, conti_tokens))
+                    res.append(
+                        (float(conti_probs.sum()), bool(max_equal), greedy_tokens, conti_tokens)
+                    )
 
         return reord.get_original(res) if self.can_access_output() else None
 
@@ -257,15 +290,22 @@ class NeMo_GPT3LM_TP_PP(LM):
         len_rolling_token_windows = [0]
         all_rolling_token_windows = []
 
-        for string, in requests:
-            rolling_token_windows = list(map(utils.make_disjoint_window, utils.get_rolling_token_windows(
-                token_list=self.tokenizer.text_to_ids(string),
-                prefix_token=50256,
-                max_seq_len=self.max_length,
-                context_len=1,
-            )))
+        for (string,) in requests:
+            rolling_token_windows = list(
+                map(
+                    utils.make_disjoint_window,
+                    utils.get_rolling_token_windows(
+                        token_list=self.tokenizer.text_to_ids(string),
+                        prefix_token=50256,
+                        max_seq_len=self.max_length,
+                        context_len=1,
+                    ),
+                )
+            )
 
-            len_rolling_token_windows.append(len(rolling_token_windows) + len_rolling_token_windows[-1])
+            len_rolling_token_windows.append(
+                len(rolling_token_windows) + len_rolling_token_windows[-1]
+            )
             all_rolling_token_windows.extend(rolling_token_windows)
 
         string_nll = self._loglikelihood(all_rolling_token_windows)
@@ -274,7 +314,8 @@ class NeMo_GPT3LM_TP_PP(LM):
             # discard is_greedy
             for i in range(len(len_rolling_token_windows) - 1):
                 loglikelihoods.append(
-                    sum(string_nll[len_rolling_token_windows[i]:len_rolling_token_windows[i + 1]]))
+                    sum(string_nll[len_rolling_token_windows[i] : len_rolling_token_windows[i + 1]])
+                )
 
         return loglikelihoods
 

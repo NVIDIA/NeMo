@@ -63,7 +63,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -87,11 +87,11 @@ def run_training(cfg, hydra_args="", dependency=None):
     name = run_cfg.get("name")
     results_dir = run_cfg.get("results_dir")
     time_limit = run_cfg.get("time_limit")
-    
+
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
-    
-    # Shared between BCP and BCM 
+
+    # Shared between BCP and BCM
     new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
     training_config = cfg.get("training_config")
     if "gpt" in training_config:
@@ -148,9 +148,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output(
-            [f"sbatch --parsable {new_script_path}"], shell=True
-        )
+        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id = job_id.decode("utf-8")
         print(f"Submitted Training script with job id: {dependency}")
         return dependency
@@ -169,4 +167,3 @@ def run_training(cfg, hydra_args="", dependency=None):
         subprocess.check_output([f"{submit_cmd}"], shell=True)
         print(f"Training job submitted with command: \n{submit_cmd}")
         return None
-

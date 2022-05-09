@@ -9,21 +9,21 @@ from bignlp.finetune_scripts.data import download_glue
 
 
 def create_slurm_file(
-        new_script_path,
-        train_cmd,
-        job_name,
-        flags="",
-        dependency=None,
-        time="04:00:00",
-        exclusive=True,
-        mem=0,
-        overcommit=True,
-        nodes=1,
-        ntasks_per_node=8,
-        gpus_per_task=None,
-        gpus_per_node=None,
-        partition="batch",
-        account=None,
+    new_script_path,
+    train_cmd,
+    job_name,
+    flags="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    mem=0,
+    overcommit=True,
+    nodes=1,
+    ntasks_per_node=8,
+    gpus_per_task=None,
+    gpus_per_node=None,
+    partition="batch",
+    account=None,
 ):
     """
     Creates a slurm file to launch a training job.
@@ -55,16 +55,16 @@ def create_slurm_file(
 
 
 def create_bcp_file(
-        train_cmd,
-        num_nodes,
-        log_file,
-        new_script_path,
-        env_exports=None,
+    train_cmd,
+    num_nodes,
+    log_file,
+    new_script_path,
+    env_exports=None,
 ):
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -93,12 +93,9 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     if not os.path.exists(results_dir):
         os.makedirs(results_dir)
 
-    download_glue.download_glue(
-        data_dir=os.path.join(data_dir, "glue_data"),
-        tasks=task_name
-    )
+    download_glue.download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
-    # Shared between BCP and BCM 
+    # Shared between BCP and BCM
     new_script_path = os.path.join(bignlp_path, f"bignlp/finetune_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
 
@@ -149,9 +146,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output(
-            [f"sbatch --parsable {new_script_path}"], shell=True
-        )
+        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id = job_id.decode("utf-8")
         print(f"Submitted Finetuning script with job id: {dependency}")
         return dependency

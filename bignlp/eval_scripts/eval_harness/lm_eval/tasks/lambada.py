@@ -15,22 +15,29 @@ class LAMBADA(Task):
         super().__init__()
 
     def download(self):
-        path = self.cache_dir if self.cache_dir \
+        path = (
+            self.cache_dir
+            if self.cache_dir
             else os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, "data")
+        )
         path = os.path.join(path, "lambada")
         sh("mkdir -p " + path)
 
         try:
-            if not os.path.exists(path + '/lambada_test.jsonl'):
+            if not os.path.exists(path + "/lambada_test.jsonl"):
                 download_file(
                     "http://eaidata.bmk.sh/data/lambada_test.jsonl",
-                    local_file=path + '/lambada_test.jsonl',
-                    expected_checksum="4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226"
+                    local_file=path + "/lambada_test.jsonl",
+                    expected_checksum="4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226",
                 )
         except:
             # fallback - for some reason best_download doesnt work all the time here
-            sh("wget http://eaidata.bmk.sh/data/lambada_test.jsonl -O data/lambada/lambada_test.jsonl")
-            sh('echo "4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226  data/lambada/lambada_test.jsonl" | sha256sum --check')
+            sh(
+                "wget http://eaidata.bmk.sh/data/lambada_test.jsonl -O data/lambada/lambada_test.jsonl"
+            )
+            sh(
+                'echo "4aa8d02cd17c719165fc8a7887fddd641f43fcafa4b1c806ca8abc31fabdb226  data/lambada/lambada_test.jsonl" | sha256sum --check'
+            )
 
         self.cache_dir = path
 
@@ -65,10 +72,10 @@ class LAMBADA(Task):
         return text
 
     def doc_to_text(self, doc):
-        return '\n' + self.preprocess(doc['text'].rsplit(' ', 1)[0]).strip()
+        return "\n" + self.preprocess(doc["text"].rsplit(" ", 1)[0]).strip()
 
     def doc_to_target(self, doc):
-        return " " + self.preprocess(doc['text'].rsplit(' ', 1)[1])
+        return " " + self.preprocess(doc["text"].rsplit(" ", 1)[1])
 
     def fewshot_description(self):
         # TODO: figure out description
@@ -82,27 +89,18 @@ class LAMBADA(Task):
     def process_results(self, doc, results):
         ll, is_greedy, *_ = results
 
-        return {
-            'ppl': ll,
-            'acc': int(is_greedy)
-        }
+        return {"ppl": ll, "acc": int(is_greedy)}
 
     def serialize_results(self, doc, results):
         *_, greedy_toks, cont_toks = results
         return {
             "prompt": self.doc_to_text(doc),
-            "gold_answer": [x.replace('Ġ', ' ') for x in cont_toks],
-            "model_answer": [x.replace('Ġ', ' ') for x in greedy_toks],
+            "gold_answer": [x.replace("Ġ", " ") for x in cont_toks],
+            "model_answer": [x.replace("Ġ", " ") for x in greedy_toks],
         }
 
     def aggregation(self):
-        return {
-            'ppl': perplexity,
-            'acc': mean
-        }
+        return {"ppl": perplexity, "acc": mean}
 
     def higher_is_better(self):
-        return {
-            'ppl': False,
-            'acc': True
-        }
+        return {"ppl": False, "acc": True}
