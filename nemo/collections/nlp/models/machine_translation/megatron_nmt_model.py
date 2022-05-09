@@ -432,11 +432,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
             drop_last=True,
         )
-
+        if isinstance(dataset, BlendableDataset):
+            collate_fn = dataset.datasets[0]._collate_fn
+        else:
+            collate_fn = dataset._collate_fn
         return torch.utils.data.DataLoader(
             dataset,
             batch_sampler=batch_sampler,
-            collate_fn=dataset._collate_fn,
+            collate_fn=collate_fn,
             num_workers=cfg.num_workers,
             pin_memory=True,
         )
@@ -511,7 +514,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 raise ValueError(f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}")
 
             datasets = []
-            for src_file, tgt_fille in zip(cfg.src_file_name, cfg.file_file_name):
+            for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
                 dataset = MegatronSequenceToSequenceDataset(
                     src_dataset_prefix=src_file,
                     tgt_dataset_prefix=tgt_fille,
