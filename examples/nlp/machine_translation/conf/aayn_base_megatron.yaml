@@ -92,7 +92,7 @@ model:
   train_ds:
     src_file_name: null
     tgt_file_name: null
-    dataset_type: 'tarred' # if true tar_file_name and meta_file_name will be used (or created automatically) 
+    dataset_type: 'tarred' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
     # config for preprocessing training data and creating a tarred datset automatically
     tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
