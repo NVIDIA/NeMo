@@ -46,8 +46,6 @@ model:
   max_generation_delta: 20 # Maximum decoder sequence length is encoder sequence length + this parameter.
   pretrained_model_path: null # Path to a pretrained model 
   pretrained_model_type: T5
-  global_batch_size: 32 # This is just here to keep compute_consumed_samples() happy.
-  micro_batch_size: 32 # This is just here to keep compute_consumed_samples() happy.
 
   # model parallelism 
   micro_batch_size: 32
