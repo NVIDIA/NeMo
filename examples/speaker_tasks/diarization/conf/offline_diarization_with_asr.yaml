@@ -48,7 +48,7 @@ diarizer:
     model_path: ??? # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purpose.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
-      asr_based_vad_threshold: 50 # threshold (multiple of 10ms) for ignoring the gap between two words when generating VAD timestamps using ASR based VAD.
+      asr_based_vad_threshold: 0.05 # Threshold (in sec) that caps the gap between two words when generating VAD timestamps using ASR based VAD.
       asr_batch_size: null # Batch size can be dependent on each ASR model. Default batch sizes are applied if set to null.
       lenient_overlap_WDER: True # If true, when a word falls into speaker-ovelapped regions, consider the word as a correctly diarized word.
       decoder_delay_in_sec: null # Native deocder delay. null is recommended to use the default values for each ASR model.
