@@ -16,6 +16,7 @@ import math
 from collections import OrderedDict
 from typing import List, Optional
 from omegaconf import ListConfig
+from torch.nn import LayerNorm
 
 import torch
 import torch.distributed
