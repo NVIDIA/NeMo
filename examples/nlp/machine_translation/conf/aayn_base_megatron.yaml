@@ -93,6 +93,8 @@ model:
     src_file_name: null
     tgt_file_name: null
     dataset_type: 'tarred' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
+    micro_batch_size: ${model.micro_batch_size}
+    global_batch_size: ${model.global_batch_size}
     # config for preprocessing training data and creating a tarred datset automatically
     tar_file_prefix: parallel # prefix for tar file names
     tar_files: null # if data has already been preprocessed (rest of config ignored)
@@ -118,6 +120,7 @@ model:
   validation_ds:
     src_file_name: ???
     tgt_file_name: ???
+    dataset_type: 'text'
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
@@ -130,6 +133,7 @@ model:
   test_ds:
     src_file_name: ???
     tgt_file_name: ???
+    dataset_type: 'text'
     tokens_in_batch: 512
     clean: false
     max_seq_length: 512
