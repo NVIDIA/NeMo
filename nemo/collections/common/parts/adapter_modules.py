@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
+from typing import Optional
 
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 from torch import nn as nn
-from typing import Optional
 
 from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import adapter_mixin_strategies
@@ -79,6 +80,13 @@ class LinearAdapter(nn.Module):
         # set default adapter strategy
         if adapter_strategy is None:
             adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+
+        if is_dataclass(adapter_strategy):
+            adapter_strategy = OmegaConf.structured(adapter_strategy)
+            OmegaConf.set_struct(adapter_strategy, False)
+
+        # The config must have the `_target_` field pointing to the actual adapter strategy class
+        # which will load that strategy dynamically to this module.
         self.adapter_strategy = instantiate(adapter_strategy)
 
         # reset parameters

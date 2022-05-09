@@ -66,6 +66,11 @@ model:
     norm_position: 'post'  # Can be `pre` or `post`
     dropout: 0.0  # float, dropout for the adapter
 
+    # Adapter strategy config - must point to a data class for that strategy.
+    adapter_strategy:
+      _target_: nemo.core.classes.mixins.adapter_mixin_strategies.ResidualAddAdapterStrategyConfig
+      stochastic_depth: 0.0  # float, setting to > 0 will enable stochastic depth for each adapter block.
+
     # Optional global config available to all adapters at a global level.
     # A global config is shared across every layer of the adapters, defining global properties rather
     # than properties local to the adapter (as defined above).

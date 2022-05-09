@@ -110,4 +110,6 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
 @dataclass
 class ResidualAddAdapterStrategyConfig:
     stochastic_depth: float = 0.0
-    _target_: str = "{0}.{1}".format(ResidualAddAdapterStrategy.__module__, ResidualAddAdapterStrategy.__name__)
+    _target_: str = "{0}.{1}".format(
+        ResidualAddAdapterStrategy.__module__, ResidualAddAdapterStrategy.__name__
+    )  # mandatory field
