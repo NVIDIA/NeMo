@@ -441,6 +441,9 @@ if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
 
+    if not args.input_string and not args.input_file:
+        raise ValueError("Either `--text` or `--input_file` required")
+
     normalizer = Normalizer(
         input_case=args.input_case,
         cache_dir=args.cache_dir,
