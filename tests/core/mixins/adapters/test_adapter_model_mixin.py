@@ -120,10 +120,12 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
         # Forward the method call to the individual modules
         if name is None or global_config.get('encoder_adapter', True) or module_name in ('', 'encoder'):
-            self.encoder.set_enabled_adapters(name, enabled)
+            if self.encoder.is_adapter_available():
+                self.encoder.set_enabled_adapters(name, enabled)
 
         if name is None or global_config.get('decoder_adapter', False) or module_name == 'decoder':
-            self.decoder.set_enabled_adapters(name, enabled)
+            if self.decoder.is_adapter_available():
+                self.decoder.set_enabled_adapters(name, enabled)
 
     def get_enabled_adapters(self) -> list:
         enabled_adapters = super().get_enabled_adapters()
@@ -418,6 +420,23 @@ class TestAdapterModelMixin:
         original_num_params = model.num_weights
 
         model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name='decoder:adapter_1', cfg=get_adapter_cfg())
+        new_num_params = model.num_weights
+
+        model.set_enabled_adapters(enabled=False)
+
+        assert new_num_params > original_num_params
+        assert model.is_adapter_available() is True
+        assert len(model.get_enabled_adapters()) == 0
+
+    @pytest.mark.unit
+    def test_set_enabled_all_adapters_with_no_name_only_decoder(self):
+        cfg = get_model_config(in_features=50)
+        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=True)
+
+        model = DefaultAdapterModel(cfg)
+        original_num_params = model.num_weights
+
         model.add_adapter(name='decoder:adapter_1', cfg=get_adapter_cfg())
         new_num_params = model.num_weights
 
