@@ -120,9 +120,7 @@ class MegatronSequenceToSequenceDataset(torch.utils.data.Dataset):
         if len(tgt_tokens) > self.max_decoder_seq_length - 2:
             tgt_tokens = tgt_tokens[: self.max_decoder_seq_length - 2]
 
-        return self.build_tokens_types_from_ids(
-            src_tokens, tgt_tokens
-        )
+        return self.build_tokens_types_from_ids(src_tokens, tgt_tokens)
 
     def round_to_nearest(self, length, modulo):
         return (length + modulo - 1) // modulo * modulo
@@ -165,12 +163,12 @@ class MegatronSequenceToSequenceDataset(torch.utils.data.Dataset):
         dec_out_ids.append(self.tgt_tokenizer.eos_id)
 
         return {
-            'encoder_ids' : enc_ids,
+            'encoder_ids': enc_ids,
             'token_type_ids': tokentypes_enc,
             'encoder_sequence_length': len(enc_ids),
             'decoder_input_ids': dec_in_ids,
             'decoder_output_ids': dec_out_ids,
-            'decoder_sequence_length': len(dec_in_ids)
+            'decoder_sequence_length': len(dec_in_ids),
         }
 
     def _collate_fn(self, batch):
@@ -186,11 +184,17 @@ class MegatronSequenceToSequenceDataset(torch.utils.data.Dataset):
 
         for i, example in enumerate(batch):
             enc_seq_len = example['encoder_sequence_length']
-            enc_ids[i] = torch.tensor(example['encoder_ids'] + [0] * (max_enc_seq_len - enc_seq_len), dtype=torch.int64)
+            enc_ids[i] = torch.tensor(
+                example['encoder_ids'] + [0] * (max_enc_seq_len - enc_seq_len), dtype=torch.int64
+            )
 
             dec_seq_len = batch[i]['decoder_sequence_length']
-            dec_in_ids[i] = torch.tensor(example['decoder_input_ids'] + [0] * (max_dec_seq_len - dec_seq_len), dtype=torch.int64)
-            labels[i] = torch.tensor(example['decoder_output_ids'] + [0] * (max_dec_seq_len - dec_seq_len), dtype=torch.int64)
+            dec_in_ids[i] = torch.tensor(
+                example['decoder_input_ids'] + [0] * (max_dec_seq_len - dec_seq_len), dtype=torch.int64
+            )
+            labels[i] = torch.tensor(
+                example['decoder_output_ids'] + [0] * (max_dec_seq_len - dec_seq_len), dtype=torch.int64
+            )
             loss_mask[i] = torch.tensor([1] * dec_seq_len + [0] * (max_dec_seq_len - dec_seq_len), dtype=torch.int64)
 
         # Create attention masks

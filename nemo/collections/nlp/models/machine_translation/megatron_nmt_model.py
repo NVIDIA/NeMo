@@ -23,16 +23,17 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
+from nemo.collections.nlp.data.common.megatron_sequence_to_sequence_dataset import MegatronSequenceToSequenceDataset
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.common.megatron_sequence_to_sequence_dataset import MegatronSequenceToSequenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
-
 from nemo.utils import AppState, logging
 
 try:
@@ -91,7 +92,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
                 )
             except (ValueError, TypeError):
-                logging.warning("Cannot parse the checkpoint file to get the consumed samples. This is expected if you are not using memmap datasets.")
+                logging.warning(
+                    "Cannot parse the checkpoint file to get the consumed samples. This is expected if you are not using memmap datasets."
+                )
                 init_consumed_samples = 0
         else:
             init_consumed_samples = 0
@@ -416,10 +419,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # TODO: Figure out how to set global rank and world size for model parallel.
         if hasattr(self, '_train_ds'):
             if train_data_config.dataset_type in ['tarred', 'text']:
-                self._train_dl = MTEncDecModel._setup_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds)
+                self._train_dl = MTEncDecModel._setup_dataloader_from_config(
+                    cfg=train_data_config, dataset=self._train_ds
+                )
             elif train_data_config.dataset_type in ['bin_memmap', 'text_memmap']:
                 consumed_samples = self.compute_consumed_samples(0)
-                self._train_dl = self._setup_megatron_dataloader_from_config(cfg=train_data_config, dataset=self._train_ds, consumed_samples=consumed_samples)
+                self._train_dl = self._setup_megatron_dataloader_from_config(
+                    cfg=train_data_config, dataset=self._train_ds, consumed_samples=consumed_samples
+                )
 
     def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
@@ -437,11 +444,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         else:
             collate_fn = dataset._collate_fn
         return torch.utils.data.DataLoader(
-            dataset,
-            batch_sampler=batch_sampler,
-            collate_fn=collate_fn,
-            num_workers=cfg.num_workers,
-            pin_memory=True,
+            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=True,
         )
 
     def process_global_batch_for_tarred_datasets(self, batch):
@@ -500,18 +503,28 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # If multilingual, make sure both source and target are list configs
         if self.multilingual:
             if not (is_src_listconfig and is_tgt_listconfig):
-                raise ValueError(f"Multilingual datasets must be configured with a ListConfig for both src_file_name and tgt_file_name")
+                raise ValueError(
+                    f"Multilingual datasets must be configured with a ListConfig for both src_file_name and tgt_file_name"
+                )
         if is_src_listconfig and not is_tgt_listconfig or is_tgt_listconfig and not is_src_listconfig:
-            raise ValueError(f"Datasets must be configured with a ListConfig for both src_file_name and tgt_file_name or neither. Found only one of them as listconfig.")
+            raise ValueError(
+                f"Datasets must be configured with a ListConfig for both src_file_name and tgt_file_name or neither. Found only one of them as listconfig."
+            )
 
         if is_src_listconfig and is_tgt_listconfig:
             if len(cfg.src_file_name) != len(cfg.tgt_file_name):
                 raise ValueError(f"Datasets must have the same number of files in src_file_name and tgt_file_name")
 
-            if cfg.concat_sampling_probabilities is None or not isinstance(cfg.concat_sampling_probabilities, ListConfig):
-                raise ValueError(f"concat_sampling_probabilities must be a ListConfig with the same number of files in src_file_name and tgt_file_name, found {cfg.concat_sampling_probabilities}")
+            if cfg.concat_sampling_probabilities is None or not isinstance(
+                cfg.concat_sampling_probabilities, ListConfig
+            ):
+                raise ValueError(
+                    f"concat_sampling_probabilities must be a ListConfig with the same number of files in src_file_name and tgt_file_name, found {cfg.concat_sampling_probabilities}"
+                )
             if len(cfg.concat_sampling_probabilities) != len(cfg.src_file_name):
-                raise ValueError(f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}")
+                raise ValueError(
+                    f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}"
+                )
 
             datasets = []
             for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
@@ -529,10 +542,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     dataset_index_sampling_override=False,
                 )
                 datasets.append(dataset)
-            dataset = BlendableDataset(
-                datasets=datasets,
-                weights=cfg.concat_sampling_probabilities
-            )
+            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
         else:
             dataset = MegatronSequenceToSequenceDataset(
                 src_dataset_prefix=cfg.src_file_name,
