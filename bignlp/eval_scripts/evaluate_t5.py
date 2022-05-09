@@ -64,7 +64,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)

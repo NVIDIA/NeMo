@@ -514,7 +514,7 @@ class PerplexityTask(Task, abc.ABC):
         return req
 
     def process_results(self, doc, results):
-        (loglikelihood,) = results
+        loglikelihood, = results
         words = self.count_words(doc)
         bytes = self.count_bytes(doc)
         return {

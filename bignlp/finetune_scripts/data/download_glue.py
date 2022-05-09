@@ -10,17 +10,8 @@ import io
 URLLIB = urllib.request
 
 TASKS = [
-    "CoLA",
-    "SST-2",
-    "MRPC",
-    "QQP",
-    "STS-B",
-    "MNLI",
-    "QNLI",
-    "RTE",
-    "WNLI",
-    "XNLI",
-    "diagnostic",
+    "CoLA", "SST-2", "MRPC", "QQP", "STS-B", "MNLI", 
+    "QNLI", "RTE", "WNLI", "XNLI", "diagnostic",
 ]
 TASK2PATH = {
     "CoLA": "https://dl.fbaipublicfiles.com/glue/data/CoLA.zip",

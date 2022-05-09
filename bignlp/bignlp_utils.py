@@ -35,7 +35,7 @@ def convert_to_cli(cfg):
             result += f"{k}=\\'{v}\\' "
         elif k == "checkpoint_name":
             v = v.replace("=", "\=")
-            result += f"{k}='{v}' "
+            result += f"{k}=\'{v}\' "
         else:
             result += f"{k}={convert_to_null(v)} "
     return result

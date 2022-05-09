@@ -69,8 +69,8 @@ def general_detokenize(string):
     string = string.replace(" n't", "n't")
     string = string.replace(" )", ")")
     string = string.replace("( ", "(")
-    string = string.replace('" ', '"')
-    string = string.replace(' "', '"')
+    string = string.replace("\" ", "\"")
+    string = string.replace(" \"", "\"")
     string = re.sub(r" (['.,])", r"\1", string)
     return string
 
