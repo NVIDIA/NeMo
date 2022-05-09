@@ -16,8 +16,8 @@ import json
 import math
 import os
 from copy import deepcopy
-from typing import List, Optional, Dict
 from functools import reduce
+from typing import Dict, List, Optional
 
 import numpy as np
 import omegaconf
@@ -29,7 +29,6 @@ from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
-
 
 """
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
@@ -45,6 +44,7 @@ def get_uniqname_from_filepath(filepath):
         return basename
     else:
         raise TypeError("input must be filepath string")
+
 
 def get_uniq_id_with_dur(meta, deci=2):
     """
@@ -176,7 +176,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
 
     elif any(checkListConfig):
         raise ValueError(
-            'You must provide list config for all three parameters: window, shift and multiscale weights.'
+            'You must provide a list config for all three parameters: window, shift and multiscale weights.'
         )
     else:
         return None
@@ -239,7 +239,7 @@ def get_contiguous_stamps(stamps):
 
 def merge_stamps(lines):
     """
-    merge time stamps of same speaker
+    Merge time stamps of the same speaker.
     """
     stamps = deepcopy(lines)
     overlap_stamps = []
@@ -259,7 +259,7 @@ def merge_stamps(lines):
 
 def labels_to_pyannote_object(labels, uniq_name=''):
     """
-    converts labels to pyannote object to calculate DER and for visualization
+    Convert the given labels to pyannote object to calculate DER and for visualization
     """
     annotation = Annotation(uri=uniq_name)
     for label in labels:
@@ -360,7 +360,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
 
     cuda = True
     if not torch.cuda.is_available():
-        logging.warning("cuda=False, using CPU for Eigen decompostion. This might slow down the clustering process.")
+        logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
     for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
@@ -389,7 +389,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             lines[idx] += tag
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
-        
+
         if out_rttm_dir:
             labels_to_rttmfile(labels, uniq_id, out_rttm_dir)
             lines_cluster_labels.extend([f'{uniq_id} {seg_line}\n' for seg_line in lines])
@@ -464,6 +464,7 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
 
         return None
 
+
 def get_vad_out_from_rttm_line(rttm_line):
     vad_out = rttm_line.strip().split()
     if len(vad_out) > 3:
@@ -472,6 +473,7 @@ def get_vad_out_from_rttm_line(rttm_line):
         start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
     start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
     return start, dur
+
 
 def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
     """
@@ -499,6 +501,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
         offset = 0.0
     return offset, duration
 
+
 def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id):
     """
     Write the json dictionary into the specified file.
@@ -515,13 +518,16 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     for (stt, end) in overlap_range_list:
-        meta = {"audio_filepath": audio_path, 
-                "offset": round(stt, 2),
-                "duration": round(end - stt, 2),
-                "label": 'UNK',
-                "uniq_id": uniq_id}
+        meta = {
+            "audio_filepath": audio_path,
+            "offset": round(stt, 2),
+            "duration": round(end - stt, 2),
+            "label": 'UNK',
+            "uniq_id": uniq_id,
+        }
         json.dump(meta, outfile)
         outfile.write("\n")
+
 
 def read_rttm_lines(rttm_file_path):
     """
@@ -545,6 +551,7 @@ def read_rttm_lines(rttm_file_path):
     lines = f.readlines()
     return lines
 
+
 def isOverlap(rangeA, rangeB):
     """
     Check whether two ranges have overlap.
@@ -561,6 +568,7 @@ def isOverlap(rangeA, rangeB):
     start2, end2 = rangeB
     return end1 > start2 and end2 > start1
 
+
 def getOverlapRange(rangeA, rangeB):
     """
     Calculate the overlapping range between rangeA and rangeB.
@@ -575,6 +583,7 @@ def getOverlapRange(rangeA, rangeB):
     """
     assert isOverlap(rangeA, rangeB), f"There is no overlap between rangeA:{rangeA} and rangeB:{rangeB}"
     return [max(rangeA[0], rangeB[0]), min(rangeA[1], rangeB[1])]
+
 
 def combine_float_overlaps(ranges):
     """
@@ -592,14 +601,15 @@ def combine_float_overlaps(ranges):
     """
     ranges_int = []
     for x in ranges:
-        stt, end = fl2int(x[0])+1, fl2int(x[1])
+        stt, end = fl2int(x[0]) + 1, fl2int(x[1])
         if stt == end:
             logging.warning(f"The ragne {stt}:{end} is too short to be combined therefore skipped.")
         else:
             ranges_int.append([stt, end])
     merged_ranges = combine_int_overlaps(ranges_int)
-    merged_ranges = [[int2fl(x[0]-1), int2fl(x[1])] for x in merged_ranges]
+    merged_ranges = [[int2fl(x[0] - 1), int2fl(x[1])] for x in merged_ranges]
     return merged_ranges
+
 
 def combine_int_overlaps(ranges):
     """
@@ -618,24 +628,27 @@ def combine_int_overlaps(ranges):
     """
     merged_list = reduce(
         lambda x, element: x[:-1:] + [(min(*x[-1], *element), max(*x[-1], *element))]
-            if x[-1][1] >= element[0] - 1
-            else x + [element],
+        if x[-1][1] >= element[0] - 1
+        else x + [element],
         ranges[1::],
         ranges[0:1],
     )
     return merged_list
 
+
 def fl2int(x, deci=2):
     """
     Convert floating point number to integer.
     """
-    return int(round(x*pow(10,deci)))
+    return int(round(x * pow(10, deci)))
+
 
 def int2fl(x, deci=2):
     """
     Convert integer to floating point number.
     """
-    return round(float(x/pow(10,deci)), int(deci))
+    return round(float(x / pow(10, deci)), int(deci))
+
 
 def getMergedRanges(label_list_A: List, label_list_B: List) -> List:
     """
@@ -656,10 +669,11 @@ def getMergedRanges(label_list_A: List, label_list_B: List) -> List:
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [ [fl2int(x[0]), fl2int(x[1])] for x in label_list_A] 
-        label_list_B = [ [fl2int(x[0]), fl2int(x[1])] for x in label_list_B] 
+        label_list_A = [[fl2int(x[0]), fl2int(x[1])] for x in label_list_A]
+        label_list_B = [[fl2int(x[0]), fl2int(x[1])] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
-        return [ [int2fl(x[0]), int2fl(x[1])] for x in combined ]
+        return [[int2fl(x[0]), int2fl(x[1])] for x in combined]
+
 
 def getMinMaxOfRangeList(ranges):
     """
@@ -668,6 +682,7 @@ def getMinMaxOfRangeList(ranges):
     _max = max([x[1] for x in ranges])
     _min = min([x[0] for x in ranges])
     return _min, _max
+
 
 def getSubRangeList(target_range, source_range_list) -> List:
     """
@@ -701,7 +716,8 @@ def getSubRangeList(target_range, source_range_list) -> List:
             if isOverlap(s_range, target_range):
                 ovl_range = getOverlapRange(s_range, target_range)
                 out_range.append(ovl_range)
-        return out_range 
+        return out_range
+
 
 def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 2) -> str:
     """
@@ -728,24 +744,22 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
-                vad_start_end_list_raw.append([start, start+dur])
+                vad_start_end_list_raw.append([start, start + dur])
             vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw)
             if len(vad_start_end_list) == 0:
-                logging.warning(
-                    f"File ID: {uniq_id}: The VAD label is not containing any speech segments."
-                )
+                logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
             elif duration == 0:
-                logging.warning(
-                    f"File ID: {uniq_id}: The audio file has zero duration."
-                )
+                logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
             else:
                 min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
                 if max_vad > round(offset + duration, deci) or min_vad < offset:
                     logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
-                overlap_range_list = getSubRangeList(source_range_list=vad_start_end_list,
-                                                     target_range=[offset, offset+duration])
+                overlap_range_list = getSubRangeList(
+                    source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
+                )
             write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id)
     return manifest_file
+
 
 def segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
@@ -753,7 +767,7 @@ def segments_manifest_to_subsegments_manifest(
     window: float = 1.5,
     shift: float = 0.75,
     min_subsegment_duration: float = 0.05,
-    include_uniq_id:bool = False
+    include_uniq_id: bool = False,
 ):
     """
     Generate subsegments manifest from segments manifest file
@@ -787,7 +801,13 @@ def segments_manifest_to_subsegments_manifest(
             for subsegment in subsegments:
                 start, dur = subsegment
                 if dur > min_subsegment_duration:
-                    meta = {"audio_filepath": audio, "offset": start, "duration": dur, "label": label, "uniq_id": uniq_id}
+                    meta = {
+                        "audio_filepath": audio,
+                        "offset": start,
+                        "duration": dur,
+                        "label": label,
+                        "uniq_id": uniq_id,
+                    }
 
                     json.dump(meta, subsegments_manifest)
                     subsegments_manifest.write("\n")
