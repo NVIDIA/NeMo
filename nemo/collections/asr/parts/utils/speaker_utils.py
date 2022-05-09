@@ -466,6 +466,9 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
 
 
 def get_vad_out_from_rttm_line(rttm_line):
+    """
+    Extract VAD timestamp from the given RTTM lines.
+    """
     vad_out = rttm_line.strip().split()
     if len(vad_out) > 3:
         start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
