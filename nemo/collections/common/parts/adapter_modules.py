@@ -87,7 +87,12 @@ class LinearAdapter(nn.Module):
 
         # The config must have the `_target_` field pointing to the actual adapter strategy class
         # which will load that strategy dynamically to this module.
-        self.adapter_strategy = instantiate(adapter_strategy)
+        if isinstance(adapter_strategy, dict) or OmegaConf.is_config(adapter_strategy):
+            self.adapter_strategy = instantiate(adapter_strategy)
+        elif isinstance(adapter_strategy, adapter_mixin_strategies.AbstractAdapterStrategy):
+            self.adapter_strategy = adapter_strategy
+        else:
+            raise AttributeError(f'`adapter_strategy` provided is invalid : {adapter_strategy}')
 
         # reset parameters
         self.reset_parameters()
