@@ -46,7 +46,7 @@ def get_uniqname_from_filepath(filepath):
         raise TypeError("input must be filepath string")
 
 
-def get_uniq_id_with_dur(meta, deci=2):
+def get_uniq_id_with_dur(meta, deci=3):
     """
     Return basename with offset and end time labels
     """
@@ -69,13 +69,10 @@ def audio_rttm_map(manifest):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps
-    Args:
-        manifest (str):
-            Path to a file containing keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
+    Args: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
 
-    Returns:
-        AUDIO_RTTM_MAP (dict) : 
-            A dictionary with keys of uniq_id, which is being used to map audio files and corresponding rttm files
+    returns:
+    AUDIO_RTTM_MAP (dict) : A dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
     """
 
     AUDIO_RTTM_MAP = {}
@@ -462,7 +459,7 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
         return metric, mapping_dict
     else:
         logging.warning(
-            "Check if each ground truth RTTMs were present in the provided manifest file. Skipping calculation of Diarization Error Rate"
+            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
         )
 
         return None
@@ -477,11 +474,11 @@ def get_vad_out_from_rttm_line(rttm_line):
         start, dur, _ = float(vad_out[3]), float(vad_out[4]), vad_out[7]
     else:
         start, dur, _ = float(vad_out[0]), float(vad_out[1]), vad_out[2]
-    start, dur = float("{:.3f}".format(start)), float("{:.3f}".format(dur))
+    start, dur = float("{:}".format(start)), float("{:}".format(dur))
     return start, dur
 
 
-def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
+def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=3):
     """
     Extract offset and duration information from AUDIO_RTTM_MAP dictionary.
     If duration information is not specified, a duration value is extracted from the audio file directly.
@@ -495,12 +492,12 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
         offset (float):
             The offset value that determines the beginning of the audio stream.
         duration (float):
-            The length of the audio stream that is expected to be used.
+            The length of audio stream that is expected to be used.
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     if AUDIO_RTTM_MAP[uniq_id].get('duration', None):
-        duration = round(AUDIO_RTTM_MAP[uniq_id]['duration'], 2)
-        offset = round(AUDIO_RTTM_MAP[uniq_id]['offset'], 2)
+        duration = round(AUDIO_RTTM_MAP[uniq_id]['duration'], deci)
+        offset = round(AUDIO_RTTM_MAP[uniq_id]['offset'], deci)
     else:
         sound = sf.SoundFile(audio_path)
         duration = sound.frames / sound.samplerate
@@ -508,7 +505,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
     return offset, duration
 
 
-def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id):
+def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci):
     """
     Write the json dictionary into the specified file.
 
@@ -526,8 +523,8 @@ def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list,
     for (stt, end) in overlap_range_list:
         meta = {
             "audio_filepath": audio_path,
-            "offset": round(stt, 2),
-            "duration": round(end - stt, 2),
+            "offset": round(stt, deci),
+            "duration": round(end - stt, deci),
             "label": 'UNK',
             "uniq_id": uniq_id,
         }
@@ -591,7 +588,7 @@ def getOverlapRange(rangeA, rangeB):
     return [max(rangeA[0], rangeB[0]), min(rangeA[1], rangeB[1])]
 
 
-def combine_float_overlaps(ranges):
+def combine_float_overlaps(ranges, deci=5, margin=2):
     """
     Args:
         ranges(list):
@@ -603,23 +600,24 @@ def combine_float_overlaps(ranges):
             Example: [(10.2, 12.09)]
 
     Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
-    we need to add 1 to the starting range before merging then subtract 1 from the result range.
+    we need to add margin to the starting range before merging then subtract margin from the result range.
     """
     ranges_int = []
     for x in ranges:
-        stt, end = fl2int(x[0]) + 1, fl2int(x[1])
+        stt, end = fl2int(x[0], deci) + margin, fl2int(x[1], deci)
         if stt == end:
-            logging.warning(f"The ragne {stt}:{end} is too short to be combined therefore skipped.")
+            logging.warning(f"The range {stt}:{end} is too short to be combined therefore skipped.")
         else:
             ranges_int.append([stt, end])
     merged_ranges = combine_int_overlaps(ranges_int)
-    merged_ranges = [[int2fl(x[0] - 1), int2fl(x[1])] for x in merged_ranges]
+    merged_ranges = [[int2fl(x[0] - margin, deci), int2fl(x[1], deci)] for x in merged_ranges]
     return merged_ranges
 
 
 def combine_int_overlaps(ranges):
     """
-    Merge the range pairs if there is overlap between the given ranges.
+    Merge the range pairs if there is overlap exists between the given ranges.
+    This algorithm needs a sorted range list in terms of the start time.
     Refer to the original code at https://stackoverflow.com/a/59378428
 
     Args:
@@ -643,21 +641,21 @@ def combine_int_overlaps(ranges):
     return merged_list
 
 
-def fl2int(x, deci=2):
+def fl2int(x, deci=3):
     """
     Convert floating point number to integer.
     """
     return int(round(x * pow(10, deci)))
 
 
-def int2fl(x, deci=2):
+def int2fl(x, deci=3):
     """
     Convert integer to floating point number.
     """
     return round(float(x / pow(10, deci)), int(deci))
 
 
-def getMergedRanges(label_list_A: List, label_list_B: List) -> List:
+def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> List:
     """
     Calculate the merged ranges between label_list_A and label_list_B.
 
@@ -676,10 +674,10 @@ def getMergedRanges(label_list_A: List, label_list_B: List) -> List:
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [[fl2int(x[0]), fl2int(x[1])] for x in label_list_A]
-        label_list_B = [[fl2int(x[0]), fl2int(x[1])] for x in label_list_B]
+        label_list_A = [[fl2int(x[0]+1, deci), fl2int(x[1], deci)] for x in label_list_A]
+        label_list_B = [[fl2int(x[0]+1, deci), fl2int(x[1], deci)] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
-        return [[int2fl(x[0]), int2fl(x[1])] for x in combined]
+        return [[int2fl(x[0]-1, deci), int2fl(x[1], deci)] for x in combined]
 
 
 def getMinMaxOfRangeList(ranges):
@@ -693,7 +691,7 @@ def getMinMaxOfRangeList(ranges):
 
 def getSubRangeList(target_range, source_range_list) -> List:
     """
-    Get the ranges that have overlaps with the target range from the source_range_list.
+    Get the ranges that has overlaps with the target range from the source_range_list.
 
     Example:
         source range:
@@ -726,10 +724,10 @@ def getSubRangeList(target_range, source_range_list) -> List:
         return out_range
 
 
-def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 2) -> str:
+def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlapping timestamps.
+    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlapping time stamps.
 
     Args:
         AUDIO_RTTM_MAP (dict):
@@ -747,7 +745,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
         for uniq_id in AUDIO_RTTM_MAP:
             rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
             rttm_lines = read_rttm_lines(rttm_file_path)
-            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id)
+            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
@@ -764,7 +762,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id)
+            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
     return manifest_file
 
 
@@ -784,11 +782,9 @@ def segments_manifest_to_subsegments_manifest(
         window (float): window length for segments to subsegments length
         shift (float): hop length for subsegments shift
         min_subsegments_duration (float): exclude subsegments smaller than this duration value
-        include_uniq_id (bool): if True, add uniq_id variable into for every json dictionary.
 
     Returns:
-        subsegments_manifest_file (str):
-            Path to subsegment manifest file
+        returns path to subsegment manifest file
     """
     if subsegments_manifest_file is None:
         pwd = os.getcwd()
