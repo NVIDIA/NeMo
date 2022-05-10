@@ -137,8 +137,8 @@ class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         return len(self.src_dataset)
 
     def __getitem__(self, idx):
-        src = [self.src_tokenizer.bos_id] + self.self.src_dataset[idx] + [self.src_tokenizer.eos_id]
-        tgt = self.self.tgt_dataset[idx]
+        src = [self.src_tokenizer.bos_id] + self.src_dataset[idx] + [self.src_tokenizer.eos_id]
+        tgt = self.tgt_dataset[idx]
 
         text_enc = src
         text_dec = [self.tgt_tokenizer.bos_id] + tgt
