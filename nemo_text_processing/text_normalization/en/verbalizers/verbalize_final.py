@@ -78,8 +78,8 @@ class VerbalizeFinalFst(GraphFst):
         # no_space_before_punct assume no space before them
         quotes = ["'", "\"", "``", "«"]
         dashes = ["-", "—"]
-        open_close_symbols = {"<": ">", "{": "}", '"': '"', "``": "``", "``": "``", "(": ")", "“": "”"}  # , "'": "'"}
-        allow_space_before_punct = ["&"] + quotes + dashes + [str(k) for k in open_close_symbols.keys()]
+        open_close_symbols = [("<", ">"), ("{", "}"), ('"', '"'), ("``", "``"), ("``", "``"), ("(", ")"), ("“", "”")]
+        allow_space_before_punct = ["&"] + quotes + dashes + [k[0] for k in open_close_symbols]
         no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
         no_space_before_punct = pynini.union(*no_space_before_punct)
         delete_space = pynutil.delete(" ")
@@ -104,7 +104,8 @@ class VerbalizeFinalFst(GraphFst):
             + pynini.closure(delete_space, 0, 1)
             + pynini.accep(")")
         )
-        for open, close in open_close_symbols.items():
+        for item in open_close_symbols:
+            open, close = item
             open_close_marks_graph |= (
                 pynini.accep(open)
                 + pynini.closure(delete_space, 0, 1)
