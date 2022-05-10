@@ -26,9 +26,9 @@ import torch
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
-__idx_version__ = '0.1'  # .idx index file version
-
+__all__ = ['TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
+__idx_version__ = '0.1'  # index file version
+__idx_suffix__ = 'idx' # index file suffix
 
 class TextMemMapDataset(Dataset):
     """
@@ -133,7 +133,7 @@ class TextMemMapDataset(Dataset):
             size - number of lines in file
         """
         logging.info(f"Loading {fn}")
-        idx_fn = fn + ".idx"
+        idx_fn = f"{fn}.{__idx_suffix__}"
 
         # create data map
         mdata = np.memmap(fn, dtype=np.uint8, mode='r')
@@ -151,11 +151,11 @@ class TextMemMapDataset(Dataset):
                 if self._newline_int != newline_int:
                     logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
 
-            # test for version mismatch (useful to force recreation of .idx)
+            # test for version mismatch (useful to force recreation of index files)
             idx_version = idx_dict.get('version', '0.0')
             if __idx_version__ != idx_version:
                 raise RuntimeError(
-                    f"Version mismatch: Please delete existing '.idx' files. Expected version = {__idx_version__}, but file version = {idx_version}"
+                    f"Version mismatch: Please delete existing '.{__idx_suffix__}' files. Expected version = {__idx_version__}, but file version = {idx_version}. File path = {idx_fn}"
                 )
         else:
             raise ValueError(f'Memory Map for {fn} is not found')
@@ -199,8 +199,8 @@ class CSVMemMapDataset(TextMemMapDataset):
 
 
 def _build_memmap_index_files(newline_int, fn):
-    """Helper function to build an index .idx file"""
-    idx_fn = fn + ".idx"
+    """Helper function to build an index file"""
+    idx_fn =  f"{fn}.{__idx_suffix__}"
 
     # create data map
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
@@ -229,7 +229,7 @@ def _build_memmap_index_files(newline_int, fn):
 
 
 def build_index_files(dataset_paths, newline_int, workers=None):
-    """Auxiliary method to build multiple index .idx files"""
+    """Auxiliary method to build multiple index files"""
     if len(dataset_paths) < 1:
         raise ValueError("files_list must contain at leat one file name")
 
