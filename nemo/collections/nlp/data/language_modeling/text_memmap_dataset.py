@@ -101,7 +101,7 @@ class TextMemMapDataset(Dataset):
         # load sample
         if file_idx == 0:
             i = 0
-            j = midx[1]
+            j = midx[0]
         else:
             i = midx[file_idx - 1] + 1  # ignore newline
             j = midx[file_idx]
