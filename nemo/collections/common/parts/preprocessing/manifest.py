@@ -32,8 +32,9 @@ class ManifestEN:
 
 
 def item_iter(
-    manifests_files: Union[str, List[str]], data_prefix: Optional[Union[str, List[str]]] = None, 
-    parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+    manifests_files: Union[str, List[str]], 
+    parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None,
+    data_prefix: Optional[Union[str, List[str]]] = None, 
 ) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
@@ -48,12 +49,12 @@ def item_iter(
         manifests_files: Either single string file or list of such -
             manifests to yield items from.
 
-        data_prefix: Either single string prefix or list of such -
-            prefix to append to each manifest.
-
         parse_func: A callable function which accepts as input a single line
             of a manifest and optionally the manifest file itself,
             and parses it, returning a dictionary mapping from str -> Any.
+            
+        data_prefix: Either single string prefix or list of such -
+            prefix to append to each manifest.
 
     Yields:
         Parsed key to value item dicts.
