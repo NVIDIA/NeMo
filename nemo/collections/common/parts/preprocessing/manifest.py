@@ -16,6 +16,7 @@ import json
 from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from pathlib import Path
+from nemo.utils import logging
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
@@ -86,7 +87,15 @@ def item_iter(
 
     k = -1
     for manifest_file, prefix in zip(manifests_files, data_prefix):
-        manifest_file = str(Path(prefix) / Path(manifest_file))
+        if not Path(manifest_file).is_file():
+            logging.info(f"Manifest not found: {manifest_file}")
+            manifest_file = str(Path(prefix) / Path(manifest_file))
+            logging.info(f"Try adding prefix {prefix}: {manifest_file}")
+            if Path(manifest_file).is_file():
+                logging.info(f"Found alternate manifest: {manifest_file}")
+            else:
+                raise ValueError(f"Manifest not found: {manifest_file}")
+
         with open(expanduser(manifest_file), 'r') as f:
             for line in f:
                 k += 1
