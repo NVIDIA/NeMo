@@ -34,7 +34,7 @@ USAGE Example:
 4. Run this script on the different splits
 # python data_preprocessing.py       \
         --input_path=data_split/train           \
-        --output_dir=train_processed \
+        --dir_=train_processed \
         --max_integer_length=4  \
         --max_denominator_length=3 
 
@@ -383,7 +383,7 @@ def main():
 if __name__ == "__main__":
 
     parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-    parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
+    parser.add_argument("--dir_", required=True, type=str, help='Path to output directory.')
     parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
     parser.add_argument(
         "--max_integer_length",

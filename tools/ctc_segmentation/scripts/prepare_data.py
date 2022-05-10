@@ -39,7 +39,7 @@ except (ModuleNotFoundError, ImportError):
 
 parser = argparse.ArgumentParser(description="Prepares text and audio files for segmentation")
 parser.add_argument("--in_text", type=str, default=None, help="Path to a text file or a directory with .txt files")
-parser.add_argument("--output_dir", type=str, required=True, help="Path to output directory")
+parser.add_argument("--dir_", type=str, required=True, help="Path to output directory")
 parser.add_argument("--audio_dir", type=str, help="Path to folder with .mp3 or .wav audio files")
 parser.add_argument("--sample_rate", type=int, default=16000, help="Sampling rate used during ASR model training, Hz")
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")

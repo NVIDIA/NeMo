@@ -127,6 +127,21 @@ def get_fragment_start_bytes(
     return num_lines, text_start_bytes, label_start_bytes
 
 
+def select_unique_file_name(dir_: Union[os.PathLike, str], file_name: Union[os.PathLike, str]) -> Path:
+    dir_ = Path(dir_)
+    file_name = str(file_name)
+    fn = dir_ / file_name
+    if fn.exists():
+        index = 2
+        parts = file_name.split('.')
+        stem, suffixes = parts[0], parts[1:]
+        fn = dir_ / '.'.join([stem + f'_{index}'] + suffixes)
+        while fn.exists():
+            index += 1
+            fn = dir_ / '.'.join([stem + f'_{index}'] + suffixes)
+    return fn
+
+
 def process_fragment(
     text_file: Path,
     labels_file: Path,
@@ -160,8 +175,8 @@ def process_fragment(
         special_tokens=special_tokens,
         use_fast=use_fast_tokenizer,
     )
-    tmp_text = output_dir / f'tmp_text_{fragment_idx}.txt'
-    tmp_labels = output_dir / f'tmp_labels_{fragment_idx}.txt'
+    tmp_text = select_unique_file_name(output_dir, f'tmp_text_{fragment_idx}.txt')
+    tmp_labels = select_unique_file_name(output_dir, f'tmp_labels_{fragment_idx}.txt')
     with text_file.open() as tf, labels_file.open() as lf, tmp_text.open('w') as otf, tmp_labels.open('w') as olf:
         tf.seek(text_start_pos)
         lf.seek(label_start_pos)

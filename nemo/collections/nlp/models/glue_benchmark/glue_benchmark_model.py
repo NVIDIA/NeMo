@@ -209,7 +209,7 @@ class GLUEModel(NLPModel):
             val_name = self._validation_names[dataloader_idx].upper()
             logging.info(f'{val_name} evaluation: {results}')
 
-            # writing labels and predictions to a file in output_dir is specified in the config
+            # writing labels and predictions to a file in dir_ is specified in the config
             output_dir = self._cfg.output_dir
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)

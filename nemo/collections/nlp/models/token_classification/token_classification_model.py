@@ -455,7 +455,7 @@ class TokenClassificationModel(NLPModel):
                 all_labels_str = f.readlines()
                 all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
 
-        # writing labels and predictions to a file in output_dir is specified in the config
+        # writing labels and predictions to a file in dir_ is specified in the config
         os.makedirs(output_dir, exist_ok=True)
         filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
         try:
