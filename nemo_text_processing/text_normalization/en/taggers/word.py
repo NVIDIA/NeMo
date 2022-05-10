@@ -60,10 +60,14 @@ class WordFst(GraphFst):
 
         # to allow alpha with punctuation words "I'm", "O'Neil", "Then..." to be tagged as a word
         # so that no extra spaces are added around punctuation mark
+        # non_digit is needed to allow non-ascii chars, like in "Müller's"
+        non_digit = pynini.difference(NEMO_NOT_SPACE, NEMO_DIGIT).optimize()
         alpha_with_punct_graph = pynini.closure(
             pynini.closure(punct_symbols)
-            + pynini.closure(NEMO_ALPHA)
+            + NEMO_ALPHA
+            + pynini.closure(non_digit)
             + pynini.closure(punct_symbols, 1)
+            + pynini.closure(non_digit)
             + pynini.closure(NEMO_ALPHA)
         ).optimize()
         alpha_with_punct_graph = pynutil.add_weight(alpha_with_punct_graph, MIN_NEG_WEIGHT).optimize()
@@ -77,5 +81,6 @@ class WordFst(GraphFst):
             + phoneme_unit
             + pynini.accep(pynini.escape("]"))
         )
+
         self.graph = plurals._priority_union(convert_space(phoneme), graph, NEMO_SIGMA)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

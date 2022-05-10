@@ -78,8 +78,8 @@ class VerbalizeFinalFst(GraphFst):
         # no_space_before_punct assume no space before them
         quotes = ["'", "\"", "``", "«"]
         dashes = ["-", "—"]
-        open_close_symbols = {"<": ">", "{": "}", '"': '"', "``": "``", "``": "``", "(": ")"}  # , "'": "'"}
-        allow_space_before_punct = "&{(<" + "".join(quotes) + "".join(dashes)
+        open_close_symbols = {"<": ">", "{": "}", '"': '"', "``": "``", "``": "``", "(": ")", "“": "”"}  # , "'": "'"}
+        allow_space_before_punct = ["&"] + quotes + dashes + [str(k) for k in open_close_symbols.keys()]
         no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
         no_space_before_punct = pynini.union(*no_space_before_punct)
         delete_space = pynutil.delete(" ")
