@@ -166,7 +166,9 @@ def process_fragment(
     try:
         otfd, tmp_text = tempfile.mkstemp(suffix='.txt', prefix=f'text_{fragment_idx}_', dir=output_dir, text=True)
         olfd, tmp_labels = tempfile.mkstemp(suffix='.txt', prefix=f'labels_{fragment_idx}_', dir=output_dir, text=True)
-        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(olfd, 'w') as olf:
+        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
+            olfd, 'w'
+        ) as olf:
             tf.seek(text_start_pos)
             lf.seek(label_start_pos)
             for _ in range(lines_per_dataset_fragment):
