@@ -29,6 +29,7 @@ from nemo.utils import logging
 __all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
 __idx_version__ = '0.1'  # .idx index file version
 
+
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
