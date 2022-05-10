@@ -53,7 +53,7 @@ Example of usage:
 python create_punctuation_capitalization_tarred_dataset.py \
   --text <PATH/TO/TEXT/FILE> \
   --labels <PATH/TO/LABELS/FILE> \
-  --dir_ <PATH/TO/OUTPUT/DIR> \
+  --output_dir <PATH/TO/OUTPUT/DIR> \
   --lines_per_dataset_fragment 10000 \
   --tokens_in_batch 8000 \
   --num_batches_per_tarfile 5 \
@@ -102,7 +102,7 @@ def get_args() -> argparse.Namespace:
         "file.",
     )
     parser.add_argument(
-        "--dir_",
+        "--output_dir",
         "-o",
         type=Path,
         required=True,

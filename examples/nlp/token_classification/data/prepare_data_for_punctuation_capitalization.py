@@ -87,7 +87,7 @@ from get_tatoeba_data import create_text_and_labels
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for punctuation and capitalization tasks')
     parser.add_argument("-s", "--source_file", required=True, type=str, help="Path to the source file")
-    parser.add_argument("-o", "--dir_", required=True, type=str, help="Path to the output directory")
+    parser.add_argument("-o", "--output_dir", required=True, type=str, help="Path to the output directory")
     args = parser.parse_args()
 
     if not os.path.exists(args.source_file):

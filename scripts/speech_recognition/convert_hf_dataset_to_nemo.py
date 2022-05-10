@@ -46,14 +46,14 @@ is that it requires 3 copies of the dataset to exist simultanously -
 
 1) The .arrow files for HF cache
 2) The extracted dataset in HF cache
-3) The preprocessed audio files preserved in the dir_ provided in the script.
+3) The preprocessed audio files preserved in the output_dir provided in the script.
 
 Due to this, make sure your HDD is large enough to store the processed dataset !
 
 ## Usage - Offline Mode
 
 python convert_hf_dataset_to_nemo.py \
-    dir_=<Path to some storage drive that will hold preprocessed audio files> \
+    output_dir=<Path to some storage drive that will hold preprocessed audio files> \
     path=<`path` argument in HF datasets, cannot be null> \
     name=<`name` argument in HF datasets, can be null> \
     split=<`split` argument in HF datasets, can be null> \
@@ -70,7 +70,7 @@ NOTE:
 
 NOTE:
     This mode is not well supported. It trades of speed for storage by only having one copy of the dataset in
-    dir_, however the speed of processing is around 10x slower than offline mode. Some datasets (such as MCV)
+    output_dir, however the speed of processing is around 10x slower than offline mode. Some datasets (such as MCV)
     fail to run entirely.
 
     DO NOT USE if you have sufficient disk space.

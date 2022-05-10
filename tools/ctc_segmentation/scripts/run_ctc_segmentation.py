@@ -29,7 +29,7 @@ from utils import get_segments
 import nemo.collections.asr as nemo_asr
 
 parser = argparse.ArgumentParser(description="CTC Segmentation")
-parser.add_argument("--dir_", default="output", type=str, help="Path to output directory")
+parser.add_argument("--output_dir", default="output", type=str, help="Path to output directory")
 parser.add_argument(
     "--data",
     type=str,

@@ -86,7 +86,7 @@ def export_grammars(output_dir, grammars):
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("--dir_", help="output directory for grammars", required=True, type=str)
+    parser.add_argument("--output_dir", help="output directory for grammars", required=True, type=str)
     parser.add_argument(
         "--language", help="language", choices=["en", "de", "es", "ru", 'fr', 'vi'], type=str, default='en'
     )

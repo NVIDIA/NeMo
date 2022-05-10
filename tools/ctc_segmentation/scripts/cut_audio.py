@@ -22,7 +22,7 @@ from scipy.io import wavfile
 from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="Cut audio on the segments based on segments")
-parser.add_argument("--dir_", type=str, help="Path to output directory", required=True)
+parser.add_argument("--output_dir", type=str, help="Path to output directory", required=True)
 parser.add_argument(
     "--alignment",
     type=str,

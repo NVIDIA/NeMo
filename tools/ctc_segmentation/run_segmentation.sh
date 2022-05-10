@@ -66,7 +66,7 @@ echo "TEXT AND AUDIO PREPROCESSING..."
 python $SCRIPTS_DIR/prepare_data.py \
 --in_text=$DATA_DIR/text \
 --audio_dir=$DATA_DIR/audio \
---dir_=$OUTPUT_DIR/processed/ \
+--output_dir=$OUTPUT_DIR/processed/ \
 --language=$LANGUAGE \
 --cut_prefix=$CUT_PREFIX \
 --model=$MODEL_NAME_OR_PATH \
@@ -81,7 +81,7 @@ echo "SEGMENTATION STEP..."
 for WINDOW in 8000 12000
 do
   python $SCRIPTS_DIR/run_ctc_segmentation.py \
-  --dir_=$OUTPUT_DIR \
+  --output_dir=$OUTPUT_DIR \
   --data=$OUTPUT_DIR/processed \
   --sample_rate=$SAMPLE_RATE \
   --model=$MODEL_NAME_OR_PATH  \
@@ -99,7 +99,7 @@ python $SCRIPTS_DIR/verify_segments.py \
 # above the MIN_SCORE value will be saved to $OUTPUT_DIR/manifests/manifest.json
 echo "CUTTING AUDIO..."
 python $SCRIPTS_DIR/cut_audio.py \
---dir_=$OUTPUT_DIR \
+--output_dir=$OUTPUT_DIR \
 --alignment=$OUTPUT_DIR/verified_segments \
 --threshold=$MIN_SCORE \
 --offset=$OFFSET \

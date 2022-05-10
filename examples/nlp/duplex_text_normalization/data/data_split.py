@@ -22,7 +22,7 @@ USAGE Example:
 3. Run this script
 # python data_split.py       \
         --data_dir=en_with_types/           \
-        --dir_=data_split/          \
+        --output_dir=data_split/          \
         --lang=en
 
 In this example, the split files will be stored in the `data_split` folder.
@@ -88,7 +88,7 @@ def read_google_data(data_file: str, lang: str, split: str, add_test_full=False)
 if __name__ == '__main__':
     parser = ArgumentParser(description='Preprocess Google text normalization dataset')
     parser.add_argument('--data_dir', type=str, required=True, help='Path to folder with data')
-    parser.add_argument('--dir_', type=str, default='preprocessed', help='Path to folder with preprocessed data')
+    parser.add_argument('--output_dir', type=str, default='preprocessed', help='Path to folder with preprocessed data')
     parser.add_argument(
         '--lang', type=str, default=constants.ENGLISH, choices=constants.SUPPORTED_LANGS, help='Language'
     )
