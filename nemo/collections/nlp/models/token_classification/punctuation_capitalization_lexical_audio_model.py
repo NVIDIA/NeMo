@@ -5,7 +5,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from torch.nn import Linear
+from torch.nn import Linear, LSTM
 
 import nemo.collections.asr as nemo_asr
 
@@ -15,7 +15,8 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_lexical_audio_dataset import \
     PunctuationCapitalizationLexicalAudioDataset
 from nemo.collections.nlp.metrics import ClassificationReport
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import PunctuationCapitalizationModel
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import \
+    PunctuationCapitalizationModel
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
 from nemo.utils import logging
 
@@ -26,9 +27,23 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
         self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder)  # Only CTC models?
+
         del self.audio_encoder.decoder
-        self.fusion = TransformerDecoder(num_layers=4, hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1], inner_size=2048, num_attention_heads=4)
-        self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model, self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
+        del self.audio_encoder._wer
+        del self.audio_encoder.loss
+
+        self.fusion = TransformerDecoder(num_layers=cfg.fusion_num_layers,
+                                         hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1],
+                                         inner_size=cfg.fusion_inner_size, num_attention_heads=cfg.fusion_num_attention_heads)
+        self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
+                                 self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
+        if cfg.freeze_audio_encoder:
+            for param in self.audio_encoder.parameters():
+                param.requires_grad = False
+            self.audio_encoder.add_module('lstm_encoder',
+                                          LSTM(input_size=self.audio_encoder.cfg.encoder.d_model,
+                                               hidden_size=cfg.lstm_hidden_size,
+                                               num_layers=cfg.lstm_num_layers))
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(

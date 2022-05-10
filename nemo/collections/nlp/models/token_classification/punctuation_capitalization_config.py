@@ -227,6 +227,24 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     pretrained_audio_encoder: str = MISSING
     """A configuration for restoring pretrained audio encoder"""
 
+    freeze_audio_encoder: bool = False
+    """Freeze audio encoder weight and add LSTM module on top of it"""
+
+    lstm_hidden_size: int = 256
+    """LSTM unit hidden size"""
+
+    lstm_num_layers: int = 2
+    """LSTM num layers"""
+
+    fusion_inner_size: int = 2048
+    """Fusion inner size"""
+
+    fusion_num_attention_heads: int = 4
+    """Number of attention heads to use in fusion"""
+
+    fusion_num_layers: int = 4
+    """"Number of layers to use in fusion"""
+
 
 @dataclass
 class PunctuationCapitalizationConfig(NemoConfig):
@@ -269,7 +287,6 @@ class PunctuationCapitalizationConfig(NemoConfig):
 @dataclass
 class PunctuationCapitalizationLexicalAudioConfig(PunctuationCapitalizationConfig):
     model: PunctuationCapitalizationLexicalAudioModelConfig = PunctuationCapitalizationLexicalAudioModelConfig()
-
 
 
 def is_legacy_model_config(model_cfg: DictConfig) -> bool:
