@@ -10,7 +10,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
     inference_cfg = hp_cfg.get("inference_settings")
 
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
-    bignlp_inference_path = cfg.get("bignlp_inference_path")
+    bignlp_scripts_path = cfg.get("bignlp_scripts_path")
     input_seq_len = inference_cfg.get("input_seq_len")
     output_seq_len = inference_cfg.get("output_seq_len")
     top_n = inference_cfg.get("top_n")
@@ -24,20 +24,26 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
     max_latency_ms = inference_cfg.get("max_latency_ms")
 
     inference_profile_path = os.path.join(
-        bignlp_inference_path,
+        bignlp_scripts_path,
         "bignlp/infer_scripts/profile_model_with_random_weights.py",
     )
     cluster_config_path = os.path.join(bignlp_hp_tool_path, "conf/cluster/bcm.yaml")
     navigator_config_path = os.path.join(
-        bignlp_inference_path, "conf/inference/profile_offline.yaml"
+        bignlp_scripts_path, "conf/inference/profile_offline.yaml"
     )
 
     model_spec_dir = os.path.join(results_dir, "inference/model_spec.ft")
     os.makedirs(model_spec_dir, exist_ok=True)
     model_spec_path = os.path.join(model_spec_dir, "meta.yaml")
 
+    if model_name == "gpt3":
+        model_type = "GPT"
+    else:
+        raise NotImplementedError("Inference HP search is only available for GPT-3")
+
     # Create model_spec and save to yaml
     model_spec = {}
+    model_spec["model_type"] = model_type
     model_spec["decoder_layers"] = base_cfg["model"]["num_layers"]
     model_spec["head_num"] = base_cfg["model"]["num_attention_heads"]
     model_spec["size_per_head"] = int(

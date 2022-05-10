@@ -13,7 +13,6 @@ def search_training_config(base_cfg, model_size, model_name, cfg):
     base_dir, results_cfgs = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
-    # job_ids = None
     # Measure and compare throughputs for each config.
     launch_throughput_measure(job_ids, model_name, model_size, cfg)
 
