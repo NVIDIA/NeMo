@@ -26,7 +26,7 @@ import torch
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'build_index_files']
+__all__ = ['TextMemMapDatasetConfig', 'TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
 __idx_version__ = '0.1'  # .idx index file version
 
 
