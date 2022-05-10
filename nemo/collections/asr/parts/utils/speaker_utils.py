@@ -17,7 +17,7 @@ import math
 import os
 from copy import deepcopy
 from functools import reduce
-from typing import Dict, List, Optional
+from typing import List
 
 import numpy as np
 import omegaconf
@@ -51,7 +51,7 @@ def get_uniq_id_with_dur(meta, deci=3):
     Return basename with offset and end time labels
     """
     bare_uniq_id = meta['audio_filepath'].split('/')[-1].split('.wav')[0]
-    if meta['offset'] == None and meta['duration'] == None:
+    if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
     if meta['offset']:
         offset = str(int(round(meta['offset'], deci) * pow(10, deci)))
@@ -478,7 +478,7 @@ def get_vad_out_from_rttm_line(rttm_line):
     return start, dur
 
 
-def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=3):
+def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=5):
     """
     Extract offset and duration information from AUDIO_RTTM_MAP dictionary.
     If duration information is not specified, a duration value is extracted from the audio file directly.
@@ -695,10 +695,10 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [[fl2int(x[0]+1, deci), fl2int(x[1], deci)] for x in label_list_A]
-        label_list_B = [[fl2int(x[0]+1, deci), fl2int(x[1], deci)] for x in label_list_B]
+        label_list_A = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_A]
+        label_list_B = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
-        return [[int2fl(x[0]-1, deci), int2fl(x[1], deci)] for x in combined]
+        return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
 
 
 def getMinMaxOfRangeList(ranges):
@@ -748,7 +748,8 @@ def getSubRangeList(target_range, source_range_list) -> List:
 def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlapping time stamps.
+    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
+    and trimmed with the given offset and duration value.
 
     Args:
         AUDIO_RTTM_MAP (dict):
