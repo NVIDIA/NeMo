@@ -1,6 +1,6 @@
-# This config contains the default values for training FastPitch model with aligner on LJSpeech dataset
-# at 44.1KHz sampling rate. If you want to train model on other dataset, you can change config values 
-# according to your dataset. Most dataset-specific arguments are in the head of the config file, see below.
+# This config contains the default values for training FastPitch model with aligner using 44.1KHz sampling 
+# rate. If you want to train model on other dataset, you can change config values according to your dataset. 
+# Most dataset-specific arguments are in the head of the config file, see below.
 
 
 name: FastPitch
@@ -18,7 +18,6 @@ pitch_fmax: 2093.004522404789
 pitch_mean: 212.35873413085938
 pitch_std: 68.52806091308594
 
-# Default values for dataset with sample_rate=22050
 sample_rate: 44100
 n_mel_channels: 80
 n_window_size: 2048
