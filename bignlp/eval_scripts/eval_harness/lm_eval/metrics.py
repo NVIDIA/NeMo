@@ -63,6 +63,7 @@ def acc_all(items):
     acc = np.mean([int(all(x)) for x in question_scoring_dict.values()])
     return acc
 
+
 def acc_all_stderr(items):
     # Only count as correct if all answers are labeled correctly for each question
     question_scoring_dict = {}
@@ -97,6 +98,7 @@ def perplexity(items):
 def weighted_mean(items):
     a, b = zip(*items)
     return sum(a) / sum(b)
+
 
 def weighted_perplexity(items):
     return math.exp(-weighted_mean(items))
@@ -179,12 +181,15 @@ def _sacreformat(refs, preds):
 
     return refs, preds
 
+
 ## stderr stuff
+
 
 class _bootstrap_internal:
     def __init__(self, f, n):
         self.f = f
         self.n = n
+
     def __call__(self, v):
         i, xs = v
         rnd = random.Random()
@@ -197,9 +202,10 @@ class _bootstrap_internal:
 
 def bootstrap_stderr(f, xs, iters, workers=4):
     import multiprocessing as mp
+
     pool = mp.Pool(workers)
     # this gives a biased estimate of the stderr (i.e w/ the mean, it gives something
-    # equivalent to stderr calculated without Bessel's correction in the stddev. 
+    # equivalent to stderr calculated without Bessel's correction in the stddev.
     # Unfortunately, I haven't been able to figure out what the right correction is
     # to make the bootstrap unbiased - i considered multiplying by sqrt(n/(n-1)) but
     # that would be ad-hoc and I can't prove that that would actually be an unbiased estimator)
@@ -207,8 +213,14 @@ def bootstrap_stderr(f, xs, iters, workers=4):
     res = []
     chunk_size = min(1000, iters)
     from tqdm import tqdm
+
     print("bootstrapping for stddev:", f.__name__)
-    for bootstrap in tqdm(pool.imap(_bootstrap_internal(f, chunk_size), [(i, xs) for i in range(iters // chunk_size)]), total=iters // chunk_size):
+    for bootstrap in tqdm(
+        pool.imap(
+            _bootstrap_internal(f, chunk_size), [(i, xs) for i in range(iters // chunk_size)]
+        ),
+        total=iters // chunk_size,
+    ):
         # sample w replacement
         res.extend(bootstrap)
 
@@ -230,10 +242,6 @@ def stderr_for_metric(metric, bootstrap_iters):
     if metric in bootstrappable:
         return lambda x: bootstrap_stderr(metric, x, iters=bootstrap_iters)
 
-    stderr = {
-        mean: mean_stderr,
-        acc_all: acc_all_stderr
-        
-    }
+    stderr = {mean: mean_stderr, acc_all: acc_all_stderr}
 
     return stderr.get(metric, None)

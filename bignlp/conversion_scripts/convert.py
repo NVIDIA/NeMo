@@ -9,20 +9,20 @@ from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
-        new_script_path,
-        convert_cmd,
-        job_name,
-        flags="",
-        dependency=None,
-        time="04:00:00",
-        exclusive=True,
-        mem=0,
-        overcommit=True,
-        nodes=1,
-        ntasks_per_node=1,
-        gpus_per_task=1,
-        partition="batch",
-        account=None,
+    new_script_path,
+    convert_cmd,
+    job_name,
+    flags="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    mem=0,
+    overcommit=True,
+    nodes=1,
+    ntasks_per_node=1,
+    gpus_per_task=1,
+    partition="batch",
+    account=None,
 ):
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
@@ -49,15 +49,11 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def create_bcp_file(
-        cmd_str,
-        num_nodes,
-        ntasks_per_node,
-        log_file,
-        new_script_path
-):
+def create_bcp_file(cmd_str, num_nodes, ntasks_per_node, log_file, new_script_path):
     with open(new_script_path, "w") as f:
-        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str}" >> {log_file} 2>&1\n\n')
+        f.writelines(
+            f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str}" >> {log_file} 2>&1\n\n'
+        )
         f.writelines("set +x\n")
     os.chmod(new_script_path, 0o755)
 
@@ -102,17 +98,19 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
 
     new_script_path = os.path.join(bignlp_path, f"bignlp/conversion_scripts/{model_train_name}.sh")
     code_path = os.path.join(bignlp_path, "bignlp/conversion_scripts/convert_ckpt.py")
-    args = f"--gpus_per_node={gpus_per_node} " \
-           f"--model_type={model_type} " \
-           f"--checkpoint_folder={checkpoint_folder} " \
-           f"--checkpoint_name={checkpoint_name} " \
-           f"--hparams_file={hparams_file} " \
-           f"--nemo_file_path={nemo_file_path} " \
-           f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
-           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
-           f"--vocab_file={vocab_file} " \
-           f"--merge_file={merge_file} " \
-           f"--tokenizer_model={tokenizer_model} "
+    args = (
+        f"--gpus_per_node={gpus_per_node} "
+        f"--model_type={model_type} "
+        f"--checkpoint_folder={checkpoint_folder} "
+        f"--checkpoint_name={checkpoint_name} "
+        f"--hparams_file={hparams_file} "
+        f"--nemo_file_path={nemo_file_path} "
+        f"--tensor_model_parallel_size={tensor_model_parallel_size} "
+        f"--pipeline_model_parallel_size={pipeline_model_parallel_size} "
+        f"--vocab_file={vocab_file} "
+        f"--merge_file={merge_file} "
+        f"--tokenizer_model={tokenizer_model} "
+    )
     if cfg.get("cluster_type") == "bcp":
         args += "--bcp "
     args = args.replace(" ", " \\\n  ")
@@ -122,7 +120,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     hparams_override_file = os.path.join(output_path, "hparams_override.yaml")
     if os.path.exists(hparams_override_file):
         os.remove(hparams_override_file)
-    
+
     cluster_cfg = cfg.get("cluster")
     if cfg.get("cluster_type") == "bcm":
         # BCM parameters
@@ -159,9 +157,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output(
-            [f"sbatch --parsable {new_script_path}"], shell=True
-        )
+        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id.decode("utf-8")
         print(f"Submitted Conversion script with job id: {dependency}")
         return dependency

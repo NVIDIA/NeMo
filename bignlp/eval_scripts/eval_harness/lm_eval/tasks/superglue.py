@@ -6,7 +6,7 @@ To-do:
 import numpy as np
 import sklearn
 import transformers.data.metrics.squad_metrics as squad_metrics
-from . common import HFTask, yesno
+from .common import HFTask, yesno
 from lm_eval.base import rf
 from ..metrics import mean, acc_all, metric_max_over_ground_truths
 from ..utils import general_detokenize
@@ -32,14 +32,14 @@ class BoolQ(HFTask):
 
     def doc_to_text(self, doc):
         return f"{doc['passage']}\nQuestion: {doc['question']}\nAnswer:"
-    
+
     def doc_to_target(self, doc):
-        return " " + yesno(doc['label']) 
+        return " " + yesno(doc["label"])
 
     def construct_requests(self, doc, ctx):
 
-        ll_yes, *_ = rf.loglikelihood(ctx, ' yes')
-        ll_no, *_ = rf.loglikelihood(ctx, ' no')
+        ll_yes, *_ = rf.loglikelihood(ctx, " yes")
+        ll_no, *_ = rf.loglikelihood(ctx, " no")
 
         return ll_yes, ll_no
 
@@ -47,11 +47,9 @@ class BoolQ(HFTask):
         ll_yes, ll_no = results
         gold = doc["label"]
 
-        acc = 1. if (ll_yes > ll_no) == gold else 0.
+        acc = 1.0 if (ll_yes > ll_no) == gold else 0.0
 
-        return {
-            "acc": acc
-        }
+        return {"acc": acc}
 
     def serialize_results(self, doc, results):
         ll_yes, ll_no = results
@@ -61,16 +59,12 @@ class BoolQ(HFTask):
             "gold_choice": "yes" if doc["label"] else "no",
             "likelihoods": {"yes": ll_yes, "no": ll_no},
         }
-    
+
     def higher_is_better(self):
-        return {
-            "acc": True
-        }
-    
+        return {"acc": True}
+
     def aggregation(self):
-        return {
-            "acc": mean
-        }
+        return {"acc": mean}
 
 
 class CommitmentBank(HFTask):
@@ -89,8 +83,10 @@ class CommitmentBank(HFTask):
 
     def fewshot_description(self):
         # TODO: figure out actual description
-        return "Given a premise and a hypothesis, classify whether the author of the premise is committed" \
+        return (
+            "Given a premise and a hypothesis, classify whether the author of the premise is committed"
             "to the truth of the hypothesis. The three possible labels are true, false or neither."
+        )
 
     def doc_to_text(self, doc):
         return "{}\nQuestion: {}. True, False or Neither?\nAnswer:".format(
@@ -105,34 +101,31 @@ class CommitmentBank(HFTask):
         return " {}".format({0: "True", 1: "Neither", 2: "False"}[doc["label"]])
 
     def construct_requests(self, doc, ctx):
-        ll_true, _, _, _ = rf.loglikelihood(ctx, ' True')
-        ll_neither, _, _, _ = rf.loglikelihood(ctx, ' Neither')
-        ll_false, _, _, _ = rf.loglikelihood(ctx, ' False')
+        ll_true, _, _, _ = rf.loglikelihood(ctx, " True")
+        ll_neither, _, _, _ = rf.loglikelihood(ctx, " Neither")
+        ll_false, _, _, _ = rf.loglikelihood(ctx, " False")
 
         return ll_true, ll_neither, ll_false
 
     def process_results(self, doc, results):
         gold = doc["label"]
         pred = np.argmax(results)
-        acc = 1. if pred == gold else 0.
+        acc = 1.0 if pred == gold else 0.0
 
-        return {
-            "acc": acc,
-            "f1": (pred, gold)
-        }
+        return {"acc": acc, "f1": (pred, gold)}
 
     def serialize_results(self, doc, results):
         return {
-                "gold_choice": doc["label"],
-                "model_output": results,
-                "question": doc["premise"] + "\nQuestion: " + doc["hypothesis"] + ". True, False or Neither?\nAnswer:",
-                }
-    
-    def higher_is_better(self):
-        return {
-            "acc": True,
-            "f1": True
+            "gold_choice": doc["label"],
+            "model_output": results,
+            "question": doc["premise"]
+            + "\nQuestion: "
+            + doc["hypothesis"]
+            + ". True, False or Neither?\nAnswer:",
         }
+
+    def higher_is_better(self):
+        return {"acc": True, "f1": True}
 
     @classmethod
     def cb_multi_fi(cls, items):
@@ -144,7 +137,7 @@ class CommitmentBank(HFTask):
         f13 = sklearn.metrics.f1_score(y_true=golds == 2, y_pred=preds == 2)
         avg_f1 = mean([f11, f12, f13])
         return avg_f1
-    
+
     def aggregation(self):
         return {
             "acc": mean,
@@ -168,8 +161,10 @@ class Copa(HFTask):
 
     def fewshot_description(self):
         # TODO: figure out actual description
-        return "Given a premise and one alternative with a causal relation to the premise and another without," \
+        return (
+            "Given a premise and one alternative with a causal relation to the premise and another without,"
             "choose the more plausible alternative"
+        )
 
     def doc_to_text(self, doc):
         # Drop the period
@@ -187,7 +182,7 @@ class Copa(HFTask):
     def construct_requests(self, doc, ctx):
         choice1 = " " + self.convert_choice(doc["choice1"])
         choice2 = " " + self.convert_choice(doc["choice2"])
-        
+
         ll_choice1, _, _, _ = rf.loglikelihood(ctx, choice1)
         ll_choice2, _, _, _ = rf.loglikelihood(ctx, choice2)
 
@@ -196,28 +191,22 @@ class Copa(HFTask):
     def process_results(self, doc, results):
         gold = doc["label"]
         pred = np.argmax(results)
-        acc = 1. if pred == gold else 0.
+        acc = 1.0 if pred == gold else 0.0
 
-        return {
-            "acc": acc
-        }
+        return {"acc": acc}
 
     def serialize_results(self, doc, results):
         return {
-                "gold_choice": doc["label"],
-                "model_output": results,
-                "premise": doc["premise"],
-                }
-    
+            "gold_choice": doc["label"],
+            "model_output": results,
+            "premise": doc["premise"],
+        }
+
     def higher_is_better(self):
-        return {
-            "acc": True
-        }
-    
+        return {"acc": True}
+
     def aggregation(self):
-        return {
-            "acc": mean
-        }
+        return {"acc": mean}
 
     @staticmethod
     def convert_choice(choice):
@@ -256,27 +245,21 @@ class MultiRC(HFTask):
     def construct_requests(self, doc, ctx):
         true_choice = self.format_answer(answer=doc["answer"], label=True)
         false_choice = self.format_answer(answer=doc["answer"], label=False)
-        
-        ll_true_choice, _, _, _ = rf.loglikelihood(ctx, f' {true_choice}')
-        ll_false_choice, _, _, _ = rf.loglikelihood(ctx, f' {false_choice}')
+
+        ll_true_choice, _, _, _ = rf.loglikelihood(ctx, f" {true_choice}")
+        ll_false_choice, _, _, _ = rf.loglikelihood(ctx, f" {false_choice}")
 
         return ll_true_choice, ll_false_choice
 
     def process_results(self, doc, results):
         pred = np.argmax(results)
-        return {
-            "acc": (pred, doc)
-        }
-    
+        return {"acc": (pred, doc)}
+
     def higher_is_better(self):
-        return {
-            "acc": True
-        }
-    
+        return {"acc": True}
+
     def aggregation(self):
-        return {
-            "acc": acc_all
-        }
+        return {"acc": acc_all}
 
 
 class ReCoRD(HFTask):
@@ -329,7 +312,7 @@ class ReCoRD(HFTask):
 
     @classmethod
     def format_answer(cls, query, entity):
-        return f'  - {query}'.replace("@placeholder", entity)
+        return f"  - {query}".replace("@placeholder", entity)
 
     def doc_to_target(self, doc):
         # We only output the first correct entity in a doc
@@ -391,19 +374,21 @@ class WordsInContext(HFTask):
         return ""
 
     def doc_to_text(self, doc):
-        return "Sentence 1: {}\nSentence 2: {}\nQuestion: Is the word '{}' used in the same way in the" \
-               " two sentences above?\nAnswer:".format(
-                    doc["sentence1"],
-                    doc["sentence2"],
-                    doc["sentence1"][doc["start1"]:doc["end1"]],
-                )
+        return (
+            "Sentence 1: {}\nSentence 2: {}\nQuestion: Is the word '{}' used in the same way in the"
+            " two sentences above?\nAnswer:".format(
+                doc["sentence1"],
+                doc["sentence2"],
+                doc["sentence1"][doc["start1"] : doc["end1"]],
+            )
+        )
 
     def doc_to_target(self, doc):
         return " {}".format({0: "no", 1: "yes"}[doc["label"]])
 
     def construct_requests(self, doc, ctx):
-        ll_yes, _, _, _ = rf.loglikelihood(ctx, ' yes')
-        ll_no, _, _, _  = rf.loglikelihood(ctx, ' no')
+        ll_yes, _, _, _ = rf.loglikelihood(ctx, " yes")
+        ll_no, _, _, _ = rf.loglikelihood(ctx, " no")
 
         return ll_yes, ll_no
 
@@ -411,28 +396,28 @@ class WordsInContext(HFTask):
         ll_yes, ll_no = results
         gold = doc["label"]
 
-        acc = 1. if (ll_yes > ll_no) == gold else 0.
+        acc = 1.0 if (ll_yes > ll_no) == gold else 0.0
 
-        return {
-            "acc": acc
-        }
+        return {"acc": acc}
 
     def serialize_results(self, doc, results):
         return {
-                "gold_choice": doc["label"],
-                "model_output": results,
-                "question": "Sentence 1: " + doc["sentence1"] + "\nSentence 2: " + doc["sentence2"] + "\nQuestion: Is the word " + doc["sentence1"][doc["start1"]:doc["end1"]] + " used in the same way in the two sentences above?\nAnswer:",
-                }
+            "gold_choice": doc["label"],
+            "model_output": results,
+            "question": "Sentence 1: "
+            + doc["sentence1"]
+            + "\nSentence 2: "
+            + doc["sentence2"]
+            + "\nQuestion: Is the word "
+            + doc["sentence1"][doc["start1"] : doc["end1"]]
+            + " used in the same way in the two sentences above?\nAnswer:",
+        }
 
     def higher_is_better(self):
-        return {
-            "acc": True
-        }
+        return {"acc": True}
 
     def aggregation(self):
-        return {
-            "acc": mean
-        }
+        return {"acc": mean}
 
 
 class SGWinogradSchemaChallenge(HFTask):
@@ -455,41 +440,39 @@ class SGWinogradSchemaChallenge(HFTask):
         if self.has_training_docs():
             if self._training_docs is None:
                 # GPT-3 Paper's format only uses positive examples for fewshot "training"
-                self._training_docs = [
-                    doc for doc in
-                    self.data["train"]
-                    if doc["label"]
-                ]
+                self._training_docs = [doc for doc in self.data["train"] if doc["label"]]
             return self._training_docs
 
     def fewshot_description(self):
-        return "Final Exam with Answer Key\n" \
-           "Instructions: Please carefully read the following passages. " \
-           "For each passage, you must identify which noun the pronoun marked in *bold*" \
-           " refers to.\n====="
+        return (
+            "Final Exam with Answer Key\n"
+            "Instructions: Please carefully read the following passages. "
+            "For each passage, you must identify which noun the pronoun marked in *bold*"
+            " refers to.\n====="
+        )
 
     def doc_to_text(self, doc):
         raw_passage = doc["text"]
         # NOTE: HuggingFace span indices are word-based not character-based.
-        pre = " ".join(raw_passage.split()[:doc["span2_index"]])
-        post = raw_passage[len(pre) + len(doc["span2_text"]) + 1:]
-        passage = general_detokenize(pre + " *{}*".format(doc['span2_text']) + post)
+        pre = " ".join(raw_passage.split()[: doc["span2_index"]])
+        post = raw_passage[len(pre) + len(doc["span2_text"]) + 1 :]
+        passage = general_detokenize(pre + " *{}*".format(doc["span2_text"]) + post)
         noun = doc["span1_text"]
         pronoun = doc["span2_text"]
         text = (
             f"Passage: {passage}\n"
-            + f"Question: In the passage above, does the pronoun \"*{pronoun}*\" refer to \"*{noun}*\"?\n"
+            + f'Question: In the passage above, does the pronoun "*{pronoun}*" refer to "*{noun}*"?\n'
             + "Answer:"
         )
         return text
 
     def doc_to_target(self, doc):
-        return " " + yesno(doc['label'])
+        return " " + yesno(doc["label"])
 
     def construct_requests(self, doc, ctx):
 
-        ll_yes, _, _, _ = rf.loglikelihood(ctx, ' yes')
-        ll_no, _, _, _ = rf.loglikelihood(ctx, ' no')
+        ll_yes, _, _, _ = rf.loglikelihood(ctx, " yes")
+        ll_no, _, _, _ = rf.loglikelihood(ctx, " no")
 
         return ll_yes, ll_no
 
@@ -497,18 +480,12 @@ class SGWinogradSchemaChallenge(HFTask):
         ll_yes, ll_no = results
         gold = doc["label"]
 
-        acc = 1. if (ll_yes > ll_no) == gold else 0.
+        acc = 1.0 if (ll_yes > ll_no) == gold else 0.0
 
-        return {
-            "acc": acc
-        }
+        return {"acc": acc}
 
     def higher_is_better(self):
-        return {
-            "acc": True
-        }
+        return {"acc": True}
 
     def aggregation(self):
-        return {
-            "acc": mean
-        }
+        return {"acc": mean}

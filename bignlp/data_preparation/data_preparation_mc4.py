@@ -6,22 +6,23 @@ import omegaconf
 from bignlp.data_preparation.pile_dataprep_scripts import utils
 from bignlp.bignlp_utils import add_container_mounts
 
+
 def create_slurm_file(
-        new_script_path,
-        code_path,
-        log_dir="./",
-        flags="",
-        args="",
-        dependency=None,
-        time="04:00:00",
-        exclusive=True,
-        requeue=True,
-        nodes=1,
-        partition="batch",
-        account=None,
-        mem=0,
-        overcommit=False,
-        job_name="",
+    new_script_path,
+    code_path,
+    log_dir="./",
+    flags="",
+    args="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    requeue=True,
+    nodes=1,
+    partition="batch",
+    account=None,
+    mem=0,
+    overcommit=False,
+    job_name="",
 ):
     task = code_path.split("/")[-1].split(".")[0]
     node_array = f"0-{nodes-1}"
@@ -100,9 +101,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
     # Download vocab
     if download_vocab_url is not None:
         assert vocab_save_dir is not None, "vocab_save_dir must be a valid path."
-        download_single_file(
-            url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.txt"
-        )
+        download_single_file(url=download_vocab_url, save_dir=vocab_save_dir, file_name="vocab.txt")
 
     if download_tokenizer_url is not None:
         assert tokenizer_save_dir is not None, "vocab_save_dir must be a valid path."
@@ -111,43 +110,59 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         )
 
     # Define running commands
-    prepare_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/prepare.py")
+    prepare_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/prepare.py"
+    )
     cleaned_en = "--cleaned-en " if use_cleaned_english else ""
-    prepare_args = f"--data-path={mc4_dir} " \
-                   f"--git-lfs-path={git_lfs_dir} " \
-                   f"--languages={languages} " \
-                   f"{cleaned_en}" \
-                   f"--node-array-size={nodes} " \
-                   f"--worker-mapping-file={download_worker_mapping}"
+    prepare_args = (
+        f"--data-path={mc4_dir} "
+        f"--git-lfs-path={git_lfs_dir} "
+        f"--languages={languages} "
+        f"{cleaned_en}"
+        f"--node-array-size={nodes} "
+        f"--worker-mapping-file={download_worker_mapping}"
+    )
 
-    download_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/download.py")
-    download_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
-                    f"--git-lfs-path={git_lfs_dir} " \
-                    f"--worker-mapping-file={download_worker_mapping}"
+    download_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/download.py"
+    )
+    download_args = (
+        f"--c4-path={os.path.join(mc4_dir, 'c4')} "
+        f"--git-lfs-path={git_lfs_dir} "
+        f"--worker-mapping-file={download_worker_mapping}"
+    )
 
-    setup_preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/setup_preprocess.py")
-    setup_preprocess_args = f"--c4-path={os.path.join(mc4_dir, 'c4')} " \
-                            f"--soft-link-path={softlinks_dir} " \
-                            f"--languages={languages} " \
-                            f"{cleaned_en}" \
-                            f"--node-array-size={nodes} " \
-                            f"--workers-per-node={workers_per_node} " \
-                            f"--max-split-size={max_split_size} " \
-                            f"--worker-mapping-file={preprocess_worker_mapping}"
+    setup_preprocess_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/setup_preprocess.py"
+    )
+    setup_preprocess_args = (
+        f"--c4-path={os.path.join(mc4_dir, 'c4')} "
+        f"--soft-link-path={softlinks_dir} "
+        f"--languages={languages} "
+        f"{cleaned_en}"
+        f"--node-array-size={nodes} "
+        f"--workers-per-node={workers_per_node} "
+        f"--max-split-size={max_split_size} "
+        f"--worker-mapping-file={preprocess_worker_mapping}"
+    )
 
-    preprocess_code_path = os.path.join(bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/preprocess.py")
+    preprocess_code_path = os.path.join(
+        bignlp_path, "bignlp/data_preparation/mc4_dataprep_scripts/preprocess.py"
+    )
     rm_arg = "--rm-downloaded" if rm_downloaded else ""
-    preprocess_args = f"{rm_arg} " \
-                      f"--worker-mapping-file={preprocess_worker_mapping} " \
-                      f"--workers-per-node={workers_per_node} " \
-                      f"--output-path={preprocessed_dir} " \
-                      f"--tokenizer-library=sentencepiece " \
-                      f"--tokenizer-model={tokenizer_model} " \
-                      f"--dataset-impl=mmap " \
-                      f"--workers={cpus_per_node // workers_per_node} " \
-                      f"--log-interval=2000 " \
-                      f"--preproc-folder " \
-                      f"--apply-ftfy"
+    preprocess_args = (
+        f"{rm_arg} "
+        f"--worker-mapping-file={preprocess_worker_mapping} "
+        f"--workers-per-node={workers_per_node} "
+        f"--output-path={preprocessed_dir} "
+        f"--tokenizer-library=sentencepiece "
+        f"--tokenizer-model={tokenizer_model} "
+        f"--dataset-impl=mmap "
+        f"--workers={cpus_per_node // workers_per_node} "
+        f"--log-interval=2000 "
+        f"--preproc-folder "
+        f"--apply-ftfy"
+    )
     # BCM config
     cluster_cfg = cfg.get("cluster")
     if cfg.get("cluster_type") == "bcm" and cluster_cfg is not None:
@@ -252,8 +267,10 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             preprocess_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/preprocess_mc4_script.sh"
             )
-            preprocess_flags = flags + f" --ntasks-per-node={workers_per_node} " \
-                                       f" --cpus-per-task={cpus_per_node // workers_per_node}"
+            preprocess_flags = (
+                flags + f" --ntasks-per-node={workers_per_node} "
+                f" --cpus-per-task={cpus_per_node // workers_per_node}"
+            )
             create_slurm_file(
                 new_script_path=preprocess_script_path,
                 code_path=preprocess_code_path,
@@ -278,15 +295,19 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         return dependency
 
     if cfg.get("cluster_type") == "bcp":
+
         def get_launcher(nnodes, npernode, cmd):
-            if utils.is_tool('bcprun'):
-                launcher = "NGC_ARRAY_TYPE=MPIJob " + \
-                    f"bcprun --nnodes {nnodes} --npernode {npernode} " + \
-                    f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+            if utils.is_tool("bcprun"):
+                launcher = (
+                    "NGC_ARRAY_TYPE=MPIJob "
+                    + f"bcprun --nnodes {nnodes} --npernode {npernode} "
+                    + f"--launcher 'mpirun --allow-run-as-root' --cmd \"{cmd}\""
+                )
             else:
-                launcher = \
-                    f"mpirun --allow-run-as-root " + \
-                    f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+                launcher = (
+                    f"mpirun --allow-run-as-root "
+                    + f"-np {nnodes * npernode} -npernode {npernode} {cmd}"
+                )
             return launcher
 
         joblog = os.path.join(log_dir, "data_joblog.log")
@@ -298,8 +319,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {prepare_code_path} {prepare_args}"
             launchcmd = cmd  # prepare env do not need mpirun
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted mC4 Prepare script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"mC4 Prepare CMD:\n{launchcmd}", file=jlog)
@@ -315,8 +336,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {download_code_path} {download_args}"
             launchcmd = get_launcher(nnodes, 1, cmd)
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted mC4 Download script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"mC4 Download CMD:\n{launchcmd}", file=jlog)
@@ -333,8 +354,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {setup_preprocess_code_path} {setup_preprocess_args}"
             launchcmd = cmd  # prepare env do not need mpirun
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted mC4 Setup Preprocessing script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"mC4 Setup Preprocessing CMD:\n{launchcmd}", file=jlog)
@@ -350,8 +371,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             cmd = f"python3 {preprocess_code_path} {preprocess_args}"
             launchcmd = get_launcher(nnodes, workers_per_node, cmd)
             proc = subprocess.Popen(
-                launchcmd, shell=True, stdout=subprocess.PIPE,
-                universal_newlines=True)
+                launchcmd, shell=True, stdout=subprocess.PIPE, universal_newlines=True
+            )
             print(f"\nSubmitted mC4 Preprocess script with job pid: {proc.pid}")
             with open(joblog, "a", encoding="utf-8") as jlog:
                 print(f"mC4 Preprocess CMD:\n{launchcmd}", file=jlog)

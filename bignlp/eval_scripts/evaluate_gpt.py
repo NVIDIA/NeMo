@@ -8,21 +8,21 @@ from bignlp.bignlp_utils import add_container_mounts
 
 
 def create_slurm_file(
-        new_script_path,
-        eval_cmd1,
-        eval_cmd2,
-        job_name,
-        flags="",
-        dependency=None,
-        time="04:00:00",
-        exclusive=True,
-        mem=0,
-        overcommit=True,
-        nodes=1,
-        ntasks_per_node=8,
-        gpus_per_task=1,
-        partition="batch",
-        account=None,
+    new_script_path,
+    eval_cmd1,
+    eval_cmd2,
+    job_name,
+    flags="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    mem=0,
+    overcommit=True,
+    nodes=1,
+    ntasks_per_node=8,
+    gpus_per_task=1,
+    partition="batch",
+    account=None,
 ):
     with open(new_script_path, "w") as f:
         f.writelines("#!/bin/bash\n")
@@ -50,16 +50,11 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def create_bcp_file(
-        cmd_str1,
-        cmd_str2,
-        num_nodes,
-        ntasks_per_node,
-        log_file,
-        new_script_path
-):
+def create_bcp_file(cmd_str1, cmd_str2, num_nodes, ntasks_per_node, log_file, new_script_path):
     with open(new_script_path, "w") as f:
-        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str1}; {cmd_str2}" >> {log_file} 2>&1\n\n')
+        f.writelines(
+            f'bcprun -n {num_nodes} -p {ntasks_per_node} -c "{cmd_str1}; {cmd_str2}" >> {log_file} 2>&1\n\n'
+        )
         f.writelines("set +x\n")
     os.chmod(new_script_path, 0o755)
 
@@ -111,20 +106,22 @@ def run_evaluation(cfg, dependency=None):
     # Command to run the model on the eval datasets.
     new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
     code_path2 = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_harness/evaluate.py")
-    args = f"--name={name} " \
-           f"--model={model_type} " \
-           f"--tasks={tasks} " \
-           f"--cache_dir={cache_dir} " \
-           f"--batch_size={batch_size} " \
-           f"--output_path={results_dir} " \
-           f"--vocab_file={vocab_file} " \
-           f"--merge_file={merge_file} " \
-           f"--checkpoint_folder={checkpoint_folder} " \
-           f"--checkpoint_name={checkpoint_name} " \
-           f"--hparams_file={hparams_file} " \
-           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} " \
-           f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
-           f"--precision={precision}"
+    args = (
+        f"--name={name} "
+        f"--model={model_type} "
+        f"--tasks={tasks} "
+        f"--cache_dir={cache_dir} "
+        f"--batch_size={batch_size} "
+        f"--output_path={results_dir} "
+        f"--vocab_file={vocab_file} "
+        f"--merge_file={merge_file} "
+        f"--checkpoint_folder={checkpoint_folder} "
+        f"--checkpoint_name={checkpoint_name} "
+        f"--hparams_file={hparams_file} "
+        f"--pipeline_model_parallel_size={pipeline_model_parallel_size} "
+        f"--tensor_model_parallel_size={tensor_model_parallel_size} "
+        f"--precision={precision}"
+    )
     args = args.replace(" ", " \\\n  ")
     eval_cmd2 = f"python -u {code_path2} \\\n {args}"
 
@@ -166,9 +163,7 @@ def run_evaluation(cfg, dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output(
-            [f"sbatch --parsable {new_script_path}"], shell=True
-        )
+        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id.decode("utf-8")
         print(f"Submitted Evaluation script with job id: {dependency}")
         return dependency

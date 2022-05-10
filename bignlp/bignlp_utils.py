@@ -34,7 +34,7 @@ def convert_to_cli(cfg):
         elif k in ["splits_string", "file_numbers", "languages"]:
             result += f"{k}=\\'{v}\\' "
         elif k == "checkpoint_name":
-            v = v.replace('=', '\=')
+            v = v.replace("=", "\=")
             result += f"{k}=\'{v}\' "
         else:
             result += f"{k}={convert_to_null(v)} "
@@ -56,7 +56,9 @@ def fake_submit(*args, **kwargs):
 def add_container_mounts(container_mounts):
     mounts_str = ""
     if container_mounts is not None:
-        assert isinstance(container_mounts, omegaconf.listconfig.ListConfig), "container_mounts must be a list."
+        assert isinstance(
+            container_mounts, omegaconf.listconfig.ListConfig
+        ), "container_mounts must be a list."
         for mount in container_mounts:
             if mount is not None and isinstance(mount, str):
                 mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
@@ -65,7 +67,7 @@ def add_container_mounts(container_mounts):
 
 def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
     """Returns all the possible node counts to use for a given config of
-    GBS, MBS, TP, PP, and gpus_per_node. The maximum number of nodes can 
+    GBS, MBS, TP, PP, and gpus_per_node. The maximum number of nodes can
     be limited by using the max_node_count parameter.
 
     Parameters:
@@ -74,7 +76,7 @@ def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
     tp: int, Tensor Model Parallelism.
     pp: int, Pipeline Model Parallelism.
     gpus_per_node: int, number of GPUs per node.
-    max_node_count: int, numbers of nodes larger than this number will 
+    max_node_count: int, numbers of nodes larger than this number will
         not be added to the list.
 
     Returns:
@@ -83,8 +85,13 @@ def valid_node_counts(gbs, mbs, tp, pp, gpus_per_node=8, max_node_count=200):
     try:
         highest = int(gbs * pp * tp / (gpus_per_node * mbs))
         valid_nodes = []
-        for nodes in range(max(1, int(tp*pp/gpus_per_node)), min(highest+1, max_node_count+1)):
-            if gbs % (mbs * nodes * gpus_per_node / (tp * pp)) == 0 and (nodes * gpus_per_node) % (tp * pp) == 0:
+        for nodes in range(
+            max(1, int(tp * pp / gpus_per_node)), min(highest + 1, max_node_count + 1)
+        ):
+            if (
+                gbs % (mbs * nodes * gpus_per_node / (tp * pp)) == 0
+                and (nodes * gpus_per_node) % (tp * pp) == 0
+            ):
                 valid_nodes.append(nodes)
         return valid_nodes
     except:

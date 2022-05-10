@@ -1,5 +1,5 @@
 import numpy as np
-from . common import HFTask
+from .common import HFTask
 from lm_eval.base import rf
 from ..metrics import mean
 
@@ -15,7 +15,7 @@ class Winogrande(HFTask):
     DATASET_PATH = "winogrande"
     DATASET_NAME = "winogrande_xl"
 
-    answer_to_num = {'1': 0, '2': 1}
+    answer_to_num = {"1": 0, "2": 1}
 
     def has_training_docs(self):
         return True
@@ -65,7 +65,7 @@ class Winogrande(HFTask):
         for option in [doc["option1"], doc["option2"]]:
             partial_ctx = self.partial_context(doc, option)
             full_ctx = self.append_context(ctx, partial_ctx)
-            #lls.append(rf.loglikelihood(full_ctx, target)[0])
+            # lls.append(rf.loglikelihood(full_ctx, target)[0])
             ll, is_preds, model_toks, gold_toks = rf.loglikelihood(full_ctx, target)
             lls.extend([ll, is_preds, model_toks, gold_toks])
         return lls
@@ -92,9 +92,9 @@ class Winogrande(HFTask):
         model_toks = results[2::4]
         gold_toks = results[3::4]
         assert len(lls) == len(is_preds) == len(model_toks) == len(gold_toks) == num_choices, doc
-        
+
         return {
-            #"acc": np.argmax(results) == self.answer_to_num[doc["answer"]]
+            # "acc": np.argmax(results) == self.answer_to_num[doc["answer"]]
             "acc": int(np.argmax(lls) == self.answer_to_num[doc["answer"]])
         }
 
@@ -110,7 +110,7 @@ class Winogrande(HFTask):
             "option1": doc["option1"],
             "option2": doc["option2"],
             "model_choice": int(np.argmax(lls)) + 1,
-            "gold_choice": self.answer_to_num[doc["answer"]] + 1
+            "gold_choice": self.answer_to_num[doc["answer"]] + 1,
         }
 
     def aggregation(self):
@@ -119,9 +119,7 @@ class Winogrande(HFTask):
             A dictionary where keys are the names of submetrics and values are
             functions that aggregate a list of metrics
         """
-        return {
-            "acc": mean
-        }
+        return {"acc": mean}
 
     def higher_is_better(self):
         """
@@ -129,6 +127,4 @@ class Winogrande(HFTask):
             A dictionary where keys are the names of submetrics and values are
             whether a higher value of the submetric is better
         """
-        return {
-            "acc": True
-        }
+        return {"acc": True}

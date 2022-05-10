@@ -9,7 +9,9 @@ from omegaconf import OmegaConf
 from nemo.utils.get_rank import is_global_rank_zero
 
 
-def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1):
+def _inject_model_parallel_rank(
+    filepath, tensor_model_parallel_size=1, pipeline_model_parallel_size=1
+):
     """
     Injects tensor/pipeline model parallel ranks into the filepath.
     Does nothing if not using model parallelism.
@@ -20,9 +22,9 @@ def _inject_model_parallel_rank(filepath, tensor_model_parallel_size=1, pipeline
         dirname = os.path.dirname(filepath)
         basename = os.path.basename(filepath)
         if pipeline_model_parallel_size is None or pipeline_model_parallel_size == 1:
-            filepath = f'{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}'
+            filepath = f"{dirname}/mp_rank_{tensor_model_parallel_rank:02d}/{basename}"
         else:
-            filepath = f'{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}'
+            filepath = f"{dirname}/tp_rank_{tensor_model_parallel_rank:02d}_pp_rank_{pipeline_model_parallel_rank:03d}/{basename}"
         return filepath
     else:
         return filepath
@@ -52,21 +54,35 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file."
+    )
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
-    parser.add_argument("--vocab_file", type=str, default=None, required=False, help="Path to vocab file.")
-    parser.add_argument("--merge_file", type=str, default=None, required=False, help="Path to merge file.")
-    parser.add_argument("--tokenizer_model", type=str, default=None, required=False, help="Path to sentencepiece tokenizer for mT5.")
+    parser.add_argument(
+        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"]
+    )
+    parser.add_argument(
+        "--vocab_file", type=str, default=None, required=False, help="Path to vocab file."
+    )
+    parser.add_argument(
+        "--merge_file", type=str, default=None, required=False, help="Path to merge file."
+    )
+    parser.add_argument(
+        "--tokenizer_model",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to sentencepiece tokenizer for mT5.",
+    )
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
     args = parser.parse_args()
     return args
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
 
     checkpoint_folder = args.checkpoint_folder
@@ -84,19 +100,27 @@ if __name__ == '__main__':
 
     # Checkpoint search
     if checkpoint_name == "latest":
-        checkpoints = os.path.join(checkpoint_folder, '*.ckpt')
-        checkpoints = _inject_model_parallel_rank(checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size)
+        checkpoints = os.path.join(checkpoint_folder, "*.ckpt")
+        checkpoints = _inject_model_parallel_rank(
+            checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size
+        )
         checkpoint_list = glob.glob(checkpoints)
         latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
         checkpoint_name = os.path.basename(latest_checkpoint)
 
     checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = _inject_model_parallel_rank(checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size)
+    checkpoint = _inject_model_parallel_rank(
+        checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
+    )
     checkpoint_list = glob.glob(checkpoint)
     if len(checkpoint_list) > 1:
-        raise ValueError("Too many checkpoints fit the checkpoint name pattern in conversion config.")
+        raise ValueError(
+            "Too many checkpoints fit the checkpoint name pattern in conversion config."
+        )
     if len(checkpoint_list) == 0:
-        raise ValueError("No checkpoint found with the checkpoint name pattern in conversion config.")
+        raise ValueError(
+            "No checkpoint found with the checkpoint name pattern in conversion config."
+        )
     checkpoint_name = os.path.basename(checkpoint_list[0])
 
     # Create hparam override file for vocab and merge
@@ -113,21 +137,23 @@ if __name__ == '__main__':
             conf.cfg.tokenizer.model = tokenizer_model
 
         if is_global_rank_zero():
-            with open(hparams_override_file, 'w') as f:
+            with open(hparams_override_file, "w") as f:
                 OmegaConf.save(config=conf, f=f)
 
         while not os.path.exists(hparams_override_file):
             time.sleep(1)
 
     code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
-    args = f"--gpus_per_node={gpus_per_node} " \
-           f"--model_type={model_type} " \
-           f"--checkpoint_folder={checkpoint_folder} " \
-           f"--checkpoint_name={checkpoint_name} " \
-           f"--hparams_file={hparams_override_file} " \
-           f"--nemo_file_path={nemo_file_path} " \
-           f"--tensor_model_parallel_size={tensor_model_parallel_size} " \
-           f"--pipeline_model_parallel_size={pipeline_model_parallel_size} "
+    args = (
+        f"--gpus_per_node={gpus_per_node} "
+        f"--model_type={model_type} "
+        f"--checkpoint_folder={checkpoint_folder} "
+        f"--checkpoint_name={checkpoint_name} "
+        f"--hparams_file={hparams_override_file} "
+        f"--nemo_file_path={nemo_file_path} "
+        f"--tensor_model_parallel_size={tensor_model_parallel_size} "
+        f"--pipeline_model_parallel_size={pipeline_model_parallel_size} "
+    )
     args += "--bcp " if bcp else ""
 
     args = args.replace(" ", " \\\n  ")
@@ -135,7 +161,7 @@ if __name__ == '__main__':
 
     if is_global_rank_zero():
         print("************** Converting commands ***********")
-        print(f'\n{cmd_str}')
+        print(f"\n{cmd_str}")
         print("**********************************************\n\n")
 
     os.system(f"{cmd_str}")

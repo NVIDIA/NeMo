@@ -11,6 +11,7 @@ from gpu_affinity import set_affinity
 
 rank2gpu = [0, 4, 2, 6, 1, 5, 3, 7]
 
+
 def pause_and_prime_dns_connections() -> None:
     if int(os.environ.get("GROUP_RANK")) > 0:
         time.sleep(20)
@@ -23,7 +24,7 @@ def prime_dns_connections() -> None:
     me = "worker" + os.environ.get("GROUP_RANK") + ":" + os.environ.get("RANK")
     master_addr = os.environ.get("MASTER_ADDR")
     master_port = int(os.environ.get("MASTER_PORT"))
-    print(f'SPDNS: {me} Connecting to {master_addr}:{master_port}')
+    print(f"SPDNS: {me} Connecting to {master_addr}:{master_port}")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_address = (master_addr, master_port)
     timeout = time.time() + 300
@@ -35,14 +36,14 @@ def prime_dns_connections() -> None:
         except Exception:
             time.sleep(2)
         if time.time() > timeout:
-            print(f'{me} couldnt connect to {master_addr}:{master_port} timed out! (300s)')
+            print(f"{me} couldnt connect to {master_addr}:{master_port} timed out! (300s)")
             sys.exit(110)
-    print(f'SPDNS: {me} connected to {master_addr}:{master_port}')
+    print(f"SPDNS: {me} connected to {master_addr}:{master_port}")
     sock.close()
 
 
 def numa_mapping(local_rank, devices, numa_cfg):
-    """Sets the GPU affinity for the NUMA mapping for the current GPU passed as local_rank. 
+    """Sets the GPU affinity for the NUMA mapping for the current GPU passed as local_rank.
     It sets the NUMA mapping following the parameters in numa_cfg.
 
     Arguments:
@@ -57,14 +58,23 @@ def numa_mapping(local_rank, devices, numa_cfg):
     balanced = numa_cfg.get("balanced")
     min_cores = numa_cfg.get("min_cores")
     max_cores = numa_cfg.get("max_cores")
-    
+
     if enable:
-        affinity = set_affinity(gpu_id=int(local_rank), nproc_per_node=devices, mode=mode, scope=scope, cores=cores, balanced=balanced, min_cores=min_cores, max_cores=max_cores)
+        affinity = set_affinity(
+            gpu_id=int(local_rank),
+            nproc_per_node=devices,
+            mode=mode,
+            scope=scope,
+            cores=cores,
+            balanced=balanced,
+            min_cores=min_cores,
+            max_cores=max_cores,
+        )
         print(f"Setting NUMA mapping (GPU Affinity) for rank {local_rank}: {affinity}")
     else:
         print("No NUMA mapping was enabled, performance might suffer without it.")
-    
-    cuda_visible_devices = "CUDA_VISIBLE_DEVICES={}".format(re.sub('[\[\] ]', '', str(rank2gpu)))
+
+    cuda_visible_devices = "CUDA_VISIBLE_DEVICES={}".format(re.sub("[\[\] ]", "", str(rank2gpu)))
     return cuda_visible_devices
 
 
@@ -114,7 +124,7 @@ def generate_mt5_data_blend(cfg):
             f_path = os.path.join(data_dir, f)
             f_size = os.path.getsize(f_path)
 
-            elements = f.split('_')
+            elements = f.split("_")
             lang = elements[0]
             lang_size[lang] += f_size
             file_size[lang].append((f_path.strip(".bin"), f_size))
@@ -126,6 +136,5 @@ def generate_mt5_data_blend(cfg):
     res = []
     for lang in file_size:
         for prefix, size in file_size[lang]:
-            res.extend([round(size / lang_size[lang] * lang_ratio[lang], 6),
-                        prefix])
+            res.extend([round(size / lang_size[lang] * lang_ratio[lang], 6), prefix])
     return res

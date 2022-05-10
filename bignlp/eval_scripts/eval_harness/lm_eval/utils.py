@@ -9,7 +9,7 @@ import numpy as np
 import random
 import logging
 
-logging.basicConfig(format='%(asctime)s | %(levelname)s : %(message)s', level=logging.INFO)
+logging.basicConfig(format="%(asctime)s | %(levelname)s : %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -52,7 +52,8 @@ def chunks(iter, n):
             yield arr
             arr = []
 
-    if arr: yield arr
+    if arr:
+        yield arr
 
 
 def group(arr, fn):
@@ -101,10 +102,7 @@ def get_rolling_token_windows(token_list, prefix_token, max_seq_len, context_len
 
     # Special handling for first window: predict all tokens
     first_seq_len = min(max_seq_len, len(token_list))
-    yield (
-        [prefix_token] + token_list[:first_seq_len - 1],
-        token_list[:first_seq_len]
-    )
+    yield ([prefix_token] + token_list[: first_seq_len - 1], token_list[:first_seq_len])
     predicted += first_seq_len
 
     while predicted < len(token_list):
@@ -112,18 +110,18 @@ def get_rolling_token_windows(token_list, prefix_token, max_seq_len, context_len
         window_end = predicted + window_pred_len
 
         yield (
-            token_list[window_end - max_seq_len - 1:window_end - 1],
-            token_list[window_end - window_pred_len:window_end],
+            token_list[window_end - max_seq_len - 1 : window_end - 1],
+            token_list[window_end - window_pred_len : window_end],
         )
         predicted += window_pred_len
 
 
 def make_disjoint_window(pair):
-    """ Takes output from get_rolling_token_windows and makes the context not overlap with the continuation """
+    """Takes output from get_rolling_token_windows and makes the context not overlap with the continuation"""
 
     a, b = pair
 
-    return a[:-(len(b) - 1)], b
+    return a[: -(len(b) - 1)], b
 
 
 class Reorderer:
@@ -131,9 +129,7 @@ class Reorderer:
         self.size = len(arr)
         arr = list(enumerate(arr))
         arr = group(arr, lambda x: fn(x[1]))
-        arr = [
-            ([y[0] for y in x], x[0][1]) for x in arr
-        ]
+        arr = [([y[0] for y in x], x[0][1]) for x in arr]
         arr.sort(key=lambda x: fn(x[1]))
 
         self.arr = arr
@@ -194,7 +190,9 @@ def load_config(args):
                 json_config = json.load(cnfg)
             config.update(json_config)
         except:
-            logger.critical("Failed to load configuration file. Check JSON syntax and verify that files exist")
+            logger.critical(
+                "Failed to load configuration file. Check JSON syntax and verify that files exist"
+            )
             traceback.print_exc()
             sys.exit(1)
 

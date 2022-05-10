@@ -8,7 +8,7 @@ import utils
 @hydra.main(config_path="../../../conf", config_name="config")
 def main(cfg) -> None:
     """Function to extract the pile dataset files on BCM.
-    
+
     Arguments:
         cfg: main config file.
     """
@@ -40,10 +40,11 @@ def main(cfg) -> None:
             # TODO: Consider multiprocessing.Pool instead.
             proc = multiprocessing.Process(
                 target=utils.extract_single_zst_file,
-                args=(downloaded_path, data_dir, output_file, rm_downloaded))
+                args=(downloaded_path, data_dir, output_file, rm_downloaded),
+            )
             proc_list.append(proc)
             proc.start()
-        
+
         for proc in proc_list:
             proc.join()
 

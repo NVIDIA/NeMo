@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestTrainingT5Config:
-
     def test_training_t5_config_220m(self):
-        conf = OmegaConf.load('conf/training/t5/220m.yaml')
+        conf = OmegaConf.load("conf/training/t5/220m.yaml")
         s = """
         run:
           name: t5_220m
@@ -214,10 +213,12 @@ class TestTrainingT5Config:
               - ${data_dir}/my-t5_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/t5/220.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/training/t5/220.yaml must be set to {expected} but it currently is {conf}."
 
     def test_training_t5_config_3b(self):
-        conf = OmegaConf.load('conf/training/t5/3b.yaml')
+        conf = OmegaConf.load("conf/training/t5/3b.yaml")
         s = """
         run:
           name: t5_3b
@@ -427,4 +428,6 @@ class TestTrainingT5Config:
               - ${data_dir}/my-t5_29_text_document
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/training/t5/3b.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/training/t5/3b.yaml must be set to {expected} but it currently is {conf}."

@@ -1,7 +1,7 @@
 import numpy as np
 from lm_eval.base import MultipleChoiceTask, rf
 from ..metrics import mean
-from . common import HFTask
+from .common import HFTask
 
 
 class PiQA(HFTask, MultipleChoiceTask):
@@ -32,4 +32,3 @@ class PiQA(HFTask, MultipleChoiceTask):
 
     def doc_to_text(self, doc):
         return doc["goal"]
-

@@ -13,9 +13,7 @@ def download_single_file(url, save_dir, file_name):
         print(f"File {save_path} already exists, skipping download.")
         return save_path
 
-    with requests.get(url, stream=True) as read_file, open(
-        save_path, "wb"
-    ) as write_file:
+    with requests.get(url, stream=True) as read_file, open(save_path, "wb") as write_file:
         total_length = int(read_file.headers.get("content-length"))
         with tqdm.tqdm(
             total=total_length,
@@ -54,9 +52,7 @@ def extract_single_zst_file(input_path, save_dir, file_name, rm_input=False):
         save_path = os.path.join(save_dir, file_name)
         update_len = 0
         with open(input_path, "rb") as in_f, open(save_path, "wb") as out_f:
-            for chunk in dctx.read_to_iter(
-                in_f, read_size=read_size, write_size=write_size
-            ):
+            for chunk in dctx.read_to_iter(in_f, read_size=read_size, write_size=write_size):
                 out_f.write(chunk)
                 update_len += read_size
                 if update_len >= 3000000:
@@ -81,12 +77,12 @@ def convert_file_numbers(file_numbers_str):
 
 
 def split_list(inlist, ngroups):
-    '''Splits list into groups.
+    """Splits list into groups.
     inlist = list(range(18))  # given list
     ngroups = 5  # desired number of parts
     Returns: [[0, 1, 2], [3, 4, 5, 6], [7, 8, 9], [10, 11, 12, 13],
               [14, 15, 16, 17]]
-    '''
+    """
     nlen = len(inlist)
     list_groups = []
     for ii in range(ngroups):

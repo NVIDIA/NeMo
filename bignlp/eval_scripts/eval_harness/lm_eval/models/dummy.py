@@ -12,24 +12,24 @@ class DummyLM(LM):
 
     def loglikelihood(self, requests):
         res = []
-        
+
         for _ in requests:
             res.append((-random.random(), False))
 
         return res
-    
+
     def greedy_until(self, requests):
         res = []
-        
+
         for ctx, _ in requests:
             res.append("lol")
-            assert ctx.strip() != ''
+            assert ctx.strip() != ""
 
         return res
 
     def loglikelihood_rolling(self, requests):
         res = []
-        
+
         for _ in requests:
             res.append(-random.random())
 

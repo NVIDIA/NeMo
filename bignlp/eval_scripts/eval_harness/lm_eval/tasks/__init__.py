@@ -8,7 +8,7 @@ from . import race
 from . import piqa
 from . import wikitext
 
-from . common import HFTask
+from .common import HFTask
 
 ########################################
 # Translation tasks
@@ -16,8 +16,8 @@ from . common import HFTask
 
 # 6 total
 gpt3_translation_benchmarks = {
-    "wmt14": ['en-fr', 'fr-en'],  # French
-    "wmt16": ['en-ro', 'ro-en', 'de-en', 'en-de'],  # German, Romanian
+    "wmt14": ["en-fr", "fr-en"],  # French
+    "wmt16": ["en-ro", "ro-en", "de-en", "en-de"],  # German, Romanian
 }
 
 ########################################
@@ -49,7 +49,4 @@ def get_task(task_name):
 
 
 def get_task_dict(task_name_list, cache_dir):
-    return {
-        task_name: get_task(task_name)(cache_dir)
-        for task_name in task_name_list
-    }
+    return {task_name: get_task(task_name)(cache_dir) for task_name in task_name_list}

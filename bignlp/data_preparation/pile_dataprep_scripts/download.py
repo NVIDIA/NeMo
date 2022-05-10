@@ -8,7 +8,7 @@ import utils
 @hydra.main(config_path="../../../conf", config_name="config")
 def main(cfg):
     """Function to download the pile dataset files on BCM.
-    
+
     Arguments:
         cfg: main config file.
     """
@@ -40,8 +40,8 @@ def main(cfg):
             output_file = f"{file_number:02d}.jsonl.zst"
             # TODO: Consider multiprocessing.Pool instead.
             proc = multiprocessing.Process(
-                target=utils.download_single_file,
-                args=(url, data_dir, output_file))
+                target=utils.download_single_file, args=(url, data_dir, output_file)
+            )
             proc_list.append(proc)
             proc.start()
 

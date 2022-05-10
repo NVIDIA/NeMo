@@ -2,9 +2,8 @@ from omegaconf import OmegaConf
 
 
 class TestEvaluationT5Config:
-    
     def test_evaluation_t5_mnli_matched_config(self):
-        conf = OmegaConf.load('conf/evaluation/t5/mnli_matched.yaml')
+        conf = OmegaConf.load("conf/evaluation/t5/mnli_matched.yaml")
         s = """
         run:
           name: eval_${.task_name}_${.model_train_name}
@@ -50,13 +49,14 @@ class TestEvaluationT5Config:
               drop_last: False
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/evaluation/t5/mnli_matched.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/evaluation/t5/mnli_matched.yaml must be set to {expected} but it currently is {conf}."
 
 
 class TestEvaluationGPT3Config:
-
     def test_evaluation_gpt3_evaluate_all_config(self):
-        conf = OmegaConf.load('conf/evaluation/gpt3/evaluate_all.yaml')
+        conf = OmegaConf.load("conf/evaluation/gpt3/evaluate_all.yaml")
         s = """
         run:
           name: ${.eval_name}_${.model_train_name}
@@ -83,10 +83,12 @@ class TestEvaluationGPT3Config:
           merge_file: ${data_dir}/bpe/merges.txt
         """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/evaluation/gpt3/evaluate_all.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/evaluation/gpt3/evaluate_all.yaml must be set to {expected} but it currently is {conf}."
 
     def test_evaluation_gpt3_evaluate_lambada_config(self):
-        conf = OmegaConf.load('conf/evaluation/gpt3/evaluate_lambada.yaml')
+        conf = OmegaConf.load("conf/evaluation/gpt3/evaluate_lambada.yaml")
         s = """
         run:
           name: ${.eval_name}_${.model_train_name}
@@ -113,4 +115,6 @@ class TestEvaluationGPT3Config:
           merge_file: ${data_dir}/bpe/merges.txt
 """
         expected = OmegaConf.create(s)
-        assert expected == conf, f"conf/evaluation/gpt3/evaluate_lambada.yaml must be set to {expected} but it currently is {conf}."
+        assert (
+            expected == conf
+        ), f"conf/evaluation/gpt3/evaluate_lambada.yaml must be set to {expected} but it currently is {conf}."
