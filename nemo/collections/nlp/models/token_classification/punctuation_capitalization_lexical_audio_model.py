@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional, Union, Dict, Any, Tuple
+from typing import Optional, Union, Dict, Any, Tuple, List
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -18,6 +18,7 @@ from nemo.collections.nlp.metrics import ClassificationReport
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import \
     PunctuationCapitalizationModel
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 __all__ = ['PunctuationCapitalizationLexicalAudioModel']
@@ -34,7 +35,8 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
         self.fusion = TransformerDecoder(num_layers=cfg.fusion_num_layers,
                                          hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1],
-                                         inner_size=cfg.fusion_inner_size, num_attention_heads=cfg.fusion_num_attention_heads)
+                                         inner_size=cfg.fusion_inner_size,
+                                         num_attention_heads=cfg.fusion_num_attention_heads)
         self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
                                  self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
         if cfg.freeze_audio_encoder:
@@ -287,3 +289,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             drop_last=cfg.drop_last,
             persistent_workers=cfg.persistent_workers,
         )
+
+    @classmethod
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
+        return []
