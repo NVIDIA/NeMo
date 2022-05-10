@@ -245,7 +245,7 @@ def get_args() -> argparse.Namespace:
     for name in [
         "text",
         "labels",
-        "dir_",
+        "output_dir",
         "tokenizer_model",
         "vocab_file",
         "merges_file",

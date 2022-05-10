@@ -72,7 +72,7 @@ def process_alignment(alignment_file: str, manifest: str, clips_dir: str, args):
             line = line[0].split()
             segments.append((float(line[0]) + args.offset / 1000, float(line[1]) + args.offset / 1000, float(line[2])))
 
-    # cut the audio into segments and save the final manifests at dir_
+    # cut the audio into segments and save the final manifests at output_dir
     sampling_rate, signal = wavfile.read(audio_file)
     original_duration = len(signal) / sampling_rate
 
