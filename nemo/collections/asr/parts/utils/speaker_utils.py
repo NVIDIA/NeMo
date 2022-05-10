@@ -505,7 +505,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=3):
     return offset, duration
 
 
-def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci):
+def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci=5):
     """
     Write the json dictionary into the specified file.
 
@@ -590,23 +590,40 @@ def getOverlapRange(rangeA, rangeB):
 
 def combine_float_overlaps(ranges, deci=5, margin=2):
     """
+    Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
+    we need to add margin to the starting range before merging then subtract margin from the result range.
+
     Args:
-        ranges(list):
+        ranges (list):
             List containing ranges.
             Example: [(10.2, 10.83), (10.42, 10.91), (10.45, 12.09)]
+        deci (int):
+            Number of rounding decimals
+        margin (int):
+            margin for determining overlap of the two ranges when ranges are converted to integer ranges.
+            Default is margin=2 which follows the python index convention.
+
+        Examples:
+            If margin is 0:
+                [(1, 10), (10, 20)] -> [(1, 20)]
+                [(1, 10), (11, 20)] -> [(1, 20)]
+            If margin is 1:
+                [(1, 10), (10, 20)] -> [(1, 20)]
+                [(1, 10), (11, 20)] -> [(1, 10), (11, 20)]
+            If margin is 2:
+                [(1, 10), (10, 20)] -> [(1, 10), (10, 20)]
+                [(1, 10), (11, 20)] -> [(1, 10), (11, 20)]
+
     Returns:
         merged_list (list):
             List containing the combined ranges.
             Example: [(10.2, 12.09)]
-
-    Combine overlaps with floating point numbers. Since neighboring integers are considered as continuous range,
-    we need to add margin to the starting range before merging then subtract margin from the result range.
     """
     ranges_int = []
     for x in ranges:
         stt, end = fl2int(x[0], deci) + margin, fl2int(x[1], deci)
         if stt == end:
-            logging.warning(f"The range {stt}:{end} is too short to be combined therefore skipped.")
+            logging.warning(f"The range {stt}:{end} is too short to be combined thus skipped.")
         else:
             ranges_int.append([stt, end])
     merged_ranges = combine_int_overlaps(ranges_int)
@@ -618,12 +635,16 @@ def combine_int_overlaps(ranges):
     """
     Merge the range pairs if there is overlap exists between the given ranges.
     This algorithm needs a sorted range list in terms of the start time.
+    Note that neighboring numbers lead to a merged range.
+    Example:
+        [(1, 10), (11, 20)] -> [(1, 20)]
+
     Refer to the original code at https://stackoverflow.com/a/59378428
 
     Args:
         ranges(list):
             List containing ranges.
-            Example: [(102, 108), (104, 109), (107, 120)]
+            Example: [(102, 103), (104, 109), (107, 120)]
     Returns:
         merged_list (list):
             List containing the combined ranges.
@@ -750,7 +771,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
                 vad_start_end_list_raw.append([start, start + dur])
-            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw)
+            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
             if len(vad_start_end_list) == 0:
                 logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
             elif duration == 0:
