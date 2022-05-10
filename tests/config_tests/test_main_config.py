@@ -20,12 +20,12 @@ class TestConfig:
         run_inference_hp_search: True
 
         bignlp_hp_tool_path: ???
-        bignlp_inference_path: ${bignlp_hp_tool_path}/../BigNLP-Inference-Scripts
-        data_dir: ${bignlp_hp_tool_path}/../bignlp-scripts/data
+        bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts
+        data_dir: ${bignlp_scripts_path}/data
         base_results_dir: ${bignlp_hp_tool_path}/results
 
-        training_container: nvcr.io/ea-bignlp/bignlp-training:22.04-py3
-        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.03-py3
+        training_container: nvcr.io/ea-bignlp/bignlp-training:22.04.01-py3
+        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.04.01-py3
         container_mounts:
             - null
 

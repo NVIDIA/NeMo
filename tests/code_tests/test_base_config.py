@@ -28,7 +28,9 @@ class TestEstimateModelSize:
             # mT5 tests
         ],
     )
-    def test_estimate_model_size(self, training_days, gpus, tflops, tokens, model_name, expected):
+    def test_estimate_model_size(
+        self, training_days, gpus, tflops, tokens, model_name, expected
+    ):
         params = {
             "max_training_days": training_days,
             "gpu_count": gpus,
@@ -83,7 +85,9 @@ class TestEstimateTrainingTime:
             (42.54, 40 * 8, 140, 1000, "mt5", 101.1),
         ],
     )
-    def test_estimate_training_time(self, model_size, gpus, tflops, tokens, model_name, expected):
+    def test_estimate_training_time(
+        self, model_size, gpus, tflops, tokens, model_name, expected
+    ):
         params = {
             "model_size_in_b": model_size,
             "gpu_count": gpus,
@@ -108,3 +112,94 @@ class TestEstimateTrainingTime:
         }
         with pytest.raises(NotImplementedError):
             output_days = bc._estimate_training_time(**params)
+
+
+class TestCalculateGbsTpPp:
+    @pytest.mark.parametrize(
+        "model_size,model_name,expected",
+        [
+            # GPT-3 tests
+            (0.126, "gpt3", (256, 1, 1)),
+            (3.0, "gpt3", (720, 1, 1)),
+            (5.0, "gpt3", (1440, 2, 1)),
+            (10.0, "gpt3", (1440, 4, 1)),
+            (20.0, "gpt3", (1440, 8, 1)),
+            (40.0, "gpt3", (1440, 8, 4)),
+            (80.0, "gpt3", (1440, 8, 8)),
+            (175.0, "gpt3", (1536, 8, 16)),
+            (300.0, "gpt3", (1792, 8, 32)),
+            (600.0, "gpt3", (1920, 8, 64)),
+            (1000.0, "gpt3", (2048, 8, 128)),
+            # T5 tests
+            (0.5, "t5", (2048, 1, 1)),
+            (3.0, "t5", (1920, 2, 1)),
+            (6.0, "t5", (1920, 4, 1)),
+            (13.0, "t5", (1920, 8, 1)),
+            (20.0, "t5", (1920, 8, 2)),
+            (40.0, "t5", (1920, 8, 4)),
+            # mT5 tests
+            (0.5, "mt5", (2048, 1, 1)),
+            (3.0, "mt5", (1920, 2, 1)),
+            (6.0, "mt5", (1920, 4, 1)),
+            (13.0, "mt5", (1920, 8, 1)),
+            (20.0, "mt5", (1920, 8, 2)),
+            (40.0, "mt5", (1920, 8, 4)),
+        ],
+    )
+    def test_calculate_gbs_tp_pp(self, model_size, model_name, expected):
+        params = {"model_size_in_b": model_size, "model_name": model_name}
+        output = bc._calculate_gbs_tp_pp(**params)
+        assert (
+            expected == output
+        ), f"Output of _calculate_gbs_tp_pp should be {expected} but it is {output}."
+
+
+class TestGenerateBaseconfig:
+    @pytest.mark.parametrize(
+        "model_size,nodes,gpus_per_node,max_days,tokens,vocab,model_name,cfg,expected",
+        [
+            # GPT-3 tests
+            (0.126, 8, 8, 2, 300, 51200, "gpt3", {"bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_0.126b", "time_limit": "2-0:00:00", "max_time": "1:23:30:00",} ),
+        ],
+    )
+    def test_generate_base_config(
+        self,
+        model_size,
+        nodes,
+        gpus_per_node,
+        max_days,
+        tokens,
+        vocab,
+        model_name,
+        cfg,
+        expected,
+    ):
+        pass
+        """
+        params = {
+            "model_size_in_b": model_size,
+            "nodes": nodes,
+            "gpus_per_node": gpus_per_node,
+            "max_training_days": max_days,
+            "num_tokens_in_b": tokens,
+            "vocab_size": vocab,
+            "model_name": model_name,
+            "cfg": cfg,
+        }
+        out_cfg = bc.generate_base_config(**params)
+
+        # Run parameters
+        assert out_cfg["run"]["name"] == expected["name"]
+        assert out_cfg["run"]["time_limit"] == expected["time_limit"]
+
+        # Trainer parameters
+        assert out_cfg["trainer"]["num_nodes"] == nodes
+        assert out_cfg["trainer"]["precision"] == "bf16"
+        assert out_cfg["trainer"]["max_steps"] == int(tokens * 1e9 / (out_cfg["model"]["data"]["seq_length"] * out_cfg["model"]["global_batch_size"]))
+        assert out_cfg["trainer"]["max_time"] == 
+
+        # Exp_manager parameters
+        if expected["wandb"]["enable"]:
+            assert out_cfg["trainer"][""]
+            assert out_cfg["trainer"][""]
+        """
