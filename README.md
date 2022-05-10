@@ -1278,9 +1278,11 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
+
 ```
 
 And set the training job specific parameters in the `conf/training/(model_type)/(model_size).yaml` file, 
@@ -1336,6 +1338,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1395,6 +1398,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1508,6 +1512,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1604,6 +1609,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1703,6 +1709,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1805,6 +1812,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -1897,6 +1905,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -2009,6 +2018,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -2110,6 +2120,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
@@ -2209,6 +2220,7 @@ partition: null
 account: null
 exclusive: True
 gpus_per_task: 1
+gpus_per_node: null
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
