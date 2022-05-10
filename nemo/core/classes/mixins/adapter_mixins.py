@@ -198,8 +198,6 @@ class AdapterModuleMixin(ABC):
             cfg['enabled'] = adapter_enabled
             self.adapter_cfg[adapter_name] = cfg
 
-            logging.info(f"Adapter `{adapter_name}` added !")
-
     def is_adapter_available(self) -> bool:
         """
         Checks if any Adapter module has been instantiated.
