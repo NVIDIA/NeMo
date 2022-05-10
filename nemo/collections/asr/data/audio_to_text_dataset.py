@@ -85,6 +85,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
 
     dataset = audio_to_text.AudioToCharDataset(
         manifest_filepath=config['manifest_filepath'],
+        data_prefix=config.get('data_prefix', None),
         labels=config.get('labels', None),
         sample_rate=config['sample_rate'],
         int_values=config.get('int_values', False),
@@ -99,6 +100,7 @@ def get_char_dataset(config: dict, augmentor: Optional['AudioAugmentor'] = None)
         parser=config.get('parser', 'en'),
         return_sample_id=config.get('return_sample_id', False),
     )
+
     return dataset
 
 

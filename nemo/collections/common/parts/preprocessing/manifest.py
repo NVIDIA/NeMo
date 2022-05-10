@@ -15,7 +15,7 @@
 import json
 from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
-
+from pathlib import Path
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
@@ -32,7 +32,8 @@ class ManifestEN:
 
 
 def item_iter(
-    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+    manifests_files: Union[str, List[str]], data_prefix: Optional[Union[str, List[str]]] = None, 
+    parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
 ) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
@@ -46,6 +47,9 @@ def item_iter(
     Args:
         manifests_files: Either single string file or list of such -
             manifests to yield items from.
+
+        data_prefix: Either single string prefix or list of such -
+            prefix to append to each manifest.
 
         parse_func: A callable function which accepts as input a single line
             of a manifest and optionally the manifest file itself,
@@ -61,17 +65,33 @@ def item_iter(
     if isinstance(manifests_files, str):
         manifests_files = [manifests_files]
 
+    num_manifests = len(manifests_files)
+    if isinstance(data_prefix, str):
+        # use the same prefix for all manifests
+        data_prefix = [data_prefix] if num_manifests == 1 else [data_prefix]*num_manifests
+    elif data_prefix is None:
+        # append no prefix
+        data_prefix = [""] * num_manifests
+    
+    num_prefix = len(data_prefix)
+    if num_prefix > 1 and num_prefix != num_manifests:
+        raise ValueError(
+            f"The number of manifests and prefixes must match, unless a single or none prefix is provided." \
+             f"Got {num_manifests} manifests with {num_prefix} prefix(es)."
+        )
+
     if parse_func is None:
         parse_func = __parse_item
 
     k = -1
-    for manifest_file in manifests_files:
+    for manifest_file, prefix in zip(manifests_files, data_prefix):
+        manifest_file = str(Path(prefix) / Path(manifest_file))
         with open(expanduser(manifest_file), 'r') as f:
             for line in f:
                 k += 1
                 item = parse_func(line, manifest_file)
                 item['id'] = k
-
+                item['audio_file'] = str(Path(prefix) / Path(item['audio_file']))
                 yield item
 
 
