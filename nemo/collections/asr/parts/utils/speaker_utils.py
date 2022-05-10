@@ -632,6 +632,7 @@ def combine_int_overlaps(ranges):
             Example: [(102, 120)]
 
     """
+    ranges = sorted(ranges, key=lambda x: x[0])
     merged_list = reduce(
         lambda x, element: x[:-1:] + [(min(*x[-1], *element), max(*x[-1], *element))]
         if x[-1][1] >= element[0] - 1
