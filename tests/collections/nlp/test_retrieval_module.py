@@ -278,6 +278,11 @@ class TestRetrievalModule:
         pad_id = vocab_size - 1
         context_mask = (retrieved != pad_id).cuda()
 
+        class FakeTokenizer:
+            eos_id = vocab_size - 2
+
+        tokenizer = FakeTokenizer()
+
         encoder_decoder = (
             MegatronRetrievalTokenLevelEncoderDecoderModule(
                 vocab_size=vocab_size,
@@ -292,7 +297,7 @@ class TestRetrievalModule:
                 enc_cross_attention=enc_cross_attention,
                 dec_cross_attention=dec_cross_attention,
                 add_position_embedding=False,
-                eod_id=vocab_size - 2,
+                tokenizer=tokenizer,
             )
             .cuda()
             .half()
@@ -321,7 +326,7 @@ class TestRetrievalModule:
                 enc_cross_attention=enc_cross_attention,
                 dec_cross_attention=dec_cross_attention,
                 add_position_embedding=False,
-                eod_id=vocab_size - 2,
+                tokenizer=tokenizer,
             )
             .cuda()
             .half()

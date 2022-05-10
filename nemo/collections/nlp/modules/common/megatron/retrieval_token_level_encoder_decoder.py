@@ -86,7 +86,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         enc_cross_attention=[3],  # layer numbers for cross attention
         dec_cross_attention=[3, 5],  # layer numbers for chunked cross attention
         add_position_embedding=False,
-        eod_id=None,  # end of sequence token id
+        tokenizer=None,  # tokenizer
     ):
         super(MegatronRetrievalTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -98,7 +98,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
         self.add_abs_position_embedding = add_position_embedding  # whether use absolute position embedding
-        self.eod_id = eod_id
+        self.tokenizer = tokenizer
+        self.eod_id = tokenizer.eos_id
 
         if kv_channels is None:
             assert (
@@ -275,7 +276,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
         eod_positions = None
-        if input_ids is not None:
+        if input_ids is not None and self.eod_id is not None:
             eod_positions = torch.where(input_ids == self.eod_id)
 
         if input_emb is None:
