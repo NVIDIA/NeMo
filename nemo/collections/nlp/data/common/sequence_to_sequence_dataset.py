@@ -21,7 +21,8 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import Text
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['SequenceToSequenceDataset','MemmapSequenceToSequenceDataset']
+__all__ = ['SequenceToSequenceDataset', 'MemmapSequenceToSequenceDataset']
+
 
 class SequenceToSequenceDataset(Dataset):
     """Sequence to Sequence Dataset in memory."""
@@ -66,8 +67,16 @@ class SequenceToSequenceDataset(Dataset):
             for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
                 if i % 10000 == 0 and i != 0:
                     logging.info(f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}")
-                src = [self.src_tokenizer.bos_id] + self.src_tokenizer.text_to_ids(src.strip()) + [self.src_tokenizer.eos_id]
-                tgt = [self.tgt_tokenizer.bos_id] + self.tgt_tokenizer.text_to_ids(tgt.strip()) + [self.tgt_tokenizer.eos_id]
+                src = (
+                    [self.src_tokenizer.bos_id]
+                    + self.src_tokenizer.text_to_ids(src.strip())
+                    + [self.src_tokenizer.eos_id]
+                )
+                tgt = (
+                    [self.tgt_tokenizer.bos_id]
+                    + self.tgt_tokenizer.text_to_ids(tgt.strip())
+                    + [self.tgt_tokenizer.eos_id]
+                )
                 if len(src) <= self.max_src_seq_length and len(tgt) < self.max_tgt_seq_length:
                     self.examples.append({'src': src, 'tgt': tgt})
 
@@ -116,12 +125,12 @@ class MemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         max_tgt_seq_length: int,
     ):
         super().__init__(
-        src_file_name=src_file_name,
-        tgt_file_name=tgt_file_name,
-        src_tokenizer=src_tokenizer,
-        tgt_tokenizer=tgt_tokenizer,
-        max_src_seq_length=max_src_seq_length,
-        max_tgt_seq_length=max_tgt_seq_length,            
+            src_file_name=src_file_name,
+            tgt_file_name=tgt_file_name,
+            src_tokenizer=src_tokenizer,
+            tgt_tokenizer=tgt_tokenizer,
+            max_src_seq_length=max_src_seq_length,
+            max_tgt_seq_length=max_tgt_seq_length,
         )
 
     def __len__(self):
