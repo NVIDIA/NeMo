@@ -21,7 +21,7 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import Text
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['SequenceToSequenceDataset', 'MemmapSequenceToSequenceDataset']
+__all__ = ['SequenceToSequenceDataset', 'TextMemmapSequenceToSequenceDataset']
 
 
 class SequenceToSequenceDataset(Dataset):
@@ -112,7 +112,7 @@ class SequenceToSequenceDataset(Dataset):
         }
 
 
-class MemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
+class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
     """Sequence to Sequence Dataset in memory."""
 
     def __init__(
