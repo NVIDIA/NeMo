@@ -1,5 +1,6 @@
-
-
+# This config contains the default values for training FastPitch model with aligner on LJSpeech dataset
+# at 44.1KHz sampling rate. If you want to train model on other dataset, you can change config values 
+# according to your dataset. Most dataset-specific arguments are in the head of the config file, see below.
 
 
 name: FastPitch
@@ -10,12 +11,12 @@ sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
 
 # Default values from librosa.pyin
-pitch_fmin: 80
-pitch_fmax: 640
+pitch_fmin: 65.40639132514966
+pitch_fmax: 2093.004522404789
 
 # LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
-pitch_mean: 211.27540199742586
-pitch_std: 52.1851002822779
+pitch_mean: 212.35873413085938
+pitch_std: 68.52806091308594
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 44100
@@ -29,7 +30,7 @@ window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
 model:
   learn_alignment: true
