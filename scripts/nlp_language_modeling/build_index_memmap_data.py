@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import buil
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Builds vocabulary from regex tokenizer. Outputs .model (regular expression) and .vocab (learned vocabualry)",
+        description="Builds index files for a list of text files",
     )
     parser.add_argument(
         'dataset_paths', type=str, nargs='+', help='Input text files (support glob)',
