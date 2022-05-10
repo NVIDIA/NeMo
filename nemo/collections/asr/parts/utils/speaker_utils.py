@@ -69,10 +69,13 @@ def audio_rttm_map(manifest):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps
-    Args: manifest file that contains keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
+    Args:
+        manifest (str):
+            Path to a file containing keys audio_filepath, rttm_filepath if exists, text, num_speakers if known and uem_filepath if exists
 
-    returns:
-    AUDIO_RTTM_MAP (dict) : A dictionary with keys of uniq id, which is being used to map audio files and corresponding rttm files
+    Returns:
+        AUDIO_RTTM_MAP (dict) : 
+            A dictionary with keys of uniq_id, which is being used to map audio files and corresponding rttm files
     """
 
     AUDIO_RTTM_MAP = {}
@@ -459,7 +462,7 @@ def score_labels(AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=0.25, ign
         return metric, mapping_dict
     else:
         logging.warning(
-            "check if each ground truth RTTMs were present in provided manifest file. Skipping calculation of Diariazation Error Rate"
+            "Check if each ground truth RTTMs were present in the provided manifest file. Skipping calculation of Diarization Error Rate"
         )
 
         return None
@@ -492,7 +495,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id):
         offset (float):
             The offset value that determines the beginning of the audio stream.
         duration (float):
-            The length of audio stream that is expected to be used.
+            The length of the audio stream that is expected to be used.
     """
     audio_path = AUDIO_RTTM_MAP[uniq_id]['audio_filepath']
     if AUDIO_RTTM_MAP[uniq_id].get('duration', None):
@@ -616,7 +619,7 @@ def combine_float_overlaps(ranges):
 
 def combine_int_overlaps(ranges):
     """
-    Merge the range pairs if there is overlap exists between the given ranges.
+    Merge the range pairs if there is overlap between the given ranges.
     Refer to the original code at https://stackoverflow.com/a/59378428
 
     Args:
@@ -689,7 +692,7 @@ def getMinMaxOfRangeList(ranges):
 
 def getSubRangeList(target_range, source_range_list) -> List:
     """
-    Get the ranges that has overlaps with the target range from the source_range_list.
+    Get the ranges that have overlaps with the target range from the source_range_list.
 
     Example:
         source range:
@@ -725,7 +728,7 @@ def getSubRangeList(target_range, source_range_list) -> List:
 def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 2) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlapping time stamps.
+    speaker diarizer to compute embeddings and cluster them. This function also takes care of overlapping timestamps.
 
     Args:
         AUDIO_RTTM_MAP (dict):
@@ -780,9 +783,11 @@ def segments_manifest_to_subsegments_manifest(
         window (float): window length for segments to subsegments length
         shift (float): hop length for subsegments shift
         min_subsegments_duration (float): exclude subsegments smaller than this duration value
+        include_uniq_id (bool): if True, add uniq_id variable into for every json dictionary.
 
     Returns:
-        returns path to subsegment manifest file
+        subsegments_manifest_file (str):
+            Path to subsegment manifest file
     """
     if subsegments_manifest_file is None:
         pwd = os.getcwd()
