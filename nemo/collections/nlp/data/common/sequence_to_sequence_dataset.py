@@ -146,6 +146,6 @@ class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
 
     def _get_examples(self):
-        self.src_dataset = TextMemMapDataset(dataset_paths=[src_file_name], tokenizer=src_tokenizer)
-        self.tgt_dataset = TextMemMapDataset(dataset_paths=[tgt_file_name], tokenizer=tgt_tokenizer)
+        self.src_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
+        self.tgt_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
         assert len(self.src_dataset) == len(self.tgt_dataset), "src and tgt has different number of lines"
