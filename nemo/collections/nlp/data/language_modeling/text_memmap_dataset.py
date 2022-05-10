@@ -28,7 +28,8 @@ from nemo.utils import logging
 
 __all__ = ['TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
 __idx_version__ = '0.1'  # index file version
-__idx_suffix__ = 'idx' # index file suffix
+__idx_suffix__ = 'idx'  # index file suffix
+
 
 class TextMemMapDataset(Dataset):
     """
@@ -200,7 +201,7 @@ class CSVMemMapDataset(TextMemMapDataset):
 
 def _build_memmap_index_files(newline_int, fn):
     """Helper function to build an index file"""
-    idx_fn =  f"{fn}.{__idx_suffix__}"
+    idx_fn = f"{fn}.{__idx_suffix__}"
 
     # create data map
     mdata = np.memmap(fn, dtype=np.uint8, mode='r')
