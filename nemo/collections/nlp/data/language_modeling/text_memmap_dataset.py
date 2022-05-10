@@ -17,7 +17,6 @@ import multiprocessing as mp
 import os
 import pickle
 import time
-from dataclasses import dataclass
 from functools import partial
 
 import numpy as np
