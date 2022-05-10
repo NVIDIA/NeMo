@@ -203,7 +203,7 @@ class ASRAudioText(AudioText):
         """
 
         ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs = [], [], [], [], [], [], [], []
-        for item in manifest.item_iter(manifests_files, data_prefix):
+        for item in manifest.item_iter(manifests_files, data_prefix=data_prefix):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
             durations.append(item['duration'])
