@@ -245,6 +245,9 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     fusion_num_layers: int = 4
     """"Number of layers to use in fusion"""
 
+    restore_lexical_encoder_from: Optional[str] = None
+    """"Path to .nemo checkpoint to load weights from"""
+
 
 @dataclass
 class PunctuationCapitalizationConfig(NemoConfig):

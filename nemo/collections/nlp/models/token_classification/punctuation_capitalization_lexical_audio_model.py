@@ -47,6 +47,11 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                                                hidden_size=cfg.lstm_hidden_size,
                                                num_layers=cfg.lstm_num_layers))
 
+        if cfg.restore_lexical_encoder_from:
+            model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)
+            self.bert_model.load_state_dict(model.bert_model.state_dict())
+            del model
+
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
             input_ids=batch['input_ids'], token_type_ids=batch['segment_ids'], attention_mask=batch['input_mask'],
