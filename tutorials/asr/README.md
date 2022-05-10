@@ -32,6 +32,12 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 ----------------
 
+# Automatic Speech Recogntion with Adapters
+
+Please refer to the `asr_adapter` sub-folder which contains tutorials on the use of `Adapter` modules to perform domain adaptation on ASR models, as well as its sub-domains.
+
+----------------
+
 # Streaming / Buffered Automatic Speech Recognition
 
 1) `Streaming_ASR`: Some ASR models cannot be used to evaluate very long audio segments due to their design. For example, self attention models consume quadratic memory with respect to sequence length. For such cases, this notebook shows how to perform streaming audio recognition in a buffered manner.
