@@ -27,18 +27,17 @@ from tqdm.contrib.concurrent import process_map
 random.seed(42)
 
 """
-This scipt converts a scp file where each line contains  
-<absolute path of wav file> 
-to a manifest json file. 
+This scipt converts a filelist file where each line contains  
+<absolute path of wav file> to a manifest json file. 
 Optionally post processes the manifest file to create dev and train split for speaker embedding 
 training, also optionally chunk an audio file in to segments of random DURATIONS and create those
 wav files in CWD. 
 
 While creating chunks, if audio is not sampled at 16Khz, it resamples to 16Khz and write the wav file.
 Args: 
---scp: scp file name
---manifest(optional): if you already have manifest file, but would like to process it for creating chunks and splitting then use manifest ignoring scp
---id: index of speaker label in filename present in scp file that is separated by '/'
+--filelist: path to file containing list of audio files
+--manifest(optional): if you already have manifest file, but would like to process it for creating chunks and splitting then use manifest ignoring filelist
+--id: index of speaker label in filename present in filelist file that is separated by '/'
 --out: output manifest file name
 --split: if you would want to split the  manifest file for training purposes
         you may not need this for test set. output file names is <out>_<train/dev>.json
@@ -133,9 +132,9 @@ def write_file(name, lines, idx):
     print("wrote", name)
 
 
-def read_file(scp_file, id=-1):
+def read_file(filelist, id=-1):
     json_lines = []
-    with open(scp_file, 'r') as fo:
+    with open(filelist, 'r') as fo:
         lines = fo.readlines()
         lines = sorted(lines)
         for line in lines:
@@ -173,13 +172,13 @@ def get_labels(lines):
     return labels
 
 
-def main(scp, manifest, id, out, split=False, create_chunks=False, min_count=10):
+def main(filelist, manifest, id, out, split=False, create_chunks=False, min_count=10):
     if os.path.exists(out):
         os.remove(out)
-    if scp:
-        lines = read_file(scp_file=scp, id=id)
+    if filelist:
+        lines = read_file(filelist=filelist, id=id)
         lines = process_map(get_duration, lines, chunksize=100)
-        out_file = os.path.splitext(scp)[0] + '_manifest.json'
+        out_file = os.path.splitext(filelist)[0] + '_manifest.json'
         write_file(out_file, lines, range(len(lines)))
     else:
         lines = read_manifest(manifest)
@@ -187,7 +186,7 @@ def main(scp, manifest, id, out, split=False, create_chunks=False, min_count=10)
     lines = process_map(get_duration, lines, chunksize=100)
 
     if create_chunks:
-        print("creating and writing chunks to {}".format(CWD))
+        print(f"creating and writing chunks to {CWD}")
         lines = process_map(filter_manifest_line, lines, chunksize=100)
         temp = []
         for line in lines:
@@ -216,11 +215,11 @@ def main(scp, manifest, id, out, split=False, create_chunks=False, min_count=10)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--scp", help="scp file name", type=str, required=False, default=None)
+    parser.add_argument("--filelist", help="path to filelist file", type=str, required=False, default=None)
     parser.add_argument("--manifest", help="manifest file name", type=str, required=False, default=None)
     parser.add_argument(
         "--id",
-        help="field num seperated by '/' to be considered as speaker label from scp file, can be ignored if manifest file is already provided with labels",
+        help="field num seperated by '/' to be considered as speaker label from filelist file, can be ignored if manifest file is already provided with labels",
         type=int,
         required=False,
         default=None,
@@ -248,5 +247,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        args.scp, args.manifest, args.id, args.out, args.split, args.create_chunks, args.min_spkrs_count,
+        args.filelist, args.manifest, args.id, args.out, args.split, args.create_chunks, args.min_spkrs_count,
     )
