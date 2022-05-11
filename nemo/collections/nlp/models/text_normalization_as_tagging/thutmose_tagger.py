@@ -410,7 +410,7 @@ class ThutmoseTaggerModel(NLPModel):
         result = [
             PretrainedModelInfo(
                 pretrained_model_name="itn_en_thutmose_bert",
-                location="https://catalog.ngc.nvidia.com/orgs/nvidia/models/itn_en_thutmose_bert",
+                location="https://catalog.ngc.nvidia.com/orgs/nvidia/models/itn_en_thutmose_bert.nemo",
                 description="A single-pass tagger-based model for inverse text normalization based"
                             "on bert-base-uncased, trained on 2 mln sentences from Google Text Normalization Dataset",
             ),
