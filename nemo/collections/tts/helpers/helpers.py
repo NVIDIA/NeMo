@@ -56,6 +56,12 @@ from pystoi import stoi
 
 from nemo.utils import logging
 
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
+
 try:
     from pytorch_lightning.utilities import rank_zero_only
 except ModuleNotFoundError:
@@ -68,12 +74,6 @@ except ModuleNotFoundError:
                 f"Function {fn} requires lighting to be installed, but it was not found. Please install lightning first"
             )
             exit(1)
-
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
 
 class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
@@ -328,24 +328,21 @@ def tacotron2_log_to_wandb_func(
         alignments = []
         specs = []
         gates = []
-        alignments += [wandb.Image(
-            plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",
-        )]
         alignments += [
+            wandb.Image(plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",)
+            ]
+        alignments += [
+            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",), 
+            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",)
+        ]
+        gates += [
             wandb.Image(
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
-                caption=f"{tag}_mel_target", 
-            ), 
-            wandb.Image(
-                plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()),
-                caption=f"{tag}_mel_predicted",
+                plot_gate_outputs_to_numpy(
+                    gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),
+                ),
+                caption=f"{tag}_gate",
             )
             ]
-
-        gates += [wandb.Image(
-            plot_gate_outputs_to_numpy(gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),),
-            caption=f"{tag}_gate",
-        )]
         
         swriter.log({"specs": specs, "alignments": alignments, "gates" : gates})
         
@@ -363,16 +360,8 @@ def tacotron2_log_to_wandb_func(
             audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
             
             audios += [
-                wandb.Audio(
-                    audio_true / max(np.abs(audio_true)),
-                    caption=f"{tag}_wav_target",
-                    sample_rate=sr,
-                ),
-                wandb.Audio(
-                    audio_pred / max(np.abs(audio_pred)),
-                    caption=f"{tag}_wav_predicted",
-                    sample_rate=sr,
-                ),
+                wandb.Audio(audio_true / max(np.abs(audio_true)),caption=f"{tag}_wav_target",sample_rate=sr,),
+                wandb.Audio(audio_pred / max(np.abs(audio_pred)),caption=f"{tag}_wav_predicted",sample_rate=sr,),
             ]
 
             swriter.log({"audios": audios})

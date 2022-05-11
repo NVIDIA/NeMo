@@ -24,7 +24,11 @@ from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger, Wandb
 from torch import nn
 
 from nemo.collections.common.parts.preprocessing import parsers
-from nemo.collections.tts.helpers.helpers import get_mask_from_lengths, tacotron2_log_to_tb_func, tacotron2_log_to_wandb_func
+from nemo.collections.tts.helpers.helpers import (
+    get_mask_from_lengths, 
+    tacotron2_log_to_tb_func, 
+    tacotron2_log_to_wandb_func
+)
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -61,12 +65,11 @@ class Tacotron2Model(SpectrogramGenerator):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        
+        # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
         
-
-         # setup normalizer
+        # setup normalizer
         self.normalizer = None
         self.text_normalizer_call = None
         self.text_normalizer_call_kwargs = {}
@@ -117,6 +120,7 @@ class Tacotron2Model(SpectrogramGenerator):
     def parser(self):
         if self._parser is not None:
             return self._parser
+
         ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
         if ds_class_name == "TTSDataset":
             self._parser = None
@@ -134,6 +138,7 @@ class Tacotron2Model(SpectrogramGenerator):
             self.parser = self.vocab.encode
         else:
             raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
+
         return self._parser
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
@@ -348,7 +353,8 @@ class Tacotron2Model(SpectrogramGenerator):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         dataset = instantiate(
-            cfg.dataset, text_normalizer=self.normalizer,
+            cfg.dataset, 
+            text_normalizer=self.normalizer,
             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
             text_tokenizer=self.tokenizer,
         )
