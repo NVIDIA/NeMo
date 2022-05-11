@@ -497,7 +497,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # Builds datasets if the type is tarred or from raw text without memmap.
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             self._train_ds = self.build_tarred_train_dataset()
-        elif self._cfg.train_ds.dataset_type == ['bin_memmap', 'text_memmap']:
+        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']:
             self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
         self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
