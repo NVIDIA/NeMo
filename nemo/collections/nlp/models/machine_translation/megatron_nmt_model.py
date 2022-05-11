@@ -175,10 +175,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def training_step(self, batch, batch_idx):
+        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
-            # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
             batch = self.process_global_batch_for_tarred_datasets(batch)
+        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']:
+            batch = self._process_global_batch_without_megatron_batch_sampler(
+                batch, tokenizer=self.encoder_tokenizer
+        )
+        if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -190,10 +195,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return super().training_step(batch, batch_idx)
 
     def eval_step(self, batch, batch_idx, dataloader_idx):
+        # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
+        batch = self.process_global_batch_for_tarred_datasets(batch)
         if self._cfg.test_ds.dataset_type in ['tarred', 'text']:
-            # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
-            batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
-            batch = self.process_global_batch_for_tarred_datasets(batch)
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -427,6 +432,26 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=world_size, rank=rank, shuffle=True
+        )
+        if isinstance(dataset, BlendableDataset):
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            batch_size=cfg.micro_batch_size,
+            num_workers=cfg.num_workers,
+            pin_memory=cfg.pin_memory,
+            drop_last=cfg.drop_last,
+        )
+        '''
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
@@ -443,6 +468,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=True,
         )
+        '''
 
     def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
@@ -585,21 +611,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-    def on_train_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        if self._cfg.train_ds.dataset_type in ['text', 'tarred']:
-            self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
-
-    def on_validation_start(self) -> None:
-        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        if self._cfg.validation_ds.dataset_type in ['text', 'tarred']:
-            self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
-            self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
-
-    def on_test_start(self) -> None:
-        if self._cfg.test_ds.dataset_type in ['text', 'tarred']:
-            self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
-
     @torch.no_grad()
     def translate(
         self,
@@ -728,3 +739,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if normalizer is not None:
             translations = [normalizer.normalize(example) for example in translations]
         return translations
+
+    def on_train_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_validation_start(self) -> None:
+        """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
+        self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    def on_test_start(self) -> None:
+        self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
