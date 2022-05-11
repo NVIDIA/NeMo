@@ -14,7 +14,7 @@ sup_data_types: [ "align_prior_matrix", "pitch" ]
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
 
-# LJSpeech stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
+# Stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
 pitch_mean: 212.35873413085938
 pitch_std: 68.52806091308594
 
