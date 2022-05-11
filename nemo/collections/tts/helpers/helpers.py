@@ -75,6 +75,7 @@ except ModuleNotFoundError:
             )
             exit(1)
 
+
 class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
 
@@ -289,7 +290,7 @@ def tacotron2_log_to_tb_func(
             step,
             dataformats="HWC",
         )
-        
+
         if add_audio:
             filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
             log_mel = mel_postnet[0].data.cpu().numpy().T
@@ -329,10 +330,10 @@ def tacotron2_log_to_wandb_func(
         gates = []
         alignments += [
             wandb.Image(plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",)
-            ]
+        ]
         alignments += [
-            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",), 
-            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",)
+            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",),
+            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",),
         ]
         gates += [
             wandb.Image(
@@ -342,9 +343,9 @@ def tacotron2_log_to_wandb_func(
                 caption=f"{tag}_gate",
             )
             ]
-        
+
         swriter.log({"specs": specs, "alignments": alignments, "gates" : gates})
-        
+
         if add_audio:
             audios = []
             filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
@@ -357,15 +358,14 @@ def tacotron2_log_to_wandb_func(
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
             audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
-            
+
             audios += [
-                wandb.Audio(audio_true / max(np.abs(audio_true)),caption=f"{tag}_wav_target",sample_rate=sr,),
-                wandb.Audio(audio_pred / max(np.abs(audio_pred)),caption=f"{tag}_wav_predicted",sample_rate=sr,),
+                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target",sample_rate=sr,),
+                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted",sample_rate=sr,),
             ]
 
             swriter.log({"audios": audios})
 
-            
 
 def plot_alignment_to_numpy(alignment, info=None):
     fig, ax = plt.subplots(figsize=(6, 4))

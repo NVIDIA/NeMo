@@ -68,7 +68,7 @@ class Tacotron2Model(SpectrogramGenerator):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
-        
+
         # setup normalizer
         self.normalizer = None
         self.text_normalizer_call = None
@@ -86,7 +86,6 @@ class Tacotron2Model(SpectrogramGenerator):
             # assert self.tokenizer is not None
         else:
             self.num_tokens = len(cfg.labels) + 3
-        
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -106,7 +105,7 @@ class Tacotron2Model(SpectrogramGenerator):
                 "Your config is using an old NeMo yaml configuration. Please ensure that the yaml matches the "
                 "current version in the main branch for future compatibility."
             )
-        
+
         self._parser = None
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
         self.text_embedding = nn.Embedding(self.num_tokens, 512)
@@ -115,7 +114,7 @@ class Tacotron2Model(SpectrogramGenerator):
         self.postnet = instantiate(self._cfg.postnet)
         self.loss = Tacotron2Loss()
         self.calculate_loss = True
-    
+
     @property
     def parser(self):
         if self._parser is not None:
@@ -146,11 +145,11 @@ class Tacotron2Model(SpectrogramGenerator):
             logging.warning("parse() is meant to be called in eval mode.")
         if normalize and self.text_normalizer_call is not None:
             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
-        
+
         eval_phon_mode = contextlib.nullcontext()
         if hasattr(self.tokenizer, "set_phone_prob"):
             eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
-    
+
         with eval_phon_mode:
             if self.tokenizer is not None:
                 tokens = self.tokenizer.encode(text)
@@ -353,7 +352,7 @@ class Tacotron2Model(SpectrogramGenerator):
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
         dataset = instantiate(
-            cfg.dataset, 
+            cfg.dataset,
             text_normalizer=self.normalizer,
             text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
             text_tokenizer=self.tokenizer,
