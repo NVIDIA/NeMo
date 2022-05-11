@@ -42,10 +42,9 @@ class VerbalizeFinalFst(GraphFst):
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
-        punct_post_process: if True punctuation will be normalized after the default normalization is complete
     """
 
-    def __init__(self, deterministic: bool = True, punct_post_process: bool = True):
+    def __init__(self, deterministic: bool = True):
         super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
         verbalize = VerbalizeFst(deterministic=deterministic).fst
         word = WordFst(deterministic=deterministic).fst
@@ -66,11 +65,8 @@ class VerbalizeFinalFst(GraphFst):
 
         graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
 
-        if punct_post_process:
-            punct_graph = self.punct_postprocess_graph()
-            graph = pynini.compose(graph, punct_graph).optimize()
-
-        self.fst = graph
+        punct_graph = self.punct_postprocess_graph()
+        self.fst = pynini.compose(graph, punct_graph).optimize()
 
     def punct_postprocess_graph(self):
         punct_marks_all = PunctuationFst().punct_marks

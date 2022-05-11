@@ -108,18 +108,17 @@ class Normalizer:
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        if lang != "en":
-            if NLP_AVAILABLE:
-                self.processor = MosesProcessor(lang_id=lang)
-            else:
-                self.processor = None
-                print("NeMo NLP is not available. Punctuation post-processing will be skipped")
-            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
-        else:
-            self.verbalizer = VerbalizeFinalFst(deterministic=deterministic, punct_post_process=punct_post_process)
+
+        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
 
         self.parser = TokenParser()
         self.lang = lang
+
+        if NLP_AVAILABLE:
+            self.processor = MosesProcessor(lang_id=lang)
+        else:
+            self.processor = None
+            print("NeMo NLP is not available. Punctuation post-processing will be skipped")
 
     def normalize_list(
         self,
@@ -291,7 +290,7 @@ class Normalizer:
                 raise ValueError(f"No permutations were generated from tokens {s}")
             output += ' ' + self.select_verbalizer(verbalizer_lattice)
         output = SPACE_DUP.sub(' ', output[1:])
-        if self.lang != "en" and punct_post_process:
+        if punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
                 output = self.processor.moses_detokenizer.detokenize([output], unescape=False)
@@ -421,7 +420,9 @@ def parse_args():
     )
     parser.add_argument("--verbose", help="print info for debugging", action='store_true')
     parser.add_argument(
-        "--no_punct_post_process", help="set to True to disable punctuation post processing.", action="store_true",
+        "--punct_post_process",
+        help="set to True to enable punctuation post processing to match input.",
+        action="store_true",
     )
     parser.add_argument(
         "--punct_pre_process", help="set to True to enable punctuation pre processing", action="store_true"
@@ -450,7 +451,7 @@ if __name__ == "__main__":
         overwrite_cache=args.overwrite_cache,
         whitelist=whitelist,
         lang=args.language,
-        punct_post_process=not args.no_punct_post_process,
+        punct_post_process=args.punct_post_process,
     )
     if args.input_string:
         print(
@@ -458,7 +459,7 @@ if __name__ == "__main__":
                 args.input_string,
                 verbose=args.verbose,
                 punct_pre_process=args.punct_pre_process,
-                punct_post_process=not args.no_punct_post_process,
+                punct_post_process=args.punct_post_process,
             )
         )
     elif args.input_file:
@@ -470,7 +471,7 @@ if __name__ == "__main__":
             data,
             verbose=args.verbose,
             punct_pre_process=args.punct_pre_process,
-            punct_post_process=not args.no_punct_post_process,
+            punct_post_process=args.punct_post_process,
         )
         if args.output_file:
             write_file(args.output_file, normalizer_prediction)
