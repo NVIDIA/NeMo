@@ -18,13 +18,13 @@ import onnx
 import pytest
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo.collections.tts.models import FastPitchModel, HifiGanModel, TalkNetSpectModel, WaveGlowModel
+from nemo.collections.tts.models import FastPitchModel, HifiGanModel, WaveGlowModel
 
 
 @pytest.fixture()
 def fastpitch_model():
     test_root = os.path.dirname(os.path.abspath(__file__))
-    conf = OmegaConf.load(os.path.join(test_root, '../../../examples/tts/conf/fastpitch.yaml'))
+    conf = OmegaConf.load(os.path.join(test_root, '../../../examples/tts/conf/fastpitch_align_v1.05.yaml'))
     conf.train_dataset = conf.validation_datasets = '.'
     conf.model.train_ds = conf.model.test_ds = conf.model.validation_ds = None
     model = FastPitchModel(cfg=conf.model)
@@ -39,6 +39,7 @@ def hifigan_model():
 
 
 class TestExportable:
+    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_FastPitchModel_export_to_onnx(self, fastpitch_model):

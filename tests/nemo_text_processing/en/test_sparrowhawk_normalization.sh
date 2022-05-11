@@ -21,8 +21,8 @@ runtest () {
   done < "$input"
 }
 
-testTNBoundary() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_boundary.txt
+testTNSpecialText() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_special_text.txt
   runtest $input
 }
 
@@ -40,6 +40,21 @@ testTNDecimal() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_decimal.txt
   runtest $input
 }
+
+testTNRange() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_range.txt
+  runtest $input
+}
+
+testTNSerial() {
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_serial.txt
+  runtest $input
+}
+
+#testTNRoman() {
+#  input=$PROJECT_DIR/en/data_text_normalization/test_cases_roman.txt
+#  runtest $input
+#}
 
 testTNElectronic() {
   input=$PROJECT_DIR/en/data_text_normalization/test_cases_electronic.txt
@@ -62,7 +77,7 @@ testTNOrdinal() {
 }
 
 testTNTelephone() {
-  input=$PROJECT_DIR/en/data_text_normalization/test_cases_ordinal.txt
+  input=$PROJECT_DIR/en/data_text_normalization/test_cases_telephone.txt
   runtest $input
 }
 

@@ -30,6 +30,7 @@ model:
   sample_rate: 16000
   log_prediction: true # enables logging sample predictions in the output during training
   ctc_reduction: 'mean_batch'
+  skip_nan_grad: false
 
   train_ds:
     manifest_filepath: ???
@@ -72,7 +73,7 @@ model:
   # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
-    type: wpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
+    type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -161,7 +162,7 @@ trainer:
   max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  accelerator: gpu
+  accelerator: auto
   strategy: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0

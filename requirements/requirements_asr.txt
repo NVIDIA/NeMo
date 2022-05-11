@@ -1,7 +1,6 @@
 braceexpand
 editdistance
 inflect
-kaldi-io
 librosa
 marshmallow
 packaging
@@ -11,11 +10,9 @@ sox
 kaldi-python-io
 kaldiio
 scipy>=0.14
-pandas
 g2p_en
 pydub
 pyannote.core
 pyannote.metrics
-torch-stft
 ipywidgets
 matplotlib

@@ -9,7 +9,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: null
+  max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
@@ -72,6 +72,7 @@ model:
     model: null
     vocab_file: null
     merge_file: null 
+    delimiter: null # only used for tabular tokenizer
 
   # precision
   native_amp_init_scale: 4294967296 # 2 ** 32
@@ -102,11 +103,12 @@ model:
     #   - .5
     #   - /raid/data/pile/my-gpt3_01_text_document
     data_prefix: ???
+    index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}
     skip_warmup: True
-    num_workers: 0
+    num_workers: 2
     dataloader_type: single # cyclic
     reset_position_ids: False # Reset position ids after end-of-document token
     reset_attention_mask: False # Reset attention mask after end-of-document token

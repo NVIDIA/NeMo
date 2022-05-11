@@ -38,7 +38,11 @@ def main(cfg) -> None:
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
-        NLPDDPPlugin(no_ddp_communication_hook=True, gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,)
+        NLPDDPPlugin(
+            no_ddp_communication_hook=True,
+            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+            find_unused_parameters=False,
+        )
     ]
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
@@ -64,11 +68,11 @@ def main(cfg) -> None:
     if cfg.model.resume_from_checkpoint is not None:
         resume_from_checkpoint = cfg.model.resume_from_checkpoint
     else:
-        resume_from_checkpoint = trainer.checkpoint_connector.resume_from_checkpoint_fit_path
+        resume_from_checkpoint = trainer._checkpoint_connector.resume_from_checkpoint_fit_path
 
     logging.info(f'Resuming training from checkpoint: {resume_from_checkpoint}')
 
-    trainer.checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
+    trainer._checkpoint_connector = CheckpointConnector(trainer, resume_from_checkpoint=resume_from_checkpoint)
     # Override timer callback to a stateless one
     for idx, callback in enumerate(trainer.callbacks):
         if isinstance(callback, Timer):
