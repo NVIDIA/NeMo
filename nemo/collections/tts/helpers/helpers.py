@@ -344,7 +344,7 @@ def tacotron2_log_to_wandb_func(
             )
         ]
 
-        swriter.log({"specs": specs, "alignments": alignments, "gates" : gates})
+        swriter.log({"specs": specs, "alignments": alignments, "gates": gates})
 
         if add_audio:
             audios = []
