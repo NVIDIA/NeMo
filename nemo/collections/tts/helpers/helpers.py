@@ -305,7 +305,6 @@ def tacotron2_log_to_tb_func(
             swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
-@rank_zero_only
 def tacotron2_log_to_wandb_func(
     swriter,
     tensors,
