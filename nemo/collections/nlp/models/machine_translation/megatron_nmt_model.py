@@ -14,7 +14,7 @@
 import itertools
 import random
 import re
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import torch
@@ -34,7 +34,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, timers
 
 try:
     from apex.transformer import parallel_state
@@ -211,56 +211,58 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
             tokenizer=self.decoder_tokenizer,
         )
+        if self.multilingual:
+            source_processor = self.source_processor_list[dataloader_idx]
+            target_processor = self.target_processor_list[dataloader_idx]
+        else:
+            source_processor = self.source_processor
+            target_processor = self.target_processor
 
         # Post-process the translations and inputs to log.
-
-        # Convert ids to lists.
-        preds = predicted_tokens_ids.cpu().numpy().tolist()
-        labels = labels.cpu().numpy().tolist()
-        encoder_inputs = tokens_enc.cpu().numpy().tolist()
-
-        # Filter out the special tokens and de-tokenize.
-        inputs = []
-        translations = []
-        ground_truths = []
-        for _, (pred, label, input) in enumerate(zip(preds, labels, encoder_inputs)):
-            if self.decoder_tokenizer.eos_id in pred:
-                idx = pred.index(self.decoder_tokenizer.eos_id)
-                pred = pred[:idx]
-
-            # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
-            if hasattr(self.decoder_tokenizer, 'special_token_to_id'):
-                pred = [id for id in pred if id not in self.decoder_tokenizer.special_token_to_id.values()]
-                label = [id for id in label if id not in self.decoder_tokenizer.special_token_to_id.values()]
-
-            if hasattr(self.encoder_tokenizer, 'special_token_to_id'):
-                input = [id for id in input if id not in self.encoder_tokenizer.special_token_to_id.values()]
-
-            pred = self.decoder_tokenizer.ids_to_text(pred)
-            label = self.decoder_tokenizer.ids_to_text(label)
-            input = self.encoder_tokenizer.ids_to_text(input)
-            translations.append(pred)
-            ground_truths.append(label)
-            inputs.append(input)
-
-        if self.multilingual:
-            self.source_processor = self.source_processor_list[dataloader_idx]
-            self.target_processor = self.target_processor_list[dataloader_idx]
-
-        # De-tokenize inputs, translations and ground truths.
-        if self.target_processor is not None:
-            ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
-            translations = [self.target_processor.detokenize(translation.split(' ')) for translation in translations]
-
-        if self.source_processor is not None:
-            inputs = [self.source_processor.detokenize(src.split(' ')) for src in inputs]
+        preds = self.postprocess_outputs(
+            outputs=predicted_tokens_ids,
+            tokenizer=self.decoder_tokenizer,
+            processor=target_processor,
+        )
+        labels = self.postprocess_outputs(
+            outputs=labels,
+            tokenizer=self.decoder_tokenizer,
+            processor=target_processor,
+        )
+        encoder_inputs = self.postprocess_outputs(
+            outputs=tokens_enc,
+            tokenizer=self.encoder_tokenizer,
+            processor=source_processor,
+        )
 
         return {
-            'inputs': inputs,
-            'translations': translations,
-            'ground_truths': ground_truths,
+            'inputs': encoder_inputs,
+            'translations': preds,
+            'ground_truths': labels,
             'loss': reduced_loss,
         }
+
+    def postprocess_outputs(self, outputs, tokenizer, processor):
+        # Convert ids to lists.
+        outputs = outputs.cpu().numpy().tolist()
+
+        # Filter out the special tokens and de-tokenize.
+        results = []
+        for item in outputs:
+            if tokenizer.eos_id in item:
+                idx = item.index(tokenizer.eos_id)
+                item = item[:idx]
+
+            # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
+            if hasattr(tokenizer, 'special_token_to_id'):
+                item = [id for id in item if id not in tokenizer.special_token_to_id.values()]
+
+            item = tokenizer.ids_to_text(item)
+            results.append(item)
+
+        results = [processor.detokenize(item.split(' ')) for item in results]
+
+        return results
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """
@@ -604,3 +606,134 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
     def on_test_start(self) -> None:
         if self._cfg.test_ds.dataset_type in ['text', 'tarred']:
             self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    @torch.no_grad()
+    def translate(
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
+    ) -> List[str]:
+        """
+        Translates list of sentences from source language to target language.
+        Should be regular text, this method performs its own tokenization/de-tokenization
+        Args:
+            text: list of strings to translate
+            source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not "ignore", corresponding MosesDecokenizer will be run
+            return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            log_timing: if True, prints timing information.
+        Returns:
+            list of translated strings
+        """
+        # __TODO__: This will reset both source and target processors even if you want to reset just one.
+        # NOTE: This will also set up appropriate source and target processors for a given src/tgt language for multilingual models instead of creating a list of them.
+        if source_lang is not None or target_lang is not None:
+            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
+                source_lang, target_lang, self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            )
+
+        mode = self.training
+        prepend_ids = []
+        if self.multilingual:
+            if source_lang is None or target_lang is None:
+                raise ValueError("Expect source_lang and target_lang to run inference for multilingual model.")
+            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+            if src_symbol in self.multilingual_ids:
+                prepend_ids = [src_symbol]
+            elif tgt_symbol in self.multilingual_ids:
+                prepend_ids = [tgt_symbol]
+
+        if log_timing:
+            timer = timers.NamedTimer()
+        else:
+            timer = None
+
+        cache = {
+            "timer": timer,
+        }
+
+        try:
+            self.eval()
+            src, src_mask = MTEncDecModel.prepare_inference_batch(
+                text=text,
+                prepend_ids=prepend_ids,
+                target=False,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device
+            )
+            predicted_tokens_ids, _ = self.decode(
+                src,
+                src_mask,
+                src.size(1)
+                + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+                tokenizer=self.decoder_tokenizer,
+            )
+            best_translations = self.postprocess_outputs(
+                outputs=predicted_tokens_ids,
+                tokenizer=self.decoder_tokenizer,
+                processor=self.target_processor
+            )
+            return_val = best_translations
+        finally:
+            self.train(mode=mode)
+
+        if log_timing:
+            timing = timer.export()
+            timing["mean_src_length"] = src_mask.sum().cpu().item() / src_mask.shape[0]
+            tgt, tgt_mask = self.prepare_inference_batch(
+                text=best_translations,
+                prepend_ids=prepend_ids,
+                target=True,
+                source_processor=self.source_processor,
+                target_processor=self.target_processor,
+                encoder_tokenizer=self.encoder_tokenizer,
+                decoder_tokenizer=self.decoder_tokenizer,
+                device=self.device
+            )
+            timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
+
+            if type(return_val) is tuple:
+                return_val = return_val + (timing,)
+            else:
+                return_val = (return_val, timing)
+
+        return return_val
+
+    def itn_translate_tn(
+        self,
+        text: List[str],
+        source_lang: str = None,
+        target_lang: str = None,
+        return_beam_scores: bool = False,
+        log_timing: bool = False,
+        inverse_normalizer=None,
+        normalizer=None,
+    ) -> List[str]:
+        """
+        Calls the translate() method with the option of running ITN (inverse text-normalization) on the input adn TN (text-normalization) on the output.
+        Pipeline : ITN -> translate -> TN
+        NOTE: ITN and TN objects must be initialized with the right languages.
+        Args:
+            text: list of strings to translate
+            source_lang: if not "ignore", corresponding MosesTokenizer and MosesPunctNormalizer will be run
+            target_lang: if not "ignore", corresponding MosesDecokenizer will be run
+            return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
+            log_timing: if True, prints timing information.
+            inverse_normalizer: instance of nemo_text_processing.inverse_text_normalization.inverse_normalize.InverseNormalizer
+            normalizer: instance of nemo_text_processing.text_normalization.normalize.Normalizer
+        Returns:
+            list of translated strings
+        """
+        if inverse_normalizer is not None:
+            text = [inverse_normalizer.normalize(example) for example in text]
+        translations = self.translate(text, source_lang, target_lang, return_beam_scores, log_timing)
+        if normalizer is not None:
+            translations = [normalizer.normalize(example) for example in translations]
+        return translations
