@@ -23,7 +23,7 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import BinarizedMemmapSequenceToSequenceDataset
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import BinarizedMemmapSequenceToSequenceDataset, TextMemmapSequenceToSequenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -497,10 +497,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # Builds datasets if the type is tarred or from raw text without memmap.
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             self._train_ds = self.build_tarred_train_dataset()
-        elif self._cfg.train_ds.dataset_type == 'bin_memmap':
-            self._train_ds = self.build_bin_memmap_dataset_from_config(self._cfg.train_ds)
-        elif self._cfg.train_ds.dataset_type == 'text_memmap':
-            self._train_ds = self.build_text_memmap_dataset_from_config(self._cfg.train_ds)
+        elif self._cfg.train_ds.dataset_type == ['bin_memmap', 'text_memmap']:
+            self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
         self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
             cfg=self._cfg.validation_ds,
@@ -519,7 +517,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 decoder_tokenizer=self.decoder_tokenizer,
             )
 
-    def build_bin_memmap_dataset_from_config(self, cfg: DictConfig):
+    def build_memmap_dataset_from_config(self, cfg: DictConfig):
         """Builds a memmap dataset from a existing binary based o nthe provided config."""
         is_src_listconfig = isinstance(cfg.src_file_name, ListConfig)
         is_tgt_listconfig = isinstance(cfg.tgt_file_name, ListConfig)
@@ -551,9 +549,35 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
             datasets = []
             for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
+                if cfg.dataset_type == 'bin_memmap':
+                    dataset = BinarizedMemmapSequenceToSequenceDataset(
+                        src_dataset_prefix=src_file,
+                        tgt_dataset_prefix=tgt_fille,
+                        src_tokenizer=self.encoder_tokenizer,
+                        tgt_tokenizer=self.decoder_tokenizer,
+                        max_src_seq_length=cfg.max_seq_length,
+                        max_tgt_seq_length=cfg.max_seq_length,
+                        start_index=0,
+                        end_index=None,
+                        data_impl="mmap",
+                        skip_warmup=True,
+                    )
+                elif cfg.dataset_type == 'text_memmap':
+                    dataset = TextMemmapSequenceToSequenceDataset(
+                        src_file_name=src_file,
+                        tgt_file_name=tgt_fille,
+                        src_tokenizer=self.encoder_tokenizer,
+                        tgt_tokenizer=self.decoder_tokenizer,
+                        max_src_seq_length=cfg.max_seq_length,
+                        max_tgt_seq_length=cfg.max_seq_length,
+                    )
+                datasets.append(dataset)
+            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
+        else:
+            if cfg.dataset_type == 'bin_memmap':
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
-                    src_dataset_prefix=src_file,
-                    tgt_dataset_prefix=tgt_fille,
+                    src_dataset_prefix=cfg.src_file_name,
+                    tgt_dataset_prefix=cfg.tgt_file_name,
                     src_tokenizer=self.encoder_tokenizer,
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
@@ -563,25 +587,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     data_impl="mmap",
                     skip_warmup=True,
                 )
-                datasets.append(dataset)
-            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
-        else:
-            dataset = BinarizedMemmapSequenceToSequenceDataset(
-                src_dataset_prefix=cfg.src_file_name,
-                tgt_dataset_prefix=cfg.tgt_file_name,
-                src_tokenizer=self.encoder_tokenizer,
-                tgt_tokenizer=self.decoder_tokenizer,
-                max_src_seq_length=cfg.max_seq_length,
-                max_tgt_seq_length=cfg.max_seq_length,
-                start_index=0,
-                end_index=None,
-                data_impl="mmap",
-                skip_warmup=True,
-            )
+            elif cfg.dataset_type == 'text_memmap':
+                dataset = TextMemmapSequenceToSequenceDataset(
+                    src_file_name=cfg.src_file_name,
+                    tgt_file_name=cfg.tgt_file_name,
+                    src_tokenizer=self.encoder_tokenizer,
+                    tgt_tokenizer=self.decoder_tokenizer,
+                    max_src_seq_length=cfg.max_seq_length,
+                    max_tgt_seq_length=cfg.max_seq_length,
+                )
         return dataset
-
-    def build_text_memmap_dataset_from_config(self, cfg: DictConfig):
-        pass
 
     def build_tarred_train_dataset(self):
         return MTEncDecModel._setup_dataset_from_config(
