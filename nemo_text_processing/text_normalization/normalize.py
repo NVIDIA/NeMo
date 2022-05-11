@@ -18,6 +18,7 @@ import re
 from argparse import ArgumentParser
 from collections import OrderedDict
 from math import factorial
+from time import perf_counter
 from typing import Dict, List, Union
 
 from joblib import Parallel, delayed
@@ -32,6 +33,7 @@ from tqdm import tqdm
 
 try:
     import pynini
+    from pynini.lib.rewrite import top_rewrite
 
     PYNINI_AVAILABLE = True
 
@@ -61,6 +63,8 @@ class Normalizer:
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
         whitelist: path to a file with whitelist replacements
+        post_process: WFST-based post processing, e.g. to remove extra spaces added during TN.
+            Note: punct_post_process flag in normalize() supports all languages.
     """
 
     def __init__(
@@ -72,24 +76,32 @@ class Normalizer:
         overwrite_cache: bool = False,
         whitelist: str = None,
         lm: bool = False,
-        punct_post_process: bool = True,
+        post_process: bool = True,
     ):
         assert input_case in ["lower_cased", "cased"]
 
         if not PYNINI_AVAILABLE:
             raise ImportError(get_installation_msg())
 
-        if lang == 'en' and deterministic:
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
+        self.post_processor = None
+
+        if lang == "en":
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'en' and not deterministic:
-            if lm:
-                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_lm import ClassifyFst
+            from nemo_text_processing.text_normalization.en.verbalizers.post_processing import PostProcessingFst
+
+            if post_process:
+                self.post_processor = PostProcessingFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)
+
+            if deterministic:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             else:
-                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
-                    ClassifyFst,
-                )
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
+                if lm:
+                    from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_lm import ClassifyFst
+                else:
+                    from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
+                        ClassifyFst,
+                    )
+
         elif lang == 'ru':
             # Ru TN only support non-deterministic cases and produces multiple normalization options
             # use normalize_with_audio.py
@@ -109,7 +121,9 @@ class Normalizer:
             whitelist=whitelist,
         )
 
-        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        self.verbalizer = VerbalizeFinalFst(
+            deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+        )
 
         self.parser = TokenParser()
         self.lang = lang
@@ -297,6 +311,9 @@ class Normalizer:
                 output = post_process_punct(input=original_text, normalized_text=output)
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
+
+        if self.lang == "en":
+            output = self.post_process(output)
         return output
 
     def _permute(self, d: OrderedDict) -> List[str]:
@@ -405,7 +422,22 @@ class Normalizer:
         Returns: shortest path
         """
         output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
+        # lattice = output @ self.verbalizer.punct_graph
+        # output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
         return output
+
+    def post_process(self, normalized_text: 'pynini.FstLike') -> str:
+        """
+        Runs post processing graph on normalized text
+
+        Args:
+            normalized_text: normalized text
+
+        Returns: shortest path
+        """
+        if self.post_processor is not None:
+            normalized_text = top_rewrite(normalized_text, self.post_processor.fst)
+        return normalized_text
 
 
 def parse_args():
@@ -439,6 +471,8 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    start_time = perf_counter()
+
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
 
@@ -451,7 +485,6 @@ if __name__ == "__main__":
         overwrite_cache=args.overwrite_cache,
         whitelist=whitelist,
         lang=args.language,
-        punct_post_process=args.punct_post_process,
     )
     if args.input_string:
         print(
@@ -478,3 +511,5 @@ if __name__ == "__main__":
             print(f"- Normalized. Writing out to {args.output_file}")
         else:
             print(normalizer_prediction)
+
+    print(f"Execution time: {perf_counter() - start_time:.02f} sec")

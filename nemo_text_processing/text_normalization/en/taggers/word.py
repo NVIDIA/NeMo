@@ -62,15 +62,22 @@ class WordFst(GraphFst):
         # so that no extra spaces are added around punctuation mark
         # non_digit is needed to allow non-ascii chars, like in "Müller's"
         non_digit = pynini.difference(NEMO_NOT_SPACE, NEMO_DIGIT).optimize()
-        alpha_with_punct_graph = pynini.closure(
+        at_least_one_alpha = (
+            pynini.closure(non_digit) + pynini.closure(NEMO_ALPHA, 1) + pynini.closure(non_digit)
+        ).optimize()
+
+        # punct followed by word and another punct mark: { "And, }
+        alpha_with_punct_graph = (
             pynini.closure(punct_symbols)
-            + NEMO_ALPHA
-            + pynini.closure(non_digit)
+            + at_least_one_alpha
             + pynini.closure(punct_symbols, 1)
             + pynini.closure(non_digit)
             + pynini.closure(NEMO_ALPHA)
         ).optimize()
-        alpha_with_punct_graph = pynutil.add_weight(alpha_with_punct_graph, MIN_NEG_WEIGHT).optimize()
+
+        # punct followed by word: { "And }
+        alpha_with_punct_graph |= pynini.closure(punct_symbols) + at_least_one_alpha
+        alpha_with_punct_graph = pynutil.add_weight(alpha_with_punct_graph.optimize(), MIN_NEG_WEIGHT).optimize()
         graph |= alpha_with_punct_graph
 
         # leave phones of format [HH AH0 L OW1] untouched

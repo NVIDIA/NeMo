@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    MIN_NEG_WEIGHT,
-    NEMO_CHAR,
-    NEMO_NOT_SPACE,
-    NEMO_SIGMA,
     GraphFst,
     delete_extra_space,
     delete_space,
+    generator_main,
 )
-from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.en.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
+
+from nemo.utils import logging
 
 try:
     import pynini
@@ -44,74 +44,37 @@ class VerbalizeFinalFst(GraphFst):
             for False multiple options (used for audio-based normalization)
     """
 
-    def __init__(self, deterministic: bool = True):
+    def __init__(self, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = False):
         super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
-        verbalize = VerbalizeFst(deterministic=deterministic).fst
-        word = WordFst(deterministic=deterministic).fst
-        types = verbalize | word
 
-        if deterministic:
-            graph = (
-                pynutil.delete("tokens")
-                + delete_space
-                + pynutil.delete("{")
-                + delete_space
-                + types
-                + delete_space
-                + pynutil.delete("}")
-            )
+        far_file = None
+        if cache_dir is not None and cache_dir != "None":
+            os.makedirs(cache_dir, exist_ok=True)
+            far_file = os.path.join(cache_dir, f"en_tn_{deterministic}_deterministic_verbalizer.far")
+        if not overwrite_cache and far_file and os.path.exists(far_file):
+            self.fst = pynini.Far(far_file, mode="r")["verbalize"]
+            logging.info(f'VerbalizeFinalFst graph was restored from {far_file}.')
         else:
-            graph = delete_space + types + delete_space
+            verbalize = VerbalizeFst(deterministic=deterministic).fst
+            word = WordFst(deterministic=deterministic).fst
+            types = verbalize | word
 
-        graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
+            if deterministic:
+                graph = (
+                    pynutil.delete("tokens")
+                    + delete_space
+                    + pynutil.delete("{")
+                    + delete_space
+                    + types
+                    + delete_space
+                    + pynutil.delete("}")
+                )
+            else:
+                graph = delete_space + types + delete_space
 
-        punct_graph = self.punct_postprocess_graph()
-        self.fst = pynini.compose(graph, punct_graph).optimize()
+            graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
 
-    def punct_postprocess_graph(self):
-        punct_marks_all = PunctuationFst().punct_marks
-
-        # no_space_before_punct assume no space before them
-        quotes = ["'", "\"", "``", "«"]
-        dashes = ["-", "—"]
-        open_close_symbols = [("<", ">"), ("{", "}"), ('"', '"'), ("``", "``"), ("``", "``"), ("(", ")"), ("“", "”")]
-        allow_space_before_punct = ["&"] + quotes + dashes + [k[0] for k in open_close_symbols]
-        no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
-        no_space_before_punct = pynini.union(*no_space_before_punct)
-        delete_space = pynutil.delete(" ")
-
-        # non_punct allows space
-        # delete space before no_space_before_punct marks, if present
-        non_punct = pynini.difference(NEMO_CHAR, no_space_before_punct).optimize()
-        graph = (
-            pynini.closure(non_punct)
-            + pynini.closure(
-                no_space_before_punct | pynutil.add_weight(delete_space + no_space_before_punct, MIN_NEG_WEIGHT)
-            )
-            + pynini.closure(non_punct)
-        )
-        graph = pynini.closure(graph).optimize()
-
-        open_close_marks_graph = (
-            pynini.accep("(")
-            + pynini.closure(delete_space, 0, 1)
-            + NEMO_NOT_SPACE
-            + NEMO_SIGMA
-            + pynini.closure(delete_space, 0, 1)
-            + pynini.accep(")")
-        )
-        for item in open_close_symbols:
-            open, close = item
-            open_close_marks_graph |= (
-                pynini.accep(open)
-                + pynini.closure(delete_space, 0, 1)
-                + NEMO_NOT_SPACE
-                + NEMO_SIGMA
-                + pynini.closure(delete_space, 0, 1)
-                + pynini.accep(close)
-            )
-
-        open_close_marks_graph = pynutil.add_weight(open_close_marks_graph, MIN_NEG_WEIGHT)
-        open_close_marks_graph = NEMO_SIGMA + pynini.closure(open_close_marks_graph + NEMO_SIGMA)
-        graph = pynini.compose(graph, open_close_marks_graph).optimize()
-        return graph
+            self.fst = graph.optimize()
+            if far_file:
+                generator_main(far_file, {"verbalize": self.fst})
+                logging.info(f"VerbalizeFinalFst grammars are saved to {far_file}.")
