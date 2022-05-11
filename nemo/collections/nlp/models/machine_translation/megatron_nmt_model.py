@@ -551,7 +551,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 end_index=None,
                 data_impl="mmap",
                 skip_warmup=True,
-                dataset_index_sampling_override=False,
             )
         return dataset
 
