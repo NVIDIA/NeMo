@@ -342,7 +342,7 @@ def tacotron2_log_to_wandb_func(
                 ),
                 caption=f"{tag}_gate",
             )
-            ]
+        ]
 
         swriter.log({"specs": specs, "alignments": alignments, "gates" : gates})
 
@@ -360,8 +360,8 @@ def tacotron2_log_to_wandb_func(
             audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
 
             audios += [
-                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target",sample_rate=sr,),
-                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted",sample_rate=sr,),
+                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target", sample_rate=sr,),
+                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted", sample_rate=sr,),
             ]
 
             swriter.log({"audios": audios})
