@@ -180,6 +180,7 @@ class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         end_index=None,
         data_impl='mmap',
         skip_warmup=True,
+        seed=1337,
     ):
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
@@ -191,6 +192,7 @@ class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         self.end_index = end_index
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
+        self.seed = seed
         super().__init__(
             src_file_name=src_dataset_prefix,
             tgt_file_name=tgt_dataset_prefix,

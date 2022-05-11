@@ -427,7 +427,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
-        batch_sampler = MegatronPretrainingRandomBatchSampler(
+        batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=cfg.micro_batch_size,
