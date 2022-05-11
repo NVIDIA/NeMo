@@ -260,6 +260,9 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
 
+        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            torch.cuda.synchronize()
+
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
@@ -281,9 +284,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             prog_bar=True,
             rank_zero_only=True,
         )
-
-        if self.megatron_amp_o2:
-            self._optimizer.wait_async_grad_allreduce_done()
 
         return loss_mean
 
