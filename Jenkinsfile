@@ -3003,6 +3003,7 @@ pipeline {
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs \
             ~trainer.check_val_every_n_epoch \
+            '
           }
         }
         stage('WaveGlow') {
