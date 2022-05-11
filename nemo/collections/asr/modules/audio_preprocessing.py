@@ -552,7 +552,7 @@ class MaskedPatchAugmentation(NeuralModule):
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
-        self, patch_size: int = 48, mask_patches: float = 10., freq_masks: int = 0, freq_width: int = 0,
+        self, patch_size: int = 48, mask_patches: float = 10.0, freq_masks: int = 0, freq_width: int = 0,
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -577,7 +577,7 @@ class MaskedPatchAugmentation(NeuralModule):
 
         if self.mask_patches is None:
             # masking specified as fraction
-            mask_patches = int(min_len*self._mask_fraction // self.patch_size)
+            mask_patches = int(min_len * self._mask_fraction // self.patch_size)
         else:
             mask_patches = self.mask_patches
 

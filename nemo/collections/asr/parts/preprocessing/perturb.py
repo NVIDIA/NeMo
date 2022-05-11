@@ -699,7 +699,7 @@ class RandomSegmentPerturbation(Perturbation):
         rng: Random number generator
     """
 
-    def __init__(self, duration_sec=32., pad_to_duration=False, rng=None):
+    def __init__(self, duration_sec=32.0, pad_to_duration=False, rng=None):
         if duration_sec <= 0:
             raise ValueError("duration_sec should be > 0")
 
@@ -715,8 +715,8 @@ class RandomSegmentPerturbation(Perturbation):
             pad_size = self._duration_sec * data.sample_rate - data.num_samples
             data.pad(pad_size=pad_size)
         else:
-            start_time = self._rng.uniform(0.0, data.duration-self._duration_sec)
-            
+            start_time = self._rng.uniform(0.0, data.duration - self._duration_sec)
+
         end_time = start_time + self._duration_sec
         data.subsegment(start_time=start_time, end_time=end_time)
 
