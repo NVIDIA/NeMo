@@ -17,7 +17,6 @@
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_dataset import MegatronDataset
 from nemo.utils import logging
 
 try:
@@ -28,9 +27,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class MockRETRODataset(MegatronDataset):
+class MockRETRODataset(torch.utils.data.Dataset):
     def __init__(self, cfg, trainer, tokenizer, name, size):
-        super().__init__(cfg, trainer=trainer)
+        super().__init__()
         self.name = name
         self.tokenizer = tokenizer
         self._cfg = cfg
