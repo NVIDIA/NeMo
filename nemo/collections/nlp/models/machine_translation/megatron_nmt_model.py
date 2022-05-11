@@ -175,9 +175,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def training_step(self, batch, batch_idx):
-        import ipdb
-
-        ipdb.set_trace()
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
