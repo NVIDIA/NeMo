@@ -54,12 +54,6 @@ from numpy import ndarray
 from pesq import pesq
 from pystoi import stoi
 
-HAVE_WANDB = True
-try:
-    import wandb
-except ModuleNotFoundError:
-    HAVE_WANDB = False
-
 from nemo.utils import logging
 
 try:
@@ -75,6 +69,11 @@ except ModuleNotFoundError:
             )
             exit(1)
 
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
 
 class OperationMode(Enum):
     """Training or Inference (Evaluation) mode"""
@@ -304,6 +303,7 @@ def tacotron2_log_to_tb_func(
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
             audio = griffin_lim(magnitude.T ** griffin_lim_power)
             swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
+
 
 @rank_zero_only
 def tacotron2_log_to_wandb_func(
