@@ -14,7 +14,7 @@
 import itertools
 import random
 import re
-from typing import Optional, List
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -23,10 +23,11 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.nlp.data.common.megatron_sequence_to_sequence_dataset import MegatronSequenceToSequenceDataset
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import BinarizedMemmapSequenceToSequenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
+    MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
@@ -174,6 +175,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
 
     def training_step(self, batch, batch_idx):
+        import ipdb
+
+        ipdb.set_trace()
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
@@ -220,19 +224,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         # Post-process the translations and inputs to log.
         preds = self.postprocess_outputs(
-            outputs=predicted_tokens_ids,
-            tokenizer=self.decoder_tokenizer,
-            processor=target_processor,
+            outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=target_processor,
         )
         labels = self.postprocess_outputs(
-            outputs=labels,
-            tokenizer=self.decoder_tokenizer,
-            processor=target_processor,
+            outputs=labels, tokenizer=self.decoder_tokenizer, processor=target_processor,
         )
         encoder_inputs = self.postprocess_outputs(
-            outputs=tokens_enc,
-            tokenizer=self.encoder_tokenizer,
-            processor=source_processor,
+            outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
         )
 
         return {
@@ -432,7 +430,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
-        batch_sampler = MegatronPretrainingBatchSampler(
+        batch_sampler = MegatronPretrainingRandomBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,
             micro_batch_size=cfg.micro_batch_size,
@@ -442,9 +440,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             drop_last=True,
         )
         if isinstance(dataset, BlendableDataset):
-            collate_fn = dataset.datasets[0]._collate_fn
+            collate_fn = dataset.datasets[0].collate_fn
         else:
-            collate_fn = dataset._collate_fn
+            collate_fn = dataset.collate_fn
         return torch.utils.data.DataLoader(
             dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=True,
         )
@@ -530,23 +528,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
             datasets = []
             for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
-                dataset = MegatronSequenceToSequenceDataset(
+                dataset = BinarizedMemmapSequenceToSequenceDataset(
                     src_dataset_prefix=src_file,
                     tgt_dataset_prefix=tgt_fille,
                     src_tokenizer=self.encoder_tokenizer,
                     tgt_tokenizer=self.decoder_tokenizer,
-                    max_encoder_seq_length=cfg.max_seq_length,
-                    max_decoder_seq_length=cfg.max_seq_length,
+                    max_src_seq_length=cfg.max_seq_length,
+                    max_tgt_seq_length=cfg.max_seq_length,
                     start_index=0,
                     end_index=None,
                     data_impl="mmap",
                     skip_warmup=True,
-                    dataset_index_sampling_override=False,
                 )
                 datasets.append(dataset)
             dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
         else:
-            dataset = MegatronSequenceToSequenceDataset(
+            dataset = BinarizedMemmapSequenceToSequenceDataset(
                 src_dataset_prefix=cfg.src_file_name,
                 tgt_dataset_prefix=cfg.tgt_file_name,
                 src_tokenizer=self.encoder_tokenizer,
@@ -666,7 +663,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 target_processor=self.target_processor,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                device=self.device
+                device=self.device,
             )
             predicted_tokens_ids, _ = self.decode(
                 src,
@@ -676,9 +673,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 tokenizer=self.decoder_tokenizer,
             )
             best_translations = self.postprocess_outputs(
-                outputs=predicted_tokens_ids,
-                tokenizer=self.decoder_tokenizer,
-                processor=self.target_processor
+                outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
             )
             return_val = best_translations
         finally:
@@ -695,7 +690,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 target_processor=self.target_processor,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                device=self.device
+                device=self.device,
             )
             timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
 

@@ -1005,7 +1005,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         target_processor=None,
         encoder_tokenizer=None,
         decoder_tokenizer=None,
-        device=None
+        device=None,
     ):
         inputs = []
         processor = source_processor if not target else target_processor
@@ -1085,7 +1085,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 target_processor=self.target_processor,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                device=self.device
+                device=self.device,
             )
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
@@ -1109,7 +1109,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 target_processor=self.target_processor,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                device=self.device
+                device=self.device,
             )
             timing["mean_tgt_length"] = tgt_mask.sum().cpu().item() / tgt_mask.shape[0]
 
