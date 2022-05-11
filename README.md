@@ -1334,9 +1334,9 @@ In this section, we will explain how to run each of the stages described above.
 ##### 4.3.2.1. General Configuration
 <a id="markdown-general-configuration" name="general-configuration"></a>
 
-First, our configuration setup assumes that the `/opt/bignlp` directory has been copied from the container 
-to the local file system. And we assume that bignlp-hp-tool and BigNLP-Inference-Scripts are both 
-located inside the `bignlp` directory.
+First, our configuration setup assumes that the `/opt/bignlp/bignlp-hp-tool` and `/opt/bignlp/bignlp-scripts`
+directories have been copied from the container 
+to the local file system.
 
 The first parameter that must be set is the `bignlp_hp_tool_path` parameter inside the `conf/config.yaml` 
 file. This parameter must point to the absolute path where the `bignlp-hp-tool` repository is stored in 
@@ -1350,7 +1350,7 @@ in the local file system. Any additional directories that should be mounted must
 the source and destination paths are provided. Otherwise, the given paths will be mounted to the same 
 path inside the container.
 
-The `bignlp_inference_path` must point to the path where BigNLP-Inference-Scripts is located. The location 
+The `bignlp_scripts_path` must point to the path where bignlp-scripts is located. The location 
 specified in the default config should be valid if `/opt/bignlp` was extracted correctly. Next, the 
 `data_dir` value must point to the path where the training dataset is located. Note that the dataset 
 for GPT-3, T5 and mT5 values will be different, so modify this parameter accordingly. Follow the data 
@@ -1368,7 +1368,7 @@ defaults:
   - override hydra/job_logging: stdout
 
 bignlp_hp_tool_path: ???  # Path should end with bignlp-hp-tool.
-bignlp_inference_path: ${bignlp_hp_tool_path}/../BigNLP-Inference-Scripts
+bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the location of bignlp-scripts codebase.
 data_dir: ${bignlp_hp_tool_path}/../bignlp-scripts/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
