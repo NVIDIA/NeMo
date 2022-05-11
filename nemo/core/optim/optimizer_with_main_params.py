@@ -186,6 +186,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         # used with tensor parallel only (no pipeline parallelism)
         self._async_grad_allreduce = async_grad_allreduce
+        self._async_grad_allreduce_works = []
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -306,14 +307,16 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             if self._require_backward_grad_sync:
                 if self._grad_allreduce_chunk_size_mb > 0:
                     self._main_grad_buffers[i].update_chunk_info(grad_chunk_info)
-                    allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
-                    while allreduce_tensor is not None:
-                        allreduce_tensor.div_(get_data_parallel_world_size())
-                        torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
+                    while True:
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
+                        if allreduce_tensor is None: break
+                        allreduce_tensor.div_(get_data_parallel_world_size())
+                        work=torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
+                        self._async_grad_allreduce_works.append(work)
                 else:
                     main_param.grad.div_(get_data_parallel_world_size())
-                    torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
+                    work = torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
+                    self._async_grad_allreduce_works.append(work)
 
         return param_hook
 
@@ -417,6 +420,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def allreduce_main_grads(self):
         for i in self._main_grad_buffers:
             self._main_grad_buffers[i].allreduce_buffer()
+
+    def wait_async_grad_allreduce_done(self):
+        for work in self._async_grad_allreduce_works:
+            work.wait()
 
     @contextmanager
     def no_sync(self):

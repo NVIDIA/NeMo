@@ -282,6 +282,9 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             rank_zero_only=True,
         )
 
+        if self.megatron_amp_o2:
+            self._optimizer.wait_async_grad_allreduce_done()
+
         return loss_mean
 
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
