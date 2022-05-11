@@ -16,6 +16,7 @@ import math
 
 import torch
 import torch.nn as nn
+from torch.nn import LayerNorm
 
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv2D
 
@@ -32,6 +33,7 @@ class StackingSubsampling(torch.nn.Module):
         super(StackingSubsampling, self).__init__()
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
+        self.pre_norm = LayerNorm(feat_in)
 
     def get_sampling_frames(self):
         return self.subsampling_factor
@@ -41,6 +43,7 @@ class StackingSubsampling(torch.nn.Module):
 
     def forward(self, x, lengths):
         b, t, h = x.size()
+        x = self.pre_norm(x)
         pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         _, t, _ = x.size()
