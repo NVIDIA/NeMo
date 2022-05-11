@@ -105,10 +105,6 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     return_transcribtion=True,
                     onnx_model=onnx_model
                 )
-        if asr_model.encoder.streaming_cfg.last_channel_cache_size >= 0:
-            cache_last_channel = cache_last_channel[
-                :, :, -asr_model.encoder.streaming_cfg.last_channel_cache_size :, :
-            ]
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")

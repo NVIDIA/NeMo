@@ -185,6 +185,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             #print(q_keep_size, cache_next_length, q_length, self.cache_drop_size)
             cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
             cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
+
         return key, value, query, cache_next
 
     def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
