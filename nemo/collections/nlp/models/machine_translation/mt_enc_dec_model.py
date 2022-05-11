@@ -76,7 +76,6 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.multilingual_ids = []
         self.special_tokens = {}
 
-        self.retrieval = cfg.get("retrieval", False)
         self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'yttm')
         self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'yttm')
 
@@ -754,12 +753,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if isinstance(tgt_file_list, str):
                 tgt_file_list = [tgt_file_list]
             if cfg.get("retrieval", False):
-                retrieval_file_list = cfg.retrieval_indices
-                if isinstance(retrieval_file_list, str):
-                    retrieval_file_list = [retrieval_file_list]
+                retrieval_indices_file_list = cfg.retrieval_indices
+                if isinstance(retrieval_indices_file_list, str):
+                    retrieval_indices_file_list = [retrieval_indices_file_list]
 
             if len(src_file_list) != len(tgt_file_list):
                 raise ValueError('The same number of filepaths must be passed in for source and target.')
+            if cfg.get("retrieval", False):
+                if len(src_file_list) != len(retrieval_indices_file_list):
+                    raise ValueError('The same number of filepaths must be passed in for src/tgt and retrieval indices.')
 
             datasets = []
             for idx, src_file in enumerate(src_file_list):
@@ -783,7 +785,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     dataset = RetrievalTranslationDataset(
                         dataset_src=str(Path(src_file).expanduser()),
                         dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
-                        dataset_retrieval=str(Path(retrieval_file_list[idx]).expanduser()),
+                        retrieval_indices=str(Path(retrieval_indices_file_list[idx]).expanduser()),
+                        retrieval_db_src=str(Path(cfg.get('retrieval_db_src', None)).expanduser()),
+                        retrieval_db_tgt=str(Path(cfg.get('retrieval_db_tgt', None)).expanduser()),
                         tokens_in_batch=cfg.tokens_in_batch,
                         clean=cfg.get("clean", False),
                         max_seq_length=cfg.get("max_seq_length", 512),
@@ -795,7 +799,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                         use_cache=cfg.get("use_cache", False),
                         reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                         prepend_id=multilingual_ids[idx] if multilingual else None,
-                        retrieval_nns=cfg.get("retrieval_nns", 2),
+                        retrieval_nns=cfg.get("retrieval_nns", 1),
                     )
                 dataset.batchify(encoder_tokenizer, decoder_tokenizer)
                 datasets.append(dataset)
@@ -882,27 +886,15 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 )
             else:
                 if isinstance(retrieval_indices, str):
-                    retrieval_file_list = [retrieval_indices]
+                    retrieval_indices_file_list = [retrieval_indices]
                 elif isinstance(retrieval_indices, ListConfig):
-                    retrieval_file_list = retrieval_indices
+                    retrieval_indices_file_list = retrieval_indices
                 else:
                     raise ValueError("cfg.retrieval_indices must be string or list of strings")
-                if isinstance(retrieval_db_src, str):
-                    retrieval_src_file_list = [retrieval_db_src]
-                elif isinstance(retrieval_db_src, ListConfig):
-                    retrieval_src_file_list = retrieval_db_src
-                else:
-                    raise ValueError("cfg.retrieval_db_src must be string or list of strings")
-                if isinstance(retrieval_db_tgt, str):
-                    retrieval_tgt_file_list = [retrieval_db_tgt]
-                elif isinstance(retrieval_db_tgt, ListConfig):
-                    retrieval_tgt_file_list = retrieval_db_tgt
-                else:
-                    raise ValueError("cfg.retrieval_db_tgt must be string or list of strings")
-            if len(src_file_list) != len(retrieval_file_list):
+
+            if len(src_file_list) != len(retrieval_indices_file_list):
                 raise ValueError('The same number of filepaths must be passed in for source and retrieval validation.')
 
-        dataloaders = []
         datasets = []
         prepend_idx = 0
         for idx, src_file in enumerate(src_file_list):
@@ -924,14 +916,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                     prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
                 )
-                dataset.batchify(encoder_tokenizer, decoder_tokenizer)
             else:
                 dataset = RetrievalTranslationDataset(
                     dataset_src=str(Path(src_file).expanduser()),
                     dataset_tgt=str(Path(tgt_file_list[idx]).expanduser()),
-                    dataset_retrieval=str(Path(retrieval_file_list[idx]).expanduser()),
-                    dataset_retrieval_src=str(Path(retrieval_src_file_list[idx]).expanduser()),
-                    dataset_retrieval_tgt=str(Path(retrieval_tgt_file_list[idx]).expanduser()),
+                    retrieval_indices=str(Path(retrieval_indices_file_list[idx]).expanduser()),
+                    retrieval_db_src=str(Path(cfg.get('retrieval_db_src', None)).expanduser()),
+                    retrieval_db_tgt=str(Path(cfg.get('retrieval_db_tgt', None)).expanduser()),
                     tokens_in_batch=cfg.tokens_in_batch,
                     clean=cfg.get("clean", False),
                     max_seq_length=cfg.get("max_seq_length", 512),
@@ -943,9 +934,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     use_cache=cfg.get("use_cache", False),
                     reverse_lang_direction=cfg.get("reverse_lang_direction", False),
                     prepend_id=multilingual_ids[prepend_idx] if multilingual else None,
-                    retrieval_nns=cfg.get("retrieval_nns", 2),
+                    retrieval_nns=cfg.get("retrieval_nns", 1),
                 )
-                dataset.batchify(encoder_tokenizer, decoder_tokenizer, val=True)
+            dataset.batchify(encoder_tokenizer, decoder_tokenizer)
             datasets.append(dataset)
         return datasets
 

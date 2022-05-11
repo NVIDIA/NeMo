@@ -66,10 +66,11 @@ class TranslationDataConfig:
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
     # Currently indices can be a list but the dbs are singular
-    retrieval_indices: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
+    retrieval: bool = False # train retrieval augmented model
     retrieval_db_src: Optional[Any] = None  # Any = str or List[str] (TODO) # file with src of nns to retrieve
     retrieval_db_tgt: Optional[Any] = None  # Any = str or List[str] (TODO) # file with tgt of nns to retrieve
     retrieval_nns: int = 1  # number of nearest neighbors to retrieve
+    retrieval_indices: Optional[Any] = None  # Any = str or List[str] # file with indices of nns to retrieve
 
 
 class TranslationDataset(Dataset):
@@ -252,7 +253,10 @@ class TranslationDataset(Dataset):
             if not buckets[indices[i]]:
                 i = i + 1
 
-        if not batches[-1]: batches.pop(-1) return batches
+        if not batches[-1]:
+            batches.pop(-1)
+        
+        return batches
 
     def clean_src_and_target(
         self,
@@ -351,7 +355,7 @@ class RetrievalTranslationDataset(TranslationDataset):
         else:
             self.retrieval_db_tgt = retrieval_db_tgt
 
-    def batchify(self, tokenizer_src, tokenizer_tgt, val=False):
+    def batchify(self, tokenizer_src, tokenizer_tgt):
         src_ids = dataset_to_ids(
             self.dataset_src,
             tokenizer_src,
@@ -372,28 +376,34 @@ class RetrievalTranslationDataset(TranslationDataset):
             tgt_retrieval_ids = tgt_ids
         else:
             # tokenize the retrieval_database
-            src_retrieval_ids = dataset_to_ids(
-                self.retrieval_db_src,
-                tokenizer_src,
-                cache_ids=self.cache_ids,
-                cache_data_per_node=self.cache_data_per_node,
-                use_cache=self.use_cache,
-            )
-            tgt_retrieval_ids = dataset_to_ids(
-                self.retrieval_db_tgt,
-                tokenizer_tgt,
-                cache_ids=self.cache_ids,
-                cache_data_per_node=self.cache_data_per_node,
-                use_cache=self.use_cache,
-            )
+            with open(self.retrieval_db_src, 'rb') as f:
+                src_retrieval_ids = pickle.load(f)
+            with open(self.retrieval_db_tgt, 'rb') as f:
+                tgt_retrieval_ids = pickle.load(f)
+            # tgt_retrieval_ids = dataset_to_ids(
+            #     self.retrieval_db_tgt,
+            #     tokenizer_tgt,
+            #     cache_ids=self.cache_ids,
+            #     cache_data_per_node=self.cache_data_per_node,
+            #     use_cache=self.use_cache,
+            # )
+            # src_retrieval_ids = dataset_to_ids(
+            #     self.retrieval_db_src,
+            #     tokenizer_src,
+            #     cache_ids=self.cache_ids,
+            #     cache_data_per_node=self.cache_data_per_node,
+            #     use_cache=self.use_cache,
+            # )
 
         src_ids_extended = []
         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
             to_add = []
+            # add the original src sentence
             to_add.extend(src_ids[i])
             for nn_id in self.nn_list[i].tolist():
                 # if nn_id != i: # TODO smy: Still check if retrieval dataset is main
                 # avoid adding the same sentence if train and index set are the same
+                # Add the src and tgt of nearest neighbor
                 to_add.extend(src_retrieval_ids[nn_id])
                 to_add.extend(tgt_retrieval_ids[nn_id])
             src_ids_extended.append(to_add)

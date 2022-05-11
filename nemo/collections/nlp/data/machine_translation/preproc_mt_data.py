@@ -192,7 +192,7 @@ class MTDataPreproc:
                         raise ValueError(
                             'src_file_name and tgt_file_name needed to create tarred dataset but could not be found.'
                         )
-                    if cfg.get('retrieval') and cfg.train_ds.get('retrieval_indices') is None:
+                    if cfg.train_ds.get('retrieval') and cfg.train_ds.get('retrieval_indices') is None:
                         #TODO smy: Do full check on all indices
                         raise ValueError(
                             'retrieval_indices needed to create tarred retrieval dataset with but could not be found.'
@@ -206,15 +206,13 @@ class MTDataPreproc:
                     if isinstance(cfg.train_ds.get('src_file_name'), str):
                         src_file_list = [cfg.train_ds.get('src_file_name')]
                         tgt_file_list = [cfg.train_ds.get('tgt_file_name')]
-                        if cfg.get('retrieval'):
+                        if cfg.train_ds.get('retrieval'):
                             retrieval_indices_file_list = [cfg.train_ds.get('retrieval_indices')]
-                            retrieval_db_src_file_list = [cfg.train_ds.get('retrieval_db_src')]
-                            retrieval_db_tgt_indices_file_list = [cfg.train_ds.get('retrieval_db_tgt')]
                         outdir_list = [cfg.get('preproc_out_dir')]
                     else:
                         src_file_list = cfg.train_ds.get('src_file_name')
                         tgt_file_list = cfg.train_ds.get('tgt_file_name')
-                        if cfg.get('retrieval'):
+                        if cfg.train_ds.get('retrieval'):
                             retrieval_indices_file_list = cfg.train_ds.get('retrieval_indices')
                         if isinstance(cfg.get('src_language'), ListConfig):
                             langs = cfg.get('src_language')
@@ -228,7 +226,7 @@ class MTDataPreproc:
                         raise ValueError(
                             "Number of source files, target files, and multilingual language pairs must be the same."
                         )
-                    if cfg.get('retrieval') and len(src_file_list) != len(retrieval_indices_file_list):
+                    if cfg.train_ds.get('retrieval') and len(src_file_list) != len(retrieval_indices_file_list):
                         raise ValueError("Number of source files, target files, and retrieval files must be the same.")
                     # TODO: Get over this hack
                     if not cfg.get('retrieval', False):
