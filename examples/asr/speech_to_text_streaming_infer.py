@@ -46,7 +46,6 @@ def extract_transcribtions(hyps):
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num):
-    return False
     if asr_model.encoder.streaming_cfg.pre_encode_cache_size == 0:
         return False
     if step_num == 0:
