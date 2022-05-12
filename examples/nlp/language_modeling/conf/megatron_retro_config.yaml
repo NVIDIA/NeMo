@@ -1,4 +1,4 @@
-name: megatron_retro
+name: test_retro
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
