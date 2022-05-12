@@ -34,7 +34,6 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging, timers
 
