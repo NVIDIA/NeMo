@@ -186,7 +186,6 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
         # used with tensor parallel only (no pipeline parallelism)
         self._async_grad_allreduce = async_grad_allreduce
-        self._async_grad_allreduce_works = []
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -311,12 +310,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
                         if allreduce_tensor is None: break
                         allreduce_tensor.div_(get_data_parallel_world_size())
-                        work=torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
-                        self._async_grad_allreduce_works.append(work)
+                        torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
                 else:
                     main_param.grad.div_(get_data_parallel_world_size())
-                    work = torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
-                    self._async_grad_allreduce_works.append(work)
+                    torch.distributed.all_reduce(main_param.grad, group=get_data_parallel_group(), async_op=True)
 
         return param_hook
 
@@ -420,10 +417,6 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def allreduce_main_grads(self):
         for i in self._main_grad_buffers:
             self._main_grad_buffers[i].allreduce_buffer()
-
-    def wait_async_grad_allreduce_done(self):
-        for work in self._async_grad_allreduce_works:
-            work.wait()
 
     @contextmanager
     def no_sync(self):
