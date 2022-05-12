@@ -69,6 +69,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        if cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
+                raise ValueError(
+                    f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
+                )
 
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()

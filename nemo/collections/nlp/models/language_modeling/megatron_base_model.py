@@ -61,12 +61,6 @@ class MegatronBaseModel(NLPModel):
         # buffer used during train_step for logging average loss over gradient accumulation steps
         self._reduced_loss_buffer = []
 
-        if cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
-                raise ValueError(
-                    f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
-                )
-
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
             global_rank=trainer.global_rank,
