@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
@@ -44,7 +45,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class MegatronBertModel(NLPModel):
+class MegatronBertModel(MegatronBaseModel):
     """
     Megatron Bert pretraining
     """
@@ -58,26 +59,9 @@ class MegatronBertModel(NLPModel):
         self.cfg = cfg
 
         # used in NVIDIA NGC PyTorch containers
-        self._enable_nvidia_optimizations()
-
-        if self.cfg.get('use_cpu_initialization', False) is False:
-            torch.cuda.set_device(trainer.local_rank)
-
         # buffer used during train_step for logging average loss over gradient accumulation steps
-        self._reduced_loss_buffer = []
         self._reduced_lm_loss_buffer = []
         self._reduced_sop_loss_buffer = []
-
-        # not saved as part of nemo model graph but required during export to ONNX
-        input_names = ['input_ids', 'attention_mask', 'token_type_ids']
-
-        initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            seed=self.cfg.get('seed', 1234),
-        )
 
         self.tokenizer = get_nmt_tokenizer(
             library=self.cfg.tokenizer.library,
@@ -444,36 +428,6 @@ class MegatronBertModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
-
-    def _enable_nvidia_optimizations(self):
-        "These optimizations are present in NVIDIA NGC PyTorch Containers"
-
-        # Version check
-        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
-        if nvidia_torch_version is not None:
-            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
-            try:
-                NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
-            except Exception:
-                NVIDIA_TORCH_MINOR = 0
-
-            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
-            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
-                self.cfg.persist_layer_norm = False
-
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
-                # NVFUSER
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                torch._C._jit_override_can_fuse_on_cpu(False)
-                torch._C._jit_override_can_fuse_on_gpu(False)
-                torch._C._jit_set_texpr_fuser_enabled(False)
-                torch._C._jit_set_nvfuser_enabled(True)
-                torch._C._debug_set_autodiff_subgraph_inlining(False)
-
-        else:
-            # Not a Nvidia container. Dependency check is on users
-            pass
 
     # Required for ONNX export
     @property

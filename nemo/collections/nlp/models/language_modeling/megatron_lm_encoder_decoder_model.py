@@ -986,33 +986,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
         return after
 
-    def _enable_nvidia_optimizations(self):
-        "These optimizations are present in NVIDIA NGC PyTorch Containers"
-
-        # Version check
-        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
-        if nvidia_torch_version is not None:
-            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
-            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
-
-            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
-            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
-                self._cfg.persist_layer_norm = False
-
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
-                # NVFUSER
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                torch._C._jit_override_can_fuse_on_cpu(False)
-                torch._C._jit_override_can_fuse_on_gpu(False)
-                torch._C._jit_set_texpr_fuser_enabled(False)
-                torch._C._jit_set_nvfuser_enabled(True)
-                torch._C._debug_set_autodiff_subgraph_inlining(False)
-
-        else:
-            # Not a Nvidia container. Dependency check is on users
-            pass
-
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
