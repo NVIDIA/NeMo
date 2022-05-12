@@ -102,7 +102,7 @@ def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
         'spanish-nr_conformer_ctc':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_ctc_large.nemo"), 
         'spanish-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_transducer_large.nemo"), 
         'spanish-nr_contextnet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_contextnet_1024.nemo"), 
-        'russian-citrinet':  (False, False, False, "/home/fjia/models/vitaly/ru_model/CitriNet-1024-8x-Stride-Gamma-0.25.nemo"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint  
+        'russian-citrinet':  (False, False, True, "/home/fjia/models/vitaly/ru_models/CitriNet-1024-8x-Stride-Gamma-0.25.nemo"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint  
     }
     
     lang_model = lang + "-" + model
@@ -129,12 +129,11 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = [0,5,10,15,20,'clean']
+    db_list = ['clean']
     modes = ['offline']
-    langs = ['english','spanish']
-    vad_exps = ["neural_vad",] 
-    models = ['nr_citrinet'] 
-
+    langs = ['french', 'german',  'russian']
+    vad_exps = ['neural_vad',] 
+    models = ['citrinet'] 
 
     subset="dev"
     single= False # True
@@ -254,10 +253,10 @@ def main():
                                             "pad_offset": -0.2
                                         }
                                         # params = {
-                                        #     "onset": 0,
-                                        #     "offset": 0.4,
-                                        #     "min_duration_on": 0.5,
-                                        #     "min_duration_off": 1,
+                                        #     "onset": 0.4,
+                                        #     "offset": 0.8,
+                                        #     "min_duration_on": 0.,
+                                        #     "min_duration_off": 0.5,
                                         #     "pad_onset": 0.2,
                                         #     "pad_offset": -0.2
                                         # }
@@ -266,6 +265,9 @@ def main():
                                         
                                         if save_neural_vad:
                                             frame_out_dir = f"{final_output_folder}/{mode}/{lang}/{model}/neural_vad_{db}"
+                                            # if os.path.exists(frame_out_dir):
+                                            #     print(f"!! deleting existing {frame_out_dir}")
+                                            #     shutil.rmtree(frame_out_dir) 
                                         else:
                                             frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
                                         os.system(f'python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" \

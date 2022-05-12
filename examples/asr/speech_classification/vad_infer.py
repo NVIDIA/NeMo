@@ -108,7 +108,7 @@ def main(cfg):
         os.makedirs(cfg.frame_out_dir, exist_ok=True)
     else:
         logging.warning(
-            "Note frame_out_dir exists. If new file has same name as file inside existing folder, it will append result to existing file and might cause mistakes for next steps."
+            "Note frame_out_dir exists. If new file has same name as file inside existing folder, it will overwrite the previous file."
         )
 
     logging.info("Generating frame level prediction ")
@@ -146,7 +146,7 @@ def main(cfg):
     if cfg.gen_seg_table:
         logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
         table_out_dir = generate_vad_segment_table(
-            vad_pred_dir=pred_dir,
+            vad_pred_dirs=pred_dir,
             postprocessing_params=cfg.vad.parameters.postprocessing,
             shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
             num_workers=cfg.num_workers,

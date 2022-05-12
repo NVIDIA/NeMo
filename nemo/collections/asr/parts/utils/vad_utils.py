@@ -319,7 +319,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 
 
 def generate_vad_segment_table(
-    vad_pred_dir, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
+    vad_pred_dirs, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
 ):
     """
     Convert frame level prediction to speech segment in start and end times format.
@@ -338,7 +338,10 @@ def generate_vad_segment_table(
 
     p = Pool(processes=num_workers)
     suffixes = ("frame", "mean", "median")
-    vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
+    vad_pred_dirs = vad_pred_dirs.split(",")
+    vad_pred_filepath_list = []
+    for vad_pred_dir in vad_pred_dirs:
+        vad_pred_filepath_list.extend([os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)])
 
     if out_dir:
         table_out_dir = out_dir
@@ -613,7 +616,7 @@ def get_parameter_grid(params):
 
 
 def vad_tune_threshold_on_dev(
-    params, vad_pred, groundtruth_RTTM, result_file="res", vad_pred_method="frame", focus_metric="DetER"
+    params, vad_preds, groundtruth_RTTMs, result_file="res", vad_pred_method="frame", focus_metric="DetER"
 ):
     """
     Tune thresholds on dev set. Return best thresholds which gives the lowest detection error rate (DetER) in thresholds.
@@ -633,7 +636,7 @@ def vad_tune_threshold_on_dev(
     except:
         raise ValueError("Please check if the parameters are valid")
 
-    paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method)
+    paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(vad_preds, groundtruth_RTTMs, vad_pred_method)
     metric = detection.DetectionErrorRate()
     params_grid = get_parameter_grid(params)
 
@@ -643,7 +646,7 @@ def vad_tune_threshold_on_dev(
                 continue
 
             # perform binarization, filtering accoring to param and write to rttm-like table
-            vad_table_dir = generate_vad_segment_table(vad_pred, param, shift_length_in_sec=0.01, num_workers=20)
+            vad_table_dir = generate_vad_segment_table(vad_preds, param, shift_length_in_sec=0.01, num_workers=20)
 
             # add reference and hypothesis to metrics
             for filename in paired_filenames:
@@ -711,42 +714,48 @@ def check_if_param_valid(params):
     return True
 
 
-def pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method="frame"):
+def pred_rttm_map(vad_preds, groundtruth_RTTMs, vad_pred_method="frame"):
     """
     Find paired files in vad_pred and groundtruth_RTTM
     """
-    groundtruth_RTTM_dict = {}
-    if os.path.isfile(groundtruth_RTTM):
-        with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
-            groundtruth_RTTM_files = fp.read().splitlines()
-    elif os.path.isdir(groundtruth_RTTM):
-        # groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
-        groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*"))
-    else:
-        raise ValueError(
-            "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"
-        )
-    for f in groundtruth_RTTM_files:
-        filename = os.path.basename(f).rsplit(".", 1)[0]
-        groundtruth_RTTM_dict[filename] = f
+    groundtruth_RTTMs = groundtruth_RTTMs.split(",")
+    groundtruth_RTTM_dict = {} 
+    # todo make sure no duplicate name
+    for groundtruth_RTTM in groundtruth_RTTMs:
+        if os.path.isfile(groundtruth_RTTM):
+            with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
+                groundtruth_RTTM_files = fp.read().splitlines()
+        elif os.path.isdir(groundtruth_RTTM):
+            # groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
+            groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*"))
+        else:
+            raise ValueError(
+                "groundtruth_RTTM should either be a directory contains rttm files or a file contains paths to them!"
+            )
+        for f in groundtruth_RTTM_files:
+            filename = os.path.basename(f).rsplit(".", 1)[0]
+            groundtruth_RTTM_dict[filename] = f
 
+    vad_preds = vad_preds.split(",")
     vad_pred_dict = {}
-    if os.path.isfile(vad_pred):
-        with open(vad_pred, "r", encoding='utf-8') as fp:
-            vad_pred_files = fp.read().splitlines()
-    elif os.path.isdir(vad_pred):
-        vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
-    else:
-        raise ValueError(
-            "vad_pred should either be a directory contains vad pred files or a file contains paths to them!"
-        )
-    for f in vad_pred_files:
-        filename = os.path.basename(f).rsplit(".", 1)[0]
-        vad_pred_dict[filename] = f
+    for vad_pred in vad_preds:
+        if os.path.isfile(vad_pred):
+            with open(vad_pred, "r", encoding='utf-8') as fp:
+                vad_pred_files = fp.read().splitlines()
+        elif os.path.isdir(vad_pred):
+            vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
+        else:
+            raise ValueError(
+                "vad_pred should either be a directory contains vad pred files or a file contains paths to them!"
+            )
+        for f in vad_pred_files:
+            filename = os.path.basename(f).rsplit(".", 1)[0]
+            vad_pred_dict[filename] = f
 
     paired_filenames = groundtruth_RTTM_dict.keys() & vad_pred_dict.keys()
+    print(f'{len(paired_filenames)} paired_filenames')
     return paired_filenames, groundtruth_RTTM_dict, vad_pred_dict
-
+    
 
 def plot(
     path2audio_file,
@@ -895,6 +904,11 @@ def generate_vad_frame_pred(vad_model, window_length_in_sec, shift_length_in_sec
 
             all_len += len(to_save)
             outpath = os.path.join(out_dir, data[i] + ".frame")
+
+            if os.path.exists(outpath):
+                print(f'{outpath} exists. Deleting!')
+                os.remove(outpath)
+
             with open(outpath, "a", encoding='utf-8') as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
