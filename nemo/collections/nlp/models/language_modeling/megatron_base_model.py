@@ -41,7 +41,7 @@ class MegatronBaseModel(NLPModel):
     Megatron base class
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer):
+    def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=False):
         # FIXME: switch to self._cfg
         if not HAVE_APEX:
             raise ImportError(
@@ -50,7 +50,7 @@ class MegatronBaseModel(NLPModel):
         # this prevents base constructor from initializing tokenizer
         self.tokenizer = None
 
-        super().__init__(cfg, trainer=trainer, no_lm_init=True)
+        super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
