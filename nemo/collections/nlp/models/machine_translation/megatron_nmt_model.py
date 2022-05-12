@@ -608,8 +608,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return dataset
 
     def build_tarred_train_dataset(self):
-        # TODO: This is a temporary solution until MTEncDecModel also uses "dataset_type" instead of "use_tarred_dataset".
-        self._cfg.train_ds.use_tarred_dataset = True if self._cfg.train_ds.dataset_type == 'tarred' else False
         return MTEncDecModel._setup_dataset_from_config(
             cfg=self._cfg.train_ds,
             encoder_tokenizer=self.encoder_tokenizer,

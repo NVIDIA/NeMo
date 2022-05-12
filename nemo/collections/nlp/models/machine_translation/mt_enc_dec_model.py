@@ -672,7 +672,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         multilingual,
         multilingual_ids,
     ):
-        if cfg.get("use_tarred_dataset", False):
+        if cfg.get("use_tarred_dataset", False) or cfg.get("dataset_type", "") == "tarred":
             if cfg.get("metadata_file") is None:
                 raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
             metadata_file_list = cfg.get('metadata_file')
