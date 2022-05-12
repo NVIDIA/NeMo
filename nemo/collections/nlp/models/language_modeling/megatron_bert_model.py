@@ -89,6 +89,9 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
         )
+        self.setup_optimizer_param_groups()
+        # not using amp o2
+        self.megatron_amp_o2 = False
 
     def forward(self, input_ids, attention_mask, token_type_ids, lm_labels=None):
         output_tensor = self.model(input_ids, attention_mask, token_type_ids=token_type_ids, lm_labels=lm_labels)
@@ -345,21 +348,6 @@ class MegatronBertModel(MegatronBaseModel):
             * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)
-
-    def configure_gradient_clipping(self, *args, **kwargs):
-        """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
-        """
-        clip_val = self.trainer.gradient_clip_val
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        parameters = self.model.parameters()
-        clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

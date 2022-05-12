@@ -18,7 +18,9 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.modules.common.megatron.utils import get_params_for_weight_decay_optimization
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
@@ -156,3 +158,39 @@ class MegatronBaseModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+
+    def _get_parameters(self):
+        """
+        private method to load all the trainable parameters from model
+        """
+        params = []
+        for param_group in self._optimizer_param_groups:
+            for param in param_group['params']:
+                params.append(param)
+        return params
+
+    def configure_gradient_clipping(self, *args, **kwargs):
+        """PTL hook to configure gradients.
+           We use gradient clipping implementation from megatron-lm.
+        """
+        clip_val = self.trainer.gradient_clip_val
+        if clip_val is None:
+            return
+
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
+        if self.megatron_amp_o2:
+            # grep fp32 master parameters for gradient clipping
+            parameters = self._optimizer.get_parameters()
+        else:
+            parameters = self._get_parameters()
+
+        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
+
+        self.log('grad_norm', grad_norm, rank_zero_only=True)

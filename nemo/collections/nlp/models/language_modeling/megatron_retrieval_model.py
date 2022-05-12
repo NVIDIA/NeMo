@@ -26,14 +26,12 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
-    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
@@ -73,6 +71,8 @@ class MegatronRetrievalModel(MegatronBaseModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
+        # not using amp o2
+        self.megatron_amp_o2 = False
 
     def _build_tokenizer(self):
         """
@@ -94,17 +94,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
         elif hasattr(self.tokenizer, "pad_id") and (self.tokenizer.pad_id is None or self.tokenizer.pad_id < 0):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-
-    def _build_vocab(self):
-        """
-        Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
-        """
-        # TODO: add config to allow to disable it?
-        self.padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
-        )
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
@@ -174,10 +163,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
             input_emb=input_emb,
         )
         return output_tensor
-
-    def setup_optimizer_param_groups(self):
-        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def on_pretrain_routine_start(self) -> None:
         # keep a copy of init_global_step
@@ -375,13 +360,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
 
-    def get_parameters(self):
-        params = []
-        for param_group in self._optimizer_param_groups:
-            for param in param_group['params']:
-                params.append(param)
-        return params
-
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
         consumed_samples = (
@@ -392,37 +370,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
             * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)
-
-    def configure_gradient_clipping(self, *args, **kwargs):
-        """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
-        """
-        clip_val = self.trainer.gradient_clip_val
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        parameters = self.get_parameters()
-
-        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
-
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
-        """Pad vocab size so it is divisible by model parallel size and
-        still having GPU friendly size."""
-
-        after = orig_vocab_size
-        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
-        logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
-        )
-        return after
 
     def list_available_models(self):
         pass

@@ -27,12 +27,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_params_for_weight_decay_optimization,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -149,10 +145,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
-
-    def setup_optimizer_param_groups(self):
-        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def training_step(self, batch, batch_idx):
         """
@@ -646,35 +638,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
-
-    def configure_gradient_clipping(self, *args, **kwargs):
-        """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
-        """
-        clip_val = self.trainer.gradient_clip_val
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        if self.megatron_amp_o2:
-            # grep fp32 master parameters for gradient clipping
-            parameters = self._optimizer.get_parameters()
-        else:
-            parameters = self.get_parameters()
-
-        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
-
-    def get_parameters(self):
-        params = []
-        for param_group in self._optimizer_param_groups:
-            for param in param_group['params']:
-                params.append(param)
-        return params
 
     def generate(
         self,
