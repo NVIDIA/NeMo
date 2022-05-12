@@ -75,20 +75,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.megatron_amp_o2 = False
 
     def _build_tokenizer(self):
-        """
-        Default tokenizer is based on available nemo tokenizers.
-        Override this method to use an external tokenizer.
-        All tokenizers are expected to provide compatible interface.
-        Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
-        """
-        self.tokenizer = get_nmt_tokenizer(
-            library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
-            legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
-        )
+        super()._build_tokenizer()
         # add pad special token
         if not hasattr(self.tokenizer, "pad_id"):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})

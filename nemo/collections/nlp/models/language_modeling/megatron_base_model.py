@@ -131,11 +131,6 @@ class MegatronBaseModel(NLPModel):
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
         )
-        # add pad special token
-        if not hasattr(self.tokenizer, "pad_id"):
-            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        elif hasattr(self.tokenizer, "pad_id") and (self.tokenizer.pad_id is None or self.tokenizer.pad_id < 0):
-            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
     def _build_vocab(self):
         """
