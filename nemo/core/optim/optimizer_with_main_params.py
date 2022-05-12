@@ -309,7 +309,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                     self._main_grad_buffers[i].update_chunk_info(grad_chunk_info)
                     while True:
                         allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
-                        if allreduce_tensor is None: break
+                        if allreduce_tensor is None:
+                            break
                         allreduce_tensor.div_(get_data_parallel_world_size())
                         torch.distributed.all_reduce(allreduce_tensor, group=get_data_parallel_group(), async_op=True)
                 else:
