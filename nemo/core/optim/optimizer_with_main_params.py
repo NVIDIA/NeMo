@@ -185,6 +185,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         self._contiguous_grad_bucket = contiguous_grad_bucket
 
         # used with tensor parallel only (no pipeline parallelism)
+        # be careful, weight update cannot start until all async grad AR works are done
         self._async_grad_allreduce = async_grad_allreduce
 
         if self._async_grad_allreduce:
