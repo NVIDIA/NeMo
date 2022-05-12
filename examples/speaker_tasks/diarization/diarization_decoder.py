@@ -50,9 +50,12 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
-    clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=cfg.msdd_model)
-    clustering_embedding.prepare_cluster_embs_train()
-    cfg.msdd_model.base.diarizer.update(cfg.diarizer)
+    # if not cfg.msdd_model.end_to_end_train:
+        # clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=cfg.msdd_model)
+        # clustering_embedding.prepare_cluster_embs_train()
+        # cfg.msdd_model.base.diarizer.update(cfg.diarizer)
+    # import ipdb; ipdb.set_trace()
+    # msdd_model = EncDecDiarLabelModel(cfg=cfg, trainer=trainer)
     msdd_model = EncDecDiarLabelModel(cfg=cfg.msdd_model, trainer=trainer)
     trainer.fit(msdd_model)
 

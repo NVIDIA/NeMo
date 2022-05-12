@@ -79,7 +79,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     All the parameters are passed through config file 
     """
 
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: DictConfig, load_speaker_model=True):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -97,15 +97,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # init speaker model
         self.multiscale_embeddings_and_timestamps = {}
-        self._init_speaker_model()
+        if load_speaker_model:
+            self._init_speaker_model()
         self._speaker_params = self._cfg.diarizer.speaker_embeddings.parameters
         self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
-        shutil.rmtree(self._speaker_dir, ignore_errors=True)
-        os.makedirs(self._speaker_dir)
+        # shutil.rmtree(self._speaker_dir, ignore_errors=True)
+        if not os.path.exists(self._speaker_dir):
+            os.makedirs(self._speaker_dir)
 
         # Clustering params
         self._cluster_params = self._diarizer_params.clustering.parameters
-
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
@@ -152,7 +153,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 model_path = "ecapa_tdnn"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
-
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
@@ -360,13 +360,12 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
             if not os.path.exists(embedding_dir):
                 os.makedirs(embedding_dir, exist_ok=True)
-
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
             self._embeddings_file = name + f'_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
-
+    
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w', encoding='utf-8') as fp:
             for audio_file in paths2audio_files:
@@ -418,13 +417,13 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
             self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
 
-        embs_and_timestamps = get_embs_and_timestamps(
+        self.embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
 
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
-            embs_and_timestamps=embs_and_timestamps,
+            embs_and_timestamps=self.embs_and_timestamps,
             AUDIO_RTTM_MAP=self.AUDIO_RTTM_MAP,
             out_rttm_dir=out_rttm_dir,
             clustering_params=self._cluster_params,
@@ -464,7 +463,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
 
         # TODO: Why does this override the main save_to?
-
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
             spkr_model = os.path.join(tmpdir, _SPEAKER_MODEL)

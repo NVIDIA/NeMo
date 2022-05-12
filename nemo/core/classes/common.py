@@ -27,8 +27,6 @@ from typing import Dict, List, Optional, Union
 
 import hydra
 import wrapt
-from huggingface_hub import hf_hub_download
-from huggingface_hub.hf_api import HfFolder
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
@@ -193,6 +191,10 @@ class Typing(ABC):
             for key, value in kwargs.items():
                 # Check if keys exists in the defined input types
                 if key not in input_types:
+                    print('input_types:', input_types)
+                    print('key:', key)
+                    print('kwargs keys():', kwargs.keys())
+                    # import ipdb; ipdb.set_trace()
                     raise TypeError(
                         f"Input argument {key} has no corresponding input_type match. "
                         f"Existing input_types = {input_types.keys()}"
@@ -532,6 +534,7 @@ class FileIO(ABC):
         return_config: bool = False,
         trainer: Optional['Trainer'] = None,
         save_restore_connector: SaveRestoreConnector = None,
+        megatron_legacy: Optional[bool] = False,
     ):
         """Restores module/model with weights"""
         raise NotImplementedError()
@@ -671,48 +674,8 @@ class Model(Typing, Serialization, FileIO):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        # Resolve if the pretrained model name is from NGC or other sources
-        # HF Hub source
-        if '/' in model_name:
-            class_, nemo_model_file_in_cache = cls._get_hf_hub_pretrained_model_info(
-                model_name=model_name, refresh_cache=refresh_cache
-            )
-        else:
-            # NGC source
-            class_, nemo_model_file_in_cache = cls._get_ngc_pretrained_model_info(
-                model_name=model_name, refresh_cache=refresh_cache
-            )
-
-        instance = class_.restore_from(
-            restore_path=nemo_model_file_in_cache,
-            override_config_path=override_config_path,
-            map_location=map_location,
-            strict=strict,
-            return_config=return_config,
-            trainer=trainer,
-            save_restore_connector=save_restore_connector,
-        )
-        return instance
-
-    @classmethod
-    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
-        """
-        Resolve the NGC model pretrained information given a model name.
-        Assumes the model subclass implements the `list_available_models()` inherited method.
-
-        Args:
-            model_name: Str name of the model. Must be the original name or an alias of the model, without any '/'.
-            refresh_cache: Bool, determines whether cache must be refreshed (model is re-downloaded).
-
-        Returns:
-            A tuple of details describing :
-            -   The resolved class of the model. This requires subclass to implement PretrainedModelInfo.class_.
-                If the class cannot be resolved, default to the class that called this method.
-            -   The path to the NeMo model (.nemo file) in some cached directory.
-        """
         location_in_the_cloud = None
         description = None
-        class_ = None
         models = cls.list_available_models()
         if models is not None:
             for pretrained_model_info in cls.list_available_models():
@@ -743,53 +706,19 @@ class Model(Typing, Serialization, FileIO):
         nemo_model_file_in_cache = maybe_download_from_cloud(
             url=url, filename=filename, cache_dir=cache_dir, subfolder=cache_subfolder, refresh_cache=refresh_cache
         )
-
         logging.info("Instantiating model from pre-trained checkpoint")
-
         if class_ is None:
             class_ = cls
-
-        return class_, nemo_model_file_in_cache
-
-    @classmethod
-    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> (type, str):
-        """
-        Resolve the HuggingFace Hub model pretrained information given a model name.
-        The model name must be of general syntax ``{source_repo}/{model_name}``.
-
-        Note:
-            The ``{source_repo}`` need not be ``nvidia``, it can be any public repository, even external to Nvidia.
-            This allows public, externally contributed models to be run freely using Nvidia NeMo.
-
-        Args:
-            model_name: Str name of the model. Must be the original name or an alias of the model, without any '/'.
-            refresh_cache: Bool, determines whether cache must be refreshed (model is re-downloaded).
-
-        Returns:
-            A tuple of details describing :
-            -   The resolved class of the model. Since the source is external to NeMo, always default to using
-                the calling class. Depend on target class resolution by restore_from() for calling the correct class.
-            -   The path to the NeMo model (.nemo file) in some cached directory (managed by HF Hub).
-        """
-        # Resolve the model name without origin for filename
-        resolved_model_filename = model_name.split("/")[-1] + '.nemo'
-
-        # Check if api token exists, use if it does
-        is_token_available = HfFolder.get_token() is not None
-
-        # Try to load the model from the Huggingface Hub
-        path = hf_hub_download(
-            repo_id=model_name,
-            filename=resolved_model_filename,
-            force_download=refresh_cache,
-            use_auth_token=is_token_available,
+        instance = class_.restore_from(
+            restore_path=nemo_model_file_in_cache,
+            override_config_path=override_config_path,
+            map_location=map_location,
+            strict=strict,
+            return_config=return_config,
+            trainer=trainer,
+            save_restore_connector=save_restore_connector,
         )
-
-        # Cannot pre-resolve the specific class without double instantiation (first for config, second for model params)
-        # Default to current class, and perform basic class path resolution (handled via restore_from() + target class)
-        class_ = cls
-
-        return class_, path
+        return instance
 
 
 class typecheck:
@@ -866,9 +795,10 @@ class typecheck:
             )
 
         # Preserve type information
+        # print("------------- self.input_types:", self.input_types)
+        # print("------------- instance: ", instance)
         if self.input_types is typecheck.TypeState.UNINITIALIZED:
             self.input_types = instance.input_types
-
         if self.output_types is typecheck.TypeState.UNINITIALIZED:
             self.output_types = instance.output_types
 

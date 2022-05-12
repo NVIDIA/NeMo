@@ -576,21 +576,24 @@ class MSDDSpeechLabel(DiarizationLabel):
         if self.bi_ch_infer:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
                 uniq_id = self.get_uniq_id(item['rttm_file'])
+                estimated_spk_digits = sorted(list(set([x[2] for x in clus_label_dict[uniq_id]])))
+                spk_comb_list = [x for x in combinations(estimated_spk_digits, 2)]  
+                
                 # Use the estimated speakers (mapping is calculated from evaluation)
-                _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
-                if len(_sess_spk_dict) == 1:
-                    spk_comb_list = [(0,1)]
-                else:
+                if 'mapping' in self.emb_dict[0][uniq_id]:
+                    _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
                     sess_spk_dict = { int(v.split('_')[-1]) : k for k, v in _sess_spk_dict.items() }
-                    spk_digits = [ int(v.split('_')[1]) for k, v in _sess_spk_dict.items() ]
-                    spk_comb_list = [x for x in combinations(spk_digits, 2)]  
+                    if len(_sess_spk_dict) == 1:
+                        spk_comb_list = [(0,1)]
+                else:
+                    sess_spk_dict = None
+                    
                 for tup_spks in spk_comb_list:
                     audio_files.append(item['audio_file'])
                     durations.append(item['duration'])
                     rttm_files.append(item['rttm_file'])
                     offsets.append(item['offset'])
-                    tuple_2ch.append([tup_spks, sess_spk_dict])
-
+                    tuple_2ch.append([tup_spks, sess_spk_dict, estimated_spk_digits])
         else:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
                 audio_files.append(item['audio_file'])

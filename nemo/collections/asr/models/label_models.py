@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
+import gc
 from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -206,7 +207,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
-
+    
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
@@ -229,10 +230,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-    @typecheck()
+    # @typecheck()
     def forward_for_export(self, processed_signal, processed_signal_len):
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
+        del encoded, length, processed_signal, processed_signal_len
+        torch.cuda.empty_cache() 
+        gc.collect()
         return logits, embs
 
     @typecheck()

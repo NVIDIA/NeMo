@@ -51,7 +51,7 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.speaker_utils import embedding_normalize
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models import EncDecSpeakerLabelModel
-from nemo.collections.asr.models import EncDecDiarLabelModel
+from nemo.collections.asr.models import EncDecEnd2EndDiarModel
 from nemo.collections.asr.models.msdd_models import ClusterEmbedding
 from nemo.utils import logging
 
@@ -92,9 +92,6 @@ def get_overlap_stamps(cont_a, ovl_spk_idx):
         if len(ovl_cont_list) > 0:
             total_ovl_cont_list.extend(merge_stamps(ovl_cont_list))
     return total_ovl_cont_list
-
-
-
 
 def make_overlap_rttm_lines(clus_test_label_list, preds, max_num_of_spks, threshold, use_clus_as_main, max_overlap=2):
     '''
@@ -253,6 +250,8 @@ class NeuralDiarizer:
         self.clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
         self.clustering_embedding.run_clus_from_loaded_emb = True
 
+        self.use_prime_cluster_avg_emb = True
+
     def transfer_diar_params_to_model_params(self, msdd_model, cfg):
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
         msdd_model.cfg.test_ds.emb_dir = cfg.diarizer.out_dir
@@ -269,10 +268,9 @@ class NeuralDiarizer:
 
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
             logging.info(f"Using local speaker model from {cfg.diarizer.msdd_model.model_path}")
-            msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
+            msdd_model = EncDecEnd2EndDiarModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
         elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
-            msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=cfg.diarizer.msdd_model.model_path)
-        import ipdb; ipdb.set_trace()
+            msdd_model = EncDecEnd2EndDiarModel.load_from_checkpoint(checkpoint_path=cfg.diarizer.msdd_model.model_path)
         msdd_model.cfg = self.transfer_diar_params_to_model_params(msdd_model, cfg)
         return msdd_model
 
@@ -281,29 +279,27 @@ class NeuralDiarizer:
         diar_decoder_model.setup_test_data(test_cfg)
         diar_decoder_model = diar_decoder_model.to(self.device)
         diar_decoder_model.eval()
-        
+        torch.set_grad_enabled(False)
         preds_list, scale_weights_list, signal_lengths_list= [], [], []
-
-        length_list = []
         uniq_id_list = get_uniq_id_list_from_manifest(test_cfg.manifest_filepath)
         test_data_collection = [ d for d in diar_decoder_model.data_collection ]
-        torch.set_grad_enabled(False)
         for test_batch in tqdm(diar_decoder_model.test_dataloader()):
             test_batch = [x.to(self.device) for x in test_batch]
             signals, signal_lengths, targets, emb_vectors = test_batch 
+            if self._cfg.msdd_model.use_longest_scale_clus_avg_emb:
+                emb_vectors = diar_decoder_model.get_longest_scale_clus_avg_emb(emb_vectors)
             with autocast():
-                preds, scale_weights= diar_decoder_model.forward(input_signal=signals,
-                                                                 input_signal_length=signal_lengths,
-                                                                 emb_vectors=emb_vectors,
-                                                                 targets=targets)
+                preds, scale_weights = diar_decoder_model.forward_infer(input_signal=signals,
+                                                                       input_signal_length=signal_lengths,
+                                                                       emb_vectors=emb_vectors,
+                                                                       targets=targets)
             diar_decoder_model._accuracy_test(preds, targets, signal_lengths) 
-            del test_batch
             preds_list.extend( list(torch.split(preds, 1)))
             scale_weights_list.extend( list(torch.split(scale_weights, 1)))
             signal_lengths_list.extend( list(torch.split(signal_lengths, 1)))
-            f1_score, simple_acc = compute_accuracies(diar_decoder_model)
-            logging.info(f"Batch Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
             save_tensors(preds, scale_weights, targets) 
+        f1_score, simple_acc = compute_accuracies(diar_decoder_model)
+        logging.info(f"Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
         integrated_preds_list = get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, scale_weights_list, signal_lengths_list
 
