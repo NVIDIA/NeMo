@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     dropout_add,
 )
 from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -157,9 +158,8 @@ class ParallelMLP(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
             )
-            glu_activation_family = True
-        else:
-            glu_activation_family = False
+
+        glu_activation_family = activaiton in ['reglu', 'swiglu']
 
         if glu_activation_family and bias_gelu_fusion:
             raise ValueError(
@@ -226,6 +226,15 @@ class ParallelMLP(MegatronModule):
 
         if self.activation in ['geglu', 'reglu', 'swiglu']:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+
+        if self.bias_gelu_fusion:
+            if self.activation == 'gelu':
+                intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
+            else:
+                intermediate_parallel = fused_bias_geglu(intermediate_parallel, bias_parallel,
+                                                         intermediate_parallel_2, bias_parallel_2)
+
+        elif self.activation in ['geglu', 'reglu', 'swiglu']:
             if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
                     intermediate_parallel_2 + bias_parallel_2
@@ -233,8 +242,6 @@ class ParallelMLP(MegatronModule):
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel) * intermediate_parallel_2
 
-        elif self.bias_gelu_fusion and self.activation == 'gelu':
-            intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
         else:
             if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
