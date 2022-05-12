@@ -101,7 +101,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
         # add pad special token
         if not hasattr(self.tokenizer, "pad_id"):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        elif hasattr(self.tokenizer, "pad_id") and self.tokenizer.pad_id is None:
+        elif hasattr(self.tokenizer, "pad_id") and (self.tokenizer.pad_id is None or self.tokenizer.pad_id < 0):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
 
     def _build_vocab(self):
