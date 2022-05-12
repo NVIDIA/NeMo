@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from typing import Any, Dict, Optional
 
@@ -36,7 +35,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
@@ -77,12 +75,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
 
-        # build tokenizer (defaults to nemo supported tokenizers)
-        self._build_tokenizer()
-
-        # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
-        self._build_vocab()
-
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.enc_dec_model = build_model(
@@ -113,33 +105,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
-
-    def _build_tokenizer(self):
-        """
-        Default tokenizer is based on available nemo tokenizers.
-        Override this method to use an external tokenizer.
-        All tokenizers are expected to provide compatible interface.
-        Override default Encoder-decoder tokenizer to use legacy=True for sentencepiece.
-        """
-        self.tokenizer = get_nmt_tokenizer(
-            library=self._cfg.tokenizer.library,
-            model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
-            legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
-        )
-
-    def _build_vocab(self):
-        """
-        Manipulate vocabulary (e.g., pad vocabulary for increased performance)/
-        """
-        # TODO: add config to allow to disable it?
-        self.padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
-        )
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
@@ -972,19 +937,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         response['completion']['tokens'] = list(zip(predicted_tokens_ids, predicted_tokens_dec, log_probs))
         self.unfreeze()
         return response
-
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
-        """Pad vocab size so it is divisible by model parallel size and
-        still having GPU friendly size."""
-
-        after = orig_vocab_size
-        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
-        logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
-        )
-        return after
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device

@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import torch
 import torch.nn.functional as F
@@ -28,11 +27,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
@@ -63,26 +59,10 @@ class MegatronBertModel(MegatronBaseModel):
         self._reduced_lm_loss_buffer = []
         self._reduced_sop_loss_buffer = []
 
-        self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self.cfg.tokenizer.merge_file),
-        )
-
-        vocab_size = self.tokenizer.vocab_size
-
-        padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=vocab_size,
-            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-        )
-
         num_tokentypes = 2 if cfg.bert_binary_head else 0
 
         self.model = BertModel(
-            vocab_size=padded_vocab_size,
+            vocab_size=self.padded_vocab_size,
             hidden_size=cfg.hidden_size,
             max_position_embeddings=cfg.max_position_embeddings,
             num_layers=cfg.num_layers,
@@ -415,19 +395,6 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             )
         return result
-
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
-        """Pad vocab size so it is divisible by model parallel size and
-        still having GPU friendly size."""
-
-        after = orig_vocab_size
-        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
-        logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
-        )
-        return after
 
     # Required for ONNX export
     @property

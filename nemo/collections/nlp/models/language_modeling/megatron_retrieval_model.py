@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from typing import Optional
 
@@ -60,12 +59,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
-
-        # build tokenizer (defaults to nemo supported tokenizers)
-        self._build_tokenizer()
-
-        # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
-        self._build_vocab()
 
         # TODO does not support PP yet
         self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)

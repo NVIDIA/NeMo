@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from typing import Any, List, Optional, Union
 
@@ -28,9 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -43,7 +40,6 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
     OutputType,
@@ -85,23 +81,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer=trainer, no_lm_init=True)
 
         self._validate_trainer()
-
-        self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self.cfg.tokenizer.merge_file),
-            delimiter=self.cfg.tokenizer.get('delimiter', None),
-        )
-
-        vocab_size = self.tokenizer.vocab_size
-
-        self.padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=vocab_size,
-            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-        )
 
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
@@ -751,19 +730,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def list_available_models(self):
         return None
-
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
-        """Pad vocab size so it is divisible by model parallel size and
-        still having GPU friendly size."""
-
-        after = orig_vocab_size
-        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
-        logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
-        )
-        return after
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
