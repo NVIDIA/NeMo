@@ -1218,7 +1218,6 @@ class FramewiseStreamingAudioBuffer:
 
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
 
-
             zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                 cache_pre_encode = torch.zeros(
@@ -1247,7 +1246,7 @@ class FramewiseStreamingAudioBuffer:
                         dtype=audio_chunk.dtype,
                     )
 
-                #added_len = cache_pre_encode.size(-1)
+                # added_len = cache_pre_encode.size(-1)
 
             added_len = cache_pre_encode.size(-1)
             audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)

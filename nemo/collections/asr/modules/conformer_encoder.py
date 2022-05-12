@@ -15,11 +15,11 @@
 import math
 from collections import OrderedDict
 from typing import List, Optional
-from omegaconf import ListConfig
 
 import torch
 import torch.distributed
 import torch.nn as nn
+from omegaconf import ListConfig
 
 from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoderMixin
@@ -174,7 +174,11 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             conv_context_size = list(conv_context_size)
 
         if conv_context_size is not None:
-            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str) and not isinstance(conv_context_size, ListConfig):
+            if (
+                not isinstance(conv_context_size, list)
+                and not isinstance(conv_context_size, str)
+                and not isinstance(conv_context_size, ListConfig)
+            ):
                 raise ValueError(
                     f"Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
                 )
@@ -212,9 +216,12 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
-            if subsampling == 'stacking':
+            if subsampling in ['stacking', 'stacking_norm']:
                 self.pre_encode = StackingSubsampling(
-                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=d_model,
+                    norm=True if 'norm' in subsampling else False,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -288,7 +295,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         self.use_pad_mask = True
 
         self.setup_streaming_params()
-        #self.streaming_cfg = None
+        # self.streaming_cfg = None
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -341,7 +348,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
-        #print(audio_signal.shape)
+        # print(audio_signal.shape)
         if length is None:
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
@@ -400,7 +407,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         pad_mask = ~pad_mask
         att_mask = ~att_mask
 
-        #print(audio_signal.shape)
+        # print(audio_signal.shape)
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
@@ -449,7 +456,13 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         return mask
 
     def setup_streaming_params(
-        self, chunk_size=None, shift_size=None, cache_drop_size=None, pre_encode_cache_size=None, valid_out_len=None, drop_extra_pre_encoded=False
+        self,
+        chunk_size=None,
+        shift_size=None,
+        cache_drop_size=None,
+        pre_encode_cache_size=None,
+        valid_out_len=None,
+        drop_extra_pre_encoded=False,
     ):
         MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
@@ -496,11 +509,15 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         if shift_size is None:
             if isinstance(sampling_frames, list):
                 streaming_cfg.shift_size = [
-                    sampling_frames[0] + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
-                    sampling_frames[1] + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    sampling_frames[0]
+                    + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    sampling_frames[1]
+                    + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
                 ]
             else:
-                streaming_cfg.shift_size = sampling_frames * (1 + streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size)
+                streaming_cfg.shift_size = sampling_frames * (
+                    1 + streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size
+                )
 
             # streaming_cfg.shift_size = [
             #     1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),

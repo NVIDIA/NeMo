@@ -20,7 +20,7 @@
 # Pre-trained models of Conformer-Transducer can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 # The checkpoint of the large model trained on NeMo ASRSET with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_transducer_large
 
-name: "Conformer-Transducer-BPE"
+name: "Conformer-Transducer-BPE-Streaming"
 
 model:
   sample_rate: 16000
@@ -104,7 +104,7 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: stacking # vggnet, striding or stacking
+    subsampling: stacking # vggnet, striding, stacking or stacking_norm
     subsampling_factor: 4 # must be power of 2
     subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true
@@ -188,7 +188,8 @@ model:
     warprnnt_numba_kwargs:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       # You may enable FastEmit to reduce the latency of the model for streaming
-      fastemit_lambda: 0.0  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      # It also helps to improve the accuracy of the model in streaming mode
+      fastemit_lambda: 1e-3  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
       clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   # Adds Gaussian noise to the gradients of the decoder to avoid overfitting

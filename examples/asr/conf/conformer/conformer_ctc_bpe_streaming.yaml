@@ -24,7 +24,7 @@
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 # The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
-name: "Conformer-CTC-BPE"
+name: "Conformer-CTC-BPE-Streaming"
 
 model:
   sample_rate: 16000
@@ -103,7 +103,7 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: stacking # vggnet, striding, or stacking
+    subsampling: stacking_norm # vggnet, striding, stacking, stacking_norm
     subsampling_factor: 3 # must be power of 2
     subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true
@@ -154,7 +154,7 @@ model:
       name: NoamAnnealing
       d_model: ${model.encoder.d_model}
       # scheduler config override
-      warmup_steps: 10000
+      warmup_steps: 25000
       warmup_ratio: null
       min_lr: 1e-6
 

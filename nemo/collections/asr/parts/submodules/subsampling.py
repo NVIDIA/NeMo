@@ -29,11 +29,14 @@ class StackingSubsampling(torch.nn.Module):
         feat_out (int): size of the output features
     """
 
-    def __init__(self, subsampling_factor, feat_in, feat_out):
+    def __init__(self, subsampling_factor, feat_in, feat_out, norm=False):
         super(StackingSubsampling, self).__init__()
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
-        self.pre_norm = LayerNorm(feat_in)
+        if norm:
+            self.pre_norm = LayerNorm(feat_in)
+        else:
+            self.pre_norm = None
 
     def get_sampling_frames(self):
         return self.subsampling_factor
@@ -43,7 +46,8 @@ class StackingSubsampling(torch.nn.Module):
 
     def forward(self, x, lengths):
         b, t, h = x.size()
-        x = self.pre_norm(x)
+        if self.pre_norm is not None:
+            x = self.pre_norm(x)
         pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         _, t, _ = x.size()

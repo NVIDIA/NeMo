@@ -125,7 +125,7 @@ class ClassifyFst(GraphFst):
             ).fst
 
             classify = (
-                #pynutil.add_weight(whitelist_graph, 1.01)
+                # pynutil.add_weight(whitelist_graph, 1.01)
                 pynutil.add_weight(time_graph, 1.1)
                 | pynutil.add_weight(date_graph, 1.09)
                 | pynutil.add_weight(decimal_graph, 1.1)
@@ -134,7 +134,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(ordinal_graph, 1.1)
                 | pynutil.add_weight(money_graph, 1.1)
                 | pynutil.add_weight(telephone_graph, 1.1)
-                #| pynutil.add_weight(electonic_graph, 1.1)
+                # | pynutil.add_weight(electonic_graph, 1.1)
                 | pynutil.add_weight(fraction_graph, 1.1)
                 | pynutil.add_weight(range_graph, 1.1)
                 | pynutil.add_weight(serial_graph, 1.1001)  # should be higher than the rest of the classes

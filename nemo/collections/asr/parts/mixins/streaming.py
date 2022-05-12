@@ -34,7 +34,6 @@ class StreamingEncoderMixin(ABC):
             return None
         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
-
     def stream_step(
         self,
         processed_signal,
@@ -43,7 +42,7 @@ class StreamingEncoderMixin(ABC):
         cache_last_time=None,
         valid_out_len=None,
         drop_extra_pre_encoded=None,
-        onnx_model=None
+        onnx_model=None,
     ):
         if self.streaming_cfg is None:
             self.setup_streaming_params()
@@ -81,9 +80,7 @@ class StreamingEncoderMixin(ABC):
             encoded, encoded_len, cache_last_channel_next, cache_last_time_next = encoder_output
 
         if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
-            cache_last_channel_next = cache_last_channel_next[
-                                 :, :, -self.streaming_cfg.last_channel_cache_size:, :
-                                 ]
+            cache_last_channel_next = cache_last_channel_next[:, :, -self.streaming_cfg.last_channel_cache_size :, :]
         if valid_out_len is not None:
             encoded = encoded[:, :, :valid_out_len]
             encoded_len = torch.clamp(encoded_len, max=valid_out_len)

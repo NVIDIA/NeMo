@@ -182,7 +182,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             q_keep_size = q_length - self.cache_drop_size
 
             # cache_next[:, :-q_length, :] = cache[:, -(cache_length - q_length):, :].clone()
-            #print(q_keep_size, cache_next_length, q_length, self.cache_drop_size)
+            # print(q_keep_size, cache_next_length, q_length, self.cache_drop_size)
             cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
             cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
 
@@ -199,7 +199,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        key, value, query, cache_next = self.do_caching(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
+        key, value, query, cache_next = self.do_caching(
+            key=key, value=value, query=query, cache=cache, cache_next=cache_next
+        )
 
         # assume key and values are the same
         q, k, v = self.forward_qkv(query, key, value)

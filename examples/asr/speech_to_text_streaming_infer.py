@@ -21,10 +21,10 @@ This script serves three goals:
 
 import contextlib
 import json
+import time
 from argparse import ArgumentParser
 
 import onnxruntime
-import time
 import torch
 from omegaconf import OmegaConf, open_dict
 
@@ -71,7 +71,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal=processed_signal,
                     processed_signal_length=processed_signal_length,
                     return_transcribtion=True,
-                    onnx_model=None
+                    onnx_model=None,
                 )
         final_offline_tran = extract_transcribtions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
@@ -103,7 +103,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     previous_pred_out=pred_out_stream,
                     drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
                     return_transcribtion=True,
-                    onnx_model=onnx_model
+                    onnx_model=onnx_model,
                 )
 
         if debug_mode:
@@ -229,7 +229,9 @@ def main():
 
     if args.online_normalization:
         if asr_model.cfg.normalize in ["per_feature", "all_feature"]:
-            logging.warning("online_normalization is enabled but the model does not use normalization, so normalization is skipped.")
+            logging.warning(
+                "online_normalization is enabled but the model does not use normalization, so normalization is skipped."
+            )
             online_normalization = False
         else:
             online_normalization = True
@@ -267,15 +269,13 @@ def main():
             all_refs_text.append(sample["text"])
             print(sample["audio_filepath"])
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
-                logging.info(
-                    f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
-                )
+                logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
                     debug_mode=args.debug_mode,
-                    onnx_model=onnx_model
+                    onnx_model=onnx_model,
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:

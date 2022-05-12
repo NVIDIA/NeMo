@@ -190,7 +190,7 @@ class ConformerConvolution(nn.Module):
         if conv_context_size is None or (
             conv_context_size[0] == (kernel_size - 1) // 2 and conv_context_size[1] == (kernel_size - 1) // 2
         ):
-            #TODO: redo it
+            # TODO: redo it
             self.depthwise_conv = nn.Conv1d(
                 in_channels=d_model,
                 out_channels=d_model,
@@ -240,8 +240,8 @@ class ConformerConvolution(nn.Module):
         else:
             x = self.depthwise_conv(x)
 
-        #print(self.batch_norm)
-        #if isinstance(self.batch_norm, nn.LayerNorm):
+        # print(self.batch_norm)
+        # if isinstance(self.batch_norm, nn.LayerNorm):
         if self.norm_type == "layer_norm":
             x = x.transpose(1, 2)
             x = self.batch_norm(x)
