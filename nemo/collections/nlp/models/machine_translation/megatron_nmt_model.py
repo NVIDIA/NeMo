@@ -32,6 +32,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
@@ -309,7 +310,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         loss_list = []
         bleu_score_list = []
         for dataloader_idx, output in enumerate(outputs):
-            averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in output])
+            if parallel_state.is_pipeline_last_stage():
+                # only the last pipeline parallel stages return loss
+                averaged_loss = torch.stack([x['loss'] for x in output]).mean()
+            else:
+                averaged_loss = torch.tensor(0.0).to(self.device)
+
+            # we can only log on one rank if it is rank zero so we broadcast from last rank
+            torch.distributed.broadcast(averaged_loss, get_last_rank())
+
+            # averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in output])
             inputs = list(itertools.chain(*[x['inputs'] for x in output]))
             translations = list(itertools.chain(*[x['translations'] for x in output]))
             ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
@@ -366,19 +376,19 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             else:
                 bleu_score = 0.0
 
-            loss_list.append(averaged_loss[0].cpu().numpy())
+            loss_list.append(averaged_loss.cpu().numpy())
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
                 self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
-                self.log(f'{mode}_loss', averaged_loss[0], prog_bar=True)
+                self.log(f'{mode}_loss', averaged_loss, prog_bar=True)
                 if self.multilingual:
-                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss[0], mode)
+                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
             else:
                 if self.multilingual:
-                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss[0], mode)
+                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
                 else:
                     self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, sync_dist=True)
-                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss[0], prog_bar=False)
+                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False)
 
         if len(loss_list) > 1:
             self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True)
