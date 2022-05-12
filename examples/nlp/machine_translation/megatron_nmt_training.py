@@ -135,16 +135,13 @@ def main(cfg) -> None:
             # Override precision
             pretrained_cfg.precision = cfg.model.precision  # Set above from trainer.precision
 
-            # Set global/micro batch
-            pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
-            pretrained_cfg.global_batch_size = cfg.model.global_batch_size
-
             # Override data and global/micro batch size.
             pretrained_cfg.train_ds = cfg.model.train_ds
-            pretrained_cfg.train_ds.micro_batch_size = cfg.model.micro_batch_size
-            pretrained_cfg.train_ds.global_batch_size = cfg.model.global_batch_size
             pretrained_cfg.validation_ds = cfg.model.validation_ds
             pretrained_cfg.test_ds = cfg.model.test_ds
+
+            pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
+            pretrained_cfg.global_batch_size = cfg.model.global_batch_size
 
             # Class target for the new class being restored.
             pretrained_cfg.target = (
