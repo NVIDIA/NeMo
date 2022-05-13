@@ -135,9 +135,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.bfloat16
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
-        # make sure the gradient clipping in the basemodel
-        # uses normal model parameters
-        self.grad_clip_use_all_parameters = True
+        # make sure the default pytorch lightning gradient clipping in the basemodel
+        self.grad_clip_pl_default = True
         # no support of amp o2
         self.megatron_amp_o2 = False
 

@@ -43,7 +43,7 @@ class MegatronBaseModel(NLPModel):
     1. Initialize the model parallel for nemo given the model parallel parameters.
     2. Turn on all the nvidia optimizations.
     3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. It help to run `configure_gradient_clipping`, if `grad_clip_use_all_parameters` is set True,  it uses all of the module parameters for 
+    4. It help to run `configure_gradient_clipping`, if `grad_clip_pl_default` is set True,  it uses the pytorch lightning default
        gradient clipping. Or if `megatron_amp_o2` is set True, it uses the parameters from optimizer to clip the gradients.
        Otherwise, it uses the parameters calculated in the `setup_optimizer_param_groups` method.
     """
@@ -81,9 +81,7 @@ class MegatronBaseModel(NLPModel):
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
-        self.grad_clip_use_all_parameters = (
-            False  # use all of the module parameters for gradient clipping. Default False
-        )
+        self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
         if hasattr(self._cfg, "tokenizer"):
             # build tokenizer (defaults to nemo supported tokenizers)
@@ -188,9 +186,9 @@ class MegatronBaseModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if self.grad_clip_use_all_parameters:
-            # use the mododel parameter if the model is available
-            parameters = self.parameters()
+        if self.grad_clip_pl_default:
+            # use the default behavior
+            return super().configure_gradient_clipping(*args, **kwargs)
         elif self.megatron_amp_o2:
             # grep fp32 master parameters for gradient clipping
             parameters = self._optimizer.get_parameters()
