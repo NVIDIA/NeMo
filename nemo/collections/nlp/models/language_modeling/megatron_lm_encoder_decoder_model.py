@@ -32,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder im
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -108,6 +109,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.enc_dec_model])
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
