@@ -89,5 +89,15 @@ class WordFst(GraphFst):
             + pynini.accep(pynini.escape("]"))
         )
 
+        if not deterministic:
+            phoneme = (
+                pynini.accep(pynini.escape("["))
+                + pynini.closure(pynini.accep(" "), 0, 1)
+                + pynini.closure(phoneme_unit + pynini.accep(" "))
+                + phoneme_unit
+                + pynini.closure(pynini.accep(" "), 0, 1)
+                + pynini.accep(pynini.escape("]"))
+            )
+
         self.graph = plurals._priority_union(convert_space(phoneme), graph, NEMO_SIGMA)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

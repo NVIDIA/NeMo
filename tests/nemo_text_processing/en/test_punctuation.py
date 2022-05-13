@@ -12,27 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+
 import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
-
-import sys
-sys.path.append("/home/ebakhturina/NeMo/tests/nemo_text_processing")
 from utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
+
+sys.path.append("/home/ebakhturina/NeMo/tests/nemo_text_processing")
 
 
 class TestPunctuation:
     normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir="/home/ebakhturina/NeMo/nemo_text_processing/text_normalization/cache_dir", overwrite_cache=False, post_process=True)
+        Normalizer(
+            input_case='cased',
+            lang='en',
+            cache_dir="/home/ebakhturina/NeMo/nemo_text_processing/text_normalization/cache_dir",
+            overwrite_cache=False,
+            post_process=True,
+        )
         if PYNINI_AVAILABLE
         else None
     )
 
     normalizer_en_no_post_process = (
-        Normalizer(input_case='cased', lang='en',
-                   cache_dir="/home/ebakhturina/NeMo/nemo_text_processing/text_normalization/cache_dir",
-                   overwrite_cache=False, post_process=False)
+        Normalizer(
+            input_case='cased',
+            lang='en',
+            cache_dir="/home/ebakhturina/NeMo/nemo_text_processing/text_normalization/cache_dir",
+            overwrite_cache=False,
+            post_process=False,
+        )
         if PYNINI_AVAILABLE
         else None
     )
@@ -59,7 +70,6 @@ class TestPunctuation:
                 test_input, n_tagged=30, punct_post_process=True
             )
             assert expected in pred_non_deterministic, f"input: {test_input}"
-
 
     @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_punctuation_match_input.txt'))
     @pytest.mark.skipif(
