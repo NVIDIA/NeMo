@@ -58,6 +58,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 """
 
+import os
 from dataclasses import is_dataclass
 
 import pytorch_lightning as pl
@@ -120,7 +121,7 @@ def main(cfg):
         raise ValueError("Cannot set `cfg.model.nemo_model` and `cfg.model.pretrained_model`. Select one only.")
 
     trainer = pl.Trainer(**cfg.trainer)
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
     if cfg.model.pretrained_model is not None:
         model_cfg = ASRModel.from_pretrained(cfg.model.pretrained_model, return_config=True)
@@ -155,6 +156,7 @@ def main(cfg):
     with open_dict(cfg.model.adapter):
         # Extract the name of the adapter (must be give for training)
         adapter_name = cfg.model.adapter.pop("adapter_name")
+        adapter_state_dict_name = cfg.model.adapter.pop('adapter_state_dict_name', None)
 
         # Extract the global adapter config, if provided
         adapter_global_cfg = cfg.model.adapter.pop(model.adapter_global_cfg_key, None)
@@ -180,6 +182,16 @@ def main(cfg):
 
     # Finally, train model
     trainer.fit(model)
+
+    # Save the adapter state dict
+    if adapter_state_dict_name is not None:
+        state_path = exp_log_dir
+        if os.path.exists(state_path / "checkpoints"):
+            state_path = state_path / "checkpoints"
+        state_path = state_path / adapter_state_dict_name
+
+        # Save the adapter modules in a seperate file
+        model.save_adapters(str(state_path))
 
 
 if __name__ == '__main__':
