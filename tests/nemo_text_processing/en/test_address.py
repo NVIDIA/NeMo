@@ -22,10 +22,11 @@ from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 class TestAddress:
     normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True)
         if PYNINI_AVAILABLE
         else None
     )
+
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
         if PYNINI_AVAILABLE and CACHE_DIR

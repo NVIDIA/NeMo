@@ -16,10 +16,15 @@ import os
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
     MIN_NEG_WEIGHT,
+    NEMO_ALPHA,
     NEMO_CHAR,
     NEMO_NOT_SPACE,
     NEMO_SIGMA,
+    NEMO_SPACE,
     generator_main,
+    NEMO_PUNCT,
+    NEMO_SPACE,
+    MIN_POS_WEIGHT
 )
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 
@@ -54,22 +59,80 @@ class PostProcessingFst:
             self.fst = pynini.Far(far_file, mode="r")["post_process_graph"]
             logging.info(f'Post processing graph was restored from {far_file}.')
         else:
+            self.set_punct_dict()
             self.fst = self.punct_postprocess_graph()
 
             if far_file:
                 generator_main(far_file, {"post_process_graph": self.fst})
 
-    def punct_postprocess_graph(self):
+    def set_punct_dict(self):
+        self.punct_marks = {
+            "'": [
+                "'",
+                '´',
+                'ʹ',
+                'ʻ',
+                'ʼ',
+                'ʽ',
+                'ʾ',
+                'ˈ',
+                'ˊ',
+                'ˋ',
+                '˴',
+                'ʹ',
+                '΄',
+                '՚',
+                '՝',
+                'י',
+                '׳',
+                'ߴ',
+                'ߵ',
+                'ᑊ',
+                'ᛌ',
+                '᾽',
+                '᾿',
+                '`',
+                '´',
+                '῾',
+                '‘',
+                '’',
+                '‛',
+                '′',
+                '‵',
+                'ꞌ',
+                '＇',
+                '｀',
+                '𖽑',
+                '𖽒',
+            ],
+        }
+
+    def punct_postprocess_graph2(self):
         punct_marks_all = PunctuationFst().punct_marks
 
         # no_space_before_punct assume no space before them
         quotes = ["'", "\"", "``", "«"]
         dashes = ["-", "—"]
-        open_close_symbols = [("<", ">"), ("{", "}"), ('"', '"'), ("``", "``"), ("``", "``"), ("(", ")"), ("“", "”")]
-        allow_space_before_punct = ["&"] + quotes + dashes + [k[0] for k in open_close_symbols]
+        brackets = ["<", "{", "("]
+        open_close_single_quotes = [
+            ("`", "`"),
+        ]
+
+        open_close_double_quotes = [('"', '"'), ("``", "``"), ("“", "”")]
+        open_close_symbols = open_close_single_quotes + open_close_double_quotes
+        allow_space_before_punct = (
+            ["&"]
+            + quotes
+            + dashes
+            + brackets
+            + [k[0] for k in open_close_symbols]
+            + [k[0][0] for k in open_close_symbols]
+        )
         no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
         no_space_before_punct = pynini.union(*no_space_before_punct)
+        no_space_after_punct = pynini.union(*brackets)
         delete_space = pynutil.delete(" ")
+        delete_space_optional = pynini.closure(delete_space, 0, 1) #pynini.closure(pynutil.add_weight(delete_space, MIN_NEG_WEIGHT), 0, 1)
 
         # non_punct allows space
         # delete space before no_space_before_punct marks, if present
@@ -80,31 +143,138 @@ class PostProcessingFst:
                 no_space_before_punct | pynutil.add_weight(delete_space + no_space_before_punct, MIN_NEG_WEIGHT)
             )
             + pynini.closure(non_punct)
-        ).optimize()
+        )
         graph = pynini.closure(graph).optimize()
 
+        # remove space after no_space_after_punct (even if there are no matching closing brackets)
+        no_space_after_punct = pynini.cdrewrite(delete_space, no_space_after_punct, NEMO_SIGMA, NEMO_SIGMA).optimize()
+
+        graph = pynini.compose(graph, no_space_after_punct).optimize()
+        not_alpha = pynini.difference(NEMO_CHAR, NEMO_ALPHA).optimize() | pynutil.add_weight(NEMO_SPACE, MIN_NEG_WEIGHT)
+
+        end = pynini.closure(pynutil.add_weight(not_alpha, MIN_NEG_WEIGHT)) #+ NEMO_SIGMA
         open_close_marks_graph = (
-            pynini.accep("(")
-            + pynini.closure(delete_space, 0, 1)
-            + NEMO_NOT_SPACE
+            pynini.accep("`")
+            + delete_space_optional
+            + NEMO_ALPHA
             + NEMO_SIGMA
-            + pynini.closure(delete_space, 0, 1)
-            + pynini.accep(")")
+            + delete_space_optional
+            + pynini.accep("`") #+ end
         )
-        for item in open_close_symbols:
-            open, close = item
-            open_close_marks_graph |= (
-                pynini.accep(open)
-                + pynini.closure(delete_space, 0, 1)
-                + NEMO_NOT_SPACE
+        open_close_marks_graph |= (
+                pynini.accep("`")
+                + NEMO_ALPHA
                 + NEMO_SIGMA
-                + pynini.closure(delete_space, 0, 1)
-                + pynini.accep(close)
+                + delete_space
+                + pynini.accep("`")  # + end
+        )
+        # open_close_marks_graph = pynini.cdrewrite(delete_space + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional, "`", "`", NEMO_SIGMA).optimize()
+        for item in open_close_double_quotes:
+            open, close = item
+            open = pynutil.add_weight(pynini.accep(open), MIN_NEG_WEIGHT)
+            close = pynutil.add_weight(pynini.accep(close), MIN_NEG_WEIGHT)
+            open_close_marks_graph |= (
+                open + delete_space_optional + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional + close + end
+            )
+            # open_close_marks_graph = pynini.compose(open_close_marks_graph, pynini.cdrewrite(NEMO_ALPHA + NEMO_SIGMA + delete_space, open, close, NEMO_SIGMA).optimize()).optimize()
+            # open_close_marks_graph = pynini.compose(open_close_marks_graph, pynini.cdrewrite(delete_space + NEMO_ALPHA + NEMO_SIGMA + delete_space, open, close, NEMO_SIGMA).optimize()).optimize()
+        # from pynini.lib.rewrite import top_rewrite
+        # import pdb; pdb.set_trace()
+        open_close_marks_graph = pynutil.add_weight(open_close_marks_graph, MIN_NEG_WEIGHT)
+        open_close_marks_graph = NEMO_SIGMA + pynini.closure(open_close_marks_graph + NEMO_SIGMA)
+
+        graph = pynini.compose(graph, open_close_marks_graph).optimize()
+        # remove space between a word and a single quote followed by s
+        remove_space_around_single_quote = pynini.cdrewrite(
+            delete_space_optional + pynini.union(*self.punct_marks["'"]) + delete_space,
+            NEMO_ALPHA,
+            pynini.union("s ", "s[EOS]"),
+            NEMO_SIGMA,
+        )
+
+        graph = pynini.compose(graph, remove_space_around_single_quote).optimize()
+        return graph
+
+    def punct_postprocess_graph(self):
+        punct_marks_all = PunctuationFst().punct_marks
+
+        # no_space_before_punct assume no space before them
+        quotes = ["'", "\"", "``", "«"]
+        dashes = ["-", "—"]
+        brackets = ["<", "{", "("]
+        open_close_single_quotes = [
+            ("`", "`"),
+        ]
+
+        open_close_double_quotes = [('"', '"'), ("``", "``"), ("“", "”")]
+        open_close_symbols = open_close_single_quotes + open_close_double_quotes
+        allow_space_before_punct = (
+                ["&"]
+                + quotes
+                + dashes
+                + brackets
+                + [k[0] for k in open_close_symbols]
+                + [k[0][0] for k in open_close_symbols]
+        )
+        no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
+        no_space_before_punct = pynini.union(*no_space_before_punct)
+        no_space_after_punct = pynini.union(*brackets)
+        delete_space = pynutil.delete(" ")
+        delete_space_optional = pynini.closure(delete_space, 0,
+                                               1)  # pynini.closure(pynutil.add_weight(delete_space, MIN_NEG_WEIGHT), 0, 1)
+
+        # non_punct allows space
+        # delete space before no_space_before_punct marks, if present
+        non_punct = pynini.difference(NEMO_CHAR, no_space_before_punct).optimize()
+        graph = (
+                pynini.closure(non_punct)
+                + pynini.closure(
+            no_space_before_punct | pynutil.add_weight(delete_space + no_space_before_punct, MIN_NEG_WEIGHT)
+        )
+                + pynini.closure(non_punct)
+        )
+        graph = pynini.closure(graph).optimize()
+        graph = pynini.compose(graph, pynini.cdrewrite(pynini.cross("``", '"'), "", "", NEMO_SIGMA).optimize()).optimize()
+
+        # remove space after no_space_after_punct (even if there are no matching closing brackets)
+        no_space_after_punct = pynini.cdrewrite(delete_space, no_space_after_punct, NEMO_SIGMA, NEMO_SIGMA).optimize()
+
+        graph = pynini.compose(graph, no_space_after_punct).optimize()
+        not_alpha = pynini.difference(NEMO_CHAR, NEMO_ALPHA).optimize() | pynutil.add_weight(NEMO_SPACE, MIN_NEG_WEIGHT)
+
+        end = pynini.closure(pynutil.add_weight(not_alpha, MIN_NEG_WEIGHT))
+        single_quote = pynutil.add_weight(pynini.accep("`"), MIN_NEG_WEIGHT)
+        open_close_marks_graph = (
+                single_quote
+                + delete_space_optional
+                + NEMO_ALPHA
+                + NEMO_SIGMA
+                + delete_space_optional
+                + single_quote
+        )
+
+        open_close_marks_graph |= (NEMO_SIGMA + single_quote + NEMO_ALPHA + NEMO_SIGMA+ delete_space + single_quote
+        )
+
+        for item in [('"', '"')]:
+            open, close = item
+            open = pynutil.add_weight(pynini.accep(open), MIN_NEG_WEIGHT)
+            close = pynutil.add_weight(pynini.accep(close), MIN_NEG_WEIGHT)
+            open_close_marks_graph |= (
+                    open + delete_space_optional + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional + close + end
             )
 
         open_close_marks_graph = pynutil.add_weight(open_close_marks_graph, MIN_NEG_WEIGHT)
-        open_close_marks_graph = NEMO_SIGMA + pynini.closure(open_close_marks_graph + NEMO_SIGMA)
-        # graph = pynini.compose(graph.project("output").rmepsilon(), open_close_marks_graph).optimize()
+        open_close_marks_graph = NEMO_SIGMA + pynini.closure(NEMO_SIGMA + open_close_marks_graph + NEMO_SIGMA)
+
         graph = pynini.compose(graph, open_close_marks_graph).optimize()
-        # graph = graph.project("output").rmepsilon()
-        return graph.optimize()
+        # remove space between a word and a single quote followed by s
+        remove_space_around_single_quote = pynini.cdrewrite(
+            delete_space_optional + pynini.union(*self.punct_marks["'"]) + delete_space,
+            NEMO_ALPHA,
+            pynini.union("s ", "s[EOS]"),
+            NEMO_SIGMA,
+        )
+
+        graph = pynini.compose(graph, remove_space_around_single_quote).optimize()
+        return graph

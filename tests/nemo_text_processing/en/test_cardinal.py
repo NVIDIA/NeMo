@@ -37,7 +37,7 @@ class TestCardinal:
         assert pred == expected
 
     normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True)
         if PYNINI_AVAILABLE
         else None
     )

@@ -90,6 +90,8 @@ class NormalizerWithAudio(Normalizer):
         cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
         overwrite_cache: set to True to overwrite .far files
         whitelist: path to a file with whitelist replacements
+        post_process: WFST-based post processing, e.g. to remove extra spaces added during TN.
+            Note: punct_post_process flag in normalize() supports all languages.
     """
 
     def __init__(
@@ -100,6 +102,7 @@ class NormalizerWithAudio(Normalizer):
         overwrite_cache: bool = False,
         whitelist: str = None,
         lm: bool = False,
+        post_process: bool = True,
     ):
 
         super().__init__(
@@ -195,6 +198,8 @@ class NormalizerWithAudio(Normalizer):
             return normalized_texts, weights
 
         normalized_texts = set(normalized_texts)
+        if self.lang == "en" and hasattr(self, 'post_processor') and False:
+            normalized_texts = set([self.post_process(text) for text in normalized_texts])
         return normalized_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):

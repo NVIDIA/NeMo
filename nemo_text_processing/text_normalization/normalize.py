@@ -312,7 +312,7 @@ class Normalizer:
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
-        if self.lang == "en":
+        if self.lang == "en" and hasattr(self, 'post_processor'):
             output = self.post_process(output)
         return output
 
@@ -435,6 +435,11 @@ class Normalizer:
 
         Returns: shortest path
         """
+        normalized_text = normalized_text.strip()
+        if not normalized_text:
+            return normalized_text
+        normalized_text = pynini.escape(normalized_text)
+
         if self.post_processor is not None:
             normalized_text = top_rewrite(normalized_text, self.post_processor.fst)
         return normalized_text
