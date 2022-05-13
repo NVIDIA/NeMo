@@ -194,11 +194,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             )
         return super().training_step(batch, batch_idx)
 
-    def eval_step(self, batch, batch_idx, dataloader_idx):
+    def eval_step(self, batch, batch_idx, dataloader_idx, data_cfg):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
         batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
         batch = self.process_global_batch_for_tarred_datasets(batch)
-        if self._cfg.test_ds.dataset_type in ['tarred', 'text']:
+        if data_cfg.dataset_type in ['tarred', 'text']:
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
@@ -269,7 +269,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        return self.eval_step(batch, batch_idx, dataloader_idx)
+        return self.eval_step(batch, batch_idx, dataloader_idx, self._cfg.validation_ds)
 
     def _setup_eval_dataloader_from_config(self, cfg: DictConfig, dataset):
 
