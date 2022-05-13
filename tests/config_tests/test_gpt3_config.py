@@ -33,7 +33,7 @@ class TestGPT3Config:
           logs: ${base_results_dir}/${search_config_value}
           tensor_parallel_sizes: [1, 2]
           pipeline_parallel_sizes: [1]
-          max_batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+          max_batch_sizes: [8, 16, 32, 64, 128, 256]
         """
         expected = OmegaConf.create(s)
         assert (
