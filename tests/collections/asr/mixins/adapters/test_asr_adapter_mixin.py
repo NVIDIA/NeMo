@@ -169,8 +169,8 @@ class TestASRAdapterMixin:
         model.add_adapter(name=name2, cfg=get_adapter_cfg())
         new_output = model(input_signal=input_signal, input_signal_length=input_signal_length)[0]
 
-        resolved_name1 = model._resolve_adapter_module_name(name1)[-1]
-        resolved_name2 = model._resolve_adapter_module_name(name2)[-1]
+        resolved_name1 = model.resolve_adapter_module_name_(name1)[-1]
+        resolved_name2 = model.resolve_adapter_module_name_(name2)[-1]
         assert model.get_enabled_adapters() == [resolved_name1, resolved_name2]
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
@@ -191,7 +191,7 @@ class TestASRAdapterMixin:
         model.set_enabled_adapters(name=name1, enabled=False)
         new_output = model(input_signal=input_signal, input_signal_length=input_signal_length)[0]
 
-        resolved_name2 = model._resolve_adapter_module_name(name2)[-1]
+        resolved_name2 = model.resolve_adapter_module_name_(name2)[-1]
         assert model.get_enabled_adapters() == [resolved_name2]
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 

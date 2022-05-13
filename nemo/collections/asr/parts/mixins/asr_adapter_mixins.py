@@ -72,7 +72,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         super().add_adapter(name=name, cfg=cfg)
 
         # Resolve module name and adapter name
-        module_name, _ = self._resolve_adapter_module_name(name)
+        module_name, _ = self.resolve_adapter_module_name_(name)
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(self.cfg):
@@ -120,7 +120,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         # Resolve the module name and adapter name
         if name is not None:
-            module_name, _ = self._resolve_adapter_module_name(name)
+            module_name, _ = self.resolve_adapter_module_name_(name)
         else:
             module_name = None
 
@@ -160,7 +160,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         if use_encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
             raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
 
-    def _resolve_adapter_module_name(self, name: str) -> (str, str):
+    def resolve_adapter_module_name_(self, name: str) -> (str, str):
         """
         Utility method to resolve a given global/module adapter name to its components.
         Always returns a tuple representing (module_name, adapter_name). ":" is used as the
@@ -176,7 +176,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             A tuple representing (module_name, adapter_name). If a global adapter is provided,
             module_name is set to ''.
         """
-        module_name, adapter_name = super()._resolve_adapter_module_name(name)
+        module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
         # resolve name and module onlt for valid modules
         valid_module_names = ['', 'encoder']

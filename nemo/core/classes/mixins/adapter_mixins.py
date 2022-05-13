@@ -175,7 +175,7 @@ class AdapterModuleMixin(ABC):
             self.adapter_cfg = OmegaConf.create({})
 
         # Resolve the module name and adapter name (if module name is provided)
-        _, adapter_name = self._resolve_adapter_module_name(name)
+        _, adapter_name = self.resolve_adapter_module_name_(name)
 
         # Add adapter_name to this module for later identification
         self.adapter_name = adapter_name
@@ -241,7 +241,7 @@ class AdapterModuleMixin(ABC):
                 # Enable/Disable the current adapter
                 self.adapter_cfg[key]['enabled'] = enabled
         else:
-            _, adapter_name = self._resolve_adapter_module_name(name)
+            _, adapter_name = self.resolve_adapter_module_name_(name)
 
             # Cannot set the state of the global config for adapters
             if adapter_name == self.adapter_global_cfg_key:
@@ -255,10 +255,11 @@ class AdapterModuleMixin(ABC):
 
     def get_enabled_adapters(self) -> List[str]:
         """
-        Returns a list of all enabled adapters.
+        Returns a list of all enabled adapters names. The names will always be the resolved names, without
+        module info.
 
         Returns:
-            A list of str names of each enabled adapter(s).
+            A list of str names of each enabled adapter names(s).
         """
         if not self.is_adapter_available():
             return []
@@ -349,6 +350,8 @@ class AdapterModuleMixin(ABC):
         Utilizes the implicit merge strategy of each adapter when computing the adapter's output, and
         how that output will be merged back with the original input.
 
+        **Note**:
+
         Args:
             input: The output tensor of the calling module is the input to the first adapter, whose output
                 is then chained to the next adapter until all adapters are consumed.
@@ -371,14 +374,16 @@ class AdapterModuleMixin(ABC):
                     f"{adapter_module.__class__.__module}.{adapter_module.__class__.__name__}."
                 )
 
-            # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
-            input = strategy(input, adapter_module, module=self)
+            # Call a single adapter's forward, and accept its output as the new input for the next adapter.
+            input = self.forward_single_enabled_adapter_(
+                input, adapter_module, adapter_name=adapter_name, adapter_strategy=strategy
+            )
 
         return input
 
     # Utility methods
 
-    def _resolve_adapter_module_name(self, name: str) -> (str, str):
+    def resolve_adapter_module_name_(self, name: str) -> (str, str):
         """
         Utility method to resolve a given global/module adapter name to its components.
         Always returns a tuple representing (module_name, adapter_name). ":" is used as the
@@ -417,6 +422,34 @@ class AdapterModuleMixin(ABC):
             # If the above cases dont hold, no module name provided when the user is adding a new adapter.
             # Just return whatever module name was resolved, or the default
             return (module_name, name)
+
+    def forward_single_enabled_adapter_(
+        self,
+        input: torch.Tensor,
+        adapter_module: torch.nn.Module,
+        *,
+        adapter_name: str,
+        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+    ):
+        """
+        Perform the forward step of a single adapter module on some input data.
+
+        **Note**: Subclasses can override this method to accommodate more complicate adapter forward steps.
+
+        Args:
+            input: input: The output tensor of the calling module is the input to the first adapter, whose output
+                is then chained to the next adapter until all adapters are consumed.
+            adapter_module: The adapter module that is currently required to perform the forward pass.
+            adapter_name: The resolved name of the adapter that is undergoing the current forward pass.
+            adapter_strategy: A subclass of `AbstractAdapterStrategy`, that determines how the
+                output of the adapter should be merged with the input, or if it should be merged at all.
+
+        Returns:
+            The result tensor, after the current active adapter has finished its forward pass.
+        """
+        # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
+        output = adapter_strategy(input, adapter_module, module=self)
+        return output
 
 
 class AdapterModelPTMixin(AdapterModuleMixin):
@@ -475,7 +508,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 del self._restoring_adapters
 
                 # Log the setup adapter name
-                module_name, adapter_name = self._resolve_adapter_module_name(adapter_name)
+                module_name, adapter_name = self.resolve_adapter_module_name_(adapter_name)
 
                 if module_name != '':
                     full_adapter_name = f'{module_name}:{adapter_name}'
@@ -505,7 +538,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             cfg = DictConfig(cfg)
 
         # Resolve the module name and adapter name (if provided for the first time)
-        module_name, adapter_name = self._resolve_adapter_module_name(name)
+        module_name, adapter_name = self.resolve_adapter_module_name_(name)
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(cfg), open_dict(self.cfg):
@@ -593,7 +626,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
 
             else:
                 # Resolve the module name and adapter name
-                module_name, adapter_name = self._resolve_adapter_module_name(name)
+                module_name, adapter_name = self.resolve_adapter_module_name_(name)
 
                 # Cannot set the state of the global config for adapters
                 if adapter_name == self.adapter_global_cfg_key:
@@ -669,7 +702,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         for adapter_name in name:
             if adapter_name != self.adapter_global_cfg_key:
                 # Resolve the adapter name into its components
-                module_name, adapter_name = self._resolve_adapter_module_name(adapter_name)
+                module_name, adapter_name = self.resolve_adapter_module_name_(adapter_name)
 
                 # Reconstruct a module adapter's original name. For global adapters, the '' is preserved.
                 if module_name == '':
@@ -741,7 +774,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         # For all module:adapter names (note, for global modules, we ignore the module: part)
         for module_adapter_name in name:
             # Resolve the adapter name and extract the adapter's config from the checkpoint.
-            module_name, adapter_name = self._resolve_adapter_module_name(module_adapter_name)
+            module_name, adapter_name = self.resolve_adapter_module_name_(module_adapter_name)
             adapter_cfg = config[adapter_name]
 
             # Skip the global config key

@@ -92,7 +92,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         super().add_adapter(name, cfg)
 
         # Resolve module name and adapter name
-        module_name, adapter_name = self._resolve_adapter_module_name(name)
+        module_name, adapter_name = self.resolve_adapter_module_name_(name)
 
         # Try to retrieve global adapter config
         global_config = self._get_global_cfg()
@@ -111,7 +111,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
         # Resolve module name and adapter name
         if name is not None:
-            module_name, _ = self._resolve_adapter_module_name(name)
+            module_name, _ = self.resolve_adapter_module_name_(name)
         else:
             module_name = None
 
@@ -173,10 +173,10 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         elif decoder_adapter and not isinstance(self.decoder, AdapterModuleMixin):
             raise ValueError("Decoder does not support adapters !")
 
-    def _resolve_adapter_module_name(self, name: str) -> (str, str):
+    def resolve_adapter_module_name_(self, name: str) -> (str, str):
         # resolve name and module
         valid_module_names = ['', 'encoder', 'decoder']
-        module_name, adapter_name = super()._resolve_adapter_module_name(name)
+        module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
         if module_name not in valid_module_names:
             raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
@@ -634,7 +634,7 @@ class TestAdapterModelMixin:
         model.set_enabled_adapters(name=name1, enabled=False)
         new_output = model(x)
 
-        resolved_name2 = model._resolve_adapter_module_name(name2)[-1]
+        resolved_name2 = model.resolve_adapter_module_name_(name2)[-1]
         assert model.get_enabled_adapters() == [resolved_name2]
         assert torch.mean(torch.abs(original_output - new_output)) < 1e-5
 
