@@ -39,6 +39,12 @@ __all__ = ["MegatronBaseModel"]
 class MegatronBaseModel(NLPModel):
     """
     Megatron base class
+    It will 
+    1. Initialize the model parallel for nemo given the model parallel parameters.
+    2. turn on all the nvidia optimizations.
+    3. If `cfg.tokenizer` is available, it will load the tokenizer and pad the vocab to correct size for tensor parallel.
+    4. It help to do `configure_gradient_clipping`, if `use_optimizer_parameters` or `megatron_amp_o2` is true, it will
+       use the parameters from optimizer to clip grad. Else it will use the parameters from `setup_optimizer_param_groups` method.
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=False):
