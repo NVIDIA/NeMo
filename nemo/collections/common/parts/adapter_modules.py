@@ -23,7 +23,40 @@ from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import adapter_mixin_strategies
 
 
-class LinearAdapter(nn.Module):
+class AbstractAdapterModule(nn.Module):
+    """
+    Base class of Adapter Modules, providing common functionality to all Adapter Modules.
+    """
+
+    def setup_adapter_strategy(self, adapter_strategy: Optional[adapter_mixin_strategies.AbstractAdapterStrategy]):
+        """
+        Setup adapter strategy of this class, enabling dynamic change in the way the adapter output is
+        merged with the input.
+
+        When called successfully, will assign the variable `adapter_strategy` to the module.
+
+        Args:
+            adapter_strategy: Can be a None or an implementation of AbstractAdapterStrategy.
+        """
+        # set default adapter strategy
+        if adapter_strategy is None:
+            adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
+
+        if is_dataclass(adapter_strategy):
+            adapter_strategy = OmegaConf.structured(adapter_strategy)
+            OmegaConf.set_struct(adapter_strategy, False)
+
+        # The config must have the `_target_` field pointing to the actual adapter strategy class
+        # which will load that strategy dynamically to this module.
+        if isinstance(adapter_strategy, dict) or OmegaConf.is_config(adapter_strategy):
+            self.adapter_strategy = instantiate(adapter_strategy)
+        elif isinstance(adapter_strategy, adapter_mixin_strategies.AbstractAdapterStrategy):
+            self.adapter_strategy = adapter_strategy
+        else:
+            raise AttributeError(f'`adapter_strategy` provided is invalid : {adapter_strategy}')
+
+
+class LinearAdapter(AbstractAdapterModule):
     """
     Simple Linear Feedforward Adapter module with LayerNorm and singe hidden layer with activation function.
     Note: The adapter explicitly initializes its final layer with all zeros in order to avoid affecting the
@@ -77,22 +110,8 @@ class LinearAdapter(nn.Module):
         else:
             self.dropout = None
 
-        # set default adapter strategy
-        if adapter_strategy is None:
-            adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategyConfig()
-
-        if is_dataclass(adapter_strategy):
-            adapter_strategy = OmegaConf.structured(adapter_strategy)
-            OmegaConf.set_struct(adapter_strategy, False)
-
-        # The config must have the `_target_` field pointing to the actual adapter strategy class
-        # which will load that strategy dynamically to this module.
-        if isinstance(adapter_strategy, dict) or OmegaConf.is_config(adapter_strategy):
-            self.adapter_strategy = instantiate(adapter_strategy)
-        elif isinstance(adapter_strategy, adapter_mixin_strategies.AbstractAdapterStrategy):
-            self.adapter_strategy = adapter_strategy
-        else:
-            raise AttributeError(f'`adapter_strategy` provided is invalid : {adapter_strategy}')
+        # Setup adapter strategy
+        self.setup_adapter_strategy(adapter_strategy)
 
         # reset parameters
         self.reset_parameters()
