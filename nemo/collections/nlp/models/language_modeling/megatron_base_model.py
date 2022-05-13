@@ -14,6 +14,7 @@
 
 
 import os
+from attr import has
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -74,11 +75,12 @@ class MegatronBaseModel(NLPModel):
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
-        # build tokenizer (defaults to nemo supported tokenizers)
-        self._build_tokenizer()
+        if hasattr(self._cfg, "tokenizer"):
+            # build tokenizer (defaults to nemo supported tokenizers)
+            self._build_tokenizer()
 
-        # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
-        self._build_vocab()
+            # manipulate vocabulary (e.g., pad vocabulary for better efficiency)
+            self._build_vocab()
 
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
