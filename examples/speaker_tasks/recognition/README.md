@@ -97,9 +97,9 @@ find <path/to/voxceleb2/dev/folder/> -iname '*.wav' > voxceleb2_dev.txt
 cat voxceleb1_dev.txt voxceleb2_dev.txt > voxceleb12.txt
 ``` 
 
-This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller chunks for robust training (for testing, we don't need this). 
+This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller segments for robust training (for testing, we don't need this). 
 
 ```bash
-python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb12.txt --id -3 --out voxceleb12_manifest.json --split --create_chunks
+python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb12.txt --id -3 --out voxceleb12_manifest.json --split --create_segments
 ```
 This creates `train.json, dev.json` in the current working directory.
