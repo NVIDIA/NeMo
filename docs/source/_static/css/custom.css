@@ -219,6 +219,34 @@ thead td
 /* ---------------------------------------------- Media Queries --------------------------------------- */
 @media (min-width: 1200px) {
 	.container-xl {
-		max-width: 75%;
+		max-width: 100%;
+	}
+
+	#site-navigation {
+		font-size: 18px;
+		width: 350px;
+	}
+
+	body {
+		font-size: 18px;
+	}
+
+	.toc-h2 {
+		font-size: 18px;
+	}
+	
+	.toc-h3 {
+		font-size: 1rem;
+	}
+
+	.header-article .bd-toc {
+		font-size: 18px;
+	}
+}
+
+@media (min-width: 1400px) {
+	#main-content > div {
+		margin-left: 10%;
+		margin-right: 10%;
 	}
 }
