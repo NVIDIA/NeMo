@@ -14,7 +14,6 @@
 
 
 import os
-from attr import has
 
 import torch
 from omegaconf.dictconfig import DictConfig
