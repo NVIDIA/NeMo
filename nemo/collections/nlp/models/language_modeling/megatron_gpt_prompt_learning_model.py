@@ -138,6 +138,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # make sure the gradient clipping in the basemodel
         # uses normal model parameters
         self.use_optimizer_parameters = True
+        # no support of amp o2
+        self.megatron_amp_o2 = False
 
     def load_task_templates(self, task_templates):
         """
