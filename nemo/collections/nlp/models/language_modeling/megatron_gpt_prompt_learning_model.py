@@ -39,6 +39,10 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
 
@@ -88,7 +92,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.tokenizer = self.model.tokenizer
         self.float_type = self.model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.model.cfg.hidden_size
-        self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
+
+        if parallel_state.is_pipeline_first_stage():
+            self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
+
+
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
 
@@ -250,6 +258,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                     params.requires_grad = False
 
         # Make sure word embeddings are frozen
+        #if parallel_state.is_pipeline_first_stage():
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
@@ -281,6 +290,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
+        #if parallel_state.is_pipeline_first_stage():
         if inference:
             input_embeds = self.embed_input_inference(input_ids, taskname_ids)
         else:
@@ -410,47 +420,165 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         input_embeds = torch.where(virtual_token_locations, virtual_token_embeds, discrete_token_embeds)
         return input_embeds
 
+    # def training_step(self, batch, batch_idx):
+    #     input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+    #     output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+    #     output_tensor, encoder_hidden_states = output
+    #     loss = self.model.loss_func(loss_mask, output_tensor)
+    #     self.log('train_loss', loss)
+
+    #     # Reduced loss for logging.
+    #     reduced_loss = average_losses_across_data_parallel_group([loss])
+
+    #     # Cache reduced loss while accumulating gradients
+    #     self._reduced_loss_buffer.append(reduced_loss[0])
+
+    #     if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
+    #         # Reduced loss for logging.
+    #         average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
+    #         self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
+    #         lr = self._optimizer.param_groups[0]['lr']
+    #         self.log('lr', lr)
+    #         self.log('global_step', self.trainer.global_step, prog_bar=True)
+    #         self._reduced_loss_buffer = []
+
+    #     return loss
+
+    def on_pretrain_routine_start(self) -> None:
+        # keep a copy of init_global_step
+        self.init_global_step = self.trainer.global_step
+        return super().on_pretrain_routine_start()
+
+    def step(self, batch, batch_idx):
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        # Get seq length of batch
+        _, seq_length = batch[0].shape
+        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+
+            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=False,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+
+        print("LOSSES REDUCED PER MICOR BATCH")
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = torch.tensor(0.0).cuda()
+        print("MEAN LOSS RETURNED")
+        return loss_mean
+
     def training_step(self, batch, batch_idx):
-        input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-        output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
-        output_tensor, encoder_hidden_states = output
-        loss = self.model.loss_func(loss_mask, output_tensor)
-        self.log('train_loss', loss)
+        """
+            Our dataloaders produce a micro-batch and then we fetch
+            a number of microbatches depending on the global batch size and model parallel size
+            from the dataloader to produce a list of microbatches.
+            Batch should be a list of microbatches and those microbatches should on CPU.
+            Microbatches are then moved to GPU during the pipeline.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
 
-        # Reduced loss for logging.
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        # we zero grads here because we also call backward in the apex fwd/bwd functions
+        self._optimizer.zero_grad()
+        loss_mean = self.step(batch, batch_idx)
 
-        # Cache reduced loss while accumulating gradients
-        self._reduced_loss_buffer.append(reduced_loss[0])
+        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
+        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
+        if self.megatron_amp_o2:
+            # main grads are stored in the MainParamsOptimizer wrapper
+            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
+        else:
+            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self._reduced_loss_buffer = []
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        return loss
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
+
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+
+        # TODO: make sure compute_consumed_samples works for pipeline parallelism
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            prog_bar=True,
+            rank_zero_only=True,
+        )
+
+        return loss_mean
+
+    # def validation_step(self, batch, batch_idx):
+    #     input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+
+    #     with torch.no_grad():
+    #         output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+    #         output_tensor, encoder_hidden_states = output
+    #         loss = self.model.loss_func(loss_mask, output_tensor)
+    #         self.log('val_loss', loss)
+
+    #         return loss
 
     def validation_step(self, batch, batch_idx):
-        input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+        loss_mean = self.step(batch, batch_idx)
+        if loss_mean.value == 0.0:
+            loss_mean = []
 
-        with torch.no_grad():
-            output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
-            output_tensor, encoder_hidden_states = output
-            loss = self.model.loss_func(loss_mask, output_tensor)
-            self.log('val_loss', loss)
-
-            return loss
+        return loss_mean
 
     def validation_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
+        if not outputs:
+            return
+        if parallel_state.is_pipeline_last_stage():
+            # only the last pipeline parallel stages return loss
+            averaged_loss = torch.stack(outputs).mean()
+        else:
+            averaged_loss = torch.tensor(0.0).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
+
         self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            rank_zero_only=True,
+        )
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
@@ -458,6 +586,31 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
+
+    def allreduce_gradients(self):
+        """Reduce gradients across data parallel ranks.
+           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        """
+        # Bucketize and all-reduce
+        buckets = {}
+        for param in self.parameters():
+            if param.requires_grad and param.grad is not None:
+                tp = param.data.type()
+                if tp not in buckets:
+                    buckets[tp] = []
+                buckets[tp].append(param)
+                # param.main_grad = param.grad
+
+        # For each bucket, all-reduce and copy all-reduced grads.
+        for tp in buckets:
+            bucket = buckets[tp]
+            grads = [param.grad.data for param in bucket]
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            coalesced /= parallel_state.get_data_parallel_world_size()
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
+
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
@@ -645,6 +798,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         used by internal code to bypass the input provided by the
         forward_step_func"""
         self.input_tensor = input_tensor
+
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+
+            print("FORWARD DONE, OUTPUT TENSOR GIVEN")
+
+            def loss_func(output_tensor):
+                print("LOSS FUNC CALLED")
+                loss = self.model.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                print("LOSS CALCULATED")
+                return loss, {'avg': reduced_loss}
+
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
 
     def get_forward_output_only_func(self):
         """
