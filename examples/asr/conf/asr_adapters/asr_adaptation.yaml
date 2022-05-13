@@ -83,12 +83,13 @@ model:
     global_cfg:
       encoder_adapter: True  # ASR adapter key, determines whether to add encoder adapter modules
 
+  # Overrides the model's internal spec augment configuration
   spec_augment:
     _target_: nemo.collections.asr.modules.SpectrogramAugmentation
-    # freq_masks will be merged with model config
-    # time_masks will be merged with model config
-    # freq_width will be merged with model config
-    # time_width will be merged with model config
+    freq_masks: 0
+    time_masks: 0
+    freq_width: 27
+    time_width: 0.05
 
   train_ds:
     # train dataset + dataloader config
@@ -130,19 +131,20 @@ model:
 
   optim:
     # optimizer arguments
-    # name will be merged with model config
-    # betas will be merged with model config
-    lr: 0.01  # LR depends on the scheduler used by the base model. Noam prefers 0.5, Cosine Annealing prefers 0.02
+    name: adamw
+    betas: [0.9, 0.98]
+    lr: 0.001  # LR depends on the scheduler used by the base model. Noam prefers 0.5, Cosine Annealing prefers 0.02
     weight_decay: 0  # During adaptation, since training run is short, WD is not required. Can be set if needed.
 
     # scheduler setup
     sched:
-      # name will be merged with model config
-      # d_model will be merged with model config
+      name: CosineAnnealing
+
       # scheduler config override
-      # min_lr will be merged with model config
-      warmup_steps: 1000  # Warmup steps should be set, and smaller than the trainer.max_steps set below.
+      warmup_steps: 100  # Warmup steps should be set, and smaller than the trainer.max_steps set below.
       warmup_ratio: null
+      min_lr: 1e-5
+      last_epoch: -1
 
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs

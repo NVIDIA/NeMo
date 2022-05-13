@@ -142,14 +142,10 @@ def main(cfg):
     model.setup_multiple_validation_data(cfg.model.validation_ds)
 
     # Setup optimizer
-    cfg.model.optim = update_model_cfg(model.cfg.optim, cfg.model.optim)
-    model.cfg.optim = cfg.model.optim  # Update the model's config
     model.setup_optimization(cfg.model.optim)
 
     # Setup spec augmentation
     if 'spec_augment' in cfg.model:
-        cfg.model.spec_augment = update_model_cfg(model.cfg.spec_augment, cfg.model.spec_augment)
-        model.cfg.spec_augment = cfg.model.spec_augment  # Update model's config
         model.spec_augmentation = model.from_config_dict(cfg.model.spec_augment)
 
     # Setup adapters
@@ -186,9 +182,10 @@ def main(cfg):
     # Save the adapter state dict
     if adapter_state_dict_name is not None:
         state_path = exp_log_dir
-        if os.path.exists(state_path / "checkpoints"):
-            state_path = state_path / "checkpoints"
-        state_path = state_path / adapter_state_dict_name
+        ckpt_path = os.path.join(state_path, "checkpoints")
+        if os.path.exists(ckpt_path):
+            state_path = ckpt_path
+        state_path = os.path.join(state_path, adapter_state_dict_name)
 
         # Save the adapter modules in a seperate file
         model.save_adapters(str(state_path))
