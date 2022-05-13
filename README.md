@@ -2687,9 +2687,6 @@ Any other parameter can also be added to the command to modify its behavior.
 
 ## 5. Deploying the BigNLP Model
 
-Note: A new inference container will be released in mid May. For customers looking to 
-do inference please use the 22.03 container. 
-
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
 Inference Server with FasterTransformer Backend on both single and multiple
 node environments.    NVIDIA Triton Inference Server supports many inference
@@ -2788,8 +2785,8 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.03-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.03-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
 The `cluster` section configures Slurm cluster parameters. The `srun_args`
@@ -2815,8 +2812,8 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.03-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.03-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
 The `cluster` section set Base Command Platform parameters:
@@ -3319,11 +3316,25 @@ Parameters:
 * `output-len`: Token sequence output length.
 * `query`: Text sent to model as a query.
 
+The additional inference parameters can be used to improve results of inference computation:
+* `beam-width`: `uint32`, beam size for beam search, using sampling if set to 1.
+* `top-k`: `unit32`, candidate number for sampling.
+* `top-p`: `float`, candidate threshould for sampling.
+* `temperature`: `float`, temperature for logit.
+* `repetition-penalty`: `float`, repetition penalty for logit.
+
+See all model
+[parameters](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/docs/gpt_guide.md#how-to-set-the-model-configuration)
+in FasterTransformer repository.
 
 The script will print out FasterTransformer output:
 ```sh
 python3    bignlp/infer_scripts/chatbot.py --url triton-node:8001 --protocol grpc \
         --datasets-dir /bignlp_workdir/data/ \
+        --temperature 1.0 \
+        --top-k 1 \
+        --top-p 0.9 \
+        --repetition-penalty 1.0 \
         --model-name 20B_mega_real --output-len 40 \
         --query "A car is"
  a vehicle that can be driven by one person.
@@ -3361,6 +3372,7 @@ Parameters:
 * `output-len`: Token sequence output length.
 * `query`: Text sent to model as a query.
 
+Additional inference parameters can also be used with this script.
 
 <details>
 
@@ -3432,6 +3444,8 @@ Parameters:
 * `output-len`: Token sequence output length.
 * `customer`: Text used to generate prompt for a customer role.
 * `support`: Text used to generate prompt for a support role.
+
+Additional inference parameters can also be used with this script.
 
 A model needs prompt to be able to generate text useful for chatbot application.
 You must tell a machine, that it is working in a support team in your company and
@@ -3579,13 +3593,13 @@ Triton parameters table
 | `max_seq_len`                                | 80                        | No                                        | The maximum output sequence length we can serve. Parameter is used for buffer allocation                                            |
 | `model_name`                                 | model_name    | No                                        | Name                                                                                                                                                                                                                     |
 | `pipeline_para_size`                 | 1                         | No                                        | Can be modified but number of nodes used to run a model must match. It must divide the number of layers             |
-| `repetition_penalty`                 | 1.1                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
+| `repetition_penalty`                 | 1.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
 | `size_per_head`                            | 128                     | Yes                                     | Decided during training                                                                                                                                                                                |
 | `start_id`                                     | 50256                 | Yes                                     | Derived from vocabulary used during training                                                                                                                                     |
 | `temperature`                                | 1.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
 | `tensor_para_size`                     | 4                         | Yes                                     | Decided during conversion to FasterTransformer checkpoint. It must be equal to number of used GPUs                        |
-| `top_k`                                            | 1.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `top_p`                                            | 0.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
+| `top_k`                                            | 1                       | No                                        | Adjust to improve inference results                                                                                                                                                        |
+| `top_p`                                            | 0.9                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
 | `vocab_size`                                 | 51200                 | Yes                                     | Derived from vocabulary used during training                                                                                                                                     |
 
 
@@ -3849,7 +3863,7 @@ Performance for different model sizes in online scenario
 | 89B                                         | 464                                        | 0.27                            | 1                    | 8                                                     | 1                                                            | 8                            | 4585                                         | 0.027                         | 1                    | 8                                                     | 1                                                            | 8                            |
 | 175B                                        | 923                                        | 0.14                            | 1                    | 8                                                     | 1                                                            | 8                            | 8873                                         | 0.014                         | 1                    | 8                                                     | 1                                                            | 8                            |
 | 310B                                        | 1354                                     | 0.09                            | 1                    | 8                                                     | 1                                                            | 8                            | 13391                                        | 0.005                         | 1                    | 8                                                     | 2                                                            | 16                         |
-| 530B                                        | 2118                                     | 0.03                            | 1                    | 8                                                     | 2                                                            | 16                         | 20936                                        | 0.003                         | 1                    | 8                                                     | 2                                                            | 16                         |
+| 530B                                        | 2035                                     | 0.03                            | 1                    | 8                                                     | 3                                                            | 24                         | 21034                                        | 0.002                         | 1                    | 8                                                     | 3                                                            | 24                         |
 
 </details>
 
@@ -3877,13 +3891,13 @@ Performance for different model sizes in offline scenario
 |                                                 | Len input 60 output 20 |                                     |                        |                                 |                                                                |                                | Len input 200 output 200 |                                     |                        |                                                         |                                                                |                                |
 | ----------------------- | ---------------------- | ----------------- | ---------- | --------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
 | Parameters number \[B\] | Latency\[ms\]                    | Infer/sec per GPU | Batch size | Tensor parallel | Pipeline parallel (nodes used) | Number of GPUs | Latency\[ms\]                        | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs |
-| 5B                                            | 1143                                     | 224.0                         | 256                | 1                             | 1                                                            | 1                            | 9047                                         | 28.297                        | 256                | 1                                                     | 1                                                            | 1                            |
-| 13B                                         | 2756                                     | 92.9                            | 256                | 1                             | 1                                                            | 1                            | 13390                                        | 9.559                         | 256                | 2                                                     | 1                                                            | 2                            |
-| 20B                                         | 4145                                     | 61.8                            | 256                | 1                             | 1                                                            | 1                            | 10453                                        | 6.123                         | 256                | 4                                                     | 1                                                            | 4                            |
-| 89B                                         | 2889                                     | 22.2                            | 256                | 4                             | 1                                                            | 4                            | 17815                                        | 1.796                         | 256                | 8                                                     | 1                                                            | 8                            |
-| 175B                                        | 2033                                     | 15.7                            | 256                | 8                             | 1                                                            | 8                            | 16181                                        | 0.494                         | 64                 | 8                                                     | 1                                                            | 8                            |
-| 310B                                        | 6768                                     | 2.4                             | 256                | 8                             | 2                                                            | 16                         | 13686                                        | 0.018                         | 2                    | 8                                                     | 1                                                            | 8                            |
-| 530B                                        | 8660                                     | 1.8                             | 256                | 8                             | 2                                                            | 16                         | 20936                                        | 0.003                         | 1                    | 8                                                     | 2                                                            | 16                         |
+| 5B                      | 1143                                     | 224.0                           | 256                | 1                             | 1                                                            | 1                            | 9047                                         | 28.297                        | 256                | 1                                                     | 1                                                            | 1                            |
+| 13B                     | 2756                                     | 92.9                            | 256                | 1                             | 1                                                            | 1                            | 13390                                        | 9.559                         | 256                | 2                                                     | 1                                                            | 2                            |
+| 20B                     | 4145                                     | 61.8                            | 256                | 1                             | 1                                                            | 1                            | 10453                                        | 6.123                         | 256                | 4                                                     | 1                                                            | 4                            |
+| 89B                     | 4686                                     | 22.2                            | 256                | 4                             | 1                                                            | 4                            | 17815                                        | 1.796                         | 256                | 8                                                     | 1                                                            | 8                            |
+| 175B                    | 5728                                     | 15.7                            | 256                | 8                             | 1                                                            | 8                            | 16181                                        | 0.494                         | 64                 | 8                                                     | 1                                                            | 8                            |
+| 310B                    | 6768                                     | 2.4                             | 256                | 8                             | 2                                                            | 16                           | 13686                                        | 0.018                         | 2                  | 8                                                     | 1                                                            | 8                            |
+| 530B                    | 10588                                    | 0.8                             | 256                | 8                             | 3                                                            | 24                           | 21034                                        | 0.002                         | 1                  | 8                                                     | 3                                                            | 24                         |
 
 </details>
 
@@ -4032,6 +4046,11 @@ The table and chart below show the performance results.
 
 ## 7. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+
+**NeMo Megatron 22.05**
+* GPT-3 with pipeline parallelism support (inference)
+* Hyperparameter tool
+* Hyperparameters for text generation: top-p, top-k, and temperature
 
 **NeMo Megatron 22.04**
 * T5 with pipeline parallelism support (training only)
