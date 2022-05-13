@@ -87,7 +87,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             model_type=ModelType.encoder_and_decoder,
         )[0]
 
-        self.setup_optimizer_param_groups()
+        # We don't need to call it explicitly? Since it is a pytorch lightning hook function
+        # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 

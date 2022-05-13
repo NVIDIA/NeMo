@@ -22,7 +22,6 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
-from nemo.collections.nlp.modules.common.megatron.utils import get_params_for_weight_decay_optimization
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
@@ -159,10 +158,6 @@ class MegatronBaseModel(NLPModel):
             f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
         )
         return after
-
-    def setup_optimizer_param_groups(self):
-        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def _get_parameters(self):
         """

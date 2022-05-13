@@ -28,7 +28,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
+)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     generate,
     get_computeprob_response,
@@ -82,7 +85,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
 
-        self.setup_optimizer_param_groups()
+        # We don't need to call it explicitly? Since it is a pytorch lightning hook function
+        # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -141,6 +145,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         )
 
         return model
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)

@@ -32,6 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
@@ -59,8 +60,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         # TODO does not support PP yet
         self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
-        self.setup_optimizer_param_groups()
-
+        # self.setup_optimizer_param_groups()
         if self.cfg.precision == 32:
             self.autocast_dtype = torch.float
         elif self.cfg.precision == 16:
@@ -356,6 +356,10 @@ class MegatronRetrievalModel(MegatronBaseModel):
             * self.trainer.accumulate_grad_batches
         )
         return int(consumed_samples)
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     def list_available_models(self):
         pass

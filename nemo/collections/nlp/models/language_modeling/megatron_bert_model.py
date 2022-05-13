@@ -27,7 +27,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron.bert_model import BertModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization,
+)
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import AppState, logging
@@ -88,7 +91,6 @@ class MegatronBertModel(MegatronBaseModel):
             add_binary_head=cfg.bert_binary_head,
             megatron_legacy=cfg.get('megatron_legacy', False),
         )
-        self.setup_optimizer_param_groups()
         # not using amp o2
         self.megatron_amp_o2 = False
 
@@ -382,6 +384,10 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             )
         return result
+
+    def setup_optimizer_param_groups(self):
+        """ModelPT override. Optimizer will get self._optimizer_param_groups"""
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
     # Required for ONNX export
     @property
