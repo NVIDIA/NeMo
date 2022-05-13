@@ -135,6 +135,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             self.autocast_dtype = torch.bfloat16
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
+        # make sure the gradient clipping in the basemodel
+        # uses normal model parameters
+        self.use_optimizer_parameters = True
 
     def load_task_templates(self, task_templates):
         """

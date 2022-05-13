@@ -74,6 +74,8 @@ class MegatronBaseModel(NLPModel):
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
+        self.use_optimizer_parameters = False  # when doing gradient, use the parameters from optimizer?
+
         if hasattr(self._cfg, "tokenizer"):
             # build tokenizer (defaults to nemo supported tokenizers)
             self._build_tokenizer()
@@ -177,7 +179,7 @@ class MegatronBaseModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if self.megatron_amp_o2:
+        if self.megatron_amp_o2 or self.use_optimizer_parameters:
             # grep fp32 master parameters for gradient clipping
             parameters = self._optimizer.get_parameters()
         else:
