@@ -14,7 +14,10 @@
 # limitations under the License.
 
 import torch
-from . import bias_gelu, bias_gelu_back
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import (
+    bias_gelu,
+    bias_gelu_back,
+)
 
 try:
     from apex._autocast_utils import _cast_if_autocast_enabled

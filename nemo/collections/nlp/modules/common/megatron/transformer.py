@@ -159,7 +159,7 @@ class ParallelMLP(MegatronModule):
                 bias=bias,
             )
 
-        glu_activation_family = activaiton in ['reglu', 'swiglu']
+        glu_activation_family = activation in ['reglu', 'swiglu']
 
         if glu_activation_family and bias_gelu_fusion:
             raise ValueError(
