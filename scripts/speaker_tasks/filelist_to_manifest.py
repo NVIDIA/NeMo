@@ -30,21 +30,21 @@ random.seed(42)
 This scipt converts a filelist file where each line contains  
 <absolute path of wav file> to a manifest json file. 
 Optionally post processes the manifest file to create dev and train split for speaker embedding 
-training, also optionally chunk an audio file in to segments of random DURATIONS and create those
+training, also optionally segment an audio file in to segments of random DURATIONS and create those
 wav files in CWD. 
 
-While creating chunks, if audio is not sampled at 16Khz, it resamples to 16Khz and write the wav file.
+While creating segments, if audio is not sampled at 16kHz, it resamples to 16kHz and write the wav file.
 Args: 
 --filelist: path to file containing list of audio files
---manifest(optional): if you already have manifest file, but would like to process it for creating chunks and splitting then use manifest ignoring filelist
+--manifest(optional): if you already have manifest file, but would like to process it for creating 
+    segments and splitting then use manifest ignoring filelist
 --id: index of speaker label in filename present in filelist file that is separated by '/'
 --out: output manifest file name
 --split: if you would want to split the  manifest file for training purposes
-        you may not need this for test set. output file names is <out>_<train/dev>.json
-        Defaults to False
---create_chunks:if you would want to chunk each manifest line to chunks of 4 sec or less
-        you may not need this for test set, Defaults to False
---min_spkrs_count: min number of samples per speaker to consider and ignore otherwise
+    you may not need this for test set. output file names is <out>_<train/dev>.json, defaults to False
+--create_segments: if you would want to segment each manifest line to segments of [1,2,3,4] sec or less
+    you may not need this for test set, defaults to False
+--min_spkrs_count: min number of samples per speaker to consider and ignore otherwise, defaults to 0 (all speakers)
 """
 
 DURATIONS = sorted([1, 2, 3, 4], reverse=True)
@@ -60,7 +60,7 @@ def filter_manifest_line(manifest_line):
     dur = manifest_line['duration']
     label = manifest_line['label']
     endname = os.path.splitext(audio_path.split(label, 1)[-1])[0]
-    to_path = os.path.join(CWD, 'chunks', label)
+    to_path = os.path.join(CWD, 'segments', label)
     to_path = os.path.join(to_path, endname[1:])
     os.makedirs(os.path.dirname(to_path), exist_ok=True)
 
@@ -87,8 +87,8 @@ def filter_manifest_line(manifest_line):
 
                 c_start = int(float(start * sr))
                 c_end = c_start + int(float(temp_dur * sr))
-                chunk = signal[c_start:c_end]
-                sf.write(to_file, chunk, sr)
+                segment = signal[c_start:c_end]
+                sf.write(to_file, segment, sr)
 
                 meta = manifest_line.copy()
                 meta['audio_filepath'] = to_file
@@ -172,7 +172,7 @@ def get_labels(lines):
     return labels
 
 
-def main(filelist, manifest, id, out, split=False, create_chunks=False, min_count=10):
+def main(filelist, manifest, id, out, split=False, create_segments=False, min_count=10):
     if os.path.exists(out):
         os.remove(out)
     if filelist:
@@ -185,8 +185,8 @@ def main(filelist, manifest, id, out, split=False, create_chunks=False, min_coun
 
     lines = process_map(get_duration, lines, chunksize=100)
 
-    if create_chunks:
-        print(f"creating and writing chunks to {CWD}")
+    if create_segments:
+        print(f"creating and writing segments to {CWD}")
         lines = process_map(filter_manifest_line, lines, chunksize=100)
         temp = []
         for line in lines:
@@ -197,7 +197,7 @@ def main(filelist, manifest, id, out, split=False, create_chunks=False, min_coun
     speakers = [x['label'] for x in lines]
 
     if min_count:
-        speakers, lines = count_and_consider_only(speakers, lines, min_count)
+        speakers, lines = count_and_consider_only(speakers, lines, abs(min_count))
 
     write_file(out, lines, range(len(lines)))
     path = os.path.dirname(out)
@@ -232,14 +232,14 @@ if __name__ == "__main__":
         action='store_true',
     )
     parser.add_argument(
-        "--create_chunks",
-        help="bool if you would want to chunk each manifest line to chunks of 4 sec or less",
+        "--create_segments",
+        help="bool if you would want to segment each manifest line to segments of 4 sec or less",
         required=False,
         action='store_true',
     )
     parser.add_argument(
         "--min_spkrs_count",
-        default=10,
+        default=0,
         type=int,
         help="min number of samples per speaker to consider and ignore otherwise",
     )
@@ -247,5 +247,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        args.filelist, args.manifest, args.id, args.out, args.split, args.create_chunks, args.min_spkrs_count,
+        args.filelist, args.manifest, args.id, args.out, args.split, args.create_segments, args.min_spkrs_count,
     )
