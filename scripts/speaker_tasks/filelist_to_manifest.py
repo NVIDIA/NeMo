@@ -33,7 +33,7 @@ Optionally post processes the manifest file to create dev and train split for sp
 training, also optionally segment an audio file in to segments of random DURATIONS and create those
 wav files in CWD. 
 
-While creating segments, if audio is not sampled at 16Khz, it resamples to 16Khz and write the wav file.
+While creating segments, if audio is not sampled at 16kHz, it resamples to 16kHz and write the wav file.
 Args: 
 --filelist: path to file containing list of audio files
 --manifest(optional): if you already have manifest file, but would like to process it for creating 
