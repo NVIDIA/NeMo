@@ -137,7 +137,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             raise ValueError('precision must be in [32, 16, "bf16"]')
         # make sure the gradient clipping in the basemodel
         # uses normal model parameters
-        self.use_model_parameters = True
+        self.grad_clip_use_all_parameters = True
         # no support of amp o2
         self.megatron_amp_o2 = False
 

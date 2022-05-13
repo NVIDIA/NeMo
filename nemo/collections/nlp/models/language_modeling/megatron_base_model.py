@@ -43,8 +43,8 @@ class MegatronBaseModel(NLPModel):
     1. Initialize the model parallel for nemo given the model parallel parameters.
     2. Turn on all the nvidia optimizations.
     3. If `cfg.tokenizer` is available, it loads the tokenizer and pad the vocab to the correct size for tensor model parallelism.
-    4. It help to run `configure_gradient_clipping`, if `use_model_parameters` is set True,  it uses the `self.model` parameters for 
-       grad clipping. Or if `megatron_amp_o2` is set True, it uses the parameters from optimizer to clip the gradients.
+    4. It help to run `configure_gradient_clipping`, if `grad_clip_use_all_parameters` is set True,  it uses all of the module parameters for 
+       gradient clipping. Or if `megatron_amp_o2` is set True, it uses the parameters from optimizer to clip the gradients.
        Otherwise, it uses the parameters calculated in the `setup_optimizer_param_groups` method.
     """
 
@@ -81,7 +81,9 @@ class MegatronBaseModel(NLPModel):
             apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
         )
 
-        self.use_model_parameters = False  # when doing gradient clipping, use the model parameters. Default False
+        self.grad_clip_use_all_parameters = (
+            False  # use all of the module parameters for gradient clipping. Default False
+        )
 
         if hasattr(self._cfg, "tokenizer"):
             # build tokenizer (defaults to nemo supported tokenizers)
@@ -166,7 +168,7 @@ class MegatronBaseModel(NLPModel):
 
     def _get_parameters(self):
         """
-        private method to load all the trainable parameters from model
+        private method to load all the trainable parameters from optimizer param groups
         """
         params = []
         for param_group in self._optimizer_param_groups:
@@ -186,13 +188,9 @@ class MegatronBaseModel(NLPModel):
         if clip_val <= 0:
             return
 
-        if self.use_model_parameters:
-            if hasattr(self, 'model') and self.model is not None:
-                # use the model parameter if the model is available
-                parameters = self.model.parameters()
-            else:
-                # no model defined, use the default behavior
-                return super().configure_gradient_clipping(*args, **kwargs)
+        if self.grad_clip_use_all_parameters:
+            # use the mododel parameter if the model is available
+            parameters = self.parameters()
         elif self.megatron_amp_o2:
             # grep fp32 master parameters for gradient clipping
             parameters = self._optimizer.get_parameters()
