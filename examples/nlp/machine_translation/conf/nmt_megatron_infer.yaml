@@ -1,0 +1,18 @@
+trainer:
+  devices: 1
+  num_nodes: 1
+  precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
+  accelerator: gpu
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+model_file: /raid/Data/NMT/Models/en_de_nmtset/megatron_de_en/megatron_nmt--val_sacreBLEU-39.439-step-89000-consumed_samples-182265856.0.nemo
+checkpoint_dir: null
+srctext: ???
+tgtout: ???
+batch_size: 128
+source_lang: null
+target_lang: null
+tensor_model_parallel_size: 1
+pipeline_model_parallel_size: 1
+pipeline_model_parallel_split_rank: 0
