@@ -155,7 +155,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
         return adapters_available
 
-    def _check_valid_model_with_adapter_support(self):
+    def check_valid_model_with_adapter_support_(self):
         global_cfg = DictConfig({})
         if self.adapter_global_cfg_key in self.adapter_cfg:
             global_cfg = self.adapter_cfg[self.adapter_global_cfg_key]

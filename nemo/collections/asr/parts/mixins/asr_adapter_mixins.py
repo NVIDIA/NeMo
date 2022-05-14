@@ -145,7 +145,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         return enabled_adapters
 
-    def _check_valid_model_with_adapter_support(self):
+    def check_valid_model_with_adapter_support_(self):
         """
         Utility method to test if the subclass of this mixin is an appropriate subclass of ModelPT itself.
         """

@@ -570,7 +570,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             # Set the global config of adapters
             self.update_adapter_cfg(self.cfg.adapters)
 
-            self._check_valid_model_with_adapter_support()
+            self.check_valid_model_with_adapter_support_()
 
     def is_adapter_available(self) -> bool:
         """
@@ -582,7 +582,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
             bool, determining if any Adapter module has been instantiated. Returns true even if the adapters are
             enabled or disabled, false only if no adapters exist.
         """
-        self._check_valid_model_with_adapter_support()
+        self.check_valid_model_with_adapter_support_()
 
         if 'adapters' in self.cfg:
             self.update_adapter_cfg(self.cfg.adapters)
@@ -610,7 +610,7 @@ class AdapterModelPTMixin(AdapterModuleMixin):
                 If no name is given, then all adapters will be enabled/disabled.
             enabled: Bool, determines if the adapter(s) will be enabled/disabled.
         """
-        self._check_valid_model_with_adapter_support()
+        self.check_valid_model_with_adapter_support_()
 
         # Update the adapter config with information about whether it is enabled/disabled.
         with open_dict(self.cfg.adapters):
@@ -650,13 +650,13 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         Returns:
             A list of str names of each enabled adapter(s).
         """
-        self._check_valid_model_with_adapter_support()
+        self.check_valid_model_with_adapter_support_()
 
         if 'adapters' in self.cfg:
             self.update_adapter_cfg(self.cfg.adapters)
         return []
 
-    def _check_valid_model_with_adapter_support(self):
+    def check_valid_model_with_adapter_support_(self):
         """
         Utility method to test if the subclass of this mixin is an appropriate subclass of ModelPT itself.
 
