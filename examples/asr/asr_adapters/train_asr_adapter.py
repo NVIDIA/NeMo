@@ -181,7 +181,7 @@ def main(cfg):
 
     # Save the adapter state dict
     if adapter_state_dict_name is not None:
-        state_path = exp_log_dir
+        state_path = exp_log_dir if exp_log_dir is not None else os.getcwd()
         ckpt_path = os.path.join(state_path, "checkpoints")
         if os.path.exists(ckpt_path):
             state_path = ckpt_path
