@@ -214,7 +214,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             tokens_enc,
             enc_mask,
             tokens_enc.size(1)
-            + self._cfg.max_generation_delta,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
+            + 20,  # Generate up to src-length + max generation delta. TODO: Implement better stopping when everything hits <EOS>.
             tokenizer=self.decoder_tokenizer,
         )
         if self.multilingual:
