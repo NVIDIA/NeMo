@@ -819,6 +819,25 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, encoder_input=None, tokenizer=None):
+        # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
+        if parallel_state.is_unitialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+            # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
+            _reconfigure_microbatch_calculator(
+                rank=0, # This doesn't matter since it is only used for logging
+                rampup_batch_size=None,
+                global_batch_size=1,
+                micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+                data_parallel_size=1, # We check above to make sure that dataparallel size is always 1 at inference.
+            )
+
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         app_state = AppState()
