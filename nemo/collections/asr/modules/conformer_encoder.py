@@ -221,7 +221,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                     subsampling_factor=subsampling_factor,
                     feat_in=feat_in,
                     feat_out=d_model,
-                    norm=True if 'norm' in subsampling else False,
+                    norm=True if subsampling == 'stacking_norm' else False,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -462,7 +462,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         cache_drop_size=None,
         pre_encode_cache_size=None,
         valid_out_len=None,
-        drop_extra_pre_encoded=False,
+        drop_extra_pre_encoded=None,
     ):
         MAX_LOOK_AHEAD = 10000
         streaming_cfg = FramewiseStreamingConfig()
@@ -537,7 +537,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             streaming_cfg.valid_out_len = valid_out_len
 
-        streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
         if pre_encode_cache_size is None:
             if hasattr(self.pre_encode, "get_streaming_cache_size"):
                 streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
@@ -546,6 +545,13 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             streaming_cfg.pre_encode_cache_size = pre_encode_cache_size
 
+        if drop_extra_pre_encoded is not None:
+            streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
+        else:
+            if streaming_cfg.pre_encode_cache_size == 0:
+                streaming_cfg.drop_extra_pre_encoded = False
+            else:
+                streaming_cfg.drop_extra_pre_encoded = True
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
 

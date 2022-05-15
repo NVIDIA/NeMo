@@ -117,7 +117,7 @@ def nemo_export(argv):
     typecheck.set_typecheck_enabled(enabled=False)
 
     # if hasattr(model.encoder, "setup_streaming_params"):
-    model.encoder.setup_streaming_params(drop_extra_pre_encoded=True)
+    #model.encoder.setup_streaming_params(drop_extra_pre_encoded=False)
     model.encoder.export_cache_support = True
 
     try:
