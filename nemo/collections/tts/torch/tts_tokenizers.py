@@ -361,11 +361,15 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
 class IPAPhonemesTokenizer(BaseTokenizer):
     # fmt: off
 
-    _punctuation = ';:,.!?¡¿—…"«»“”#()-~[]|/'
-    _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-    _letters_ipa = "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻàãäåèéíîôõúûüăēĕĝğĩĭŏŝšũŭžǐǝǧʻˀ˥˦˧˨˩̝̞̠̥̪̃̆̊̍̚εابرسشصفلمهوᵐᵑᵝṣẽ​‍‎’⁠ⁿっゎッヮヶ�"
+    # _punctuation = ';:,.!?¡¿—…"«»“”#()-~[]|/'
+    # _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    # _letters_ipa = "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻàãäåèéíîôõúûüăēĕĝğĩĭŏŝšũŭžǐǝǧʻˀ˥˦˧˨˩̝̞̠̥̪̃̆̊̍̚εابرسشصفلمهوᵐᵑᵝṣẽ​‍‎’⁠ⁿっゎッヮヶ�"
     PAD = '_'
     # fmt: on
+
+    _punctuation = ';:,.!?¡¿—…"«»“” '
+    _letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    _letters_ipa = "ɑɐɒæɓʙβɔɕçɗɖðʤəɘɚɛɜɝɞɟʄɡɠɢʛɦɧħɥʜɨɪʝɭɬɫɮʟɱɯɰŋɳɲɴøɵɸθœɶʘɹɺɾɻʀʁɽʂʃʈʧʉʊʋⱱʌɣɤʍχʎʏʑʐʒʔʡʕʢǀǁǂǃˈˌːˑʼʴʰʱʲʷˠˤ˞↓↑→↗↘'̩'ᵻ"
 
     PUNCT_LIST = [p for p in _punctuation]
 
