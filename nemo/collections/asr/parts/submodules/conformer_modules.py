@@ -21,11 +21,14 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
+from nemo.utils import logging
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 
-class ConformerLayer(torch.nn.Module):
+class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
 
     Args:
@@ -98,29 +101,34 @@ class ConformerLayer(torch.nn.Module):
         residual = x
         x = self.norm_feed_forward1(x)
         x = self.feed_forward1(x)
-        x = self.fc_factor * self.dropout(x) + residual
+        residual = residual + self.dropout(x) * self.fc_factor
 
-        residual = x
-        x = self.norm_self_att(x)
+        x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
             x = None
-        x = self.dropout(x) + residual
+        residual = residual + self.dropout(x)
 
-        residual = x
-        x = self.norm_conv(x)
+        x = self.norm_conv(residual)
         x = self.conv(x, pad_mask)
-        x = self.dropout(x) + residual
+        residual = residual + self.dropout(x)
 
-        residual = x
-        x = self.norm_feed_forward2(x)
+        x = self.norm_feed_forward2(residual)
         x = self.feed_forward2(x)
-        x = self.fc_factor * self.dropout(x) + residual
+        residual = residual + self.dropout(x) * self.fc_factor
 
-        x = self.norm_out(x)
+        x = self.norm_out(residual)
+
+        if self.is_adapter_available():
+            # Call the adapters
+            x = self.forward_enabled_adapters(x)
+
+        if self.is_access_enabled():
+            self.register_accessible_tensor(tensor=x)
+
         return x
 
 
@@ -166,7 +174,7 @@ class ConformerConvolution(nn.Module):
         x = nn.functional.glu(x, dim=1)
 
         if pad_mask is not None:
-            x.masked_fill_(pad_mask.unsqueeze(1), 0.0)
+            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
 
         x = self.depthwise_conv(x)
 

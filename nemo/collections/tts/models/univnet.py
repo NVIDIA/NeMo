@@ -21,7 +21,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning.loggers.wandb import WandbLogger
 
-from nemo.collections.tts.data.datalayers import MelAudioDataset
 from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
@@ -77,11 +76,7 @@ class UnivNetModel(Vocoder, Exportable):
 
         self.input_as_mel = False
         if self._train_dl:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if isinstance(self._train_dl.dataset, MelAudioDataset):
-                self.input_as_mel = True
-            elif isinstance(self._train_dl.dataset, VocoderDataset):
-                self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
+            self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
 
         self.automatic_optimization = False
 
@@ -310,7 +305,7 @@ class UnivNetModel(Vocoder, Exportable):
 
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_libritts_univnet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_univnet/versions/1.7.0/files/tts_en_libritts_univnet.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_libritts_univnet/versions/1.7.0/files/tts_en_libritts_multispeaker_univnet.nemo",
             description="This model is trained on all LibriTTS training data (train-clean-100, train-clean-360, and train-other-500) sampled at 22050Hz, and has been tested on generating English voices.",
             class_=cls,
         )

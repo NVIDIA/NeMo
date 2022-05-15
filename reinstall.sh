@@ -19,25 +19,28 @@ ${PIP} uninstall -y nemo_cv
 
 ${PIP} install -U setuptools==59.5.0
 
-echo 'Installing nemo and nemo_text_processing'
+if [ ! -z "${NVIDIA_PYTORCH_VERSION}" ]
+
+then
+  echo 'Installing NeMo in NVIDIA PyTorch container:' ${NVIDIA_PYTORCH_VERSION} 'so will not install numba'
+else
+  if [ -x "$(command -v conda)" ]
+  then
+    NUMBA_VERSION=0.55
+    echo 'Installing numba=='${NUMBA_VERSION}
+    conda install -y -c conda-forge numba==${NUMBA_VERSION}
+  fi
+fi
+
+echo 'Installing nemo'
 if [[ "$INSTALL_OPTION" == "dev" ]]; then
     ${PIP} install --editable ".[all]"
 else
     rm -rf dist/
-    python setup.py bdist_wheel
+    ${PIP} install build
+    python -m build --no-isolation --wheel
     DIST_FILE=$(find ./dist -name "*.whl" | head -n 1)
     ${PIP} install "${DIST_FILE}[all]"
-fi
-
-echo 'Installing additional nemo_text_processing conda dependency'
-bash nemo_text_processing/setup.sh > /dev/null 2>&1 && echo "nemo_text_processing installed!" || echo "nemo_text_processing could not be installed!"
-
-if [ -x "$(command -v conda)" ]; then
-
-  echo 'Installing numba=0.55.0'
-  conda install -y -c conda-forge numba==0.55
-  # echo 'Attempting update to numba installation via conda'
-  # conda update -c conda-forge numba -y >  /dev/null 2>&1 && echo "Numba updated!" || echo "Numba could not be updated!"
 fi
 
 echo 'All done!'

@@ -44,12 +44,12 @@ We provide generic scripts for manifest file creation, embedding extraction, Vox
 We explain here the process for voxceleb EER calculation on voxceleb-O cleaned [trail file](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta/veri_test2.txt)
 
 ### Manifest Creation
-We first generate manifest file to get embeddings, The embeddings are then used by `voxceleb_eval.py` script to get EER  
+We first generate manifest file to get embeddings. The embeddings are then used by `voxceleb_eval.py` script to get EER  
 
 ```bash
 # create list of files from voxceleb1 test folder (40 speaker test set)
-find <path/to/voxceleb1_test/directory/> -iname '*.wav' > voxceleb1_test_files.scp
-python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb1_test_files.scp --id -3 --out voxceleb1_test_manifest.json 
+find <path/to/voxceleb1_test/directory/> -iname '*.wav' > voxceleb1_test_files.txt
+python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb1_test_files.txt --id -3 --out voxceleb1_test_manifest.json 
 ```
 ### Embedding Extraction 
 Now using the manifest file created, we can extract embeddings to `data` folder using:
@@ -70,12 +70,13 @@ python voxceleb_eval.py --trial_file='/path/to/trail/file' --emb='./embeddings/v
 The above command gives the performance of models on voxceleb-o cleaned trial file. 
 
 ### SpeakerID inference
+Using data from an enrollment set, one can infer labels on a test set using various backends such as cosine-similarity or a neural classifier.
 
-To infer speaker labels on a model trained with known speaker labels (or fine tuned using pretrained model)
+To infer speaker labels using cosine_similarity backend
 ```bash 
-python speaker_reco_infer.py --spkr_model='/path/to/.nemo/file' --train_manifest='/path/to/train/manifest/file'
---test_manifest='/path/to/test/manifest/file'
+python speaker_identification_infer.py data.enrollment_manifest=<path/to/enrollment_manifest> data.test_manifest=<path/to/test_manifest> backend.backend_model=cosine_similarity
 ``` 
+refer to conf/speaker_identification_infer.yaml for more options.
 
 ## Voxceleb Data Preparation
 
@@ -91,14 +92,14 @@ ffmpeg -v 8 -i </path/to/m4a/file> -f wav -acodec pcm_s16le <path/to/wav/file>
 
 Generate a list file that contains paths to all the dev audio files from voxceleb1 and voxceleb2 using find command as shown below:
 ```bash 
-find <path/to/voxceleb1/dev/folder/> -iname '*.wav' > voxceleb1_dev.scp
-find <path/to/voxceleb2/dev/folder/> -iname '*.wav' > voxceleb2_dev.scp
-cat voxceleb1_dev.scp voxceleb2_dev.scp > voxceleb12.scp
+find <path/to/voxceleb1/dev/folder/> -iname '*.wav' > voxceleb1_dev.txt
+find <path/to/voxceleb2/dev/folder/> -iname '*.wav' > voxceleb2_dev.txt
+cat voxceleb1_dev.txt voxceleb2_dev.txt > voxceleb12.txt
 ``` 
 
-This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller chunks for robust training (for testing, we don't need this). 
+This list file is now used to generate training and validation manifest files using a script provided in `<NeMo_root>/scripts/speaker_tasks/`. This script has optional arguments to split the whole manifest file in to train and dev and also chunk audio files to smaller segments for robust training (for testing, we don't need this). 
 
 ```bash
-python <NeMo_root>/scripts/speaker_tasks/scp_to_manifest.py --scp voxceleb12.scp --id -3 --out voxceleb12_manifest.json --split --create_chunks
+python <NeMo_root>/scripts/speaker_tasks/filelist_to_manifest.py --filelist voxceleb12.txt --id -3 --out voxceleb12_manifest.json --split --create_segments
 ```
 This creates `train.json, dev.json` in the current working directory.

@@ -82,6 +82,18 @@ To run a tutorial:
    * - ASR
      - Streaming inference for ASR
      - `Streaming inference <https://github.com/NVIDIA/NeMo/blob/stable/tutorials/asr/Streaming_ASR.ipynb>`_
+   * - ASR
+     - Buffered Transducer inference for ASR
+     - `Buffered Transducer inference <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Buffered_Transducer_Inference.ipynb>`_
+   * - ASR
+     - Buffered Transducer inference with LCS Merge Algorithm
+     - `Buffered Transducer inference with LCS Merge <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Buffered_Transducer_Inference_with_LCS_Merge.ipynb>`_
+   * - ASR
+     - Offline ASR with VAD for CTC models
+     - `Offline ASR with VAD for CTC models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Offline_ASR_with_VAD_for_CTC_models.ipynb>`_
+   * - ASR
+     - Self-supervised pre-training for ASR
+     - `Self-supervised Pre-training for ASR <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Self_Supervised_Pre_Training.ipynb>`_
    * - NLP
      - Using Pretrained Language Models for Downstream Tasks
      - `Pretrained Language Models for Downstream Tasks <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/nlp/01_Pretrained_Language_Models_for_Downstream_Tasks.ipynb>`_
@@ -134,11 +146,11 @@ To run a tutorial:
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Text Processing
-     - Text Normalization for TTS
-     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_Normalization.ipynb>`_
+     - Text Normalization and Inverse Normalization for ASR and TTS
+     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_
    * - Text Processing
-     - Inverse Text Normalization for ASR
-     - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_
+     - Inverse Text Normalization for ASR - Thutmose Tagger
+     - `Inverse Text Normalization with Thutmose Tagger <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/ITN_with_Thutmose_Tagger.ipynb>`_
    * - Text Processing
      - Constructing Normalization Grammars with WFSTs
-     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/WFST_Tutorial.ipynb>`_
+     - `WFST Tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_

@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_CHAR, GraphFst, delete_space, insert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
 
 try:
     import pynini
@@ -44,10 +43,13 @@ class MeasureFst(GraphFst):
         optional_sign = cardinal.optional_sign
         unit = (
             pynutil.delete("units: \"")
-            + pynini.difference(pynini.closure(NEMO_CHAR - " ", 1), pynini.union("address", "math"))
+            + pynini.difference(pynini.closure(NEMO_NOT_QUOTE, 1), pynini.union("address", "math"))
             + pynutil.delete("\"")
             + delete_space
         )
+
+        if not deterministic:
+            unit |= pynini.compose(unit, pynini.cross(pynini.union("inch", "inches"), "\""))
 
         graph_decimal = (
             pynutil.delete("decimal {")
@@ -77,6 +79,15 @@ class MeasureFst(GraphFst):
         # SH adds "preserve_order: true" by default
         preserve_order = pynutil.delete("preserve_order:") + delete_space + pynutil.delete("true") + delete_space
         graph |= unit + insert_space + (graph_cardinal | graph_decimal) + delete_space + pynini.closure(preserve_order)
+        # for only unit
+        graph |= (
+            pynutil.delete("cardinal { integer: \"-\"")
+            + delete_space
+            + pynutil.delete("}")
+            + delete_space
+            + unit
+            + pynini.closure(preserve_order)
+        )
         address = (
             pynutil.delete("units: \"address\" ")
             + delete_space

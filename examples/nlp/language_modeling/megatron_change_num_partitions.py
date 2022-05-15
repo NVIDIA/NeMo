@@ -72,8 +72,11 @@ def split_partition(model, partitions, tp_size, write_path=None):
 
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    app_state.model_parallel_size = tp_size
-    app_state.model_parallel_rank = tp_size - 1
+    app_state.pipeline_model_parallel_size = 1  # not supported yet in this script
+    app_state.tensor_model_parallel_size = tp_size
+    app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+
+    app_state.tensor_model_parallel_rank = tp_size - 1
 
     idx = 0
     splits = []
@@ -88,7 +91,7 @@ def split_partition(model, partitions, tp_size, write_path=None):
         idx += 1
 
     for i in range(tp_size - 1, -1, -1):
-        app_state.model_parallel_rank = i
+        app_state.tensor_model_parallel_rank = i
 
         idx = 0
         for name, param in model.named_parameters():
@@ -141,23 +144,32 @@ def main():
     tgt_tp_size = args.target_tensor_model_parallel_size
     cls = model_utils.import_class_by_path(args.model_class)
 
-    trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
+    trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
     app_state = AppState()
     app_state.data_parallel_rank = 0
-    app_state.model_parallel_size = tp_size
+    app_state.pipeline_model_parallel_size = 1  # not supported yet in this script
+    app_state.tensor_model_parallel_size = tp_size
+    app_state.model_parallel_size = app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
 
     if tp_size > 1:
         partitions = []
         for i in range(tp_size):
-            app_state.model_parallel_rank = i
-            model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
+            app_state.tensor_model_parallel_rank = i
+            model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
             params = [p for _, p in model.named_parameters()]
             partitions.append(params)
+            # app_state is being updated incorrectly during restore
+            app_state.data_parallel_rank = 0
+            app_state.pipeline_model_parallel_size = 1  # not supported yet in this script
+            app_state.tensor_model_parallel_size = tp_size
+            app_state.model_parallel_size = (
+                app_state.pipeline_model_parallel_size * app_state.tensor_model_parallel_size
+            )
 
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
-        trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
-        model = cls(model.cfg, trainer)
+        trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
+        model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         if tgt_tp_size > 1:
@@ -175,8 +187,8 @@ def main():
 
         model.cfg.tensor_model_parallel_size = tgt_tp_size
         app_state.model_parallel_size = tgt_tp_size
-        trainer = Trainer(plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
-        model = cls(model.cfg, trainer)
+        trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
+        model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
         split_partition(model, partitions, tgt_tp_size, args.target_file)

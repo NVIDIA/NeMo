@@ -16,10 +16,14 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model, parallel_lm_logits
+from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal, scaled_init_method_normal
-from nemo.utils import logging
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults,
+    init_method_normal,
+    parallel_lm_logits,
+    scaled_init_method_normal,
+)
 
 try:
     from apex.transformer import tensor_parallel
@@ -28,6 +32,8 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+    # fake missing classes with None attributes
+    AttnMaskType = ApexGuardDefaults()
 
 
 def post_language_model_processing(
@@ -96,9 +102,6 @@ class GPTModel(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        use_soft_prompts=False,
-        num_prompt_tokens=10,
-        prompt_tags=None,
     ):
 
         super(GPTModel, self).__init__()
@@ -142,9 +145,6 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
-            use_soft_prompts=use_soft_prompts,
-            num_prompt_tokens=num_prompt_tokens,
-            prompt_tags=prompt_tags,
         )
 
         self.initialize_word_embeddings(
@@ -161,22 +161,24 @@ class GPTModel(MegatronModule):
         position_ids,
         attention_mask,
         labels=None,
-        prompt_tags=None,
-        tokentype_ids=None,
+        token_type_ids=None,
         layer_past=None,
         get_key_value=False,
         forward_method_parallel_output=None,
         encoder_input=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
 
         lm_output = self.language_model(
             input_ids,
             position_ids,
             attention_mask,
-            prompt_tags=prompt_tags,
             layer_past=layer_past,
             get_key_value=get_key_value,
             encoder_input=encoder_input,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            inference_max_sequence_len=inference_max_sequence_len,
         )
 
         if self.post_process:
@@ -215,9 +217,3 @@ class GPTModel(MegatronModule):
         if self._language_model_key in state_dict:
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)
-
-    def _init_prompt_from_random(self, prompt_tag):
-        self.language_model._init_prompt_from_random(prompt_tag)
-
-    def _init_prompt_from_text(self, prompt_tag, init_token_ids):
-        self.language_model._init_prompt_from_text(prompt_tag, init_token_ids)

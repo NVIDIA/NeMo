@@ -25,8 +25,9 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
+from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
@@ -109,16 +110,21 @@ class ModelPT(LightningModule, Model):
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
 
+        if 'nemo_version' not in cfg:
+            with open_dict(cfg):
+                cfg.nemo_version = package_info.__version__
+
         self._cfg = cfg
 
         self.save_hyperparameters("cfg")
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
+        self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
-        self.trainer = trainer  # reference required for self.*_rank
-        self._trainer = self.trainer  # alias for backward compatibility
+        self.set_trainer(trainer)
+
         self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
@@ -288,7 +294,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -433,6 +443,9 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
+        # Setup the optimizer parameter groups (by default use all parameters that are trainable)
+        self.setup_optimizer_param_groups()
+
         # If config was not explicitly passed to us
         if optim_config is None:
             # See if internal config has `optim` namespace
@@ -473,21 +486,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
-                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -539,7 +541,7 @@ class ModelPT(LightningModule, Model):
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
-                optimizer = optimizer_cls(self.parameters(), **optimizer_args)
+                optimizer = optimizer_cls(self._optimizer_param_groups, **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
                 self._optimizer = optimizer
@@ -555,7 +557,7 @@ class ModelPT(LightningModule, Model):
                     optimizer_config.update(optimizer_args)
 
                     optimizer_instance = hydra.utils.instantiate(
-                        optimizer_cls, self.parameters(), **optimizer_config
+                        optimizer_cls, self._optimizer_param_groups, **optimizer_config
                     )  # type: DictConfig
 
                     logging.info("Optimizer config = %s", str(optimizer_instance))
@@ -572,7 +574,7 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), **optimizer_args)
+            optimizer = optimizer(self._optimizer_param_groups, **optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 
@@ -586,6 +588,23 @@ class ModelPT(LightningModule, Model):
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
         return self._optimizer, self._scheduler
+
+    def setup_optimizer_param_groups(self):
+        """
+            Used to create param groups for the optimizer.
+            As an example, this can be used to specify per-layer learning rates:
+            optim.SGD([
+                        {'params': model.base.parameters()},
+                        {'params': model.classifier.parameters(), 'lr': 1e-3}
+                        ], lr=1e-2, momentum=0.9)
+            See https://pytorch.org/docs/stable/optim.html for more information.
+            By default, ModelPT will use self.parameters().
+            Override this method to add custom param groups.
+    """
+        param_groups = None
+        if hasattr(self, 'parameters'):
+            param_groups = [{'params': self.parameters()}]
+        self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
         self.setup_optimization()
@@ -1003,7 +1022,7 @@ class ModelPT(LightningModule, Model):
                         trainer = self.trainer
                         if (
                             hasattr(trainer, 'resume_from_checkpoint')
-                            and trainer.checkpoint_connector.resume_checkpoint_path is not None
+                            and trainer._checkpoint_connector.resume_checkpoint_path is not None
                         ):
                             logging.info(
                                 "Model training is being resumed via Pytorch Lightning.\n"
@@ -1174,13 +1193,12 @@ class ModelPT(LightningModule, Model):
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP to obtain accurate results.
                     "Following pattern should be used: "
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
-                    "trainer = Trainer(gpus=gpu)"
+                    "trainer = Trainer(devices=1, accelerator='gpu')" 
                     "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
-            if trainer.num_gpus > 1:
+            if trainer.num_devices > 1:
                 logging.warning(DDP_WARN)
                 return False
 
@@ -1197,7 +1215,7 @@ class ModelPT(LightningModule, Model):
         """
         self.trainer = trainer
         self._trainer = trainer
-        self.set_world_size(self._trainer)
+        self.set_world_size(trainer)
 
     def set_world_size(self, trainer: Trainer):
         """
@@ -1208,12 +1226,28 @@ class ModelPT(LightningModule, Model):
             trainer (Trainer): PyTorch Lightning Trainer object
         """
         # Update AppState with world information from trainer
-        if isinstance(trainer, Trainer):
-            app_state = AppState()
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
-        else:
-            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        self.world_size = 1
+
+        if trainer is not None:
+            if isinstance(trainer, Trainer):
+                if trainer.num_devices and trainer.num_nodes:
+                    self.world_size = trainer.num_devices * trainer.num_nodes
+            else:
+                logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        app_state = AppState()
+        app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """

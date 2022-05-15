@@ -20,6 +20,8 @@ import nemo
 from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelTokenizer
 from nemo.collections.common.tokenizers.char_tokenizer import CharTokenizer
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
+from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.common.tokenizers.word_tokenizer import WordTokenizer
 from nemo.collections.common.tokenizers.youtokentome_tokenizer import YouTokenToMeTokenizer
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import get_huggingface_pretrained_lm_models_list
@@ -121,9 +123,11 @@ def get_tokenizer(
         return WordTokenizer(vocab_file=vocab_file, **special_tokens_dict)
     elif tokenizer_name == 'char':
         return CharTokenizer(vocab_file=vocab_file, **special_tokens_dict)
+    elif tokenizer_name == 'regex':
+        return RegExTokenizer().load_tokenizer(tokenizer_model)
 
     logging.info(
-        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, "
+        f"Getting HuggingFace AutoTokenizer with pretrained_model_name: {tokenizer_name}, vocab_file: {vocab_file}, merges_files: {merges_file}, "
         f"special_tokens_dict: {special_tokens_dict}, and use_fast: {use_fast}"
     )
     return AutoTokenizer(
@@ -146,6 +150,7 @@ def get_nmt_tokenizer(
     bpe_dropout: Optional[float] = 0.0,
     r2l: Optional[bool] = False,
     legacy: Optional[bool] = False,
+    delimiter: Optional[str] = None,
 ):
     """
     Args:
@@ -164,7 +169,9 @@ def get_nmt_tokenizer(
     else:
         special_tokens_dict = special_tokens
 
-    if (library != 'byte-level') and (model_name is None and not os.path.isfile(tokenizer_model)):
+    if (library != 'byte-level') and (
+        model_name is None and (tokenizer_model is None or not os.path.isfile(tokenizer_model))
+    ):
         raise ValueError("No Tokenizer path provided or file does not exist!")
 
     if library == 'yttm':
@@ -187,13 +194,18 @@ def get_nmt_tokenizer(
     elif library == 'byte-level':
         logging.info(f'Using byte-level tokenization')
         return ByteLevelTokenizer(special_tokens_dict)
+    elif library == 'regex':
+        logging.info(f'Using regex tokenization')
+        return RegExTokenizer().load_tokenizer(tokenizer_model)
     elif library == 'megatron':
         if model_name in megatron_tokenizer_model_map:
             model_name = megatron_tokenizer_model_map[model_name]
         logging.info(
-            f'Getting Megatron tokenizer for pretrained model name: {model_name} and custom vocab file: {vocab_file}'
+            f'Getting Megatron tokenizer for pretrained model name: {model_name}, custom vocab file: {vocab_file}, and merges file: {merges_file}'
         )
         return get_tokenizer(tokenizer_name=model_name, vocab_file=vocab_file, merges_file=merges_file)
+    elif library == 'tabular':
+        return TabularTokenizer(vocab_file, delimiter=delimiter)
     else:
         raise NotImplementedError(
             'Currently we only support "yttm", "huggingface", "sentencepiece", "megatron", and "byte-level" tokenizer'

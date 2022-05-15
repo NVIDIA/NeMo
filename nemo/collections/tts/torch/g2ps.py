@@ -14,8 +14,10 @@
 
 import abc
 import pathlib
+import random
 import re
 import time
+from typing import Optional
 
 import nltk
 import torch
@@ -59,6 +61,7 @@ class EnglishG2p(BaseG2p):
         ignore_ambiguous_words=True,
         heteronyms=None,
         encoding='latin-1',
+        phoneme_probability: Optional[float] = None,
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
@@ -73,6 +76,9 @@ class EnglishG2p(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences. Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
             encoding: Encoding type.
+            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
@@ -97,6 +103,8 @@ class EnglishG2p(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        self.phoneme_probability = phoneme_probability
+        self._rng = random.Random()
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path=None, encoding='latin-1'):
@@ -168,6 +176,9 @@ class EnglishG2p(BaseG2p):
         Returns parsed `word` and `status` as bool.
         `status` will be `False` if word wasn't handled, `True` otherwise.
         """
+
+        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+            return word, True
 
         # punctuation
         if re.search("[a-zA-Z]", word) is None:

@@ -21,7 +21,7 @@ train_n_segments: 16384
 train_max_duration: null
 train_min_duration: 0.75
 
-val_n_segments: 132096
+val_n_segments: 131072
 val_max_duration: null
 val_min_duration: 3
 
@@ -76,9 +76,8 @@ trainer:
   precision: 32
   max_steps: ${model.max_steps}
   accumulate_grad_batches: 1
-  checkpoint_callback: false # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false # Provided by exp_manager
-  flush_logs_every_n_steps: 200
   log_every_n_steps: 100
   check_val_every_n_epoch: 10
 

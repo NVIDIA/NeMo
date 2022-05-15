@@ -27,17 +27,22 @@
 # Recommend to use --sort_in_shards to speedup the training by reducing the paddings in the batches
 # More info on how to use bucketing feature: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/datasets.html
 
+# If valid NVIDIA DALI version is installed, will also generate the corresponding DALI index files that need to be
+# supplied to the config in order to utilize webdataset for efficient large dataset handling.
+# NOTE: DALI + Webdataset is NOT compatible with Bucketing support !
+
 # Usage:
 1) Creating a new tarfile dataset
 
 python convert_to_tarred_audio_dataset.py \
     --manifest_path=<path to the manifest file> \
     --target_dir=<path to output directory> \
-    --num_shards=<number of tarfiles that will contain the audio>
+    --num_shards=<number of tarfiles that will contain the audio> \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
-    --shuffle --shuffle_seed=1
-    --sort_in_shards
+    --shuffle --shuffle_seed=1 \
+    --sort_in_shards \
+    --workers=-1
 
 
 2) Concatenating more tarfiles to a pre-existing tarred dataset
@@ -49,7 +54,8 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=<float representing maximum duration of audio samples> \
     --min_duration=<float representing minimum duration of audio samples> \
     --shuffle --shuffle_seed=1 \
-    --sort_in_shards
+    --sort_in_shards \
+    --workers=-1 \
     --concat_manifest_paths \
     <space separated paths to 1 or more manifest files to concatenate into the original tarred dataset>
 
@@ -62,7 +68,8 @@ python convert_to_tarred_audio_dataset.py \
     --max_duration=16.7 \
     --min_duration=0.01 \
     --shuffle \
-    --sort_in_shards
+    --workers=-1 \
+    --sort_in_shards \
     --shuffle_seed=1 \
     --write_metadata
 
@@ -80,6 +87,13 @@ from typing import Any, List, Optional
 
 from joblib import Parallel, delayed
 from omegaconf import DictConfig, OmegaConf, open_dict
+
+try:
+    import create_dali_tarred_dataset_index as dali_index
+
+    DALI_INDEX_SCRIPT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError, FileNotFoundError):
+    DALI_INDEX_SCRIPT_AVAILABLE = False
 
 parser = argparse.ArgumentParser(
     description="Convert an existing ASR dataset to tarballs compatible with TarredAudioToTextDataLayer."
@@ -676,6 +690,11 @@ def create_tar_datasets(min_duration: float, max_duration: float, target_dir: st
             target_dir=target_dir,
             num_workers=args.workers,
         )
+
+    if DALI_INDEX_SCRIPT_AVAILABLE and dali_index.INDEX_CREATOR_AVAILABLE:
+        print("Constructing DALI Tarfile Index - ", target_dir)
+        index_config = dali_index.DALITarredIndexConfig(tar_dir=target_dir, workers=args.workers)
+        dali_index.main(index_config)
 
 
 if __name__ == "__main__":

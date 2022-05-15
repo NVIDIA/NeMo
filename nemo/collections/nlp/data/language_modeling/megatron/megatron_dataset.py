@@ -37,8 +37,8 @@ class MegatronDataset(torch.utils.data.Dataset):
             )
             app_state.global_rank = trainer.global_rank
             app_state.world_size = trainer.world_size
-            app_state.model_parallel_size = 1
-            app_state.model_parallel_rank = trainer.global_rank
+            app_state.tensor_model_parallel_size = 1
+            app_state.tensor_model_parallel_rank = trainer.global_rank
 
             initialize_model_parallel_for_nemo(
                 world_size=trainer.world_size,

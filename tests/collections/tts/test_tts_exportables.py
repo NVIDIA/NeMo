@@ -18,22 +18,17 @@ import onnx
 import pytest
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo.collections.tts.models import FastPitchModel, HifiGanModel, TalkNetSpectModel, WaveGlowModel
+from nemo.collections.tts.models import FastPitchModel, HifiGanModel, WaveGlowModel
 
 
 @pytest.fixture()
 def fastpitch_model():
-    test_root = os.path.dirname(os.path.abspath(__file__))
-    conf = OmegaConf.load(os.path.join(test_root, '../../../examples/tts/conf/fastpitch.yaml'))
-    conf.train_dataset = conf.validation_datasets = '.'
-    conf.model.train_ds = conf.model.test_ds = conf.model.validation_ds = None
-    model = FastPitchModel(cfg=conf.model)
+    model = FastPitchModel.from_pretrained(model_name="tts_en_fastpitch")
     return model
 
 
 @pytest.fixture()
 def hifigan_model():
-    test_root = os.path.dirname(os.path.abspath(__file__))
     model = HifiGanModel.from_pretrained(model_name="tts_hifigan")
     return model
 

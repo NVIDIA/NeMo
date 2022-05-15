@@ -16,20 +16,29 @@ In this repository, you will find several tutorials discussing what is Automatic
 
 4) `Online_ASR_Microphone_Demo`: A short notebook that enables us to speak into a microphone and transcribe speech in an online manner. Note that this is not the most efficient way to perform streaming ASR, and it is more of a demo.
 
-5) `Offline_ASR`: ASR models are able to transcribe speech to text, however that text might be inaccurate. Here, we discuss how to leverage external language models build with KenLM to improve the accuracy of ASR transcriptions. Further, we discuss how we can extract time stamps from an ASR model with some heuristics. 
+5) `Offline_ASR`: ASR models are able to transcribe speech to text, however that text might be inaccurate. Here, we discuss how to leverage external language models build with KenLM to improve the accuracy of ASR transcriptions. Further, we discuss how we can extract time stamps from an ASR model with some heuristics.
 
-6) `Streaming_ASR`: Some ASR models cannot be used to evaluate very long audio segments due to their design. For example, self attention models consume quadratic memory with respect to sequence length. For such cases, this notebook shows how to perform streaming audio recognition in a buffered manner.
+6) `ASR_for_telephony_speech`: Audio sources are not homogenous, nor are the ways to store large audio datasets. Here, we discuss our observations and recommendations when working with audio obtained from Telephony speech sources.
 
-7) `ASR_for_telephony_speech`: Audio sources are not homogenous, nor are the ways to store large audio datasets. Here, we discuss our observations and recommendations when working with audio obtained from Telephony speech sources.
+7) `Online_Noise_Augmentation`: While academic datasets are useful for training ASR model, there can often be cases where such datasets are prestine and dont really represent the use case in the real world. So we discuss how to make the model more noise robust with Online audio augmentation.
 
+8) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
 
-8) `Online_Noise_Augmentation`: While academic datasets are useful for training ASR model, there can often be cases where such datasets are prestine and dont really represent the use case in the real world. So we discuss how to make the model more noise robust with Online audio augmentation.
+9) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
 
-9) `Intro_to_Transducers`: Previous tutorials discuss ASR models in context of the Connectionist Temporal Classification Loss. In this tutorial, we introduce the Transducer loss, and the components of this loss function that are constructed in the config file. This tutorial is a prerequisite to the `ASR_with_Transducers` tutorial.
+10) `Self_Supervised_Pre_Training`: It can often be difficult to obtain labeled data for ASR training. In this tutorial, we demonstrate how to pre-train a speech model in an unsupervised manner, and then fine-tune with CTC loss.
 
-10) `ASR_with_Transducers`: In this tutorial, we take a deep dive into Transducer based ASR models, discussing the similarity of setup and config to CTC models and then train a small ContextNet model on the AN4 dataset. We then discuss how to change the decoding strategy of a trained Transducer from greedy search to beam search. Finally, we wrap up this tutorial by extraining the alignment matrix from a trained Transducer model. 
+11) `Offline_ASR_with_VAD_for_CTC_models`: In this tutorial, we will demonstrate how to use offline VAD to extract speech segments and transcribe the speech segments with CTC models. This will help to exclude some non_speech utterances and could save computation resources by removing unnecessary input to the ASR system.
 
-11) `Self_Supervised_Pre_Training`: It can often be difficult to obtain labeled data for ASR training. In this tutorial, we demonstrate how to pre-train a speech model in an unsupervised manner, and then fine-tune with CTC loss.
+----------------
+
+# Streaming / Buffered Automatic Speech Recognition
+
+1) `Streaming_ASR`: Some ASR models cannot be used to evaluate very long audio segments due to their design. For example, self attention models consume quadratic memory with respect to sequence length. For such cases, this notebook shows how to perform streaming audio recognition in a buffered manner.
+
+2) `Buffered_Transducer_Inference`: In this notebook, we explore a simple algorithm to perform streaming audio recognition in a buffered manner for Transducer models. This enables the use of transducers on very long speech segments, similar to CTC models.
+
+3) `Buffered_Transducer_Inference_with_LCS_Merge`: This is an optional notebook, that discusses a different merge algorithm that can be utilized for streaming/buffered inference for Transducer models. It is not a required tutorial, but is useful for researchers who wish to analyse and improve buffered inference algorithms.
 
 ----------------
 

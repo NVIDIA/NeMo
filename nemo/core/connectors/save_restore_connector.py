@@ -28,12 +28,14 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 class SaveRestoreConnector:
     def __init__(self) -> None:
         self._model_config_yaml = "model_config.yaml"
         self._model_weights_ckpt = "model_weights.ckpt"
+        self._model_extracted_dir = None
 
     def save_to(self, model, save_path: str):
         """
@@ -63,7 +65,7 @@ class SaveRestoreConnector:
         else:
             return
 
-    def restore_from(
+    def load_config_and_state_dict(
         self,
         calling_cls,
         restore_path: str,
@@ -105,9 +107,24 @@ class SaveRestoreConnector:
             else:
                 map_location = torch.device('cpu')
 
+        app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                # Check if self.model_extracted_dir is set, and is a valid path
+                if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
+                    # Log that NeMo will use the provided `model_extracted_dir`
+                    logging.info(
+                        f"Restoration will occur within pre-extracted directory : " f"`{self.model_extracted_dir}`."
+                    )
+
+                    # Override `tmpdir` above with the pre-extracted `model_extracted_dir`
+                    tmpdir = self.model_extracted_dir
+
+                else:
+                    # Extract the nemo file into the temporary directory
+                    self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+
+                # Change current working directory to
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, self.model_config_yaml)
@@ -130,8 +147,7 @@ class SaveRestoreConnector:
                     instance = conf
                     return instance
                 else:
-                    app_state = AppState()
-                    if app_state.model_parallel_rank is not None and app_state.model_parallel_size > 1:
+                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
                         model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
@@ -142,20 +158,89 @@ class SaveRestoreConnector:
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
+                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
                 state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
-                if conf.get('megatron_amp_O2', False):
-                    new_state_dict = {}
-                    for key in state_dict.keys():
-                        new_key = key.replace('model.', 'model.module.', 1)
-                        new_state_dict[new_key] = state_dict[key]
-                    state_dict = new_state_dict
-                instance.load_state_dict(state_dict, strict=strict)
-
-                logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
-                instance._set_model_restore_state(is_being_restored=False)
             finally:
                 os.chdir(cwd)
 
+        return (conf, instance, state_dict)
+
+    def modify_state_dict(self, conf, state_dict):
+        """
+        Utility method that allows to modify the state dict before loading parameters into a model.
+
+        Args:
+            conf: A model level OmegaConf object.
+            state_dict: The state dict restored from the checkpoint.
+
+        Returns:
+            A potentially modified state dict.
+        """
+        if conf.get('megatron_amp_O2', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('model.', 'model.module.', 1)
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+        return state_dict
+
+    def load_instance_with_state_dict(self, instance, state_dict, strict):
+        """
+        Utility method that loads a model instance with the (potentially modified) state dict.
+
+        Args:
+            instance: ModelPT subclass instance.
+            state_dict: The state dict (which may have been modified)
+            strict: Bool, whether to perform strict checks when loading the state dict.
+        """
+        instance.load_state_dict(state_dict, strict=strict)
+        instance._set_model_restore_state(is_being_restored=False)
+
+    def restore_from(
+        self,
+        calling_cls,
+        restore_path: str,
+        override_config_path: Optional[Union[OmegaConf, str]] = None,
+        map_location: Optional[torch.device] = None,
+        strict: bool = True,
+        return_config: bool = False,
+        trainer: Trainer = None,
+    ):
+        """
+        Restores model instance (weights and configuration) into .nemo file
+
+        Args:
+            restore_path: path to .nemo file from which model should be instantiated
+            override_config_path: path to a yaml config that will override the internal
+                config file or an OmegaConf / DictConfig object representing the model config.
+            map_location: Optional torch.device() to map the instantiated model to a device.
+                By default (None), it will select a GPU if available, falling back to CPU otherwise.
+            strict: Passed to load_state_dict. By default True
+            return_config: If set to true, will return just the underlying config of the restored
+                model as an OmegaConf DictConfig object without instantiating the model.
+            trainer: An optional Trainer object, passed to the model constructor.
+
+        Example:
+            ```
+            model = nemo.collections.asr.models.EncDecCTCModel.restore_from('asr.nemo')
+            assert isinstance(model, nemo.collections.asr.models.EncDecCTCModel)
+            ```
+
+        Returns:
+            An instance of type cls or its underlying config (if return_config is set).
+        """
+        # Get path where the command is executed - the artifacts will be "retrieved" there
+        # (original .nemo behavior)
+        loaded_params = self.load_config_and_state_dict(
+            calling_cls, restore_path, override_config_path, map_location, strict, return_config, trainer,
+        )
+        if not isinstance(loaded_params, tuple):
+            return loaded_params
+        conf, instance, state_dict = loaded_params
+        state_dict = self.modify_state_dict(conf, state_dict)
+        self.load_instance_with_state_dict(instance, state_dict, strict)
+        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
 
     def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
@@ -376,22 +461,32 @@ class SaveRestoreConnector:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
-        app_state = AppState()
-        model_weights = os.path.join(dirname, f'mp_rank_{app_state.model_parallel_rank:02}', basename)
+        model_weights = os.path.join(dirname, basename)
+        model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
         dirname = os.path.dirname(filename)
         os.makedirs(dirname, exist_ok=True)
-        with tarfile.open(filename, "w:gz") as tar:
+        with tarfile.open(filename, "w:") as tar:
             tar.add(source_dir, arcname=".")
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str) -> str:
         if not os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
-        tar = tarfile.open(path2file, "r:gz")
+
+        # we start with an assumption of uncompressed tar,
+        # which should be true for versions 1.7.0 and above
+        tar_header = "r:"
+        try:
+            tar_test = tarfile.open(path2file, tar_header)
+            tar_test.close()
+        except tarfile.ReadError:
+            # can be older checkpoint => try compressed tar
+            tar_header = "r:gz"
+        tar = tarfile.open(path2file, tar_header)
         tar.extractall(path=out_folder)
         tar.close()
         return out_folder
@@ -419,3 +514,11 @@ class SaveRestoreConnector:
     @model_weights_ckpt.setter
     def model_weights_ckpt(self, path: str):
         self._model_weights_ckpt = path
+
+    @property
+    def model_extracted_dir(self) -> Optional[str]:
+        return self._model_extracted_dir
+
+    @model_extracted_dir.setter
+    def model_extracted_dir(self, path: Optional[str]):
+        self._model_extracted_dir = path

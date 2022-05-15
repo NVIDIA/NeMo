@@ -11,14 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
+from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.asr.data.audio_to_text import AudioToCharWithDursF0Dataset
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.helpers.helpers import plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
@@ -40,6 +42,31 @@ from nemo.core.neural_types.elements import (
 )
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
+
+
+@dataclass
+class G2PConfig:
+    _target_: str = "nemo.collections.tts.torch.g2ps.EnglishG2p"
+    phoneme_dict: str = "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
+    heteronyms: str = "scripts/tts_dataset_files/heteronyms-030921"
+    phoneme_probability: float = 0.5
+
+
+@dataclass
+class TextTokenizer:
+    _target_: str = "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
+    punct: bool = True
+    stresses: bool = True
+    chars: bool = True
+    apostrophe: bool = True
+    pad_with_space: bool = True
+    add_blank_at: bool = True
+    g2p: G2PConfig = G2PConfig()
+
+
+@dataclass
+class TextTokenizerConfig:
+    text_tokenizer: TextTokenizer = TextTokenizer()
 
 
 class FastPitchModel(SpectrogramGenerator, Exportable):
@@ -64,12 +91,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             self.vocab = None
             self.ds_class_name = cfg.train_ds.dataset._target_.split(".")[-1]
 
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                self.vocab = AudioToCharWithDursF0Dataset.make_vocab(**cfg.train_ds.dataset.vocab)
-                input_fft_kwargs["n_embed"] = len(self.vocab.labels)
-                input_fft_kwargs["padding_idx"] = self.vocab.pad
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 self._setup_tokenizer(cfg)
+                assert self.vocab is not None
+                input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
+                input_fft_kwargs["padding_idx"] = self.vocab.pad
+            elif self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                logging.warning(
+                    "AudioToCharWithPriorAndPitchDataset class has been deprecated. No support for"
+                    " training or finetuning. Only inference is supported."
+                )
+                tokenizer_conf = self._get_default_text_tokenizer_conf()
+                self._setup_tokenizer(tokenizer_conf)
                 assert self.vocab is not None
                 input_fft_kwargs["n_embed"] = len(self.vocab.tokens)
                 input_fft_kwargs["padding_idx"] = self.vocab.pad
@@ -119,6 +152,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             cfg.n_mel_channels,
         )
         self._input_types = self._output_types = None
+
+    def _get_default_text_tokenizer_conf(self):
+        text_tokenizer: TextTokenizerConfig = TextTokenizerConfig()
+        return OmegaConf.create(OmegaConf.to_yaml(text_tokenizer))
 
     def _setup_normalizer(self, cfg):
         if "text_normalizer" in cfg:
@@ -175,14 +212,16 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if self.learn_alignment:
             ds_class_name = self._cfg.train_ds.dataset._target_.split(".")[-1]
 
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if ds_class_name == "AudioToCharWithPriorAndPitchDataset" or ds_class_name == "TTSDataset":
+            if ds_class_name == "TTSDataset":
+                self._parser = self.vocab.encode
+            elif ds_class_name == "AudioToCharWithPriorAndPitchDataset":
+                if self.vocab is None:
+                    tokenizer_conf = self._get_default_text_tokenizer_conf()
+                    self._setup_tokenizer(tokenizer_conf)
                 self._parser = self.vocab.encode
             else:
                 raise ValueError(f"Unknown dataset class: {ds_class_name}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            # ds_class_name == "FastPitchDataset"
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
                 name='en',
@@ -195,13 +234,22 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         return self._parser
 
     def parse(self, str_input: str, normalize=True) -> torch.tensor:
-        if str_input[-1] not in [".", "!", "?"]:
-            str_input = str_input + "."
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
 
         if normalize and self.text_normalizer_call is not None:
             str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)
 
-        tokens = self.parser(str_input)
+        if self.learn_alignment:
+            eval_phon_mode = contextlib.nullcontext()
+            if hasattr(self.vocab, "set_phone_prob"):
+                eval_phon_mode = self.vocab.set_phone_prob(prob=1.0)
+
+            # Disable mixed g2p representation if necessary
+            with eval_phon_mode:
+                tokens = self.parser(str_input)
+        else:
+            tokens = self.parser(str_input)
 
         x = torch.tensor(tokens).unsqueeze_(0).long().to(self.device)
         return x
@@ -211,7 +259,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "text": NeuralType(('B', 'T_text'), TokenIndex()),
             "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
             "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
-            "speaker": NeuralType(('B'), Index()),
+            "speaker": NeuralType(('B'), Index(), optional=True),
             "pace": NeuralType(optional=True),
             "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
             "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
@@ -225,7 +273,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         text,
         durs=None,
         pitch=None,
-        speaker=0,
+        speaker=None,
         pace=1.0,
         spec=None,
         attn_prior=None,
@@ -245,7 +293,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         )
 
     @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
-    def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, pace: float = 1.0) -> torch.tensor:
+    def generate_spectrogram(
+        self, tokens: 'torch.tensor', speaker: Optional[int] = None, pace: float = 1.0
+    ) -> torch.tensor:
+        if self.training:
+            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         spect, *_ = self(text=tokens, durs=None, pitch=None, speaker=speaker, pace=pace)
@@ -254,10 +306,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def training_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
                 else:
@@ -265,7 +314,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, spec_len = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -310,20 +358,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
             self.tb_logger.add_image(
                 "train_mel_target",
-                plot_spectrogram_to_numpy(mels[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(mels[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = mels_pred[0].data.cpu().numpy()
+            spec_predict = mels_pred[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "train_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
             if self.learn_alignment:
-                attn = attn_hard[0].data.cpu().numpy().squeeze()
+                attn = attn_hard[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_attn", plot_alignment_to_numpy(attn.T), self.global_step, dataformats="HWC",
                 )
-                soft_attn = attn_soft[0].data.cpu().numpy().squeeze()
+                soft_attn = attn_soft[0].data.cpu().float().numpy().squeeze()
                 self.tb_logger.add_image(
                     "train_soft_attn", plot_alignment_to_numpy(soft_attn.T), self.global_step, dataformats="HWC",
                 )
@@ -333,10 +381,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def validation_step(self, batch, batch_idx):
         attn_prior, durs, speaker = None, None, None
         if self.learn_alignment:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if self.ds_class_name == "AudioToCharWithPriorAndPitchDataset":
-                audio, audio_lens, text, text_lens, attn_prior, pitch, speaker = batch
-            elif self.ds_class_name == "TTSDataset":
+            if self.ds_class_name == "TTSDataset":
                 if SpeakerID in self._train_dl.dataset.sup_data_types_set:
                     audio, audio_lens, text, text_lens, attn_prior, pitch, _, speaker = batch
                 else:
@@ -344,7 +389,6 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             else:
                 raise ValueError(f"Unknown vocab class: {self.vocab.__class__.__name__}")
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             audio, audio_lens, text, text_lens, durs, pitch, speaker = batch
 
         mels, mel_lens = self.preprocessor(input_signal=audio, length=audio_lens)
@@ -394,11 +438,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         if isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
                 "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()),
+                plot_spectrogram_to_numpy(spec_target[0].data.cpu().float().numpy()),
                 self.global_step,
                 dataformats="HWC",
             )
-            spec_predict = spec_predict[0].data.cpu().numpy()
+            spec_predict = spec_predict[0].data.cpu().float().numpy()
             self.tb_logger.add_image(
                 "val_mel_predicted", plot_spectrogram_to_numpy(spec_predict), self.global_step, dataformats="HWC",
             )
@@ -422,18 +466,19 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
             logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
 
-        # TODO(Oktai15): remove it in 1.8.0 version
-        if cfg.dataset._target_ == "nemo.collections.asr.data.audio_to_text.FastPitchDataset":
-            dataset = instantiate(cfg.dataset, parser=self.parser)
-        elif cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
-            dataset = instantiate(
-                cfg.dataset,
-                text_normalizer=self.normalizer,
-                text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
-                text_tokenizer=self.vocab,
-            )
+        if cfg.dataset._target_ == "nemo.collections.tts.torch.data.TTSDataset":
+            phon_mode = contextlib.nullcontext()
+            if hasattr(self.vocab, "set_phone_prob"):
+                phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
+
+            with phon_mode:
+                dataset = instantiate(
+                    cfg.dataset,
+                    text_normalizer=self.normalizer,
+                    text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+                    text_tokenizer=self.vocab,
+                )
         else:
-            # TODO(Oktai15): remove it in 1.8.0 version
             dataset = instantiate(cfg.dataset)
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
@@ -458,7 +503,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_fastpitch",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.4.0/files/tts_en_fastpitch_align.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_fastpitch/versions/1.8.1/files/tts_en_fastpitch_align.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
             class_=cls,
         )

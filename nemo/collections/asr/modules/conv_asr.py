@@ -37,6 +37,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
 )
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
@@ -62,20 +63,10 @@ class ConvASREncoder(NeuralModule, Exportable):
 
     def _prepare_for_export(self, **kwargs):
         m_count = 0
-        stride = 1
-        one_hour = 100 * 60 * 60 * 1  # 1 sec / 0.01 window stride = 100 frames / second * 60 sec * 60 min * 1 hour
-
         for name, m in self.named_modules():
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
-
-            if isinstance(m, MaskedConv1d):
-                if m.conv.stride[0] > 1 and 'mconv' in name:
-                    stride = stride * m.conv.stride[0]
-
-            if isinstance(m, SqueezeExcite):
-                m.set_max_len(int(one_hour // stride))  # One hour divided by current stride level
 
         Exportable._prepare_for_export(self, **kwargs)
         logging.warning(f"Turned off {m_count} masked convolutions")
@@ -196,7 +187,7 @@ class ConvASREncoder(NeuralModule, Exportable):
         self.encoder = torch.nn.Sequential(*encoder_layers)
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
-        self.max_audio_length = torch.tensor(0, dtype=torch.int32)
+        self.max_audio_length = 0
 
     @typecheck()
     def forward(self, audio_signal, length):
@@ -218,16 +209,25 @@ class ConvASREncoder(NeuralModule, Exportable):
             seq_length = global_max_len.int().item()
 
         if seq_length > self.max_audio_length:
-            self.max_audio_length = seq_length * 2
+            if seq_length < 5000:
+                seq_length = seq_length * 2
+            elif seq_length < 10000:
+                seq_length = seq_length * 1.5
+            self.max_audio_length = seq_length
+
+            device = next(self.parameters()).device
+            seq_range = torch.arange(0, self.max_audio_length, device=device)
+            if hasattr(self, 'seq_range'):
+                self.seq_range = seq_range
+            else:
+                self.register_buffer('seq_range', seq_range, persistent=False)
 
             # Update all submodules
             for name, m in self.named_modules():
                 if isinstance(m, MaskedConv1d):
-                    if m.use_mask:
-                        m.update_masked_length(self.max_audio_length, device=device)
-
-                if isinstance(m, SqueezeExcite):
-                    m.set_max_len(self.max_audio_length)
+                    m.update_masked_length(self.max_audio_length, seq_range=self.seq_range)
+                elif isinstance(m, SqueezeExcite):
+                    m.set_max_len(self.max_audio_length, seq_range=self.seq_range)
 
 
 class ParallelConvASREncoder(NeuralModule, Exportable):
@@ -241,10 +241,6 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
             if isinstance(m, MaskedConv1d):
                 m.use_mask = False
                 m_count += 1
-
-            if isinstance(m, SqueezeExcite):
-                m.set_max_len(8192)
-
         logging.warning(f"Turned off {m_count} masked convolutions")
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -857,6 +853,46 @@ class SpeakerDecoder(NeuralModule, Exportable):
         return out, embs[-1].squeeze(-1)
 
 
+class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
+
+    # Higher level forwarding
+    def add_adapter(self, name: str, cfg: dict):
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
+            cfg = self._update_adapter_cfg_input_dim(jasper_block, cfg)
+            jasper_block.add_adapter(name, cfg)
+
+    def is_adapter_available(self) -> bool:
+        return any([jasper_block.is_adapter_available() for jasper_block in self.encoder])
+
+    def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
+            jasper_block.set_enabled_adapters(name=name, enabled=enabled)
+
+    def get_enabled_adapters(self) -> List[str]:
+        names = set([])
+        for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
+            names.update(jasper_block.get_enabled_adapters())
+
+        names = sorted(list(names))
+        return names
+
+    def _update_adapter_cfg_input_dim(self, block: JasperBlock, cfg):
+        if 'in_features' in cfg:
+            in_planes = cfg['in_features']
+
+            if in_planes != block.planes:
+                logging.info(f"Updating Adapter input dim from {in_planes} to {block.planes}")
+                in_planes = block.planes
+
+            cfg['in_features'] = in_planes
+            return cfg
+        else:
+            raise ValueError(
+                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
+                f"{OmegaConf.to_yaml(cfg)}"
+            )
+
+
 @dataclass
 class JasperEncoderConfig:
     filters: int = MISSING
@@ -912,3 +948,10 @@ class ConvASRDecoderClassificationConfig:
     init_mode: Optional[str] = "xavier_uniform"
     return_logits: bool = True
     pooling_type: str = 'avg'
+
+
+"""
+Register any additional information
+"""
+if adapter_mixins.get_registered_adapter(ConvASREncoder) is None:
+    adapter_mixins.register_adapter(base_class=ConvASREncoder, adapter_class=ConvASREncoderAdapter)

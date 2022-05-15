@@ -28,5 +28,5 @@ from nemo.core.optim.lr_scheduler import (
     prepare_lr_scheduler,
 )
 from nemo.core.optim.novograd import Novograd
-from nemo.core.optim.optimizer_with_master_params import MasterOptimizerWrapper
+from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args, register_optimizer

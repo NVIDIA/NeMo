@@ -20,7 +20,12 @@ from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
 
-from nemo_text_processing.text_normalization.data_loader_utils import pre_process
+from nemo_text_processing.text_normalization.data_loader_utils import (
+    get_installation_msg,
+    load_file,
+    pre_process,
+    write_file,
+)
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from tqdm import tqdm
 
@@ -37,7 +42,7 @@ try:
     from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
 
     NLP_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
+except (ModuleNotFoundError, ImportError) as e:
     NLP_AVAILABLE = False
 
 
@@ -46,8 +51,8 @@ SPACE_DUP = re.compile(' {2,}')
 
 class Normalizer:
     """
-    Normalizer class that converts text from written to spoken form. 
-    Useful for TTS preprocessing. 
+    Normalizer class that converts text from written to spoken form.
+    Useful for TTS preprocessing.
 
     Args:
         input_case: expected input capitalization
@@ -65,14 +70,23 @@ class Normalizer:
         cache_dir: str = None,
         overwrite_cache: bool = False,
         whitelist: str = None,
+        lm: bool = False,
     ):
         assert input_case in ["lower_cased", "cased"]
+
+        if not PYNINI_AVAILABLE:
+            raise ImportError(get_installation_msg())
 
         if lang == 'en' and deterministic:
             from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'en' and not deterministic:
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import ClassifyFst
+            if lm:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_lm import ClassifyFst
+            else:
+                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
+                    ClassifyFst,
+                )
             from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'ru':
             # Ru TN only support non-deterministic cases and produces multiple normalization options
@@ -80,10 +94,11 @@ class Normalizer:
             from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
         elif lang == 'de':
-            # Ru TN only support non-deterministic cases and produces multiple normalization options
-            # use normalize_with_audio.py
             from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.de.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'es':
+            from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -101,9 +116,11 @@ class Normalizer:
             self.processor = None
             print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
-    def normalize_list(self, texts: List[str], verbose=False, punct_post_process: bool = False) -> List[str]:
+    def normalize_list(
+        self, texts: List[str], verbose=False, punct_pre_process: bool = False, punct_post_process: bool = False
+    ) -> List[str]:
         """
-        NeMo text normalizer 
+        NeMo text normalizer
 
         Args:
             texts: list of input strings
@@ -114,7 +131,9 @@ class Normalizer:
         res = []
         for input in tqdm(texts):
             try:
-                text = self.normalize(input, verbose=verbose, punct_post_process=punct_post_process)
+                text = self.normalize(
+                    input, verbose=verbose, punct_pre_process=punct_pre_process, punct_post_process=punct_post_process
+                )
             except:
                 print(input)
                 raise Exception
@@ -203,6 +222,10 @@ class Normalizer:
 
         Returns: spoken form
         """
+        assert (
+            len(text.split()) < 500
+        ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
+
         original_text = text
         if punct_pre_process:
             text = pre_process(text)
@@ -353,8 +376,11 @@ class Normalizer:
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument("input_string", help="input string", type=str)
-    parser.add_argument("--language", help="language", choices=["en", "de"], default="en", type=str)
+    input = parser.add_mutually_exclusive_group()
+    input.add_argument("--text", dest="input_string", help="input string", type=str)
+    input.add_argument("--input_file", dest="input_file", help="input file path", type=str)
+    parser.add_argument('--output_file', dest="output_file", help="output file path", type=str)
+    parser.add_argument("--language", help="language", choices=["en", "de", "es"], default="en", type=str)
     parser.add_argument(
         "--input_case", help="input capitalization", choices=["lower_cased", "cased"], default="cased", type=str
     )
@@ -379,6 +405,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     whitelist = os.path.abspath(args.whitelist) if args.whitelist else None
+
     normalizer = Normalizer(
         input_case=args.input_case,
         cache_dir=args.cache_dir,
@@ -386,11 +413,28 @@ if __name__ == "__main__":
         whitelist=whitelist,
         lang=args.language,
     )
-    print(
-        normalizer.normalize(
-            args.input_string,
+    if args.input_string:
+        print(
+            normalizer.normalize(
+                args.input_string,
+                verbose=args.verbose,
+                punct_pre_process=args.punct_pre_process,
+                punct_post_process=args.punct_post_process,
+            )
+        )
+    elif args.input_file:
+        print("Loading data: " + args.input_file)
+        data = load_file(args.input_file)
+
+        print("- Data: " + str(len(data)) + " sentences")
+        normalizer_prediction = normalizer.normalize_list(
+            data,
             verbose=args.verbose,
             punct_pre_process=args.punct_pre_process,
             punct_post_process=args.punct_post_process,
         )
-    )
+        if args.output_file:
+            write_file(args.output_file, normalizer_prediction)
+            print(f"- Normalized. Writing out to {args.output_file}")
+        else:
+            print(normalizer_prediction)
