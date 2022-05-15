@@ -18,9 +18,8 @@ import pytest
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
-from utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
-sys.path.append("/home/ebakhturina/NeMo/tests/nemo_text_processing")
+from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 
 class TestPunctuation:

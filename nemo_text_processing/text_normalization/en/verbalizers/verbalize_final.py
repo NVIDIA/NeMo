@@ -42,6 +42,8 @@ class VerbalizeFinalFst(GraphFst):
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple options (used for audio-based normalization)
+        cache_dir: path to a dir with .far grammar file. Set to None to avoid using cache.
+        overwrite_cache: set to True to overwrite .far files
     """
 
     def __init__(self, deterministic: bool = True, cache_dir: str = None, overwrite_cache: bool = False):

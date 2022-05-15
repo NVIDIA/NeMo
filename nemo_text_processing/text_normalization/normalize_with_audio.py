@@ -113,6 +113,7 @@ class NormalizerWithAudio(Normalizer):
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
             lm=lm,
+            post_process=post_process,
         )
         self.lm = lm
 
@@ -131,9 +132,12 @@ class NormalizerWithAudio(Normalizer):
             normalized text options (usually there are multiple ways of normalizing a given semiotic class)
         """
 
-        assert (
-            len(text.split()) < 500
-        ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
+        if len(text.split()) > 500:
+            raise ValueError(
+                "Your input is too long. Please split up the input into sentences, "
+                "or strings with fewer than 500 words"
+            )
+
         original_text = text
         text = pre_process(text)  # to handle []
 
@@ -143,37 +147,27 @@ class NormalizerWithAudio(Normalizer):
                 print(text)
             return text
         text = pynini.escape(text)
+        print(text)
 
         if self.lm:
             if self.lang not in ["en"]:
                 raise ValueError(f"{self.lang} is not supported in LM mode")
 
             if self.lang == "en":
-                try:
-                    lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
-                except pynini.lib.rewrite.Error:
+                # this to keep arpabet phonemes in the list of options
+                if "[" in text and "]" in text:
                     lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
+                else:
+                    try:
+                        lattice = rewrite.rewrite_lattice(text, self.tagger.fst_no_digits)
+                    except pynini.lib.rewrite.Error:
+                        lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
                 lattice = rewrite.lattice_to_nshortest(lattice, n_tagged)
                 tagged_texts = [(x[1], float(x[2])) for x in lattice.paths().items()]
                 tagged_texts.sort(key=lambda x: x[1])
                 tagged_texts, weights = list(zip(*tagged_texts))
         else:
-            if n_tagged == -1:
-                if self.lang == "en":
-                    try:
-                        tagged_texts = rewrite.rewrites(text, self.tagger.fst_no_digits)
-                    except pynini.lib.rewrite.Error:
-                        tagged_texts = rewrite.rewrites(text, self.tagger.fst)
-                else:
-                    tagged_texts = rewrite.rewrites(text, self.tagger.fst)
-            else:
-                if self.lang == "en":
-                    try:
-                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst_no_digits, nshortest=n_tagged)
-                    except pynini.lib.rewrite.Error:
-                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
-                else:
-                    tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+            tagged_texts = self._get_tagged_text(text, n_tagged)
 
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
         if self.lang == "en":
@@ -198,9 +192,43 @@ class NormalizerWithAudio(Normalizer):
             return normalized_texts, weights
 
         normalized_texts = set(normalized_texts)
-        if self.lang == "en" and hasattr(self, 'post_processor') and False:
+        if self.lang == "en" and hasattr(self, 'post_processor'):
             normalized_texts = set([self.post_process(text) for text in normalized_texts])
         return normalized_texts
+
+    def _get_tagged_text(self, text, n_tagged):
+        """
+        Returns text after tokenize and classify
+        Args;
+            text: input  text
+            n_tagged: number of tagged options to consider, -1 - return all possible tagged options
+        """
+        if n_tagged == -1:
+            if self.lang == "en":
+                # this to keep arpabet phonemes in the list of options
+                if "[" in text and "]" in text:
+                    tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+                else:
+                    try:
+                        tagged_texts = rewrite.rewrites(text, self.tagger.fst_no_digits)
+                    except pynini.lib.rewrite.Error:
+                        tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+            else:
+                tagged_texts = rewrite.rewrites(text, self.tagger.fst)
+        else:
+            if self.lang == "en":
+                # this to keep arpabet phonemes in the list of options
+                if "[" in text and "]" in text:
+                    tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+                else:
+                    try:
+                        # try self.tagger graph that produces output without digits
+                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst_no_digits, nshortest=n_tagged)
+                    except pynini.lib.rewrite.Error:
+                        tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+            else:
+                tagged_texts = rewrite.top_rewrites(text, self.tagger.fst, nshortest=n_tagged)
+        return tagged_texts
 
     def _verbalize(self, tagged_text: str, normalized_texts: List[str], verbose: bool = False):
         """

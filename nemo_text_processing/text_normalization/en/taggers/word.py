@@ -98,6 +98,5 @@ class WordFst(GraphFst):
                 + pynini.closure(pynini.accep(" "), 0, 1)
                 + pynini.accep(pynini.escape("]"))
             )
-
         self.graph = plurals._priority_union(convert_space(phoneme), graph, NEMO_SIGMA)
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()
