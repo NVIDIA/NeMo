@@ -338,7 +338,7 @@ class VitsModel(TextToWaveform):
                     ),
                 ]
 
-            logger.log({"specs": specs, "audios": audios})
+                logger.log({"specs": specs, "audios": audios})
 
     def _loader(self, cfg):
         try:

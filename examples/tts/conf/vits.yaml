@@ -6,11 +6,11 @@
 
 name: VITS
 
-# train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
-train_dataset: "raid/datasets/tts_data/train_manifest.json"
+train_dataset: "../datasets/ljspeech_ds/LJSpeech-1.1/train_manifest.json"
+# train_dataset: "raid/datasets/tts_data/train_manifest.json"
 
-# validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
-validation_datasets: "raid/datasets/tts_data/val_manifest.json"
+validation_datasets: "../datasets/ljspeech_ds/LJSpeech-1.1/val_manifest.json"
+# validation_datasets: "raid/datasets/tts_data/val_manifest.json"
 sup_data_path: null
 sup_data_types: null
 
@@ -126,7 +126,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 96
+      batch_size: 64
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -211,7 +211,7 @@ trainer:
   check_val_every_n_epoch: 1
 
 exp_manager:
-  exp_dir: ../exps/vits_bs96
+  exp_dir: ../exps/vits_orig_g2p
   name: ${name}
   create_tensorboard_logger: false
   create_checkpoint_callback: true
@@ -220,7 +220,7 @@ exp_manager:
     mode: min
   create_wandb_logger: true
   wandb_logger_kwargs:
-    name: vits_bs96
+    name: vits_orig_g2p
     project: ${name}
     entity: nvidia
   resume_if_exists: false
