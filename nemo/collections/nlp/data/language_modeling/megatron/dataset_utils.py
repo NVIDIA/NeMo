@@ -37,6 +37,7 @@ import subprocess
 import time
 
 import numpy as np
+from sklearn.metrics import multilabel_confusion_matrix
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -660,6 +661,8 @@ def _build_train_valid_test_datasets(
                     documents=documents,
                     indexed_dataset=indexed_dataset,
                     num_samples=int(train_valid_test_num_samples[index]),
+                    max_seq_length_encoder=max_seq_length,
+                    max_seq_length_decoder=max_seq_length_dec,
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BART:

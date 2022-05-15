@@ -24,10 +24,11 @@ class T5LMAdaptedDataset(GPTDataset):
     """
 
     def __init__(
-        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seed, **kwargs
+        self, cfg, trainer, tokenizer, name, data_prefix, documents, indexed_dataset, num_samples, seed, max_seq_length_encoder, max_seq_length_decoder, **kwargs
     ):
-        self.seq_length_encoder = cfg.data.seq_length
-        self.seq_length_decoder = cfg.data.seq_length_dec
+        self.max_seq_length_encoder = max_seq_length_encoder
+        self.max_seq_length_decoder = max_seq_length_decoder
+        self.seed = seed
         self.tokenizer = tokenizer
         super().__init__(
             cfg,
@@ -38,18 +39,26 @@ class T5LMAdaptedDataset(GPTDataset):
             documents,
             indexed_dataset,
             num_samples,
-            self.seq_length_encoder + self.seq_length_decoder,
+            self.max_seq_length_encoder + self.max_seq_length_decoder,
             seed,
         )
 
     def __getitem__(self, idx):
         text = super()._get_text(idx)
 
-        # Split text sequence into encoder and decoder inputs
-        tokens_enc = text[: self.seq_length_encoder]
+        np_rng = np.random.RandomState(seed=(self.seed + idx))
+
+        # get random split index
+        split_idx = np_rng.randint(0, self.max_seq_length_encoder)
+        
+        # Encoder inputs get truncated based on the split indx
+        tokens_enc = np.concatenate([text[: split_idx], [self.tokenizer.pad_id] * (self.max_seq_length_encoder - split_idx)]).astype(np.int64)
+
+        # The decoder sequence is never truncated and is always of max decoder length.
+        tokens_dec = text[split_idx: split_idx + self.max_seq_length_decoder - 2]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
-        tokens_dec = np.concatenate(([self.tokenizer.bos_id], text[self.seq_length_encoder :]))
+        tokens_dec = np.concatenate(([self.tokenizer.bos_id], tokens_dec)).astype(np.int64)
 
         # Shift sequences for teacher forcing
         tokens_dec_in = tokens_dec[:-1]
