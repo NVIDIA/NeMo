@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Callable, List, Optional, Tuple, Iterable
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
