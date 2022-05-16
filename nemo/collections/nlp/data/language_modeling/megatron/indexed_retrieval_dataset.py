@@ -210,6 +210,10 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             return self._sizes
 
         @lru_cache(maxsize=8)
+        def get_chunk(self, chunk_id):
+            return self._pointers[i], self._sizes[i]
+
+        @lru_cache(maxsize=8)
         def __getitem__(self, i):
             return self._pointers[i], self._sizes[i]
 
@@ -318,10 +322,10 @@ class MMapRetrievalIndexedDatasetBuilder(object):
         np_array = np.array(tensor.numpy(), dtype=self._dtype)
         padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
         data_size = np_array.size + padded_size
-        if self.retrieval_db: 
+        if self.retrieval_db:
             # for retrieval database, added one more chunk in the end as padding
             padded_size += self.chunk_size
-        np.pad(np_array, (0, padded_size), 'constant', constant_values=self.pad_id)
+        np_array = np.pad(np_array, (0, padded_size), 'constant', constant_values=self.pad_id)
         self._data_file.write(np_array.tobytes(order='C'))
         self._sizes.append(data_size)
 
