@@ -1,10 +1,11 @@
 name: &name "TitaNet"
 sample_rate: &sample_rate 16000
 
-init_from_pretrained_model: 
-        name: 'titanet_large'
-        include: ["preprocessor","encoder"]
-        exclude: ["decoder.final"] # Add specific layer names here to exlude or just ["decoder"] if to exclude all of decoder pretrained weights
+init_from_pretrained_model:
+  speaker_tasks:
+    name: 'titanet_large'
+    include: ["preprocessor","encoder"]
+    exclude: ["decoder.final"] # Add specific layer names here to exlude or just ["decoder"] if to exclude all of decoder pretrained weights
 
 model:
   train_ds:
