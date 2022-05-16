@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -153,32 +153,35 @@ class PostProcessingFst:
 
         # remove space after no_space_after_punct (even if there are no matching closing brackets)
         no_space_after_punct = pynini.cdrewrite(delete_space, no_space_after_punct, NEMO_SIGMA, NEMO_SIGMA).optimize()
-
         graph = pynini.compose(graph, no_space_after_punct).optimize()
+
+        # remove space around text in quotes
+        single_quote = pynutil.add_weight(pynini.accep("`"), MIN_NEG_WEIGHT)
+        double_quotes = pynutil.add_weight(pynini.accep('"'), MIN_NEG_WEIGHT)
+        quotes_graph = (
+            single_quote + delete_space_optional + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional + single_quote
+        ).optimize()
+
+        # this is to make sure multiple quotes are tagged from right to left without skipping any quotes in the left
         not_alpha = pynini.difference(NEMO_CHAR, NEMO_ALPHA).optimize() | pynutil.add_weight(
             NEMO_SPACE, MIN_NEG_WEIGHT
         )
-
         end = pynini.closure(pynutil.add_weight(not_alpha, MIN_NEG_WEIGHT))
-        single_quote = pynutil.add_weight(pynini.accep("`"), MIN_NEG_WEIGHT)
-        open_close_marks_graph = (
-            single_quote + delete_space_optional + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional + single_quote
+        quotes_graph |= (
+            double_quotes
+            + delete_space_optional
+            + NEMO_ALPHA
+            + NEMO_SIGMA
+            + delete_space_optional
+            + double_quotes
+            + end
         )
 
-        open_close_marks_graph |= NEMO_SIGMA + single_quote + NEMO_ALPHA + NEMO_SIGMA + delete_space + single_quote
+        quotes_graph = pynutil.add_weight(quotes_graph, MIN_NEG_WEIGHT)
+        quotes_graph = NEMO_SIGMA + pynini.closure(NEMO_SIGMA + quotes_graph + NEMO_SIGMA)
 
-        for item in [('"', '"')]:
-            open, close = item
-            open = pynutil.add_weight(pynini.accep(open), MIN_NEG_WEIGHT)
-            close = pynutil.add_weight(pynini.accep(close), MIN_NEG_WEIGHT)
-            open_close_marks_graph |= (
-                open + delete_space_optional + NEMO_ALPHA + NEMO_SIGMA + delete_space_optional + close + end
-            )
+        graph = pynini.compose(graph, quotes_graph).optimize()
 
-        open_close_marks_graph = pynutil.add_weight(open_close_marks_graph, MIN_NEG_WEIGHT)
-        open_close_marks_graph = NEMO_SIGMA + pynini.closure(NEMO_SIGMA + open_close_marks_graph + NEMO_SIGMA)
-
-        graph = pynini.compose(graph, open_close_marks_graph).optimize()
         # remove space between a word and a single quote followed by s
         remove_space_around_single_quote = pynini.cdrewrite(
             delete_space_optional + pynini.union(*self.punct_marks["'"]) + delete_space,
