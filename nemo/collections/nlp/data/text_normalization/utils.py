@@ -211,11 +211,13 @@ def post_process_punct(input: str, normalized_text: str):
         input: input text (original input to the NN, before normalization or tokenization)
         normalized_text: output text (output of the TN NN model)
     """
+    if "``" in input and "``" not in normalized_text:
+        input = input.replace("``", '"')
     input = [x for x in input]
     normalized_text = [x for x in normalized_text]
     punct_default = [x for x in string.punctuation]
     punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
-    punct_marks = set(punct_default + punct_unicode)
+    punct_marks = [x for x in set(punct_default + punct_unicode) if x in input]
     for punct in punct_marks:
         try:
             equal = True
@@ -238,7 +240,6 @@ def post_process_punct(input: str, normalized_text: str):
                 if not equal and not _is_valid(idx_out, idx_in, normalized_text, input):
                     idx_in += 1
                     continue
-
                 if idx_in > 0 and idx_out > 0:
                     if normalized_text[idx_out - 1] == " " and input[idx_in - 1] != " ":
                         normalized_text[idx_out - 1] = ""

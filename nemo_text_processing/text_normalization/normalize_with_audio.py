@@ -172,6 +172,7 @@ class NormalizerWithAudio(Normalizer):
         # non-deterministic Eng normalization uses tagger composed with verbalizer, no permutation in between
         if self.lang == "en":
             normalized_texts = tagged_texts
+            normalized_texts = set([self.post_process(text) for text in normalized_texts])
         else:
             normalized_texts = []
             for tagged_text in tagged_texts:
@@ -192,8 +193,6 @@ class NormalizerWithAudio(Normalizer):
             return normalized_texts, weights
 
         normalized_texts = set(normalized_texts)
-        if self.lang == "en" and hasattr(self, 'post_processor'):
-            normalized_texts = set([self.post_process(text) for text in normalized_texts])
         return normalized_texts
 
     def _get_tagged_text(self, text, n_tagged):

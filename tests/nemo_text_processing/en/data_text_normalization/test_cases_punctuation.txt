@@ -53,3 +53,10 @@ dr. Evil~dr. Evil
 114...48~one hundred and fourteen... forty eight
 12kg.~twelve kilograms.
 <pitch=-.3>123?123</pitch>~<pitch=-.3> one hundred and twenty three? one hundred and twenty three </pitch>
+2!~two!
+1!hello~one! hello
+1, ~one,
+1!!!!~one!!!!
+(1)Hello~(one) Hello
+ÀÁÂÃ check §- and ƛ, also ɧ~ÀÁÂÃ check section - and ƛ, also ɧ
+Hi it's 5pm,4A.M.?-34. Hi,no,yes,34! 12,again,4 and NO?17 and $.01,here & there--0.004kg~Hi it's five PM, four AM.? minus thirty four. Hi,no,yes, thirty four! twelve, again, four and NO? seventeen and one cent, here and there - minus zero point zero zero four kilograms

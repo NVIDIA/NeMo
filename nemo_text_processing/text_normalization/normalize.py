@@ -304,6 +304,10 @@ class Normalizer:
                 raise ValueError(f"No permutations were generated from tokens {s}")
             output += ' ' + self.select_verbalizer(verbalizer_lattice)
         output = SPACE_DUP.sub(' ', output[1:])
+
+        if self.lang == "en" and hasattr(self, 'post_processor'):
+            output = self.post_process(output)
+
         if punct_post_process:
             # do post-processing based on Moses detokenizer
             if self.processor:
@@ -312,8 +316,6 @@ class Normalizer:
             else:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
-        if self.lang == "en" and hasattr(self, 'post_processor'):
-            output = self.post_process(output)
         return output
 
     def _permute(self, d: OrderedDict) -> List[str]:
