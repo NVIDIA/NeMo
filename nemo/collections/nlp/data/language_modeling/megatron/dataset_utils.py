@@ -65,8 +65,9 @@ DSET_TYPE_ICT = 'ict'
 DSET_TYPE_T5 = 't5'
 DSET_TYPE_T5_LM = 't5_prefix_lm'
 DSET_TYPE_BART = 'bart'
+DSET_TYPE_UL2 = 'ul2'
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART]
+DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2]
 
 
 def compile_helper():
@@ -387,6 +388,118 @@ def create_masked_lm_predictions(
     return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
 
 
+def create_extreme_masked_lm_predictions(
+    tokens,
+    masked_lm_prob,
+    mask_id,
+    max_predictions_per_seq,
+    np_rng,
+    max_ngram_size=10,
+    min_ngram_size=2,
+    mean_ngram_size=5,
+    span_length_distribution="geometric",
+):
+    """Creates the predictions for the extreme span-masking UL2 objective.
+    Note: Tokens here are vocab ids and not text tokens."""
+    output_tokens = list(tokens)
+
+    masked_lm_positions = []
+    masked_lm_labels = []
+
+    num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+
+    ngrams = np.arange(1, max_ngram_size + 1, dtype=np.int64)
+    if span_length_distribution == "uniform":
+        pvals = np.array([1.0 / (max_ngram_size - min_ngram_size + 1)] * (max_ngram_size - min_ngram_size + 1))
+
+    ngram_indexes = []
+    cand_indexes = list(range(len(tokens)))
+    for idx in cand_indexes:
+        ngram_index = []
+        for n in ngrams:
+            ngram_index.append(cand_indexes[idx : idx + n])
+        ngram_indexes.append(ngram_index)
+
+    np_rng.shuffle(ngram_indexes)
+
+    (masked_lms, masked_spans) = ([], [])
+    covered_indexes = set()
+    for cand_index_set in ngram_indexes:
+        if len(masked_lms) >= num_to_predict:
+            break
+        if not cand_index_set:
+            continue
+        # Note(mingdachen):
+        # Skip current piece if they are covered in lm masking or previous ngrams.
+        for index_set in cand_index_set[0]:
+            for index in index_set:
+                if index in covered_indexes:
+                    continue
+
+        if span_length_distribution == "uniform":
+            n = np_rng.choice(
+                ngrams[: len(cand_index_set)],
+                p=pvals[: len(cand_index_set)] / pvals[: len(cand_index_set)].sum(keepdims=True),
+            )
+        elif span_length_distribution == "geometric":
+            # Sampling "n" from the geometric distribution and clipping it to
+            # the max_ngrams. Using p=0.2 default from the SpanBERT paper
+            # https://arxiv.org/pdf/1907.10529.pdf (Sec 3.1)
+
+            # The expectation of a geometric distribution is E[X] = 1 / p
+            p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
+            n = min(np_rng.geometric(p), max_ngram_size)
+        elif span_length_distribution == "truncated_normal":
+            # Sampling "n" from a truncated normal distribution.
+            mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
+            n = np.clip(
+                int(np_rng.normal(loc=mu, scale=np.sqrt(mu))),
+                min_ngram_size,
+                max_ngram_size,
+            )
+
+        index_set = sum(cand_index_set[n - 1], [])
+        n -= 1
+        # Note(mingdachen):
+        # Repeatedly looking for a candidate that does not exceed the
+        # maximum number of predictions by trying shorter ngrams.
+        while len(masked_lms) + len(index_set) > num_to_predict:
+            if n < min_ngram_size:
+                break
+            index_set = sum(cand_index_set[n - 1], [])
+            n -= 1
+
+        # If adding a whole-word mask would exceed the maximum number of
+        # predictions, then just skip this candidate.
+        if len(masked_lms) + len(index_set) > num_to_predict:
+            continue
+        is_any_index_covered = False
+        for index in index_set:
+            if index in covered_indexes:
+                is_any_index_covered = True
+                break
+        if is_any_index_covered:
+            continue
+        for index in index_set:
+            covered_indexes.add(index)
+            output_tokens[index] = mask_id
+            masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
+
+        masked_spans.append(MaskedLmInstance(index=index_set, label=[tokens[index] for index in index_set]))
+
+    assert len(masked_lms) <= num_to_predict
+    np_rng.shuffle(ngram_indexes)
+
+    masked_lms = sorted(masked_lms, key=lambda x: x.index)
+    # Sort the spans by the index of the first span
+    masked_spans = sorted(masked_spans, key=lambda x: x.index[0])
+
+    for p in masked_lms:
+        masked_lm_positions.append(p.index)
+        masked_lm_labels.append(p.label)
+    return (output_tokens, masked_lm_positions, masked_lm_labels, masked_spans)
+
+
 def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length):
     """Pad sequences and convert them to numpy."""
 
@@ -587,6 +700,7 @@ def _build_train_valid_test_datasets(
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
         from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
 
         dataset = None
@@ -682,6 +796,31 @@ def _build_train_valid_test_datasets(
                     whole_word_masking=whole_word_masking,
                     favor_long_ngrams=favor_long_ngrams,
                     delete_mask_prob=delete_mask_prob,
+                    **kwargs,
+                )
+            elif dataset_type == DSET_TYPE_UL2:
+                assert tokenizer is not None, "Tokenizer is required for UL2 dataset"
+                logging.info("Instatiating UL2 Dataset ...")
+                dataset = UL2Dataset(
+                    cfg=cfg,
+                    trainer=trainer,
+                    tokenizer=tokenizer,
+                    indexed_dataset=indexed_dataset,
+                    masked_lm_prob=masked_lm_prob,
+                    max_seq_length_dec=max_seq_length_dec,
+                    short_seq_prob=short_seq_prob,
+                    max_ngram_size=max_ngram_size,
+                    mean_ngram_size=mean_ngram_size,
+                    ngram_span_length_distribution=cfg.data.get("ngram_span_length_distribution", "geometric"),
+                    extreme_ngram_span_length_distribution=cfg.data.get("extreme_ngram_span_length_distribution", "truncated_normal"),
+                    permutation=permutation,
+                    whole_word_masking=whole_word_masking,
+                    favor_long_ngrams=favor_long_ngrams,
+                    extreme_masked_lm_prob=cfg.data.get("extreme_masked_lm_prob", 0.5),
+                    extreme_max_ngram_size=cfg.data.get("extreme_max_ngram_size", 128),
+                    extreme_mean_ngram_size=cfg.data.get("extreme_mean_ngram_size", 64),
+                    extreme_min_ngram_size=cfg.data.get("extreme_min_ngram_size", 32),
+                    prefix_lm_pivot_mean=cfg.data.get("prefix_lm_pivot_mean", 0.25),
                     **kwargs,
                 )
             else:

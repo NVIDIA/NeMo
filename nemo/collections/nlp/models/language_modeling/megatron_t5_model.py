@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -53,6 +54,16 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             if self._cfg.data.seq_length_dec < self._cfg.data.seq_length * self._cfg.data.masked_lm_prob:
                 raise ValueError(
                     f"Cannot have decoder max sequence length ({self._cfg.data.seq_length_dec}) less than encoder sequence length ({self._cfg.data.seq_length}) * masked_lm_prob ({self._cfg.data.masked_lm_prob})"
+                )
+
+        if self._cfg.data.get("dataset_type", "t5") == "ul2":
+            if self._cfg.data.seq_length_dec != self._cfg.data.seq_length:
+                raise ValueError(
+                    f"Encoder and decoder sequence lengths must be the same while using the UL2 dataset type. Found encoder length {self._cfg.data.seq_length} and decoder length {self._cfg.data.seq_length_dec}"
+                )
+            if self._cfg.data.tokenizer.num_sentinel_tokens < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob:
+                raise ValueError(
+                    f"Not enough sentinel tokens specified. Need at least {math.ceil(self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob)} sentinel tokens. Found {self._cfg.data.tokenizer.num_sentinel_tokens}"
                 )
 
     @property
@@ -118,6 +129,15 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                     )[0]
                 else:
                     self.tokenizer.add_special_tokens([f'<extra_id_{i}>'])
+
+            if self._cfg.data.get("dataset_type", "t5") == "ul2":
+                for mask_type in ['r', 's', 'x']:
+                    if f'▁<extra_id_{mask_type}>' in self.tokenizer.vocab:
+                        self.tokenizer.special_token_to_id[f'<extra_id_{i}>'] = self.tokenizer.text_to_ids(
+                            f'<extra_id_{i}>'
+                        )[0]
+                    else:
+                        self.tokenizer.add_special_tokens([f'<extra_id_{mask_type}>'])
 
     def build_train_valid_test_datasets(self):
         logging.info(f'Building {self.model_name} datasets.')

@@ -43,30 +43,38 @@ class T5LMAdaptedDataset(GPTDataset):
             seed,
         )
 
-    def __getitem__(self, idx):
-        text = super()._get_text(idx)
-
-        np_rng = np.random.RandomState(seed=(self.seed + idx))
-
+    @classmethod
+    def get_prefix_lm_training_sample(cls, sample, max_seq_length_encoder, max_seq_length_decoder, np_rng, tokenizer, pivot_mean=0.25, pivot_distribution="uniform"):
         # get random split index
-        split_idx = np_rng.randint(0, self.max_seq_length_encoder)
-        
+        if pivot_distribution not in ["uniform", "truncated_normal"]:
+            raise ValueError(f"Invalid pivot_distribution: {pivot_distribution}. Must be one of ['uniform', 'truncated_normal']")
+        if pivot_distribution == "truncated_normal" and (pivot_mean < 0.0 or pivot_mean > 1.0):
+            raise ValueError(f"Invalid pivot_mean: {pivot_mean}. Must be in [0.0, 1.0]. It is a fraction of the encoder sequence length.")
+
+        if pivot_distribution == "uniform":
+            split_idx = np_rng.randint(0, max_seq_length_encoder)
+        else:
+            loc = pivot_mean * max_seq_length_encoder
+            split_idx = np.clip(
+                int(np_rng.normal(loc=loc, scale=loc)), 0, max_seq_length_encoder,
+            )
+
         # Encoder inputs get truncated based on the split indx
-        tokens_enc = np.concatenate([text[: split_idx], [self.tokenizer.pad_id] * (self.max_seq_length_encoder - split_idx)]).astype(np.int64)
+        tokens_enc = np.concatenate([sample[: split_idx], [tokenizer.pad_id] * (max_seq_length_encoder - split_idx)]).astype(np.int64)
 
         # The decoder sequence is never truncated and is always of max decoder length.
-        tokens_dec = text[split_idx: split_idx + self.max_seq_length_decoder - 2]
+        tokens_dec = sample[split_idx: split_idx + max_seq_length_decoder]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
-        tokens_dec = np.concatenate(([self.tokenizer.bos_id], tokens_dec)).astype(np.int64)
+        tokens_dec = np.concatenate(([tokenizer.bos_id], tokens_dec)).astype(np.int64)
 
         # Shift sequences for teacher forcing
         tokens_dec_in = tokens_dec[:-1]
         labels = tokens_dec[1:]
 
         # Create attention masks
-        enc_mask = (tokens_enc != self.tokenizer.pad_id).astype(np.int64)
-        dec_mask = (tokens_dec_in != self.tokenizer.pad_id).astype(np.int64)
+        enc_mask = (tokens_enc != tokenizer.pad_id).astype(np.int64)
+        dec_mask = (tokens_dec_in != tokenizer.pad_id).astype(np.int64)
 
         loss_mask = dec_mask
 
@@ -80,3 +88,17 @@ class T5LMAdaptedDataset(GPTDataset):
             'dec_mask': dec_mask,
         }
         return train_sample
+
+    def __getitem__(self, idx):
+        text = super()._get_text(idx)
+        np_rng = np.random.RandomState(seed=(self.seed + idx))
+        sample = T5LMAdaptedDataset.get_prefix_lm_training_sample(
+            sample=text,
+            max_seq_length_encoder=self.max_seq_length_encoder,
+            max_seq_length_decoder=self.max_seq_length_decoder,
+            np_rng=np_rng,
+            tokenizer=self.tokenizer,
+            pivot_distribution="uniform",
+        )
+        import ipdb; ipdb.set_trace()
+        return sample
