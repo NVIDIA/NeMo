@@ -191,10 +191,14 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 offset=offset + self._sizes.nbytes + self._pointers.nbytes + self._chunk_id_start.nbytes,
             )
 
-        def _chunk_address(self, chunk_id):
+        def get_chunk_address(self, chunk_id):
+            """ get the chunk address from chunk id
+            """
             return self._chunk_address[chunk_id]
 
         def get_chunk_id(self, sentence_id, position):
+            """ get the chunk id from sentence idx and offset position.
+            """
             return self._chunk_id_start[sentence_id] + position // self.chunk_size
 
         def __del__(self):
@@ -285,6 +289,22 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         ptr += offset * np.dtype(self._index.dtype).itemsize
         np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=length, offset=ptr)
         return np_array
+
+    def get_chunk_id(self, idx, offset=0):
+        """ get the chunk id from sentence idx and offset position.
+        """
+        # make sure offset is a multiple of chunk_size
+        assert offset % self._index.chunk_size == 0
+        return self._index.get_chunk_id(idx, offset)
+
+    def get_chunk(self, chunk_id):
+        """ Retrieves a single chunk item from the dataset.
+        """
+        ptr = self._index.get_chunk_address(chunk_id)
+        size = self._index.chunk_size
+        np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
+        return np_array
+
 
     @property
     def sizes(self):
