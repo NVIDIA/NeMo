@@ -355,7 +355,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             'test_acc_top_k': topk_scores,
         }
 
-
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
         """

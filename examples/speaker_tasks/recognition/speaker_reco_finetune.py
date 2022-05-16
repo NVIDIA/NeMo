@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import torch.nn as nn
-
 import pytorch_lightning as pl
 from omegaconf import OmegaConf
 from pytorch_lightning import seed_everything
@@ -27,23 +24,21 @@ from nemo.utils.exp_manager import exp_manager
 seed_everything(42)
 
 
-@hydra_runner(config_path="conf", config_name="SpeakerNet_verification_3x2x256.yaml")
+@hydra_runner(config_path="conf", config_name="titanet-finetune.yaml")
 def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
-    pretrained = EncDecSpeakerLabelModel.from_pretrained("titanet_large")
-    pretrained.decoder.final = speaker_model.decoder.final
-    speaker_model.load_state_dict(pretrained.state_dict())
-    # speaker_model.maybe_init_from_pretrained_checkpoint(cfg)
+    speaker_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(speaker_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator)
         if speaker_model.prepare_test(trainer):
             trainer.test(speaker_model)
+
 
 if __name__ == '__main__':
     main()
