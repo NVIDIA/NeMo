@@ -469,9 +469,20 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
         averaged_metric = sum(averaged_metric) / len(averaged_metric)
+
+        # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
+        if torch.isinf(averaged_metric) or torch.isnan(averaged_metric):
+            app_state = AppState()
+            monitor_mode = app_state.checkpoint_callback_params.mode
+            assert monitor_mode in ['min', 'max']
+            averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+
         if mode == 'validation':
             self.log("validation_loss", averaged_loss)
             self.log(f"validation_{self.val_metric_name}", averaged_metric)
+        elif mode == 'test':
+            self.log("test_loss", averaged_loss)
+            self.log(f"test_{self.test_metric_name}", averaged_metric)
 
         return averaged_loss, averaged_metric
 
