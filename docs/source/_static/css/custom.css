@@ -221,9 +221,18 @@ thead td
 	.container-xl {
 		max-width: 100%;
 	}
+}
+
+@media (min-width: 1400px) {
+	#site-navigation nav ul.nav {
+		font-size: 18px;
+	}
+
+	#site-navigation nav.bd-links p {
+		font-size: 18px;
+	}
 
 	#site-navigation {
-		font-size: 18px;
 		width: 350px;
 	}
 
@@ -242,9 +251,7 @@ thead td
 	.header-article .bd-toc {
 		font-size: 18px;
 	}
-}
-
-@media (min-width: 1400px) {
+	
 	#main-content > div {
 		margin-left: 10%;
 		margin-right: 10%;
