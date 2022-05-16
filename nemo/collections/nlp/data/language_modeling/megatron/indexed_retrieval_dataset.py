@@ -80,7 +80,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     return self
 
                 @staticmethod
-                def _get_pointers(sizes):
+                def _get_pointers(sizes, chunk_size, retrieval_db):
                     dtype_size = dtype().itemsize
                     address = 0
                     pointers = []
@@ -88,11 +88,13 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     for size in sizes:
                         pointers.append(address)
                         address += size * dtype_size
-
+                        if retrieval_db:
+                            # if it is retrieval db, the the last chunk is reserved for padding
+                            address +=  chunk_size*dtype_size
                     return pointers
 
                 @staticmethod
-                def _get_chunk_id_and_address(sizes, chunk_size):
+                def _get_chunk_id_and_address(sizes, chunk_size, retrieval_db):
                     dtype_size = dtype().itemsize
                     chunk_ids = []
                     last_id = 0
@@ -106,12 +108,15 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                         for _ in range(num_of_chunks):
                             pointers.append(address)
                             address += chunk_size*dtype_size
+                        if retrieval_db:  
+                            # if it is retrieval db, the the last chunk is reserved for padding
+                            address += chunk_size*dtype_size
                         last_id += num_of_chunks
                     return chunk_ids, pointers
 
-                def write(self, sizes, chunk_size):
-                    pointers = self._get_pointers(sizes)
-                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size)
+                def write(self, sizes, chunk_size, retrieval_db=False):
+                    pointers = self._get_pointers(sizes, chunk_size, retrieval_db)
+                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size, retrieval_db)
 
                     self._file.write(struct.pack('<Q', len(sizes)))
                     self._file.write(struct.pack('<Q', chunk_size))
@@ -185,6 +190,12 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 count=self.num_chunks,
                 offset=offset + self._sizes.nbytes + self._pointers.nbytes + self._chunk_id_start.nbytes,
             )
+
+        def _chunk_address(self, chunk_id):
+            return self._chunk_address[chunk_id]
+
+        def get_chunk_id(self, sentence_id, position):
+            return self._chunk_id_start[sentence_id] + position // self.chunk_size
 
         def __del__(self):
             self._bin_buffer_mmap._mmap.close()
@@ -295,16 +306,24 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
 
 class MMapRetrievalIndexedDatasetBuilder(object):
-    def __init__(self, out_file, chunk_size, dtype=np.int64):
+    def __init__(self, out_file, chunk_size, pad_id, retrieval_db=False, dtype=np.int64):
         self._data_file = open(out_file, 'wb')
         self._dtype = dtype
         self.chunk_size = chunk_size
         self._sizes = []
+        self.retrieval_db = retrieval_db
+        self.pad_id = pad_id
 
     def add_item(self, tensor):
         np_array = np.array(tensor.numpy(), dtype=self._dtype)
+        padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
+        data_size = np_array.size + padded_size
+        if self.retrieval_db: 
+            # for retrieval database, added one more chunk in the end as padding
+            padded_size += self.chunk_size
+        np.pad(np_array, (0, padded_size), 'constant', constant_values=self.pad_id)
         self._data_file.write(np_array.tobytes(order='C'))
-        self._sizes.append(np_array.size)
+        self._sizes.append(data_size)
 
     def end_document(self):
         pass

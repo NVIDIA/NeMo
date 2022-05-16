@@ -20,7 +20,8 @@ import pytest
 
 from nemo.collections.common.tokenizers.column_coder import ColumnCodes
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset, MMapRetrievalIndexedDatasetBuilder
+import os
 
 
 class TestTabularTokenizer:
@@ -31,14 +32,42 @@ class TestTabularTokenizer:
         sizes = np.array([128, 256], dtype=np.int32)
         dtype = np.int64
         itemsize = dtype().itemsize
-        with MMapRetrievalIndexedDataset.Index.writer('test.idx', dtype) as index:
-            index.write(sizes, chunk_size)
+        index_file = '/tmp/test.idx'
+        try:
+            with MMapRetrievalIndexedDataset.Index.writer(index_file, dtype) as index:
+                index.write(sizes, chunk_size)
 
-        index_load = MMapRetrievalIndexedDataset.Index('test.idx')
-        assert index_load.chunk_size == chunk_size
-        assert np.array_equal(index_load.sizes, sizes)
-        assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0]/chunk_size], dtype=np.int64))
-        assert np.array_equal(index_load._chunk_address, np.arange(0, sizes.sum()*itemsize, chunk_size * itemsize, dtype=np.int64))
-        assert np.array_equal(index_load._pointers, np.array([0, sizes[0]*itemsize], dtype=np.int64))
-        assert len(index_load._chunk_address) == index_load.num_chunks
+            index_load = MMapRetrievalIndexedDataset.Index(index_file)
+            assert index_load.chunk_size == chunk_size
+            assert np.array_equal(index_load.sizes, sizes)
+            assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0]/chunk_size], dtype=np.int64))
+            assert np.array_equal(index_load._chunk_address, np.arange(0, sizes.sum()*itemsize, chunk_size * itemsize, dtype=np.int64))
+            assert np.array_equal(index_load._pointers, np.array([0, sizes[0]*itemsize], dtype=np.int64))
+            assert len(index_load._chunk_address) == index_load.num_chunks
+        finally:
+            os.remove(index_file)
+
+
+    @pytest.mark.unit
+    def test_create_data_index(self):
+        chunk_size = 64
+        sizes = np.array([128, 256], dtype=np.int32)
+        dtype = np.int64
+        itemsize = dtype().itemsize
+        index_file = '/tmp/test.idx'
+        data_file = '/tmp/test.bin'
+        try:
+            MMapRetrievalIndexedDatasetBuilder(data_file)
+            with MMapRetrievalIndexedDataset.Index.writer(index_file, dtype) as index:
+                index.write(sizes, chunk_size)
+
+            index_load = MMapRetrievalIndexedDataset.Index(index_file)
+            assert index_load.chunk_size == chunk_size
+            assert np.array_equal(index_load.sizes, sizes)
+            assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0]/chunk_size], dtype=np.int64))
+            assert np.array_equal(index_load._chunk_address, np.arange(0, sizes.sum()*itemsize, chunk_size * itemsize, dtype=np.int64))
+            assert np.array_equal(index_load._pointers, np.array([0, sizes[0]*itemsize], dtype=np.int64))
+            assert len(index_load._chunk_address) == index_load.num_chunks
+        finally:
+            os.remove(index_file)
 
