@@ -38,7 +38,6 @@ import torch
 
 from nemo.utils import logging
 
-
 dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16}
 
 
@@ -90,7 +89,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                         address += size * dtype_size
                         if retrieval_db:
                             # if it is retrieval db, the the last chunk is reserved for padding
-                            address +=  chunk_size*dtype_size
+                            address += chunk_size * dtype_size
                     return pointers
 
                 @staticmethod
@@ -107,10 +106,10 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                             raise ValueError(f"the sentence size {size} should be the multiple of {chunk_size}")
                         for _ in range(num_of_chunks):
                             pointers.append(address)
-                            address += chunk_size*dtype_size
-                        if retrieval_db:  
+                            address += chunk_size * dtype_size
+                        if retrieval_db:
                             # if it is retrieval db, the the last chunk is reserved for padding
-                            address += chunk_size*dtype_size
+                            address += chunk_size * dtype_size
                         last_id += num_of_chunks
                     return chunk_ids, pointers
 
@@ -276,11 +275,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             else:
                 sizes = self._index._sizes[idx]
             offsets = list(accumulate(sizes))
-            total_size = sum(sizes) 
+            total_size = sum(sizes)
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
             sents = np.split(np_array, offsets[:-1])
             if self._index.retrieval_db:
-                sents = [sent[:-self._index.chunk_size] for sent in sents]
+                sents = [sent[: -self._index.chunk_size] for sent in sents]
             return sents
 
     def get(self, idx, offset=0, length=None):
@@ -307,24 +306,16 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         """ Retrieves a single chunk item from the dataset.
         """
         ptr = self._index.get_chunk_address(chunk_id)
-        size = self._index.chunk_size
+        if self._index.retrieval_db:
+            size = self._index.chunk_size * 2
+        else:
+            size = self._index.chunk_size
         np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
         return np_array
-
 
     @property
     def sizes(self):
         return self._index.sizes
-
-    @property
-    def doc_idx(self):
-        return self._index.doc_idx
-
-    def get_doc_idx(self):
-        return self._index._doc_idx
-
-    def set_doc_idx(self, doc_idx_):
-        self._index._doc_idx = doc_idx_
 
     @property
     def supports_prefetch(self):

@@ -13,20 +13,19 @@
 # limitations under the License.
 
 
-import string
+import os
 
 import numpy as np
 import pytest
-
-from nemo.collections.common.tokenizers.column_coder import ColumnCodes
-from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 import torch
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset, MMapRetrievalIndexedDatasetBuilder
-import os
+
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    MMapRetrievalIndexedDataset,
+    MMapRetrievalIndexedDatasetBuilder,
+)
 
 
 class TestTabularTokenizer:
-
     @pytest.mark.unit
     def test_index(self):
         chunk_size = 64
@@ -42,13 +41,14 @@ class TestTabularTokenizer:
             assert index_load.chunk_size == chunk_size
             assert not index_load.retrieval_db
             assert np.array_equal(index_load.sizes, sizes)
-            assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0]/chunk_size], dtype=np.int64))
-            assert np.array_equal(index_load._chunk_address, np.arange(0, sizes.sum()*itemsize, chunk_size * itemsize, dtype=np.int64))
-            assert np.array_equal(index_load._pointers, np.array([0, sizes[0]*itemsize], dtype=np.int64))
+            assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0] / chunk_size], dtype=np.int64))
+            assert np.array_equal(
+                index_load._chunk_address, np.arange(0, sizes.sum() * itemsize, chunk_size * itemsize, dtype=np.int64)
+            )
+            assert np.array_equal(index_load._pointers, np.array([0, sizes[0] * itemsize], dtype=np.int64))
             assert len(index_load._chunk_address) == index_load.num_chunks
         finally:
             os.remove(index_file)
-
 
     @pytest.mark.unit
     def test_create_data_index(self):
@@ -63,8 +63,8 @@ class TestTabularTokenizer:
         gt2 = np.pad(sentence2, (0, padded_size), 'constant', constant_values=pad_id)
 
         data_file = '/tmp/test'
-        index_file = data_file+'.idx'
-        bin_file = data_file+'.bin'
+        index_file = data_file + '.idx'
+        bin_file = data_file + '.bin'
         try:
             builder = MMapRetrievalIndexedDatasetBuilder(bin_file, chunk_size, pad_id, False)
             builder.add_item(sentence1)
@@ -79,17 +79,16 @@ class TestTabularTokenizer:
             assert np.array_equal(fetch2, gt2)
             chunk_id = ds.get_chunk_id(0, 64)
             assert chunk_id == 1
-            assert np.array_equal(ds.get_chunk(chunk_id), gt1[64:64+64])
+            assert np.array_equal(ds.get_chunk(chunk_id), gt1[64 : 64 + 64])
             chunk_id = ds.get_chunk_id(1, 0)
             assert chunk_id == 2
             assert np.array_equal(ds.get_chunk(chunk_id), gt2[0:64])
-            assert np.array_equal(ds.get_chunk(chunk_id+1), gt2[64:128])
-            assert np.array_equal(ds.get_chunk(chunk_id+2), gt2[128:192])
-            assert np.array_equal(ds.get_chunk(chunk_id+3), gt2[192:256])
+            assert np.array_equal(ds.get_chunk(chunk_id + 1), gt2[64:128])
+            assert np.array_equal(ds.get_chunk(chunk_id + 2), gt2[128:192])
+            assert np.array_equal(ds.get_chunk(chunk_id + 3), gt2[192:256])
         finally:
             os.remove(index_file)
             os.remove(bin_file)
-
 
     @pytest.mark.unit
     def test_create_retrieval_data_index(self):
@@ -98,14 +97,16 @@ class TestTabularTokenizer:
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
         padded_size = chunk_size - (len(sentence1) % chunk_size)
         gt1 = np.pad(sentence1, (0, padded_size), 'constant', constant_values=pad_id)
+        padded_gt1 = np.pad(sentence1, (0, padded_size + chunk_size), 'constant', constant_values=pad_id)
 
         sentence2 = torch.arange(1, 500, 2, dtype=torch.int64)
         padded_size = chunk_size - (len(sentence2) % chunk_size)
         gt2 = np.pad(sentence2, (0, padded_size), 'constant', constant_values=pad_id)
+        padded_gt2 = np.pad(sentence2, (0, padded_size + chunk_size), 'constant', constant_values=pad_id)
 
         data_file = '/tmp/test'
-        index_file = data_file+'.idx'
-        bin_file = data_file+'.bin'
+        index_file = data_file + '.idx'
+        bin_file = data_file + '.bin'
         try:
             builder = MMapRetrievalIndexedDatasetBuilder(bin_file, chunk_size, pad_id, True)
             builder.add_item(sentence1)
@@ -120,14 +121,13 @@ class TestTabularTokenizer:
             assert np.array_equal(fetch2, gt2)
             chunk_id = ds.get_chunk_id(0, 64)
             assert chunk_id == 1
-            assert np.array_equal(ds.get_chunk(chunk_id), gt1[64:64+64])
+            assert np.array_equal(ds.get_chunk(chunk_id), padded_gt1[64 : 64 + 64 * 2])
             chunk_id = ds.get_chunk_id(1, 0)
             assert chunk_id == 2
-            assert np.array_equal(ds.get_chunk(chunk_id), gt2[0:64])
-            assert np.array_equal(ds.get_chunk(chunk_id+1), gt2[64:128])
-            assert np.array_equal(ds.get_chunk(chunk_id+2), gt2[128:192])
-            assert np.array_equal(ds.get_chunk(chunk_id+3), gt2[192:256])
+            assert np.array_equal(ds.get_chunk(chunk_id), padded_gt2[0:128])
+            assert np.array_equal(ds.get_chunk(chunk_id + 1), padded_gt2[64:192])
+            assert np.array_equal(ds.get_chunk(chunk_id + 2), padded_gt2[128:256])
+            assert np.array_equal(ds.get_chunk(chunk_id + 3), padded_gt2[192:320])
         finally:
             os.remove(index_file)
             os.remove(bin_file)
-
