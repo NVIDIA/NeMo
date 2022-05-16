@@ -35,11 +35,12 @@ class TestTabularTokenizer:
         itemsize = dtype().itemsize
         index_file = '/tmp/test.idx'
         try:
-            with MMapRetrievalIndexedDataset.Index.writer(index_file, dtype) as index:
+            with MMapRetrievalIndexedDataset.Index.writer(index_file, dtype, False) as index:
                 index.write(sizes, chunk_size)
 
             index_load = MMapRetrievalIndexedDataset.Index(index_file)
             assert index_load.chunk_size == chunk_size
+            assert not index_load.retrieval_db
             assert np.array_equal(index_load.sizes, sizes)
             assert np.array_equal(index_load._chunk_id_start, np.array([0, sizes[0]/chunk_size], dtype=np.int64))
             assert np.array_equal(index_load._chunk_address, np.arange(0, sizes.sum()*itemsize, chunk_size * itemsize, dtype=np.int64))
@@ -66,6 +67,47 @@ class TestTabularTokenizer:
         bin_file = data_file+'.bin'
         try:
             builder = MMapRetrievalIndexedDatasetBuilder(bin_file, chunk_size, pad_id, False)
+            builder.add_item(sentence1)
+            builder.add_item(sentence2)
+            builder.finalize(index_file)
+            # load the data
+            ds = MMapRetrievalIndexedDataset(data_file)
+            assert np.array_equal(ds.get(0), gt1)
+            assert np.array_equal(ds.get(1), gt2)
+            fetch1, fetch2 = ds[0:2]
+            assert np.array_equal(fetch1, gt1)
+            assert np.array_equal(fetch2, gt2)
+            chunk_id = ds.get_chunk_id(0, 64)
+            assert chunk_id == 1
+            assert np.array_equal(ds.get_chunk(chunk_id), gt1[64:64+64])
+            chunk_id = ds.get_chunk_id(1, 0)
+            assert chunk_id == 2
+            assert np.array_equal(ds.get_chunk(chunk_id), gt2[0:64])
+            assert np.array_equal(ds.get_chunk(chunk_id+1), gt2[64:128])
+            assert np.array_equal(ds.get_chunk(chunk_id+2), gt2[128:192])
+            assert np.array_equal(ds.get_chunk(chunk_id+3), gt2[192:256])
+        finally:
+            os.remove(index_file)
+            os.remove(bin_file)
+
+
+    @pytest.mark.unit
+    def test_create_retrieval_data_index(self):
+        chunk_size = 64
+        pad_id = 0
+        sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence1) % chunk_size)
+        gt1 = np.pad(sentence1, (0, padded_size), 'constant', constant_values=pad_id)
+
+        sentence2 = torch.arange(1, 500, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence2) % chunk_size)
+        gt2 = np.pad(sentence2, (0, padded_size), 'constant', constant_values=pad_id)
+
+        data_file = '/tmp/test'
+        index_file = data_file+'.idx'
+        bin_file = data_file+'.bin'
+        try:
+            builder = MMapRetrievalIndexedDatasetBuilder(bin_file, chunk_size, pad_id, True)
             builder.add_item(sentence1)
             builder.add_item(sentence2)
             builder.finalize(index_file)

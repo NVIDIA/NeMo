@@ -68,7 +68,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         _HDR_MAGIC = b'MMIDRET\x00\x00'
 
         @classmethod
-        def writer(cls, path, dtype):
+        def writer(cls, path, dtype, retrieval_db):
             class _Writer(object):
                 def __enter__(self):
                     self._file = open(path, 'wb')
@@ -80,7 +80,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     return self
 
                 @staticmethod
-                def _get_pointers(sizes, chunk_size, retrieval_db):
+                def _get_pointers(sizes, chunk_size):
                     dtype_size = dtype().itemsize
                     address = 0
                     pointers = []
@@ -94,7 +94,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                     return pointers
 
                 @staticmethod
-                def _get_chunk_id_and_address(sizes, chunk_size, retrieval_db):
+                def _get_chunk_id_and_address(sizes, chunk_size):
                     dtype_size = dtype().itemsize
                     chunk_ids = []
                     last_id = 0
@@ -114,13 +114,14 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                         last_id += num_of_chunks
                     return chunk_ids, pointers
 
-                def write(self, sizes, chunk_size, retrieval_db=False):
-                    pointers = self._get_pointers(sizes, chunk_size, retrieval_db)
-                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size, retrieval_db)
+                def write(self, sizes, chunk_size):
+                    pointers = self._get_pointers(sizes, chunk_size)
+                    chunk_ids, chunk_address = self._get_chunk_id_and_address(sizes, chunk_size)
 
                     self._file.write(struct.pack('<Q', len(sizes)))
                     self._file.write(struct.pack('<Q', chunk_size))
                     self._file.write(struct.pack('<Q', len(chunk_address)))
+                    self._file.write(struct.pack('<B', int(retrieval_db)))
 
                     sizes = np.array(sizes, dtype=np.int32)
                     self._file.write(sizes.tobytes(order='C'))
@@ -159,7 +160,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 self._len = struct.unpack('<Q', stream.read(8))[0]
                 self.chunk_size = struct.unpack('<Q', stream.read(8))[0]
                 self.num_chunks = struct.unpack('<Q', stream.read(8))[0]
-
+                self.retrieval_db = bool(struct.unpack('<B', stream.read(1))[0])
                 # self.chunk_size = struct.unpack('<Q', stream.read(8))[0]
                 # self.num_chunks = struct.unpack('<Q', stream.read(8))[0]
                 offset = stream.tell()
@@ -270,11 +271,16 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             if step != 1:
                 raise ValueError("Slices into indexed_dataset must be contiguous")
             ptr = self._index._pointers[start]
-            sizes = self._index._sizes[idx]
+            if self._index.retrieval_db:
+                sizes = self._index._sizes[idx] + self._index.chunk_size
+            else:
+                sizes = self._index._sizes[idx]
             offsets = list(accumulate(sizes))
-            total_size = sum(sizes)
+            total_size = sum(sizes) 
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
             sents = np.split(np_array, offsets[:-1])
+            if self._index.retrieval_db:
+                sents = [sent[:-self._index.chunk_size] for sent in sents]
             return sents
 
     def get(self, idx, offset=0, length=None):
@@ -367,5 +373,5 @@ class MMapRetrievalIndexedDatasetBuilder(object):
     def finalize(self, index_file):
         self._data_file.close()
 
-        with MMapRetrievalIndexedDataset.Index.writer(index_file, self._dtype) as index:
+        with MMapRetrievalIndexedDataset.Index.writer(index_file, self._dtype, self.retrieval_db) as index:
             index.write(self._sizes, self.chunk_size)
