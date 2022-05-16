@@ -370,3 +370,108 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         finally:
             if hasattr(self.g2p, "phoneme_probability"):
                 self.g2p.phoneme_probability = self.phoneme_probability
+
+
+class IPATokenizer(BaseTokenizer):
+    # fmt: off
+    PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
+        ',', '.', '!', '?', '-',
+        ':', ';', '/', '"', '(',
+        ')', '[', ']', '{', '}',
+    )
+
+    #TODO(jocelynh): Check that all args are used
+    def __init__(
+        self,
+        g2p,
+        token_list_file,
+        punct=True,
+        non_default_punct_list=None,
+        chars=False,
+        *,
+        space=' ',
+        silence=None,
+        apostrophe=True,
+        oov=BaseTokenizer.OOV,
+        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        add_blank_at=None,
+        pad_with_space=False,
+        text_preprocessing_func=lambda x: x, #TODO: Hmm. lambda text: english_text_preprocessing(text, lower=False),
+    ):
+        #TODO(jocelynh): Write full docstring
+        """General IPA-based tokenizer.
+        Args:
+            g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
+            ...
+        """
+        if not hasattr(g2p, "symbols"):
+            logging.error(
+                f"Please make sure the G2P module passed into the IPATokenizer has a `symbols` attribute. "
+                f"This is required in order to build the tokenizer vocabulary.\n"
+                f"Expected e.g. IPAG2P, found {type(g2p)}"
+            )
+            raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
+
+        # Build tokens list
+        tokens = list(g2p.symbols)
+
+        if chars:
+            tokens.extend(string.ascii_lowercase)
+
+        if space in g2p.symbols:
+            self.space = tokens.index(space)
+        else:
+            self.space, tokens = len(tokens), tokens + [space]
+
+        if silence is not None:
+            self.silence, tokens = len(tokens), tokens + [silence]
+
+        if apostrophe:
+            tokens.append("'")
+
+        if punct:
+            if non_default_punct_list is not None:
+                self.PUNCT_LIST = non_default_punct_list
+            tokens.extend(self.PUNCT_LIST)
+
+        super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
+
+        self.chars = chars
+        self.punct = punct
+        self.pad_with_space = pad_with_space
+
+        self.text_preprocessing_func = text_preprocessing_func
+        self.g2p = g2p
+
+    def encode(self, text):
+        """See base class for more information."""
+        ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
+
+        text = self.text_preprocessing_func(text)
+        g2p_text = self.g2p(text)   # Double-check this
+
+        for p in g2p_text:
+            if p == space and len(ps) > 0 and ps[-1] != space:
+                # Add space if last token isn't one
+                ps.append(p)
+            elif (p.isalnum() or p == "'") and p in tokens:
+                # Add next phoneme or char (if chars=True)
+                ps.append(p)
+            elif (p in self.PUNCT_LIST) and self.punct:
+                # Add punct
+                ps.append(p)
+            elif p != space:
+                logging.warning(
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                    f"Original text: [{text}]. Symbol will be skipped."
+                )
+
+        # Remove trailing spaces
+        while ps[-1] == space:
+            ps.pop()
+
+        if self.pad_with_space:
+            ps = [space] + ps + [space]
+
+        # Token index lookups
+        return [self._token2id[p] for p in ps]

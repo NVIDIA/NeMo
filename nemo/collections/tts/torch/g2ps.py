@@ -17,6 +17,7 @@ import pathlib
 import random
 import re
 import time
+from collections import defaultdict
 from typing import Optional
 
 import nltk
@@ -59,9 +60,9 @@ class EnglishG2p(BaseG2p):
     ):
         """English G2P module. This module converts words from grapheme to phoneme representation using phoneme_dict in CMU dict format.
         Optionally, it can ignore words which are heteronyms, ambiguous or marked as unchangeable by word_tokenize_func (see code for details).
-        Ignored words are left unchanged or passed through apply_to_oov_word.
+        Ignored words are left unchanged or passed through apply_to_oov_word for handling.
         Args:
-            phoneme_dict (str, Path, Dict): Path to file in CMU dict format or dictionary in CMU dict.
+            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word representation and flag whether to leave unchanged or not.
                 It is expected that unchangeable word representation will be represented as List[str], other cases are represented as str.
@@ -82,9 +83,10 @@ class EnglishG2p(BaseG2p):
 
         if apply_to_oov_word is None:
             logging.warning(
-                "apply_to_oov_word=None, it means that some of words will remain unchanged "
-                "if they are not handled by one of rule in self.parse_one_word(). "
-                "It is useful when you use tokenizer with set of phonemes and chars together, otherwise it can be not."
+                "apply_to_oov_word=None, This means that some of words will remain unchanged "
+                "if they are not handled by any of the rules in self.parse_one_word(). "
+                "This may be intended if phonemes and chars are both valid inputs, otherwise, "
+                "you may see unexpected deletions in your input."
             )
 
         super().__init__(
@@ -207,7 +209,7 @@ class EnglishG2p(BaseG2p):
             return self.phoneme_dict[word][0], True
 
         if self.apply_to_oov_word is not None:
-            return self.apply_to_oov_word(word), False
+            return self.apply_to_oov_word(word), True
         else:
             return word, False
 
@@ -231,6 +233,150 @@ class EnglishG2p(BaseG2p):
                     pron.extend(p)
                     pron.extend(["-"])
                 pron.pop()
+
+            prons.extend(pron)
+
+        return prons
+
+
+class IPAG2P(BaseG2p):
+    def __init__(
+        self,
+        phoneme_dict,
+        word_tokenize_func=lambda x: x,  # TODO: Hmm. english_word_tokenize
+        apply_to_oov_word=None,
+        ignore_ambiguous_words=True,
+        heteronyms=None,
+    ):
+        """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
+        Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
+        Ignored words are left unchanged or passed through apply_to_oov_word for handling.
+        
+        Args:
+            phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
+                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/cmudict-0.7b_nv22.01-ipa.)
+            word_tokenize_func: Function for tokenizing text to words.
+                It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word
+                representation and flag whether to leave unchanged or not.
+                It is expected that unchangeable word representation will be represented as List[str], other
+                cases are represented as str.
+                It is useful to mark word as unchangeable which is already in phoneme representation.
+            apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
+            ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
+                Defaults to True.
+            heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
+        """
+        if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
+            self.phoneme_dict, self.symbols = self.parse_as_cmu_dict(phoneme_dict)
+        else:
+            logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
+            self.phoneme_dict = phoneme_dict
+            self.symbols = set()
+            for entries in phoneme_dict.values():
+                for phonemes in entries:
+                    self.symbols.update(phonemes)  # TODO(jocelynh): check this is adding correctly
+
+        if apply_to_oov_word is None:
+            logging.warning(
+                "apply_to_oov_word=None, This means that some of words will remain unchanged "
+                "if they are not handled by any of the rules in self.parse_one_word(). "
+                "This may be intended if phonemes and chars are both valid inputs, otherwise, "
+                "you may see unexpected deletions in your input."
+            )
+
+        super().__init__(
+            phoneme_dict=self.phoneme_dict, word_tokenize_func=word_tokenize_func, apply_to_oov_word=apply_to_oov_word,
+        )
+
+        self.ignore_ambiguous_words = ignore_ambiguous_words
+        self.heteronyms = (
+            set(self._parse_file_by_lines(heteronyms))  # TODO(jocelynh): double-check encoding for read
+            if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
+            else heteronyms
+        )
+
+    @staticmethod
+    def _parse_as_cmu_dict(phoneme_dict_path):
+        """Loads IPA CMUdict, and generates a set of all valid symbols."""
+        g2p_dict = defaultdict(list)
+        symbols = set()
+
+        _alt_re = re.compile(r'\([0-9]+\)')
+        with open(phoneme_dict_path, 'r') as file:
+            for line in file:
+                if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
+                    parts = line.split('  ')
+                    word = re.sub(_alt_re, '', parts[0])
+                    word = word.lower()
+
+                    pronunciation = parts[1].strip()
+                    symbols.update(pronunciation)  # This will insert each char individually
+                    g2p_dict[word].append(list(pronunciation))
+
+        return g2p_dict, symbols
+
+    @staticmethod
+    def _parse_file_by_lines(p):
+        with open(p, 'r') as f:
+            return [l.rstrip() for l in f.readlines()]
+
+    def parse_one_word(self, word: str):
+        """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
+        """
+        # Punctuation (assumes other chars have been stripped)
+        if re.search("[a-zA-Z]", word) is None:
+            return list(word), True
+
+        # Heteronym
+        if self.heteronyms and word in self.heteronyms:
+            return word, True
+
+        # `'s` suffix (with apostrophe) - not in phoneme dict
+        if (
+            len(word) > 2
+            and word.endswith("'s")
+            and (word not in self.phoneme_dict)
+            and (word[:-2] in self.phoneme_dict)
+            and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-2]))
+        ):
+            return self.phoneme_dict[word[:-2]][0] + ["z"], True
+
+        # `s` suffix (without apostrophe) - not in phoneme dict
+        if (
+            len(word) > 1
+            and word.endswith("s")
+            and (word not in self.phoneme_dict)
+            and (word[:-1] in self.phoneme_dict)
+            and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-1]))
+        ):
+            return self.phoneme_dict[word[:-1]][0] + ["z"], True
+
+        # Phoneme dict lookup for unique words (or default pron if ignore_ambiguous_words=True)
+        if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
+            return self.phoneme_dict[word][0], True
+
+        if self.apply_to_oov_word is not None:
+            return self.apply_to_oov_word(word), True
+        else:
+            return word, False
+
+    def __call__(self, text):
+        words = self.word_tokenize_func(text)
+
+        prons = []
+        for word in words:
+            pron, is_handled = self.parse_one_word(word)
+
+            word_by_hyphen = word.split("-")
+            if not is_handled and len(word_by_hyphen) > 1:
+                pron = []
+                for sub_word in word_by_hyphen:
+                    p, _ = self.parse_one_word(sub_word)
+                    pron.extend(p)
+                    pron.extend(["-"])
+                pron.pop()
+            # TODO(jocelynh): Check if OOV is kept or discarded.
+            #   May need to manually add else case here to keep as graphemes.
 
             prons.extend(pron)
 
