@@ -224,6 +224,10 @@ thead td
 }
 
 @media (min-width: 1400px) {
+	body {
+		font-size: 18px;
+	}
+	
 	#site-navigation nav ul.nav {
 		font-size: 18px;
 	}
@@ -234,10 +238,6 @@ thead td
 
 	#site-navigation {
 		width: 350px;
-	}
-
-	body {
-		font-size: 18px;
 	}
 
 	.toc-h2 {
@@ -251,7 +251,7 @@ thead td
 	.header-article .bd-toc {
 		font-size: 18px;
 	}
-	
+
 	#main-content > div {
 		margin-left: 10%;
 		margin-right: 10%;
