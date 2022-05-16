@@ -147,12 +147,20 @@ def main(cfg):
     # Setup spec augmentation
     if 'spec_augment' in cfg.model:
         model.spec_augmentation = model.from_config_dict(cfg.model.spec_augment)
+    else:
+        model.spec_augmentation = None
+        del model.cfg.spec_augment
 
     # Setup adapters
     with open_dict(cfg.model.adapter):
         # Extract the name of the adapter (must be give for training)
         adapter_name = cfg.model.adapter.pop("adapter_name")
-        adapter_state_dict_name = cfg.model.adapter.pop('adapter_state_dict_name', None)
+        adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
+        adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
+
+        # augment adapter name with module name, if not provided by user
+        if adapter_module_name is not None and ':' not in adapter_name:
+            adapter_name = f'{adapter_module_name}:{adapter_name}'
 
         # Extract the global adapter config, if provided
         adapter_global_cfg = cfg.model.adapter.pop(model.adapter_global_cfg_key, None)

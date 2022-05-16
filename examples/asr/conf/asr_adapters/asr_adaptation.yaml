@@ -60,6 +60,7 @@ model:
   adapter:
     # Config of the adapter training/eval script.
     adapter_name: ???  # Name of the adapter, used by the script
+    adapter_module_name: null  # Name of the preprocessing module, if required. Defaults to None, equivalent to ''.
     adapter_state_dict_name: "adapters.pt"  # If the individual adapters must be saved, a file name can be provided here. null disables this.
 
     # Config of the adapter module itself
