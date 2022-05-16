@@ -37,7 +37,7 @@ class StackingSubsampling(torch.nn.Module):
         self.activation = torch.nn.SiLU()
         if norm:
             self.pre_norm = LayerNorm(feat_in)
-            self.post_norm = LayerNorm(feat_in)
+            self.post_norm = LayerNorm(feat_out)
         else:
             self.pre_norm = None
             self.post_norm = None
