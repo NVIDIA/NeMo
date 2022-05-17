@@ -38,6 +38,10 @@ import torch
 
 from nemo.utils import logging
 
+
+__all__ = ["KNNIndex", "MMapRetrievalIndexedDataset", "MMapRetrievalIndexedDatasetBuilder"]
+
+
 dtypes = {1: np.uint8, 2: np.int8, 3: np.int16, 4: np.int32, 5: np.int64, 6: np.float, 7: np.double, 8: np.uint16}
 
 
