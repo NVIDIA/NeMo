@@ -92,6 +92,7 @@ class TestTabularTokenizer:
 
     @pytest.mark.unit
     def test_create_retrieval_data_index(self):
+
         chunk_size = 64
         pad_id = 0
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
@@ -128,6 +129,15 @@ class TestTabularTokenizer:
             assert np.array_equal(ds.get_chunk(chunk_id + 1), padded_gt2[64:192])
             assert np.array_equal(ds.get_chunk(chunk_id + 2), padded_gt2[128:256])
             assert np.array_equal(ds.get_chunk(chunk_id + 3), padded_gt2[192:320])
+            chunk_id = ds.get_chunk_id(1, 64)
+            assert np.array_equal(ds.get_chunk(chunk_id), padded_gt2[64:192])
+            multi_chunks = ds.get_chunk(slice(0, ds.chunks))
+            assert np.array_equal(multi_chunks[0], padded_gt1[0:128])
+            assert np.array_equal(multi_chunks[1], padded_gt1[64:64+128])
+            assert np.array_equal(multi_chunks[2], padded_gt2[0:128])
+            assert np.array_equal(multi_chunks[3], padded_gt2[64:64+128])
+            assert np.array_equal(multi_chunks[4], padded_gt2[128:128+128])
+            assert np.array_equal(multi_chunks[5], padded_gt2[192:192+128])
         finally:
             os.remove(index_file)
             os.remove(bin_file)

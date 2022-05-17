@@ -199,7 +199,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         def get_chunk_id(self, sentence_id, position):
             """ get the chunk id from sentence idx and offset position.
             """
-            return self._chunk_id_start[sentence_id] + position // self.chunk_size
+            return (self._chunk_id_start[sentence_id] + position // self.chunk_size).item()
 
         def __del__(self):
             self._bin_buffer_mmap._mmap.close()
@@ -305,17 +305,43 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
     def get_chunk(self, chunk_id):
         """ Retrieves a single chunk item from the dataset.
         """
-        ptr = self._index.get_chunk_address(chunk_id)
-        if self._index.retrieval_db:
-            size = self._index.chunk_size * 2
-        else:
-            size = self._index.chunk_size
-        np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
-        return np_array
+        if isinstance(chunk_id, (int, np.int64, np.int32)):
+            ptr = self._index.get_chunk_address(chunk_id)
+            if self._index.retrieval_db:
+                size = self._index.chunk_size * 2
+            else:
+                size = self._index.chunk_size
+            np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
+            return np_array
+        elif isinstance(chunk_id, slice):
+            start, stop, step = chunk_id.indices(self.chunks)
+            if step != 1:
+                raise ValueError("Slices into indexed_dataset must be contiguous")
+            if self._index.retrieval_db:
+                chunk_size = self._index.chunk_size * 2
+            else:
+                chunk_size = self._index.chunk_size
+            ptr = self._index.get_chunk_address(start)
+            end_address = self._index.get_chunk_address(stop - 1) + chunk_size * self._index._dtype_size
+            address = self._index._chunk_address[chunk_id]
+            starting_pos = address // self._index._dtype_size
+            total_size = (end_address - ptr) // self._index._dtype_size
+            np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
+            sents = [np_array[pos:pos+chunk_size] for pos in starting_pos]
+            return sents
+
 
     @property
     def sizes(self):
         return self._index.sizes
+    
+    @property
+    def chunks(self):
+        return self._index.num_chunks
+
+    @property
+    def chunk_size(self):
+        return self._index.chunk_size
 
     @property
     def supports_prefetch(self):

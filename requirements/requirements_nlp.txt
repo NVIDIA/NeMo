@@ -16,3 +16,4 @@ ftfy
 flask_restful
 einops
 ijson
+faiss-cpu
