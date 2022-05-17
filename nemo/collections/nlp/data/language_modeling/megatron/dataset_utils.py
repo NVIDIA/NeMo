@@ -456,7 +456,7 @@ def create_extreme_masked_lm_predictions(
         elif span_length_distribution == "truncated_normal":
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
-            n = np.clip(int(np_rng.normal(loc=mu, scale=np.sqrt(mu))), min_ngram_size, max_ngram_size)
+            n = int(np.clip(np_rng.normal(loc=mu, scale=np.sqrt(mu)), min_ngram_size, max_ngram_size))
 
         index_set = sum(cand_index_set[n - min_ngram_size], [])
         n -= 1
