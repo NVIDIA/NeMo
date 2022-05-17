@@ -58,8 +58,8 @@ class StackingSubsampling(torch.nn.Module):
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
+        x = self.proj_out(x)
         if self.post_norm is not None:
-            x = self.proj_out(x)
             x = self.activation(x)
             x = self.proj_out2(x)
             x = self.post_norm(x)
