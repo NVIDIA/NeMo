@@ -225,7 +225,6 @@ class T5Dataset(Dataset):
             'text_dec': tokens_dec_in,
             'labels': labels,
             'loss_mask': loss_mask,
-            'truncated': int(truncated),
             'enc_mask': enc_mask,
             'dec_mask': dec_mask,
         }

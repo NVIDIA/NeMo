@@ -45,9 +45,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         """Class-specific cfg validation"""
         # Make sure the user specifies dataset type as either 't5' or 't5_prefix_lm' only.
         if self._cfg.data.get('dataset_type', None) is not None:
-            if self._cfg.data.get('dataset_type') not in ['t5', 't5_prefix_lm']:
+            if self._cfg.data.get('dataset_type') not in ['t5', 't5_prefix_lm', 'ul2']:
                 raise ValueError(
-                    f"dataset_type must be either 't5' or 't5_prefix_lm'. found {self._cfg.data.get('dataset_type')}"
+                    f"dataset_type must be either 't5', 't5_prefix_lm' or 'ul2'. found {self._cfg.data.get('dataset_type')}"
                 )
 
         if hasattr(self._cfg.data, 'seq_length_dec') and self._cfg.data.get('dataset_type') == 't5':
@@ -61,9 +61,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 raise ValueError(
                     f"Encoder and decoder sequence lengths must be the same while using the UL2 dataset type. Found encoder length {self._cfg.data.seq_length} and decoder length {self._cfg.data.seq_length_dec}"
                 )
-            if self._cfg.data.tokenizer.num_sentinel_tokens < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob:
+            if self._cfg.tokenizer.num_sentinel_tokens < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob:
                 raise ValueError(
-                    f"Not enough sentinel tokens specified. Need at least {math.ceil(self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob)} sentinel tokens. Found {self._cfg.data.tokenizer.num_sentinel_tokens}"
+                    f"Not enough sentinel tokens specified. Need at least {math.ceil(self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob)} sentinel tokens. Found {self._cfg.tokenizer.num_sentinel_tokens}"
                 )
 
     @property
@@ -84,6 +84,9 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             additional_tokens = {
                 'additional_special_tokens': [f'<extra_id_{i}>' for i in range(self.num_sentinel_tokens)]
             }
+            if self._cfg.data.get("dataset_type", "t5") == "ul2":
+                for mask_type in ['r', 's', 'x']:
+                    additional_tokens['additional_special_tokens'].extend([f'<extra_id_{mask_type}>'])
             self.tokenizer.add_special_tokens(additional_tokens)
 
         if self._cfg.tokenizer.library == 'sentencepiece':

@@ -407,14 +407,18 @@ def create_extreme_masked_lm_predictions(
     masked_lm_labels = []
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+    # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
+    if min_ngram_size is None:
+        import ipdb; ipdb.set_trace()
+    min_ngram_size = min(num_to_predict, min_ngram_size)
 
-    ngrams = np.arange(1, max_ngram_size + 1, dtype=np.int64)
+    ngrams = np.arange(min_ngram_size, max_ngram_size + 1, dtype=np.int64)
     if span_length_distribution == "uniform":
         pvals = np.array([1.0 / (max_ngram_size - min_ngram_size + 1)] * (max_ngram_size - min_ngram_size + 1))
 
     ngram_indexes = []
-    cand_indexes = list(range(len(tokens)))
-    for idx in cand_indexes:
+    cand_indexes = [[i] for i in range(len(tokens))]
+    for idx in range(len(cand_indexes)):
         ngram_index = []
         for n in ngrams:
             ngram_index.append(cand_indexes[idx : idx + n])
@@ -448,7 +452,9 @@ def create_extreme_masked_lm_predictions(
 
             # The expectation of a geometric distribution is E[X] = 1 / p
             p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
-            n = min(np_rng.geometric(p), max_ngram_size)
+            n = np_rng.geometric(p)
+            n = np.clip(n, min_ngram_size, max_ngram_size)
+
         elif span_length_distribution == "truncated_normal":
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
@@ -458,7 +464,7 @@ def create_extreme_masked_lm_predictions(
                 max_ngram_size,
             )
 
-        index_set = sum(cand_index_set[n - 1], [])
+        index_set = sum(cand_index_set[n - min_ngram_size], [])
         n -= 1
         # Note(mingdachen):
         # Repeatedly looking for a candidate that does not exceed the
@@ -466,7 +472,7 @@ def create_extreme_masked_lm_predictions(
         while len(masked_lms) + len(index_set) > num_to_predict:
             if n < min_ngram_size:
                 break
-            index_set = sum(cand_index_set[n - 1], [])
+            index_set = sum(cand_index_set[n - min_ngram_size], [])
             n -= 1
 
         # If adding a whole-word mask would exceed the maximum number of
