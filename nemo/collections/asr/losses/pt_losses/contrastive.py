@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from nemo.core import Loss, typecheck
-from nemo.core.neural_types import LossType, NeuralType, SpectrogramType, VoidType
+from nemo.core.neural_types import LossType, NeuralType, SpectrogramType, VoidType, LengthsType
 
 __all__ = ["ContrastiveLoss"]
 
@@ -32,6 +32,7 @@ class ContrastiveLoss(Loss):
             "spectrograms": NeuralType(("B", "D", "T"), SpectrogramType()),
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType()),
             "decoder_outputs": NeuralType(("B", "T", "D"), VoidType()),
+            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
         }
 
     @property
@@ -41,6 +42,10 @@ class ContrastiveLoss(Loss):
             NeuralType(None)
         """
         return {"loss": NeuralType(elements_type=LossType())}
+
+    @property
+    def needs_labels(self):
+        return False
 
     def __init__(
         self,
@@ -62,6 +67,7 @@ class ContrastiveLoss(Loss):
         quantizer_temp_min: float = 0.5,
         quantizer_temp_decay: float = 0.999995,
         mask_threshold: float = 0.8,
+        reduce_ids: bool = False,
     ):
         """
         Loss function representing the contrastive task of identifying the true latent speech representation of
@@ -115,6 +121,9 @@ class ContrastiveLoss(Loss):
         self.group_loss = group_loss
         self.mask_threshold = mask_threshold
 
+        self.store_ids = True
+        self.reduce_ids = reduce_ids
+
         if not self.quantized_targets:
             self.target_proj = nn.Linear(in_dim * combine_time_steps, proj_dim)
 
@@ -132,7 +141,7 @@ class ContrastiveLoss(Loss):
         return negs, neg_idxs
 
     @typecheck()
-    def forward(self, spectrograms, spec_masks, decoder_outputs):
+    def forward(self, spectrograms, spec_masks, decoder_outputs, decoder_lengths=None):
         spec_in = spectrograms.transpose(-2, -1)
         masks = spec_masks.transpose(-2, -1)
         targets = spec_in
@@ -142,7 +151,33 @@ class ContrastiveLoss(Loss):
         masks = masks.reshape(targets.shape[0], targets.shape[1], -1)
 
         if self.quantized_targets:
-            targets, prob_ppl_loss, cur_codebook_temp = self.quantizer(targets)
+            if self.store_ids:
+                targets, prob_ppl_loss, cur_codebook_temp, self.target_ids = self.quantizer(targets, return_ids=True)
+
+                if self.reduce_ids:
+                    sh = self.target_ids.shape
+                    reduced_ids = self.target_ids.new_zeros(sh)
+                    reduced_lens = self.target_ids.new_ones(sh[0]).long() * sh[1]
+                    for i in range(sh[0]):
+                        cur_id = -1
+                        cur_j = 0
+                        for j in range(sh[1]):
+                            if self.target_ids[i, j] != cur_id:
+                                cur_id = self.target_ids[i, j]
+                                reduced_ids[i, cur_j] = cur_id
+                                cur_j += 1
+                            if j >= decoder_lengths[i]:
+                                reduced_lens[i] = cur_j
+                                break
+
+                    self.target_ids = reduced_ids.narrow(1, 0, reduced_lens.max())
+                    self.target_lengths = reduced_lens
+
+                else:
+                    self.target_lengths = None
+
+            else:
+                targets, prob_ppl_loss, cur_codebook_temp = self.quantizer(targets)
         else:
             targets = self.target_proj(targets)
 
@@ -213,7 +248,7 @@ class ContrastiveLoss(Loss):
                 negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xC  # T'
                 # NxT'xC
 
-        # Calculate similarity between logits and all targets
+        # Calculate similarity between outputs and all targets
         similarity_scores = self._calculate_similarity(out_masked_only, negatives, targets_masked_only)
         # (1+N)xT'
         # cosine similarity of outs with targets + N negatives
