@@ -135,13 +135,15 @@ def get_args():
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
     group.add_argument('--append-eod', action='store_true', help='Append an <eod> token to the end of a document.')
-
+    group.add_argument('--retrieval-db', action='store_true', help='Dataset used for retrieval.')
     group = parser.add_argument_group(title='output data')
     group.add_argument('--output-prefix', type=str, required=True, help='Path to binary output file without suffix')
-    group.add_argument('--dataset-impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap'])
+    group.add_argument('--dataset-impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
 
     group = parser.add_argument_group(title='runtime')
     group.add_argument('--workers', type=int, default=1, help='Number of worker processes to launch')
+    group.add_argument('--chunk_size', type=int, default=64, help='chunk size used for retrieval')
+
     group.add_argument('--log-interval', type=int, default=100, help='Interval between progress updates')
     group.add_argument(
         '--preproc-folder',
@@ -211,7 +213,12 @@ def main():
         output_bin_files[key] = "{}_{}_{}.bin".format(args.output_prefix, key, level)
         output_idx_files[key] = "{}_{}_{}.idx".format(args.output_prefix, key, level)
         builders[key] = indexed_dataset.make_builder(
-            output_bin_files[key], impl=args.dataset_impl, vocab_size=tokenizer.vocab_size
+            output_bin_files[key],
+            impl=args.dataset_impl,
+            chunk_size=args.chunk_size,
+            pad_id=tokenizer.pad_id,
+            retrieval_db=args.retrieval_db,
+            vocab_size=tokenizer.vocab_size,
         )
 
     startup_end = time.time()

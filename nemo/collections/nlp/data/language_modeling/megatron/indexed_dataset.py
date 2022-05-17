@@ -36,6 +36,9 @@ from itertools import accumulate
 import numpy as np
 import torch
 
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    MMapRetrievalIndexedDatasetBuilder,
+)
 from nemo.utils import logging
 
 
@@ -66,9 +69,17 @@ def infer_dataset_impl(path):
         return None
 
 
-def make_builder(out_file, impl, vocab_size=None):
+def make_builder(out_file, impl, vocab_size=None, chunk_size=64, pad_id=0, retrieval_db=False):
     if impl == 'mmap':
         return MMapIndexedDatasetBuilder(out_file, dtype=__best_fitting_dtype(vocab_size))
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDatasetBuilder(
+            out_file,
+            chunk_size=chunk_size,
+            pad_id=pad_id,
+            retrieval_db=retrieval_db,
+            dtype=__best_fitting_dtype(vocab_size),
+        )
     else:
         return IndexedDatasetBuilder(out_file)
 
