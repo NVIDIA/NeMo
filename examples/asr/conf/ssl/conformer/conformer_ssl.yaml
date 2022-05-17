@@ -114,24 +114,38 @@ model:
 
   dec_out: &dec_out 128
 
-  decoder:
-    _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
-    feat_in: ${model.encoder.d_model}
-    feat_hidden: 128
-    feat_out: *dec_out
-    stride_layers: 0
-    #if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
-    #be added to the decoder (here stride and combine_time_steps are both 4)
-    non_stride_layers: 0
+  loss_list:
+    contr:
+      decoder:
+        _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
+        feat_in: ${model.encoder.d_model}
+        feat_hidden: 128
+        feat_out: *dec_out
+        stride_layers: 0
+        #if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
+        #be added to the decoder (here stride and combine_time_steps are both 4)
+        non_stride_layers: 0
+      loss:
+        _target_: nemo.collections.asr.losses.ContrastiveLoss
+        in_dim: *n_mels
+        proj_dim: *dec_out
+        combine_time_steps: 4 #how many spectrogram time steps are used for one target/representation for contrastive task
+        quantized_targets: true #should quantizer or linear layer be used
+        # (quantizer is required to extract pseudo-labels for other losses)
+        codebook_size: 300
+        sample_from_same_utterance_only: true #should negatives be sampled only from the same utterance
+        sample_from_non_masked: false #should negatives be sampled from non-masked steps
 
-  loss:
-    _target_: nemo.collections.asr.losses.ContrastiveLoss
-    in_dim: *n_mels
-    proj_dim: *dec_out
-    combine_time_steps: 4 #how many spectrogram time steps are used for one target/representation for contrastive task
-    quantized_targets: false #should quantizer or linear layer be used
-    sample_from_same_utterance_only: true #should negatives be sampled only from the same utterance
-    sample_from_non_masked: false #should negatives be sampled from non-masked steps
+    mlm:
+      decoder:
+        _target_: nemo.collections.asr.modules.ConvASRDecoder
+        feat_in: ${model.encoder.d_model}
+        num_classes: 90000
+      loss:
+        _target_: nemo.collections.asr.losses.MLMLoss
+        combine_time_steps: 4
+      targets_from_loss: "contr"
+      loss_alpha: 1000.
 
   optim:
     name: adamw
@@ -146,17 +160,16 @@ model:
       d_model: ${model.encoder.d_model}
       # scheduler config override
       warmup_steps: 10000
-      warmup_ratio: null
+      #warmup_ratio: null
       min_lr: 1e-6
 
 trainer:
-  devices: 1 # number of GPUs, -1 would use all available GPUs
+  gpus: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  accelerator: gpu
-  strategy: ddp
+  accelerator: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
@@ -167,7 +180,7 @@ trainer:
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
-  enable_checkpointing: False  # Provided by exp_manager
+  checkpoint_callback: false  # Provided by exp_manager
   logger: false  # Provided by exp_manager
 
 exp_manager:
@@ -179,7 +192,7 @@ exp_manager:
     # in case of multiple validation sets, first one is used
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 5
+    save_top_k: 1
 
   # you need to set these two to True to continue the training
   resume_if_exists: false
