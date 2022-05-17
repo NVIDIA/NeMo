@@ -166,7 +166,6 @@ class FilterbankFeatures(nn.Module):
         log_zero_guard_value=2 ** -24,
         dither=CONSTANT,
         pad_to=16,
-        pre_pad=0,
         max_duration=16.7,
         frame_splicing=1,
         exact_pad=False,
@@ -240,7 +239,6 @@ class FilterbankFeatures(nn.Module):
         self.nfilt = nfilt
         self.preemph = preemph
         self.pad_to = pad_to
-        self.pre_pad = pre_pad
         highfreq = highfreq or sample_rate / 2
 
         filterbanks = torch.tensor(
@@ -378,14 +376,9 @@ class FilterbankFeatures(nn.Module):
         del mask
         pad_to = self.pad_to
         if pad_to == "max":
-            x = nn.functional.pad(x, (self.pre_pad, self.max_length - x.size(-1)), value=self.pad_value)
+            x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
         elif pad_to > 0:
             pad_amt = x.size(-1) % pad_to
             if pad_amt != 0:
-                x = nn.functional.pad(x, (self.pre_pad, pad_to - pad_amt), value=self.pad_value)
-        elif self.pre_pad > 0:
-            x = nn.functional.pad(x, (self.pre_pad, 0), value=self.pad_value)
-
-        if self.pre_pad > 0:
-            seq_len = seq_len + self.pre_pad
+                x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len

@@ -55,7 +55,6 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         dropout_att=0.1,
         pos_bias_u=None,
         pos_bias_v=None,
-        # is_causal=False,
         att_context_size=[-1, -1],
     ):
         super(ConformerLayer, self).__init__()
@@ -240,8 +239,6 @@ class ConformerConvolution(nn.Module):
         else:
             x = self.depthwise_conv(x)
 
-        # print(self.batch_norm)
-        # if isinstance(self.batch_norm, nn.LayerNorm):
         if self.norm_type == "layer_norm":
             x = x.transpose(1, 2)
             x = self.batch_norm(x)

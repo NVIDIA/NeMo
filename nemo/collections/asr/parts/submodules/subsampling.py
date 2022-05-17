@@ -90,10 +90,7 @@ class ConvSubsampling(torch.nn.Module):
             raise ValueError("Sampling factor should be a multiply of 2!")
         self._sampling_num = int(math.log(subsampling_factor, 2))
         self.subsampling_factor = subsampling_factor
-
-        # is_causal = False
         self.is_causal = is_causal
-        # self.is_streaming = False
 
         in_channels = 1
         layers = []
@@ -134,7 +131,7 @@ class ConvSubsampling(torch.nn.Module):
             if self.is_causal:
                 self._left_padding = self._kernel_size - 1
                 self._right_padding = self._stride - 1
-                self._max_cache_len = 5  # calculate it automatically
+                self._max_cache_len = subsampling_factor + 1  # TODO: does it work for all cases?
             else:
                 self._left_padding = (self._kernel_size - 1) // 2
                 self._right_padding = (self._kernel_size - 1) // 2

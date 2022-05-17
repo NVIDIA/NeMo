@@ -602,11 +602,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             transcribed_texts = None
 
-        # greedy_predictions = []
-        # if previous_pred_out is not None:
-        #     for preds in predictions_tensor:
-        #         greedy_predictions.append(preds)
-
         return greedy_predictions, transcribed_texts, cache_last_channel_next, cache_last_time_next, None
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):

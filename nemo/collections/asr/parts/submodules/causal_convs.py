@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -134,7 +134,6 @@ class CausalConv1D(nn.Conv1d):
         if cache_next is not None:
             x_keep_size = x_length - self.cache_drop_size
             cache_keep_size = min(x_keep_size, cache_next_length)
-            # cache_next[:, :, :-x_keep_size] = cache[:, :, -(cache_next_length - x_keep_size):]
             cache_next[:, :, :-x_keep_size] = cache[:, :, cache_keep_size:]
             input_x_kept = input_x[:, :, :x_keep_size]
             cache_next[:, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]

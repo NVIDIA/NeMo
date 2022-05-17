@@ -116,10 +116,7 @@ def nemo_export(argv):
         sys.exit(1)
     typecheck.set_typecheck_enabled(enabled=False)
 
-    # if hasattr(model.encoder, "setup_streaming_params"):
-    #model.encoder.setup_streaming_params(drop_extra_pre_encoded=False)
     model.encoder.export_cache_support = True
-
     try:
         #
         #  Add custom export parameters here
@@ -154,6 +151,7 @@ def nemo_export(argv):
             )
 
     except Exception as e:
+        model.encoder.export_cache_support = False
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
                 model.cfg.target
@@ -161,6 +159,7 @@ def nemo_export(argv):
         )
         raise e
 
+    model.encoder.export_cache_support = False
     logging.info("Successfully exported to {}".format(out))
 
     del model
