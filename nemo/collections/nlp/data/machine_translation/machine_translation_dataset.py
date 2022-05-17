@@ -15,6 +15,7 @@
 """Pytorch Dataset for training Neural Machine Translation."""
 
 import io
+import os
 import json
 import pickle
 from collections import OrderedDict
@@ -375,11 +376,16 @@ class RetrievalTranslationDataset(TranslationDataset):
             src_retrieval_ids = src_ids
             tgt_retrieval_ids = tgt_ids
         else:
+            # load linearlized ata
+            src_retrieval_ids = np.load(os.path.join(self.retrieval_db_src,'linearized.npy'), mmap_mode='r')
+            src_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_src,'start_indices.npy'))
+            tgt_retrieval_ids = np.load(os.path.join(self.retrieval_db_tgt,'linearized.npy'), mmap_mode='r')
+            tgt_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_tgt,'start_indices.npy'))
             # tokenize the retrieval_database
-            with open(self.retrieval_db_src, 'rb') as f:
-                src_retrieval_ids = pickle.load(f)
-            with open(self.retrieval_db_tgt, 'rb') as f:
-                tgt_retrieval_ids = pickle.load(f)
+            # with open(self.retrieval_db_src, 'rb') as f:
+            #     src_retrieval_ids = pickle.load(f)
+            # with open(self.retrieval_db_tgt, 'rb') as f:
+            #     tgt_retrieval_ids = pickle.load(f)
             # tgt_retrieval_ids = dataset_to_ids(
             #     self.retrieval_db_tgt,
             #     tokenizer_tgt,
@@ -404,8 +410,12 @@ class RetrievalTranslationDataset(TranslationDataset):
                 # if nn_id != i: # TODO smy: Still check if retrieval dataset is main
                 # avoid adding the same sentence if train and index set are the same
                 # Add the src and tgt of nearest neighbor
-                to_add.extend(src_retrieval_ids[nn_id])
-                to_add.extend(tgt_retrieval_ids[nn_id])
+                if self.retrieval_db_src is None or self.retrieval_db_tgt is None:
+                    to_add.extend(src_retrieval_ids[nn_id])
+                    to_add.extend(tgt_retrieval_ids[nn_id])
+                else:
+                    to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                    to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
             src_ids_extended.append(to_add)
         src_ids = src_ids_extended
 
