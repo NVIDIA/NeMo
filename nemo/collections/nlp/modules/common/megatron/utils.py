@@ -26,6 +26,7 @@ try:
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.pipeline_parallel.schedules.common import listify_model
+    from apex.transformer.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -44,15 +45,30 @@ class ApexGuardDefaults(object):
         return None
 
 
-def parallel_lm_logits(input_, word_embeddings_weight, parallel_output, bias=None):
-    """LM logits using word embedding weights."""
+def parallel_lm_logits(
+    input_: torch.Tensor, word_embeddings_weight: torch.Tensor, parallel_output: bool, bias: torch.Tensor = None,
+):
+    """Language Model logits using word embedding weights.
+
+    Args:
+        input_ (torch.Tensor): [b, s, h]
+        word_embeddings_weight (torch.Tensor): [(padded) vocab size, h]
+        parallel_output (bool): False will gather logits from tensor model parallel region
+        bias (torch.Tensor, optional): bias tensor. Defaults to None.
+
+    Returns:
+        torch.Tensor: [b, s, (padded) vocab size]
+    """
+
+    # """LM logits using word embedding weights."""
     # Parallel logits.
     input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
+
     # Matrix multiply.
-    if bias is None:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight)
-    else:
-        logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+    # logits_parallel = linear_with_grad_accumulation_and_async_allreduce()
+
+    logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+
     # Gather if needed.
     if parallel_output:
         return logits_parallel
