@@ -16,23 +16,22 @@ from typing import Dict, Optional, Union
 
 import torch
 import torch.nn as nn
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.core.classes.mixins import set_access_cfg, AccessMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import set_access_cfg, AccessMixin
 from nemo.core.neural_types import (
+    AcousticEncodedRepresentation,
     AudioSignal,
+    LabelsType,
     LengthsType,
     NeuralType,
     SpectrogramType,
-    VoidType,
-    LabelsType,
-    AcousticEncodedRepresentation,
 )
 from nemo.utils import logging
 

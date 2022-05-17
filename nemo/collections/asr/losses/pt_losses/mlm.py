@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from nemo.core import Loss, typecheck
-from nemo.core.neural_types import LossType, NeuralType, SpectrogramType, VoidType, LabelsType, LengthsType
+from nemo.core.neural_types import LabelsType, LengthsType, LossType, NeuralType, SpectrogramType, VoidType
 
 __all__ = ["MLMLoss"]
 
@@ -49,7 +49,6 @@ class MLMLoss(Loss):
         # BxTxC
 
         masks = masks.reshape(masks.shape[0], masks.shape[1] // self.combine_time_steps, -1)
-        bs = decoder_outputs.shape[0]
         masks = masks.mean(-1) > self.mask_threshold
 
         out_masked_only = decoder_outputs[masks]
