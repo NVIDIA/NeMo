@@ -14,10 +14,15 @@
 
 """RETRO Style dataset."""
 
+from typing import List
 import torch
-
+from nemo.core import Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
 from nemo.utils import logging
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import KNNIndex, MMapRetrievalIndexedDataset
+import numpy as np
 
 try:
     from apex.transformer import parallel_state
@@ -25,6 +30,141 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
+
+class RETRODataset(Dataset):
+
+    def __init__(
+        self,
+        cfg,
+        trainer,
+        tokenizer,
+        name: str,
+        data_prefix: str,
+        documents,
+        indexed_dataset: MMapRetrievalIndexedDataset,
+        num_samples: int,
+        seq_length: int,
+        seed: int,
+        knn_index: KNNIndex,
+        retrieval_index: MMapRetrievalIndexedDataset,
+    ):
+        if not HAVE_APEX:
+            raise ImportError(
+                "Apex was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
+        super().__init__()
+        self.name = name
+        self.indexed_dataset: MMapRetrievalIndexedDataset = indexed_dataset
+        self.knn_index: KNNIndex = knn_index
+        self.retrieval_index: MMapRetrievalIndexedDataset = retrieval_index
+        self.chunk_size = self.indexed_dataset.chunk_size
+
+        # Checks
+        assert np.min(documents) >= 0
+        assert np.max(documents) < indexed_dataset.sizes.shape[0]
+
+        self.eos_id = tokenizer.eos_id
+        self.pad_id = tokenizer.pad_id
+
+        # save index mappings to a configurable dir
+        self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
+
+        # create index_mapping_dir on rank 0
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if torch.distributed.get_rank() == 0:
+                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                    os.makedirs(self.index_mapping_dir)
+            torch.distributed.barrier()
+
+        # Build index mappings.
+        self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
+            self.name,
+            data_prefix,
+            documents,
+            self.indexed_dataset.sizes,
+            num_samples,
+            seq_length,
+            seed,
+            index_mapping_dir=self.index_mapping_dir,
+        )
+
+    def __len__(self):
+        # -1 is due to data structure used to retieve the index:
+        #    sample i --> [sample_idx[i], sample_idx[i+1])
+        return self.sample_idx.shape[0] - 1
+
+    def _get_chunks(self, chunk_id: int, num_chunks: int, chunks: List):
+        """
+        starting from chunk_id, loop for num_chunks, get the 
+        KNN chunk ids from retrieval dataset, and get the chunk token ids,
+        put them into the chunks list
+        """
+        for i in range(chunk_id, chunk_id + num_chunks):
+            knn = self.knn_index.get_KNN_chunk_ids(i)
+            for rid in knn:
+                one_chunk = self.retrieval_index.get_chunk(rid)
+                chunks.append(one_chunk)
+
+    def _get_text(self, idx: int) -> np.ndarray:
+
+        # Get the shuffled index.
+        idx = self.shuffle_idx[idx]
+        # Start and end documents and offsets.
+        doc_index_f = self.sample_idx[idx][0]
+        doc_index_l = self.sample_idx[idx + 1][0]
+        offset_f = self.sample_idx[idx][1]
+        offset_l = self.sample_idx[idx + 1][1]
+        # If we are within the same document, just extract the chunk.
+        if doc_index_f == doc_index_l:
+            sample = self.indexed_dataset.get(
+                self.doc_idx[doc_index_f], offset=offset_f, length=offset_l - offset_f + 1
+            )
+            chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[doc_index_f], offset_f)
+            num_chunks = (offset_l - offset_f + 1) // self.chunk_size
+            chunks = []
+            self._get_chunks(chunk_id, num_chunks, chunks)
+            chunks = np.concatenate(chunks, axis=0).reshape(num_chunks, self.knn_index.K, -1).astype(np.int64)
+        else:
+            # Otherwise, get the rest of the initial document.
+            sample_list = [self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)]
+            num_chunks = (self.indexed_dataset._index.sizes[self.doc_idx[doc_index_f]] - offset_f) // self.chunk_size
+            total_chunks = num_chunks
+            chunks = []
+            chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[doc_index_f], offset_f)
+            self._get_chunks(chunk_id, num_chunks, chunks)
+            # Loop over all in between documents and add the entire document.
+            for i in range(doc_index_f + 1, doc_index_l):
+                sample_list.append(self.indexed_dataset.get(self.doc_idx[i]))
+                chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[i], 0)
+                num_chunks = self.indexed_dataset._index.sizes[self.doc_idx[i]] // self.chunk_size
+                total_chunks += num_chunks
+                self._get_chunks(chunk_id, num_chunks, chunks)
+                # And finally add the relevant portion of last document.
+            chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[doc_index_l], 0)
+            num_chunks = (offset_l + 1) // self.chunk_size
+            total_chunks += num_chunks
+            self._get_chunks(chunk_id, num_chunks, chunks)
+            sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
+            sample = np.concatenate(sample_list)
+            chunks = np.concatenate(chunks, axis=0).reshape(total_chunks, self.knn_index.K, -1).astype(np.int64)
+        return sample.astype(np.int64), chunks
+
+    def __getitem__(self, idx):
+        text, retrieved = torch.from_numpy(self._get_text(idx))
+        tokens = text[:-1].contiguous()
+        labels = text[1:].contiguous()
+        hidden_mask = text != self.pad_id
+        context_mask = retrieved != self.pad_id
+        return {
+            'tokens': tokens,
+            'labels': labels,
+            'tokens_mask': hidden_mask,
+            'loss_mask': hidden_mask,
+            'retrieved_emb_mask': context_mask,
+            'retrieved_ids': retrieved,
+        }
 
 
 class MockRETRODataset(torch.utils.data.Dataset):

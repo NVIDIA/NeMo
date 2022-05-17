@@ -165,3 +165,59 @@ class TestRetrievalIndexFiles:
             assert np.array_equal(f.get_KNN_chunk_ids(5), map_np0[5])
         finally:
             os.remove(index_file)
+
+    @pytest.mark.unit
+    def test_retro_dataset(self):
+        chunk_size = 64
+        pad_id = 0
+        sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence1) % chunk_size)
+        gt1 = np.pad(sentence1, (0, padded_size), 'constant', constant_values=pad_id)
+
+        sentence2 = torch.arange(1, 500, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence2) % chunk_size)
+        gt2 = np.pad(sentence2, (0, padded_size), 'constant', constant_values=pad_id)
+
+        sentence3 = torch.arange(0, 300, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence3) % chunk_size)
+        gt3 = np.pad(sentence3, (0, padded_size), 'constant', constant_values=pad_id)
+
+        sentence4 = torch.arange(1, 400, 2, dtype=torch.int64)
+        padded_size = chunk_size - (len(sentence4) % chunk_size)
+        gt4 = np.pad(sentence4, (0, padded_size), 'constant', constant_values=pad_id)
+
+        data_file = '/tmp/test_data'
+        data_index_file = data_file + '.idx'
+        data_bin_file = data_file + '.bin'
+        db_file = '/tmp/test_db_data'
+        db_index_file = db_file + '.idx'
+        db_bin_file = db_file + '.bin'
+        K = 8
+        map_index_file = '/tmp/test_map.idx'
+ 
+        try:
+            builder = MMapRetrievalIndexedDatasetBuilder(data_bin_file, chunk_size, pad_id, False)
+            builder.add_item(sentence1)
+            builder.add_item(sentence2)
+            builder.finalize(data_index_file)
+
+            builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, False)
+            builder.add_item(sentence3)
+            builder.add_item(sentence4)
+            builder.finalize(db_index_file)
+
+            # load the data
+            data_index = MMapRetrievalIndexedDataset(data_file)
+            db_index = MMapRetrievalIndexedDataset(db_file)
+
+            with KNNIndex.writer(map_index_file, K) as w:
+                map_np = np.random.randint(0, db_index.chunks, (data_index.chunks, K))
+                w.write(map_np)
+            map_index = KNNIndex(map_index_file)
+
+        finally:
+            os.remove(data_bin_file)
+            os.remove(data_index_file)
+            os.remove(db_bin_file)
+            os.remove(db_index_file)
+            os.remove(map_index_file)
