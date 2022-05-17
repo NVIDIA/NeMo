@@ -15,7 +15,7 @@ asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=asr_model_path)
 onnx_model = onnxruntime.InferenceSession(onnx_model_path, providers=['CUDAExecutionProvider'])
 
 asr_model.encoder.export_cache_support = True
-processed_signal, processed_signal_length, cache_last_channel, cache_last_time = asr_model.encoder.input_example(max_batch=1, max_dim=1024, max_cache=256)
+processed_signal, processed_signal_length, cache_last_channel, cache_last_time = asr_model.encoder.input_example(max_batch=1, max_dim=4096)
 
 encoder_output_pt = asr_model.encoder.forward(
     audio_signal=processed_signal,
