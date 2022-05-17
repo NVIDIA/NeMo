@@ -32,7 +32,8 @@ import torch
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.common.parts import rnn
+from nemo.collections.common.parts import adapter_modules, rnn
+from nemo.core.classes import adapter_mixins
 from nemo.core.classes import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import (
@@ -48,7 +49,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
+class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, adapter_mixins.AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
     An RNN-T Decoder/Prediction network, comprised of a stateful LSTM model.
 
@@ -280,6 +281,10 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         g = g.transpose(0, 1)  # (B, U + 1, H)
 
         del y, start, state
+
+        if self.is_adapter_available():
+            g = self.forward_enabled_adapters(g)
+
         return g, hid
 
     def _predict_modules(
@@ -610,7 +615,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return old_states
 
 
-class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
+class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
     An RNN-T Joint network, comprised of a feedforward model.
 
@@ -989,6 +994,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable):
         inp = f + g  # [B, T, U, H]
 
         del f, g
+
+        if self.is_adapter_available():
+            inp = self.forward_enabled_adapters(inp)
 
         res = self.joint_net(inp)  # [B, T, U, V + 1]
 

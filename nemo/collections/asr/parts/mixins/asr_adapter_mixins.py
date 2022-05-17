@@ -56,6 +56,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             supports_adapters |= True
 
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            supports_adapters |= True
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            supports_adapters |= True
+
         # If adapters are supported, setup the adapter config + any modules (pre-existing adapter modules)
         if supports_adapters:
             super().setup_adapters()
@@ -82,6 +88,19 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
                 # Dispatch the call to the encoder.
                 self.encoder.add_adapter(name=name, cfg=cfg)
 
+            if module_name == 'decoder':
+                # Dispatch call to the decoder.
+                self.decoder.add_adapter(name=name, cfg=cfg)
+
+            if module_name == 'joint':
+                # Dispatch call to the joint.
+                self.joint.add_adapter(name=name, cfg=cfg)
+
+            if module_name == 'decoder+joint':
+                # Dispatch call to the decoder + joint.
+                self.decoder.add_adapter(name=name, cfg=cfg)
+                self.joint.add_adapter(name=name, cfg=cfg)
+
     def is_adapter_available(self) -> bool:
         """
         Checks if any Adapter module has been instantiated.
@@ -95,6 +114,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         # Forward the method call to the individual modules
         if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             config_contains_adapter |= self.encoder.is_adapter_available()
+
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            config_contains_adapter |= self.decoder.is_adapter_available()
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            config_contains_adapter |= self.joint.is_adapter_available()
 
         return config_contains_adapter
 
@@ -130,6 +155,20 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             if self.encoder.is_adapter_available():
                 self.encoder.set_enabled_adapters(name=name, enabled=enabled)
 
+        if name == 'decoder':
+            if self.decoder.is_adapter_available():
+                self.decoder.set_enabled_adapters(name=name, enabled=enabled)
+
+        if name == 'joint':
+            if self.joint.is_adapter_available():
+                self.joint.set_enabled_adapters(name=name, enabled=enabled)
+
+        if name == 'decoder+joint':
+            if self.decoder.is_adapter_available():
+                self.decoder.set_enabled_adapters(name=name, enabled=enabled)
+            if self.joint.is_adapter_available():
+                self.joint.set_enabled_adapters(name=name, enabled=enabled)
+
     def get_enabled_adapters(self) -> List[str]:
         """
         Returns a list of all enabled adapters.
@@ -142,6 +181,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         # Check if encoder adapters should be used or are enabled
         if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             enabled_adapters.extend(self.encoder.get_enabled_adapters())
+
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            enabled_adapters.extend(self.decoder.get_enabled_adapters())
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            enabled_adapters.extend(self.joint.get_enabled_adapters())
 
         return enabled_adapters
 
@@ -178,8 +223,8 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
-        # resolve name and module only for valid modules
-        valid_module_names = ['', 'encoder']
+        # resolve name and module onlt for valid modules
+        valid_module_names = ['', 'encoder', 'decoder', 'joint', 'decoder+joint']
         if module_name not in valid_module_names:
             raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
 
