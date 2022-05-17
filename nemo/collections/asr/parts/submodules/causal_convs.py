@@ -126,7 +126,6 @@ class CausalConv1D(nn.Conv1d):
             if hasattr(self, '_cache_id'):
                 cache = cache[self._cache_id]
                 cache_next = cache_next[self._cache_id]
-            cache_length = cache.size()[-1]
             cache_next_length = cache_next.size(-1)
             needed_cache = cache[:, :, -self._max_cache_len :]
             x = F.pad(x, pad=(0, self._right_padding))
