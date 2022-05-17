@@ -37,8 +37,8 @@ import subprocess
 import time
 
 import numpy as np
-from sklearn.metrics import multilabel_confusion_matrix
 import torch
+from sklearn.metrics import multilabel_confusion_matrix
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -409,7 +409,9 @@ def create_extreme_masked_lm_predictions(
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
     # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
     if min_ngram_size is None:
-        import ipdb; ipdb.set_trace()
+        import ipdb
+
+        ipdb.set_trace()
     min_ngram_size = min(num_to_predict, min_ngram_size)
 
     ngrams = np.arange(min_ngram_size, max_ngram_size + 1, dtype=np.int64)
@@ -458,11 +460,7 @@ def create_extreme_masked_lm_predictions(
         elif span_length_distribution == "truncated_normal":
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
-            n = np.clip(
-                int(np_rng.normal(loc=mu, scale=np.sqrt(mu))),
-                min_ngram_size,
-                max_ngram_size,
-            )
+            n = np.clip(int(np_rng.normal(loc=mu, scale=np.sqrt(mu))), min_ngram_size, max_ngram_size,)
 
         index_set = sum(cand_index_set[n - min_ngram_size], [])
         n -= 1
@@ -818,7 +816,9 @@ def _build_train_valid_test_datasets(
                     max_ngram_size=max_ngram_size,
                     mean_ngram_size=mean_ngram_size,
                     ngram_span_length_distribution=cfg.data.get("ngram_span_length_distribution", "geometric"),
-                    extreme_ngram_span_length_distribution=cfg.data.get("extreme_ngram_span_length_distribution", "truncated_normal"),
+                    extreme_ngram_span_length_distribution=cfg.data.get(
+                        "extreme_ngram_span_length_distribution", "truncated_normal"
+                    ),
                     permutation=permutation,
                     whole_word_masking=whole_word_masking,
                     favor_long_ngrams=favor_long_ngrams,

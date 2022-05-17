@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import math
+
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -61,7 +62,10 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 raise ValueError(
                     f"Encoder and decoder sequence lengths must be the same while using the UL2 dataset type. Found encoder length {self._cfg.data.seq_length} and decoder length {self._cfg.data.seq_length_dec}"
                 )
-            if self._cfg.tokenizer.num_sentinel_tokens < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob:
+            if (
+                self._cfg.tokenizer.num_sentinel_tokens
+                < self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob
+            ):
                 raise ValueError(
                     f"Not enough sentinel tokens specified. Need at least {math.ceil(self._cfg.data.seq_length * self._cfg.data.extreme_masked_lm_prob)} sentinel tokens. Found {self._cfg.tokenizer.num_sentinel_tokens}"
                 )

@@ -15,9 +15,9 @@
 """T5 Style dataset."""
 import numpy as np
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
+from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
 
 class UL2Dataset(T5Dataset):
@@ -27,6 +27,7 @@ class UL2Dataset(T5Dataset):
     2. Extreme span masking with either large probabilities or large ngram sizes or both.
     3. Prefx-LM as in the T5 or LM-adapted T5 (prompt-tuning paper).
     """
+
     def __init__(
         self,
         cfg,
@@ -49,7 +50,7 @@ class UL2Dataset(T5Dataset):
         extreme_max_ngram_size=128,
         extreme_min_ngram_size=32,
         extreme_mean_ngram_size=64,
-        prefix_lm_pivot_mean=0.25, # This is represented as a percentage of the total length.
+        prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
         ngram_span_length_distribution="geometric",
         extreme_ngram_span_length_distribution="truncated_normal",
         permutation=False,
@@ -65,13 +66,13 @@ class UL2Dataset(T5Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - 1, # -1 to account for the added mask type token
+            max_seq_length=max_seq_length - 1,  # -1 to account for the added mask type token
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
             short_seq_prob=short_seq_prob,
             max_ngram_size=max_ngram_size,
-            mean_ngram_size=None, # TODO: Determin if we want to actually pass mean ngram as an override to max here.
+            mean_ngram_size=None,  # TODO: Determin if we want to actually pass mean ngram as an override to max here.
             geometric_dist=ngram_span_length_distribution == "geometric",
             permutation=permutation,
             whole_word_masking=whole_word_masking,
@@ -87,7 +88,9 @@ class UL2Dataset(T5Dataset):
         self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
         if ngram_span_length_distribution not in ['truncated_normal', 'geometric', 'uniform']:
-            raise ValueError(f'Invalid ngram_span_length_distribution: {ngram_span_length_distribution}. Options : [truncated_normal, geometric, uniform]')
+            raise ValueError(
+                f'Invalid ngram_span_length_distribution: {ngram_span_length_distribution}. Options : [truncated_normal, geometric, uniform]'
+            )
 
     def __getitem__(self, idx):
 
@@ -98,13 +101,15 @@ class UL2Dataset(T5Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        masking_type = np_rng.randint(0, 3) # 0: short span masking, 1: extreme masking, 2: prefix-LM
+        masking_type = np_rng.randint(0, 3)  # 0: short span masking, 1: extreme masking, 2: prefix-LM
         if masking_type == 0:
             # Call T5's build training sample for regular short span masking.
             sample = super().build_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng)
             sample = self._prepend_mask_type_token(sample, '<extra_id_s>')
         elif masking_type == 1:
-            sample = self.build_extreme_masking_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng)
+            sample = self.build_extreme_masking_training_sample(
+                sample=sample, target_seq_length=seq_length, np_rng=np_rng
+            )
             sample = self._prepend_mask_type_token(sample, '<extra_id_x>')
 
         elif masking_type == 2:
@@ -112,7 +117,7 @@ class UL2Dataset(T5Dataset):
             sample = T5LMAdaptedDataset.get_prefix_lm_sample(
                 sample=sample,
                 max_seq_length_encoder=self.max_seq_length,
-                max_seq_length_decoder=self.max_seq_length, # We don't use max_seq_length_decoder here since we typically want to use long decoder sequences for better LM performance.
+                max_seq_length_decoder=self.max_seq_length,  # We don't use max_seq_length_decoder here since we typically want to use long decoder sequences for better LM performance.
                 np_rng=np_rng,
                 tokenizer=self.tokenizer,
                 pivot_mean=self.prefix_lm_pivot_mean,
@@ -177,15 +182,27 @@ class UL2Dataset(T5Dataset):
         masked_lm_prob = self.masked_lm_prob if np_rng.randint(0, 3) == 0 else self.extreme_masked_lm_prob
         if masked_lm_prob == self.masked_lm_prob:
             # Large spans.
-            max_ngram_size, mean_ngram_size, min_ngram_size = self.extreme_max_ngram_size, self.extreme_mean_ngram_size, self.extreme_min_ngram_size
+            max_ngram_size, mean_ngram_size, min_ngram_size = (
+                self.extreme_max_ngram_size,
+                self.extreme_mean_ngram_size,
+                self.extreme_min_ngram_size,
+            )
         else:
             # For large masking prob, decide if short or large spans.
             if np_rng.randint(0, 2) == 0:
                 # Small spans.
-                max_ngram_size, mean_ngram_size, min_ngram_size = self.max_ngram_size, self.mean_ngram_size, self.min_ngram_size
+                max_ngram_size, mean_ngram_size, min_ngram_size = (
+                    self.max_ngram_size,
+                    self.mean_ngram_size,
+                    self.min_ngram_size,
+                )
             else:
                 # Large spans.
-                max_ngram_size, mean_ngram_size, min_ngram_size = self.extreme_max_ngram_size, self.extreme_mean_ngram_size, self.extreme_mean_ngram_size
+                max_ngram_size, mean_ngram_size, min_ngram_size = (
+                    self.extreme_max_ngram_size,
+                    self.extreme_mean_ngram_size,
+                    self.extreme_mean_ngram_size,
+                )
 
         # Masking.
         max_predictions_per_seq = masked_lm_prob * max_num_tokens
