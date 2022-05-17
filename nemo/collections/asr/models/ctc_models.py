@@ -33,7 +33,6 @@ from nemo.collections.asr.parts.preprocessing.perturb import process_augmentatio
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import (
     AudioSignal,
-    ChannelType,
     LabelsType,
     LengthsType,
     LogprobsType,
@@ -558,12 +557,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         return_transcribtion=True,
         onnx_model=None,
     ):
-        (
-            encoded,
-            encoded_len,
-            cache_last_channel_next,
-            cache_last_time_next
-        ) = self.encoder.stream_step(
+        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
             cache_last_channel=cache_last_channel,

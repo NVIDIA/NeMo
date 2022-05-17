@@ -26,7 +26,7 @@ from argparse import ArgumentParser
 
 import onnxruntime
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
@@ -167,7 +167,7 @@ def main():
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
         try:
             asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name=args.asr_model)
-        except:
+        except Exception:
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)

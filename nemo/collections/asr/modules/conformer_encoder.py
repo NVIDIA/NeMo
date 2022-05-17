@@ -366,7 +366,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
             if self.streaming_cfg.drop_extra_pre_encoded > 0:
-                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded:, :]
+                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 # TODO: find a better solution
                 length = (length - self.streaming_cfg.drop_extra_pre_encoded).float()
                 length = torch.clip(length, min=0).int()
@@ -540,12 +540,13 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         else:
             if isinstance(streaming_cfg.pre_encode_cache_size, list):
                 if streaming_cfg.pre_encode_cache_size[1] >= 1:
-                    streaming_cfg.drop_extra_pre_encoded = 1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
+                    streaming_cfg.drop_extra_pre_encoded = (
+                        1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
+                    )
                 else:
                     streaming_cfg.drop_extra_pre_encoded = 0
             else:
                 streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
-
 
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0

@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 import torch
 
 
-class StreamingEncoderMixin(ABC):
+class StreamingEncoderMixin():
     @abstractmethod
     def setup_streaming_params(
         self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None
