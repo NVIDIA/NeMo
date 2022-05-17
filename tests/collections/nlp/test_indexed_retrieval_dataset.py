@@ -20,6 +20,7 @@ import pytest
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    KNNIndex,
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
@@ -141,3 +142,29 @@ class TestTabularTokenizer:
         finally:
             os.remove(index_file)
             os.remove(bin_file)
+
+    @pytest.mark.unit
+    def test_knn_index(self):
+        data_file = '/tmp/test'
+        index_file = data_file + '.idx'
+        K = 8
+        try:
+            with KNNIndex.writer(index_file, K) as w:
+                map_np0 = np.random.randint(0, 100, (50, K))
+                w.write(map_np0)
+                map_np1 = np.random.randint(0, 100, (50, K))
+                w.write(map_np1)
+                map_np2 = np.random.randint(0, 100, (50, K))
+                w.write(map_np2)
+            f = KNNIndex(index_file)
+            assert f.K == K
+            assert f.len == map_np0.shape[0] + map_np1.shape[0] + map_np2.shape[0]
+            assert np.array_equal(map_np0, f.knn_map[:50])
+            assert np.array_equal(map_np1, f.knn_map[50:100])
+            assert np.array_equal(map_np2, f.knn_map[100:])
+            assert np.array_equal(f.get_KNN_chunk_ids(5), map_np0[5])
+        finally:
+            os.remove(index_file)
+
+
+ 

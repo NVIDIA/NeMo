@@ -62,6 +62,83 @@ def _warmup_mmap_file(path):
             pass
 
 
+class KNNIndex(object):
+    _HDR_MAGIC = b'KNNRETM\x00\x00'
+
+    @classmethod
+    def writer(cls, path, K):
+        class _Writer(object):
+            def __enter__(self):
+                self._file = open(path, 'wb')
+                self._file.write(cls._HDR_MAGIC)
+                self._file.write(struct.pack('<Q', 1))
+                self._file.write(struct.pack('<Q', K))
+                # reserve the space for total number of chunks
+                self._file.write(struct.pack('<Q', 0))
+                self.K = K
+                self.count_chunks = 0
+                self.path = path
+                return self
+
+            def write(self, chunk_knn: np.array):
+                assert chunk_knn.dtype == np.int64
+                assert chunk_knn.shape[1] == self.K
+                self._file.write(chunk_knn.tobytes(order='C'))
+                self.count_chunks += chunk_knn.shape[0]
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                self._file.close()
+                # update the chunk size
+                _bin_buffer_mmap = np.memmap(self.path, mode='r+', order='C', shape=(9+8+8+8),)
+                buffer = memoryview(_bin_buffer_mmap)
+                len_array = np.frombuffer(buffer,
+                                          dtype=np.int64,
+                                          count=1,
+                                          offset=9 + 8 + 8)
+                len_array[0] = self.count_chunks
+                _bin_buffer_mmap.flush()
+                _bin_buffer_mmap._mmap.close()
+        return _Writer()
+
+    def __init__(self, path, skip_warmup=False):
+        with open(path, 'rb') as stream:
+            magic_test = stream.read(9)
+            assert self._HDR_MAGIC == magic_test, (
+                'Index file doesn\'t match expected format. '
+            )
+            version = struct.unpack('<Q', stream.read(8))
+            assert (1,) == version
+
+            self.K = struct.unpack('<Q', stream.read(8))[0]
+            self.len = struct.unpack('<Q', stream.read(8))[0]
+            offset = stream.tell()
+
+        if not skip_warmup:
+            logging.info("    warming up index mmap file...")
+            _warmup_mmap_file(path)
+
+        self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
+        self._bin_buffer = memoryview(self._bin_buffer_mmap)
+        logging.info("    reading KNN map")
+        self.knn_map = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self.len * self.K, offset=offset).reshape(self.len, self.K)
+
+    def get_KNN_chunk_ids(self, chunk_id):
+        """ get the chunk address from chunk id
+        """
+        return self.knn_map[chunk_id]
+
+    def __del__(self):
+        self._bin_buffer_mmap._mmap.close()
+        del self._bin_buffer_mmap
+
+    @property
+    def sizes(self):
+        return self.len
+
+    def __len__(self):
+        return self._len
+
+
 class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
     class Index(object):
         _HDR_MAGIC = b'MMIDRET\x00\x00'
