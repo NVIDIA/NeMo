@@ -118,7 +118,7 @@ def main(cfg):
     if cfg.model.pretrained_model is None and cfg.model.nemo_model is None:
         raise ValueError("Either set `cfg.model.nemo_model` or `cfg.model.pretrained_model`")
     if cfg.model.pretrained_model is not None and cfg.model.nemo_model is not None:
-        raise ValueError("Cannot set `cfg.model.nemo_model` and `cfg.model.pretrained_model`. Select one only.")
+        raise ValueError("Cannot set both `cfg.model.nemo_model` and `cfg.model.pretrained_model`. Select one only.")
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_log_dir = exp_manager(trainer, cfg.get("exp_manager", None))

@@ -178,7 +178,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
-        # resolve name and module onlt for valid modules
+        # resolve name and module only for valid modules
         valid_module_names = ['', 'encoder']
         if module_name not in valid_module_names:
             raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
