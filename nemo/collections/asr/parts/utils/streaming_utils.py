@@ -1246,8 +1246,6 @@ class FramewiseStreamingAudioBuffer:
                         dtype=audio_chunk.dtype,
                     )
 
-                # added_len = cache_pre_encode.size(-1)
-
             added_len = cache_pre_encode.size(-1)
             audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
 
@@ -1258,8 +1256,6 @@ class FramewiseStreamingAudioBuffer:
                     seq_len=torch.tensor([audio_chunk.size(-1)]),
                     normalize_type=self.model_normalize_type,
                 )
-                # print(x_mean)
-                # print(x_std)
 
             if zeros_pads is not None:
                 # TODO: check here when zero_pads is not None and added_len is already non-zero
