@@ -9,7 +9,7 @@ from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.parts.utils.vad_utils import contruct_manfiest_eval, plot, stitch_segmented_asr_output, write_ss2manifest
+from nemo.collections.asr.parts.utils.vad_utils import construct_manifest_eval, plot, stitch_segmented_asr_output, write_ss2manifest
 
 from extract_speech import process_one_file
 import multiprocessing
@@ -45,7 +45,7 @@ def evaluate_vad(manifest: str, ref: str = "oracle_vad") -> Tuple[float, float, 
     MISS = report.iloc[[-1]][('miss', '%')].item()
     return DetER, FA, MISS
 
-def evaluate_asr(manifest: str, use_cer: bool=False, no_space=False) -> Tuple[float,float]:
+def evaluate_asr(manifest: str, use_cer: bool=False, no_space:bool =False) -> Tuple[float,float]:
     predicted_text, ground_truth_text = [], []
     predicted_text_nospace, ground_truth_text_nospace = [], []
 
@@ -129,16 +129,18 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = ['clean']
+    db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
-    langs = ['french', 'german',  'russian']
-    vad_exps = ['neural_vad',] 
-    models = ['citrinet'] 
+    langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
+    vad_exps = ['oracle_vad','neural_vad'] 
+    models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] 
 
-    subset="dev"
+
+    subset="test"
     single= False # True
     exp = "_single" if single else ""
-    res_file = f"res{exp}_asr_offline_multiple_fixSNR.csv"
+    exp = "_min5"
+    res_file = f"res{exp}_asr_offline_multiple_fixSNR_tunedClean.csv"
 
     si_ratio = False  #True
 
@@ -149,7 +151,8 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = "final_multiple_fixed"
+    final_output_folder = f"final_multiple_fixed_{exp}_tunedClean"
+
     # final_output_folder = "final_tuned"
     save_neural_vad = True
     os.makedirs(final_output_folder, exist_ok=True)
@@ -187,7 +190,8 @@ def main():
                             else:
                                 # silence only clean now need change
                                 # input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
-                                input_manifest = f"/data/syn_noise_augmented_fixed/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
+                                # input_manifest = f"/data/syn_noise_augmented_fixed/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
+                                input_manifest = f"/data/syn_noise_augmented_fixed_10_100/manifests/{lang}_{subset}_test_noise_10_100_musan_fs_{db}db.json"
 
                             if mode == "offline":
                                 if vad_exp =="novad":
@@ -244,22 +248,22 @@ def main():
                                     vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
 
                                     if vad_exp=="neural_vad":
-                                        params = {
-                                            "onset": 0.5,
-                                            "offset": 0.5,
-                                            "min_duration_on": 0.5,
-                                            "min_duration_off": 0.5,
-                                            "pad_onset": 0.2,
-                                            "pad_offset": -0.2
-                                        }
                                         # params = {
-                                        #     "onset": 0.4,
-                                        #     "offset": 0.8,
-                                        #     "min_duration_on": 0.,
+                                        #     "onset": 0.5,
+                                        #     "offset": 0.5,
+                                        #     "min_duration_on": 0.5,
                                         #     "min_duration_off": 0.5,
                                         #     "pad_onset": 0.2,
                                         #     "pad_offset": -0.2
                                         # }
+                                        params = {
+                                            "onset": 0.4,
+                                            "offset": 0.9,
+                                            "min_duration_on": 0,
+                                            "min_duration_off": 1.0,
+                                            "pad_onset": 0.2,
+                                            "pad_offset": -0.2
+                                        }
                                         # vad_model="/home/fjia/models/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_nonoise_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
                                         vad_model="/home/fjia/models/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/slurm_mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd/checkpoints/mVAD_lin_marblenet-3x2x64-4N-256bs-50e-0.02lr-0.001wd.nemo" # here we use vad_marblenet for example, you can choose other VAD models.
                                         
@@ -311,7 +315,7 @@ def main():
                                     stitched_output_manifest = stitch_segmented_asr_output(segmented_output_manifest, speech_segments_tensor_dir, stitched_output_manifest)
 
                                     aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{subset}{exp}.json"
-                                    aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+                                    aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest, use_cer)
 
                                     DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest)
                                     print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
@@ -378,7 +382,7 @@ def main():
                                         --look_back {look_back} \
                                         --vad_before_asr')
 
-                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, vad_asr_output_manifest, aligned_vad_asr_output_manifest)
+                                        aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, vad_asr_output_manifest, aligned_vad_asr_output_manifest, use_cer)
                                     
                                     elif vad_exp=="energy_vad":
                                         # no look back
@@ -398,7 +402,7 @@ def main():
                                             vad_asr_output_manifest,
                                             speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
                                             stitched_output_manifest = stitched_output_manifest)
-                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+                                        aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest, use_cer)
                                         
 
                                     else: # oracle_vad and energy_oracle_vad
@@ -418,7 +422,7 @@ def main():
                                             vad_asr_output_manifest,
                                             speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments"),
                                             stitched_output_manifest = stitched_output_manifest)
-                                        aligned_vad_asr_output_manifest = contruct_manfiest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest)
+                                        aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest, use_cer)
                                     
 
                                     

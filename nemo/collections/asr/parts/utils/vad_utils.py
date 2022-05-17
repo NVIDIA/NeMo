@@ -1010,7 +1010,7 @@ def stitch_segmented_asr_output(
         return stitched_output_manifest
 
 
-def contruct_manfiest_eval(
+def construct_manifest_eval(
     input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = "vad_asr_out.json", use_cer: bool = False
 ) -> str:
 
@@ -1030,13 +1030,11 @@ def contruct_manfiest_eval(
         if sample in stitched_output:
             file["pred_text"] = stitched_output[sample]["pred_text"]
             file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
-            
         else:
             file["pred_text"] = ""
             file["speech_segments_filepath"] = ""
 
         file['wer'] = word_error_rate(hypotheses=[file["pred_text"]], references=[file["text"]], use_cer=use_cer)
-
         out.append(file)
 
     with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
