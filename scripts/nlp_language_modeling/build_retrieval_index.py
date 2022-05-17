@@ -23,7 +23,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
-queue = multiprocessing.Queue()
+queue = multiprocessing.Queue(10)
+emb_queue = multiprocessing.Queue(10)
 
 
 def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int, warm_up_size: int):
@@ -33,16 +34,34 @@ def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_si
     queue.put(sentences)
 
     start = warm_up_size
+    threshold = 0.1
     while start < total_chunks:
+        if start / total_chunks > threshold:
+            logging.info(f"sentence processing {start / total_chunks} is done")
+            threshold += 0.1
         id_slices = ds.get_chunk(slice(start, min(start + chunk_size, total_chunks)), force_no_padding=True)
         start = min(start + chunk_size, total_chunks)
         sentences = [tokenizer.ids_to_text(ids) for ids in id_slices]
         queue.put(sentences)
-    queue.put(False)
+    queue.put(None)
 
 
 def get_sentence_chunks():
     return queue.get()
+
+
+def calculate_embedding(pool, batch_size):
+    while True:
+        sentences = get_sentence_chunks()
+        if sentences is None:
+            break
+        emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
+        emb_queue.put(emb)
+    emb_queue.put(None)
+
+
+def get_emb():
+    return emb_queue.get()
 
 
 if __name__ == "__main__":
@@ -114,9 +133,6 @@ if __name__ == "__main__":
     )
     process.start()
 
-    # get first batch of sentences to build up the index
-    sentences = get_sentence_chunks()
-
     if args.devices is None:
         device_list = None
     else:
@@ -124,7 +140,15 @@ if __name__ == "__main__":
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000)
+    emb_process = multiprocessing.Process(
+        target=calculate_embedding, args=(pool, args.batch_size)
+    )
+    emb_process.start()
+
+    # get first batch of sentences to build up the index
+    # sentences = get_sentence_chunks()
+
+    emb = get_emb()
 
     nlist = 100
     # m is number of subquantizers. So vector of size D is broken into m sub-vectors of size D/m
@@ -141,12 +165,12 @@ if __name__ == "__main__":
     index.add(emb)
 
     while True:
-        sentences = get_sentence_chunks()
-        if not sentences:
+        emb = get_emb()
+        if emb is None:
             break
-        emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000)
         index.add(emb)
     process.join()
+    emb_process.join()
     logging.info('Writing Index file')
     faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')
