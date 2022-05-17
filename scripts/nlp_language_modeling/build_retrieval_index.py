@@ -14,27 +14,27 @@
 """
 """
 import argparse
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-from sentence_transformers import SentenceTransformer
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-import faiss
-from nemo.utils import logging
 import multiprocessing
-import os
+
+import faiss
+from sentence_transformers import SentenceTransformer
+
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.utils import logging
 
 queue = multiprocessing.Queue()
 
 
 def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int, warm_up_size: int):
-    # total_chunks = ds.chunks
-    total_chunks = 30000
-    warm_up_slices = ds.get_chunk(slice(0, warm_up_size))
+    total_chunks = ds.chunks
+    warm_up_slices = ds.get_chunk(slice(0, warm_up_size), force_no_padding=True)
     sentences = [tokenizer.ids_to_text(ids) for ids in warm_up_slices]
     queue.put(sentences)
 
     start = warm_up_size
     while start < total_chunks:
-        id_slices = ds.get_chunk(slice(start, min(start + chunk_size, total_chunks)))
+        id_slices = ds.get_chunk(slice(start, min(start + chunk_size, total_chunks)), force_no_padding=True)
         start = min(start + chunk_size, total_chunks)
         sentences = [tokenizer.ids_to_text(ids) for ids in id_slices]
         queue.put(sentences)
@@ -45,11 +45,8 @@ def get_sentence_chunks():
     return queue.get()
 
 
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="build Faiss index",
-    )
+    parser = argparse.ArgumentParser(description="build Faiss index",)
     parser.add_argument(
         '--input_file', type=str, required=True, help='Input file',
     )
@@ -60,13 +57,13 @@ if __name__ == "__main__":
         '--train_chunk_size', type=int, default=10000, help='The sentences in chunks that is added to the index',
     )
     parser.add_argument(
-        '--sentence_transformer_model', type=str, default='bert-base-nli-mean-tokens', help='sentence transformer to load',
+        '--sentence_transformer_model',
+        type=str,
+        default='bert-base-nli-mean-tokens',
+        help='sentence transformer to load',
     )
     parser.add_argument(
-        '--output_file',
-        type=str,
-        required=True,
-        help='Output Faiss index file',
+        '--output_file', type=str, required=True, help='Output Faiss index file',
     )
     parser.add_argument(
         '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
@@ -108,9 +105,13 @@ if __name__ == "__main__":
     # make sure the dataset is padded as retrieval database
     assert ds._index.retrieval_db
     if ds.chunks < args.train_index_size:
-        raise ValueError(f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset")
+        raise ValueError(
+            f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset"
+        )
 
-    process = multiprocessing.Process(target=process_sentence_chunks, args=(ds, tokenizer, args.train_chunk_size, args.train_index_size))
+    process = multiprocessing.Process(
+        target=process_sentence_chunks, args=(ds, tokenizer, args.train_chunk_size, args.train_index_size)
+    )
     process.start()
 
     # get first batch of sentences to build up the index
@@ -123,9 +124,7 @@ if __name__ == "__main__":
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb = model.encode_multi_process(
-        sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000
-    )
+    emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000)
 
     nlist = 100
     # m is number of subquantizers. So vector of size D is broken into m sub-vectors of size D/m
@@ -145,11 +144,9 @@ if __name__ == "__main__":
         sentences = get_sentence_chunks()
         if not sentences:
             break
-        emb = model.encode_multi_process(
-            sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000
-        )
+        emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=args.batch_size, chunk_size=100000)
         index.add(emb)
     process.join()
     logging.info('Writing Index file')
-    faiss.write_index(index, os.path.join(args.output_file, 'index' + str(args.subquantizers) + '.save'))
+    faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')

@@ -302,7 +302,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         assert offset % self._index.chunk_size == 0
         return self._index.get_chunk_id(idx, offset)
 
-    def get_chunk(self, chunk_id):
+    def get_chunk(self, chunk_id, force_no_padding=False):
         """ Retrieves a single chunk item from the dataset.
         """
         if isinstance(chunk_id, (int, np.int64, np.int32)):
@@ -317,7 +317,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             start, stop, step = chunk_id.indices(self.chunks)
             if step != 1:
                 raise ValueError("Slices into indexed_dataset must be contiguous")
-            if self._index.retrieval_db:
+            if self._index.retrieval_db and (not force_no_padding):
                 chunk_size = self._index.chunk_size * 2
             else:
                 chunk_size = self._index.chunk_size
@@ -327,14 +327,13 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             starting_pos = address // self._index._dtype_size
             total_size = (end_address - ptr) // self._index._dtype_size
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
-            sents = [np_array[pos:pos+chunk_size] for pos in starting_pos - starting_pos[0]]
+            sents = [np_array[pos : pos + chunk_size] for pos in starting_pos - starting_pos[0]]
             return sents
-
 
     @property
     def sizes(self):
         return self._index.sizes
-    
+
     @property
     def chunks(self):
         return self._index.num_chunks
