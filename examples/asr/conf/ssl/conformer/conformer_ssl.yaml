@@ -160,16 +160,17 @@ model:
       d_model: ${model.encoder.d_model}
       # scheduler config override
       warmup_steps: 10000
-      #warmup_ratio: null
+      warmup_ratio: null
       min_lr: 1e-6
 
 trainer:
-  gpus: -1 # number of GPUs, -1 would use all available GPUs
+  devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 1000
   max_steps: null # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  accelerator: ddp
+  accelerator: auto
+  strategy: ddp
   accumulate_grad_batches: 1
   gradient_clip_val: 0.0
   amp_level: O0 # O1/O2 for mixed precision
@@ -180,7 +181,7 @@ trainer:
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False # Provided by exp_manager
   logger: false  # Provided by exp_manager
 
 exp_manager:
@@ -192,7 +193,7 @@ exp_manager:
     # in case of multiple validation sets, first one is used
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 1
+    save_top_k: 5
 
   # you need to set these two to True to continue the training
   resume_if_exists: false
