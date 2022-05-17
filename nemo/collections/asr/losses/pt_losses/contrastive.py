@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch import nn
 
 from nemo.core import Loss, typecheck
-from nemo.core.neural_types import LossType, NeuralType, SpectrogramType, VoidType, LengthsType
+from nemo.core.neural_types import LengthsType, LossType, NeuralType, SpectrogramType, VoidType
 
 __all__ = ["ContrastiveLoss"]
 

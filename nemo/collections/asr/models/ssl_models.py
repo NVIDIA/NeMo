@@ -24,7 +24,7 @@ from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.classes.mixins import set_access_cfg, AccessMixin
+from nemo.core.classes.mixins import AccessMixin, set_access_cfg
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     AudioSignal,
