@@ -79,37 +79,37 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.cfg = cfg
 
         # Load pretrained GPT model and tokenizer
+        print("LOADING GPT MODEL")
         self.model = MegatronGPTModel.restore_from(
             self.register_artifact('language_model_path', cfg.get('language_model_path', None)),
             trainer=trainer,
             save_restore_connector=NLPSaveRestoreConnector(),
         )
+        print("GPT MODEL LOADED")
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
-        if not cfg.lm_finetune:
-            self.model.freeze()
-
+        #if not cfg.lm_finetune:
+        self.model.freeze()
         self.tokenizer = self.model.tokenizer
         self.float_type = self.model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.model.cfg.hidden_size
-
-        if parallel_state.is_pipeline_first_stage():
-            self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
-
-
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
-
+            
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-        self.prompt_table = PromptTable(
-            existing_tasks=self.existing_tasks,
-            task_templates=self.task_templates,
-            task_id_num_to_name=self.task_id_num_to_name,
-            hidden_size=self.hidden_size,
-        )
+        # Only happens on first stage of the pipeline when pipeline parallel > 1
+        if self.model.model.pre_process:
+            self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
+
+            # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
+            self.prompt_table = PromptTable(
+                existing_tasks=self.existing_tasks,
+                task_templates=self.task_templates,
+                task_id_num_to_name=self.task_id_num_to_name,
+                hidden_size=self.hidden_size,
+            )
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_token_base = cfg.pseudo_token_base
@@ -290,14 +290,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         in the MegatronGPT class.
         """
         # Get embeddings for text tokens and insert virtual token embeddings
-        #if parallel_state.is_pipeline_first_stage():
-        if inference:
-            input_embeds = self.embed_input_inference(input_ids, taskname_ids)
-        else:
-            input_embeds = self.embed_input_train(input_ids, taskname_ids)
+        if self.model.model.pre_process:
+            if inference:
+                input_embeds = self.embed_input_inference(input_ids, taskname_ids)
+            else:
+                input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
-        encoder_input = input_embeds + position_embeddings
+            position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
+            encoder_input = input_embeds + position_embeddings
+        else:
+            encoder_input = None
 
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
@@ -614,7 +616,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
-        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+        if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.model.model.pre_process:
             self.add_ptuned_prompts_to_prompt_table()
             logging.info(f"All p-tuned prompts where moved to the prompt table.")
 
@@ -640,14 +642,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if stage == 'test':
             return
 
-        if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
-            self.init_new_prompts()
-        elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
-            self.init_prompt_encoder()
+        if self.model.model.pre_process:
+            if self.virtual_prompt_style == VirtualPromptStyle.PROMPT_TUNING:
+                self.init_new_prompts()
+            elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
+                self.init_prompt_encoder()
+            
+            self.freeze_existing_virtual_prompt_params()
 
         self.setup_training_data()
         self.setup_validation_data()
-        self.freeze_existing_virtual_prompt_params()
 
     def setup_training_data(self, training_data_config=None):
         if self.cfg.data.get('train_ds', None):
