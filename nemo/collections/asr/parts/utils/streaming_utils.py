@@ -22,7 +22,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.parts.mixins.streaming import StreamingEncoderMixin
+from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
@@ -1180,9 +1180,9 @@ class FramewiseStreamingAudioBuffer:
         self.step = 0
 
         self.online_normalization = online_normalization
-        if not isinstance(model.encoder, StreamingEncoderMixin):
+        if not isinstance(model.encoder, StreamingEncoder):
             raise ValueError(
-                "The model's encoder is not inherited from StreamingEncoderMixin, and likely not to support streaming!"
+                "The model's encoder is not inherited from StreamingEncoder, and likely not to support streaming!"
             )
         if model.encoder.streaming_cfg is None:
             model.encoder.setup_streaming_params()

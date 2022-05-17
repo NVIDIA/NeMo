@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,23 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
-
 import torch
 
 
-class StreamingEncoderMixin():
-    @abstractmethod
+class StreamingEncoder:
     def setup_streaming_params(
         self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None
     ):
         pass
 
-    @abstractmethod
     def get_initial_cache_state(self, batch_size, dtype, device):
         pass
 
-    @staticmethod
     def to_numpy(tensor):
         if tensor is None:
             return None
