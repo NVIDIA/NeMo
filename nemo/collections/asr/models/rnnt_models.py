@@ -748,8 +748,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             encoded,
             encoded_len,
             cache_last_channel_next,
-            cache_last_time_next,
-            prev_drop_extra_pre_encoded,
+            cache_last_time_next
         ) = self.encoder.stream_step(
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
@@ -779,9 +778,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         if all_hyp is None:
             all_hyp = best_hyp
-
-        if prev_drop_extra_pre_encoded is not None:
-            self.encoder.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
 
         return greedy_predictions, all_hyp, cache_last_channel_next, cache_last_time_next, best_hyp
 

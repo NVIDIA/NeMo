@@ -102,7 +102,7 @@ class FramewiseStreamingConfig:
     valid_out_len: int = 0
 
     pre_encode_cache_size: int = 0
-    drop_extra_pre_encoded: bool = False
+    drop_extra_pre_encoded: int = 0
 
     last_channel_num: int = 0
     last_time_num: int = 0

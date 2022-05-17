@@ -85,4 +85,7 @@ class StreamingEncoderMixin(ABC):
             encoded = encoded[:, :, :valid_out_len]
             encoded_len = torch.clamp(encoded_len, max=valid_out_len)
 
-        return encoded, encoded_len, cache_last_channel_next, cache_last_time_next, prev_drop_extra_pre_encoded
+        if prev_drop_extra_pre_encoded is not None:
+            self.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
+
+        return encoded, encoded_len, cache_last_channel_next, cache_last_time_next

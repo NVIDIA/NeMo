@@ -348,17 +348,14 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
-        # print(audio_signal.shape)
         if length is None:
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
             )
 
         if cache_last_channel is not None:
-            # cache_pre_encode_next = None #torch.zeros_like(cache_pre_encode)
             cache_last_time_next = torch.zeros_like(cache_last_time)
         else:
-            # cache_pre_encode_next = None
             cache_last_time_next = None
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
@@ -368,10 +365,10 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
-            if self.streaming_cfg.drop_extra_pre_encoded:
-                audio_signal = audio_signal[:, 2:, :]
+            if self.streaming_cfg.drop_extra_pre_encoded > 0:
+                audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded:, :]
                 # TODO: find a better solution
-                length = (length - 2).float()
+                length = (length - self.streaming_cfg.drop_extra_pre_encoded).float()
                 length = torch.clip(length, min=0).int()
 
         max_audio_length = audio_signal.size(1)
@@ -406,8 +403,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
 
         pad_mask = ~pad_mask
         att_mask = ~att_mask
-
-        # print(audio_signal.shape)
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(
@@ -518,11 +513,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
                 streaming_cfg.shift_size = sampling_frames * (
                     1 + streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size
                 )
-
-            # streaming_cfg.shift_size = [
-            #     1 + self.subsampling_factor * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
-            #     self.subsampling_factor * ((1 + streaming_cfg.lookahead_steps) - streaming_cfg.cache_drop_size),
-            # ]
         else:
             streaming_cfg.shift_size = shift_size
 
@@ -548,13 +538,17 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         if drop_extra_pre_encoded is not None:
             streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
         else:
-            if streaming_cfg.pre_encode_cache_size == 0:
-                streaming_cfg.drop_extra_pre_encoded = False
+            if isinstance(streaming_cfg.pre_encode_cache_size, list):
+                if streaming_cfg.pre_encode_cache_size[1] >= 1:
+                    streaming_cfg.drop_extra_pre_encoded = 1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
+                else:
+                    streaming_cfg.drop_extra_pre_encoded = 0
             else:
-                streaming_cfg.drop_extra_pre_encoded = True
+                streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
+
+
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
-
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
                 if isinstance(m, MultiHeadAttention):

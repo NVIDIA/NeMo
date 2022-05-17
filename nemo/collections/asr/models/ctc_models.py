@@ -562,8 +562,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             encoded,
             encoded_len,
             cache_last_channel_next,
-            cache_last_time_next,
-            prev_drop_extra_pre_encoded,
+            cache_last_time_next
         ) = self.encoder.stream_step(
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
@@ -608,8 +607,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         #     for preds in predictions_tensor:
         #         greedy_predictions.append(preds)
 
-        if prev_drop_extra_pre_encoded is not None:
-            self.encoder.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
         return greedy_predictions, transcribed_texts, cache_last_channel_next, cache_last_time_next, None
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):

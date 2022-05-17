@@ -46,12 +46,10 @@ def extract_transcribtions(hyps):
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num):
-    if asr_model.encoder.streaming_cfg.pre_encode_cache_size == 0:
-        return False
-    if step_num == 0:
-        return False
+    if step_num == 0 and asr_model.encoder.streaming_cfg.drop_extra_pre_encoded != 0:
+        return 0
     else:
-        return True
+        return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
 
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, onnx_model=None):
@@ -172,28 +170,7 @@ def main():
         except:
             asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
 
-    # asr_model.encoder.setup_streaming_params(
-    #     chunk_size=72*4,
-    #     shift_size=72*4,
-    #     cache_drop_size=0,
-    #     pre_encode_cache_size=8,
-    #     valid_out_len=18,
-    # )
-    # asr_model.encoder.setup_streaming_params(
-    #     chunk_size=72,
-    #     shift_size=72,
-    #     cache_drop_size=0,
-    #     pre_encode_cache_size=5,
-    #     valid_out_len=18,
-    # )
     logging.info(asr_model.encoder.streaming_cfg)
-    # asr_model.encoder.setup_streaming_params(
-    #     chunk_size=[69, 72],
-    #     shift_size=[69, 72],
-    #     cache_drop_size=0,
-    #     pre_encode_cache_size=[0, 5],
-    #     valid_out_len=[18, 18],
-    # )
 
     global autocast
     if (
