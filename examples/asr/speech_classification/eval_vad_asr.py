@@ -132,7 +132,7 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
     langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ['oracle_vad','neural_vad'] 
+    vad_exps = ['neural_vad', 'oracle_vad',] 
     models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] 
 
 
