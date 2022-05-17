@@ -146,13 +146,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             frame_splicing (int): Defaults to 1
             exact_pad (bool): If True, sets stft center to False and adds padding, such that num_frames = audio_length
                 // hop_length. Defaults to False.
-            stft_exact_pad (bool): If True, uses pytorch_stft and convolutions with
-                padding such that num_frames = num_samples / hop_length. If False,
-                stft_conv will be used to determine how stft will be performed.
-                Defaults to False. TODO:This feature is deprecated and will be removed in 1.1.0
-            stft_conv (bool): If True, uses pytorch_stft and convolutions. If
-                False, uses torch.stft. TODO:This feature is deprecated and will be removed in 1.1.0
-                Defaults to False
             pad_value (float): The value that shorter mels are padded with.
                 Defaults to 0
             mag_power (float): The power that the linear spectrogram is raised to
@@ -164,6 +157,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
                 Defaults to 0.0
             nb_max_freq (int) : Frequency above which all frequencies will be masked for narrowband augmentation.
                 Defaults to 4000
+            stft_exact_pad: Deprecated argument, kept for compatibility with older checkpoints.
+            stft_conv: Deprecated argument, kept for compatibility with older checkpoints.
         """
 
     def save_to(self, save_path: str):
@@ -220,13 +215,13 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         pad_to=16,
         frame_splicing=1,
         exact_pad=False,
-        stft_exact_pad=False,
-        stft_conv=False,
         pad_value=0,
         mag_power=2.0,
         rng=None,
         nb_augmentation_prob=0.0,
         nb_max_freq=4000,
+        stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
+        stft_conv=False,  # Deprecated arguments; kept for config compatibility
     ):
         super().__init__(n_window_size, n_window_stride)
 
@@ -260,13 +255,13 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
             pad_to=pad_to,
             frame_splicing=frame_splicing,
             exact_pad=exact_pad,
-            stft_exact_pad=stft_exact_pad,
-            stft_conv=stft_conv,
             pad_value=pad_value,
             mag_power=mag_power,
             rng=rng,
             nb_augmentation_prob=nb_augmentation_prob,
             nb_max_freq=nb_max_freq,
+            stft_exact_pad=stft_exact_pad,  # Deprecated arguments; kept for config compatibility
+            stft_conv=stft_conv,  # Deprecated arguments; kept for config compatibility
         )
 
     def get_features(self, input_signal, length):
@@ -525,13 +520,15 @@ class MaskedPatchAugmentation(NeuralModule):
         Optionally also performs frequency masking in the same way as SpecAugment.
         Args:
             patch_size (int): up to how many time steps does one patch consist of.
-            Defaults to 48.
-            mask_patches (int): how many patches should be masked in each sample.
-            Defaults to 10.
+                Defaults to 48.
+            mask_patches (float): how many patches should be masked in each sample.
+                if >= 1., interpreted as number of patches (after converting to int)
+                if <1.,   interpreted as fraction of total tokens to be masked 
+                Defaults to 10.
             freq_masks (int): how many frequency segments should be cut.
-            Defaults to 0.
+                Defaults to 0.
             freq_width (int): maximum number of frequencies to be cut in a segment.
-            Defaults to 0.
+                Defaults to 0.
     """
 
     @property
@@ -550,11 +547,17 @@ class MaskedPatchAugmentation(NeuralModule):
         return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
 
     def __init__(
-        self, patch_size: int = 48, mask_patches: int = 10, freq_masks: int = 0, freq_width: int = 0,
+        self, patch_size: int = 48, mask_patches: float = 10.0, freq_masks: int = 0, freq_width: int = 0,
     ):
         super().__init__()
         self.patch_size = patch_size
-        self.mask_patches = mask_patches
+        if mask_patches >= 1:
+            self.mask_patches = int(mask_patches)
+        elif mask_patches >= 0:
+            self._mask_fraction = mask_patches
+            self.mask_patches = None
+        else:
+            raise ValueError('mask_patches cannot be negative')
 
         if freq_masks > 0:
             self.spec_augment = SpecAugment(freq_masks=freq_masks, time_masks=0, freq_width=freq_width, time_width=0,)
@@ -566,8 +569,14 @@ class MaskedPatchAugmentation(NeuralModule):
         augmented_spec = input_spec
 
         min_len = torch.min(length)
-        mask_patches = self.mask_patches
-        if min_len < self.patch_size * self.mask_patches:
+
+        if self.mask_patches is None:
+            # masking specified as fraction
+            mask_patches = int(min_len * self._mask_fraction // self.patch_size)
+        else:
+            mask_patches = self.mask_patches
+
+        if min_len < self.patch_size * mask_patches:
             mask_patches = min_len // self.patch_size
 
         for idx in range(input_spec.shape[0]):
@@ -679,13 +688,13 @@ class AudioToMelSpectrogramPreprocessorConfig:
     pad_to: int = 16
     frame_splicing: int = 1
     exact_pad: bool = False
-    stft_exact_pad: bool = False
-    stft_conv: bool = False
     pad_value: int = 0
     mag_power: float = 2.0
     rng: Optional[str] = None
     nb_augmentation_prob: float = 0.0
     nb_max_freq: int = 4000
+    stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
+    stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
 
 
 @dataclass
