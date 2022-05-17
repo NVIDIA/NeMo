@@ -17,3 +17,4 @@ flask_restful
 einops
 ijson
 faiss-cpu
+sentence_transformers

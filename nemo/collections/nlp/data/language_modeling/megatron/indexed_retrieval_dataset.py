@@ -327,7 +327,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             starting_pos = address // self._index._dtype_size
             total_size = (end_address - ptr) // self._index._dtype_size
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
-            sents = [np_array[pos:pos+chunk_size] for pos in starting_pos]
+            sents = [np_array[pos:pos+chunk_size] for pos in starting_pos - starting_pos[0]]
             return sents
 
 
