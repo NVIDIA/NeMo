@@ -51,12 +51,15 @@ class T5LMAdaptedDataset(GPTDataset):
         if pivot_distribution == "truncated_normal" and (pivot_mean < 0.0 or pivot_mean > 1.0):
             raise ValueError(f"Invalid pivot_mean: {pivot_mean}. Must be in [0.0, 1.0]. It is a fraction of the encoder sequence length.")
 
+        # If the sample is larger than max encoder sequence length, use max encoder sequence length, otherwwise use sample length.
+        max_split_idx = min(len(sample), max_seq_length_encoder)
+
         if pivot_distribution == "uniform":
-            split_idx = np_rng.randint(0, len(sample))
+            split_idx = np_rng.randint(0, max_split_idx)
         else:
-            loc = pivot_mean * len(sample)
+            loc = pivot_mean * max_split_idx
             split_idx = np.clip(
-                int(np_rng.normal(loc=loc, scale=loc)), 0, max_seq_length_encoder,
+                int(np_rng.normal(loc=loc, scale=loc)), 0, max_split_idx,
             )
 
         # Encoder inputs get truncated based on the split indx
@@ -66,7 +69,7 @@ class T5LMAdaptedDataset(GPTDataset):
         tokens_dec = sample[split_idx: split_idx + max_seq_length_decoder + 1]
 
         # NOTE: Add bos only and not eos because the model will always generate till max seq length.
-        tokens_dec = np.concatenate(([tokenizer.bos_id], tokens_dec)).astype(np.int64)
+        tokens_dec = np.concatenate([[tokenizer.bos_id], tokens_dec, [tokenizer.pad_id] * (max_seq_length_decoder - len(tokens_dec) + 1)]).astype(np.int64)
 
         # Shift sequences for teacher forcing
         tokens_dec_in = tokens_dec[:-1]
