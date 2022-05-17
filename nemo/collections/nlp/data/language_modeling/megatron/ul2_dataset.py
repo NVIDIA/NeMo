@@ -105,7 +105,7 @@ class UL2Dataset(T5Dataset):
         if masking_type == 0:
             # Call T5's build training sample for regular short span masking.
             sample = super().build_training_sample(sample=sample, target_seq_length=seq_length, np_rng=np_rng)
-            sample = self._prepend_mask_type_token(sample, '<extra_id_s>')
+            sample = self._prepend_mask_type_token(sample, '<extra_id_r>')
         elif masking_type == 1:
             sample = self.build_extreme_masking_training_sample(
                 sample=sample, target_seq_length=seq_length, np_rng=np_rng
@@ -123,7 +123,7 @@ class UL2Dataset(T5Dataset):
                 pivot_mean=self.prefix_lm_pivot_mean,
                 pivot_distribution=self.extreme_ngram_span_length_distribution,
             )
-            sample = self._prepend_mask_type_token(sample, '<extra_id_r>')
+            sample = self._prepend_mask_type_token(sample, '<extra_id_s>')
 
         return sample
 
