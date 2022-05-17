@@ -68,6 +68,7 @@ msdd_model:
   emb_batch_size: 50
   use_longest_scale_clus_avg_emb: True
 
+
   train_ds:
     manifest_filepath: ???
     emb_dir: ???
@@ -130,8 +131,11 @@ msdd_model:
     num_lstm_layers: 2
     dropout_rate: 0.5
     cnn_output_ch: 16
+    #cnn_output_ch: 16
     emb_sizes: 192
     scale_n: *scale_n
+    clamp_max: 0.75
+    weighting_scheme: 'corr'
 
   loss:
     scale: 30
@@ -139,7 +143,7 @@ msdd_model:
 
   optim:
     name: adam
-    lr: .005
+    lr: .001
     weight_decay: 0.001
 
     sched:

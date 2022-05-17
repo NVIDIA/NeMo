@@ -32,7 +32,7 @@ from omegaconf import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.rank_zero import _get_rank
+# from pytorch_lightning.utilities.rank_zero import _get_rank
 from torch.utils.data import ChainDataset
 from collections import OrderedDict
 from nemo.collections.asr.models import ClusteringDiarizer
@@ -158,7 +158,6 @@ def getScaleMappingArgmat(uniq_embs_and_timestamps):
             the weighted sum of the affinity matrices from the different scales.
     """
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    base_scale_idx = max(uniq_scale_dict.keys())
     multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
     scale_mapping_argmat = {}
 
@@ -176,22 +175,45 @@ class ClusterEmbedding:
         self.cluster_avg_emb_path = 'speaker_outputs/embeddings/clus_emb_info.pkl'
         self.speaker_mapping_path = 'speaker_outputs/embeddings/clus_mapping.pkl'
         self.scale_map_path = 'speaker_outputs/embeddings/scale_mapping.pkl'
-        self.multiscale_weights_list = None
+        self.multiscale_weights_list = self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.multiscale_weights
         self.clusdiar_model = None
         self.msdd_model = None
         self.run_clus_from_loaded_emb = False
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
+        # else:
         self.base_scale_index = len(self.scale_window_length_list) - 1
   
     def prepare_cluster_embs_infer(self):
         self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict = self.prepare_datasets(self._cfg_msdd.test_ds)
     
+    def assign_labels_to_shorter_segs(self, base_clus_label_dict, session_scale_mapping_dict):
+        new_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
+        for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
+            base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
+            # new_clus_label_dict[self.scale_n-1][uniq_id] = base_scale_clus_label
+            new_clus_label_dict[self.base_scale_index][uniq_id] = base_scale_clus_label
+            for scale_index in range(self.scale_n):
+                new_clus_label = []
+                seq_length = max(uniq_scale_mapping_dict[scale_index])
+                for seg_idx in range(seq_length+1):
+                    if seg_idx in uniq_scale_mapping_dict[scale_index]:
+                        index_bool = uniq_scale_mapping_dict[scale_index] == seg_idx
+                        clus_spk_label = torch.tensor(base_scale_clus_label[uniq_scale_mapping_dict[self.base_scale_index][index_bool]])
+                        seg_clus_label = torch.mode(clus_spk_label)[0].item()
+                        # import ipdb; ipdb.set_trace()
+                    else:
+                        seg_clus_label = 0 if len(new_clus_label) == 0 else new_clus_label[-1]
+                    new_clus_label.append(seg_clus_label)
+                new_clus_label_dict[scale_index][uniq_id] = new_clus_label
+        return new_clus_label_dict
+    
     def assign_labels_to_longer_segs(self, base_clus_label_dict, session_scale_mapping_dict):
         new_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
         for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
             base_scale_clus_label = np.array([ x[-1] for x in base_clus_label_dict[uniq_id]])
-            new_clus_label_dict[self.scale_n-1][uniq_id] = base_scale_clus_label
+            # new_clus_label_dict[self.scale_n-1][uniq_id] = base_scale_clus_label
+            new_clus_label_dict[self.base_scale_index][uniq_id] = base_scale_clus_label
             for scale_index in range(self.scale_n-1):
                 new_clus_label = []
                 assert uniq_scale_mapping_dict[scale_index].shape[0] == base_scale_clus_label.shape[0], "The number of base scale labels does not match the segment numbers in uniq_scale_mapping_dict"
@@ -212,7 +234,8 @@ class ClusterEmbedding:
         Args:
             clus_labels
         """
-        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys()}
+        # base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys()}
+        base_clus_label_dict = {key: [] for key in emb_scale_seq_dict[self.base_scale_index].keys()}
         for line in clus_labels:
             uniq_id = line.split()[0]
             label = int(line.split()[-1].split('_')[-1])
@@ -221,6 +244,70 @@ class ClusterEmbedding:
         emb_dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
         return base_clus_label_dict, emb_dim
 
+    def replace_output_clus_label_dict(self, all_scale_clus_label_dict):
+        self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = False
+        self._embs_and_timestamps = get_embs_and_timestamps(
+            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
+        )
+        base_clus_label_dict = {}
+        for uniq_id, data_dict in self._embs_and_timestamps.items():
+            label_scale = max(list(data_dict["scale_dict"].keys()))
+            stt_end_lines = data_dict["scale_dict"][label_scale]["time_stamps"]
+            spk_label_list = all_scale_clus_label_dict[label_scale][uniq_id]
+            base_clus_label_dict[uniq_id] = []
+            for k, line in enumerate(stt_end_lines):
+                # uniq_id = line.split()[0]
+                label = spk_label_list[k]
+                stt, end = [round(float(x), 2) for x in line.split()[:2]]
+                base_clus_label_dict[uniq_id].append([stt, end, label])
+        return base_clus_label_dict
+        pass
+    
+    # def filter_speakers(self, avg_embs, uniq_id_list, test_data_collection):
+        # session_dict = {x:[] for x in uniq_id_list}
+        # sess_rttm_mapping_dict, total_avg_emb_dict = {}, {}
+        # device = torch.cuda.current_device()
+        # for idx, line in enumerate(test_data_collection):
+            # uniq_id = get_uniqname_from_filepath(line.audio_file)
+            # est_spk_num = len(line.tup_spks[2])
+            # session_dict[uniq_id].append([line.tup_spks[0], line.tup_spks[2]])
+            # sess_rttm_mapping_dict[uniq_id] = [line.tup_spks[-2], line.tup_spks[-1]]
+            # if uniq_id not in total_avg_emb_dict:
+                # total_avg_emb_dict[uniq_id] =  torch.zeros(avg_embs[idx].shape[1], est_spk_num).to(device)
+            # else:
+                # total_avg_emb_dict[uniq_id][:, line.tup_spks[0]] = avg_embs[idx][0]
+
+        # x_data, y_data = [], []
+        # x_rem, y_rem= [], []
+        # with autocast():
+            # for uniq_id, sess_data in session_dict.items():
+                # avg_embs = total_avg_emb_dict[uniq_id]
+                # _sim_d = cosine_similarity(avg_embs.t().cpu().numpy())
+                # np.fill_diagonal(_sim_d, 0)
+                # sim_d = getCosAffinityMatrix(avg_embs.t())
+                # label_stat = torch.bincount( torch.tensor([ x[-1] for x in self.clus_test_label_dict[uniq_id]]))
+                # label_stat = label_stat/torch.sum(label_stat)
+                # target_idx = torch.tensor(list(set(sess_rttm_mapping_dict[uniq_id][0]) - set(sess_rttm_mapping_dict[uniq_id][1])))
+                # preserve_idx = torch.tensor(list(set(sess_rttm_mapping_dict[uniq_id][1])))
+                # print(" oracle:\n", sess_rttm_mapping_dict[uniq_id])
+                # print(" sim_d:\n", _sim_d)
+                # print(" sum_d:\n", _sim_d.sum(axis=0))
+                # print(" label_stat:", label_stat, "\n\n\n")
+                
+                # sim_sum_r, ratio_r = self.refine_nums(_sim_d, label_stat, target_idx)
+                # sim_sum_d, ratio_d = self.refine_nums(_sim_d, label_stat, preserve_idx)
+                # x_rem.extend(sim_sum_r)
+                # y_rem.extend(ratio_r)
+                # x_data.extend(sim_sum_d)
+                # y_data.extend(ratio_d)
+
+    # def refine_nums(self, _sim_d, label_stat, target_idx):
+        # sim_sum, ratio = _sim_d.sum(axis=0)[target_idx], label_stat[target_idx]
+        # sim_sum = sim_sum.tolist() if type(sim_sum) == type(np.array([])) else [sim_sum]
+        # ratio  = ratio.cpu().tolist() if type(ratio) == type(torch.tensor([])) else [ratio.item()]
+        # return sim_sum, ratio
+        
+
     def get_cluster_avg_embs(self, emb_scale_seq_dict, clus_labels, speaker_mapping_dict, session_scale_mapping_dict):
         """
         MSDD
@@ -228,8 +315,14 @@ class ClusterEmbedding:
         """
         self.scale_n = len(emb_scale_seq_dict.keys())
         emb_sess_avg_dict = {scale_index:{key: [] for key in emb_scale_seq_dict[self.scale_n-1].keys() } for scale_index in emb_scale_seq_dict.keys()}
-        base_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
-        all_scale_clus_label_dict = self.assign_labels_to_longer_segs(base_clus_label_dict, session_scale_mapping_dict)
+        output_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
+        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
+            # The longest scale has output labels therefore assign the labels to shorter ones.
+            all_scale_clus_label_dict = self.assign_labels_to_shorter_segs(output_clus_label_dict, session_scale_mapping_dict)
+            # The output label should be replaced: (longest -> shortest)
+            output_clus_label_dict = self.replace_output_clus_label_dict(all_scale_clus_label_dict)
+        else: 
+            all_scale_clus_label_dict = self.assign_labels_to_longer_segs(output_clus_label_dict, session_scale_mapping_dict)
         for scale_index in emb_scale_seq_dict.keys():
             for uniq_id, _emb_tensor in emb_scale_seq_dict[scale_index].items():
                 if type(_emb_tensor) == list:
@@ -240,7 +333,10 @@ class ClusterEmbedding:
                 spk_set = set(clus_label_list)
                 # Create a label array which identifies clustering result for each segment.
                 num_of_spks = len(spk_set)
-                assert num_of_spks <= self.max_num_of_spks, f"uniq_id {uniq_id} - self.max_num_of_spks {self.max_num_of_spks} is smaller than the actual number of speakers: {num_of_spks}"
+                try:
+                    assert num_of_spks <= self.max_num_of_spks, f"uniq_id {uniq_id} - self.max_num_of_spks {self.max_num_of_spks} is smaller than the actual number of speakers: {num_of_spks}"
+                except:
+                    import ipdb; ipdb.set_trace()
                 label_array = torch.Tensor(clus_label_list)
                 avg_embs = torch.zeros(emb_dim, self.max_num_of_spks)
                 for spk_idx in spk_set:
@@ -248,7 +344,7 @@ class ClusterEmbedding:
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
                 inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
                 emb_sess_avg_dict[scale_index][uniq_id] = {'mapping': inv_map, 'avg_embs': avg_embs}
-        return emb_sess_avg_dict, base_clus_label_dict
+        return emb_sess_avg_dict, output_clus_label_dict
     
     def get_manifest_uniq_ids(self, manifest_filepath):
         manifest_lines = []
@@ -329,8 +425,9 @@ class ClusterEmbedding:
             else:
                 isClusteringInfoReady, loaded_clus_data = False, None
         
-            clus_label_path = os.path.join(emb_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label')
-            scales_subsegment_exist_list = [os.path.exists(clus_label_path)] 
+            # clus_label_path = os.path.join(emb_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label')
+            # scales_subsegment_exist_list = [os.path.exists(clus_label_path)] 
+            scales_subsegment_exist_list = []
             for scale_index in range(self.scale_n):
                 pickle_path = os.path.join(emb_dir, 'speaker_outputs', 'embeddings', f'subsegments_scale{scale_index}_embeddings.pkl')
                 scales_subsegment_exist_list.append(os.path.exists(pickle_path))
@@ -370,17 +467,33 @@ class ClusterEmbedding:
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
         self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+        self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
+        self.clusdiar_model.multiscale_args_dict["multiscale_weights"] = self.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights
+        self.clusdiar_model._diarizer_params.speaker_embeddings.parameters = self.cfg_base.diarizer.speaker_embeddings.parameters
+        clustering_params_str = json.dumps(dict(self.clusdiar_model._cluster_params), indent=4)
+        logging.info(f"Multiscale Weights: {self.clusdiar_model.multiscale_args_dict['multiscale_weights']}")
+        logging.info(f"Clustering Parameters: {clustering_params_str}")
+        
+        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
+            self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = True
+            self.base_scale_index = 0
+
         metric, speaker_mapping_dict = self.clusdiar_model.diarize(batch_size=self.cfg_base.batch_size)
 
         # Get the mapping between segments in different scales.
-        session_scale_mapping_dict = self.get_scale_map(self.clusdiar_model.embs_and_timestamps)
+        self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = False
+        self._embs_and_timestamps = get_embs_and_timestamps(
+            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
+        )
+        session_scale_mapping_dict = self.get_scale_map(self._embs_and_timestamps)
         emb_scale_seq_dict = self.load_emb_scale_seq_dict(emb_dir)
-        clus_labels = load_clustering_labels(out_dir)
+        clus_labels = self.load_clustering_labels(emb_dir)
         emb_sess_avg_dict, base_clus_label_dict = self.get_cluster_avg_embs(emb_scale_seq_dict, 
                                                                             clus_labels, 
                                                                             speaker_mapping_dict, 
                                                                             session_scale_mapping_dict)
-        self.save_dict_as_pkl(emb_dir, loaded_clus_data)
+        # self.save_dict_as_pkl(emb_dir, loaded_clus_data)
+        self.save_dict_as_pkl(emb_dir, [emb_sess_avg_dict, speaker_mapping_dict, session_scale_mapping_dict])
         emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
@@ -401,9 +514,21 @@ class ClusterEmbedding:
                 List containing emb_sess_avg_dict, emb_scale_seq_dict and base_clus_label_dict
         """
         emb_sess_avg_dict, session_scale_mapping_dict, speaker_mapping_dict = loaded_clus_data
-        if self.run_clus_from_loaded_emb:
+        cluster_label_file_exists, _ = self.check_clustering_labels(emb_dir)
+        # if self.run_clus_from_loaded_emb:
+        if self.cfg_base.diarizer.msdd_model.parameters.run_clus_from_loaded_emb or not cluster_label_file_exists:
             emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict = self.run_clustering_from_existing_data(manifest_filepath, emb_dir)
         else:
+            emb_scale_seq_dict = self.load_emb_scale_seq_dict(emb_dir)
+            clus_labels = self.load_clustering_labels(emb_dir)
+            if not self.clusdiar_model:
+                self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+            self.load_embs_and_timestamps(emb_dir, emb_scale_seq_dict)
+            base_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
+            emb_sess_avg_dict, base_clus_label_dict = self.get_cluster_avg_embs(emb_scale_seq_dict, 
+                                                                                clus_labels, 
+                                                                                speaker_mapping_dict, 
+                                                                                session_scale_mapping_dict)
             emb_scale_seq_dict['session_scale_mapping'] = session_scale_mapping_dict
         return emb_sess_avg_dict, emb_scale_seq_dict, base_clus_label_dict
 
@@ -429,7 +554,19 @@ class ClusterEmbedding:
                                                                       emb_dir, 
                                                                       emb_scale_seq_dict, 
                                                                       run_clustering=True)
-        session_scale_mapping_dict = self.get_scale_map(self.clusdiar_model.embs_and_timestamps)
+        # self.multiscale_args_dict['use_single_scale_clustering'] = False
+        self.multiscale_args_dict = parse_scale_configs(
+            self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.window_length_in_sec,
+            self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.shift_length_in_sec,
+            self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.multiscale_weights
+            )
+
+        # _embs_and_timestamps should be stored again in case of use_single_scale_clus=True.
+        # All scales are required to prepare data even in case of single scale clustering.
+        self._embs_and_timestamps = get_embs_and_timestamps(
+            self.clusdiar_model.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
+        )
+        session_scale_mapping_dict = self.get_scale_map(self._embs_and_timestamps)
         clus_labels = self.load_clustering_labels(emb_dir)
         emb_sess_avg_dict, base_clus_label_dict = self.get_cluster_avg_embs(emb_scale_seq_dict, 
                                                                             clus_labels, 
@@ -459,7 +596,7 @@ class ClusterEmbedding:
             multiscale_data = self.run_clustering_diarizer(manifest_filepath, emb_dir)
 
         # logging.info("Checking clustering results and rttm files. Don't use this for inference. This is for training.")
-        self.check_embedding_and_RTTM(manifest_filepath, loaded_clus_data)
+        # self.check_embedding_and_RTTM(manifest_filepath, loaded_clus_data)
         logging.info("Clustering results and rttm files test passed.")
         return multiscale_data
     
@@ -488,6 +625,24 @@ class ClusterEmbedding:
                 self.time_stamps[uniq_name].append(stamp)
         return self.time_stamps
 
+    def modify_scale_settings(self, embs_and_timestamps, new_multiscale_weights):
+        target_scale_n = len(new_multiscale_weights)
+
+        uniq_id_list = list(embs_and_timestamps.keys())
+        for uniq_id in uniq_id_list:
+            for k, sw in  enumerate(self.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights):
+                assert embs_and_timestamps[uniq_id]['multiscale_weights'] == sw, "Multiscale weights are not equal to the segmentation lengths."
+            embs_and_timestamps[uniq_id]['multiscale_weights'] = torch.tensor(new_multiscale_weights).unsqueeze(0)
+
+        return embs_and_timestamps 
+    
+    def load_embs_and_timestamps(self, emb_dir, emb_scale_seq_dict):
+        for scale_idx, (window, shift) in self.clusdiar_model.multiscale_args_dict['scale_dict'].items():
+            subsegments_manifest_path = os.path.join(emb_dir, 'speaker_outputs', f'subsegments_scale{scale_idx}.json')
+            self.embeddings = emb_scale_seq_dict[scale_idx]
+            self.time_stamps = self.extract_time_stamps(subsegments_manifest_path)
+            self.clusdiar_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+
     def run_multiscale_clustering(self, manifest_filepath, emb_dir, emb_scale_seq_dict, run_clustering=False):
         """
         Run multiscale clustering without extracting speaker embedding process. The saved speaker embeddings are used
@@ -498,31 +653,33 @@ class ClusterEmbedding:
         Returns:
 
         """
-        self.cfg_base.diarizer.out_dir = emb_dir
 
         if not self.clusdiar_model:
             self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
         self.clusdiar_model.AUDIO_RTTM_MAP = audio_rttm_map(manifest_filepath)
-        
-        if self.multiscale_weights_list:
-            self.clusdiar_model.multiscale_args_dict['multiscale_weights'] = self.multiscale_weights_list
+        self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
+        self.cfg_base.diarizer.out_dir = emb_dir
         
         self.clusdiar_model._out_dir = emb_dir
         out_rttm_dir = os.path.join(emb_dir, 'pred_rttms')
+        self.load_embs_and_timestamps(emb_dir, emb_scale_seq_dict)
+        
+        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
+            self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = True
+            self.base_scale_index = 0
 
-        for scale_idx, (window, shift) in self.clusdiar_model.multiscale_args_dict['scale_dict'].items():
-            subsegments_manifest_path = os.path.join(emb_dir, 'speaker_outputs', f'subsegments_scale{scale_idx}.json')
-            self.embeddings = emb_scale_seq_dict[scale_idx]
-            self.time_stamps = self.extract_time_stamps(subsegments_manifest_path)
-            self.clusdiar_model.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
         self.clusdiar_model.embs_and_timestamps = get_embs_and_timestamps(
             self.clusdiar_model.multiscale_embeddings_and_timestamps, self.clusdiar_model.multiscale_args_dict
         )
         
+        self.clusdiar_model.multiscale_args_dict["multiscale_weights"] = self.cfg_base.diarizer.speaker_embeddings.parameters.multiscale_weights
+        self.clusdiar_model._diarizer_params.speaker_embeddings.parameters = self.cfg_base.diarizer.speaker_embeddings.parameters
+        clustering_params_str = json.dumps(dict(self.clusdiar_model._cluster_params), indent=4)
+        logging.info(f"Multiscale Weights: {self.clusdiar_model.multiscale_args_dict['multiscale_weights']}")
+        logging.info(f"Clustering Parameters: {clustering_params_str}")
+
+        
         if run_clustering:
-            clustering_params_str = json.dumps(dict(self.clusdiar_model._cluster_params), indent=4)
-            logging.info(f"Multiscale Weights: {self.multiscale_weights_list}")
-            logging.info(f"Clustering Parameters: {clustering_params_str}")
             all_reference, all_hypothesis = perform_clustering(
                 embs_and_timestamps=self.clusdiar_model.embs_and_timestamps,
                 AUDIO_RTTM_MAP=self.clusdiar_model.AUDIO_RTTM_MAP,
@@ -538,7 +695,6 @@ class ClusterEmbedding:
                 labels = self.convert_rttm_to_labels(rttm_lines)
                 hypothesis = labels_to_pyannote_object(labels, uniq_name=uniq_id)
                 all_hypothesis.append([uniq_id, hypothesis])
-                base_scale_idx = max(self.clusdiar_model.embs_and_timestamps[uniq_id]['scale_dict'].keys())
                 rttm_file = value.get('rttm_filepath', None)
                 if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
                     ref_labels = rttm_to_labels(rttm_file)
@@ -548,16 +704,15 @@ class ClusterEmbedding:
                     no_references = True
                     all_reference = []
 
-        self.clusdiar_model._diarizer_params.collar = 0.0
-        self.clusdiar_model._diarizer_params.ignore_overlap = False
-        
-        self.score = score_labels(
-            self.clusdiar_model.AUDIO_RTTM_MAP,
-            all_reference,
-            all_hypothesis,
-            collar=self.clusdiar_model._diarizer_params.collar,
-            ignore_overlap=self.clusdiar_model._diarizer_params.ignore_overlap,
-        )
+        for (collar, ignore_overlap) in [(0.25, True), (0.0, False)]:
+            
+            self.score = score_labels(
+                self.clusdiar_model.AUDIO_RTTM_MAP,
+                all_reference,
+                all_hypothesis,
+                collar=collar,
+                ignore_overlap=ignore_overlap,
+            )
         return self.score
         
     def convert_rttm_to_labels(self, rttm_lines):
@@ -616,11 +771,24 @@ class ClusterEmbedding:
         return emb_scale_seq_dict
     
     def load_clustering_labels(self, out_dir):
-        clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label')
-        print(f"Loading cluster label file at {clus_label_path}...")
+        # if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
+            # self.base_scale_index = 0
+        # clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label')
+        file_exists, clus_label_path = self.check_clustering_labels(out_dir)
+        print(f"Loading cluster label file from {clus_label_path}")
         with open(clus_label_path) as f:
             clus_labels = f.readlines()
         return clus_labels
+    
+    def check_clustering_labels(self, out_dir):
+        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
+            self.base_scale_index = 0
+        clus_label_path = os.path.join(out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label')
+        file_exists = os.path.exists(clus_label_path)
+        if not file_exists:
+            logging.info(f"Clustering label file {clus_label_path} does not exist.")
+        return file_exists, clus_label_path
+
 
 class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
     """Encoder decoder class for multiscale speaker diarization decoder.
@@ -638,7 +806,6 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         Returns:
             List of available pre-trained models.
         """
-        result = []
         return None
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -672,7 +839,6 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.msdd = EncDecEnd2EndDiarModel.from_config_dict(self.cfg_msdd_model.msdd_module)
         if trainer is not None:
             self._init_speaker_model()
-            pass
         torch.cuda.empty_cache()
         self.loss = BCELoss(weight=None)
         self.task = None
@@ -698,7 +864,7 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self._diarizer_params = self.cfg_msdd_model.base.diarizer
         gpu_device = torch.device(torch.cuda.current_device())
         if model_path is not None and model_path.endswith('.nemo'):
-            rank_id = torch.device(_get_rank())
+            rank_id = torch.device(self.trainer.global_rank)
             self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
             logging.info("Speaker Model restored locally from {}".format(model_path))
         elif model_path.endswith('.ckpt'):
@@ -827,7 +993,6 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             return None
         dataset = AudioToSpeechDiarTrainDataset(
             manifest_filepath=config['manifest_filepath'],
-            emb_dir_path=config['emb_dir'],
             multiscale_args_dict=self.multiscale_args_dict,
             ms_ts_dict=ms_ts_dict,
             soft_label_thres=config.soft_label_thres,
@@ -838,7 +1003,7 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             bi_ch_infer=False,
         )
 
-        dataset.item_sim(0)
+        # dataset.item_sim(0)
         self.data_collection = dataset.collection
         collate_ds = dataset
         collate_fn = collate_ds.diar_train_collate_fn
@@ -865,13 +1030,13 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         
         dataset = AudioToSpeechMSDDDataset(
             manifest_filepath=config['manifest_filepath'],
-            emb_dir_path=config['emb_dir'],
             emb_dict=emb_dict,
             clus_label_dict=clus_label_dict,
             emb_seq=emb_seq,
             soft_label_thres=config.soft_label_thres,
-            featurizer=featurizer,
-            max_spks=config.num_spks,
+            max_spks=2,
+            seq_eval_mode=self.cfg_base.diarizer.msdd_model.parameters.seq_eval_mode,
+            use_single_scale_clus=self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering,
             bi_ch_infer=bi_ch_infer,
         )
         self.data_collection = dataset.collection
@@ -972,7 +1137,7 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return ms_emb_seq
     
     @torch.no_grad()    
-    def get_cluster_avg_embs(self, embs, clus_label_index, ms_seg_counts, scale_mapping):
+    def get_cluster_avg_embs_model(self, embs, clus_label_index, ms_seg_counts, scale_mapping):
         device=torch.cuda.current_device()
         scale_n, batch_size = scale_mapping[0].shape[0], scale_mapping.shape[0]
         split_emb_tup = torch.split(embs, ms_seg_counts.view(-1).cpu().numpy().tolist(), dim=0)
@@ -1077,7 +1242,7 @@ class EncDecEnd2EndDiarModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                                                                     processed_signal_len=audio_signal_len[detach_ids[0]])
             embs[detach_ids[0], :] = embs_a
         ms_emb_seq = self.get_ms_emb_seq(embs, scale_mapping, ms_seg_counts)
-        ms_avg_embs = self.get_cluster_avg_embs(embs, clus_label_index, ms_seg_counts, scale_mapping)
+        ms_avg_embs = self.get_cluster_avg_embs_model(embs, clus_label_index, ms_seg_counts, scale_mapping)
 
         print("Inferencing msdd device:", torch.cuda.current_device())
         preds, scale_weights = self.msdd(ms_emb_seq=ms_emb_seq, length=sequence_lengths, ms_avg_embs=ms_avg_embs, targets=targets)

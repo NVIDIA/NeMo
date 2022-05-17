@@ -420,7 +420,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
-
+       
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
             embs_and_timestamps=self.embs_and_timestamps,

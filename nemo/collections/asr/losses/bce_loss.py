@@ -23,7 +23,7 @@ __all__ = ['BCELoss']
 
 class BCELoss(Loss, Typing):
     """
-    Computes Binary Cross Entropy (BCE) loss.
+    Computes Binary Cross Entropy (BCE) loss. BCELoss class expects output from Sigmoid function.
     """
 
     @property
@@ -38,9 +38,8 @@ class BCELoss(Loss, Typing):
 
     @property
     def output_types(self):
-        """Output types definitions for AngularLoss.
-        loss:
-            NeuralType(None)
+        """
+        Output types definitions for binary cross entropy loss. Weights for label can be set using weight variable.
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -52,6 +51,21 @@ class BCELoss(Loss, Typing):
 
     @typecheck()
     def forward(self, probs, labels, signal_lengths):
+        """
+        Calculate binary cross entropy loss based on probs, labels and signal_lengths variables.
+
+        Args:
+            probs (torch.tensor)
+                Predicted probability value which ranges from 0 to 1. Sigmoid output is expected.
+            labels (torch.tensor)
+                Groundtruth label for the predicted samples.
+            signal_lengths (torch.tensor):
+                The actual length of the sequence without zero-padding.
+
+        Returns:
+            loss (NeuralType)
+                Binary cross entropy loss value.
+        """
         probs_list, targets_list = [], []
         probs_list = [probs[k, :signal_lengths[k], :] for k in range(probs.shape[0])]
         targets_list = [labels[k, :signal_lengths[k], :] for k in range(labels.shape[0])]

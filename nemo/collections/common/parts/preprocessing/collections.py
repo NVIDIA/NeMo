@@ -483,7 +483,7 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         return item
 
 class DiarizationLabel(_Collection):
-    """List of audio-label correspondence with preprocessing."""
+    """List of diarization audio-label correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset tup_spks',)
 
@@ -495,8 +495,6 @@ class DiarizationLabel(_Collection):
         offsets: List[Optional[float]],
         max_spks: List[Optional[float]],
         tuple_2ch: List[Optional[float]],
-        min_duration: Optional[float] = None,
-        max_duration: Optional[float] = None,
         max_number: Optional[int] = None,
         do_sort_by_duration: bool = False,
         index_by_file_id: bool = False,
@@ -504,14 +502,14 @@ class DiarizationLabel(_Collection):
         """Instantiates audio-label manifest with filters and preprocessing.
 
         Args:
-            audio_files: List of audio files.
+            audio_files: List of audio filepaths.
             durations: List of float durations.
-            rttm_files: List of rttm_files.
+            rttm_files: List of RTTM files (Groundtruth diarization annotation file).
             offsets: List of offsets or None.
-            min_duration: Minimum duration to keep entry with (default: None).
-            max_duration: Maximum duration to keep entry with (default: None).
-            max_number: Maximum number of samples to collect.
-            do_sort_by_duration: True if sort samples list by duration.
+            max_spks: Maximum number of speakers for diarization model
+            tuple_2ch: Tuple containing speaker index tuple, speaker mapping, estimated speaker index tuple and rttm speaker index tuple.
+            max_number: Maximum number of samples to collect
+            do_sort_by_duration: True if sort samples list by duration
             index_by_file_id: If True, saves a mapping from filename base (ID) to index in data.
         """
 
@@ -546,54 +544,78 @@ class DiarizationLabel(_Collection):
 
         super().__init__(data)
 
-class MSDDSpeechLabel(DiarizationLabel):
-    """`SpeechLabel` collector from structured json files."""
+class DiarizationSpeechLabel(DiarizationLabel):
+    """`DiarizationLabel` diarization data sample collector from structured json files."""
 
     def __init__(self, 
                  manifests_files: Union[str, List[str]], 
                  emb_dict: Dict, 
-                 emb_seq: Dict,
                  clus_label_dict: Dict,
-                 is_regression_task=False, 
-                 subsample_rate=4,
-                 max_spks=5,
+                 max_spks=8,
+                 round_digit=2,
+                 seq_eval_mode=False,
                  bi_ch_infer=False,
                  *args, **kwargs):
         """Parse lists of audio files, durations and transcripts texts.
 
         Args:
+            manifest_filepath (str):
+                 Path to input manifest json files.
+            emb_dict (Dict):
+                Dictionary containing cluster-average embeddings and speaker mapping information.
+            clus_label_dict (Dict):
+                Segment-level speaker labels from clustering results.
+            max_spks (int):
+                Integer value that limits the number of speakers.
+            round_digit (int):
+                Number of digits to be rounded.
+            seq_eval_mode (bool):
+                If True, F1 score will be calculated for each speaker pair as in the validation accuray in training mode.
+            bi_ch_infer (bool):
+                If True, a Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
+                is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (2,3)]) and then
+                fed into diarization system to merge the individual results.
             manifests_files: Either single string file or list of such -
-                manifests to yield items from.
-            is_regression_task: It's a regression task
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
+        self.round_digit = round_digit
         self.emb_dict = emb_dict
         self.clus_label_dict = clus_label_dict
-        self.subsample_rate = subsample_rate
-        self.bi_ch_infer=bi_ch_infer
+        self.seq_eval_mode = seq_eval_mode
+        self.bi_ch_infer = bi_ch_infer
         audio_files, durations, rttm_files, offsets, tuple_2ch = [], [], [], [], []
+       
         if self.bi_ch_infer:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
-                uniq_id = self.get_uniq_id(item['rttm_file'])
-                estimated_spk_digits = sorted(list(set([x[2] for x in clus_label_dict[uniq_id]])))
-                spk_comb_list = [x for x in combinations(estimated_spk_digits, 2)]  
-                
-                # Use the estimated speakers (mapping is calculated from evaluation)
-                if 'mapping' in self.emb_dict[0][uniq_id]:
+                uniq_id = item['rttm_file'].split('/')[-1].split('.rttm')[0]
+
+                if item['rttm_file']: 
                     _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
                     sess_spk_dict = { int(v.split('_')[-1]) : k for k, v in _sess_spk_dict.items() }
-                    if len(_sess_spk_dict) == 1:
-                        spk_comb_list = [(0,1)]
+                    rttm_speaker_digits = [ int(v.split('_')[1]) for k, v in _sess_spk_dict.items() ]
                 else:
                     sess_spk_dict = None
+                    rttm_speaker_digits = None
+               
+                if self.seq_eval_mode:
+                    clus_spk_digits = rttm_speaker_digits
+                else:
+                    clus_spk_digits = sorted(list(set([x[2] for x in clus_label_dict[uniq_id]])))
+
+                if len(clus_spk_digits) == 1:
+                    spk_comb_list = [(0,1)]
+                else:
+                    spk_comb_list = [x for x in combinations(clus_spk_digits, 2)]  
                     
                 for tup_spks in spk_comb_list:
                     audio_files.append(item['audio_file'])
                     durations.append(item['duration'])
                     rttm_files.append(item['rttm_file'])
                     offsets.append(item['offset'])
-                    tuple_2ch.append([tup_spks, sess_spk_dict, estimated_spk_digits])
+                    sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
+                    rttm_speaker_digits = [ int(v.split('_')[1]) for k, v in sess_spk_dict.items() ]
+                    tuple_2ch.append((tup_spks, sess_spk_dict, clus_spk_digits, rttm_speaker_digits))
         else:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
                 audio_files.append(item['audio_file'])
@@ -604,21 +626,18 @@ class MSDDSpeechLabel(DiarizationLabel):
 
         super().__init__(audio_files, durations, rttm_files, offsets, max_spks, tuple_2ch, *args, **kwargs)
 
-    def read_rttm_file(self, rttm_path):
-        """Read RTTM files from the given path.
-        """
-        return open(rttm_path).readlines()
-    
     def s2n(self, x):
-        return round(float(x), 2)
-    
-    def get_uniq_id(self, rttm_path):
-        return rttm_path.split('/')[-1].split('.rttm')[0]
+        """Convert string to floating point number with rounding"""
+        return round(float(x), self.round_digit)
     
     def get_speakers_from_rttm(self, rttm_path):
-        rttm_lines = self.read_rttm_file(rttm_path)
+        """
+        Extract start and end time of each speaker from rttm files.
+        Args:
+            rttm_path (str): Path of the groundtruth diarization annotation (RTTM format) file.
+        """
+        rttm_lines = open(rttm_path).readlines()
         uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
-        uniq_id = self.get_uniq_id(rttm_path)
         speaker_list = set()
         for line in rttm_lines:
             rttm = line.strip().split()
@@ -629,6 +648,7 @@ class MSDDSpeechLabel(DiarizationLabel):
         return spk_num, sorted(list(speaker_list))
 
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
+        """Parse each rttm file and save it to in Dict format"""
         item = json.loads(line)
 
         # Audio file

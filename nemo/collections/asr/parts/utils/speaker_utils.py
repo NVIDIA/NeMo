@@ -161,7 +161,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         else:
             shift_length_check = window_lengths[0] > shift_lengths[0]
 
-        multiscale_args_dict = {}
+        multiscale_args_dict = {'use_single_scale_clustering' : False}
         if all([length_check, scale_order_check, shift_length_check]) == True:
             if len(window_lengths) > 1:
                 multiscale_args_dict['scale_dict'] = {
@@ -202,11 +202,18 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
         uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
         for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
-    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
+    if multiscale_args_dict['use_single_scale_clustering']:
+        _multiscale_args_dict = deepcopy(multiscale_args_dict)
+        _multiscale_args_dict['scale_dict'] = { 0 : multiscale_args_dict['scale_dict'][0] }
+        _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:1]
+    else:
+        _multiscale_args_dict = multiscale_args_dict
+
+    for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
         embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
         for uniq_id in embeddings.keys():
             embs_and_timestamps[uniq_id]['multiscale_weights'] = (
-                torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+                torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
             )
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {

@@ -113,6 +113,66 @@ def get_speaker_error_match(ctm_error_dict, w_range, ctm_info_list, pred_info_li
     ctm_error_dict['diar_confuse_count'] += error_count
     return error_count, align_error_list
 
+def str2num(x):
+    return round(float(x), self.ROUND)
+
+def parse_rttm_multiscale(self, sample, mapping_dict, clus_label_dict, params, tup_spks=None):
+    base_scale_idx = params['scale_n'] - 1
+    rttm_path = sample.rttm_file
+    rttm_lines = _read_rttm_file(rttm_path)
+    uniq_id = _get_uniq_id(rttm_path)
+    sample_end = (sample.offset + sample.duration)
+    speaker_list, stt_list, end_list = [], [], []
+    if tup_spks:
+        # mapping_dict = emb_dict[base_scale_idx][uniq_id]['mapping']
+        inv_map = {v: k for k, v in mapping_dict.items()}
+        bi_ch_infer_spks = []
+        for spk_idx in tup_spks[0]:
+            spk_str = f'speaker_{spk_idx}'
+            if spk_str in inv_map:
+                bi_ch_infer_spks.append(inv_map[spk_str])
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = str2num(rttm[3]), str2num(rttm[4]) + str2num(rttm[3]), rttm[7]
+            if speaker in bi_ch_infer_spks:
+                end_list.append(end)
+                stt_list.append(start)
+                speaker_list.append(speaker)
+
+    else:
+        for line in rttm_lines:
+            rttm = line.strip().split()
+            start, end, speaker = str2num(rttm[3]), str2num(rttm[4]) + str2num(rttm[3]), rttm[7]
+            end_list.append(end)
+            stt_list.append(start)
+            speaker_list.append(speaker)
+
+    max_len = max(end_list)
+    total_fr_len = int(max_len*params['decim'])
+    sorted_speakers = sorted(list(set(speaker_list)))
+    spk_num = len(sorted_speakers)
+    if spk_num > params['max_spks']:
+        raise ValueError(f"Number of speaker {spk_num} should be less than or equal to max_num_speakers {params['max_num_speakers']}")
+    dur_fr = int(max_len * params['fr_per_sec'])
+    target = torch.zeros(dur_fr, params['max_spks'])
+    for stt, end, spk in zip(stt_list, end_list, speaker_list):
+        spk = mapping_dict[spk].split('_')[1])
+        stt_fr, end_fr = int(round(stt, 2)*params['fr_per_sec']), int(round(end, 2)*params['fr_per_sec'])
+        if tup_spks == None:
+            target[stt_fr:end_fr, spk] = 1
+        else:
+            idx = tup_spks[0].index(spk)
+            target[stt_fr:end_fr, idx] = 1
+    
+    seg_target = []
+    for (seg_stt, seg_end, label_int) in clus_label_dict[uniq_id]:
+        seg_stt_fr, seg_end_fr = int(seg_stt * params['fr_per_sec']), int(seg_end * params['fr_per_sec'])
+        soft_label_vec = torch.sum(target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
+        label_vec = (soft_label_vec > params['soft_label_thres']).int()
+        seg_target.append(label_vec)
+        seg_target_tensor = torch.stack(seg_target)
+    return seg_target_tensor
+
 
 class ASR_DIAR_OFFLINE(object):
     """
