@@ -137,10 +137,12 @@ class ExportableEncDecModel(Exportable):
                 return self.output_module.forward_for_export(decoder_input)
             else:
                 return encoder_output
+                # TODO streaming fix here
                 # return self.output_module.forward_for_export(decoder_input), encoder_output[2], encoder_output[3]
         else:
             if cache_last_channel is None and cache_last_time is None:
                 return self.output_module(decoder_input)
             else:
                 return encoder_output
+                # TODO streaming fix here
                 # return self.output_module(decoder_input), encoder_output[2], encoder_output[3]

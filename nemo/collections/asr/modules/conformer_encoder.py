@@ -85,7 +85,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
             Defaults to 0.0.
     """
 
-    def input_example(self, max_batch=1, max_dim=1024, max_cache=256):
+    def input_example(self, max_batch=1, max_dim=1024):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -96,8 +96,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoderMixin):
         input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
 
         if self.export_cache_support:
-            cache_last_channel = torch.randn(self.n_layers, max_batch, max_cache, self.d_model).to(dev)
-            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_cache).to(dev)
+            cache_last_channel = torch.randn(self.n_layers, max_batch, self.conv_context_size[0], self.d_model).to(dev)
+            cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_dim).to(dev)
             all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         else:
             all_input_example = tuple([input_example, input_example_length])
