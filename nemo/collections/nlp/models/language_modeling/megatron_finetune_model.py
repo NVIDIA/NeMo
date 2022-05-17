@@ -84,9 +84,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         """Process a list of microbatches into a global batch."""
         # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
         if len(global_batch[0]) == 6:
-            return self._process_global_batch_without_megatron_batch_sampler(
-                global_batch, tokenizer=self.tokenizer
-            )
+            return self._process_global_batch_without_megatron_batch_sampler(global_batch, tokenizer=self.tokenizer)
 
         # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
         else:
@@ -101,7 +99,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 dec_mask_tensor,
             ) = self._process_global_batch_without_megatron_batch_sampler(
                 [{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch],
-                tokenizer=self.tokenizer
+                tokenizer=self.tokenizer,
             )
             for micro_batch in global_batch:
                 langs_list.extend(micro_batch['lang'])

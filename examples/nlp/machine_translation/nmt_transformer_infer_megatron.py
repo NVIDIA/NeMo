@@ -23,19 +23,21 @@ USAGE Example:
 
 
 import os
+
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
+from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank
-from nemo.utils import logging
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
@@ -88,21 +90,16 @@ def main(cfg) -> None:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
                 translations = model.translate(
-                    text=src_text,
-                    source_lang=cfg.source_lang,
-                    target_lang=cfg.target_lang,
+                    text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,
                 )
                 for translation in translations:
                     tgt_f.write(translation + "\n")
                 src_text = []
         if len(src_text) > 0:
-            translations = model.translate(
-                text=src_text,
-                source_lang=cfg.source_lang,
-                target_lang=cfg.target_lang,
-            )
+            translations = model.translate(text=src_text, source_lang=cfg.source_lang, target_lang=cfg.target_lang,)
             for translation in translations:
                 tgt_f.write(translation + "\n")
+
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter

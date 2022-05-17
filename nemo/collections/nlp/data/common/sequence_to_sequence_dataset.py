@@ -153,13 +153,13 @@ class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
     def __getitem__(self, idx):
         src = self.src_dataset[idx]
         if len(src) > self.max_src_seq_length - 2:
-            src = src[:self.max_src_seq_length - 2]
+            src = src[: self.max_src_seq_length - 2]
 
         src = [self.src_tokenizer.bos_id] + src + [self.src_tokenizer.eos_id]
         tgt = self.tgt_dataset[idx]
 
         if len(tgt) > self.max_tgt_seq_length - 1:
-            tgt = tgt[:self.max_tgt_seq_length - 1]
+            tgt = tgt[: self.max_tgt_seq_length - 1]
 
         text_enc = src
         text_dec = [self.tgt_tokenizer.bos_id] + tgt

@@ -831,11 +831,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
             _reconfigure_microbatch_calculator(
-                rank=0, # This doesn't matter since it is only used for logging
+                rank=0,  # This doesn't matter since it is only used for logging
                 rampup_batch_size=None,
                 global_batch_size=1,
                 micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
-                data_parallel_size=1, # We check above to make sure that dataparallel size is always 1 at inference.
+                data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
             )
 
         # If classes that inherit from this class are using a different tokenizer,

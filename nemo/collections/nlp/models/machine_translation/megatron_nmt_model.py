@@ -23,7 +23,10 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import BinarizedMemmapSequenceToSequenceDataset, TextMemmapSequenceToSequenceDataset
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
+    BinarizedMemmapSequenceToSequenceDataset,
+    TextMemmapSequenceToSequenceDataset,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
     MegatronPretrainingBatchSampler,
@@ -32,9 +35,9 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
+from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, timers
 
 try:
@@ -180,9 +183,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
             batch = self.process_global_batch_for_tarred_datasets(batch)
         elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']:
-            batch = self._process_global_batch_without_megatron_batch_sampler(
-                batch, tokenizer=self.encoder_tokenizer
-        )
+            batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
             _reconfigure_microbatch_calculator(
