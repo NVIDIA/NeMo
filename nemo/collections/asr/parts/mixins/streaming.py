@@ -73,21 +73,6 @@ class StreamingEncoderMixin(ABC):
             for idx, t in enumerate(encoder_output):
                 encoder_output[idx] = torch.tensor(t).to(processed_signal.device)
 
-            # drop here
-            encoder_output2 = self(
-                audio_signal=processed_signal,
-                length=processed_signal_length,
-                cache_last_channel=cache_last_channel,
-                cache_last_time=cache_last_time,
-            )
-
-            if len(encoder_output2) == 2:
-                encoded2, encoded_len2 = encoder_output2
-                cache_last_channel_next2 = cache_last_time_next2 = None
-            else:
-                encoded2, encoded_len2, cache_last_channel_next2, cache_last_time_next2 = encoder_output2
-
-
         if len(encoder_output) == 2:
             encoded, encoded_len = encoder_output
             cache_last_channel_next = cache_last_time_next = None
