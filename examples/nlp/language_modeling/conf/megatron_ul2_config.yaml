@@ -116,7 +116,7 @@ model:
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: ${model.seq_length}
-    seq_length_dec: 128
+    seq_length_dec: ${model.seq_length}
     skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
