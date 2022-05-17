@@ -96,6 +96,10 @@ class RegExTokenizer(TokenizerSpec):
         regex_string += r".)"
         self._compiled_regex = re.compile(regex_string)
 
+    @property
+    def vocab_size(self):
+        return len(self.vocab)
+
     def text_to_tokens(self, text):
         # Begin token
         tokens = [self.bos_token]
