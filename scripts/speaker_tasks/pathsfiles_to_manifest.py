@@ -17,8 +17,11 @@ import json
 import logging
 import os
 import random
+import sys
 from collections import Counter
 from collections import OrderedDict as od
+
+import librosa
 
 from nemo.collections.asr.parts.utils.speaker_utils import rttm_to_labels
 
@@ -77,7 +80,16 @@ def get_path_dict(data_path, uniqids, len_wavs=None):
     return data_pathdict
 
 
-def main(wav_path, text_path=None, rttm_path=None, uem_path=None, ctm_path=None, manifest_filepath=None):
+def main(
+    wav_path,
+    text_path=None,
+    rttm_path=None,
+    uem_path=None,
+    ctm_path=None,
+    manifest_filepath=None,
+    add_duration=False,
+    sample_rate=None,
+):
     if os.path.exists(manifest_filepath):
         os.remove(manifest_filepath)
 
@@ -120,11 +132,14 @@ def main(wav_path, text_path=None, rttm_path=None, uem_path=None, ctm_path=None,
         if ctm is not None:
             ctm = ctm.strip()
 
+        duration = None
+        if add_duration and sample_rate:
+            duration = librosa.get_duration(filename=audio_line, sr=sample_rate)
         meta = [
             {
                 "audio_filepath": audio_line,
                 "offset": 0,
-                "duration": None,
+                "duration": duration,
                 "label": "infer",
                 "text": text,
                 "num_speakers": num_speakers,
@@ -148,7 +163,12 @@ if __name__ == "__main__":
     parser.add_argument("--paths2uem_files", help="path to uem files", type=str)
     parser.add_argument("--paths2ctm_files", help="path to ctm files", type=str)
     parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
-
+    parser.add_argument(
+        "--add_duration", help="add duration of audio files to output manifest files", action='store_true'
+    )
+    parser.add_argument(
+        "--sample_rate", help="sample rate of audio files", type=int, required='--add_duration' in sys.argv
+    )
     args = parser.parse_args()
 
     main(
@@ -158,4 +178,6 @@ if __name__ == "__main__":
         args.paths2uem_files,
         args.paths2ctm_files,
         args.manifest_filepath,
+        args.add_duration,
+        args.sample_rate,
     )
