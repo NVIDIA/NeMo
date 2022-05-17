@@ -408,10 +408,6 @@ def create_extreme_masked_lm_predictions(
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
     # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
-    if min_ngram_size is None:
-        import ipdb
-
-        ipdb.set_trace()
     min_ngram_size = min(num_to_predict, min_ngram_size)
 
     ngrams = np.arange(min_ngram_size, max_ngram_size + 1, dtype=np.int64)
@@ -455,12 +451,12 @@ def create_extreme_masked_lm_predictions(
             # The expectation of a geometric distribution is E[X] = 1 / p
             p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
             n = np_rng.geometric(p)
-            n = np.clip(n, min_ngram_size, max_ngram_size)
+            n = int(np.clip(n, min_ngram_size, max_ngram_size))
 
         elif span_length_distribution == "truncated_normal":
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
-            n = np.clip(int(np_rng.normal(loc=mu, scale=np.sqrt(mu))), min_ngram_size, max_ngram_size,)
+            n = np.clip(int(np_rng.normal(loc=mu, scale=np.sqrt(mu))), min_ngram_size, max_ngram_size)
 
         index_set = sum(cand_index_set[n - min_ngram_size], [])
         n -= 1
