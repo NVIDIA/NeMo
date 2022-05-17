@@ -12,7 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Processing data for megatron pretraining."""
+"""Processing data for megatron pretraining.
+
+
+Example script to preprocess the loose JSON file for retrieval DB Dataset
+
+```python
+python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
+    --input=PATH_TO_THE_RETRIEVAL_DB_LOOSE_JSON_FILE \
+    --json-keys=text \
+    --tokenizer-library=sentencepiece \
+    --dataset-impl=retmmap \
+    --tokenizer-model=tokenizer.model \
+    --output-prefix=retro_db \
+    --append-eod \
+    --retrieval-db \
+    --chunk_size=64 \
+    --workers=64 
+```
+
+Example script to preprocess the JSON file for retrieval training dataset
+
+```python
+python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
+    --input=PATH_TO_THE_RETRIEVAL_TRAIN_VAL_TEST_LOOSE_JSON_FILE \
+    --json-keys=text \
+    --tokenizer-library=sentencepiece \
+    --dataset-impl=retmmap \
+    --tokenizer-model=tokenizer.model \
+    --output-prefix=retro_data \
+    --append-eod \
+    --chunk_size=64 \
+    --workers=64 
+```
+"""
 
 import argparse
 import gzip

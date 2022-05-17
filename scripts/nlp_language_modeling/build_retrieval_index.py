@@ -12,6 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+This is the script to build Faiss retrieval index for KNN look up.
+For more information about Faiss, check https://faiss.ai/
+
+It requires the retrieval DB text data to be converted into `bin` and `idx` files by `preprocess_data_for_megatron.py` script.
+
+Here is an example to using it:
+
+```python
+python scripts/nlp_language_modeling/build_retrieval_index.py \
+    --input_file=PATH_TO_DB_FILE \
+    --tokenizer-library=sentencepiece \
+    --tokenizer-model=tokenizer.model \
+    --train_index_size=128000 \
+    --train_chunk_size=51200 \
+    --devices=0,1,2,3 \
+    --batch_size=1280 \
+    --output_file=index.sav
+```
+
+It creates a index.sav which can be loaded by Faiss. It can look up the KNN chunk ids of the 
+DB dataset given the input embedding vector. 
+
 """
 import argparse
 import multiprocessing
@@ -140,9 +162,7 @@ if __name__ == "__main__":
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb_process = multiprocessing.Process(
-        target=calculate_embedding, args=(pool, args.batch_size)
-    )
+    emb_process = multiprocessing.Process(target=calculate_embedding, args=(pool, args.batch_size))
     emb_process.start()
 
     # get first batch of sentences to build up the index
@@ -175,4 +195,3 @@ if __name__ == "__main__":
     faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')
     model.stop_multi_process_pool(pool)
-

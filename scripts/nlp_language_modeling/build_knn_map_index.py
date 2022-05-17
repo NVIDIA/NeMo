@@ -12,6 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+This is the script to build KNN index map from Training dataset to Retrieval dataset.
+For example, it maps chunk_id i from training dataset to K chunk ids in the nearest neighbor in the retireval dataset.
+
+It requires the training text data to be converted into `bin` and `idx` files by `preprocess_data_for_megatron.py` script.
+It also requires the Faiss Index file for the Retrieval dataset built by `build_retrieval_index.py` script.
+
+Here is an example to using it:
+
+```python
+python scripts/nlp_language_modeling/build_knn_map_index.py \
+    --input_file=PATH_TO_INPUT_TRAINING_DATA \
+    --tokenizer-library=sentencepiece \
+    --tokenizer-model=tokenizer.model \
+    --process_chunk_size=51200 \
+    --K_neighbors=16 \
+    --faiss_index=PATH_TO_FAISS_INDEX_FILE \
+    --devices=0,1,2,3 \
+    --batch_size=1280 \
+    --output_file=knn_map.idx 
+```
+
+It creates a knn_map.idx KNNIndex file.
+During training of RETRO model, it can look up the KNN chunk ids of the 
+DB dataset given the input training data chunk id. 
+
 """
 import argparse
 import multiprocessing
@@ -19,7 +44,10 @@ import multiprocessing
 import faiss
 from sentence_transformers import SentenceTransformer
 
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset, KNNIndex
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    KNNIndex,
+    MMapRetrievalIndexedDataset,
+)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
@@ -67,7 +95,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("--faiss_index", type=str, required=True, help='faiss index file for retrieval dataset')
     parser.add_argument(
-        '--process_chunk_size', type=int, default=10000, help='The sentences in chunks that is queries to build map index',
+        '--process_chunk_size',
+        type=int,
+        default=10000,
+        help='The sentences in chunks that is queries to build map index',
     )
     parser.add_argument(
         '--K_neighbors', type=int, default=16, help='The number of neighbors to query',
@@ -122,9 +153,7 @@ if __name__ == "__main__":
     # make sure the dataset is padded as retrieval database
     assert not ds._index.retrieval_db
 
-    process = multiprocessing.Process(
-        target=process_sentence_chunks, args=(ds, tokenizer, args.process_chunk_size)
-    )
+    process = multiprocessing.Process(target=process_sentence_chunks, args=(ds, tokenizer, args.process_chunk_size))
     process.start()
 
     if args.devices is None:
@@ -134,9 +163,7 @@ if __name__ == "__main__":
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb_process = multiprocessing.Process(
-        target=calculate_embedding, args=(pool, args.batch_size)
-    )
+    emb_process = multiprocessing.Process(target=calculate_embedding, args=(pool, args.batch_size))
     emb_process.start()
 
     with KNNIndex.writer(args.output_file, args.K_neighbors) as w:
@@ -150,5 +177,3 @@ if __name__ == "__main__":
     process.join()
     emb_process.join()
     model.stop_multi_process_pool(pool)
-
-

@@ -38,7 +38,6 @@ import torch
 
 from nemo.utils import logging
 
-
 __all__ = ["KNNIndex", "MMapRetrievalIndexedDataset", "MMapRetrievalIndexedDatasetBuilder"]
 
 
@@ -93,23 +92,19 @@ class KNNIndex(object):
             def __exit__(self, exc_type, exc_val, exc_tb):
                 self._file.close()
                 # update the chunk size
-                _bin_buffer_mmap = np.memmap(self.path, mode='r+', order='C', shape=(9+8+8+8),)
+                _bin_buffer_mmap = np.memmap(self.path, mode='r+', order='C', shape=(9 + 8 + 8 + 8),)
                 buffer = memoryview(_bin_buffer_mmap)
-                len_array = np.frombuffer(buffer,
-                                          dtype=np.int64,
-                                          count=1,
-                                          offset=9 + 8 + 8)
+                len_array = np.frombuffer(buffer, dtype=np.int64, count=1, offset=9 + 8 + 8)
                 len_array[0] = self.count_chunks
                 _bin_buffer_mmap.flush()
                 _bin_buffer_mmap._mmap.close()
+
         return _Writer()
 
     def __init__(self, path, skip_warmup=False):
         with open(path, 'rb') as stream:
             magic_test = stream.read(9)
-            assert self._HDR_MAGIC == magic_test, (
-                'Index file doesn\'t match expected format. '
-            )
+            assert self._HDR_MAGIC == magic_test, 'Index file doesn\'t match expected format. '
             version = struct.unpack('<Q', stream.read(8))
             assert (1,) == version
 
@@ -124,7 +119,9 @@ class KNNIndex(object):
         self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
         self._bin_buffer = memoryview(self._bin_buffer_mmap)
         logging.info("    reading KNN map")
-        self.knn_map = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self.len * self.K, offset=offset).reshape(self.len, self.K)
+        self.knn_map = np.frombuffer(self._bin_buffer, dtype=np.int64, count=self.len * self.K, offset=offset).reshape(
+            self.len, self.K
+        )
 
     def get_KNN_chunk_ids(self, chunk_id):
         """ get the chunk address from chunk id

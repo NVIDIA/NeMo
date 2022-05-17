@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 )
 
 
-class TestTabularTokenizer:
+class TestRetrievalIndexFiles:
     @pytest.mark.unit
     def test_index(self):
         chunk_size = 64
@@ -165,6 +165,3 @@ class TestTabularTokenizer:
             assert np.array_equal(f.get_KNN_chunk_ids(5), map_np0[5])
         finally:
             os.remove(index_file)
-
-
- 
