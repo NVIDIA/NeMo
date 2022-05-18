@@ -23,7 +23,9 @@ import webdataset as wd
 
 from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
-from nemo.collections.common.parts.preprocessing import collections
+from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
+from nemo.collections.common.parts.preprocessing import collections, manifest, parsers
+from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import (
     AudioSignal,
@@ -1063,7 +1065,6 @@ class _AudioDiarTrainDataset(Dataset):
             manifests_files=manifest_filepath.split(','),
             emb_dict=None,
             clus_label_dict=None,
-            is_regression_task=False,
             max_spks=max_spks,
             bi_ch_infer=bi_ch_infer,
         )
@@ -1366,7 +1367,6 @@ class _AudioMSDDDataset(Dataset):
             manifests_files=manifest_filepath.split(','),
             emb_dict=emb_dict,
             clus_label_dict=clus_label_dict,
-            is_regression_task=False,
             max_spks=max_spks,
             seq_eval_mode=seq_eval_mode,
             bi_ch_infer=bi_ch_infer,
