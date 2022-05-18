@@ -177,7 +177,7 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
     def resolve_adapter_module_name_(self, name: str) -> (str, str):
         # resolve name and module
-        valid_module_names = ['', 'encoder', 'decoder']
+        valid_module_names = self.adapter_module_names
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
         if module_name not in valid_module_names:
@@ -190,6 +190,11 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
             global_config = self.adapter_cfg[self.adapter_global_cfg_key]
         return global_config
+
+    @property
+    def adapter_module_names(self) -> list:
+        valid_adapter_modules = ['', 'encoder', 'decoder']
+        return valid_adapter_modules
 
 
 class DefaultAdapterModel(ModelPT, DefaultModelAdapterMixin):
