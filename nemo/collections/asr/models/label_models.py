@@ -251,7 +251,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-    @typecheck()
     def forward_for_export(self, processed_signal, processed_signal_len):
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
