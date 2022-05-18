@@ -122,6 +122,7 @@ def nemo_export(argv):
     if args.cache_support:
         export_cache_support_prev = model.encoder.export_cache_support
         model.encoder.export_cache_support = True
+        logging.warning("Caching support is enabled.")
     else:
         export_cache_support_prev = None
 

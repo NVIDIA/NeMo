@@ -114,19 +114,43 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask, pos_emb=None, cache=None):
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
+        key, value, query, cache_next = self.do_caching(
+            key=key, value=value, query=query, cache=cache, cache_next=cache_next
+        )
+
         q, k, v = self.forward_qkv(query, key, value)
         scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         return self.forward_attention(v, scores, mask)
+
+    def do_caching(self, key, value, query, cache, cache_next):
+        if cache is not None:
+            cache = cache[self._cache_id]
+            q_length = query.size(1)
+            q_input = query
+            key = value = torch.cat((cache, key), dim=1)
+
+        if cache_next is not None:
+            cache_next = cache_next[self._cache_id]
+            cache_next_length = cache_next.size(1)
+            q_keep_size = q_length - self.cache_drop_size
+
+            cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
+            cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
+
+        return key, value, query, cache_next
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
@@ -168,23 +192,6 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # need to drop the first row
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
-
-    def do_caching(self, key, value, query, cache, cache_next):
-        if cache is not None:
-            cache = cache[self._cache_id]
-            q_length = query.size(1)
-            q_input = query
-            key = value = torch.cat((cache, key), dim=1)
-
-        if cache_next is not None:
-            cache_next = cache_next[self._cache_id]
-            cache_next_length = cache_next.size(1)
-            q_keep_size = q_length - self.cache_drop_size
-
-            cache_next[:, :-q_keep_size, :] = cache[:, -(cache_next_length - q_keep_size) :, :].clone()
-            cache_next[:, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
-
-        return key, value, query, cache_next
 
     def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
@@ -322,6 +329,7 @@ class RelPositionalEncoding(PositionalEncoding):
         """Compute positional encoding.
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
+            cache_len (int): the size of the cache which is used to shift positions
         Returns:
             x (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
