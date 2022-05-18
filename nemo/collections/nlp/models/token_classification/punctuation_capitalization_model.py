@@ -793,9 +793,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     warnings.warn(
                         'A model attribute `trainer` is not set before test or validation dataset setting. If more '
                         'than 1 GPU is used for testing, then some examples may be tested several times because '
-                        'number of batches may be not evenly divisible by number of processes. See more in '
-                        'description of `number_of_batches_is_multiple_of` parameter of class '
-                        '`BertPunctuationCapitalizationDataset` initializer and '
+                        'number of batches may be not evenly divisible by number of processes. This leads to '
+                        'distortion of metrics. See more in description of `number_of_batches_is_multiple_of` '
+                        'parameter of class `BertPunctuationCapitalizationDataset` initializer and '
                         'https://pytorch.org/docs/stable/data.html#multi-process-data-loading. You may try to use '
                         '`PunctuationCapitalizationModel.set_trainer()` method before '
                         '`PunctuationCapitalizationModel.setup_validation_data()` and '
