@@ -103,12 +103,12 @@ if __name__ == "__main__":
         assert token_ids.shape[0] == data_ds._index.chunk_size
         query_text = tokenizer.ids_to_text(token_ids)
         neighbor_chunk_ids = knn_index.get_KNN_chunk_ids(chunk_id)
-        logging.info(f'Query: {query_text}')
+        print(f'Query: {query_text}')
         for i, neighbor in enumerate(neighbor_chunk_ids):
             token_ids = retrieval_ds.get_chunk(neighbor)
             half = token_ids.shape[0] // 2
             assert half == data_ds._index.chunk_size
             neighbor_match = tokenizer.ids_to_text(token_ids[:half])
             neighbor_extend = tokenizer.ids_to_text(token_ids[half:])
-            logging.info(f'   K{i}: {neighbor_match} --- {neighbor_extend}')
-        logging.info('         ---------------         ')
+            print(f' ->K{i}: {neighbor_match} --- {neighbor_extend}')
+        print('         ---------------         ')
