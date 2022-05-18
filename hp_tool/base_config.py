@@ -234,25 +234,25 @@ def generate_base_config(
     # RUN
     base_cfg["run"]["name"] = f"{model_name}_{model_size_in_b}b"
     base_cfg["run"]["results_dir"] = "${base_results_dir}/${.name}"
-    base_cfg["run"]["time_limit"] = (
-        f"{int(max_training_days)}-"
-        f"{int(24 * (max_training_days - int(max_training_days)))}:00:00"
-    )
+    int_days = int(max_training_days)
+    int_hours = int(24 * (max_training_days - int(max_training_days)))
+    base_cfg["run"]["time_limit"] = f"{int_days}-{int_hours}:00:00"
 
     # TRAINER
     base_cfg["trainer"]["num_nodes"] = nodes
     base_cfg["trainer"]["precision"] = "bf16"
     seq_length = base_cfg["model"]["data"]["seq_length"]
     base_cfg["trainer"]["max_steps"] = int((num_tokens_in_b * 1e9) / (seq_length * gbs))
-    base_cfg["trainer"]["max_time"] = (
-        f"{int(max_training_days)}:"
-        f"{int(24 * (max_training_days - int(max_training_days))) - 1}:30:00"
-    )
+    if int_hours == 0:
+        int_days -= 1
+        int_hours = 23
+    base_cfg["trainer"]["max_time"] = f"{int_days}:{int_hours}:30:00"
 
     # EXP_MANAGER
     wandb_cfg = cfg.get("wandb")
     enable = wandb_cfg.get("enable")
     project = wandb_cfg.get("project")
+    print(base_cfg)
     if enable:
         base_cfg["exp_manager"]["create_wandb_logger"] = bool(enable)
         base_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] = project

@@ -1,4 +1,7 @@
+import os
+
 import pytest
+from omegaconf import OmegaConf
 
 from hp_tool import base_config as bc
 
@@ -155,11 +158,14 @@ class TestCalculateGbsTpPp:
 
 
 class TestGenerateBaseconfig:
+    
+    margin = 0.05
+    
     @pytest.mark.parametrize(
         "model_size,nodes,gpus_per_node,max_days,tokens,vocab,model_name,cfg,expected",
         [
             # GPT-3 tests
-            (0.126, 8, 8, 2, 300, 51200, "gpt3", {"bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_0.126b", "time_limit": "2-0:00:00", "max_time": "1:23:30:00",} ),
+            (0.126, 8, 8, 2, 300, 51200, "gpt3", {"search_config": {"train_settings": {"logs": "."}}, "bignlp_hp_tool_path": ".", "wandb": {"enable": True, "project": "test_project"}}, {"name": "gpt3_0.126b", "time_limit": "2-0:00:00", "max_steps": 572204, "max_time": "1:23:30:00", "num_layers": 12, "gbs": 256, "hs": 768, "att_heads": 12, "ffn": "${multiply:4, ${.hidden_size}}", "kv": "null", "init_std": 0.023, "lr": 6e-4, "min_lr": 6e-5, "warmup_steps": 858, "constant_steps": 95e3, "warmup_ratio": None}),
         ],
     )
     def test_generate_base_config(
@@ -174,8 +180,7 @@ class TestGenerateBaseconfig:
         cfg,
         expected,
     ):
-        pass
-        """
+        cfg = OmegaConf.create(cfg)
         params = {
             "model_size_in_b": model_size,
             "nodes": nodes,
@@ -189,17 +194,42 @@ class TestGenerateBaseconfig:
         out_cfg = bc.generate_base_config(**params)
 
         # Run parameters
-        assert out_cfg["run"]["name"] == expected["name"]
-        assert out_cfg["run"]["time_limit"] == expected["time_limit"]
+        assert out_cfg["run"]["name"] == expected["name"], "run.name doesn't match the expected value."
+        assert out_cfg["run"]["results_dir"] == "${base_results_dir}/${.name}", "run.results_dir must be set to ${base_results_dir}/${.name}"
+        assert out_cfg["run"]["time_limit"] == expected["time_limit"], "run.time_limit doesn't match the expected value."
 
         # Trainer parameters
-        assert out_cfg["trainer"]["num_nodes"] == nodes
-        assert out_cfg["trainer"]["precision"] == "bf16"
-        assert out_cfg["trainer"]["max_steps"] == int(tokens * 1e9 / (out_cfg["model"]["data"]["seq_length"] * out_cfg["model"]["global_batch_size"]))
-        assert out_cfg["trainer"]["max_time"] == 
+        assert out_cfg["trainer"]["num_nodes"] == nodes, "trainer.num_nodes doesn't match the expected value."
+        assert out_cfg["trainer"]["precision"] == "bf16", "trainer.precision doesn't match the expected value."
+        assert out_cfg["trainer"]["max_steps"] == expected["max_steps"], "trainer.max_steps doesn't match the expected value."
+        assert out_cfg["trainer"]["max_time"] == expected["max_time"], "trainer.max_time doesn't match the expected value."
 
         # Exp_manager parameters
-        if expected["wandb"]["enable"]:
-            assert out_cfg["trainer"][""]
-            assert out_cfg["trainer"][""]
-        """
+        if cfg["wandb"]["enable"]:
+            assert out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be True."
+            assert out_cfg["exp_manager"]["wandb_logger_kwargs"]["project"] == cfg["wandb"]["project"], "exp_manager.wandb_logger_kwargs.project doesn't match the expected value."
+        else:
+            assert not out_cfg["exp_manager"]["create_wandb_logger"], "exp_manager.create_wandb_logger should be False."
+
+        # Model parameters
+        assert out_cfg["model"]["num_layers"] == expected["num_layers"]
+        assert out_cfg["model"]["global_batch_size"] == expected["gbs"]
+        assert out_cfg["model"]["hidden_size"] == expected["hs"]
+        assert out_cfg["model"]["num_attention_heads"] == expected["att_heads"]
+        if out_cfg["model"]["ffn_hidden_size"] is not None:
+            assert out_cfg["model"]["ffn_hidden_size"] == expected["ffn"]
+        if out_cfg["model"]["kv_channels"] is not None:
+            assert out_cfg["model"]["kv_channels"] == expected["kv"]
+        assert out_cfg["model"]["init_method_std"] == pytest.approx(expected=expected["init_std"], rel=self.margin)
+        assert out_cfg["model"]["optim"]["lr"] == expected["lr"]
+        assert out_cfg["model"]["optim"]["sched"]["min_lr"] == pytest.approx(expected=expected["min_lr"], rel=self.margin)
+        if out_cfg["model"]["optim"]["sched"]["warmup_steps"] is not None:
+            assert out_cfg["model"]["optim"]["sched"]["warmup_steps"] == pytest.approx(expected=expected["warmup_steps"], rel=self.margin)
+        if out_cfg["model"]["optim"]["sched"]["constant_steps"] is not None:
+            assert out_cfg["model"]["optim"]["sched"]["constant_steps"] == pytest.approx(expected=expected["constant_steps"], rel=self.margin)
+        if out_cfg["model"]["optim"]["sched"].get("warmup_ratio") is not None:
+            assert out_cfg["model"]["optim"]["sched"]["warmup_ratio"] == pytest.approx(expected=expected["warmup_ratio"], rel=self.margin)
+
+        f = f"{cfg['search_config']['train_settings']['logs']}/base_cfg_{model_size}b.yaml"
+        assert os.path.exists(f), "Base config file was not created correctly."
+        os.remove(f)
