@@ -236,7 +236,7 @@ def generate_base_config(
     base_cfg["run"]["results_dir"] = "${base_results_dir}/${.name}"
     int_days = int(max_training_days)
     int_hours = int(24 * (max_training_days - int(max_training_days)))
-    base_cfg["run"]["time_limit"] = f"{int_days}-{int_hours}:00:00"
+    base_cfg["run"]["time_limit"] = f"{int_days}-{int_hours:02d}:00:00"
 
     # TRAINER
     base_cfg["trainer"]["num_nodes"] = nodes
@@ -246,7 +246,9 @@ def generate_base_config(
     if int_hours == 0:
         int_days -= 1
         int_hours = 23
-    base_cfg["trainer"]["max_time"] = f"{int_days}:{int_hours}:30:00"
+    else:
+        int_hours -= 1
+    base_cfg["trainer"]["max_time"] = f"{int_days}:{int_hours:02d}:30:00"
 
     # EXP_MANAGER
     wandb_cfg = cfg.get("wandb")
