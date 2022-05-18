@@ -110,10 +110,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
-        self.pseudo_tokens = [
-            VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
-            for i in range(self.max_virtual_tokens)
-        ]
+        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
@@ -693,3 +690,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     @classmethod
     def list_available_models(cls):
         pass
+
+
+def get_pseudo_tokens(num_virtual_tokens):
+    """
+    Takes in an integer and returns a list of strings where each string
+    is a numbered virtual token placeholder. If 
+    num_virtual_tokens = 3, then this function returns:
+
+    ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
+
+    Args:
+        num_virtual_tokens: (int) Number of virtual token strings you want to make
+
+    returns a list of string. 
+
+    """
+    pseudo_tokens = [
+        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        for i in range(num_virtual_tokens)
+    ]
+
+    return pseudo_tokens

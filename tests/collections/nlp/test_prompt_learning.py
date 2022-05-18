@@ -19,6 +19,7 @@ import pytest
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import get_pseudo_tokens
 from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core import Dataset
@@ -61,7 +62,7 @@ def create_temp_dataset():
 def get_task_templates():
     task_templates = {}
     task_templates['task name A'] = {
-        "prompt_template": "<|VIRTUAL_PROMPT_0|> {text}{answer}",
+        "prompt_template": "<|VIRTUAL_PROMPT_0|>{text}{answer}",
         "prompt_template_fields": ['text', 'answer'],
         "total_virtual_tokens": 5,
         "virtual_token_splits": [5],
@@ -71,7 +72,7 @@ def get_task_templates():
         "task_id_num": 0,
     }
     task_templates['task name B'] = {
-        "prompt_template": "<|VIRTUAL_PROMPT_0|> {question} <|VIRTUAL_PROMPT_1|> {answer}{extra}",
+        "prompt_template": "<|VIRTUAL_PROMPT_0|>{question}<|VIRTUAL_PROMPT_1|>{answer}{extra}",
         "prompt_template_fields": ['question', 'answer', 'extra'],
         "total_virtual_tokens": 10,
         "virtual_token_splits": [7, 3],
@@ -81,15 +82,6 @@ def get_task_templates():
         "task_id_num": 1,
     }
     return task_templates
-
-
-def get_pseudo_tokens(total_virtual_tokens):
-    pseudo_tokens = [
-        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
-        for i in range(total_virtual_tokens)
-    ]
-
-    return pseudo_tokens
 
 
 class TestMegatronGPTPromptLearningDataset:
