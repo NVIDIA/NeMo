@@ -46,7 +46,12 @@ class ApexGuardDefaults(object):
 
 
 def parallel_lm_logits(
-    input_: torch.Tensor, word_embeddings_weight: torch.Tensor, parallel_output: bool, bias: torch.Tensor = None,
+    input_: torch.Tensor,
+    word_embeddings_weight: torch.Tensor,
+    parallel_output: bool,
+    bias: torch.Tensor = None,
+    async_tensor_model_parallel_allreduce: bool = False,
+    sequence_parallel: bool = False,
 ):
     """Language Model logits using word embedding weights.
 
@@ -55,25 +60,40 @@ def parallel_lm_logits(
         word_embeddings_weight (torch.Tensor): [(padded) vocab size, h]
         parallel_output (bool): False will gather logits from tensor model parallel region
         bias (torch.Tensor, optional): bias tensor. Defaults to None.
+        async_tensor_model_parallel_allreduce (bool, optional): TODO: understand this flag. Defaults to False.
+        sequence_parallel (bool, optional): If True will use sequence parallelism. Defaults to False.
 
     Returns:
         torch.Tensor: [b, s, (padded) vocab size]
     """
 
-    # """LM logits using word embedding weights."""
-    # Parallel logits.
-    input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
+    tensor_model_parallel = parallel_state.get_tensor_model_parallel_world_size() > 1
+
+    # async grad allreduce can only be used when not using sequence parallelism
+    async_grad_allreduce = async_tensor_model_parallel_allreduce and tensor_model_parallel and not sequence_parallel
+
+    # copy input_ to model parallel region if needed
+    if async_tensor_model_parallel_allreduce or sequence_parallel:
+        input_parallel = input_
+
+    else:
+        input_parallel = tensor_parallel.copy_to_tensor_model_parallel_region(input_)
 
     # Matrix multiply.
-    # logits_parallel = linear_with_grad_accumulation_and_async_allreduce()
-
-    logits_parallel = F.linear(input_parallel, word_embeddings_weight, bias)
+    logits_parallel = linear_with_grad_accumulation_and_async_allreduce(
+        input=input_parallel,
+        weight=word_embeddings_weight,
+        bias=bias,
+        gradient_accumulation_fusion=False,
+        async_grad_allreduce=async_grad_allreduce,
+        sequence_parallel_enabled=sequence_parallel,
+    )
 
     # Gather if needed.
     if parallel_output:
         return logits_parallel
-
-    return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
+    else:
+        return tensor_parallel.gather_from_tensor_model_parallel_region(logits_parallel)
 
 
 def init_method_normal(sigma):
