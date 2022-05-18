@@ -91,6 +91,7 @@ model:
     src_file_name: null
     tgt_file_name: null
     dataset_type: 'tarred' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
+    sampler: 'distributed' # Options ['distributed', 'megatron']. Note megatron samplers do not shuffle across epochs.
     micro_batch_size: ${model.micro_batch_size}
     global_batch_size: ${model.global_batch_size}
     # config for preprocessing training data and creating a tarred datset automatically

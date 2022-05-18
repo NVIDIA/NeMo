@@ -182,7 +182,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
             batch = self.process_global_batch_for_tarred_datasets(batch)
-        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']:
+        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap'] and self._cfg.train_ds.sampler == 'distributed':
             batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
@@ -445,41 +445,39 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
         rank = parallel_state.get_data_parallel_rank()
         world_size = parallel_state.get_data_parallel_world_size()
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=True
-        )
         if isinstance(dataset, BlendableDataset):
             collate_fn = dataset.datasets[0].collate_fn
         else:
             collate_fn = dataset.collate_fn
 
-        return torch.utils.data.DataLoader(
-            dataset,
-            collate_fn=collate_fn,
-            sampler=sampler,
-            batch_size=cfg.micro_batch_size,
-            num_workers=cfg.num_workers,
-            pin_memory=cfg.pin_memory,
-            drop_last=cfg.drop_last,
-        )
-        '''
-        batch_sampler = MegatronPretrainingBatchSampler(
-            total_samples=len(dataset),
-            consumed_samples=consumed_samples,
-            micro_batch_size=cfg.micro_batch_size,
-            global_batch_size=cfg.global_batch_size,
-            data_parallel_rank=parallel_state.get_data_parallel_rank(),
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-            drop_last=True,
-        )
-        if isinstance(dataset, BlendableDataset):
-            collate_fn = dataset.datasets[0].collate_fn
+        if cfg.sampler == 'distributed':
+            sampler = torch.utils.data.distributed.DistributedSampler(
+                dataset, num_replicas=world_size, rank=rank, shuffle=True
+            )
+            return torch.utils.data.DataLoader(
+                dataset,
+                collate_fn=collate_fn,
+                sampler=sampler,
+                batch_size=cfg.micro_batch_size,
+                num_workers=cfg.num_workers,
+                pin_memory=cfg.pin_memory,
+                drop_last=cfg.drop_last,
+            )
+        elif cfg.sampler == 'megatron':
+            batch_sampler = MegatronPretrainingBatchSampler(
+                total_samples=len(dataset),
+                consumed_samples=consumed_samples,
+                micro_batch_size=cfg.micro_batch_size,
+                global_batch_size=cfg.global_batch_size,
+                data_parallel_rank=parallel_state.get_data_parallel_rank(),
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+                drop_last=True,
+            )
+            return torch.utils.data.DataLoader(
+                dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
+            )
         else:
-            collate_fn = dataset.collate_fn
-        return torch.utils.data.DataLoader(
-            dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=True,
-        )
-        '''
+            raise ValueError(f"Invalid sampler {cfg.sampler}. Options: ['distributed', 'megatron']")
 
     def process_global_batch_for_tarred_datasets(self, batch):
         """Override parent process_batch since TranslationDataset does not return dictionaries."""
@@ -768,7 +766,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_train_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
+        if self._cfg.train_ds.sampler == 'distributed':
+            self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
 
     def on_validation_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
