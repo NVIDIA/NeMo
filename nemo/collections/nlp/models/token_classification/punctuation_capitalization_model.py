@@ -783,8 +783,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 n_jobs=cfg.n_jobs,
-                number_of_batches_is_multiple_of=1 if train else self.trainer.num_nodes * self.trainer.num_devices,
-                batch_shuffling_random_seed=self.trainer.global_step if train else 42,
+                number_of_batches_is_multiple_of=(
+                    1 if train or self.trainer is None else self.trainer.num_nodes * self.trainer.num_devices
+                ),
+                batch_shuffling_random_seed=self.trainer.global_step if self.trainer is not None and train else 42,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
