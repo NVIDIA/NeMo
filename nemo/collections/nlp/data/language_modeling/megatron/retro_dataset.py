@@ -88,7 +88,9 @@ class RETRODataset(Dataset):
 
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
-
+        self.neighbors = cfg.data.get('neighbors', self.knn_index.K)
+        # the number of neighbors cannot exceed the max number of neighbors in the index
+        assert self.neighbors <= self.knn_index.K
         # create index_mapping_dir on rank 0
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             if torch.distributed.get_rank() == 0:
@@ -121,12 +123,11 @@ class RETRODataset(Dataset):
         """
         for i in range(chunk_id, chunk_id + num_chunks):
             knn = self.knn_index.get_KNN_chunk_ids(i)
-            for rid in knn:
+            for rid in knn[: self.neighbors]:
                 one_chunk = self.retrieval_index.get_chunk(rid)
                 chunks.append(one_chunk)
 
     def _get_text(self, idx: int) -> np.ndarray:
-
         # Get the shuffled index.
         idx = self.shuffle_idx[idx]
         # Start and end documents and offsets.
@@ -143,7 +144,7 @@ class RETRODataset(Dataset):
             num_chunks = (offset_l - offset_f) // self.chunk_size
             chunks = []
             self._get_chunks(chunk_id, num_chunks, chunks)
-            chunks = np.stack(chunks, axis=0).reshape(num_chunks, self.knn_index.K, -1).astype(np.int64)
+            chunks = np.stack(chunks, axis=0).reshape(num_chunks, self.neighbors, -1).astype(np.int64)
         else:
             # Otherwise, get the rest of the initial document.
             sample_list = [self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)]
@@ -166,7 +167,7 @@ class RETRODataset(Dataset):
             self._get_chunks(chunk_id, num_chunks, chunks)
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
-            chunks = np.stack(chunks, axis=0).reshape(total_chunks, self.knn_index.K, -1).astype(np.int64)
+            chunks = np.stack(chunks, axis=0).reshape(total_chunks, self.neighbors, -1).astype(np.int64)
         return sample.astype(np.int64), chunks
 
     def __getitem__(self, idx):
