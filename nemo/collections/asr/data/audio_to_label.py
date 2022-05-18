@@ -13,9 +13,9 @@
 # limitations under the License.
 import io
 import os
-from typing import Dict, List, Optional, Union
 from collections import Counter, OrderedDict
 from statistics import mode
+from typing import Dict, List, Optional, Union
 
 import braceexpand
 import torch
@@ -57,6 +57,7 @@ def repeat_signal(signal, sig_len, required_length):
     signal = torch.cat((rep_sig, sub))
     return signal
 
+
 def get_scale_mapping_list(uniq_timestamps):
     """
     Call get_argmin_mat function to find the closest segments in two different scale.
@@ -83,6 +84,7 @@ def get_scale_mapping_list(uniq_timestamps):
         scale_mapping_argmat[scale_idx] = torch.tensor(session_scale_mapping_dict[scale_idx])
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
+
 
 def normalize(signal):
     """normalize signal
@@ -238,6 +240,7 @@ def _vad_frame_seq_collate_fn(self, batch):
     tokens_lengths = torch.tensor(num_slices)
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
+
 def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
     """
     Get RTTM lines containing speaker labels, start time and end time. tup_spks contains two targeted
@@ -371,6 +374,7 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
+
 
 class _AudioLabelDataset(Dataset):
     """
@@ -1765,4 +1769,3 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks)
-
