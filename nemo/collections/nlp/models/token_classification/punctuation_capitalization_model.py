@@ -775,14 +775,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 number_of_batches_is_multiple_of = 1
                 if self.trainer is None:
                     warnings.warn(
-                        f'A model attribute `trainer` is not set before training dataset setting. If training is '
-                        f'resumed from checkpoint, then current epoch data loading can be distorted: some batches '
-                        f'may be processed several times and some can be not processed at all. `trainer` attribute '
-                        f'`current_epoch` is used as random seed for shuffling batches. Now 0 is used. If the '
-                        f'checkpoint was created not during initial epoch a shuffling after training resuming can '
-                        f'be different. You may try use `exp_manager()` and '
-                        f'`PunctuationCapitalizationModel.set_trainer()` method before '
-                        f'`PunctuationCapitalizationModel.setup_training_data()` method.'
+                        'A model attribute `trainer` is not set before training dataset setting. If training is '
+                        'resumed from checkpoint, then current epoch data loading can be distorted: some batches '
+                        'may be processed several times and some can be not processed at all. `trainer.current_epoch`'
+                        ' is used as random seed for shuffling batches. Now 0 will be used. If the '
+                        'checkpoint was created not during initial epoch a shuffling of the dataset will '
+                        'be different. You may try use `exp_manager()` function and '
+                        '`PunctuationCapitalizationModel.set_trainer()` method before '
+                        '`PunctuationCapitalizationModel.setup_training_data()` method.'
                     )
                     batch_shuffling_random_seed = 0
                 else:
@@ -791,15 +791,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 batch_shuffling_random_seed = 0
                 if self.trainer is None:
                     warnings.warn(
-                        f'A model attribute `trainer` is not set before test dataset setting. If more than 1 GPU is '
-                        f'used for testing, then some examples may be tested several times because number of batches '
-                        f'may be not evenly divisible by number of processes. See more in description of '
-                        f'`number_of_batches_is_multiple_of` parameter of class '
-                        f'`BertPunctuationCapitalizationDataset` initializer and '
-                        f'https://pytorch.org/docs/stable/data.html#multi-process-data-loading. You may try to use '
-                        f'`PunctuationCapitalizationModel.set_trainer()` method before '
-                        f'`PunctuationCapitalizationModel.setup_validation_data()` and '
-                        f'`PunctuationCapitalizationModel.setup_test_data()` methods.'
+                        'A model attribute `trainer` is not set before test or validation dataset setting. If more '
+                        'than 1 GPU is used for testing, then some examples may be tested several times because '
+                        'number of batches may be not evenly divisible by number of processes. See more in '
+                        'description of `number_of_batches_is_multiple_of` parameter of class '
+                        '`BertPunctuationCapitalizationDataset` initializer and '
+                        'https://pytorch.org/docs/stable/data.html#multi-process-data-loading. You may try to use '
+                        '`PunctuationCapitalizationModel.set_trainer()` method before '
+                        '`PunctuationCapitalizationModel.setup_validation_data()` and '
+                        '`PunctuationCapitalizationModel.setup_test_data()` methods.'
                     )
                     number_of_batches_is_multiple_of = 1
                 else:
