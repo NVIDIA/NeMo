@@ -18,6 +18,7 @@ from torchmetrics import Metric
 
 __all__ = ['MultiBinaryAccuracy']
 
+
 class MultiBinaryAccuracy(Metric):
     """
     This metric computes accuracies that are needed to evaluate multiple binary outputs.
@@ -64,6 +65,7 @@ class MultiBinaryAccuracy(Metric):
         f1_score (torch.Tensor):
             F1 score calculated from the predicted value and binarized target values.
     """
+
     def __init__(self, dist_sync_on_step=False):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
         self.total_correct_counts = 0
@@ -71,12 +73,12 @@ class MultiBinaryAccuracy(Metric):
         self.true_positive_count = 0
         self.false_positive_count = 0
         self.false_negative_count = 0
-        
+
     def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
             preds_list, targets_list = [], []
-            preds_list = [preds[k, :signal_lengths[k], :] for k in range(preds.shape[0])]
-            targets_list = [targets[k, :signal_lengths[k], :] for k in range(targets.shape[0])]
+            preds_list = [preds[k, : signal_lengths[k], :] for k in range(preds.shape[0])]
+            targets_list = [targets[k, : signal_lengths[k], :] for k in range(targets.shape[0])]
             self.preds = torch.cat(preds_list, dim=0)
             self.targets = torch.cat(targets_list, dim=0)
 
@@ -84,25 +86,23 @@ class MultiBinaryAccuracy(Metric):
             self.false = self.preds.round().bool() != self.targets.round().bool()
             self.positive = self.preds.round().bool() == 1
             self.negative = self.preds.round().bool() == 0
-            
+
             self.positive_count = torch.sum(self.preds.round().bool() == True)
             self.true_positive_count += torch.sum(torch.logical_and(self.true, self.positive))
             self.false_positive_count += torch.sum(torch.logical_and(self.false, self.positive))
             self.false_negative_count += torch.sum(torch.logical_and(self.false, self.negative))
-            
+
             self.total_correct_counts += torch.sum(self.preds.round().bool() == self.targets.round().bool())
             self.total_sample_counts += torch.prod(torch.tensor(self.targets.shape))
 
     def compute(self):
         """
-        Compute F1 score from the cumulated values. Return -1 if F1 score is NaN.
+        Compute F1 score from the accumulated values. Return -1 if the F1 score is NaN.
         """
         self.precision = self.true_positive_count / (self.true_positive_count + self.false_positive_count)
         self.recall = self.true_positive_count / (self.true_positive_count + self.false_negative_count)
         self.f1_score = 2 * self.precision * self.recall / (self.precision + self.recall)
         if torch.isnan(self.f1_score):
             logging.warn("self.f1_score contains NaN value. Returning -1 instead of NaN value.")
-            self.f1_score = -1 
+            self.f1_score = -1
         return self.f1_score
-
-

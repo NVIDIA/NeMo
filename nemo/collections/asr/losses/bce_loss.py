@@ -16,14 +16,14 @@
 import torch
 
 from nemo.core.classes import Loss, Typing, typecheck
-from nemo.core.neural_types import LabelsType, ProbsType, NeuralType, LossType, LengthsType
+from nemo.core.neural_types import LabelsType, LengthsType, LossType, NeuralType, ProbsType
 
 __all__ = ['BCELoss']
 
 
 class BCELoss(Loss, Typing):
     """
-    Computes Binary Cross Entropy (BCE) loss. BCELoss class expects output from Sigmoid function.
+    Computes Binary Cross Entropy (BCE) loss. The BCELoss class expects output from Sigmoid function.
     """
 
     @property
@@ -39,7 +39,7 @@ class BCELoss(Loss, Typing):
     @property
     def output_types(self):
         """
-        Output types definitions for binary cross entropy loss. Weights for label can be set using weight variable.
+        Output types definitions for binary cross entropy loss. Weights for labels can be set using weight variables.
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
@@ -67,9 +67,8 @@ class BCELoss(Loss, Typing):
                 Binary cross entropy loss value.
         """
         probs_list, targets_list = [], []
-        probs_list = [probs[k, :signal_lengths[k], :] for k in range(probs.shape[0])]
-        targets_list = [labels[k, :signal_lengths[k], :] for k in range(labels.shape[0])]
+        probs_list = [probs[k, : signal_lengths[k], :] for k in range(probs.shape[0])]
+        targets_list = [labels[k, : signal_lengths[k], :] for k in range(labels.shape[0])]
         probs = torch.cat(probs_list, dim=0)
         labels = torch.cat(targets_list, dim=0)
-        return self.loss_f(probs, labels) 
-
+        return self.loss_f(probs, labels)

@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import collections
-from itertools import combinations
 import json
 import os
+from itertools import combinations
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
@@ -408,7 +408,7 @@ class FeatureSequenceLabel(_Collection):
     def relative_speaker_parser(self, seq_label):
         """ Convert sequence of speaker labels to relative labels.
         Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
-        In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
+        In this seq of label, if a label did not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
         Args:
             seq_label (str): A string of a sequence of labels.
 
@@ -482,10 +482,13 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
 
         return item
 
+
 class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
-    OUTPUT_TYPE = collections.namedtuple(typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset tup_spks',)
+    OUTPUT_TYPE = collections.namedtuple(
+        typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset tup_spks',
+    )
 
     def __init__(
         self,
@@ -517,7 +520,9 @@ class DiarizationLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        for audio_file, duration, rttm_file, offset, tup_spks in zip(audio_files, durations, rttm_files, offsets, tuple_2ch):
+        for audio_file, duration, rttm_file, offset, tup_spks in zip(
+            audio_files, durations, rttm_files, offsets, tuple_2ch
+        ):
             if duration == None:
                 duration = 0
 
@@ -544,19 +549,25 @@ class DiarizationLabel(_Collection):
 
         super().__init__(data)
 
+
 class DiarizationSpeechLabel(DiarizationLabel):
     """`DiarizationLabel` diarization data sample collector from structured json files."""
 
-    def __init__(self, 
-                 manifests_files: Union[str, List[str]], 
-                 emb_dict: Dict, 
-                 clus_label_dict: Dict,
-                 max_spks=8,
-                 round_digit=2,
-                 seq_eval_mode=False,
-                 bi_ch_infer=False,
-                 *args, **kwargs):
-        """Parse lists of audio files, durations and transcripts texts.
+    def __init__(
+        self,
+        manifests_files: Union[str, List[str]],
+        emb_dict: Dict,
+        clus_label_dict: Dict,
+        max_spks=8,
+        round_digit=2,
+        seq_eval_mode=False,
+        bi_ch_infer=False,
+        *args,
+        **kwargs,
+    ):
+        """
+        Parse lists of audio files, durations, RTTM (Diarization annotation) files. Since diarization model infers only
+        two speakers, speaker pairs are generated from the total number of speakers in the session.
 
         Args:
             manifest_filepath (str):
@@ -570,11 +581,11 @@ class DiarizationSpeechLabel(DiarizationLabel):
             round_digit (int):
                 Number of digits to be rounded.
             seq_eval_mode (bool):
-                If True, F1 score will be calculated for each speaker pair as in the validation accuray in training mode.
+                If True, F1 score will be calculated for each speaker pair as in the validation accuracy in training mode.
             bi_ch_infer (bool):
                 If True, a Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
                 is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (2,3)]) and then
-                fed into diarization system to merge the individual results.
+                fed into the diarization system to merge the individual results.
             manifests_files: Either single string file or list of such -
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
@@ -585,36 +596,36 @@ class DiarizationSpeechLabel(DiarizationLabel):
         self.seq_eval_mode = seq_eval_mode
         self.bi_ch_infer = bi_ch_infer
         audio_files, durations, rttm_files, offsets, tuple_2ch = [], [], [], [], []
-       
+
         if self.bi_ch_infer:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
                 uniq_id = item['rttm_file'].split('/')[-1].split('.rttm')[0]
 
-                if item['rttm_file']: 
+                if item['rttm_file']:
                     _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
-                    sess_spk_dict = { int(v.split('_')[-1]) : k for k, v in _sess_spk_dict.items() }
-                    rttm_speaker_digits = [ int(v.split('_')[1]) for k, v in _sess_spk_dict.items() ]
+                    sess_spk_dict = {int(v.split('_')[-1]): k for k, v in _sess_spk_dict.items()}
+                    rttm_speaker_digits = [int(v.split('_')[1]) for k, v in _sess_spk_dict.items()]
                 else:
                     sess_spk_dict = None
                     rttm_speaker_digits = None
-               
+
                 if self.seq_eval_mode:
                     clus_spk_digits = rttm_speaker_digits
                 else:
                     clus_spk_digits = sorted(list(set([x[2] for x in clus_label_dict[uniq_id]])))
 
                 if len(clus_spk_digits) == 1:
-                    spk_comb_list = [(0,1)]
+                    spk_comb_list = [(0, 1)]
                 else:
-                    spk_comb_list = [x for x in combinations(clus_spk_digits, 2)]  
-                    
+                    spk_comb_list = [x for x in combinations(clus_spk_digits, 2)]
+
                 for tup_spks in spk_comb_list:
                     audio_files.append(item['audio_file'])
                     durations.append(item['duration'])
                     rttm_files.append(item['rttm_file'])
                     offsets.append(item['offset'])
                     sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
-                    rttm_speaker_digits = [ int(v.split('_')[1]) for k, v in sess_spk_dict.items() ]
+                    rttm_speaker_digits = [int(v.split('_')[1]) for k, v in sess_spk_dict.items()]
                     tuple_2ch.append((tup_spks, sess_spk_dict, clus_spk_digits, rttm_speaker_digits))
         else:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
@@ -629,7 +640,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
     def s2n(self, x):
         """Convert string to floating point number with rounding"""
         return round(float(x), self.round_digit)
-    
+
     def get_speakers_from_rttm(self, rttm_path):
         """
         Extract start and end time of each speaker from rttm files.
@@ -670,11 +681,10 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
         item = dict(
             audio_file=item['audio_file'],
-            uniq_id=item['uniq_id'], 
+            uniq_id=item['uniq_id'],
             duration=item['duration'],
             rttm_file=item['rttm_filepath'],
             offset=item.get('offset', None),
         )
 
         return item
-
