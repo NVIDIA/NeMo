@@ -81,6 +81,8 @@ def calc_drop_extra_pre_encoded(asr_model, step_num):
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
+        # would run the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
+        # the output of the model in the offline and streaming mode should be exactly the same
         with autocast():
             processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
             with torch.no_grad():
@@ -173,7 +175,7 @@ def main():
     )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument(
-        "--online_normalization", default=False, action='store_true', help="Perform normalization on the run."
+        "--online_normalization", default=False, action='store_true', help="Perform normalization on the run per chunk."
     )
 
     args = parser.parse_args()
