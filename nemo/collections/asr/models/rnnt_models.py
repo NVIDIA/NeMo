@@ -737,7 +737,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
-        return_transcribtion=True
+        return_transcribtion=True,
     ):
         if return_transcribtion == False:
             logging.info(
@@ -749,7 +749,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             valid_out_len=valid_out_len,
-            drop_extra_pre_encoded=drop_extra_pre_encoded
+            drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 
         best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(

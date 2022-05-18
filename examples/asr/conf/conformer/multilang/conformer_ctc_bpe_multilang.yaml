@@ -25,7 +25,7 @@
 # Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 # The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
 
-name: "Conformer-CTC-BPE-mla"
+name: "Conformer-CTC-BPE-multilang"
 
 model:
   sample_rate: 16000

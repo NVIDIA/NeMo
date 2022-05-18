@@ -42,8 +42,6 @@ python speech_to_text_streaming_infer.py \
 
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation. If compare_vs_offline is not used, then significantly larger batch_size can be used.
 
-TODO: add docs on onnx support or drop the onnx support.
-
 """
 
 
@@ -52,7 +50,6 @@ import json
 import time
 from argparse import ArgumentParser
 
-import onnxruntime
 import torch
 from omegaconf import open_dict
 
@@ -74,7 +71,8 @@ def extract_transcribtions(hyps):
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num):
-    if step_num == 0 and asr_model.encoder.streaming_cfg.drop_extra_pre_encoded != 0:
+    # for the first step there is no need to drop any tokens after the downsampling as no caching is being used
+    if step_num == 0:
         return 0
     else:
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
@@ -268,7 +266,7 @@ def main():
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
-                    debug_mode=args.debug_mode
+                    debug_mode=args.debug_mode,
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:

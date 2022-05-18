@@ -434,19 +434,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
-            # "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            # "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @typecheck()
     def forward(
-        self,
-        input_signal=None,
-        input_signal_length=None,
-        processed_signal=None,
-        processed_signal_length=None,
-        # cache_last_channel=None,
-        # cache_last_time=None,
+        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None,
     ):
         """
         Forward pass of the model.
@@ -484,12 +476,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoder_output = self.encoder(
-            audio_signal=processed_signal,
-            length=processed_signal_length,
-            # cache_last_channel=cache_last_channel,
-            # cache_last_time=cache_last_time,
-        )
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
         encoded = encoder_output[0]
         encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
@@ -547,7 +534,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
-        return_transcribtion=True
+        return_transcribtion=True,
     ):
         (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
             processed_signal=processed_signal,
@@ -555,7 +542,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             valid_out_len=valid_out_len,
-            drop_extra_pre_encoded=drop_extra_pre_encoded
+            drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 
         log_probs = self.decoder(encoder_output=encoded)

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 from abc import ABC, abstractmethod
+
+import torch
 
 
 class StreamingEncoder(ABC):
@@ -40,7 +41,7 @@ class StreamingEncoder(ABC):
         cache_last_channel=None,
         cache_last_time=None,
         valid_out_len=None,
-        drop_extra_pre_encoded=None
+        drop_extra_pre_encoded=None,
     ):
         if self.streaming_cfg is None:
             self.setup_streaming_params()

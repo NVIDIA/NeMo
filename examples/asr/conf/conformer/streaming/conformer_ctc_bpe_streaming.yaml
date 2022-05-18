@@ -3,6 +3,9 @@
 # Architecture and training config:
 # You may find more detail on the architecture and training config at NeMo/examples/asr/comf/offline/conformer_ctc_bpe.yaml
 
+# Models trained with this config have limited right context which make them efficient for streaming ASR
+# You may use NeMo/examples/asr/speech_to_text_streaming_infer.py to simulate/evaluate this model in frame-wise streaming mode
+
 name: "Conformer-CTC-BPE-Streaming"
 
 model:
@@ -51,7 +54,7 @@ model:
   # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
-    type: wpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
+    type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
