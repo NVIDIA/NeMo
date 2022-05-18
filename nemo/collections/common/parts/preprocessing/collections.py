@@ -252,7 +252,7 @@ class SpeechLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        for audio_file, duration, rttm_file, offset in zip(audio_files, durations, labels, offsets):
+        for audio_file, duration, command, offset in zip(audio_files, durations, labels, offsets):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
                 duration_filtered += duration
@@ -262,7 +262,7 @@ class SpeechLabel(_Collection):
                 duration_filtered += duration
                 continue
 
-            data.append(output_type(audio_file, duration, rttm_file, offset))
+            data.append(output_type(audio_file, duration, command, offset))
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
@@ -586,7 +586,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 If True, a Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
                 is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (2,3)]) and then
                 fed into the diarization system to merge the individual results.
-            manifests_files: Either single string file or list of such -
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
         """
