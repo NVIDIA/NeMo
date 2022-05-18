@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import warnings
 from math import ceil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -770,6 +771,39 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     'punct_label_vocab_file': punct_label_vocab_file,
                     'capit_label_vocab_file': capit_label_vocab_file,
                 }
+            if train:
+                number_of_batches_is_multiple_of = 1
+                if self.trainer is None:
+                    warnings.warn(
+                        f'A model attribute `trainer` is not set before training dataset setting. If training is '
+                        f'resumed from checkpoint, then current epoch data loading can be distorted: some batches '
+                        f'may be processed several times and some can be not processed at all. `trainer` attribute '
+                        f'`current_epoch` is used as random seed for shuffling batches. Now 0 is used. If the '
+                        f'checkpoint was created not during initial epoch a shuffling after training resuming can '
+                        f'be different. You may try use `exp_manager()` and '
+                        f'`PunctuationCapitalizationModel.set_trainer()` method before '
+                        f'`PunctuationCapitalizationModel.setup_training_data()` method.'
+                    )
+                    batch_shuffling_random_seed = 0
+                else:
+                    batch_shuffling_random_seed = self.trainer.current_epoch
+            else:
+                batch_shuffling_random_seed = 0
+                if self.trainer is None:
+                    warnings.warn(
+                        f'A model attribute `trainer` is not set before test dataset setting. If more than 1 GPU is '
+                        f'used for testing, then some examples may be tested several times because number of batches '
+                        f'may be not evenly divisible by number of processes. See more in description of '
+                        f'`number_of_batches_is_multiple_of` parameter of class '
+                        f'`BertPunctuationCapitalizationDataset` initializer and '
+                        f'https://pytorch.org/docs/stable/data.html#multi-process-data-loading. You may try to use '
+                        f'`PunctuationCapitalizationModel.set_trainer()` method before '
+                        f'`PunctuationCapitalizationModel.setup_validation_data()` and '
+                        f'`PunctuationCapitalizationModel.setup_test_data()` methods.'
+                    )
+                    number_of_batches_is_multiple_of = 1
+                else:
+                    number_of_batches_is_multiple_of = self.trainer.num_nodes * self.trainer.num_devices
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
@@ -783,10 +817,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 n_jobs=cfg.n_jobs,
-                number_of_batches_is_multiple_of=(
-                    1 if train or self.trainer is None else self.trainer.num_nodes * self.trainer.num_devices
-                ),
-                batch_shuffling_random_seed=self.trainer.global_step if self.trainer is not None and train else 42,
+                number_of_batches_is_multiple_of=number_of_batches_is_multiple_of,
+                batch_shuffling_random_seed=batch_shuffling_random_seed,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
