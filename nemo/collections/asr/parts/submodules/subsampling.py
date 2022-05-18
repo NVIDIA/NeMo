@@ -27,6 +27,7 @@ class StackingSubsampling(torch.nn.Module):
         subsampling_factor (int): The subsampling factor
         feat_in (int): size of the input features
         feat_out (int): size of the output features
+        norm (bool): whether to use an MLP layer after the stacking along with normalization. default is False.
     """
 
     def __init__(self, subsampling_factor, feat_in, feat_out, norm=False):

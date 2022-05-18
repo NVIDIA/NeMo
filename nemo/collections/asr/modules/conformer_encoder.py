@@ -129,6 +129,20 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             }
         )
 
+    @property
+    def disabled_deployment_input_names(self):
+        if not self.export_cache_support:
+            return set(["cache_last_channel", "cache_last_time"])
+        else:
+            return set()
+
+    @property
+    def disabled_deployment_output_names(self):
+        if not self.export_cache_support:
+            return set(["cache_last_channel_next", "cache_last_time_next"])
+        else:
+            return set()
+
     def __init__(
         self,
         feat_in,
@@ -167,8 +181,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             self.att_context_size = list(att_context_size)
         else:
             self.att_context_size = [-1, -1]
-
-        self.export_cache_support = False
 
         if isinstance(conv_context_size, ListConfig):
             conv_context_size = list(conv_context_size)
@@ -295,7 +307,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
         self.use_pad_mask = True
 
         self.setup_streaming_params()
-        # self.streaming_cfg = None
+        self.export_cache_support = False
 
     def set_max_audio_length(self, max_audio_length):
         """ Sets maximum input length.
@@ -563,7 +575,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
                     streaming_cfg.last_time_num += 1
 
         self.streaming_cfg = streaming_cfg
-        self.export_cache_support = False
 
     def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None):
         if device is None:

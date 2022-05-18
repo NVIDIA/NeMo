@@ -68,6 +68,8 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
 
         self._max_cache_len = max_cache_len
+        self._cache_id = None
+
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
@@ -170,8 +172,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
 
     def do_caching(self, key, value, query, cache, cache_next):
         if cache is not None:
-            if hasattr(self, '_cache_id'):
-                cache = cache[self._cache_id]
+            cache = cache[self._cache_id]
             q_length = query.size(1)
             q_input = query
             key = value = torch.cat((cache, key), dim=1)
@@ -194,6 +195,8 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """

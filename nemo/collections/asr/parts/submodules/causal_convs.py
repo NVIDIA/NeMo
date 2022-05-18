@@ -45,6 +45,7 @@ class CausalConv2D(nn.Conv2d):
             raise ValueError("Argument padding should be set to None for CausalConv2D.")
         self._left_padding = kernel_size - 1
         self._right_padding = stride - 1
+        self._cache_id = None
 
         padding = 0
         super(CausalConv2D, self).__init__(
@@ -112,6 +113,7 @@ class CausalConv1D(nn.Conv1d):
                 raise ValueError(f"Invalid padding param: {padding}!")
 
         self._max_cache_len = self._left_padding
+        self._cache_id = None
 
         super(CausalConv1D, self).__init__(
             in_channels=in_channels,
@@ -133,9 +135,8 @@ class CausalConv1D(nn.Conv1d):
         else:
             input_x = x
             x_length = x.size(-1)
-            if hasattr(self, '_cache_id'):
-                cache = cache[self._cache_id]
-                cache_next = cache_next[self._cache_id]
+            cache = cache[self._cache_id]
+            cache_next = cache_next[self._cache_id]
             cache_next_length = cache_next.size(-1)
             needed_cache = cache[:, :, -self._max_cache_len :]
             x = F.pad(x, pad=(0, self._right_padding))

@@ -57,6 +57,7 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
+    parser.add_argument("--cache_support", action="store_true", help="enables caching inputs for the models support it.")
     parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
@@ -116,7 +117,13 @@ def nemo_export(argv):
         sys.exit(1)
     typecheck.set_typecheck_enabled(enabled=False)
 
-    model.encoder.export_cache_support = True
+    if args.cache_support:
+        export_cache_support_prev = model.encoder.export_cache_support
+        model.encoder.export_cache_support = True
+    else:
+        export_cache_support_prev = None
+
+    # need to enable caches input and output for streaming.
     try:
         #
         #  Add custom export parameters here
@@ -151,15 +158,16 @@ def nemo_export(argv):
             )
 
     except Exception as e:
-        model.encoder.export_cache_support = False
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
                 model.cfg.target
             )
         )
         raise e
+    finally:
+        if export_cache_support_prev is not None:
+            model.encoder.export_cache_support = export_cache_support_prev
 
-    model.encoder.export_cache_support = False
     logging.info("Successfully exported to {}".format(out))
 
     del model

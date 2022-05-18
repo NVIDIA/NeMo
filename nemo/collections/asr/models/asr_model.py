@@ -146,3 +146,11 @@ class ExportableEncDecModel(Exportable):
                 return encoder_output
                 # TODO streaming fix here
                 # return self.output_module(decoder_input), encoder_output[2], encoder_output[3]
+
+    @property
+    def disabled_deployment_input_names(self):
+        return self.encoder.disabled_deployment_input_names
+
+    # @property
+    # def disabled_deployment_output_names(self):
+    #     return self.decoder.disabled_deployment_output_names
