@@ -121,11 +121,6 @@ model:
     skip_warmup: True
     num_workers: 0
     dataloader_type: single # cyclic
-    reset_position_ids: False # Reset position ids after end-of-document token
-    reset_attention_mask: False # Reset attention mask after end-of-document token
-    eod_mask_loss: False # Mask loss for the end of document tokens
-    masked_lm_prob: 0.15 # Probability of replacing a token with mask.
-    short_seq_prob: 0.1 # Probability of producing a short sequence.
     neighbors: 2  # number of retrieved neighbors
   
   optim:
