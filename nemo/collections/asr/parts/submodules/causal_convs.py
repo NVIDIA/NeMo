@@ -22,6 +22,11 @@ __all__ = ['CausalConv2D', 'CausalConv1D']
 
 
 class CausalConv2D(nn.Conv2d):
+    """
+    A causal version of nn.Conv2d where each location in the 2D matrix would have no access to locations on its right or down
+    All arguments are the same as nn.Conv2d except padding which should be set as None
+    """
+
     def __init__(
         self,
         in_channels: int,
@@ -36,16 +41,10 @@ class CausalConv2D(nn.Conv2d):
         device=None,
         dtype=None,
     ) -> None:
-        if padding is None:
-            self._left_padding = kernel_size - 1
-            self._right_padding = stride - 1
-        else:
-            self._left_padding = padding
-            self._right_padding = padding
-
-        self._stride = stride
-        self._max_cache_len = kernel_size - stride
-        self._ignore_len = self._right_padding // self._stride
+        if padding is not None:
+            raise ValueError("Argument padding should be set to None for CausalConv2D.")
+        self._left_padding = kernel_size - 1
+        self._right_padding = stride - 1
 
         padding = 0
         super(CausalConv2D, self).__init__(
@@ -71,6 +70,17 @@ class CausalConv2D(nn.Conv2d):
 
 
 class CausalConv1D(nn.Conv1d):
+    """
+    A causal version of nn.Conv1d where each step would have limited access to locations on its right or left
+    All arguments are the same as nn.Conv1d except padding.
+
+    If padding is set None, then paddings are set automatically to make it a causal convolution where each location would not see any steps on its right.
+
+    If padding is set as a list (size of 2), then padding[0] would be used as left padding and padding[1] as right padding.
+    It would make it possible to control the number of steps to be accessible on the right and left.
+    This mode is not supported when stride > 1. padding[0]+padding[1] should be equal to (kernel_size - 1).
+    """
+
     def __init__(
         self,
         in_channels: int,
@@ -95,7 +105,7 @@ class CausalConv1D(nn.Conv1d):
             if isinstance(padding, int):
                 self._left_padding = padding
                 self._right_padding = padding
-            elif isinstance(padding, list) and len(padding) == 2:
+            elif isinstance(padding, list) and len(padding) == 2 and padding[0] + padding[1] == kernel_size - 1:
                 self._left_padding = padding[0]
                 self._right_padding = padding[1]
             else:

@@ -13,11 +13,39 @@
 # limitations under the License.
 
 """
-This script serves three goals:
-    (1) Demonstrate how to use NeMo Models outside of PytorchLightning
-    (2) Shows example of batch ASR inference
-    (3) Serves as CI test for pre-trained checkpoint
+This script can be used to simulate frame-wise streaming for ASR models. The ASR model to be used with this script need to get trained in streaming mode. Currently only Conformer models supports this streaming mode.
+You may find examples of streaming models under 'NeMo/example/asr/conf/conformer/streaming/'.
+
+It works both on a manifest of audio files or a single audio file. It can perform streaming for a single stream (audio) or perform the evalution in multi-stream model (batch_size>1).
+The manifest file must conform to standard ASR definition - containing `audio_filepath` and `text` as the ground truth.
+
+# Usage
+
+## To evaluate a model in frame-wise streaming mode on a single audio file:
+
+python speech_to_text_streaming_infer.py \
+    --asr_model=asr_model.nemo \
+    --audio_file=audio_file.wav \
+    --compare_vs_offline \
+    --use_amp \
+    --debug_mode
+
+## To evaluate a model in frame-wise streaming mode on a manifest file:
+
+python speech_to_text_streaming_infer.py \
+    --asr_model=asr_model.nemo \
+    --manifest_file=manifest_file.json \
+    --batch_size=16 \
+    --compare_vs_offline \
+    --use_amp \
+    --debug_mode
+
+You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation. If compare_vs_offline is not used, then significantly larger batch_size can be used.
+
+TODO: add docs on onnx support or drop the onnx support.
+
 """
+
 
 import contextlib
 import json
