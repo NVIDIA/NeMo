@@ -182,7 +182,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
             batch = self.process_global_batch_for_tarred_datasets(batch)
-        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap'] and self._cfg.train_ds.get("sampler", "distributed") == 'distributed':
+        elif (
+            self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']
+            and self._cfg.train_ds.get("sampler", "distributed") == 'distributed'
+        ):
             batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
@@ -474,7 +477,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 drop_last=True,
             )
             return torch.utils.data.DataLoader(
-                dataset, batch_sampler=batch_sampler, collate_fn=collate_fn, num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
+                dataset,
+                batch_sampler=batch_sampler,
+                collate_fn=collate_fn,
+                num_workers=cfg.num_workers,
+                pin_memory=cfg.pin_memory,
             )
         else:
             raise ValueError(f"Invalid sampler {cfg.sampler}. Options: ['distributed', 'megatron']")
