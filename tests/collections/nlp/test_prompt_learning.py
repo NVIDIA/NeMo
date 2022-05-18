@@ -19,7 +19,7 @@ import pytest
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
-from nemo.collections.nlp.modules.common import VirtualPromptSource, VirtualPromptPlaceholderToken
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core import Dataset
 
@@ -82,13 +82,15 @@ def get_task_templates():
     }
     return task_templates
 
+
 def get_pseudo_tokens(total_virtual_tokens):
     pseudo_tokens = [
-            VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
-            for i in range(total_virtual_tokens)
+        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        for i in range(total_virtual_tokens)
     ]
 
     return pseudo_tokens
+
 
 class TestMegatronGPTPromptLearningDataset:
     @pytest.mark.run_only_on('GPU')
