@@ -14,7 +14,6 @@
 import os
 from abc import ABC
 
-import onnx
 import torch
 from torch.onnx import ExportTypes, TrainingMode
 

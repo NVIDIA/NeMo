@@ -377,7 +377,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             audio_signal, length = self.pre_encode(
                 x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
             )
-            if self.streaming_cfg.drop_extra_pre_encoded > 0:
+            if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 # TODO: find a better solution
                 length = (length - self.streaming_cfg.drop_extra_pre_encoded).float()
