@@ -57,7 +57,9 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
-    parser.add_argument("--cache_support", action="store_true", help="enables caching inputs for the models support it.")
+    parser.add_argument(
+        "--cache_support", action="store_true", help="enables caching inputs for the models support it."
+    )
     parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
