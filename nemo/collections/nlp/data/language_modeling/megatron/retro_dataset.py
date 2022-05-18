@@ -14,16 +14,21 @@
 
 """RETRO Style dataset."""
 
-from typing import List
-import torch
-from nemo.core import Dataset
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
-from nemo.utils import logging
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import KNNIndex, MMapRetrievalIndexedDataset
 import os
+from typing import List
+
 import numpy as np
+import torch
+
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    KNNIndex,
+    MMapRetrievalIndexedDataset,
+)
+from nemo.core import Dataset
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
@@ -34,7 +39,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 class RETRODataset(Dataset):
-
     def __init__(
         self,
         cfg,

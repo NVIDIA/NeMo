@@ -16,9 +16,10 @@
 import os
 
 import numpy as np
-from omegaconf import OmegaConf
 import pytest
 import torch
+from apex.transformer import parallel_state
+from omegaconf import OmegaConf
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
     KNNIndex,
@@ -26,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDatasetBuilder,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
-from apex.transformer import parallel_state
+
 
 class TestRetrievalIndexFiles:
     @pytest.mark.unit
@@ -180,20 +181,9 @@ class TestRetrievalIndexFiles:
         chunk_size = 64
         pad_id = 0
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
-        padded_size = chunk_size - (len(sentence1) % chunk_size)
-        gt1 = np.pad(sentence1, (0, padded_size), 'constant', constant_values=pad_id)
-
         sentence2 = torch.arange(1, 500, 2, dtype=torch.int64)
-        padded_size = chunk_size - (len(sentence2) % chunk_size)
-        gt2 = np.pad(sentence2, (0, padded_size), 'constant', constant_values=pad_id)
-
         sentence3 = torch.arange(0, 300, 2, dtype=torch.int64)
-        padded_size = chunk_size - (len(sentence3) % chunk_size)
-        gt3 = np.pad(sentence3, (0, padded_size), 'constant', constant_values=pad_id)
-
         sentence4 = torch.arange(1, 400, 2, dtype=torch.int64)
-        padded_size = chunk_size - (len(sentence4) % chunk_size)
-        gt4 = np.pad(sentence4, (0, padded_size), 'constant', constant_values=pad_id)
 
         data_file = '/tmp/test_data'
         data_index_file = data_file + '.idx'
@@ -213,13 +203,13 @@ class TestRetrievalIndexFiles:
             pad_id = 0
 
         tokenizer = Tokenizer()
-        
+
         num_samples = 100
         seq_len = 192
         name = 'test'
         data_prefix = 'pref'
         seed = 1
-        _filename = index_path+'/'+data_prefix
+        _filename = index_path + '/' + data_prefix
         _filename += '_{}_indexmap'.format(name)
         _filename += '_{}ns'.format(num_samples)
         _filename += '_{}sl'.format(seq_len)
@@ -249,10 +239,27 @@ class TestRetrievalIndexFiles:
             map_index = KNNIndex(map_index_file)
 
             documents = np.arange(0, data_index.sizes.shape[0])
-            d = RETRODataset(cfg, None, tokenizer, name, data_prefix, documents, data_index, num_samples, seq_len,
-            seed, map_index, db_index)
-            print(d[0])
-            print(d[1])
+            d = RETRODataset(
+                cfg,
+                None,
+                tokenizer,
+                name,
+                data_prefix,
+                documents,
+                data_index,
+                num_samples,
+                seq_len,
+                seed,
+                map_index,
+                db_index,
+            )
+            for i in range(len(d)):
+                record = d[i]
+                assert record['tokens'].shape[0] == seq_len
+                assert record['labels'].shape[0] == seq_len
+                assert record['retrieved_ids'].shape[0] == seq_len // chunk_size
+                assert record['retrieved_ids'].shape[1] == K
+                assert record['retrieved_ids'].shape[2] == chunk_size * 2
 
         finally:
             os.remove(data_bin_file)
@@ -263,4 +270,3 @@ class TestRetrievalIndexFiles:
             os.remove(doc_idx_filename)
             os.remove(sample_idx_filename)
             os.remove(shuffle_idx_filename)
-
