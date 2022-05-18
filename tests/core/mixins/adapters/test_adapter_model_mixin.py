@@ -100,10 +100,12 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         # forward the method call to the individual modules
         # If module name is empty, it is a global adapter, otherwise it is a local adapter
         if (module_name == '' and global_config.get('encoder_adapter', True)) or (module_name == 'encoder'):
-            self.encoder.add_adapter(name, cfg)
+            if hasattr(self, 'encoder'):
+                self.encoder.add_adapter(name, cfg)
 
         if (module_name == '' and global_config.get('decoder_adapter', False)) or (module_name == 'decoder'):
-            self.decoder.add_adapter(name, cfg)
+            if hasattr(self, 'decoder'):
+                self.decoder.add_adapter(name, cfg)
 
     def set_enabled_adapters(self, name=None, enabled: bool = True):
         # check if valid model with some adapter support
@@ -120,22 +122,22 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
 
         # Forward the method call to the individual modules
         if name is None or global_config.get('encoder_adapter', True) or module_name in ('', 'encoder'):
-            if self.encoder.is_adapter_available():
+            if hasattr(self, 'encoder') and self.encoder.is_adapter_available():
                 self.encoder.set_enabled_adapters(name, enabled)
 
         if name is None or global_config.get('decoder_adapter', False) or module_name == 'decoder':
-            if self.decoder.is_adapter_available():
+            if hasattr(self, 'decoder') and self.decoder.is_adapter_available():
                 self.decoder.set_enabled_adapters(name, enabled)
 
     def get_enabled_adapters(self) -> list:
         enabled_adapters = super().get_enabled_adapters()
 
         # Forward the method call to the individual modules
-        if isinstance(self.encoder, AdapterModuleMixin):
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             encoder_adapters = self.encoder.get_enabled_adapters()
             enabled_adapters.extend(encoder_adapters)
 
-        if isinstance(self.decoder, AdapterModuleMixin):
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
             decoder_adapters = self.decoder.get_enabled_adapters()
             enabled_adapters.extend(decoder_adapters)
 

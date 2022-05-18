@@ -29,12 +29,12 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.common.parts import adapter_modules, rnn
-from nemo.core.classes import adapter_mixins
-from nemo.core.classes import typecheck
+from nemo.collections.common.parts import rnn
+from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
@@ -282,6 +282,7 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, adapter_mixins.
 
         del y, start, state
 
+        # Adapter module forward step
         if self.is_adapter_available():
             g = self.forward_enabled_adapters(g)
 
@@ -614,6 +615,31 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, adapter_mixins.
 
         return old_states
 
+    # Adapter method overrides
+    def add_adapter(self, name: str, cfg: DictConfig):
+        # Update the config with correct input dim
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        # Add the adapter
+        super().add_adapter(name=name, cfg=cfg)
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        if 'in_features' in cfg:
+            in_planes = cfg['in_features']
+
+            if in_planes != self.pred_hidden:
+                logging.info(
+                    f"Updating {self.__class__.__name__} Adapter input dim from {in_planes} " f"to {self.pred_hidden}"
+                )
+                in_planes = self.pred_hidden
+
+            cfg['in_features'] = in_planes
+            return cfg
+        else:
+            raise ValueError(
+                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
+                f"{OmegaConf.to_yaml(cfg)}"
+            )
+
 
 class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
@@ -745,10 +771,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.Adap
         self._num_classes = num_classes + 1  # add 1 for blank symbol
 
         if experimental_fuse_loss_wer is not None:
-            # TODO: Deprecate in 1.6
-            logging.warning(
-                "`experimental_fuse_loss_wer` will be deprecated in NeMo 1.6. Please use `fuse_loss_wer` instead."
-            )
             # Override fuse_loss_wer from deprecated argument
             fuse_loss_wer = experimental_fuse_loss_wer
 
@@ -995,6 +1017,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.Adap
 
         del f, g
 
+        # Forward adapter modules on joint hidden
         if self.is_adapter_available():
             inp = self.forward_enabled_adapters(inp)
 
@@ -1048,6 +1071,31 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.Adap
             + [torch.nn.Linear(joint_n_hidden, num_classes)]
         )
         return pred, enc, torch.nn.Sequential(*layers)
+
+    # Adapter method overrides
+    def add_adapter(self, name: str, cfg: DictConfig):
+        # Update the config with correct input dim
+        cfg = self._update_adapter_cfg_input_dim(cfg)
+        # Add the adapter
+        super().add_adapter(name=name, cfg=cfg)
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        if 'in_features' in cfg:
+            in_planes = cfg['in_features']
+
+            if in_planes != self.joint_hidden:
+                logging.info(
+                    f"Updating {self.__class__.__name__} Adapter input dim from {in_planes} " f"to {self.joint_hidden}"
+                )
+                in_planes = self.joint_hidden
+
+            cfg['in_features'] = in_planes
+            return cfg
+        else:
+            raise ValueError(
+                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
+                f"{OmegaConf.to_yaml(cfg)}"
+            )
 
     @property
     def num_classes_with_blank(self):
@@ -1135,3 +1183,11 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
         state_h, state_c = decoder_outputs[2][0], decoder_outputs[2][1]
         joint_output = self.joint(encoder_outputs, decoder_output)
         return (joint_output, decoder_length, state_h, state_c)
+
+
+# Add the adapter compatible modules to the registry
+if adapter_mixins.get_registered_adapter(RNNTDecoder) is None:
+    adapter_mixins.register_adapter(RNNTDecoder, RNNTDecoder)  # base class is adapter compatible itself
+
+if adapter_mixins.get_registered_adapter(RNNTJoint) is None:
+    adapter_mixins.register_adapter(RNNTJoint, RNNTJoint)  # base class is adapter compatible itself
