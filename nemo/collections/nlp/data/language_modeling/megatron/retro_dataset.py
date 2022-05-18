@@ -20,10 +20,15 @@ from typing import List, Union
 import numpy as np
 import torch
 
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_, get_datasets_weights_and_num_samples,
-
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+    get_train_valid_test_split_,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings, get_indexed_dataset_
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import (
+    _build_index_mappings,
+    get_indexed_dataset_,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
     KNNIndex,
     MMapRetrievalIndexedDataset,
@@ -38,7 +43,13 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ["RETRODataset", "build_train_valid_test_datasets", "MockRETRODataset", "build_mock_train_valid_test_datasets"]
+__all__ = [
+    "RETRODataset",
+    "build_train_valid_test_datasets",
+    "MockRETRODataset",
+    "build_mock_train_valid_test_datasets",
+]
+
 
 class RETRODataset(Dataset):
     def __init__(
@@ -164,7 +175,7 @@ class RETRODataset(Dataset):
         retrieved = torch.from_numpy(retrieved)
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
-        hidden_mask = text != self.pad_id
+        hidden_mask = tokens != self.pad_id
         context_mask = retrieved != self.pad_id
         return {
             'tokens': tokens,
@@ -174,6 +185,7 @@ class RETRODataset(Dataset):
             'retrieved_emb_mask': context_mask,
             'retrieved_ids': retrieved,
         }
+
 
 def build_train_valid_test_datasets(
     cfg,
@@ -312,7 +324,7 @@ def _build_train_valid_test_datasets(
                 seq_length,
                 seed,
                 knn_index,
-                retrieval_index
+                retrieval_index,
             )
         return dataset
 

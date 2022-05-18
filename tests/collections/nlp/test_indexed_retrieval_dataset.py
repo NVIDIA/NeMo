@@ -267,6 +267,7 @@ class TestRetrievalIndexFiles:
                 assert record['retrieved_ids'].shape[0] == seq_len // chunk_size
                 assert record['retrieved_ids'].shape[1] == K
                 assert record['retrieved_ids'].shape[2] == chunk_size * 2
+                assert record['tokens_mask'].shape[0] == seq_len
 
         finally:
             os.remove(data_bin_file)

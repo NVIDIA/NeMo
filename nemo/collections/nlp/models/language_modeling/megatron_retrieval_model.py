@@ -24,7 +24,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets, build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
+    build_mock_train_valid_test_datasets,
+    build_train_valid_test_datasets,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
@@ -34,6 +37,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 
@@ -74,7 +78,16 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.megatron_amp_o2 = False
 
     def _build_tokenizer(self):
-        super()._build_tokenizer()
+        self.tokenizer = get_nmt_tokenizer(
+            library=self._cfg.tokenizer.library,
+            model_name=self._cfg.tokenizer.type,
+            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
+            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
+            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
+            delimiter=self.cfg.tokenizer.get('delimiter', None),
+            legacy=False,
+        )
+
         # add pad special token
         if not hasattr(self.tokenizer, "pad_id"):
             self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
@@ -216,7 +229,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
                         scheduler['scheduler'].step()
 
                     # Increase the max step count by 1
-                    self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
+                    # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
 
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
@@ -256,8 +269,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
-        global_batch_size = self.cfg.global_batch_size
-        max_train_steps = self.trainer.max_steps
+        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
+        max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
         eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
@@ -275,9 +289,10 @@ class MegatronRetrievalModel(MegatronBaseModel):
                 mock_data_size=self.cfg.data.get('mock_data_size', 10000),
             )
         else:
-             self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+            self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
                 cfg=self.cfg,
                 trainer=self.trainer,
+                data_prefix=self.cfg.data.data_prefix,
                 data_impl=self.cfg.data.data_impl,
                 splits_string=self.cfg.data.splits_string,
                 train_valid_test_num_samples=train_valid_test_num_samples,
