@@ -24,7 +24,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_mock_train_valid_test_datasets, build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
@@ -256,13 +256,38 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info('Building RETRO datasets.')
-        self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
-            cfg=self.cfg,
-            trainer=self.trainer,
-            splits_string=self.cfg.data.splits_string,
-            tokenizer=self.tokenizer,
-            mock_data_size=self.cfg.data.get('mock_data_size', 10000),
-        )
+        global_batch_size = self.cfg.global_batch_size
+        max_train_steps = self.trainer.max_steps
+        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        test_iters = self.trainer.limit_test_batches
+
+        train_valid_test_num_samples = [
+            max_train_steps * global_batch_size,
+            eval_iters * global_batch_size,
+            test_iters * global_batch_size,
+        ]
+        if self.cfg.data.get('mock', False):
+            self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                splits_string=self.cfg.data.splits_string,
+                tokenizer=self.tokenizer,
+                mock_data_size=self.cfg.data.get('mock_data_size', 10000),
+            )
+        else:
+             self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
+                cfg=self.cfg,
+                trainer=self.trainer,
+                data_impl=self.cfg.data.data_impl,
+                splits_string=self.cfg.data.splits_string,
+                train_valid_test_num_samples=train_valid_test_num_samples,
+                seq_length=self.cfg.data.seq_length,
+                seed=self.cfg.seed,
+                skip_warmup=self.cfg.data.get('skip_warmup', True),
+                tokenizer=self.tokenizer,
+                retrieval_prefix=self.cfg.data.retrieval_prefix,
+                knn_map_path=self.cfg.data.knn_index,
+            )
         if self._train_ds is not None:
             logging.info(f'Length of train dataset: {len(self._train_ds)}')
         if self._validation_ds is not None:

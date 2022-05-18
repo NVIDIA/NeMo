@@ -2379,7 +2379,7 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True"
+        +model.data.mock=True"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
@@ -2407,7 +2407,7 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True"
+        +model.data.mock=True"
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }

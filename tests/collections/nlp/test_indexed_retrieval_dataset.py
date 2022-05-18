@@ -18,7 +18,6 @@ import os
 import numpy as np
 import pytest
 import torch
-from apex.transformer import parallel_state
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
@@ -27,6 +26,13 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDatasetBuilder,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
+
+try:
+    from apex.transformer import parallel_state
+
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 
 class TestRetrievalIndexFiles:
@@ -170,6 +176,7 @@ class TestRetrievalIndexFiles:
             os.remove(index_file)
 
     @pytest.mark.unit
+    @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
     def test_retro_dataset(self):
 
         init_method = 'tcp://'

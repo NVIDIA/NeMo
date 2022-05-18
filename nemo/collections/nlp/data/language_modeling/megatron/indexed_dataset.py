@@ -37,6 +37,7 @@ import numpy as np
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+    MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
 from nemo.utils import logging
@@ -50,7 +51,7 @@ def __best_fitting_dtype(vocab_size=None):
 
 
 def get_available_dataset_impl():
-    return ['lazy', 'cached', 'mmap']
+    return ['lazy', 'cached', 'mmap', "retmmap"]
 
 
 def infer_dataset_impl(path):
@@ -61,6 +62,8 @@ def infer_dataset_impl(path):
                 return 'cached'
             elif magic == MMapIndexedDataset.Index._HDR_MAGIC[:8]:
                 return 'mmap'
+            elif magic == MMapRetrievalIndexedDataset.Index._HDR_MAGIC[:8]:
+                return 'retmmap'
             else:
                 return None
     else:
@@ -97,6 +100,8 @@ def make_dataset(path, impl, skip_warmup=False):
         return IndexedCachedDataset(path)
     elif impl == 'mmap' and MMapIndexedDataset.exists(path):
         return MMapIndexedDataset(path, skip_warmup)
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDataset(path, skip_warmup)
     print(f"Unknown dataset implementation: {impl}")
     return None
 
@@ -104,9 +109,10 @@ def make_dataset(path, impl, skip_warmup=False):
 def dataset_exists(path, impl):
     if impl == 'mmap':
         return MMapIndexedDataset.exists(path)
+    elif impl == 'retmmap':
+        return MMapRetrievalIndexedDataset.exists(path)
     else:
         return IndexedDataset.exists(path)
-
 
 def read_longs(f, n):
     a = np.empty(n, dtype=np.int64)

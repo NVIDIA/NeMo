@@ -15,14 +15,15 @@
 """RETRO Style dataset."""
 
 import os
-from typing import List
+from typing import List, Union
 
 import numpy as np
 import torch
 
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_train_valid_test_split_, get_datasets_weights_and_num_samples,
+
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings, get_indexed_dataset_
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
     KNNIndex,
     MMapRetrievalIndexedDataset,
@@ -37,6 +38,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+__all__ = ["RETRODataset", "build_train_valid_test_datasets", "MockRETRODataset", "build_mock_train_valid_test_datasets"]
 
 class RETRODataset(Dataset):
     def __init__(
@@ -172,6 +174,153 @@ class RETRODataset(Dataset):
             'retrieved_emb_mask': context_mask,
             'retrieved_ids': retrieved,
         }
+
+def build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    data_prefix: List[str],
+    data_impl: str,
+    splits_string: str,
+    train_valid_test_num_samples,
+    seq_length: int,
+    seed: int,
+    skip_warmup: bool,
+    tokenizer,
+    retrieval_prefix: str,
+    knn_map_path: List[str],
+):
+    """Build train, valid, and test RETRO datasets.
+       There is one to one mapping between data_prefix and knn_map_path.
+       Currently only supports one retrieval dataset.
+    """
+    # make sure there is one to one mapping  between data_prefix and knn_map_path
+    assert len(data_prefix) == len(knn_map_path)
+
+    # Single dataset.
+    if len(data_prefix) == 1:
+        return _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            data_prefix[0],
+            data_impl,
+            splits_string,
+            train_valid_test_num_samples,
+            seq_length,
+            seed,
+            skip_warmup,
+            tokenizer,
+            retrieval_prefix,
+            knn_map_path[0],
+        )
+
+    # Blending dataset.
+    # Parse the values.
+    output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)
+    prefixes, weights, datasets_train_valid_test_num_samples = output
+
+    # Build individual datasets.
+    train_datasets = []
+    valid_datasets = []
+    test_datasets = []
+    for i in range(len(prefixes)):
+        train_ds, valid_ds, test_ds = _build_train_valid_test_datasets(
+            cfg,
+            trainer,
+            prefixes[i],
+            data_impl,
+            splits_string,
+            datasets_train_valid_test_num_samples[i],
+            seq_length,
+            seed,
+            skip_warmup,
+            tokenizer,
+            retrieval_prefix,
+            knn_map_path[i],
+        )
+        if train_ds:
+            train_datasets.append(train_ds)
+        if valid_ds:
+            valid_datasets.append(valid_ds)
+        if test_ds:
+            test_datasets.append(test_ds)
+
+    # Blend.
+    blending_train_dataset = None
+    if train_datasets:
+        blending_train_dataset = BlendableDataset(train_datasets, weights)
+    blending_valid_dataset = None
+    if valid_datasets:
+        blending_valid_dataset = BlendableDataset(valid_datasets, weights)
+    blending_test_dataset = None
+    if test_datasets:
+        blending_test_dataset = BlendableDataset(test_datasets, weights)
+
+    return (blending_train_dataset, blending_valid_dataset, blending_test_dataset)
+
+
+def _build_train_valid_test_datasets(
+    cfg,
+    trainer,
+    data_prefix: str,
+    data_impl: str,
+    splits_string: str,
+    train_valid_test_num_samples,
+    seq_length: int,
+    seed: int,
+    skip_warmup: bool,
+    tokenizer,
+    retrieval_prefix: str,
+    knn_map_path: str,
+):
+    """Build train, valid, and test datasets."""
+
+    # Indexed dataset.
+    indexed_dataset: MMapRetrievalIndexedDataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
+    knn_index: KNNIndex = KNNIndex(knn_map_path, skip_warmup)
+    retrieval_index: MMapRetrievalIndexedDataset = get_indexed_dataset_(retrieval_prefix, data_impl, skip_warmup)
+
+    total_num_of_documents = indexed_dataset.sizes.shape[0]
+    splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
+
+    # Print stats about the splits.
+    logging.info(' > dataset split:')
+
+    def print_split_stats(name, index):
+        logging.info('    {}:'.format(name))
+        logging.info(
+            '     document indices in [{}, {}) total of {} '
+            'documents'.format(splits[index], splits[index + 1], splits[index + 1] - splits[index])
+        )
+
+    print_split_stats('train', 0)
+    print_split_stats('validation', 1)
+    print_split_stats('test', 2)
+
+    def build_dataset(index, name):
+        dataset = None
+        if splits[index + 1] > splits[index]:
+            documents = np.arange(start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32)
+            dataset = RETRODataset(
+                cfg,
+                trainer,
+                tokenizer,
+                name,
+                data_prefix,
+                documents,
+                indexed_dataset,
+                train_valid_test_num_samples[index],
+                seq_length,
+                seed,
+                knn_index,
+                retrieval_index
+            )
+        return dataset
+
+    train_dataset = build_dataset(0, 'train')
+    valid_dataset = build_dataset(1, 'valid')
+    test_dataset = build_dataset(2, 'test')
+
+    return (train_dataset, valid_dataset, test_dataset)
 
 
 class MockRETRODataset(torch.utils.data.Dataset):
