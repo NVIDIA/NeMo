@@ -182,7 +182,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
             batch = self.process_global_batch_for_tarred_datasets(batch)
-        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap'] and self._cfg.train_ds.sampler == 'distributed':
+        elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap'] and self._cfg.train_ds.get("sampler", "distributed") == 'distributed':
             batch = self._process_global_batch_without_megatron_batch_sampler(batch, tokenizer=self.encoder_tokenizer)
         if self._cfg.train_ds.dataset_type in ['tarred', 'text']:
             app_state = AppState()
@@ -450,7 +450,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         else:
             collate_fn = dataset.collate_fn
 
-        if cfg.sampler == 'distributed':
+        if cfg.get("sampler", "distributed") == 'distributed':
             sampler = torch.utils.data.distributed.DistributedSampler(
                 dataset, num_replicas=world_size, rank=rank, shuffle=True
             )
@@ -463,7 +463,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 pin_memory=cfg.pin_memory,
                 drop_last=cfg.drop_last,
             )
-        elif cfg.sampler == 'megatron':
+        elif cfg.get("sampler", "distributed") == 'megatron':
             batch_sampler = MegatronPretrainingBatchSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
@@ -509,6 +509,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         elif self._cfg.train_ds.dataset_type in ['bin_memmap', 'text_memmap']:
             self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
+        if self._cfg.validation_ds.get("dataset_type", "text") != "text":
+            raise ValueError(f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}")
+
         self._validation_ds = MTEncDecModel._setup_eval_dataset_from_config(
             cfg=self._cfg.validation_ds,
             multilingual=self.multilingual,
@@ -518,6 +521,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         )
         # Test data config is optional.
         if hasattr(self._cfg, 'test_ds'):
+            if self._cfg.validation_ds.get("dataset_type", "text") != "text":
+                raise ValueError(f"Test dataset type must be 'text', found {self._cfg.test_ds.dataset_type}")
             self._test_ds = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=self._cfg.validation_ds,
                 multilingual=self.multilingual,
@@ -766,7 +771,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_train_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
-        if self._cfg.train_ds.sampler == 'distributed':
+        if self._cfg.train_ds.get("sampler", "distributed") == 'distributed':
             self.trainer.fit_loop._data_fetcher = GlobalBatchDataFetcher()
 
     def on_validation_start(self) -> None:
