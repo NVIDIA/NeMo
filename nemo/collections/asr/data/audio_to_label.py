@@ -59,8 +59,8 @@ def repeat_signal(signal, sig_len, required_length):
 
 def get_scale_mapping_list(uniq_timestamps):
     """
-    Call get_argmin_mat function to find the closest segments in two different scale.
-    For each scale and each segment, a base-scale segment is assigned.
+    Call get_argmin_mat function to find the index of the non-base-scale segment that is closest to the 
+    given base-scale segment. For each scale and each segment, a base-scale segment is assigned.
 
     Args:
         uniq_timestamps: (Dict)
@@ -69,11 +69,18 @@ def get_scale_mapping_list(uniq_timestamps):
 
     Returns:
         scale_mapping_argmat (torch.tensor):
-            At m-th row and n-th column of this matrix, it contains n-th scale segment index that has the
-            closest segment with n-th segment in base scale. Thus, the longer segments bound to have
-            more repeating numbers since multiple base scale segments fall into the range of longer segments.
-            At the same time, each row contains N numbers of indices where N is number of segments in
-            base-scale (the finest scale).
+
+            The element at the m-th row and the n-th column of the scale mapping matrix indicates the (m+1)-th scale
+            segment index which has the closest center distance with (n+1)-th segment in the base scale.
+
+            Example:
+                The value of scale_mapping_argmat[2][101] is 85.
+
+            In the above example, it means that 86-th segment in the 3rd scale (python index is 2) is mapped with
+            102-th segment in the base scale. Thus, the longer segments bound to have more repeating numbers since
+            multiple base scale segments (since the base scale has the shortest length) fall into the range of the
+            longer segments. At the same time, each row contains N numbers of indices where N is number of
+            segments in the base-scale (i.e., the finest scale).
     """
     uniq_scale_dict = uniq_timestamps['scale_dict']
     scale_mapping_argmat = [[] for _ in range(len(uniq_scale_dict.keys()))]
@@ -1704,7 +1711,7 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     Args:
         manifest_filepath (str):
-             Path to input manifest json files.
+            Path to input manifest json files.
         emb_dict (Dict):
             Dictionary containing cluster-average embeddings and speaker mapping information.
         emb_seq (Dict):
