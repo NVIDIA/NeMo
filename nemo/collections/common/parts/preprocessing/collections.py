@@ -523,7 +523,7 @@ class DiarizationLabel(_Collection):
         for audio_file, duration, rttm_file, offset, tup_spks in zip(
             audio_files, durations, rttm_files, offsets, tuple_2ch
         ):
-            if duration == None:
+            if duration is None:
                 duration = 0
 
             data.append(output_type(audio_file, duration, rttm_file, offset, tup_spks))
@@ -623,8 +623,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
                     durations.append(item['duration'])
                     rttm_files.append(item['rttm_file'])
                     offsets.append(item['offset'])
-                    sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
-                    rttm_speaker_digits = [int(v.split('_')[1]) for k, v in sess_spk_dict.items()]
                     tuple_2ch.append((tup_spks, sess_spk_dict, clus_spk_digits, rttm_speaker_digits))
         else:
             for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
@@ -647,7 +645,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
             rttm_path (str): Path of the groundtruth diarization annotation (RTTM format) file.
         """
         rttm_lines = open(rttm_path).readlines()
-        uniq_id = rttm_path.split('/')[-1].split('.rttm')[0]
         speaker_list = set()
         for line in rttm_lines:
             rttm = line.strip().split()

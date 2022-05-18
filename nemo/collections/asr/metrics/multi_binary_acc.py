@@ -76,7 +76,6 @@ class MultiBinaryAccuracy(Metric):
 
     def update(self, preds: torch.Tensor, targets: torch.Tensor, signal_lengths: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            preds_list, targets_list = [], []
             preds_list = [preds[k, : signal_lengths[k], :] for k in range(preds.shape[0])]
             targets_list = [targets[k, : signal_lengths[k], :] for k in range(targets.shape[0])]
             self.preds = torch.cat(preds_list, dim=0)

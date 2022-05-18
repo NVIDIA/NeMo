@@ -66,7 +66,6 @@ class BCELoss(Loss, Typing):
             loss (NeuralType)
                 Binary cross entropy loss value.
         """
-        probs_list, targets_list = [], []
         probs_list = [probs[k, : signal_lengths[k], :] for k in range(probs.shape[0])]
         targets_list = [labels[k, : signal_lengths[k], :] for k in range(labels.shape[0])]
         probs = torch.cat(probs_list, dim=0)

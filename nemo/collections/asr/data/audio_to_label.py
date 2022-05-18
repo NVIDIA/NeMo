@@ -13,9 +13,9 @@
 # limitations under the License.
 import io
 import os
+from typing import Dict, List, Optional, Union
 from collections import Counter, OrderedDict
 from statistics import mode
-from typing import Dict, List, Optional, Union
 
 import braceexpand
 import torch
@@ -24,7 +24,7 @@ import webdataset as wd
 from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
-from nemo.collections.common.parts.preprocessing import collections, manifest, parsers
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import (
@@ -57,7 +57,6 @@ def repeat_signal(signal, sig_len, required_length):
     signal = torch.cat((rep_sig, sub))
     return signal
 
-
 def get_scale_mapping_list(uniq_timestamps):
     """
     Call get_argmin_mat function to find the closest segments in two different scale.
@@ -84,7 +83,6 @@ def get_scale_mapping_list(uniq_timestamps):
         scale_mapping_argmat[scale_idx] = torch.tensor(session_scale_mapping_dict[scale_idx])
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
-
 
 def normalize(signal):
     """normalize signal
@@ -240,7 +238,6 @@ def _vad_frame_seq_collate_fn(self, batch):
     tokens_lengths = torch.tensor(num_slices)
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
-
 def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
     """
     Get RTTM lines containing speaker labels, start time and end time. tup_spks contains two targeted
@@ -263,7 +260,6 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
         label_scale_idx = max(self.emb_dict.keys())
         mapping_dict = self.emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
-        speaker_check_list = [f'speaker_{x}' in inv_map for x in tup_spks]
         bi_ch_infer_spks = []
 
         for spk_idx in tup_spks[0]:
@@ -330,7 +326,7 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks, min
             stt, end = round(stt, self.round_digits), round(end, self.round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
             stt_fr, end_fr = int(round(stt, 2) * self.fr_per_sec), int(round(end, self.round_digits) * self.fr_per_sec)
-            if tup_spks == None:
+            if tup_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
                 if spk in tup_spks[0]:
@@ -374,7 +370,6 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
-
 
 class _AudioLabelDataset(Dataset):
     """
@@ -1117,9 +1112,8 @@ class _AudioDiarTrainDataset(Dataset):
         """
         per_scale_clus_label = []
         self.scale_n = len(self.ms_ts_dict[uniq_id]['scale_dict'])
-        uniq_scale_mapping = get_scale_mapping_list(self.ms_ts_dict[uniq_id])
         label_scale_idx = max(self.ms_ts_dict[uniq_id]["scale_dict"].keys())
-        max_seg_count = len(self.ms_ts_dict[uniq_id]["scale_dict"][label_scale_idx]["time_stamps"])
+        uniq_scale_mapping = get_scale_mapping_list(self.ms_ts_dict[uniq_id])
         for scale_index in range(self.scale_n):
             new_clus_label = []
             max_index = max(uniq_scale_mapping[scale_index])
@@ -1285,14 +1279,12 @@ class _AudioDiarTrainDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        offset = sample.offset
         if sample.offset is None:
             sample.offset = 0
         clus_label_index, targets, scale_mapping = self.parse_rttm_for_ms_targets(sample)
         features = self.featurizer.process(sample.audio_file, offset=sample.offset, duration=sample.duration)
         feature_length = torch.tensor(features.shape[0]).long()
         ms_seg_timestamps, ms_seg_counts = self.get_ms_seg_timestamps(sample)
-        uniq_id = self.get_uniq_id_with_range(sample)
         if self.random_flip:
             torch.manual_seed(index)
             flip = torch.randperm(self.max_spks)
@@ -1476,8 +1468,6 @@ class _AudioMSDDDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        offset = sample.offset
-
         if sample.offset is None:
             sample.offset = 0
 
@@ -1769,3 +1759,4 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks)
+
