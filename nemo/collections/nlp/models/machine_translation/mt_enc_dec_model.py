@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+from requests import post
 import torch
 import torch.distributed as dist
 import torch.utils.data as pt_data
@@ -1063,16 +1064,18 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         return inputs, best_translations
 
-    def prepare_inference_batch(self, text, prepend_ids=[], target=False):
+    def prepare_inference_batch(self, text, prepend_ids=[], postpend_ids = None, target=False):
         inputs = []
         processor = self.source_processor if not target else self.target_processor
         tokenizer = self.encoder_tokenizer if not target else self.decoder_tokenizer
-        for txt in text:
+        for i, txt in enumerate(text):
             if processor is not None:
                 txt = processor.normalize(txt)
                 txt = processor.tokenize(txt)
             ids = tokenizer.text_to_ids(txt)
             ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
+            if postpend_ids:
+                ids += postpend_ids[i]
             inputs.append(ids)
         max_len = max(len(txt) for txt in inputs)
         src_ids_ = np.ones((len(inputs), max_len)) * tokenizer.pad_id
@@ -1092,6 +1095,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         target_lang: str = None,
         return_beam_scores: bool = False,
         log_timing: bool = False,
+        retrieval_context_ids: List[List[str]] = None,
     ) -> List[str]:
         """
         Translates list of sentences from source language to target language.
@@ -1102,6 +1106,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             target_lang: if not "ignore", corresponding MosesDecokenizer will be run
             return_beam_scores: if True, returns a list of translations and their corresponding beam scores.
             log_timing: if True, prints timing information.
+            retrieval_context_ids: if not None, this is the context (post append ids) added to the source
         Returns:
             list of translated strings
         """
@@ -1134,7 +1139,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         try:
             self.eval()
-            src, src_mask = self.prepare_inference_batch(text, prepend_ids)
+            src, src_mask = self.prepare_inference_batch(text, prepend_ids, postpend_ids=retrieval_context_ids)
             if return_beam_scores:
                 _, all_translations, scores, best_translations = self.batch_translate(
                     src, src_mask, return_beam_scores=True, cache=cache,
@@ -1203,71 +1208,71 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         )
         return encoder_exp + decoder_exp, encoder_descr + decoder_descr
 
-    # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
-    @torch.no_grad()
-    def translate_retrieval(
-        self, ret_src, ret_tgt, text: List[str], source_lang: str = None, target_lang: str = None, nn_list=None
-    ) -> List[str]:
-        """
-        Translates list of sentences from source language to target language.
-        Should be regular text, this method performs its own tokenization/de-tokenization
-        Args:
-            ret_src: list of source strings from the retrieval index
-            ret_tgt: list of target strings from the retrieval index
-            text: list of strings to translate
-            source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
-            target_lang: if not None, corresponding MosesDecokenizer will be run
-            nn_list: list of nearest neighbors to be used for retrieval
-        Returns:
-            list of translated strings
-        """
-        # __TODO__: This will reset both source and target processors even if you want to reset just one.
-        if source_lang is not None or target_lang is not None:
-            self.setup_pre_and_post_processing_utils(source_lang, target_lang)
+    # # TODO: We should drop source/target_lang arguments in favor of using self.src/tgt_language
+    # @torch.no_grad()
+    # def translate_retrieval(
+    #     self, ret_src, ret_tgt, text: List[str], source_lang: str = None, target_lang: str = None, nn_list=None
+    # ) -> List[str]:
+    #     """
+    #     Translates list of sentences from source language to target language.
+    #     Should be regular text, this method performs its own tokenization/de-tokenization
+    #     Args:
+    #         ret_src: list of source strings from the retrieval index
+    #         ret_tgt: list of target strings from the retrieval index
+    #         text: list of strings to translate
+    #         source_lang: if not None, corresponding MosesTokenizer and MosesPunctNormalizer will be run
+    #         target_lang: if not None, corresponding MosesDecokenizer will be run
+    #         nn_list: list of nearest neighbors to be used for retrieval
+    #     Returns:
+    #         list of translated strings
+    #     """
+    #     # __TODO__: This will reset both source and target processors even if you want to reset just one.
+    #     if source_lang is not None or target_lang is not None:
+    #         self.setup_pre_and_post_processing_utils(source_lang, target_lang)
 
-        mode = self.training
-        prepend_ids = []
-        if self.multilingual:
-            if source_lang is None or target_lang is None:
-                raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
-            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
-            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
-            prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
-        try:
-            self.eval()
-            inputs = []
-            for i, txt in enumerate(text):
-                if self.source_processor is not None:
-                    txt = self.source_processor.normalize(txt)
-                    txt = self.source_processor.tokenize(txt)
-                ids = self.encoder_tokenizer.text_to_ids(txt)
-                ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
-                for nn in nn_list[i]:
-                    if self.source_processor is not None:
-                        txt_src = self.source_processor.normalize(ret_src[nn].strip())
-                        txt_src = self.source_processor.tokenize(txt_src)
-                        txt_tgt = self.source_processor.normalize(ret_tgt[nn].strip())
-                        txt_tgt = self.source_processor.tokenize(txt_tgt)
-                    src_ids = self.encoder_tokenizer.text_to_ids(txt_src)
-                    tgt_ids = self.decoder_tokenizer.text_to_ids(txt_tgt)
-                    ids += [self.encoder_tokenizer.bos_id] + src_ids + [self.encoder_tokenizer.eos_id]
-                    ids += [self.encoder_tokenizer.bos_id] + tgt_ids + [self.encoder_tokenizer.eos_id]
-                max_seq_length = self.cfg.get("max_seq_length", 512)
-                if len(ids) > max_seq_length:
-                    print('length exceeded. truncating')
-                    ids = ids[:max_seq_length]
-                inputs.append(ids)
-            max_len = max(len(txt) for txt in inputs)
-            src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
-            for i, txt in enumerate(inputs):
-                src_ids_[i][: len(txt)] = txt
+    #     mode = self.training
+    #     prepend_ids = []
+    #     if self.multilingual:
+    #         if source_lang is None or target_lang is None:
+    #             raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
+    #         src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
+    #         tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+    #         prepend_ids = [src_symbol if src_symbol in self.multilingual_ids else tgt_symbol]
+    #     try:
+    #         self.eval()
+    #         inputs = []
+    #         for i, txt in enumerate(text):
+    #             if self.source_processor is not None:
+    #                 txt = self.source_processor.normalize(txt)
+    #                 txt = self.source_processor.tokenize(txt)
+    #             ids = self.encoder_tokenizer.text_to_ids(txt)
+    #             ids = prepend_ids + [self.encoder_tokenizer.bos_id] + ids + [self.encoder_tokenizer.eos_id]
+    #             for nn in nn_list[i]:
+    #                 if self.source_processor is not None:
+    #                     txt_src = self.source_processor.normalize(ret_src[nn].strip())
+    #                     txt_src = self.source_processor.tokenize(txt_src)
+    #                     txt_tgt = self.source_processor.normalize(ret_tgt[nn].strip())
+    #                     txt_tgt = self.source_processor.tokenize(txt_tgt)
+    #                 src_ids = self.encoder_tokenizer.text_to_ids(txt_src)
+    #                 tgt_ids = self.decoder_tokenizer.text_to_ids(txt_tgt)
+    #                 ids += [self.encoder_tokenizer.bos_id] + src_ids + [self.encoder_tokenizer.eos_id]
+    #                 ids += [self.encoder_tokenizer.bos_id] + tgt_ids + [self.encoder_tokenizer.eos_id]
+    #             max_seq_length = self.cfg.get("max_seq_length", 512)
+    #             if len(ids) > max_seq_length:
+    #                 print('length exceeded. truncating')
+    #                 ids = ids[:max_seq_length]
+    #             inputs.append(ids)
+    #         max_len = max(len(txt) for txt in inputs)
+    #         src_ids_ = np.ones((len(inputs), max_len)) * self.encoder_tokenizer.pad_id
+    #         for i, txt in enumerate(inputs):
+    #             src_ids_[i][: len(txt)] = txt
 
-            src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
-            src = torch.LongTensor(src_ids_).to(self.device)
-            _, translations = self.batch_translate(src, src_mask)
-        finally:
-            self.train(mode=mode)
-        return translations
+    #         src_mask = torch.FloatTensor((src_ids_ != self.encoder_tokenizer.pad_id)).to(self.device)
+    #         src = torch.LongTensor(src_ids_).to(self.device)
+    #         _, translations = self.batch_translate(src, src_mask)
+    #     finally:
+    #         self.train(mode=mode)
+    #     return translations
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

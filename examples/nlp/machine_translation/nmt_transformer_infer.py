@@ -24,8 +24,10 @@ USAGE Example:
 
 import json
 from argparse import ArgumentParser
+import os
 
 import torch
+import numpy as np
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
@@ -37,10 +39,10 @@ from nemo.utils import logging
 
 
 def translate_text(
-    models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, all_timing, ensemble_generator
+    models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, all_timing, ensemble_generator, retrieval_context_ids=None
 ):
     if len(models) > 1:
-        src_ids, src_mask = models[0].prepare_inference_batch(src_text)
+        src_ids, src_mask = models[0].prepare_inference_batch(src_text, postpend_ids=retrieval_context_ids)
         best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
         if args.write_scores:
             all_results, scores, best_translations = (
@@ -67,6 +69,7 @@ def translate_text(
             target_lang=args.target_lang,
             return_beam_scores=args.write_scores,
             log_timing=args.write_timing,
+            retrieval_context_ids=retrieval_context_ids
         )
 
         if args.write_timing:
@@ -157,6 +160,21 @@ def main():
     parser.add_argument(
         "--fusion_coef", type=float, default=0.07, help="Weight assigned to LM scores during shallow fusion."
     )
+    # Retrieval specific parameters
+    parser.add_argument(
+        "--use_retrieval",
+        action="store_true",
+        help="Whether to use retrievals",
+    )
+    parser.add_argument("--retrieval_db_src", type=str, help="Source sentences of the retrieval index.")
+    parser.add_argument("--retrieval_db_tgt", type=str, help="Target sentences of the retrieval index. ")
+    parser.add_argument(
+        "--retrieval_indices", type=str,  help="Index file containing indices of the nearest neighbors"
+    )
+    parser.add_argument("--retrieval_nns", type=int, default=1, help="Number of nearest neighbors to use.")
+    # parser.add_argument('--use_add_index', default=False, action='store_true', help='Use additional index.')
+    # parser.add_argument("--ret_src_add", type=str, help="Source sentences for additional index.")
+    # parser.add_argument("--ret_tgt_add", type=str, help="Target sentences for additional index.")
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
@@ -177,6 +195,8 @@ def main():
     src_texts = []
     all_scores = []
     all_timing = []
+    # list of retrieval context token ids (nn_src_1, nn_tgt_1 ..)
+    retrieval_context_ids = []
 
     if torch.cuda.is_available():
         models = [model.cuda() for model in models]
@@ -236,9 +256,30 @@ def main():
 
     logging.info(f"Translating: {args.srctext}")
 
+    if args.use_retrieval:
+        if None in (args.retrieval_db_src, args.retrieval_db_tgt, args.retrieval_indices):
+            raise RuntimeError("Need retrieval database and indices file")
+        nn_list = np.load(args.retrieval_indices)[:, : args.retrieval_nns]
+        src_retrieval_ids = np.load(os.path.join(args.retrieval_db_src,'linearized.npy'), mmap_mode='r')
+        src_retrieval_ids_start = np.load(os.path.join(args.retrieval_db_src,'start_indices.npy'))
+        tgt_retrieval_ids = np.load(os.path.join(args.retrieval_db_tgt,'linearized.npy'), mmap_mode='r')
+        tgt_retrieval_ids_start = np.load(os.path.join(args.retrieval_db_tgt,'start_indices.npy'))
+        # ret_src = open(args.ret_src, 'r').readlines()
+        # ret_tgt = open(args.ret_tgt, 'r').readlines()
+        # if args.use_add_index:
+        #     ret_src += open(args.ret_src_add, 'r').readlines()
+        #     ret_tgt += open(args.ret_tgt_add, 'r').readlines()
+
     with open(args.srctext, 'r') as src_f:
-        for line in src_f:
+        for i, line in enumerate(src_f):
             src_text.append(line.strip())
+            if args.use_retrieval:
+                # add the retrieval context which is a list of tuples
+                to_add = []
+                for nn_id in nn_list[i].tolist():
+                    to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                    to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+                retrieval_context_ids.append(to_add)
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
                 if args.write_timing and (not all_timing):
@@ -253,6 +294,7 @@ def main():
                         all_scores=[],
                         all_timing=[],
                         ensemble_generator=ensemble_generator,
+                        retrieval_context_ids=retrieval_context_ids
                     )
                 translate_text(
                     models=models,
@@ -264,8 +306,10 @@ def main():
                     all_scores=all_scores,
                     all_timing=all_timing,
                     ensemble_generator=ensemble_generator,
+                    retrieval_context_ids=retrieval_context_ids
                 )
                 src_text = []
+                retrieval_context_ids = []
 
         if len(src_text) > 0:
             translate_text(
@@ -278,6 +322,7 @@ def main():
                 all_scores=all_scores,
                 all_timing=all_timing,
                 ensemble_generator=ensemble_generator,
+                retrieval_context_ids=retrieval_context_ids
             )
 
     with open(args.tgtout, 'w') as tgt_f:
