@@ -547,8 +547,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
-        return_transcribtion=True,
-        onnx_model=None,
+        return_transcribtion=True
     ):
         (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
             processed_signal=processed_signal,
@@ -556,8 +555,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
             valid_out_len=valid_out_len,
-            drop_extra_pre_encoded=drop_extra_pre_encoded,
-            onnx_model=onnx_model,
+            drop_extra_pre_encoded=drop_extra_pre_encoded
         )
 
         log_probs = self.decoder(encoder_output=encoded)

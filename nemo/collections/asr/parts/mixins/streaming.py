@@ -40,8 +40,7 @@ class StreamingEncoder(ABC):
         cache_last_channel=None,
         cache_last_time=None,
         valid_out_len=None,
-        drop_extra_pre_encoded=None,
-        onnx_model=None,
+        drop_extra_pre_encoded=None
     ):
         if self.streaming_cfg is None:
             self.setup_streaming_params()
@@ -54,23 +53,12 @@ class StreamingEncoder(ABC):
         if processed_signal_length is None:
             processed_signal_length = processed_signal.new_full(processed_signal.size(0), processed_signal.size(-1))
 
-        if onnx_model is None:
-            encoder_output = self(
-                audio_signal=processed_signal,
-                length=processed_signal_length,
-                cache_last_channel=cache_last_channel,
-                cache_last_time=cache_last_time,
-            )
-        else:
-            ort_inputs = {
-                onnx_model.get_inputs()[0].name: self.to_numpy(processed_signal),
-                onnx_model.get_inputs()[1].name: self.to_numpy(processed_signal_length),
-                onnx_model.get_inputs()[2].name: self.to_numpy(cache_last_channel),
-                onnx_model.get_inputs()[3].name: self.to_numpy(cache_last_time),
-            }
-            encoder_output = onnx_model.run(None, ort_inputs)
-            for idx, t in enumerate(encoder_output):
-                encoder_output[idx] = torch.tensor(t).to(processed_signal.device)
+        encoder_output = self(
+            audio_signal=processed_signal,
+            length=processed_signal_length,
+            cache_last_channel=cache_last_channel,
+            cache_last_time=cache_last_time,
+        )
 
         if len(encoder_output) == 2:
             encoded, encoded_len = encoder_output

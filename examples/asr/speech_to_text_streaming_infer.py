@@ -80,7 +80,7 @@ def calc_drop_extra_pre_encoded(asr_model, step_num):
         return asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
 
-def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, onnx_model=None):
+def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
         with autocast():
@@ -96,7 +96,6 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     processed_signal=processed_signal,
                     processed_signal_length=processed_signal_length,
                     return_transcribtion=True,
-                    onnx_model=None,
                 )
         final_offline_tran = extract_transcribtions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
@@ -128,7 +127,6 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     previous_pred_out=pred_out_stream,
                     drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
                     return_transcribtion=True,
-                    onnx_model=onnx_model,
                 )
 
         if debug_mode:
@@ -158,7 +156,6 @@ def main():
     parser.add_argument(
         "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file",
     )
-    parser.add_argument("--onnx_model", type=str, help="Path to the ONNX file of an asr model", default=None)
     parser.add_argument(
         "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
     )
@@ -214,11 +211,6 @@ def main():
         @contextlib.contextmanager
         def autocast():
             yield
-
-    if args.onnx_model is not None:
-        onnx_model = onnxruntime.InferenceSession(args.onnx_model, providers=['CUDAExecutionProvider'])
-    else:
-        onnx_model = None
 
     if hasattr(asr_model, "decoding"):
         decoding_cfg = asr_model.cfg.decoding
@@ -276,8 +268,7 @@ def main():
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
                     compare_vs_offline=args.compare_vs_offline,
-                    debug_mode=args.debug_mode,
-                    onnx_model=onnx_model,
+                    debug_mode=args.debug_mode
                 )
                 all_streaming_tran.extend(streaming_tran)
                 if args.compare_vs_offline:
