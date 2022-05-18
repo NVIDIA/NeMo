@@ -1166,12 +1166,15 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
 
 class FramewiseStreamingAudioBuffer:
     """
+    A buffer to be used for frame-wise streaming. It can load a single or multiple audio files/processed signals, split them in chunks and return one on one.
+    It can be used to simulate streaming audio or audios.
     """
 
     def __init__(self, model, online_normalization=None):
         '''
         Args:
-            asr_model: An ASR model.
+            model: An ASR model.
+            online_normalization (bool): whether to perform online normalization per chunk or normalize the whole audio before chunking
         '''
         self.model = model
         self.buffer = None
@@ -1194,7 +1197,6 @@ class FramewiseStreamingAudioBuffer:
 
     def __iter__(self):
         while True:
-            added_len = 0
             if self.buffer_idx >= self.buffer.size(-1):
                 return
                 # raise StopIteration
