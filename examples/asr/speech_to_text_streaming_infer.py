@@ -175,7 +175,10 @@ def main():
     )
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument(
-        "--online_normalization", default=False, action='store_true', help="Perform normalization on the run per chunk."
+        "--online_normalization",
+        default=False,
+        action='store_true',
+        help="Perform normalization on the run per chunk.",
     )
 
     args = parser.parse_args()
@@ -260,8 +263,10 @@ def main():
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
                 sample['audio_filepath'], stream_id=-1
             )
-            all_refs_text.append(sample["text"])
-            print(sample["audio_filepath"])
+            if "text" in sample:
+                all_refs_text.append(sample["text"])
+            print(f'Added sample to the buffer: {sample["audio_filepath"]}')
+
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 streaming_tran, offline_tran = perform_streaming(
@@ -275,11 +280,12 @@ def main():
                     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
 
-        if args.compare_vs_offline:
+        if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
             logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
-        streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
-        logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
+        if len(all_refs_text) == len(all_streaming_tran):
+            streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
+            logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
         end_time = time.time()
         logging.info(f"The whole process took: {round(end_time - start_time, 2)}s")
 
