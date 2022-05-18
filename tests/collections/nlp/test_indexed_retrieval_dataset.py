@@ -16,6 +16,7 @@
 import os
 
 import numpy as np
+from omegaconf import OmegaConf
 import pytest
 import torch
 
@@ -24,7 +25,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
-
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
+from apex.transformer import parallel_state
 
 class TestRetrievalIndexFiles:
     @pytest.mark.unit
@@ -168,6 +170,13 @@ class TestRetrievalIndexFiles:
 
     @pytest.mark.unit
     def test_retro_dataset(self):
+
+        init_method = 'tcp://'
+        master_ip = 'localhost'
+        master_port = '6000'
+        init_method += master_ip + ':' + master_port
+        torch.distributed.init_process_group(backend='gloo', world_size=1, rank=0, init_method=init_method)
+        parallel_state.initialize_model_parallel(1, 1)
         chunk_size = 64
         pad_id = 0
         sentence1 = torch.arange(0, 200, 2, dtype=torch.int64)
@@ -194,14 +203,38 @@ class TestRetrievalIndexFiles:
         db_bin_file = db_file + '.bin'
         K = 8
         map_index_file = '/tmp/test_map.idx'
- 
+        index_path = '/tmp'
+
+        cfg = OmegaConf.create({'data': {"index_mapping_dir": index_path}})
+
+        # dummy tokenizer
+        class Tokenizer:
+            eos_id = 1
+            pad_id = 0
+
+        tokenizer = Tokenizer()
+        
+        num_samples = 100
+        seq_len = 192
+        name = 'test'
+        data_prefix = 'pref'
+        seed = 1
+        _filename = index_path+'/'+data_prefix
+        _filename += '_{}_indexmap'.format(name)
+        _filename += '_{}ns'.format(num_samples)
+        _filename += '_{}sl'.format(seq_len)
+        _filename += '_{}s'.format(seed)
+        doc_idx_filename = _filename + '_doc_idx.npy'
+        sample_idx_filename = _filename + '_sample_idx.npy'
+        shuffle_idx_filename = _filename + '_shuffle_idx.npy'
+
         try:
             builder = MMapRetrievalIndexedDatasetBuilder(data_bin_file, chunk_size, pad_id, False)
             builder.add_item(sentence1)
             builder.add_item(sentence2)
             builder.finalize(data_index_file)
 
-            builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, False)
+            builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, True)
             builder.add_item(sentence3)
             builder.add_item(sentence4)
             builder.finalize(db_index_file)
@@ -215,9 +248,19 @@ class TestRetrievalIndexFiles:
                 w.write(map_np)
             map_index = KNNIndex(map_index_file)
 
+            documents = np.arange(0, data_index.sizes.shape[0])
+            d = RETRODataset(cfg, None, tokenizer, name, data_prefix, documents, data_index, num_samples, seq_len,
+            seed, map_index, db_index)
+            print(d[0])
+            print(d[1])
+
         finally:
             os.remove(data_bin_file)
             os.remove(data_index_file)
             os.remove(db_bin_file)
             os.remove(db_index_file)
             os.remove(map_index_file)
+            os.remove(doc_idx_filename)
+            os.remove(sample_idx_filename)
+            os.remove(shuffle_idx_filename)
+

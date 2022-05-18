@@ -22,6 +22,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils imp
 from nemo.utils import logging
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import KNNIndex, MMapRetrievalIndexedDataset
+import os
 import numpy as np
 
 try:
@@ -122,10 +123,10 @@ class RETRODataset(Dataset):
                 self.doc_idx[doc_index_f], offset=offset_f, length=offset_l - offset_f + 1
             )
             chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[doc_index_f], offset_f)
-            num_chunks = (offset_l - offset_f + 1) // self.chunk_size
+            num_chunks = (offset_l - offset_f) // self.chunk_size
             chunks = []
             self._get_chunks(chunk_id, num_chunks, chunks)
-            chunks = np.concatenate(chunks, axis=0).reshape(num_chunks, self.knn_index.K, -1).astype(np.int64)
+            chunks = np.stack(chunks, axis=0).reshape(num_chunks, self.knn_index.K, -1).astype(np.int64)
         else:
             # Otherwise, get the rest of the initial document.
             sample_list = [self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)]
@@ -143,16 +144,18 @@ class RETRODataset(Dataset):
                 self._get_chunks(chunk_id, num_chunks, chunks)
                 # And finally add the relevant portion of last document.
             chunk_id = self.indexed_dataset.get_chunk_id(self.doc_idx[doc_index_l], 0)
-            num_chunks = (offset_l + 1) // self.chunk_size
+            num_chunks = (offset_l) // self.chunk_size
             total_chunks += num_chunks
             self._get_chunks(chunk_id, num_chunks, chunks)
             sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
             sample = np.concatenate(sample_list)
-            chunks = np.concatenate(chunks, axis=0).reshape(total_chunks, self.knn_index.K, -1).astype(np.int64)
+            chunks = np.stack(chunks, axis=0).reshape(total_chunks, self.knn_index.K, -1).astype(np.int64)
         return sample.astype(np.int64), chunks
 
     def __getitem__(self, idx):
-        text, retrieved = torch.from_numpy(self._get_text(idx))
+        text, retrieved = self._get_text(idx)
+        text = torch.from_numpy(text)
+        retrieved = torch.from_numpy(retrieved)
         tokens = text[:-1].contiguous()
         labels = text[1:].contiguous()
         hidden_mask = text != self.pad_id
