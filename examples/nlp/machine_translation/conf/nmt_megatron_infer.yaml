@@ -6,7 +6,7 @@ trainer:
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
-model_file: /raid/Data/NMT/Models/en_de_nmtset/megatron_de_en/megatron_nmt--val_sacreBLEU-39.439-step-89000-consumed_samples-182265856.0.nemo
+model_file: ???
 checkpoint_dir: null
 srctext: ???
 tgtout: ???

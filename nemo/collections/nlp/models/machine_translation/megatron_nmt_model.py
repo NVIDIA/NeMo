@@ -261,7 +261,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             item = tokenizer.ids_to_text(item)
             results.append(item)
 
-        results = [processor.detokenize(item.split(' ')) for item in results]
+        if processor is not None:
+            results = [processor.detokenize(item.split(' ')) for item in results]
 
         return results
 
