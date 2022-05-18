@@ -442,7 +442,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         tensorboard_logs = {'learning_rate': self._optimizer.param_groups[0]['lr']}
 
-        for loss_name, loss_val in loss_val_dict:
+        for loss_name, loss_val in loss_val_dict.items():
             tensorboard_logs['train_' + loss_name] = loss_val
 
         if self.feat_pen:
