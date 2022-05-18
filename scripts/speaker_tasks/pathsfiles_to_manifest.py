@@ -81,14 +81,7 @@ def get_path_dict(data_path, uniqids, len_wavs=None):
 
 
 def main(
-    wav_path,
-    text_path=None,
-    rttm_path=None,
-    uem_path=None,
-    ctm_path=None,
-    manifest_filepath=None,
-    add_duration=False,
-    sample_rate=None,
+    wav_path, text_path=None, rttm_path=None, uem_path=None, ctm_path=None, manifest_filepath=None, add_duration=False
 ):
     if os.path.exists(manifest_filepath):
         os.remove(manifest_filepath)
@@ -133,8 +126,8 @@ def main(
             ctm = ctm.strip()
 
         duration = None
-        if add_duration and sample_rate:
-            duration = librosa.get_duration(filename=audio_line, sr=sample_rate)
+        if add_duration:
+            duration = librosa.get_duration(filename=audio_line, sr=16000)
         meta = [
             {
                 "audio_filepath": audio_line,
@@ -164,10 +157,9 @@ if __name__ == "__main__":
     parser.add_argument("--paths2ctm_files", help="path to ctm files", type=str)
     parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
     parser.add_argument(
-        "--add_duration", help="add duration of audio files to output manifest files", action='store_true'
-    )
-    parser.add_argument(
-        "--sample_rate", help="sample rate of audio files", type=int, required='--add_duration' in sys.argv
+        "--add_duration",
+        help="add duration of audio files to output manifest files. Audio files need to be 16kHz.",
+        action='store_true',
     )
     args = parser.parse_args()
 
@@ -179,5 +171,4 @@ if __name__ == "__main__":
         args.paths2ctm_files,
         args.manifest_filepath,
         args.add_duration,
-        args.sample_rate,
     )
