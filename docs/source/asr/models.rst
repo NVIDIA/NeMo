@@ -127,6 +127,38 @@ You may find the example config files of Conformer-Transducer model with charact
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
 
+Streaming Conformer
+-------------------
+
+Streaming Conformer models are variants of Conformer which are trained with limited right context. It enables the model to be used very efficiently for frame-wise streaming.
+Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in downsampling layers.
+Streaming Conformer models use causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
+The model trained with such limitations can be used in streaming mode and give the exact same output and accuracy as when the whole audio is given to the model in offline mode.
+
+We support the following three right context modeling:
+1-fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention. It gives zero latency but with limited accuracy.
+2-regular look-ahead
+3-chunk-aware look-ahead:
+** Note: Latencies are based on the assumption that the forward time of the network is zero.
+
+
+Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gulati2020conformer` and uses RNNT/Transducer loss/decoder.
+It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
+
+Most of the config file for Conformer-Transducer models are similar to Conformer-CTC except the sections related to the decoder and loss: decoder, loss, joint, decoding.
+You may take a look at our `tutorials page <../starthere/tutorials.html>` on Transducer models to become familiar with their configs:
+`Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>` and `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`
+You can find more details on the config files for the Conformer-Transducer models at `Conformer-CTC <./configs.html#conformer-ctc>`.
+
+This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
+which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
+character-based variant is based on :class:`~nemo.collections.asr.models.EncDecRNNTModel`.
+
+You may find the example config files of Conformer-Transducer model with character-based encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
+with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
+
+
 LSTM-Transducer
 ---------------
 
@@ -139,7 +171,7 @@ This model supports both the sub-word level and character level encodings. You m
 You can find more details on the config files for the RNNT models at ``LSTM-Transducer <./configs.html#lstm-transducer>``.
 
 LSTM-CTC
--------
+--------
 
 LSTM-CTC model is a CTC-variant of the LSTM-Transducer model which uses CTC loss/decoding instead of Transducer.
 You may find the example config file of LSTM-CTC model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml``.
