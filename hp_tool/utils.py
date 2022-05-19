@@ -43,6 +43,9 @@ def _calculate_model_size(
                 + vocab_size
             )
         ) / 1e9
+    else:
+        raise NotImplementedError("Model name is not valid.")
+
     return model_size
 
 
@@ -224,13 +227,6 @@ def calculate_model_size_params(
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
     raise Exception("Number of layers not found, config is not possible.")
-
-
-def estimate_training_time(model_size=None, num_tokens=None, num_gpus=None, tflops_per_gpu=None):
-    training_time = (8 * num_tokens * 1e9 * model_size * 1e9) / (
-        num_gpus * tflops_per_gpu * 1e12 * 3600 * 24
-    )
-    return training_time
 
 
 def generic_base_config(cfg, model_name="gpt3"):
