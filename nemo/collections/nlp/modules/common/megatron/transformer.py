@@ -350,6 +350,18 @@ class CoreAttention(MegatronModule):
         # [b, np, sq, sk]
         output_size = (query_layer.size(1), query_layer.size(2), query_layer.size(0), key_layer.size(0))
 
+        # TODO: figure out how to do this
+        # apply relative positional encoding (rotary embedding)
+        if rotary_pos_emb is not None:
+            q_pos_emb, k_pos_emb = rotary_pos_emb
+
+            query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
+            key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
+            # TODO, can apply positional embedding to value_layer so it has
+            # absolute positional embedding.
+            # otherwise, only relative positional embedding takes effect
+            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+
         # [sq, b, np, hn] -> [sq, b * np, hn]
         query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
         # [sk, b, np, hn] -> [sk, b * np, hn]
@@ -382,6 +394,20 @@ class CoreAttention(MegatronModule):
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
+
+        # TODO: figure out how to do this
+        # ==================================================
+        # Update attention mask for inference. [b, np, sq, sk]
+        # ==================================================
+
+        if get_key_value:
+            with torch.no_grad():
+                if layer_past is not None:
+                    attention_mask = attention_mask[
+                        ..., attention_scores.size(3) - 1, : attention_scores.size(3)
+                    ].unsqueeze(2)
+                else:
+                    attention_mask = attention_mask[..., : attention_scores.size(3), : attention_scores.size(3)]
 
         # ===========================
         # Attention probs and dropout
@@ -420,6 +446,10 @@ class CoreAttention(MegatronModule):
 
         # change view [b, np, sq, hn]
         context_layer = context_layer.view(*output_size)
+
+        # TODO: figure out how to do this
+        if self.headscale:
+            context_layer = context_layer * self.head_scale_tensor
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -800,17 +830,17 @@ class ParallelAttention(MegatronModule):
         # # [b, np, sq, sk]
         # output_size = (query_layer.size(1), query_layer.size(2), query_layer.size(0), key_layer.size(0))
 
-        # TODO: figure out how to do this
-        # apply relative positional encoding (rotary embedding)
-        if rotary_pos_emb is not None:
-            q_pos_emb, k_pos_emb = rotary_pos_emb
+        # # TODO: figure out how to do this
+        # # apply relative positional encoding (rotary embedding)
+        # if rotary_pos_emb is not None:
+        #     q_pos_emb, k_pos_emb = rotary_pos_emb
 
-            query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
-            key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
-            # TODO, can apply positional embedding to value_layer so it has
-            # absolute positional embedding.
-            # otherwise, only relative positional embedding takes effect
-            # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
+        #     query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
+        #     key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
+        #     # TODO, can apply positional embedding to value_layer so it has
+        #     # absolute positional embedding.
+        #     # otherwise, only relative positional embedding takes effect
+        #     # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
 
         # # [sq, b, np, hn] -> [sq, b * np, hn]
         # query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
@@ -843,14 +873,14 @@ class ParallelAttention(MegatronModule):
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
 
-        if get_key_value:
-            with torch.no_grad():
-                if layer_past is not None:
-                    attention_mask = attention_mask[
-                        ..., attention_scores.size(3) - 1, : attention_scores.size(3)
-                    ].unsqueeze(2)
-                else:
-                    attention_mask = attention_mask[..., : attention_scores.size(3), : attention_scores.size(3)]
+        # if get_key_value:
+        #     with torch.no_grad():
+        #         if layer_past is not None:
+        #             attention_mask = attention_mask[
+        #                 ..., attention_scores.size(3) - 1, : attention_scores.size(3)
+        #             ].unsqueeze(2)
+        #         else:
+        #             attention_mask = attention_mask[..., : attention_scores.size(3), : attention_scores.size(3)]
 
         if position_bias is None:
             if self.position_embedding_type == 'relative':
@@ -914,9 +944,9 @@ class ParallelAttention(MegatronModule):
         # # change view [b, np, sq, hn]
         # context_layer = context_layer.view(*output_size)
 
-        # TODO: figure out how to do this
-        if self.headscale:
-            context_layer = context_layer * self.head_scale_tensor
+        # # TODO: figure out how to do this
+        # if self.headscale:
+        #     context_layer = context_layer * self.head_scale_tensor
 
         # # [b, np, sq, hn] --> [sq, b, np, hn]
         # context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
