@@ -27,7 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     build_position_ids,
 )
-from nemo.collections.nlp.modules.common.prompt_encoder import PromptEncoder
+from nemo.collections.nlp.modules.common.t5_prompt_encoder import PromptEncoder
 from nemo.utils import logging
 
 try:
@@ -49,6 +49,8 @@ class MegatronT5PTuneModel(MegatronBaseModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
 
+        raise Exception("Please use the NeMo r1.8.0 branch for T5 PTuning.")
+
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
@@ -61,6 +63,10 @@ class MegatronT5PTuneModel(MegatronBaseModel):
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
             t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            # TODO, need to fix this later
+            # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
+            t5_cfg.micro_batch_size = 4
+            t5_cfg.global_batch_size = 4
 
         self.model = MegatronT5Model.restore_from(
             self.register_artifact('language_model.nemo_file', cfg.language_model.get('nemo_file', None)),
@@ -190,7 +196,7 @@ class MegatronT5PTuneModel(MegatronBaseModel):
                 enc_attn_mask=enc_mask,
                 dec_input_ids=tokens_dec,
                 dec_attn_mask=dec_mask,
-                tokentype_ids=None,
+                token_type_ids=None,
                 labels=labels,
                 enc_hidden_states=None,
                 output_enc_hidden_only=False,
@@ -203,14 +209,14 @@ class MegatronT5PTuneModel(MegatronBaseModel):
                     enc_attn_mask=enc_mask,
                     dec_input_ids=tokens_dec,
                     dec_attn_mask=dec_mask,
-                    tokentype_ids=None,
+                    token_type_ids=None,
                     labels=labels,
                     enc_hidden_states=None,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
                 )
 
-        tokens_loss = output['tokens_loss']
+        tokens_loss = output
 
         loss = self.model.loss_func(loss_mask, tokens_loss)
         self.log('train_loss', loss)
@@ -243,7 +249,7 @@ class MegatronT5PTuneModel(MegatronBaseModel):
             tokens_enc=tokens_enc,
             enc_mask=enc_mask,
             num_tokens_to_generate=self.decoder_seq_length,
-            enc_input=encoder_input,
+            encoder_input=encoder_input,
         )
 
         return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}

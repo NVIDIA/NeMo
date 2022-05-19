@@ -19,11 +19,11 @@ import torch.nn.functional as F
 
 from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
 from nemo.utils import AppState
 
 try:
-    from apex.transformer import parallel_state
+    from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
@@ -34,7 +34,89 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ["get_computeprob_response", "generate"]
+__all__ = [
+    "get_default_sampling_params",
+    "get_default_length_params",
+    "megatron_gpt_generate",
+    "get_computeprob_response",
+    "generate",
+]
+
+
+def get_default_sampling_params():
+    # default do greedy sampling
+    sampling_params: SamplingParam = {
+        "use_greedy": True,
+        "temperature": 1.0,
+        "top_k": 0,
+        "top_p": 1.0,
+        "repetition_penalty": 1.0,
+        "add_BOS": True,
+        "all_probs": False,
+        "compute_logprob": False,
+    }
+
+    return sampling_params
+
+
+def get_default_length_params():
+    # default do greedy sampling
+    length_params: LengthParam = {"min_length": 0, "max_length": 30}
+
+    return length_params
+
+
+def megatron_gpt_generate(model, inputs, tokenizer, length_params, sampling_params, task_ids=None):
+    # reproduce the old compute_prob method
+    # a very special case
+    if sampling_params['compute_logprob']:
+        # need to overwrite some configuration, make it immutable
+        sampling_params = sampling_params.copy()
+        length_params = length_params.copy()
+        length_params['max_length'] = 1
+        sampling_params['all_probs'] = True
+        sampling_params["add_BOS"] = False
+        sampling_params['greedy'] = True
+        response = generate(
+            model,
+            inputs=inputs,
+            task_ids=task_ids,
+            tokens_to_generate=length_params['max_length'],
+            all_probs=sampling_params['all_probs'],
+            temperature=sampling_params['temperature'],
+            add_BOS=sampling_params['add_BOS'],
+            top_k=sampling_params['top_k'],
+            top_p=sampling_params['top_p'],
+            greedy=sampling_params['use_greedy'],
+            repetition_penalty=sampling_params['repetition_penalty'],
+            min_tokens_to_generate=length_params['min_length'],
+        )
+        compute_prob_response = get_computeprob_response(tokenizer, response, inputs)
+        return compute_prob_response
+
+    if isinstance(inputs, (list, tuple)):
+        if isinstance(inputs[0], (str, torch.Tensor)):
+            output = generate(
+                model,
+                inputs=inputs,
+                task_ids=task_ids,
+                tokens_to_generate=length_params['max_length'],
+                all_probs=sampling_params['all_probs'],
+                temperature=sampling_params['temperature'],
+                add_BOS=sampling_params['add_BOS'],
+                top_k=sampling_params['top_k'],
+                top_p=sampling_params['top_p'],
+                greedy=sampling_params['use_greedy'],
+                repetition_penalty=sampling_params['repetition_penalty'],
+                min_tokens_to_generate=length_params['min_length'],
+            )
+            return output
+        elif isinstance(inputs[0], dict):
+            raise NotImplementedError("json object not implemented")
+        else:
+            raise NotImplementedError("unknown type is not implemented")
+    else:
+        raise NotImplementedError("unknown type is not implemented")
 
 
 def get_computeprob_response(tokenizer, response, inputs):
@@ -58,8 +140,8 @@ def get_computeprob_response(tokenizer, response, inputs):
         new_token_ids.append(new_token_id)
         new_tokens.append(response['tokens'][batch_id][:token_len])
         new_texts.append(new_text)
-        log_probs.append(response['logprob'][batch_id][: (token_len - 1)])
-        full_logprobs.append(response['full_logprob'][batch_id][: (token_len - 1)])
+        log_probs.append(response['logprob'][batch_id][:token_len])
+        full_logprobs.append(response['full_logprob'][batch_id][:token_len])
         offsets.append(response['offsets'][batch_id][:-1])
     compute_prob_response['sentences'] = new_texts
     compute_prob_response['tokens'] = new_tokens
@@ -157,6 +239,7 @@ def tokenize_batch(tokenizer, sentences, max_len, add_BOS):
 def send_generate_info(
     context_tokens_tensor,
     context_length_tensor,
+    task_ids,
     tokens_to_generate,
     all_probs,
     temperature,
@@ -188,6 +271,7 @@ def send_generate_info(
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(task_ids, 0)
 
 
 def receive_generate_info():
@@ -209,14 +293,17 @@ def receive_generate_info():
 
     context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
     context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
+    task_ids = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
 
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, 0)
     torch.distributed.broadcast(context_tokens_tensor, 0)
+    torch.distributed.broadcast(task_ids, 0)
 
     return (
         context_length_tensor,
         context_tokens_tensor,
+        task_ids,
         tokens_to_generate,
         all_probs,
         temperature,
@@ -232,6 +319,7 @@ def synced_generate(
     model,
     context_tokens_tensor,
     context_length_tensor,
+    task_ids,
     tokens_to_generate,
     all_probs,
     temperature,
@@ -260,6 +348,7 @@ def synced_generate(
             model,
             context_tokens_tensor,
             context_length_tensor,
+            task_ids,
             attention_mask,
             position_ids,
             tokens_to_generate,
@@ -300,7 +389,7 @@ def synced_generate(
                 group = parallel_state.get_embedding_group()
                 full_logits = torch.empty(
                     tokens.size(0),
-                    context_length,
+                    context_length - 1,
                     model.padded_vocab_size,
                     dtype=torch.float32,
                     device=torch.device("cuda"),
@@ -313,6 +402,7 @@ def synced_generate(
 def generate(
     model,
     inputs=None,
+    task_ids=None,
     tokens_to_generate=0,
     all_probs=False,
     temperature=1.0,
@@ -327,6 +417,7 @@ def generate(
     Args:
         model (NLPModel): text generative model
         inputs (Union[tuple, List[str]]): if it is a tuple, it is assumed to be (context_tokens_tensor, context_length_tensor). Otherwise it it a list of prompt text strings
+        task_ids (Tensor): used to specify that task when generating with p-tuned/prompt-tuned models (optional, default=None)
         tokens_to_generate (int): The maximum length of the tokens to be generated.
         all_probs (bool): Return the log prob for all the tokens
         temperature (float): sampling temperature
@@ -354,9 +445,15 @@ def generate(
             context_tokens_tensor, context_length_tensor = tokenize_batch(
                 tokenizer, inputs, tokens_to_generate, add_BOS
             )
+        if task_ids is None:
+            # Make a dummy tensor of -1s that won't be used during generation
+            task_ids = torch.neg(torch.ones(context_tokens_tensor.size(0), dtype=torch.int64))
+            task_ids = task_ids.to(device=context_tokens_tensor.get_device())
+
         send_generate_info(
             context_tokens_tensor,
             context_length_tensor,
+            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -370,6 +467,7 @@ def generate(
         (
             context_length_tensor,
             context_tokens_tensor,
+            task_ids,
             tokens_to_generate,
             all_probs,
             temperature,
@@ -384,6 +482,7 @@ def generate(
         model,
         context_tokens_tensor,
         context_length_tensor,
+        task_ids,
         tokens_to_generate,
         all_probs,
         temperature,
@@ -405,6 +504,9 @@ def generate(
             if not isinstance(tokenizer, TabularTokenizer):
                 words = []
                 for token in decode_token:
+                    # Skip any soft prompt pseudo tokens
+                    if token not in tokenizer.tokenizer.decoder:
+                        continue
                     word = tokenizer.tokenizer.decoder[token]
                     word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
                         'utf-8', errors='replace'
@@ -414,10 +516,6 @@ def generate(
             else:
                 words = tokenizer.text_to_tokens(sentence)
                 resp_sentences_seg.append(words)
-        output_logits = output_logits.cpu().numpy().tolist()
-        if all_probs:
-            full_logits = full_logits.cpu().numpy().tolist()
-
         # offsets calculation
         all_offsets = []
         for item in resp_sentences_seg:
@@ -443,12 +541,22 @@ def switch(val1, val2, boolean):
 
 
 def forward_step(model, batch, tensor_shape):
+    # Importing here to avoid circular import errors
+    from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
+
+    # Should call MegatronGPTPPromptLearningModel's forward method
+    if isinstance(model, MegatronGPTPromptLearningModel):
+        forward_model = model
+
+    # Should call GPTModel's forward method
+    else:
+        forward_model = model.model
 
     if model.cfg.get('pipeline_model_parallel_size', 1) > 1:
         output_tensor = forward_backward_pipelining_without_interleaving(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model.model,
+            model=forward_model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -457,7 +565,7 @@ def forward_step(model, batch, tensor_shape):
         output_tensor = forward_backward_no_pipelining(
             forward_step_func=model.get_forward_output_only_func(),
             batch=batch,
-            model=model.model,
+            model=forward_model,
             forward_only=True,
             tensor_shape=tensor_shape,
             dtype=model.autocast_dtype,
@@ -469,6 +577,7 @@ def sample_sequence_batch(
     model,
     context_tokens,
     context_lengths,
+    task_ids,
     attention_mask,
     position_ids,
     tokens_to_generate,
@@ -477,6 +586,9 @@ def sample_sequence_batch(
     temperature=None,
     extra={},
 ):
+    # Importing here to avoid circular import errors
+    from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
+
     app_state = AppState()
     micro_batch_size = context_tokens.shape[0]
     _reconfigure_microbatch_calculator(
@@ -504,8 +616,8 @@ def sample_sequence_batch(
         # Generate enough tokens for the longest sequence
         maxlen = tokens_to_generate + context_lengths.max().item()
 
-        if maxlen > model.cfg.encoder_seq_length:
-            maxlen = model.cfg.encoder_seq_length
+        if maxlen > model.cfg.encoder_seq_length + 1:
+            maxlen = model.cfg.encoder_seq_length + 1
 
         lengths = torch.ones([batch_size]).long().cuda() * maxlen
 
@@ -533,13 +645,20 @@ def sample_sequence_batch(
                 [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
             )
             len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
-            batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
-            tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
+
+            # Only prompt learning models will have a prompt table, and require task ids
+            if isinstance(model, MegatronGPTPromptLearningModel):
+                batch = [tokens2use, attention_mask_repeat, positions2use, task_ids, setkey_value_array, len_array]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.model.cfg.hidden_size]
+            else:
+                batch = [tokens2use, attention_mask_repeat, positions2use, setkey_value_array, len_array]
+                tensor_shape = [tokens2use.shape[1], micro_batch_size, model.cfg.hidden_size]
 
             output = forward_step(model, batch, tensor_shape)
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
+                output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()
@@ -553,7 +672,7 @@ def sample_sequence_batch(
                 # make sure it won't sample outside the vocab_size range
                 logits[:, tokenizer.vocab_size :] = -float('Inf')
 
-                if extra.get('greedy', False):  # args.greedy:
+                if extra.get('greedy', False):
                     prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
@@ -565,29 +684,41 @@ def sample_sequence_batch(
                     prev = torch.multinomial(log_probs, num_samples=1).view(-1)
                 started = context_lengths <= context_length
 
-                # Clamp the out of vocabulary tokens.
+                # Clamp the predicted out of vocabulary tokens
                 prev = torch.clamp(prev, max=tokenizer.vocab_size - 1)
-
                 new_tokens = switch(tokens[:, context_length].view(-1), prev, started)
+
+                # Replace sampled tokens w/ done token if EOD has already been sampled
+                new_tokens = switch(new_tokens, eod_id, is_done)
+
+                # Replace special soft prompt token ids with unk token ids
+                if isinstance(model, MegatronGPTPromptLearningModel):
+                    pseudo_token_ids_start = model.pseudo_token_ids_start
+                    new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
+                    tokens[:, :context_length][
+                        (tokens[:, :context_length] >= pseudo_token_ids_start)
+                    ] = tokenizer.unk_id
+
+                # Insert either new predicted or next prompt token
                 tokens[:, context_length] = new_tokens
 
                 if output_logits is None:
-                    output_context = F.log_softmax(output[:, :context_length, :], 2)
+                    output = F.log_softmax(output[:, :context_length, :], 2)
                     indices = torch.unsqueeze(tokens[:, 1 : context_length + 1], 2)
-                    output_logits = torch.gather(output_context, 2, indices).squeeze(2)
+                    output_logits = torch.gather(output, 2, indices).squeeze(2)
                     all_generated_indices = indices[:, :, 0]
                     if all_probs:
-                        full_logits = output_context
+                        full_logits = output
                 else:
-                    output_context = F.log_softmax(output, 2)
+                    output = F.log_softmax(output, 2)
                     indices = torch.unsqueeze(new_tokens, 1).unsqueeze(2)
-                    new_output_logits = torch.gather(output_context, 2, indices).squeeze(2)
+                    new_output_logits = torch.gather(output, 2, indices).squeeze(2)
 
                     # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
                     output_logits = torch.cat([output_logits, new_output_logits], 1)
                     all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
                     if all_probs:
-                        full_logits = torch.cat([full_logits, output_context], 1)
+                        full_logits = torch.cat([full_logits, output], 1)
 
                 src = parallel_state.get_pipeline_model_parallel_last_rank()
                 group = parallel_state.get_embedding_group()
@@ -723,6 +854,7 @@ def tab_sample_sequence_batch(
 
             if parallel_state.is_pipeline_last_stage():
                 output = output[0]['logits'].float()
+                output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
                 assert output is not None
                 output = output.float()
                 logits = output[:, -1].view(batch_size, -1).contiguous()

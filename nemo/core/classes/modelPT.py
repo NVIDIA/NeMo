@@ -25,7 +25,7 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
 from nemo import package_info
 from nemo.core import optim
@@ -294,7 +294,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -439,9 +443,8 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
-
-        if self._optimizer_param_groups is None:
-            self.setup_optimizer_param_groups()
+        # Setup the optimizer parameter groups (by default use all parameters that are trainable)
+        self.setup_optimizer_param_groups()
 
         # If config was not explicitly passed to us
         if optim_config is None:
@@ -483,21 +486,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
-                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -1206,7 +1198,7 @@ class ModelPT(LightningModule, Model):
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
-            if trainer.num_gpus > 1:
+            if trainer.num_devices > 1:
                 logging.warning(DDP_WARN)
                 return False
 
@@ -1238,12 +1230,24 @@ class ModelPT(LightningModule, Model):
 
         if trainer is not None:
             if isinstance(trainer, Trainer):
-                if trainer.num_gpus and trainer.num_nodes:
-                    self.world_size = trainer.num_gpus * trainer.num_nodes
+                if trainer.num_devices and trainer.num_nodes:
+                    self.world_size = trainer.num_devices * trainer.num_nodes
             else:
                 logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
         app_state = AppState()
         app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """
@@ -1297,6 +1301,7 @@ class ModelPT(LightningModule, Model):
             Changes to this config are not reflected in the state of the model.
             Please create a new model using an updated config to properly update the model.
         """
+        self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
         return self._cfg
 
     @cfg.setter

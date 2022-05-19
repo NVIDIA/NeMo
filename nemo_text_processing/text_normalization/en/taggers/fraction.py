@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
+from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, get_abs_path
 
 try:
     import pynini
@@ -29,6 +28,8 @@ class FractionFst(GraphFst):
     Finite state transducer for classifying fraction
     "23 4/5" ->
     tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } }
+    "23 4/5th" ->
+    tokens { fraction { integer: "twenty three" numerator: "four" denominator: "five" } }
 
     Args:
         deterministic: if True will provide a single transduction option,
@@ -39,7 +40,7 @@ class FractionFst(GraphFst):
         super().__init__(name="fraction", kind="classify", deterministic=deterministic)
         cardinal_graph = cardinal.graph
 
-        integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"") + pynini.accep(" ")
+        integer = pynutil.insert("integer_part: \"") + cardinal_graph + pynutil.insert("\"")
         numerator = (
             pynutil.insert("numerator: \"") + cardinal_graph + (pynini.cross("/", "\" ") | pynini.cross(" / ", "\" "))
         )
@@ -50,6 +51,11 @@ class FractionFst(GraphFst):
 
         denominator = pynutil.insert("denominator: \"") + cardinal_graph + optional_end + pynutil.insert("\"")
 
-        self.graph = pynini.closure(integer, 0, 1) + numerator + denominator
+        graph = pynini.closure(integer + pynini.accep(" "), 0, 1) + (numerator + denominator)
+        graph |= pynini.closure(integer + (pynini.accep(" ") | pynutil.insert(" ")), 0, 1) + pynini.compose(
+            pynini.string_file(get_abs_path("data/number/fraction.tsv")), (numerator + denominator)
+        )
+
+        self.graph = graph
         final_graph = self.add_tokens(self.graph)
         self.fst = final_graph.optimize()

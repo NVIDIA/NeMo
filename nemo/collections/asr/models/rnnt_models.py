@@ -42,17 +42,6 @@ from nemo.utils.export_utils import augment_filename
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     """Base class for encoder decoder RNNT-based models."""
 
-    @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        result = []
-        return result
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
@@ -117,7 +106,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        # Setup optimization normalization (if provided in config)
         self.setup_optim_normalization()
+
+        # Setup optional Optimization flags
+        self.setup_optimization_flags()
+
+        # Setup encoder adapters (from ASRAdapterModelMixin)
+        self.setup_adapters()
 
     def setup_optim_normalization(self):
         """
@@ -934,3 +930,22 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             **kwargs,
         )
         return encoder_exp + decoder_exp, encoder_descr + decoder_descr
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_zh_conformer_transducer_large",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_zh_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_conformer_transducer_large/versions/1.8.0/files/stt_zh_conformer_transducer_large.nemo",
+        )
+        results.append(model)
+
+        return results

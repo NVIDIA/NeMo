@@ -9,7 +9,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: null
+  max_epochs: 1000 # PTL default. In practice, max_steps will be reached first. 
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
@@ -52,6 +52,7 @@ model:
   post_process: True # add pooler
 
   megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  grad_allreduce_chunk_size_mb: 125
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
@@ -69,9 +70,14 @@ model:
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
+  bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
+  bias: True # Whether to use bias terms in all weight matrices.
+  normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
   encoder_arch: 'transformer'
   decoder_arch: 'transformer'
-  activation: 'gelu'
+  activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+  headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+  transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
 
   tokenizer:
     library: 'megatron'

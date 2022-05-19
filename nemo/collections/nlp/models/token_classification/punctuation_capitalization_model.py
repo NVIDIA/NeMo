@@ -150,16 +150,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 - ``capit_logits`` (:obj:`torch.Tensor`): a float torch tensor of shape
                   ``[Batch, Time, NumCapitalizationLabels]`` containing capitalization logits
         """
-        if self._cfg.tokenizer.get('library', '') == 'megatron':
-            hidden_states, _ = self.bert_model(input_ids, attention_mask, tokentype_ids=token_type_ids, lm_labels=None)
-        else:
-            hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
 
         punct_logits = self.punct_classifier(hidden_states=hidden_states)
         capit_logits = self.capit_classifier(hidden_states=hidden_states)
-        return punct_logits, capit_logits
+        return punct_logits.float(), capit_logits.float()
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
@@ -639,16 +638,16 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 )
 
     def _extract_label_vocab_files_from_config(self) -> Tuple[Optional[Path], Optional[Path]]:
-        if self._cfg.common_dataset_parameters.label_vocab_dir is None:
-            if self._is_model_being_restored():
-                punct_label_vocab_file = self._cfg.class_labels.punct_labels_file
-                capit_label_vocab_file = self._cfg.class_labels.capit_labels_file
-            else:
-                punct_label_vocab_file, capit_label_vocab_file = None, None
+        if self._is_model_being_restored():
+            punct_label_vocab_file = self._cfg.class_labels.punct_labels_file
+            capit_label_vocab_file = self._cfg.class_labels.capit_labels_file
         else:
-            label_vocab_dir = Path(self._cfg.common_dataset_parameters.label_vocab_dir).expanduser()
-            punct_label_vocab_file = label_vocab_dir / self._cfg.class_labels.punct_labels_file
-            capit_label_vocab_file = label_vocab_dir / self._cfg.class_labels.capit_labels_file
+            if self._cfg.common_dataset_parameters.label_vocab_dir is None:
+                punct_label_vocab_file, capit_label_vocab_file = None, None
+            else:
+                label_vocab_dir = Path(self._cfg.common_dataset_parameters.label_vocab_dir).expanduser()
+                punct_label_vocab_file = label_vocab_dir / self._cfg.class_labels.punct_labels_file
+                capit_label_vocab_file = label_vocab_dir / self._cfg.class_labels.capit_labels_file
         return punct_label_vocab_file, capit_label_vocab_file
 
     def _set_label_ids(self) -> None:
@@ -784,6 +783,8 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 n_jobs=cfg.n_jobs,
+                number_of_batches_is_multiple_of=1 if train else self.trainer.num_nodes * self.trainer.num_devices,
+                batch_shuffling_random_seed=self.trainer.global_step if train else 42,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
