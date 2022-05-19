@@ -337,7 +337,7 @@ class SquadProcessor(DataProcessor):
                         answer_text = None
                         answers = []
                         if "is_impossible" in qa:
-                            is_impossible = qa["is_impossible"]
+                            is_impossible = qa["is_impossible"] or len(qa["answers"]) < 1
                         else:
                             is_impossible = False
 
