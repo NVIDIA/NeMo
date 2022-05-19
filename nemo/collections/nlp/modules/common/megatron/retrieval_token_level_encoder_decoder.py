@@ -260,7 +260,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 layer_type=post_decoder_layer_types,
                 chunk_size=chunk_size,
-                layer_number_offset=pre_decoder_num_layers,
+                layer_number_offset=pre_decoder_num_layers + 1,
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"
