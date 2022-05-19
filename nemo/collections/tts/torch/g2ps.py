@@ -375,8 +375,6 @@ class IPAG2P(BaseG2p):
                     pron.extend(p)
                     pron.extend(["-"])
                 pron.pop()
-            # TODO(jocelynh): Check if OOV is kept or discarded.
-            #   May need to manually add else case here to keep as graphemes.
 
             prons.extend(pron)
 
