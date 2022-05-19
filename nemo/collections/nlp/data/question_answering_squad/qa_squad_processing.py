@@ -320,7 +320,7 @@ class SquadProcessor(DataProcessor):
             raise ValueError(f"{self.mode} data file is None.")
 
         len_docs = []
-        with open(self.data_file, "r", encoding="utf-8") as reader:
+        with open(self.data_file.replace('_cache', ''), "r", encoding="utf-8") as reader:
             input_data = ijson.items(reader, "data.item")
 
             examples = []
