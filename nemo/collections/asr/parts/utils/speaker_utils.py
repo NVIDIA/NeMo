@@ -105,6 +105,7 @@ def audio_rttm_map(manifest):
 
     return AUDIO_RTTM_MAP
 
+
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
     Check whether multiscale parameters are provided correctly. window_lengths_in_sec, shift_lengfhs_in_sec and
@@ -160,7 +161,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         else:
             shift_length_check = window_lengths[0] > shift_lengths[0]
 
-        multiscale_args_dict = {'use_single_scale_clustering' : False}
+        multiscale_args_dict = {'use_single_scale_clustering': False}
         if all([length_check, scale_order_check, shift_length_check]) == True:
             if len(window_lengths) > 1:
                 multiscale_args_dict['scale_dict'] = {
@@ -179,6 +180,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         )
     else:
         return None
+
 
 def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
@@ -202,7 +204,7 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
     }
     if multiscale_args_dict['use_single_scale_clustering']:
         _multiscale_args_dict = deepcopy(multiscale_args_dict)
-        _multiscale_args_dict['scale_dict'] = { 0 : multiscale_args_dict['scale_dict'][0] }
+        _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
         _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:1]
     else:
         _multiscale_args_dict = multiscale_args_dict
@@ -220,6 +222,7 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
             }
 
     return embs_and_timestamps
+
 
 def get_contiguous_stamps(stamps):
     """
