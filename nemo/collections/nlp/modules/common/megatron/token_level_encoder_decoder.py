@@ -290,15 +290,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask,
         token_type_ids=None,
         labels=None,
-        enc_hidden_states=None,
-        enc_output_mask=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
         output_enc_hidden_only=False,
         enc_input=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
-        if enc_input is None:
+        if (enc_input is None) and (enc_output is None):
             if self.pre_process and self.add_encoder:
                 # encoder embeddings
                 enc_position_ids = build_position_ids(enc_input_ids)
@@ -307,9 +307,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_input = None
 
         if output_enc_hidden_only:
-            enc_output = self.enc_dec_model.encode(
-                enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
-            )
+            if enc_output is None:
+                enc_output = self.enc_dec_model.encode(
+                    enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
+                )
             return enc_output
         else:
             if self.pre_process and self.add_decoder:
@@ -326,7 +327,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_attn_mask=dec_attn_mask,
                 enc_layer_past=None,
                 enc_get_key_value=False,
-                enc_output=None,
+                enc_output=enc_output,
+                enc_output_attn_mask=enc_output_attn_mask,
                 dec_layer_past=None,
                 dec_get_key_value=False,
             )
