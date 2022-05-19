@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import json
+import math
 from typing import Dict, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
+from torch.cuda.amp import autocast
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import SpanningLoss
@@ -58,19 +60,23 @@ class QAModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
-        if isinstance(hidden_states, tuple):
-            hidden_states = hidden_states[0]
-        logits = self.classifier(hidden_states=hidden_states)
-        return logits.float()
+        with autocast():
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+
+            if isinstance(hidden_states, tuple):
+                hidden_states = hidden_states[0] 
+
+            logits = self.classifier(hidden_states=hidden_states)
+        return logits
 
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-
+        if math.isnan(loss):
+            loss = torch.tensor(0)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
@@ -103,6 +109,16 @@ class QAModel(NLPModel):
             prefix = 'test'
         else:
             prefix = 'val'
+
+        # to support resuming training from checkpoint
+        if len([x[f'{prefix}_loss'] for x in outputs]) < 1:
+            logging.info(f"{prefix} exact match {0}")
+            logging.info(f"{prefix} f1 {0}")
+
+            self.log(f'{prefix}_loss', 100000)
+            self.log(f'{prefix}_exact_match', 0)
+            self.log(f'{prefix}_f1', 0)
+            return
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
