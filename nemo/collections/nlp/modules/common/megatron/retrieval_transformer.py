@@ -15,11 +15,13 @@
 """Retrieval Transformer."""
 
 from einops import rearrange, repeat
+from zmq import device
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_attention_mask_3d
+import torch
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -136,6 +138,9 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         """ See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
+    def _allocate_memory(self, *shape, dtype):
+        return torch.empty(*shape, dtype=dtype, device=torch.cuda.current_device())
+
     def forward(
         self,
         enc_input,
@@ -144,28 +149,92 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         encoder_output=None,
         layer_past=None,
         get_key_value=False,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        neighbors=2,
     ):
         # expected enc_input shape [batch, num_chunks, num_neighbors, retrieval_seq_len, dim]
         # expected enc_attn_mask shape [batch, num_chunks, num_neighbors, retrieval_seq_len]
         # expected encoder_output shape [batch, seq_len, dim]
-        b, k, r, rn, dim = enc_input.shape
 
         # batch, seq_len, dim
-        _, n, _ = encoder_output.shape
+        b, n, dim = encoder_output.shape
 
-        num_seq_chunks = n // self.chunk_size
-        assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
+        if set_inference_key_value_memory:
+            chunk_start = 0
+            num_seq_chunks = n // self.chunk_size
+            num_chunks = inference_max_sequence_len // self.chunk_size
+            self.cache_output = self._allocate_memory(
+                b,
+                num_chunks,
+                neighbors,
+                self.chunk_size * 2,
+                dim,
+                dtype=encoder_output.dtype)
+            self.seq_pos_in_chunk = n
+            self.current_chunk = n // self.chunk_size
+            self.encoder_output = self._allocate_memory(
+                b,
+                self.chunk_size,
+                dim,
+                dtype=encoder_output.dtype)
+            self.context_attn_mask = self._allocate_memory(
+                b,
+                self.chunk_size,
+                dtype=context_attn_mask.dtype)
+            self.context_attn_mask
+            chunk_beg = self.chunk_size*num_seq_chunks
+            chunk_end = self.chunk_size*num_seq_chunks + self.seq_pos_in_chunk % self.chunk_size
+            self.encoder_output[:, :self.seq_pos_in_chunk, :] = encoder_output[:, chunk_beg:chunk_end, :]
+            self.context_attn_mask[:, :self.seq_pos_in_chunk] = context_attn_mask[:, chunk_beg:chunk_end]
+        elif inference_max_sequence_len is not None:
+            self.seq_pos_in_chunk += n
+            self.current_chunk = self.seq_pos_in_chunk // self.chunk_size
+            # if exceed the chunk size
+            pos_beg = (self.seq_pos_in_chunk - 1) % self.chunk_size
+            # if self.seq_pos_in_chunk - 1 >= self.chunk_size:
+            #     self.current_chunk += 1
+            #     self.seq_pos_in_chunk -= self.chunk_size
+            chunk_start = self.current_chunk - 1
+            self.encoder_output[:, pos_beg:pos_beg+1, :] = encoder_output
+            self.context_attn_mask[:, pos_beg:pos_beg+1] = context_attn_mask
+            encoder_output = self.encoder_output[:, :pos_beg+1, :]
+            context_attn_mask = self.context_attn_mask[:, :pos_beg+1]
+            num_seq_chunks = 1
+            if enc_input is not None:
+                enc_input = enc_input[:, self.current_chunk - 1:self.current_chunk]
+                enc_attn_mask = enc_attn_mask[:, self.current_chunk - 1:self.current_chunk]
+
+        if enc_input is None:
+            return None
+
+        _, k, r, rn, _ = enc_input.shape
+
+        assert r == neighbors
+        if inference_max_sequence_len is None:
+            num_seq_chunks = n // self.chunk_size
+            assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
+        else:
+            pass
 
         seq_index = num_seq_chunks * self.chunk_size
 
         retrieved = rearrange(enc_input, 'b k r n d -> (b k r) n d')
         enc_attn_mask = rearrange(enc_attn_mask, 'b k r n -> (b k r) n')
-        embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
-        context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
+        # embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
+        # context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
 
-        # need to add extra chunk size, since it will be shifted
         cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
-        cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size)
+
+        if inference_max_sequence_len is not None:
+            cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
+            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=pos_beg+1, r=r)
+            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg+1, r=r)
+        else:
+            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
+            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
+            cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, offset=0)
+
         attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
 
         # # convert to Megatron mask
@@ -191,6 +260,12 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         )
         # revert back to original retrieved shape
         enc_output = rearrange(enc_output, '(b k r) n d -> b k r n d', b=b, k=k)
+
+        if inference_max_sequence_len is not None:
+            # update encoded for current chunk
+            self.cache_output[:, chunk_start:self.current_chunk, :, : ,: ] = enc_output
+            # read all encodings
+            enc_output = self.cache_output[:, :self.current_chunk]
         return enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
