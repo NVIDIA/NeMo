@@ -66,7 +66,7 @@ class QAModel(NLPModel):
             )
 
             if isinstance(hidden_states, tuple):
-                hidden_states = hidden_states[0] 
+                hidden_states = hidden_states[0]
 
             logits = self.classifier(hidden_states=hidden_states)
         return logits
