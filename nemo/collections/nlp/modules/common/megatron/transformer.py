@@ -113,7 +113,7 @@ class ParallelMLP(MegatronModule):
         hidden_size,
         ffn_hidden_size,
         use_cpu_initialization=False,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         activation='gelu',
@@ -161,9 +161,9 @@ class ParallelMLP(MegatronModule):
 
         glu_activation_family = activation in ['reglu', 'swiglu']
 
-        if glu_activation_family and bias_gelu_fusion:
+        if glu_activation_family and bias_activation_fusion:
             raise ValueError(
-                f"Cannot use bias_gelu_fusion with {activation} activation. Please turn bias gelu fusion off."
+                f"Cannot use bias_activation_fusion with {activation} activation. Please turn bias gelu fusion off."
             )
 
         if glu_activation_family and openai_gelu:
@@ -176,14 +176,14 @@ class ParallelMLP(MegatronModule):
                 f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
             )
 
-        if bias_gelu_fusion and not bias:
+        if bias_activation_fusion and not bias:
             raise ValueError(
-                f"Cannot use bias_gelu_fusion without bias terms. Please set bias=True or bias_gelu_fusion=False."
+                f"Cannot use bias_activation_fusion without bias terms. Please set bias=True or bias_activation_fusion=False."
             )
         else:
             glu_activation_family = False
 
-        self.bias_gelu_fusion = bias_gelu_fusion
+        self.bias_activation_fusion = bias_activation_fusion
 
         if activation in ["gelu", "geglu"]:
             self.activation_func = F.gelu
@@ -227,7 +227,7 @@ class ParallelMLP(MegatronModule):
         if self.activation in ['geglu', 'reglu', 'swiglu']:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
-        if self.bias_gelu_fusion:
+        if self.bias_activation_fusion:
             if self.activation == 'gelu':
                 intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
             else:
@@ -788,7 +788,7 @@ class ParallelTransformerLayer_(MegatronModule):
         bias_dropout_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         masked_softmax_fusion=True,
@@ -948,7 +948,7 @@ class ParallelTransformerLayer_(MegatronModule):
             hidden_size=hidden_size,
             ffn_hidden_size=ffn_hidden_size,
             use_cpu_initialization=use_cpu_initialization,
-            bias_gelu_fusion=bias_gelu_fusion,
+            bias_activation_fusion=bias_activation_fusion,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
@@ -1186,7 +1186,7 @@ class ParallelTransformer(MegatronModule):
         hidden_dropout=0.1,
         attention_dropout=0.1,
         use_cpu_initialization=False,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
         bias_dropout_fusion=True,
         masked_softmax_fusion=True,
         persist_layer_norm=False,
@@ -1253,7 +1253,7 @@ class ParallelTransformer(MegatronModule):
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
                 use_cpu_initialization=use_cpu_initialization,
-                bias_gelu_fusion=bias_gelu_fusion,
+                bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_fusion=bias_dropout_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
