@@ -156,6 +156,8 @@ def get_decoder_model(
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             parent_model_type=parent_model_type,
             chunk_size=chunk_size,
         )

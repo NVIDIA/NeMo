@@ -66,6 +66,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
     ):
@@ -118,6 +120,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             model_type=parent_model_type,
             chunk_size=chunk_size,
         )
@@ -239,6 +243,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
     ):
@@ -291,6 +297,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             model_type=parent_model_type,
             chunk_size=chunk_size,
         )
