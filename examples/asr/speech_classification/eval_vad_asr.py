@@ -132,7 +132,7 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
     langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ['neural_vad', 'oracle_vad',] 
+    vad_exps = ['neural_vad','oracle_vad'] 
     models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] 
 
 
@@ -186,12 +186,13 @@ def main():
                             os.makedirs(mode_lang_folder, exist_ok=True)
 
                             if db=='clean' :
+                                # input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
                                 input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
                             else:
                                 # silence only clean now need change
                                 # input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
                                 # input_manifest = f"/data/syn_noise_augmented_fixed/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
-                                input_manifest = f"/data/syn_noise_augmented_fixed_10_100/manifests/{lang}_{subset}_test_noise_10_100_musan_fs_{db}db.json"
+                                input_manifest = f"/data/syn_noise_augmented_fixed_10_100/manifests/{lang}_{subset}{exp}_test_noise_10_100_musan_fs_{db}db.json"
 
                             if mode == "offline":
                                 if vad_exp =="novad":
