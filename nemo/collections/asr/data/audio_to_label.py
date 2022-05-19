@@ -1122,7 +1122,6 @@ class _AudioDiarTrainDataset(Dataset):
         """
         per_scale_clus_label = []
         self.scale_n = len(self.ms_ts_dict[uniq_id]['scale_dict'])
-        label_scale_idx = max(self.ms_ts_dict[uniq_id]["scale_dict"].keys())
         uniq_scale_mapping = get_scale_mapping_list(self.ms_ts_dict[uniq_id])
         for scale_index in range(self.scale_n):
             new_clus_label = []
