@@ -18,6 +18,7 @@
 import collections
 import os
 import pickle
+
 from functools import lru_cache
 from typing import Dict, List, Optional
 
@@ -222,6 +223,8 @@ class SquadDataset(Dataset):
                     self.segment_mask_id_to_segment_mask,
                     self.segment_mask_to_segment_mask_id,
                 ) = items_to_pickle
+                items_to_pickle = None
+                del items_to_pickle
         else:
             logging.info(f"Preprocessing data.")
 
