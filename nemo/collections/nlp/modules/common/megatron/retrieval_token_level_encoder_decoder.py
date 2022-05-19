@@ -165,6 +165,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 layer_type=enc_layer_types,
                 chunk_size=chunk_size,
+                layer_number_offset=0,
             )
             self._encoder_key = "encoder"
 
@@ -219,6 +220,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 layer_type=pre_decoder_layer_types,
                 chunk_size=chunk_size,
+                layer_number_offset=0,
             )
 
             # it is where the chunked cross attention happens
@@ -258,6 +260,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
                 layer_type=post_decoder_layer_types,
                 chunk_size=chunk_size,
+                layer_number_offset=pre_decoder_num_layers,
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"

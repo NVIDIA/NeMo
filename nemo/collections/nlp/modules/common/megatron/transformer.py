@@ -634,7 +634,7 @@ class ParallelAttention(MegatronModule):
 
 
 class ParallelChunkedCrossAttention(MegatronModule):
-    """Parallel chunked cross-attention layer abstract class.
+    """Parallel chunked cross-attention layer class.
 
     Self-attention layer takes input with size [b, s, h]
     and returns output of the same size.
@@ -1193,6 +1193,7 @@ class ParallelTransformer(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
+        layer_number_offset=0,  # this is use only for attention norm_factor scaling
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1232,7 +1233,7 @@ class ParallelTransformer(MegatronModule):
             return ParallelTransformerLayer(
                 init_method=init_method,
                 output_layer_init_method=output_layer_init_method,
-                layer_number=layer_number,
+                layer_number=layer_number + layer_number_offset,
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
                 num_attention_heads=num_attention_heads,
