@@ -298,8 +298,10 @@ class FastPitchModule(NeuralModule):
 
         # Expand to decoder time dimension
         len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+        volume_extended = None
         if volume is not None:
             volume_extended, _ = regulate_len(durs_predicted, volume.unsqueeze(-1), pace)
+            volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
@@ -310,6 +312,6 @@ class FastPitchModule(NeuralModule):
             durs_predicted,
             log_durs_predicted,
             pitch_predicted,
-            volume_extended.squeeze(-1).float(),
+            volume_extended,
         )
 
