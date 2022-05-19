@@ -35,15 +35,15 @@ class StackingSubsampling(torch.nn.Module):
         self.subsampling_factor = subsampling_factor
         self.proj_out = torch.nn.Linear(subsampling_factor * feat_in, feat_out)
         if norm:
-            self.activation = torch.nn.SiLU()
+            #self.activation = torch.nn.SiLU()
             self.pre_norm = LayerNorm(feat_in)
-            self.post_norm = LayerNorm(feat_out)
-            self.proj_out2 = torch.nn.Linear(feat_out, feat_out)
+            #self.post_norm = LayerNorm(feat_out)
+            #self.proj_out2 = torch.nn.Linear(feat_out, feat_out)
         else:
             self.pre_norm = None
-            self.post_norm = None
-            self.proj_out2 = None
-            self.activation = None
+            #self.post_norm = None
+            #self.proj_out2 = None
+            #self.activation = None
 
     def get_sampling_frames(self):
         return self.subsampling_factor
@@ -60,10 +60,10 @@ class StackingSubsampling(torch.nn.Module):
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
         x = self.proj_out(x)
-        if self.post_norm is not None:
-            x = self.activation(x)
-            x = self.proj_out2(x)
-            x = self.post_norm(x)
+        # if self.post_norm is not None:
+        #     x = self.activation(x)
+        #     x = self.proj_out2(x)
+        #     x = self.post_norm(x)
         lengths = torch.div(lengths + pad_size, self.subsampling_factor, rounding_mode='floor')
         return x, lengths
 

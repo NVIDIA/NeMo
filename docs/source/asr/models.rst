@@ -134,13 +134,37 @@ Streaming Conformer models are variants of Conformer which are trained with limi
 Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in downsampling layers.
 Streaming Conformer models use causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same output and accuracy as when the whole audio is given to the model in offline mode.
+These model can use caching mechanism to store and reuse the activations during streaming inference to void any duplications in the computations as much as possible.
 
 We support the following three right context modeling:
-1-fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention. It gives zero latency but with limited accuracy.
-2-regular look-ahead
-3-chunk-aware look-ahead:
+*  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
+It gives zero latency but with limited accuracy.
+To train such a model, you need to set `encoder.att_context_size=[left_context, 0]` and `encoder.conv_context_size=causal` in the config.
+
+*  regular look-ahead: convolutions would be able to see few future frames, and self-attention would also see the same number of future tokens.
+In this approach the activations for the look-ahead part is not cached and recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
+For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead.
+
+*  chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers would be able to see all the tokens in their corresponding chunk.
+For example, in a model which chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
+This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
+In terms of accuracy, this approach gives similar or even better results in term of accuracy as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming.
+
+
 ** Note: Latencies are based on the assumption that the forward time of the network is zero.
 
+Approaches with non-zero look-ahead can give significantly better accuracy by sacrificing latency. The latency can get controlled by the left context size.
+
+
+In all modes, left context can be controlled by the number of tokens to be visible in the self-attention and the kernel size of the convolutions.
+For example, if left context of self-attention in each layer is set to 20 tokens and there are 10 layers of Conformer, then effective left context is 20*10=200 tokens.
+Left context of self-attention for regular look-ahead can be set as any number while it should be set as a multiplication of the right context in chunk-aware look-ahead.
+For convolutions, if we use a left context of 30 in such model, then there would be 30*10=300 effective left context.
+Left context of convolutions is dependent to the their kernel size while it can be any number for self-attention layers. Higher left context for self-attention means larger cache and more computations for the self-attention.
+Self-attention left context of around 6 secs would give close result to have unlimited left context. For a model with 4x downsampling and shift window of 10ms in the preprocessor, each token corresponds to 4*10=40ms.
+
+If striding approach is used for downsampling, all the convolutions in downsampling would be fully causal and don't see future tokens.
+It is recommended to use stacking for streaming model which is significantly faster and uses less memory.
 
 Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gulati2020conformer` and uses RNNT/Transducer loss/decoder.
 It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
