@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,6 +23,7 @@ from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
 from nemo.collections.common.parts.utils import activation_registry
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 
@@ -557,7 +558,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = context_window
 
 
-class JasperBlock(nn.Module, AdapterModuleMixin):
+class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -707,10 +708,10 @@ class JasperBlock(nn.Module, AdapterModuleMixin):
             raise ValueError("currently only 'same' padding is supported")
 
         kernel_size_factor = float(kernel_size_factor)
-        if type(kernel_size) in (list, tuple):
+        if isinstance(kernel_size, Iterable):
             kernel_size = [compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size]
         else:
-            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
+            kernel_size = [compute_new_kernel_size(kernel_size, kernel_size_factor)]
 
         if future_context < 0:
             padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
@@ -1037,10 +1038,12 @@ class JasperBlock(nn.Module, AdapterModuleMixin):
                 out = out.transpose(1, 2)  # (B, T, C)
 
                 # Call the adapters
-                for adapter_name in adapter_names:
-                    out = out + self.adapter_layer[adapter_name](out)
+                out = self.forward_enabled_adapters(out)
 
                 out = out.transpose(1, 2)  # (B, C, T)
+
+        if self.is_access_enabled():
+            self.register_accessible_tensor(tensor=out)
 
         if self.res is not None and self.dense_residual:
             return xs + [out], lens

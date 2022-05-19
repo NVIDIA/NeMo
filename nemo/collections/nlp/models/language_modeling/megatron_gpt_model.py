@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
 from typing import Any, List, Optional, Union
 
@@ -27,9 +26,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
     MegatronPretrainingRandomBatchSampler,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_fp32
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -42,7 +39,6 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_sampling_params,
     megatron_gpt_generate,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
     LengthParam,
     OutputType,
@@ -69,7 +65,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class MegatronGPTModel(NLPModel, TextGeneration):
+class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
     Megatron GPT pretraining
     """
@@ -85,46 +81,12 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
         self._validate_trainer()
 
-        # used in NVIDIA NGC PyTorch containers
-        self._enable_nvidia_optimizations()
-
-        if self.cfg.get('use_cpu_initialization', False) is False:
-            torch.cuda.set_device(trainer.local_rank)
-
-        initialize_model_parallel_for_nemo(
-            world_size=trainer.world_size,
-            global_rank=trainer.global_rank,
-            local_rank=trainer.local_rank,
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-            pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
-            micro_batch_size=cfg.get('micro_batch_size'),
-            global_batch_size=cfg.get('global_batch_size'),
-            seed=self.cfg.get('seed', 1234),
-            apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
-        )
-
-        self.tokenizer = get_nmt_tokenizer(
-            library=self.cfg.tokenizer.library,
-            model_name=self.cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self.cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self.cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self.cfg.tokenizer.merge_file),
-            delimiter=self.cfg.tokenizer.get('delimiter', None),
-        )
-
-        vocab_size = self.tokenizer.vocab_size
-
-        self.padded_vocab_size = self._vocab_size_with_padding(
-            orig_vocab_size=vocab_size,
-            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
-        )
-
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
         self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
 
-        self.setup_optimizer_param_groups()
+        # We don't need to call it explicitly? Since it is a pytorch lightning hook function
+        # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
 
@@ -184,13 +146,13 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
         return model
 
-    def forward(self, tokens, text_position_ids, attention_mask, labels):
-        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
-        return output_tensor
-
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+
+    def forward(self, tokens, text_position_ids, attention_mask, labels):
+        output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
+        return output_tensor
 
     def training_step(self, batch, batch_idx):
         """
@@ -210,7 +172,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -221,6 +182,12 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
+            # no pipeline parallelism so we reduce grads asynchronously
+            if self.megatron_amp_o2:
+                custom_sync_context_handler = self._optimizer.no_sync
+            else:
+                # TODO: enable async grad all reduce for O1/autocast mixed precision training
+                custom_sync_context_handler = None
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch_for_pipeline,
@@ -229,6 +196,7 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                custom_sync_context_handler=custom_sync_context_handler,
             )
 
         # only the last stages of the pipeline return losses
@@ -240,18 +208,25 @@ class MegatronGPTModel(NLPModel, TextGeneration):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
-        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
-        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
         if self.megatron_amp_o2:
-            # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
-
-            self.allreduce_first_last_embeddings()
+            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
         else:
-
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we allreduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism the first and last stage must keep embeddings in sync
             self.allreduce_first_last_embeddings()
+
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            torch.cuda.synchronize()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -654,17 +629,20 @@ class MegatronGPTModel(NLPModel, TextGeneration):
                     "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
                 )
 
-            # TODO: this should be true when not using pipeline parallelism
-            # we will support that for bf16 when we have async handler from apex
-            # and we will support it for fp16 when we have it implemented in the O2 recipe
-            async_grad_allreduce = False
+            # if using tensor parallel only, we can use async grad all-reduce
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+                async_grad_allreduce = True
+            else:
+                async_grad_allreduce = False
 
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
                 fp32_grad_accum=fp32_grad_accum,
                 contiguous_grad_bucket=contiguous_grad_bucket,
                 async_grad_allreduce=async_grad_allreduce,
+                grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
+
             assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
             sched_config = self._cfg.optim.sched
             sched_config['max_steps'] = self._trainer.max_steps
@@ -684,35 +662,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
             + steps_since_resume * app_state.data_parallel_size * self.cfg.micro_batch_size * get_num_microbatches()
         )
         return int(consumed_samples)
-
-    def configure_gradient_clipping(self, *args, **kwargs):
-        """PTL hook to configure gradients.
-           We use gradient clipping implementation from megatron-lm.
-        """
-        clip_val = self.trainer.gradient_clip_val
-        if clip_val is None:
-            return
-
-        clip_val = float(clip_val)
-        if clip_val <= 0:
-            return
-
-        if self.megatron_amp_o2:
-            # grep fp32 master parameters for gradient clipping
-            parameters = self._optimizer.get_parameters()
-        else:
-            parameters = self.get_parameters()
-
-        grad_norm = clip_grad_norm_fp32(parameters=parameters, max_norm=clip_val)
-
-        self.log('grad_norm', grad_norm, rank_zero_only=True)
-
-    def get_parameters(self):
-        params = []
-        for param_group in self._optimizer_param_groups:
-            for param in param_group['params']:
-                params.append(param)
-        return params
 
     def generate(
         self,
@@ -768,46 +717,6 @@ class MegatronGPTModel(NLPModel, TextGeneration):
 
     def list_available_models(self):
         return None
-
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
-        """Pad vocab size so it is divisible by model parallel size and
-        still having GPU friendly size."""
-
-        after = orig_vocab_size
-        multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
-        while (after % multiple) != 0:
-            after += 1
-        logging.info(
-            f'Padded vocab_size: {after}, original vocab_size: {orig_vocab_size}, dummy tokens: {after - orig_vocab_size}.'
-        )
-        return after
-
-    def _enable_nvidia_optimizations(self):
-        "These optimizations are present in NVIDIA NGC PyTorch Containers"
-
-        # Version check
-        nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
-        if nvidia_torch_version is not None:
-            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
-            NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
-
-            # Apex Persistent layer norm is supported from Nvidia PyTorch container v21.11
-            if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
-                self.cfg.persist_layer_norm = False
-
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
-                # NVFUSER
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                torch._C._jit_override_can_fuse_on_cpu(False)
-                torch._C._jit_override_can_fuse_on_gpu(False)
-                torch._C._jit_set_texpr_fuser_enabled(False)
-                torch._C._jit_set_nvfuser_enabled(True)
-                torch._C._debug_set_autodiff_subgraph_inlining(False)
-
-        else:
-            # Not a Nvidia container. Dependency check is on users
-            pass
 
     def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device

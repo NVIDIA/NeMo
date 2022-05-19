@@ -21,13 +21,14 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 
-class ConformerLayer(torch.nn.Module, AdapterModuleMixin):
+class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
 
     Args:
@@ -122,8 +123,11 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin):
         x = self.norm_out(residual)
 
         if self.is_adapter_available():
-            for adapter_name in self.get_enabled_adapters():
-                x = x + self.adapter_layer[adapter_name](x)
+            # Call the adapters
+            x = self.forward_enabled_adapters(x)
+
+        if self.is_access_enabled():
+            self.register_accessible_tensor(tensor=x)
 
         return x
 
