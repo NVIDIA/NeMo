@@ -773,7 +773,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 }
             if train:
                 number_of_batches_is_multiple_of = 1
-                if self.trainer is None:
+                if self._trainer is None:
                     warnings.warn(
                         'A model attribute `trainer` is not set before training dataset setting. If training is '
                         'resumed from checkpoint, then current epoch data loading can be distorted: some batches '
@@ -786,10 +786,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     )
                     batch_shuffling_random_seed = 0
                 else:
-                    batch_shuffling_random_seed = self.trainer.current_epoch
+                    batch_shuffling_random_seed = self._trainer.current_epoch
             else:
                 batch_shuffling_random_seed = 0
-                if self.trainer is None:
+                if self._trainer is None:
                     warnings.warn(
                         'A model attribute `trainer` is not set before test or validation dataset setting. If more '
                         'than 1 GPU is used for testing, then some examples may be tested several times because '
@@ -803,7 +803,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     )
                     number_of_batches_is_multiple_of = 1
                 else:
-                    number_of_batches_is_multiple_of = self.trainer.num_nodes * self.trainer.num_devices
+                    number_of_batches_is_multiple_of = self._trainer.num_nodes * self._trainer.num_devices
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
