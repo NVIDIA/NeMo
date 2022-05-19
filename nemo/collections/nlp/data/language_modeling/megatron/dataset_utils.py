@@ -408,7 +408,9 @@ def create_extreme_masked_lm_predictions(
 
     num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
     # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
-    min_ngram_size = min(num_to_predict, min_ngram_size)
+    print(min_ngram_size)
+    min_ngram_size = int(min(num_to_predict, min_ngram_size))
+    print(min_ngram_size)
 
     ngrams = np.arange(min_ngram_size, max_ngram_size + 1, dtype=np.int64)
     if span_length_distribution == "uniform":
