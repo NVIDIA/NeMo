@@ -40,8 +40,8 @@ def get_uniqname_from_filepath(filepath):
     Return base name from provided filepath
     """
     if type(filepath) is str:
-        basename = os.path.basename(filepath).rsplit('.', 1)[0]
-        return basename
+        uniq_id = os.path.splitext(os.path.basename(filepath))[0]
+        return uniq_id
     else:
         raise TypeError("input must be filepath string")
 
@@ -50,7 +50,7 @@ def get_uniq_id_with_dur(meta, deci=3):
     """
     Return basename with offset and end time labels
     """
-    bare_uniq_id = meta['audio_filepath'].split('/')[-1].split('.wav')[0]
+    bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
     if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
     if meta['offset']:
@@ -104,7 +104,6 @@ def audio_rttm_map(manifest):
                 )
 
     return AUDIO_RTTM_MAP
-
 
 def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_weights):
     """
@@ -161,7 +160,7 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         else:
             shift_length_check = window_lengths[0] > shift_lengths[0]
 
-        multiscale_args_dict = {}
+        multiscale_args_dict = {'use_single_scale_clustering' : False}
         if all([length_check, scale_order_check, shift_length_check]) == True:
             if len(window_lengths) > 1:
                 multiscale_args_dict['scale_dict'] = {
@@ -180,7 +179,6 @@ def parse_scale_configs(window_lengths_in_sec, shift_lengths_in_sec, multiscale_
         )
     else:
         return None
-
 
 def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_args_dict):
     """
@@ -202,11 +200,18 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
         uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
         for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
-    for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
+    if multiscale_args_dict['use_single_scale_clustering']:
+        _multiscale_args_dict = deepcopy(multiscale_args_dict)
+        _multiscale_args_dict['scale_dict'] = { 0 : multiscale_args_dict['scale_dict'][0] }
+        _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:1]
+    else:
+        _multiscale_args_dict = multiscale_args_dict
+
+    for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
         embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
         for uniq_id in embeddings.keys():
             embs_and_timestamps[uniq_id]['multiscale_weights'] = (
-                torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+                torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
             )
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
@@ -215,7 +220,6 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
             }
 
     return embs_and_timestamps
-
 
 def get_contiguous_stamps(stamps):
     """
@@ -507,7 +511,7 @@ def get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci=5):
 
 def write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci=5):
     """
-    Write the json dictionary into the specified file.
+    Write the json dictionary into the specified manifest file.
 
     Args:
         outfile:
