@@ -1,6 +1,4 @@
-# This config contains the default values for training Tacotron2 model on LJSpeech dataset.
-# If you want to train model on other dataset, you can change config values according to your dataset.
-# Most dataset-specific arguments are in the head of the config file, see below.
+# This config contains the default values for training Tacotron2.
 # This config is for training with sample rate 44.1kHz.
 
 name: Tacotron2
@@ -17,9 +15,6 @@ whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_sp
 
 
 model:
-  pitch_fmin: 65.40639132514966
-  pitch_fmax: 2093.004522404789
-
   sample_rate: 44100
   n_mel_channels: 80
   n_window_size: 2048
@@ -72,8 +67,6 @@ model:
       min_duration: 0.1
       ignore_file: null
       trim: False
-      pitch_fmin: ${model.pitch_fmin}
-      pitch_fmax: ${model.pitch_fmax}
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -99,8 +92,6 @@ model:
       min_duration: 0.1
       ignore_file: null
       trim: False
-      pitch_fmin: ${model.pitch_fmin}
-      pitch_fmax: ${model.pitch_fmax}
     dataloader_params:
       drop_last: false
       shuffle: false
