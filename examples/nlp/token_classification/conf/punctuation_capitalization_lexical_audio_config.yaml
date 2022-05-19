@@ -13,7 +13,6 @@
 # limitations under the License.
 
 # Punctuation and capitalization model with pretrained BERT-like models
-
 pretrained_model: null # pretrained Punctuation and Capitalization model from list_available_models(), for example:
 # punctuation_en_bert or punctuation_en_distilbert
 # or your_model.nemo
@@ -25,15 +24,17 @@ trainer:
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
-  accelerator: gpu
-  strategy: ddp
+  accelerator: "gpu"
+  strategy: "ddp"
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
+  #  check_val_every_n_epoch: 1
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step,
   # LR schedulers, apex, etc.
   resume_from_checkpoint: null
+#  sync_batchnorm: true
 
 exp_manager:
   exp_dir: /results  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
@@ -46,9 +47,11 @@ exp_manager:
     project: proj
 
 model:
+  pretrained_audio_encoder: stt_en_conformer_ctc_medium
+  freeze_audio_encoder: false
   class_labels:
-    punct_labels_file: punct_label_ids.csv
-    capit_labels_file: capit_label_ids.csv
+    punct_labels_file: punct_label_ids.txt
+    capit_labels_file: capit_label_ids.txt
 
   common_dataset_parameters:
     pad_label: 'O'
@@ -75,7 +78,8 @@ model:
     # batching. Examples which number of tokens do not differ much are added to the batch. This procedure reduces
     # number of pad tokens in a batch. A number of examples in a batch varies: longer input sequences -> less
     # examples in a batch.
-    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
+    batch_size: 32
     max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
@@ -92,14 +96,16 @@ model:
     # regular dataset.
     tar_shuffle_n: 1
 
+    audio_manifest_filepath: fisher_data/data/audio_manifest_train.json
+    sample_rate: 8000
+    num_workers: 24
+
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
     use_tarred_dataset: false
-      # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
-      # brackets)
-      # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
+    # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
     ds_item: fisher_data/data
 
@@ -108,7 +114,8 @@ model:
     shuffle: false
     num_samples: -1
     # See comment above `model.train_ds.tokens_in_batch` parameter for explanation.
-    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
+    batch_size: 32
     max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
@@ -118,11 +125,17 @@ model:
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
+    audio_manifest_filepath: fisher_data/data/audio_manifest_valid.json
+    sample_rate: 8000
+    num_workers: 24
+
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
     use_tarred_dataset: false
+    # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
+    # brackets)
     ds_item: fisher_data/data
 
     text_file: text_nemo_corpa_test.txt
@@ -130,8 +143,10 @@ model:
     shuffle: false
     num_samples: -1
     # See comment above `model.train_ds.tokens_in_batch` parameter for explanation.
-    tokens_in_batch: 15000
+    #    tokens_in_batch: 15000
+    batch_size: 32
     max_seq_length: 512
+
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
@@ -139,6 +154,10 @@ model:
 
     # For more details see `train_ds` section.
     tar_metadata_file: null
+
+    audio_manifest_filepath: fisher_data/data/audio_manifest_test.json
+    sample_rate: 8000
+    num_workers: 24
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
