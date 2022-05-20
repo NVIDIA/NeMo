@@ -335,6 +335,12 @@ class CoreAttention(MegatronModule):
                 torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
             )
 
+        self.headscale = headscale
+        if headscale:
+            self.head_scale_tensor = torch.nn.Parameter(
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
+            )
+
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
@@ -1009,7 +1015,6 @@ class ParallelAttention(MegatronModule):
 
         output, bias = self.dense(context_layer)
 
-        # TODO: figure out how to do this
         if get_key_value:
             output = [output, present]
 
