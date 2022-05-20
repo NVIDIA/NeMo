@@ -74,6 +74,7 @@ gpt3.126m_short:
     - bash tests/ci/launch_selene_gpt3_126m.sh
     - echo "Finished"
   after_script:
+    - pip install 'pytest>=3'
     - pytest tests/ci_tests
   rules:
     - when: always
