@@ -714,15 +714,14 @@ class ParallelChunkedCrossAttention(MegatronModule):
             # pad it as a full chunk, put it at the end of the chunk position
             hidden_states = F.pad(hidden_states, (0, 0, 0, 0, causal_padding, 0), value=0.0)
             # only use the relevant context
-            context = context[chunk_id - 1:chunk_id, :, :, :, :]
+            context = context[chunk_id - 1 : chunk_id, :, :, :, :]
             attention_mask = rearrange(attention_mask, '(b k) 1 q v -> b k 1 q v', b=b)
             # select the relevant chunk attn mask
-            attention_mask = attention_mask[:, chunk_id-1]
+            attention_mask = attention_mask[:, chunk_id - 1]
             seq_index = chunk_size
         else:
             # this is normal forward without inference
             seq_index = (n // chunk_size) * chunk_size
-
 
         # if sequence length less than chunk size, do an early return
         if n < self.chunk_size and set_inference_key_value_memory and inference_max_sequence_len is not None:
@@ -753,13 +752,11 @@ class ParallelChunkedCrossAttention(MegatronModule):
         # q need to extend to causal_padding, and just do
         # q_pos_emb = F.pad(q_pos_emb, (0, 0, -causal_padding, 0), value = 0.)
         if inference_max_sequence_len is not None and not set_inference_key_value_memory:
-            q_pos_emb = F.pad(q_pos_emb,
-                              (0, 0, 0, 0, 0, 0, -causal_padding - token_pos,
-                               -causal_padding + token_pos),
-                              value=0.0)
+            q_pos_emb = F.pad(
+                q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding - token_pos, -causal_padding + token_pos), value=0.0
+            )
         else:
             q_pos_emb = F.pad(q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding, 0), value=0.0)
-
 
         k_pos_emb = repeat(k_pos_emb, 'n b h d -> (r n) b h d', r=num_retrieved)
         rotary_pos_emb = (q_pos_emb, k_pos_emb)

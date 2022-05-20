@@ -15,10 +15,9 @@
 
 import pytest
 import torch
+import torch.nn.functional as F
 from einops import rearrange
 from pytorch_lightning.trainer.trainer import Trainer
-
-import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
@@ -291,7 +290,7 @@ class TestRetrievalModuleInference:
 
         def get_attn_mask_3d(hidden_mask, context_mask, chunks):
             causal_padding = text_chunk_size - 1
-            reminder = (text_chunk_size - (hidden_mask.shape[0] -1) % text_chunk_size)
+            reminder = (text_chunk_size - (hidden_mask.shape[0] + 1)) % text_chunk_size
             hidden_mask = F.pad(hidden_mask, (0, 0, -causal_padding, reminder), value=False)
 
             dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
@@ -301,7 +300,6 @@ class TestRetrievalModuleInference:
             )
             enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
             return enc_dec_attn_mask_3d
-
 
         enc_dec_attn_mask_3d = get_attn_mask_3d(hidden_mask, context_mask, chunks)
 
@@ -322,16 +320,13 @@ class TestRetrievalModuleInference:
             .half()
         )
 
-
         out, bias = cross_attn(
             hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, rotary_pos_emb=cross_attn_pos_emb
         )
         assert out.shape == torch.Size([input_length, batch, dim])
         assert bias.shape == torch.Size([dim])
 
-
-
-        attn_mask_3d = None 
+        attn_mask_3d = None
 
         out_1, b = cross_attn(
             hidden_emb[:62],
@@ -361,12 +356,12 @@ class TestRetrievalModuleInference:
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
         )
-        assert (out[63]-out_2[0]).abs().max().item() < 1e-2
+        assert (out[63] - out_2[0]).abs().max().item() < 1e-2
 
         for i in range(64, 127):
-            attn_mask_3d = get_attn_mask_3d(hidden_mask[:i+1], context_mask[:1], 1)
+            attn_mask_3d = get_attn_mask_3d(hidden_mask[: i + 1], context_mask[:1], 1)
             out_2, b = cross_attn(
-                hidden_emb[i:i+1],
+                hidden_emb[i : i + 1],
                 attn_mask_3d,
                 encoder_output=retrieved_emb[:1],
                 rotary_pos_emb=cross_attn_pos_emb,
@@ -374,9 +369,9 @@ class TestRetrievalModuleInference:
                 inference_max_sequence_len=input_length,
             )
         i = 127
-        attn_mask_3d = get_attn_mask_3d(hidden_mask[:i+1], context_mask[:2], 2)
+        attn_mask_3d = get_attn_mask_3d(hidden_mask[: i + 1], context_mask[:2], 2)
         out_3, b = cross_attn(
-            hidden_emb[i:i+1],
+            hidden_emb[i : i + 1],
             attn_mask_3d,
             encoder_output=retrieved_emb[:2],
             rotary_pos_emb=cross_attn_pos_emb,
@@ -385,9 +380,11 @@ class TestRetrievalModuleInference:
         )
         assert (out[i] - out_3[0]).abs().max().item() < 1e-2
 
+        attn_mask_3d = get_attn_mask_3d(hidden_mask[:130], context_mask[:2], 2)
+
         out_1, b = cross_attn(
             hidden_emb[:130],
-            enc_dec_attn_mask_3d,
+            attn_mask_3d,
             encoder_output=retrieved_emb[:2],
             rotary_pos_emb=cross_attn_pos_emb,
             set_inference_key_value_memory=True,
@@ -397,18 +394,20 @@ class TestRetrievalModuleInference:
         assert (out[:130] - out_1[:130]).abs().max().item() < 1e-2
 
         for i in range(130, 191):
+            attn_mask_3d = get_attn_mask_3d(hidden_mask[: i + 1], context_mask[:2], 2)
             out_2, b = cross_attn(
-                hidden_emb[i:i+1],
-                enc_dec_attn_mask_3d,
+                hidden_emb[i : i + 1],
+                attn_mask_3d,
                 encoder_output=retrieved_emb[:2],
                 rotary_pos_emb=cross_attn_pos_emb,
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
             )
         i = 191
+        attn_mask_3d = get_attn_mask_3d(hidden_mask[: i + 1], context_mask[:3], 3)
         out_4, b = cross_attn(
-            hidden_emb[i:i+1],
-            enc_dec_attn_mask_3d,
+            hidden_emb[i : i + 1],
+            attn_mask_3d,
             encoder_output=retrieved_emb[:3],
             rotary_pos_emb=cross_attn_pos_emb,
             set_inference_key_value_memory=False,
