@@ -163,6 +163,38 @@ class RegExTokenizer(TokenizerSpec):
         tokens = self.ids_to_tokens(ids)
         return self.tokens_to_text(tokens)
 
+            DEFAULT_PAD_TOKEN: 0,  # pad_token
+            DEFAULT_UNK_TOKEN: 1,  # unk_token
+            DEFAULT_BOS_TOKEN: 2,  # begin_token
+            DEFAULT_EOS_TOKEN: 3,  # end_token
+            DEFAULT_MASK_TOKEN: 4,  # mask_token
+            DEFAULT_SEP_TOKEN: 5,  # sep_token
+
+    @property
+    def pad_id(self):
+        return 0
+
+    @property
+    def unk_id(self):
+        return 1
+
+    @property
+    def bos_id(self):
+        return 2
+
+    @property
+    def eos_id(self):
+        return 3
+
+    @property
+    def mask_id(self):
+        return 4
+
+    @property
+    def sep_id(self):
+        return 5
+
+
     def save_tokenizer(self, base_fname=None):
         """
         Saves tokenizer's regex (base_fname.model) and vocab (base_fname.vocab) files
