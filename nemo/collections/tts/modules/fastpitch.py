@@ -314,4 +314,3 @@ class FastPitchModule(NeuralModule):
             pitch_predicted,
             volume_extended,
         )
-
