@@ -284,6 +284,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         input_emb=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        neighbors=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
@@ -323,6 +324,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
         if self.add_encoder:
+            if retrieved_emb is not None and neighbors is None:
+                neighbors = retrieved_emb.shape[2]
             retrieved_emb = self.encoder(
                 retrieved_emb,
                 retrieved_attn_mask,
@@ -330,6 +333,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 encoder_output=hidden,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
+                neighbors=neighbors,
             )
 
         if self.add_decoder:
