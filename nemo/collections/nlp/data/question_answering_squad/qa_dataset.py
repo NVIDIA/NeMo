@@ -471,8 +471,8 @@ class SquadDataset(Dataset):
                 # calculate start and end position in final array
                 # of tokens in answer if no answer,
                 # 0 for both pointing to tokenizer.cls_token
-                start_position = None
-                end_position = None
+                start_position = 0
+                end_position = 0
                 if has_groundtruth and not example.is_impossible:
                     doc_start = doc_span.start
                     doc_end = doc_span.start + doc_span.length - 1

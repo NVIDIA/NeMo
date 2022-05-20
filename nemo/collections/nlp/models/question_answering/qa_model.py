@@ -76,7 +76,7 @@ class QAModel(NLPModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
         if math.isnan(loss):
-            loss = torch.tensor(0)
+            loss = torch.tensor(0).to(input_ids.device)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
