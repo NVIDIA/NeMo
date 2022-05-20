@@ -208,3 +208,35 @@ class TestRetrievalModuleInference:
 
         assert (encoder.encoder_output - hidden_emb[:, 128:192]).abs().max().item() < 1e-5
         assert (out_gt[:, :3,] - out_4).abs().max().item() < 1e-2
+
+        out_2 = encoder(
+            retrieved_emb[:, :2],
+            context_mask[:, :2],
+            context_attn_mask=hidden_mask[:, :130],
+            encoder_output=hidden_emb[:, :130, :],
+            set_inference_key_value_memory=True,
+            inference_max_sequence_len=input_length,
+            neighbors=neighbors,
+        )
+        for i in range(130, 191):
+            out_2 = encoder(
+                retrieved_emb[:, :2],
+                context_mask[:, :2],
+                context_attn_mask=hidden_mask[:, i : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1, :],
+                set_inference_key_value_memory=False,
+                inference_max_sequence_len=input_length,
+                neighbors=neighbors,
+            )
+        i = 191
+        out_4 = encoder(
+            retrieved_emb[:, :3],
+            context_mask[:, :3],
+            context_attn_mask=hidden_mask[:, i : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1, :],
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+            neighbors=neighbors,
+        )
+        assert (encoder.encoder_output - hidden_emb[:, 128:192]).abs().max().item() < 1e-5
+        assert (out_gt[:, :3,] - out_4).abs().max().item() < 1e-2

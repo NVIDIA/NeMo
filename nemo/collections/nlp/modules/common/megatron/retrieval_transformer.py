@@ -176,8 +176,12 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             chunk_beg = self.chunk_size * num_seq_chunks
             chunk_end = self.chunk_size * num_seq_chunks + self.seq_pos_in_chunk % self.chunk_size
             # store the remainders
-            self.encoder_output[:, : self.seq_pos_in_chunk, :] = encoder_output[:, chunk_beg:chunk_end, :]
-            self.context_attn_mask[:, : self.seq_pos_in_chunk] = context_attn_mask[:, chunk_beg:chunk_end]
+            self.encoder_output[:, : self.seq_pos_in_chunk % self.chunk_size, :] = encoder_output[
+                :, chunk_beg:chunk_end, :
+            ]
+            self.context_attn_mask[:, : self.seq_pos_in_chunk % self.chunk_size] = context_attn_mask[
+                :, chunk_beg:chunk_end
+            ]
         elif inference_max_sequence_len is not None:
             # second time of running
             self.seq_pos_in_chunk += n
@@ -223,7 +227,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
 
-        if inference_max_sequence_len is not None:
+        if inference_max_sequence_len is not None and not set_inference_key_value_memory:
             cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
             embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=pos_beg + 1, r=r)
             context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg + 1, r=r)
