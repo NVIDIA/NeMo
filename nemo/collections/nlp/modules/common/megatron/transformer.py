@@ -510,7 +510,7 @@ class ParallelAttention(MegatronModule):
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
-                k_pos_emb = k_pos_emb[:, :, :end, :]
+                k_pos_emb = k_pos_emb[:end, :, :, :]
                 rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
         if layer_past is not None:
@@ -1095,12 +1095,22 @@ class ParallelTransformerLayer_(MegatronModule):
             or self.layer_type == LayerType.retrieval_decoder
             or self.layer_type == LayerType.retrieval_encoder
         ):
-            attention_output, attention_bias = self.inter_attention(
-                normalization_output,
-                enc_dec_attn_mask,
-                encoder_output=encoder_output,
-                rotary_pos_emb=cross_attention_pos_emb,
-            )
+            if self.layer_type == LayerType.retrieval_decoder:
+                attention_output, attention_bias = self.inter_attention(
+                    normalization_output,
+                    enc_dec_attn_mask,
+                    encoder_output=encoder_output,
+                    rotary_pos_emb=cross_attention_pos_emb,
+                    set_inference_key_value_memory=set_inference_key_value_memory,
+                    inference_max_sequence_len=inference_max_sequence_len,
+                )
+            else:
+                attention_output, attention_bias = self.inter_attention(
+                    normalization_output,
+                    enc_dec_attn_mask,
+                    encoder_output=encoder_output,
+                    rotary_pos_emb=cross_attention_pos_emb,
+                )
             # If normformer, apply norm on the output of the self attention.
             if self.transformer_block_type == 'normformer':
                 # Normformer normalization

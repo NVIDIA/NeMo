@@ -414,3 +414,70 @@ class TestRetrievalModuleInference:
             inference_max_sequence_len=input_length,
         )
         assert (out[i] - out_4[0]).abs().max().item() < 1e-2
+
+    @pytest.mark.unit
+    def test_retrieval_decoder_inference(self):
+
+        init_method_std = 0.02
+
+        # rotary pos emb dim
+        batch = 2
+        neighbors = 2
+        dim = 128
+        pad_id = 19999
+        num_attention_heads = 8
+        chunks = 32
+        text_chunk_size = 64
+        input_length = chunks * text_chunk_size
+        vocab_size = 20000
+        # rot_dim = dim // num_attention_heads
+        # rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
+        hidden = torch.randint(0, vocab_size, (batch, input_length)).cuda()  # (seq, batch, dim)
+        hidden_mask = (hidden != pad_id).cuda()
+
+        hidden_emb = torch.rand(batch, input_length, dim).cuda().half()  # (batch, seq, dim)
+
+        # context_chunk_size = 128
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size)).cuda()
+        # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation)
+
+        # context attention mask [b, np, sq, sk]
+        pad_id = vocab_size - 1
+        context_mask = (retrieved != pad_id).cuda()
+        retrieved_emb = torch.rand(batch, chunks, neighbors, 2 * text_chunk_size, dim).cuda().half()
+        # retrieved tokens - (batch, num chunks, num retrieved neighbors, retrieved chunk with continuation, hidden)
+
+        layer_type = [LayerType.encoder, LayerType.retrieval_decoder, LayerType.encoder, LayerType.retrieval_decoder]
+        num_layers = len(layer_type)
+
+        init_method = init_method_normal(init_method_std)
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        decoder = (
+            MegatronRetrievalTransformerDecoderModule(
+                init_method=init_method,
+                output_layer_init_method=scaled_init_method,
+                hidden_size=dim,
+                ffn_hidden_size=dim * 4,
+                num_layers=num_layers,
+                num_attention_heads=num_attention_heads,
+                precision=16,
+                chunk_size=text_chunk_size,
+                layer_type=layer_type,
+                hidden_dropout=0.0,
+                attention_dropout=0.0,
+            )
+            .cuda()
+            .half()
+        )
+        out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
+        assert out.shape == torch.Size([batch, input_length, dim])
+
+        out_1 = decoder(
+            hidden_emb[:, :62],
+            hidden_mask[:, :62],
+            retrieved_attn_mask=None, 
+            retrieved_emb=None,
+            set_inference_key_value_memory=True,
+            inference_max_sequence_len=input_length,
+        )
+        print(out[:, :1] - out_1)

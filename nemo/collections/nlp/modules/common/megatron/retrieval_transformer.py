@@ -14,6 +14,7 @@
 
 """Retrieval Transformer."""
 
+from hypothesis import infer
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
@@ -430,6 +431,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         layer_past=None,
         get_key_value=False,
         eod_positions=None,  # this is a tuple of eod positions returned from tensor.where(tensor == eod_id)
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
         # expected dec_input shape [batch, seq_len, dim]
         # expected dec_attn_mask shape [batch, seq_len]
@@ -484,6 +487,8 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             retrieved_emb=retrieved_emb,
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
             rotary_pos_emb=attn_pos_emb,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            inference_max_sequence_len=inference_max_sequence_len,
         )
 
         return enc_output
