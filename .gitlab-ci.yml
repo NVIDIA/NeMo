@@ -71,7 +71,7 @@ gpt3.126m_short:
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - pwd
     - cd /lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/mausin_test
-    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab-master.nvidia.com/dl/JoC/bignlp-scripts.git .
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab-master.nvidia.com/dl/JoC/bignlp-scripts
     - git checkout mausin/ci-test
     - pwd
     - bash tests/ci/launch_selene_gpt3_126m.sh
