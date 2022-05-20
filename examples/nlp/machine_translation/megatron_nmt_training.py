@@ -132,11 +132,14 @@ def main(cfg) -> None:
             pretrained_cfg.attention_dropout = cfg.model.attention_dropout
 
             # Override precision
-            pretrained_cfg.precision = cfg.model.precision  # Set above from trainer.precision
+            pretrained_cfg.precision = trainer.precision  # Set above from trainer.precision
 
             # Override micro/global batch
             pretrained_cfg.micro_batch_size = cfg.model.micro_batch_size
             pretrained_cfg.global_batch_size = cfg.model.global_batch_size
+
+            # O2 AMP
+            pretrained_cfg.megatron_amp_O2 = cfg.model.get('megatron_amp_O2', False)
 
             # Override data and global/micro batch size.
             pretrained_cfg.train_ds = cfg.model.train_ds

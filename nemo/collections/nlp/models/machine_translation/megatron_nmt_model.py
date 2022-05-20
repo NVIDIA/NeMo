@@ -124,10 +124,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         # After this call, there will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         encoder_tokenizer_model = self.register_artifact(
-            "encoder_tokenizer.tokenizer_model", self._cfg.encoder_tokenizer.get('tokenizer_model')
+            "encoder_tokenizer.model", self._cfg.encoder_tokenizer.get('model')
         )
         decoder_tokenizer_model = self.register_artifact(
-            "decoder_tokenizer.tokenizer_model", self._cfg.decoder_tokenizer.get('tokenizer_model')
+            "decoder_tokenizer.model", self._cfg.decoder_tokenizer.get('model')
         )
 
         self.encoder_tokenizer, self.decoder_tokenizer = MTEncDecModel.setup_enc_dec_tokenizers(
