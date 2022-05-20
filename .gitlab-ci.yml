@@ -73,7 +73,8 @@ gpt3.126m_short:
     - pwd
     - bash tests/ci_tests/launch_selene_gpt3_126m.sh
     - echo "Finished training job"
-    - pip install 'pytest>=3'
+    - pip install pytest
+    - pip install tensorboard
     - pytest tests/ci_tests
     - echo "Finished pytest job"
   rules:

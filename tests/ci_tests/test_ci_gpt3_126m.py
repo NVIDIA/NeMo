@@ -1,5 +1,7 @@
 import os
 
+from tensorboard.backend.event_processing import event_accumulator
+
 
 CI_RESULTS_DIR = "/lustre/fsw/joc/big_nlp/bignlp_ci/results"
 
