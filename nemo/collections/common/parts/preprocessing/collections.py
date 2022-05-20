@@ -487,7 +487,8 @@ class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
     OUTPUT_TYPE = collections.namedtuple(
-        typename='DiarizationLabelEntity', field_names='audio_file duration rttm_file offset target_spks sess_spk_dict clus_spk_digits rttm_spk_digits',
+        typename='DiarizationLabelEntity',
+        field_names='audio_file duration rttm_file offset target_spks sess_spk_dict clus_spk_digits rttm_spk_digits',
     )
 
     def __init__(
@@ -535,14 +536,36 @@ class DiarizationLabel(_Collection):
             self.mapping = {}
         output_type = self.OUTPUT_TYPE
         data, duration_filtered = [], 0.0
-        
-        zipped_items = zip(audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list)
-        for audio_file, duration, rttm_file, offset, target_spks, sess_spk_dict, clus_spk_digits, rttm_spk_digits in zipped_items:
+
+        zipped_items = zip(
+            audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list
+        )
+        for (
+            audio_file,
+            duration,
+            rttm_file,
+            offset,
+            target_spks,
+            sess_spk_dict,
+            clus_spk_digits,
+            rttm_spk_digits,
+        ) in zipped_items:
 
             if duration is None:
                 duration = 0
 
-            data.append(output_type(audio_file, duration, rttm_file, offset, target_spks, sess_spk_dict, clus_spk_digits, rttm_spk_digits))
+            data.append(
+                output_type(
+                    audio_file,
+                    duration,
+                    rttm_file,
+                    offset,
+                    target_spks,
+                    sess_spk_dict,
+                    clus_spk_digits,
+                    rttm_spk_digits,
+                )
+            )
 
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
@@ -610,12 +633,20 @@ class DiarizationSpeechLabel(DiarizationLabel):
         self.clus_label_dict = clus_label_dict
         self.seq_eval_mode = seq_eval_mode
         self.bi_ch_infer = bi_ch_infer
-        audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list = [], [], [], [], [], [], [], []
+        audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             uniq_id = item['rttm_file'].split('/')[-1].split('.rttm')[0]
 
-            
             if self.bi_ch_infer:
                 if item['rttm_file']:
                     _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
@@ -636,7 +667,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                     spk_comb_list = [x for x in combinations(clus_speaker_digits, 2)]
 
             else:
-                target_spks = (0, 1), 
+                target_spks = ((0, 1),)
                 spk_comb_list = [target_spks]
                 clus_speaker_digits = target_spks
                 rttm_speaker_digits = None
@@ -652,7 +683,18 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 clus_spk_list.append(clus_speaker_digits)
                 rttm_spk_list.append(rttm_speaker_digits)
 
-        super().__init__(audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list, *args, **kwargs)
+        super().__init__(
+            audio_files,
+            durations,
+            rttm_files,
+            offsets,
+            target_spks_list,
+            sess_spk_dicts,
+            clus_spk_list,
+            rttm_spk_list,
+            *args,
+            **kwargs,
+        )
 
     def s2n(self, x):
         """Convert string to floating point number with rounding"""

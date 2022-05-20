@@ -780,7 +780,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
         audio_bytes, audio_filename = tup
-        
+
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
 
