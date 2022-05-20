@@ -71,7 +71,7 @@ gpt3.126m_short:
     - set -x
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - pwd
-    - bash tests/ci/launch_selene_gpt3_126m.sh
+    - bash tests/ci_tests/launch_selene_gpt3_126m.sh
     - echo "Finished"
   after_script:
     - pip install 'pytest>=3'
