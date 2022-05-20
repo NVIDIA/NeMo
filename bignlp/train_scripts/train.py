@@ -24,8 +24,7 @@ def create_srun_command(
     partition="batch",
     account=None,
 ):
-    """Creates the srun command to launch the job in interactive mode.
-    """
+    """Creates the srun command to launch the job in interactive mode."""
     gpus_per_task_cmd = f"--gpus-per-task={gpus_per_task} " if gpus_per_task is not None else ""
     gpus_per_node_cmd = f"--gpus-per-node={gpus_per_node} " if gpus_per_node is not None else ""
     dependency_cmd = ""
@@ -37,10 +36,12 @@ def create_srun_command(
     exclusive_cmd = f"--exclusive " if exclusive else ""
     overcommit_cmd = f"--overcommit " if overcommit else ""
 
-    cmd = f'srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} '
-          f'--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} '
-          f'{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} '
-          f'{overcommit_cmd} sh -c "{train_cmd}"\n\n '
+    cmd = (
+        f"srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} "
+        f"--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} "
+        f"{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} "
+        f'{overcommit_cmd} sh -c "{train_cmd}"\n\n '
+    )
     return cmd
 
 
@@ -100,7 +101,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -157,15 +158,11 @@ def run_training(cfg, hydra_args="", dependency=None):
             dependency = run_cfg.get("dependency")
         job_name = job_name_prefix + name
 
-
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
-        flags = (
-            f"--container-image {container} "
-            f"--container-mounts {mounts_str} "
-        )
+        flags = f"--container-image {container} " f"--container-mounts {mounts_str} "
 
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
             train_cmd = f"PYTHONPATH={bignlp_path}:\\${{PYTHONPATH}} \\\n {base_cmd}"
