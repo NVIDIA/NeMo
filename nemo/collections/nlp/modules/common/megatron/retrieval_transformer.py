@@ -14,10 +14,10 @@
 
 """Retrieval Transformer."""
 
-from hypothesis import infer
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from hypothesis import infer
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
@@ -444,7 +444,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         _, n, _ = dec_input.shape
 
         if set_inference_key_value_memory == True:
-            #seq_index = (n // chunk_size) * chunk_size
+            # seq_index = (n // chunk_size) * chunk_size
             self.current_len = n
             num_seq_chunks = self.current_len // self.chunk_size
             self_attn_emb = self.rotary_pos_emb(self.current_len)
