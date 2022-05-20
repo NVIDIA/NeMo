@@ -184,6 +184,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             ]
         elif inference_max_sequence_len is not None:
             # second time of running
+            # only support one token at a time
+            assert n == 1
             self.seq_pos_in_chunk += n
             self.current_chunk = self.seq_pos_in_chunk // self.chunk_size
             # if exceed the chunk size
@@ -200,6 +202,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             if not self.seq_pos_in_chunk % self.chunk_size == 0:
                 # still accumulate the encoder_output
                 # return the cached results
+                if self.current_chunk == 0:
+                    return None
                 return self.cache_output[:, : self.current_chunk]
             if enc_input is not None:
                 # only need one chunk for the later calculation

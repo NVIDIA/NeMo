@@ -678,7 +678,10 @@ class ParallelChunkedCrossAttention(MegatronModule):
         self.chunk_size = chunk_size
 
     def forward(
-        self, hidden_states, attention_mask, encoder_output=None, rotary_pos_emb=None,
+        self, hidden_states, attention_mask, encoder_output=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
+        rotary_pos_emb=None,
     ):
         # hidden_states is assumed to have dimension [token length, batch, dimension]
         # derive variables
@@ -686,18 +689,29 @@ class ParallelChunkedCrossAttention(MegatronModule):
         context = encoder_output
         # context is assumed to have dimension [num_chunks, num_neighbors, context_token_len, batch, dimension]
         chunk_size = self.chunk_size
+        b, n = (hidden_states.shape[1], hidden_states.shape[0],)
 
-        b, n, num_chunks, num_retrieved = (
-            hidden_states.shape[1],
-            hidden_states.shape[0],
-            context.shape[-5],
-            context.shape[-4],
-        )
+        if set_inference_key_value_memory:
+            self.current_len = n
+        elif inference_max_sequence_len is not None:
+            # only handles single token increment
+            assert n == 1
+            self.current_len += n
+            token_pos = (self.current_len % chunk_size) - 1
+            chunk_id = self.current_len // chunk_size
+            x = 0
+            pass
+
 
         # if sequence length less than chunk size, do an early return
 
         if n < self.chunk_size:
             return torch.zeros_like(hidden_states)
+
+        num_chunks, num_retrieved = (
+            context.shape[-5],
+            context.shape[-4],
+        )
 
         # causal padding
         causal_padding = chunk_size - 1

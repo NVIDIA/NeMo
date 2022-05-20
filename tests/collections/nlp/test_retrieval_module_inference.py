@@ -83,7 +83,7 @@ class TestRetrievalModuleInference:
         torch.distributed.barrier()
 
     @pytest.mark.unit
-    def test_retrieval_encoder(self):
+    def test_retrieval_encoder_inference(self):
 
         init_method_std = 0.02
 
@@ -135,13 +135,23 @@ class TestRetrievalModuleInference:
         out_1 = encoder(
             None,
             None,
-            context_attn_mask=hidden_mask[:, :63],
-            encoder_output=hidden_emb[:, :63, :],
+            context_attn_mask=hidden_mask[:, :62],
+            encoder_output=hidden_emb[:, :62, :],
             set_inference_key_value_memory=True,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
         )
-
+        assert out_1 is None
+        out_1 = encoder(
+            None,
+            None,
+            context_attn_mask=hidden_mask[:, 62:63],
+            encoder_output=hidden_emb[:, 62:63, :],
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+            neighbors=neighbors,
+        )
+        assert out_1 is None
         out_2 = encoder(
             retrieved_emb[:, :1],
             context_mask[:, :1],
@@ -240,3 +250,69 @@ class TestRetrievalModuleInference:
         )
         assert (encoder.encoder_output - hidden_emb[:, 128:192]).abs().max().item() < 1e-5
         assert (out_gt[:, :3,] - out_4).abs().max().item() < 1e-2
+
+    @pytest.mark.unit
+    def test_cross_attn_inference(self):
+        num_layers = 1
+        init_method_std = 0.02
+        batch = 2
+        neighbors = 2
+        # rotary pos emb dim
+        dim = 128
+        pad_id = 19999
+        num_attention_heads = 8
+        chunks = 32
+        text_chunk_size = 64
+        context_chunk_size = 2 * text_chunk_size
+        input_length = chunks * text_chunk_size
+        vocab_size = 20000
+
+        rot_dim = dim // num_attention_heads
+        rotary_pos_emb = RotaryEmbedding(rot_dim).cuda().half()
+
+        hidden = torch.randint(0, vocab_size, (input_length, batch)).cuda()  # (seq, batch, dim)
+        hidden_mask = (hidden != pad_id).cuda()
+        hidden_emb = torch.rand(input_length, batch, dim).cuda().half()  # (seq, batch, dim)
+
+        retrieved = torch.randint(0, vocab_size, (chunks, neighbors, context_chunk_size, batch)).cuda()
+        # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch)
+
+        # context attention mask [b, np, sq, sk]
+        context_mask = (retrieved != pad_id).cuda()
+        retrieved_emb = torch.rand(chunks, neighbors, context_chunk_size, batch, dim).cuda().half()
+        # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch, hidden)
+
+        # need to add extra chunk size, since it will be shifted
+        cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, offset=0)
+        cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size)
+        cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+
+        dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
+        context_attn_mask = rearrange(context_mask, 'k r n b -> (b k) (r n)')
+        enc_dec_attn_mask_3d = build_attention_mask_3d(
+            source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+        )
+        enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+
+        init_method = init_method_normal(init_method_std)
+
+        scaled_init_method = scaled_init_method_normal(init_method_std, num_layers)
+        cross_attn = (
+            ParallelChunkedCrossAttention(
+                init_method=init_method,
+                output_layer_init_method=scaled_init_method,
+                layer_number=1,
+                num_attention_heads=num_attention_heads,
+                hidden_size=dim,
+                precision=16,
+                chunk_size=text_chunk_size,
+            )
+            .cuda()
+            .half()
+        )
+
+        out, bias = cross_attn(
+            hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, rotary_pos_emb=cross_attn_pos_emb
+        )
+        assert out.shape == torch.Size([input_length, batch, dim])
+        assert bias.shape == torch.Size([dim])
