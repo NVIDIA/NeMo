@@ -16,8 +16,7 @@
 
 import torch
 from einops import rearrange, repeat
-from zmq import device
-
+import torch.nn.functional as F
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
@@ -458,6 +457,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         dec_attn_mask_3d = self._calculate_dec_att_mask(dec_attn_mask, eod_positions)
 
         if retrieved_emb is not None:
+            # need to shift the dec_attn_mask as first causal_padding elements are ignored
+            # also pad it to be the multiple of self.chunk_size
+            causal_padding = self.chunk_size - 1
+            reminder = (self.chunk_size - (dec_attn_mask.shape[1] % self.chunk_size)) % self.chunk_size
+            dec_attn_mask = F.pad(dec_attn_mask, (-causal_padding, causal_padding + reminder), value=False)
+
             dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
             retrieved_attn_mask = rearrange(retrieved_attn_mask, 'b k r n -> (b k) (r n)')
 

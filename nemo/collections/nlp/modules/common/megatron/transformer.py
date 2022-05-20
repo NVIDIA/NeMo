@@ -764,8 +764,10 @@ class ParallelChunkedCrossAttention(MegatronModule):
         k_pos_emb = repeat(k_pos_emb, 'n b h d -> (r n) b h d', r=num_retrieved)
         rotary_pos_emb = (q_pos_emb, k_pos_emb)
 
-        # reshape so we have chunk to chunk attention, without breaking causality
+        # make sure number context chunks is enough
+        assert x.shape[0] // chunk_size == num_chunks
 
+        # reshape so we have chunk to chunk attention, without breaking causality
         x = rearrange(x, '(k n) b d -> n (b k) d', k=num_chunks)
         context = rearrange(context, 'k r n b d -> (r n) (b k) d')
         # cross attention
