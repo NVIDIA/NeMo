@@ -146,8 +146,8 @@ class TestRetrievalModuleInference:
         out_1 = encoder(
             None,
             None,
-            context_attn_mask=hidden_mask[:, 62:63],
-            encoder_output=hidden_emb[:, 62:63, :],
+            context_attn_mask=hidden_mask[:, :63],
+            encoder_output=hidden_emb[:, 62:63],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
@@ -156,8 +156,8 @@ class TestRetrievalModuleInference:
         out_2 = encoder(
             retrieved_emb[:, :1],
             context_mask[:, :1],
-            context_attn_mask=hidden_mask[:, 63:64],
-            encoder_output=hidden_emb[:, 63:64, :],
+            context_attn_mask=hidden_mask[:, :64],
+            encoder_output=hidden_emb[:, 63:64],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
@@ -177,8 +177,8 @@ class TestRetrievalModuleInference:
             out_3 = encoder(
                 retrieved_emb[:, :1],
                 context_mask[:, :1],
-                context_attn_mask=hidden_mask[:, i : i + 1],
-                encoder_output=hidden_emb[:, i : i + 1, :],
+                context_attn_mask=hidden_mask[:, : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
                 neighbors=neighbors,
@@ -187,8 +187,8 @@ class TestRetrievalModuleInference:
         out_3 = encoder(
             retrieved_emb[:, :2],
             context_mask[:, :2],
-            context_attn_mask=hidden_mask[:, i : i + 1],
-            encoder_output=hidden_emb[:, i : i + 1, :],
+            context_attn_mask=hidden_mask[:, : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
@@ -200,8 +200,8 @@ class TestRetrievalModuleInference:
             out_4 = encoder(
                 retrieved_emb[:, :2],
                 context_mask[:, :2],
-                context_attn_mask=hidden_mask[:, i : i + 1],
-                encoder_output=hidden_emb[:, i : i + 1, :],
+                context_attn_mask=hidden_mask[:, : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
                 neighbors=neighbors,
@@ -210,8 +210,8 @@ class TestRetrievalModuleInference:
         out_4 = encoder(
             retrieved_emb[:, :3],
             context_mask[:, :3],
-            context_attn_mask=hidden_mask[:, i : i + 1],
-            encoder_output=hidden_emb[:, i : i + 1, :],
+            context_attn_mask=hidden_mask[:, : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
@@ -233,8 +233,8 @@ class TestRetrievalModuleInference:
             out_2 = encoder(
                 retrieved_emb[:, :2],
                 context_mask[:, :2],
-                context_attn_mask=hidden_mask[:, i : i + 1],
-                encoder_output=hidden_emb[:, i : i + 1, :],
+                context_attn_mask=hidden_mask[:, : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
                 neighbors=neighbors,
@@ -243,8 +243,8 @@ class TestRetrievalModuleInference:
         out_4 = encoder(
             retrieved_emb[:, :3],
             context_mask[:, :3],
-            context_attn_mask=hidden_mask[:, i : i + 1],
-            encoder_output=hidden_emb[:, i : i + 1, :],
+            context_attn_mask=hidden_mask[:, : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
@@ -539,3 +539,79 @@ class TestRetrievalModuleInference:
                 inference_max_sequence_len=input_length,
             )
             assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
+
+    @pytest.mark.unit
+    def test_encoder_decoder_module_inference(self):
+        # rotary pos emb dim
+        batch = 2
+        neighbors = 2
+        dim = 128
+        pad_id = 19999
+        num_attention_heads = 8
+        chunks = 32
+        text_chunk_size = 64
+        input_length = chunks * text_chunk_size
+        vocab_size = 20000
+        enc_num_layers = 4
+        dec_num_layers = 6
+        enc_cross_attention = [3]  # layer numbers for cross attention
+        dec_cross_attention = [3, 5]  # layer numbers for cross attention
+
+        all_tokens = torch.randint(0, vocab_size, (batch, input_length + 1)).cuda()  # (seq, batch, dim)
+        hidden = all_tokens[:, :-1]
+        labels = all_tokens[:, 1:]
+
+        hidden_mask = (hidden != pad_id).cuda()
+        retrieved = torch.randint(0, vocab_size, (batch, chunks, neighbors, 2 * text_chunk_size)).cuda()
+
+        pad_id = vocab_size - 1
+        context_mask = (retrieved != pad_id).cuda()
+
+        class FakeTokenizer:
+            eos_id = vocab_size - 2
+
+        tokenizer = FakeTokenizer()
+
+        encoder_decoder = (
+            MegatronRetrievalTokenLevelEncoderDecoderModule(
+                vocab_size=vocab_size,
+                hidden_size=dim,
+                max_position_embeddings=input_length,
+                num_attention_heads=num_attention_heads,
+                ffn_hidden_size=dim * 4,
+                precision=16,
+                chunk_size=text_chunk_size,
+                enc_num_layers=enc_num_layers,
+                dec_num_layers=dec_num_layers,
+                enc_cross_attention=enc_cross_attention,
+                dec_cross_attention=dec_cross_attention,
+                add_position_embedding=False,
+                tokenizer=tokenizer,
+                hidden_dropout=0.0,
+                attention_dropout=0.0,
+            )
+            .cuda()
+            .half()
+        )
+
+        out = encoder_decoder(hidden, hidden_mask, retrieved_ids=retrieved, retrieved_attn_mask=context_mask)
+
+        out_1 = encoder_decoder(
+            hidden[:, :62],
+            hidden_mask[:, :62],
+            retrieved_attn_mask=None,
+            retrieved_ids=None,
+            set_inference_key_value_memory=True,
+            inference_max_sequence_len=input_length,
+        )
+        assert (out[:, :62] - out_1[:, :62]).abs().max().item() < 1e-2
+
+        out_1 = encoder_decoder(
+            hidden[:, 62:63],
+            hidden_mask[:, :63],
+            retrieved_attn_mask=None,
+            retrieved_ids=None,
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+        )
+        assert (out[:, 62] - out_1[:, 0]).abs().max().item() < 1e-2

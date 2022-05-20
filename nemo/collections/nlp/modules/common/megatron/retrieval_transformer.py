@@ -196,7 +196,9 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             #     self.seq_pos_in_chunk -= self.chunk_size
             chunk_start = self.current_chunk - 1
             self.encoder_output[:, pos_beg : pos_beg + 1, :] = encoder_output
-            self.context_attn_mask[:, pos_beg : pos_beg + 1] = context_attn_mask
+            self.context_attn_mask[:, pos_beg : pos_beg + 1] = context_attn_mask[
+                :, self.seq_pos_in_chunk - 1 : self.seq_pos_in_chunk
+            ]
             encoder_output = self.encoder_output[:, : pos_beg + 1, :]
             context_attn_mask = self.context_attn_mask[:, : pos_beg + 1]
             num_seq_chunks = 1

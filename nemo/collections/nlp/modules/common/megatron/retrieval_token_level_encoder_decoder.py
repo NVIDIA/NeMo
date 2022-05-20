@@ -282,11 +282,14 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         token_type_ids=None,
         labels=None,
         input_emb=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
         eod_positions = None
+        retrieved_emb = None
         if input_ids is not None and self.eod_id is not None:
             eod_positions = torch.where(input_ids == self.eod_id)
 
@@ -311,11 +314,22 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             retrieved_emb = self.encoder_embedding(retrieved_ids, retrieved_position_ids)
 
         if self.add_decoder:
-            hidden = self.pre_decoder(input_emb, input_attn_mask, eod_positions=eod_positions)
+            hidden = self.pre_decoder(
+                input_emb,
+                input_attn_mask,
+                eod_positions=eod_positions,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
+            )
 
         if self.add_encoder:
             retrieved_emb = self.encoder(
-                retrieved_emb, retrieved_attn_mask, context_attn_mask=input_attn_mask, encoder_output=hidden
+                retrieved_emb,
+                retrieved_attn_mask,
+                context_attn_mask=input_attn_mask,
+                encoder_output=hidden,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
 
         if self.add_decoder:
@@ -325,6 +339,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 retrieved_attn_mask=retrieved_attn_mask,
                 retrieved_emb=retrieved_emb,
                 eod_positions=eod_positions,
+                set_inference_key_value_memory=set_inference_key_value_memory,
+                inference_max_sequence_len=inference_max_sequence_len,
             )
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
