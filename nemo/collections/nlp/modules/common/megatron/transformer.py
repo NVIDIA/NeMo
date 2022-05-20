@@ -261,22 +261,16 @@ class CoreAttention(MegatronModule):
 
     def __init__(
         self,
-        init_method,
-        output_layer_init_method,
         layer_number,
         num_attention_heads,
         hidden_size,
-        attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
         precision=16,
         apply_query_key_layer_scaling=True,
         kv_channels=None,
-        use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        megatron_legacy=False,
-        bias=True,
-        headscale=True,
+        headscale=False,
         sequence_parallel=False,
     ):
 
@@ -308,6 +302,12 @@ class CoreAttention(MegatronModule):
         self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
         self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
 
+        self.headscale = headscale
+        if headscale:
+            self.head_scale_tensor = torch.nn.Parameter(
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
+            )
+
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
@@ -329,7 +329,16 @@ class CoreAttention(MegatronModule):
         # on average it should not be partition dependent.
         self.attention_dropout = torch.nn.Dropout(attention_dropout)
 
-    def forward(self, query_layer, key_layer, value_layer, attention_mask):
+    def forward(
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        attention_mask,
+        layer_past=None,
+        get_key_value=False,
+        rotary_pos_emb=None,
+    ):
 
         # ===================================
         # Raw attention scores. [b, np, s, s]
@@ -383,7 +392,6 @@ class CoreAttention(MegatronModule):
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
 
-        # TODO: figure out how to do this
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
         # ==================================================
@@ -435,7 +443,6 @@ class CoreAttention(MegatronModule):
         # change view [b, np, sq, hn]
         context_layer = context_layer.view(*output_size)
 
-        # TODO: figure out how to do this
         if self.headscale:
             context_layer = context_layer * self.head_scale_tensor
 
@@ -473,8 +480,9 @@ class ParallelAttention(MegatronModule):
         attention_dropout=0.1,
         megatron_legacy=False,
         bias=True,
-        headscale=True,
+        headscale=False,
         recompute_granularity=None,
+        sequence_parallel=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -482,11 +490,7 @@ class ParallelAttention(MegatronModule):
         self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
 
-        # TODO: figure out
         self.megatron_legacy = megatron_legacy
-
-        # TODO: figure out
-        self.headscale = headscale
 
         if kv_channels is None:
             assert (
@@ -499,13 +503,6 @@ class ParallelAttention(MegatronModule):
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
         self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
-
-        # TODO: figure out
-        # Headscale
-        if headscale:
-            self.head_scale_tensor = torch.nn.Parameter(
-                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
-            )
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
@@ -527,7 +524,19 @@ class ParallelAttention(MegatronModule):
                 hidden_size, 2 * projection_size, gather_output=False, init_method=init_method, bias=bias
             )
 
-        self.core_attention = CoreAttention(self.layer_number, self.attn_mask_type)
+        self.core_attention = CoreAttention(
+            layer_number=self.layer_number,
+            num_attention_heads=num_attention_heads,
+            hidden_size=hidden_size,
+            attn_mask_type=self.attn_mask_type,
+            precision=precision,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            masked_softmax_fusion=masked_softmax_fusion,
+            attention_dropout=attention_dropout,
+            headscale=headscale,
+            sequence_parallel=sequence_parallel,
+        )
         self.checkpoint_core_attention = recompute_granularity == 'selective'
 
         # Output.
@@ -554,7 +563,12 @@ class ParallelAttention(MegatronModule):
             key_layer = inputs[1]
             value_layer = inputs[2]
             attention_mask = inputs[3]
-            output_ = self.core_attention(query_layer, key_layer, value_layer, attention_mask)
+            layer_past = inputs[4]
+            get_key_value = inputs[5]
+            rotary_pos_emb = inputs[6]
+            output_ = self.core_attention(
+                query_layer, key_layer, value_layer, attention_mask, layer_past, get_key_value, rotary_pos_emb
+            )
             return output_
 
         hidden_states = tensor_parallel.checkpoint(
@@ -764,10 +778,9 @@ class ParallelAttention(MegatronModule):
         # # change view to [b, np, sq, sk]
         # attention_scores = matmul_result.view(*output_size)
 
-        # TODO: figure out how to do this
-        # ==================================================
-        # Update attention mask for inference. [b, np, sq, sk]
-        # ==================================================
+        # # ==================================================
+        # # Update attention mask for inference. [b, np, sq, sk]
+        # # ==================================================
 
         # if get_key_value:
         #     with torch.no_grad():
@@ -812,7 +825,6 @@ class ParallelAttention(MegatronModule):
         # # change view [b, np, sq, hn]
         # context_layer = context_layer.view(*output_size)
 
-        # # TODO: figure out how to do this
         # if self.headscale:
         #     context_layer = context_layer * self.head_scale_tensor
 
@@ -824,9 +836,11 @@ class ParallelAttention(MegatronModule):
         # context_layer = context_layer.view(*new_context_layer_shape)
 
         if self.checkpoint_core_attention:
-            context_layer = self._checkpointed_attention_forward(query_layer, key_layer, value_layer, attention_mask)
+            context_layer = self._checkpointed_attention_forward(
+                query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb
+            )
         else:
-            context_layer = self.core_attention(query_layer, key_layer, value_layer, attention_mask)
+            context_layer = self.core_attention(query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb)
 
         # =================
         # Output. [sq, b, h]
@@ -834,7 +848,6 @@ class ParallelAttention(MegatronModule):
 
         output, bias = self.dense(context_layer)
 
-        # TODO: figure out how to do this
         if get_key_value:
             output = [output, present]
 
