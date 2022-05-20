@@ -181,6 +181,8 @@ def run_training(cfg, hydra_args="", dependency=None):
                 partition=partition,
                 account=account,
             )
+            print("COMMAND")
+            print(cmd)
             os.system(cmd)
         else:
             train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
