@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,18 +13,17 @@
 # limitations under the License.
 import io
 import os
-from typing import Dict, List, Optional, Union
 from collections import Counter, OrderedDict
 from statistics import mode
+from typing import Dict, List, Optional, Union
 
-import braceexpand
 import torch
 import webdataset as wd
 
 from nemo.collections.asr.data.audio_to_text import expand_audio_filepaths
 from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
-from nemo.collections.common.parts.preprocessing import collections, manifest, parsers
+from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import (
@@ -57,10 +56,11 @@ def repeat_signal(signal, sig_len, required_length):
     signal = torch.cat((rep_sig, sub))
     return signal
 
+
 def get_scale_mapping_list(uniq_timestamps):
     """
-    Call get_argmin_mat function to find the closest segments in two different scale.
-    For each scale and each segment, a base-scale segment is assigned.
+    Call get_argmin_mat function to find the index of the non-base-scale segment that is closest to the 
+    given base-scale segment. For each scale and each segment, a base-scale segment is assigned.
 
     Args:
         uniq_timestamps: (Dict)
@@ -69,11 +69,18 @@ def get_scale_mapping_list(uniq_timestamps):
 
     Returns:
         scale_mapping_argmat (torch.tensor):
-            At m-th row and n-th column of this matrix, it contains n-th scale segment index that has the
-            closest segment with n-th segment in base scale. Thus, the longer segments bound to have
-            more repeating numbers since multiple base scale segments fall into the range of longer segments.
-            At the same time, each row contains N numbers of indices where N is number of segments in
-            base-scale (the finest scale).
+
+            The element at the m-th row and the n-th column of the scale mapping matrix indicates the (m+1)-th scale
+            segment index which has the closest center distance with (n+1)-th segment in the base scale.
+
+            Example:
+                scale_mapping_argmat[2][101] = 85
+
+            In the above example, it means that 86-th segment in the 3rd scale (python index is 2) is mapped with
+            102-th segment in the base scale. Thus, the longer segments bound to have more repeating numbers since
+            multiple base scale segments (since the base scale has the shortest length) fall into the range of the
+            longer segments. At the same time, each row contains N numbers of indices where N is number of
+            segments in the base-scale (i.e., the finest scale).
     """
     uniq_scale_dict = uniq_timestamps['scale_dict']
     scale_mapping_argmat = [[] for _ in range(len(uniq_scale_dict.keys()))]
@@ -83,6 +90,7 @@ def get_scale_mapping_list(uniq_timestamps):
         scale_mapping_argmat[scale_idx] = torch.tensor(session_scale_mapping_dict[scale_idx])
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
+
 
 def normalize(signal):
     """normalize signal
@@ -238,10 +246,11 @@ def _vad_frame_seq_collate_fn(self, batch):
     tokens_lengths = torch.tensor(num_slices)
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
-def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
+
+def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
     """
-    Get RTTM lines containing speaker labels, start time and end time. tup_spks contains two targeted
-    speaker indices for creating the groundtruth label file. Only speakers in tup_spks variable will be
+    Get RTTM lines containing speaker labels, start time and end time. target_spks contains two targeted
+    speaker indices for creating the groundtruth label file. Only speakers in target_spks variable will be
     included in the output lists.
 
     Args:
@@ -255,29 +264,20 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
             Tuple containing lists of start time, end time and speaker labels.
 
     """
-    stt_list, end_list, speaker_list = [], [], []
-    if tup_spks:
+    stt_list, end_list, speaker_list, bi_ch_infer_spks = [], [], [], []
+    if target_spks:
         label_scale_idx = max(self.emb_dict.keys())
         mapping_dict = self.emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
-        speaker_check_list = [f'speaker_{x}' in inv_map for x in tup_spks]
-        bi_ch_infer_spks = []
 
-        for spk_idx in tup_spks[0]:
+        for spk_idx in target_spks[0]:
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
                 bi_ch_infer_spks.append(inv_map[spk_str])
-        for line in rttm_lines:
-            rttm = line.strip().split()
-            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
-            if speaker in bi_ch_infer_spks:
-                end_list.append(end)
-                stt_list.append(start)
-                speaker_list.append(speaker)
-    else:
-        for line in rttm_lines:
-            rttm = line.strip().split()
-            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+    for line in rttm_lines:
+        rttm = line.strip().split()
+        start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+        if target_spks is None or speaker in bi_ch_infer_spks:
             end_list.append(end)
             stt_list.append(start)
             speaker_list.append(speaker)
@@ -285,7 +285,7 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks=None):
     return rttm_tup
 
 
-def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks, min_spks=2):
+def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, min_spks=2):
     """
     Create a multi-dimensional vector sequence containing speaker timestamp information in RTTM.
     The unit-length is the frame shift length of the acoustic feature. The feature-level annotations
@@ -297,9 +297,9 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks, min
         rttm_timestamps (list):
             List containing start and end time for each speaker segment label.
             stt_list, end_list and speaker_list are contained.
-        tup_spks (tuple):
+        target_spks (tuple):
             Speaker indices that are generated from combinations. If there are only one or two speakers,
-            only a single tup_spks variable is generated.
+            only a single target_spks variable is generated.
 
     Returns:
         fr_level_target (torch.tensor):
@@ -319,19 +319,19 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks, min
         speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
         fr_level_target = torch.zeros(total_fr_len, spk_num)
 
-        # If RTTM is not provided, then there is no speaker mapping dict in tup_spks.
+        # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
         # Thus, return a zero-filled tensor as a placeholder.
-        if tup_spks and tup_spks[1] is None:
+        if target_spks and target_spks[1] is None:
             return fr_level_target
         for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
             stt, end = round(stt, self.round_digits), round(end, self.round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
             stt_fr, end_fr = int(round(stt, 2) * self.fr_per_sec), int(round(end, self.round_digits) * self.fr_per_sec)
-            if tup_spks == None:
+            if target_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
-                if spk in tup_spks[0]:
-                    idx = tup_spks[0].index(spk)
+                if spk in target_spks[0]:
+                    idx = target_spks[0].index(spk)
                     fr_level_target[stt_fr:end_fr, idx] = 1
 
         return fr_level_target
@@ -371,6 +371,7 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
+
 
 class _AudioLabelDataset(Dataset):
     """
@@ -779,6 +780,7 @@ class _TarredAudioLabelDataset(IterableDataset):
         """Builds the training sample by combining the data from the WebDataset with the manifest info.
         """
         audio_bytes, audio_filename = tup
+        
         # Grab manifest entry from self.collection
         file_id, _ = os.path.splitext(os.path.basename(audio_filename))
 
@@ -1068,8 +1070,6 @@ class _AudioDiarTrainDataset(Dataset):
             max_spks=max_spks,
             bi_ch_infer=bi_ch_infer,
         )
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
         self.featurizer = featurizer
         self.multiscale_args_dict = multiscale_args_dict
         self.ms_ts_dict = ms_ts_dict
@@ -1114,8 +1114,6 @@ class _AudioDiarTrainDataset(Dataset):
         per_scale_clus_label = []
         self.scale_n = len(self.ms_ts_dict[uniq_id]['scale_dict'])
         uniq_scale_mapping = get_scale_mapping_list(self.ms_ts_dict[uniq_id])
-        label_scale_idx = max(self.ms_ts_dict[uniq_id]["scale_dict"].keys())
-        max_seg_count = len(self.ms_ts_dict[uniq_id]["scale_dict"][label_scale_idx]["time_stamps"])
         for scale_index in range(self.scale_n):
             new_clus_label = []
             max_index = max(uniq_scale_mapping[scale_index])
@@ -1163,7 +1161,7 @@ class _AudioDiarTrainDataset(Dataset):
         base_clus_label = torch.stack(base_clus_label)
         return seg_target, base_clus_label
 
-    def parse_rttm_for_ms_targets(self, sample, tup_spks=None):
+    def parse_rttm_for_ms_targets(self, sample, target_spks=None):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
         This function converts (start, end, speaker_id) format into base-scale (the finest scale) segment level
@@ -1197,8 +1195,8 @@ class _AudioDiarTrainDataset(Dataset):
         """
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = self.get_uniq_id_with_range(sample)
-        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, tup_spks=None)
-        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, tup_spks=None)
+        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines)
+        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, target_spks=None)
         seg_target, base_clus_label = self.get_diar_target_labels(uniq_id, fr_level_target)
         clus_label_index, scale_mapping = self.assign_labels_to_longer_segs(uniq_id, base_clus_label)
         return clus_label_index, seg_target, scale_mapping
@@ -1281,14 +1279,12 @@ class _AudioDiarTrainDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        offset = sample.offset
         if sample.offset is None:
             sample.offset = 0
         clus_label_index, targets, scale_mapping = self.parse_rttm_for_ms_targets(sample)
         features = self.featurizer.process(sample.audio_file, offset=sample.offset, duration=sample.duration)
         feature_length = torch.tensor(features.shape[0]).long()
         ms_seg_timestamps, ms_seg_counts = self.get_ms_seg_timestamps(sample)
-        uniq_id = self.get_uniq_id_with_range(sample)
         if self.random_flip:
             torch.manual_seed(index)
             flip = torch.randperm(self.max_spks)
@@ -1389,7 +1385,7 @@ class _AudioMSDDDataset(Dataset):
     def s2n(self, x):
         return round(float(x), self.round_digits)
 
-    def parse_rttm_multiscale(self, sample, tup_spks=None):
+    def parse_rttm_multiscale(self, sample, target_spks=None):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
         This function converts (start, end, speaker_id) format into base-scale (the finest scale) segment level
@@ -1410,21 +1406,17 @@ class _AudioMSDDDataset(Dataset):
                     Duration of the input audio file provided in the input manifest file.
                 rttm_file (str):
                     Path of the groundtruth diarization annotation file (RTTM format).
-                tuple_2ch (tuple):
-                    Tuple containing the following information:
-                    (tup_spks, sess_spk_dict, clus_spk_digits, rttm_speaker_digits)
-
-                    tup_spks (tuple):
-                        Two Indices of targeted speakers for evaluation.
-                        Example: (2, 3)
-                    sess_spk_dict (Dict):
-                        Mapping between RTTM speakers and speaker labels in the clustering result.
-                    clus_spk_digits (tuple):
-                        Tuple containing all the speaker indices from the clustering result.
-                        Example: (0, 1, 2, 3)
-                    rttm_speaker_digits (tuple):
-                        Tuple containing all the speaker indices in the RTTM file.
-                        Example: (0, 1, 2)
+                target_spks (tuple):
+                    Two Indices of targeted speakers for evaluation.
+                    Example: (2, 3)
+                sess_spk_dict (Dict):
+                    Mapping between RTTM speakers and speaker labels in the clustering result.
+                clus_spk_digits (tuple):
+                    Tuple containing all the speaker indices from the clustering result.
+                    Example: (0, 1, 2, 3)
+                rttm_spkr_digits (tuple):
+                    Tuple containing all the speaker indices in the RTTM file.
+                    Example: (0, 1, 2)
 
         Returns:
             seg_target (torch.tensor):
@@ -1432,8 +1424,8 @@ class _AudioMSDDDataset(Dataset):
         """
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = sample.rttm_file.split('/')[-1].split('.rttm')[0]
-        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, tup_spks)
-        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, tup_spks)
+        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, target_spks)
+        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, target_spks)
         seg_target = self.get_diar_target_labels_from_fr_target(uniq_id, fr_level_target)
         return seg_target
 
@@ -1472,8 +1464,6 @@ class _AudioMSDDDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.collection[index]
-        offset = sample.offset
-
         if sample.offset is None:
             sample.offset = 0
 
@@ -1483,7 +1473,7 @@ class _AudioMSDDDataset(Dataset):
         _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)])
 
         if self.bi_ch_infer:
-            avg_embs = _avg_embs[:, :, self.collection[index].tup_spks[0]]
+            avg_embs = _avg_embs[:, :, self.collection[index].target_spks]
         else:
             avg_embs = _avg_embs
 
@@ -1500,7 +1490,7 @@ class _AudioMSDDDataset(Dataset):
         feats_len = feats_out.shape[0]
 
         if self.seq_eval_mode:
-            targets = self.parse_rttm_multiscale(sample, self.collection[index].tup_spks)
+            targets = self.parse_rttm_multiscale(sample, self.collection[index].target_spks)
         else:
             targets = torch.zeros(feats_len, 2).float()
 
@@ -1686,11 +1676,11 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
     def diar_train_collate_fn(self, batch):
         return _diar_train_collate_fn(self, batch)
 
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks):
-        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks)
+    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
+        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks)
 
-    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks):
-        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks)
+    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
+        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
 
 
 class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
@@ -1707,7 +1697,7 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     Args:
         manifest_filepath (str):
-             Path to input manifest json files.
+            Path to input manifest json files.
         emb_dict (Dict):
             Dictionary containing cluster-average embeddings and speaker mapping information.
         emb_seq (Dict):
@@ -1715,7 +1705,7 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
         clus_label_dict (Dict):
             Segment-level speaker labels from clustering results.
         soft_label_thres (float):
-            Threshold that determines the label of each segment based on RTTM file information.
+            Threshold that determines speaker labels of segments depending on the overlap with groundtruth speaker timestamps.
         featurizer:
             Featurizer instance for generating features from raw waveform.
         max_spks (int):
@@ -1760,9 +1750,8 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
     def msdd_collate_fn(self, batch):
         return _msdd_collate_fn(self, batch)
 
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks):
-        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, tup_spks)
+    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks):
+        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks)
 
-    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks):
-        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, tup_spks)
-
+    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
+        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
