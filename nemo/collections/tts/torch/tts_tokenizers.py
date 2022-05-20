@@ -384,7 +384,6 @@ class IPATokenizer(BaseTokenizer):
     def __init__(
         self,
         g2p,
-        token_list_file,
         punct=True,
         non_default_punct_list=None,
         chars=False,
