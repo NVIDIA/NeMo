@@ -166,7 +166,7 @@ def run_training(cfg, hydra_args="", dependency=None):
 
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
             train_cmd = f"PYTHONPATH={bignlp_path}:\\${{PYTHONPATH}} \\\n {base_cmd}"
-            create_srun_command(
+            cmd = create_srun_command(
                 new_script_path=new_script_path,
                 train_cmd=train_cmd,
                 job_name=job_name,
@@ -181,6 +181,7 @@ def run_training(cfg, hydra_args="", dependency=None):
                 partition=partition,
                 account=account,
             )
+            os.system(cmd)
         else:
             train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
             flags += f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
