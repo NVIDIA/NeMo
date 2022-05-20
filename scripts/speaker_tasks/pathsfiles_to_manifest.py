@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--manifest_filepath", help="path to output manifest file", type=str, required=True)
     parser.add_argument(
         "--add_duration",
-        help="add duration of audio files to output manifest files. Audio files need to be 16kHz.",
+        help="add duration of audio files to output manifest files.",
         action='store_true',
     )
     args = parser.parse_args()
