@@ -16,7 +16,7 @@ def convert_to_cli(cfg):
         result += f"conversion={cfg['conversion_config']} "
 
     for k, v in cfg.items():
-        if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem"]:
+        if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem", "container"]:
             continue
 
         if isinstance(v, omegaconf.dictconfig.DictConfig):
@@ -36,8 +36,6 @@ def convert_to_cli(cfg):
         elif k == "checkpoint_name":
             v = v.replace("=", "\=")
             result += f"{k}=\'{v}\' "
-        elif k == "container":
-            result += f'\"{k}=\'{v}\'\" '
         else:
             result += f"{k}={convert_to_null(v)} "
     return result
