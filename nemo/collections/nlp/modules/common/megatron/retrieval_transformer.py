@@ -449,7 +449,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self_attn_emb = self.rotary_pos_emb(n)
 
         if retrieved_emb is not None:
-            cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1)
+            cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, offset=-self.chunk_size + 1)
             cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
             attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
         else:

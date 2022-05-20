@@ -283,7 +283,7 @@ class TestRetrievalModuleInference:
         # retrieved tokens - (num chunks, num retrieved neighbors, retrieved chunk with continuation, batch, hidden)
 
         # need to add extra chunk size, since it will be shifted
-        cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, offset=0)
+        cross_attn_q_pos_emb = rotary_pos_emb(text_chunk_size + text_chunk_size - 1, offset=-text_chunk_size + 1)
         cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size)
         cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
 

@@ -678,7 +678,10 @@ class ParallelChunkedCrossAttention(MegatronModule):
         self.chunk_size = chunk_size
 
     def forward(
-        self, hidden_states, attention_mask, encoder_output=None,
+        self,
+        hidden_states,
+        attention_mask,
+        encoder_output=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         rotary_pos_emb=None,
@@ -689,7 +692,10 @@ class ParallelChunkedCrossAttention(MegatronModule):
         context = encoder_output
         # context is assumed to have dimension [num_chunks, num_neighbors, context_token_len, batch, dimension]
         chunk_size = self.chunk_size
-        b, n = (hidden_states.shape[1], hidden_states.shape[0],)
+        b, n = (
+            hidden_states.shape[1],
+            hidden_states.shape[0],
+        )
 
         if set_inference_key_value_memory:
             self.current_len = n
@@ -697,11 +703,10 @@ class ParallelChunkedCrossAttention(MegatronModule):
             # only handles single token increment
             assert n == 1
             self.current_len += n
-            token_pos = (self.current_len % chunk_size) - 1
+            token_pos = (self.current_len - 1) % chunk_size
             chunk_id = self.current_len // chunk_size
             x = 0
             pass
-
 
         # if sequence length less than chunk size, do an early return
 
