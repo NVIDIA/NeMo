@@ -677,6 +677,9 @@ class _TarredAudioToTextDataset(IterableDataset):
         return TarredAudioFilter(self.manifest_processor.collection)
 
     def _loop_offsets(self, iterator):
+        """This function is used to loop through utterances with different offsets for each file.
+        """
+
         class TarredAudioLoopOffsets:
             def __init__(self, collection):
                 self.iterator = iterator
