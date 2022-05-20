@@ -316,3 +316,32 @@ class TestRetrievalModuleInference:
         )
         assert out.shape == torch.Size([input_length, batch, dim])
         assert bias.shape == torch.Size([dim])
+
+        out_1, b = cross_attn(
+            hidden_emb[:62],
+            enc_dec_attn_mask_3d,
+            encoder_output=None,
+            rotary_pos_emb=cross_attn_pos_emb,
+            set_inference_key_value_memory=True,
+            inference_max_sequence_len=input_length,
+        )
+        assert (out_1 - torch.zeros_like(hidden_emb[:62])).abs().max() == 0
+        out_1, b = cross_attn(
+            hidden_emb[62:63],
+            enc_dec_attn_mask_3d,
+            encoder_output=None,
+            rotary_pos_emb=cross_attn_pos_emb,
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+        )
+        assert (out_1 - torch.zeros_like(hidden_emb[62:63])).abs().max() == 0
+        out_2, b = cross_attn(
+            hidden_emb[63:64],
+            enc_dec_attn_mask_3d,
+            encoder_output=retrieved_emb[:1],
+            rotary_pos_emb=cross_attn_pos_emb,
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+        )
+        assert (out[63]-out_2[0]).abs().max().item() < 1e-2
+

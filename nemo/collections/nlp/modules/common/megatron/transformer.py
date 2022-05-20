@@ -692,12 +692,14 @@ class ParallelChunkedCrossAttention(MegatronModule):
         context = encoder_output
         # context is assumed to have dimension [num_chunks, num_neighbors, context_token_len, batch, dimension]
         chunk_size = self.chunk_size
-        b, n = (
+        b, n, dim = (
             hidden_states.shape[1],
             hidden_states.shape[0],
+            hidden_states.shape[2],
         )
-
+        empty_bias = torch.zeros(dim, dtype=hidden_states.dtype, device=hidden_states.device)
         if set_inference_key_value_memory:
+            seq_index = (n // chunk_size) * chunk_size
             self.current_len = n
         elif inference_max_sequence_len is not None:
             # only handles single token increment
@@ -705,13 +707,26 @@ class ParallelChunkedCrossAttention(MegatronModule):
             self.current_len += n
             token_pos = (self.current_len - 1) % chunk_size
             chunk_id = self.current_len // chunk_size
-            x = 0
-            pass
+            if chunk_id <= 0:
+                # if sequence length less than chunk size, do an early return
+                return torch.zeros_like(hidden_states), empty_bias
+            causal_padding = chunk_size - 1
+            # pad it as a full chunk, put it at the end of the chunk position
+            hidden_states = F.pad(hidden_states, (0, 0, 0, 0, causal_padding, 0), value=0.0)
+            # only use the relevant context
+            context = context[chunk_id - 1:chunk_id, :, :, :, :]
+            attention_mask = rearrange(attention_mask, '(b k) 1 q v -> b k 1 q v', b=b)
+            # select the relevant chunk attn mask
+            attention_mask = attention_mask[:, chunk_id-1]
+            seq_index = chunk_size
+        else:
+            # this is normal forward without inference
+            seq_index = (n // chunk_size) * chunk_size
+
 
         # if sequence length less than chunk size, do an early return
-
-        if n < self.chunk_size:
-            return torch.zeros_like(hidden_states)
+        if n < self.chunk_size and set_inference_key_value_memory and inference_max_sequence_len is not None:
+            return torch.zeros_like(hidden_states), empty_bias
 
         num_chunks, num_retrieved = (
             context.shape[-5],
@@ -725,7 +740,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
 
         # remove sequence which is ahead of the neighbors retrieved (during inference)
 
-        seq_index = (n // chunk_size) * chunk_size
+        # seq_index = (n // chunk_size) * chunk_size
         x, x_remainder = x[:seq_index], x[seq_index:]
 
         seq_remain_len = x_remainder.shape[0]
@@ -737,7 +752,14 @@ class ParallelChunkedCrossAttention(MegatronModule):
         # currently implementation is broken
         # q need to extend to causal_padding, and just do
         # q_pos_emb = F.pad(q_pos_emb, (0, 0, -causal_padding, 0), value = 0.)
-        q_pos_emb = F.pad(q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding, 0), value=0.0)
+        if inference_max_sequence_len is not None and not set_inference_key_value_memory:
+            q_pos_emb = F.pad(q_pos_emb,
+                              (0, 0, 0, 0, 0, 0, -causal_padding - token_pos,
+                               -causal_padding + token_pos),
+                              value=0.0)
+        else:
+            q_pos_emb = F.pad(q_pos_emb, (0, 0, 0, 0, 0, 0, -causal_padding, 0), value=0.0)
+
 
         k_pos_emb = repeat(k_pos_emb, 'n b h d -> (r n) b h d', r=num_retrieved)
         rotary_pos_emb = (q_pos_emb, k_pos_emb)
@@ -756,6 +778,8 @@ class ParallelChunkedCrossAttention(MegatronModule):
         # pad back to original, with 0s at the beginning (which will be added to the residual and be fine)
 
         out = F.pad(out, (0, 0, 0, 0, causal_padding, -causal_padding + seq_remain_len), value=0.0)
+        if not set_inference_key_value_memory and inference_max_sequence_len is not None:
+            out = out[-1:]
         return out, bias
 
 
