@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import random
-import sys
 from collections import Counter
 from collections import OrderedDict as od
 
@@ -127,7 +126,8 @@ def main(
 
         duration = None
         if add_duration:
-            duration = librosa.get_duration(filename=audio_line, sr=16000)
+            y, sr = librosa.get_duration(filename=audio_line, sr=None)
+            duration = librosa.get_duration(y=y, sr=sr)
         meta = [
             {
                 "audio_filepath": audio_line,
