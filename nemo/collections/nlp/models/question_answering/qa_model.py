@@ -79,7 +79,7 @@ class QAModel(NLPModel):
             print("start position: ", start_positions)
             print("end position: ", end_positions)
             print(input_mask)
-            loss.data = 0
+            loss.data = torch.tensor(0).to(input_ids.device)
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
