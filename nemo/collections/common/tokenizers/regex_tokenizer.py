@@ -187,7 +187,6 @@ class RegExTokenizer(TokenizerSpec):
     def sep_id(self):
         return 5
 
-
     def save_tokenizer(self, base_fname=None):
         """
         Saves tokenizer's regex (base_fname.model) and vocab (base_fname.vocab) files
