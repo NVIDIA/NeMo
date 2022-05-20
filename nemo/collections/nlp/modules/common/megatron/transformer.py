@@ -26,8 +26,8 @@ from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import 
     bias_dropout_add_fused_train,
     dropout_add,
 )
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
@@ -231,8 +231,9 @@ class ParallelMLP(MegatronModule):
             if self.activation == 'gelu':
                 intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
             else:
-                intermediate_parallel = fused_bias_geglu(intermediate_parallel, bias_parallel,
-                                                         intermediate_parallel_2, bias_parallel_2)
+                intermediate_parallel = fused_bias_geglu(
+                    intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
+                )
 
         elif self.activation in ['geglu', 'reglu', 'swiglu']:
             if bias_parallel is not None:

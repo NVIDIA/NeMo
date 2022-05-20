@@ -14,10 +14,8 @@
 # limitations under the License.
 
 import torch
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import (
-    bias_gelu,
-    bias_gelu_back,
-)
+
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import bias_gelu, bias_gelu_back
 
 try:
     from apex._autocast_utils import _cast_if_autocast_enabled
@@ -25,6 +23,7 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
+
 
 @torch.jit.script
 def bias_geglu(bias, y, bias_2, y_2):
