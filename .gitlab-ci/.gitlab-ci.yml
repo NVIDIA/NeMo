@@ -1,0 +1,78 @@
+variables: &VARS
+  BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
+  BIGNLP_BUILD_PATH: "/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci"
+  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:22.04-py3-base"
+
+stages:
+  - build
+  - test
+  - upload_results
+
+################
+# JOB Templates
+################
+
+before_script:
+  - export DOCKERFILE=./Dockerfile
+  - if [[ -z ${BASE_IMAGE} ]]; then
+    export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
+    else
+    export FROM_IMAGE_NAME=$BASE_IMAGE;
+    fi
+  - export IMAGE_NAME=${BASE_IMAGE##*/}
+  - export IMAGE_NAME=${IMAGE_NAME%:*}
+  - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+
+.build: &build_template
+  stage: build
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${CI_REGISTRY}"
+    - export DOCKER_REGISTRY="${CI_REGISTRY/:5005/}"
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${DOCKER_REGISTRY}"
+    # Define bignlp build image
+    - set -x
+    - ls
+    - env
+    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
+    - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
+    - docker push ${BUILD_IMAGE_NAME}
+  allow_failure: false
+  tags:
+    - vm-builder
+
+.LUNA: &LUNA
+  variables: &LUNA_VARS
+    SLURM_PARTITION: "luna"
+    SLURM_NIGHTLY_PARTITION: "luna"
+    SLURM_ACCOUNT: "joc"
+    GPFSFOLDER:    "/lustre/fsw/$SLURM_ACCOUNT"
+    CLUSTER:       "selene"
+    PYXIS_LITE:    "1"
+    ENROOT_MOUNT_HOME: "n"
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$SLURM_ACCOUNT/$CI_CONCURRENT_ID/$CI_PROJECT_NAME # THIS DOES NOT HAVE QUOTES FOR A REASON
+    EXCLUDE_NODES: ""
+    GPU_ARCH:      "A100"
+    NUM_NODES:     1
+  tags: &LUNA_TAGS
+    - selene_ssh
+
+
+
+build-BigNLP:
+  <<: *build_template
+
+gpt3.126m_short:
+  tags: *LUNA_TAGS
+  stage: test
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - set -x
+    - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
+    - bash ./.gitlab-ci/launch_selene_gpt3_126m.sh
+    - echo "Finished"
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+

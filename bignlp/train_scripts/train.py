@@ -7,6 +7,43 @@ import omegaconf
 from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
 
 
+def create_srun_command(
+    new_script_path,
+    train_cmd,
+    job_name,
+    flags="",
+    dependency=None,
+    time="04:00:00",
+    exclusive=True,
+    mem=0,
+    overcommit=True,
+    nodes=1,
+    ntasks_per_node=8,
+    gpus_per_task=None,
+    gpus_per_node=None,
+    partition="batch",
+    account=None,
+):
+    """Creates the srun command to launch the job in interactive mode.
+    """
+    gpus_per_task_cmd = f"--gpus-per-task={gpus_per_task} " if gpus_per_task is not None else ""
+    gpus_per_node_cmd = f"--gpus-per-node={gpus_per_node} " if gpus_per_node is not None else ""
+    dependency_cmd = ""
+    if dependency is not None:
+        if dependency != "singleton":
+            dependency = f"afterany:{dependency}"
+        dependency_cmd = f"--dependency={dependency} "
+    account_cmd = f"--account={account} " if account is not None else ""
+    exclusive_cmd = f"--exclusive " if exclusive else ""
+    overcommit_cmd = f"--overcommit " if overcommit else ""
+
+    cmd = f'srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} '
+          f'--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} '
+          f'{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} '
+          f'{overcommit_cmd} sh -c "{train_cmd}"\n\n '
+    return cmd
+
+
 def create_slurm_file(
     new_script_path,
     train_cmd,
@@ -120,7 +157,6 @@ def run_training(cfg, hydra_args="", dependency=None):
             dependency = run_cfg.get("dependency")
         job_name = job_name_prefix + name
 
-        train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -129,29 +165,47 @@ def run_training(cfg, hydra_args="", dependency=None):
         flags = (
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
-            f"-o {results_dir}/{name}-%j.log "
-            f"-e {results_dir}/{name}-%j.error "
         )
 
-        create_slurm_file(
-            new_script_path=new_script_path,
-            train_cmd=train_cmd,
-            job_name=job_name,
-            flags=flags,
-            dependency=dependency,
-            exclusive=exclusive,
-            time=time_limit,
-            nodes=nodes,
-            ntasks_per_node=ntasks_per_node,
-            gpus_per_task=gpus_per_task,
-            gpus_per_node=gpus_per_node,
-            partition=partition,
-            account=account,
-        )
-        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
-        dependency = job_id = job_id.decode("utf-8")
-        print(f"Submitted Training script with job id: {dependency}")
-        return dependency
+        if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+            train_cmd = f"PYTHONPATH={bignlp_path}:\\${{PYTHONPATH}} \\\n {base_cmd}"
+            create_srun_command(
+                new_script_path=new_script_path,
+                train_cmd=train_cmd,
+                job_name=job_name,
+                flags=flags,
+                dependency=dependency,
+                exclusive=exclusive,
+                time=time_limit,
+                nodes=nodes,
+                ntasks_per_node=ntasks_per_node,
+                gpus_per_task=gpus_per_task,
+                gpus_per_node=gpus_per_node,
+                partition=partition,
+                account=account,
+            )
+        else:
+            train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
+            flags += f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
+            create_slurm_file(
+                new_script_path=new_script_path,
+                train_cmd=train_cmd,
+                job_name=job_name,
+                flags=flags,
+                dependency=dependency,
+                exclusive=exclusive,
+                time=time_limit,
+                nodes=nodes,
+                ntasks_per_node=ntasks_per_node,
+                gpus_per_task=gpus_per_task,
+                gpus_per_node=gpus_per_node,
+                partition=partition,
+                account=account,
+            )
+            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+            dependency = job_id = job_id.decode("utf-8")
+            print(f"Submitted Training script with job id: {dependency}")
+            return dependency
 
     # BCP parameters
     if cfg.get("cluster_type") == "bcp":
