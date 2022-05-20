@@ -17,7 +17,6 @@
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from hypothesis import infer
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
