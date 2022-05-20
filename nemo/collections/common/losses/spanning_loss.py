@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
 from torch import nn
 
 from nemo.core.classes import Loss, typecheck
@@ -76,4 +78,6 @@ class SpanningLoss(Loss):
         start_loss = loss_fct(start_logits, start_positions)
         end_loss = loss_fct(end_logits, end_positions)
         total_loss = (start_loss + end_loss) / 2
+        if math.isnan(total_loss):
+            total_loss = 0
         return total_loss, start_logits, end_logits
