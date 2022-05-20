@@ -23,12 +23,17 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
-from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common import PromptEncoder, PromptTable, VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common import (
+    PromptEncoder,
+    PromptTable,
+    VirtualPromptPlaceholderToken,
+    VirtualPromptSource,
+    VirtualPromptStyle,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_default_length_params,
@@ -113,8 +118,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
-        self.pseudo_token_base = cfg.pseudo_token_base
-        self.pseudo_tokens = [self.pseudo_token_base + str(i) for i in range(self.max_virtual_tokens)]
+        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
@@ -579,12 +583,18 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             for_train=for_train,
         )
 
+        rank = parallel_state.get_data_parallel_rank()
+        world_size = parallel_state.get_data_parallel_world_size()
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+        )
+
         dataloader = torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
+            sampler=sampler,
             batch_size=batch_size,
             drop_last=drop_last,
-            shuffle=shuffle,
             num_workers=num_workers,
             pin_memory=pin_memory,
         )
@@ -711,3 +721,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     @classmethod
     def list_available_models(cls):
         pass
+
+
+def get_pseudo_tokens(num_virtual_tokens):
+    """
+    Takes in an integer and returns a list of strings where each string
+    is a numbered virtual token placeholder. If 
+    num_virtual_tokens = 3, then this function returns:
+
+    ["<prompt_0>", "<prompt_1>", "<prompt_2>"]
+
+    Args:
+        num_virtual_tokens: (int) Number of virtual token strings you want to make
+
+    returns a list of string. 
+
+    """
+    pseudo_tokens = [
+        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        for i in range(num_virtual_tokens)
+    ]
+
+    return pseudo_tokens
