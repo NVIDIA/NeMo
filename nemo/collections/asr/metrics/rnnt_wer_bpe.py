@@ -116,9 +116,12 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         if tokenizer is not None:
             self.tokenizer = tokenizer
+            blank_id = tokenizer.tokenizer.vocab_size
+        else:
+            blank_id = decoder.blank_idx
 
         super(RNNTBPEDecoding, self).__init__(
-            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=decoder.blank_idx
+            decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:

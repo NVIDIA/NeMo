@@ -64,7 +64,7 @@ model:
     window_size: 0.025
     window_stride: 0.01
     window: "hann"
-    features: &n_mels 80
+    features: 80
     n_fft: 512
     log: true
     frame_splicing: 1
@@ -115,37 +115,52 @@ model:
   dec_out: &dec_out 128
 
   loss_list:
-    contr:
+    contrastive:
       decoder:
         _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
         feat_in: ${model.encoder.d_model}
         feat_hidden: 128
+        # features in hidden layer of decoder
         feat_out: *dec_out
         stride_layers: 0
-        #if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
-        #be added to the decoder (here stride and combine_time_steps are both 4)
+        # if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
+        # be added to the decoder (here stride and combine_time_steps are both 4)
         non_stride_layers: 0
       loss:
         _target_: nemo.collections.asr.losses.ContrastiveLoss
-        in_dim: *n_mels
+        in_dim: ${model.preprocessor.features}
         proj_dim: *dec_out
-        combine_time_steps: 4 #how many spectrogram time steps are used for one target/representation for contrastive task
-        quantized_targets: true #should quantizer or linear layer be used
+        combine_time_steps: 4 # how many spectrogram time steps are used for one target/representation for contrastive task
+        quantized_targets: true # should quantizer or linear layer be used
         # (quantizer is required to extract pseudo-labels for other losses)
         codebook_size: 300
-        sample_from_same_utterance_only: true #should negatives be sampled only from the same utterance
-        sample_from_non_masked: false #should negatives be sampled from non-masked steps
+        num_groups: 2
+        sample_from_same_utterance_only: true # should negatives be sampled only from the same utterance
+        sample_from_non_masked: false # should negatives be sampled from non-masked steps
 
     mlm:
       decoder:
         _target_: nemo.collections.asr.modules.ConvASRDecoder
         feat_in: ${model.encoder.d_model}
         num_classes: 90000
+        # set this to be equal to codebook_size^groups in the contrastive loss
       loss:
         _target_: nemo.collections.asr.losses.MLMLoss
         combine_time_steps: 4
-      targets_from_loss: "contr"
+      targets_from_loss: "contrastive"
+      # since this loss requires targets, we can either get them from a manifest or from a quantized contrastive loss
       loss_alpha: 1000.
+      # multiplier applied to this loss relative to others
+      transpose_encoded: false
+      # transposing input may be necessary depending on which layer is used as input to decoder
+      start_step: 0
+      # determines what global step this loss starts being used at;
+      # this can be set to a higher number if your training is long enough,
+      # which may increase early training stability
+      output_from_layer: null
+      # if we wanted to use outputs from non-final encoder layer as input to this decoder,
+      # the layer name should be specified here
+
 
   optim:
     name: adamw

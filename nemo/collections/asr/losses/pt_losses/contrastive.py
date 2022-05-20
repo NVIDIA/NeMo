@@ -66,6 +66,7 @@ class ContrastiveLoss(Loss):
         quantizer_temp_min: float = 0.5,
         quantizer_temp_decay: float = 0.999995,
         mask_threshold: float = 0.8,
+        store_ids: bool = True,
         reduce_ids: bool = False,
     ):
         """
@@ -91,6 +92,8 @@ class ContrastiveLoss(Loss):
             quantizer_temp_min: Minimum temperature in quantizer.
             quantizer_temp_decay: Decay rate of quantizer temperature per global step.
             mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on percent of masked channels.
+            store_ids: Bool that determines if the quantizer ids will be stored to be potentially used by other losses.
+            reduce_ids: Bool that determines if we convert any sequence of consecutive equivalent ids to a single occurence of that id.
         """
 
         super().__init__()
@@ -120,7 +123,7 @@ class ContrastiveLoss(Loss):
         self.group_loss = group_loss
         self.mask_threshold = mask_threshold
 
-        self.store_ids = True
+        self.store_ids = store_ids
         self.reduce_ids = reduce_ids
 
         if not self.quantized_targets:
@@ -151,23 +154,16 @@ class ContrastiveLoss(Loss):
 
         if self.quantized_targets:
             if self.store_ids:
+                # store ids for use by other losses
                 targets, prob_ppl_loss, cur_codebook_temp, self.target_ids = self.quantizer(targets, return_ids=True)
 
                 if self.reduce_ids:
-                    sh = self.target_ids.shape
-                    reduced_ids = self.target_ids.new_zeros(sh)
-                    reduced_lens = self.target_ids.new_ones(sh[0]).long() * sh[1]
-                    for i in range(sh[0]):
-                        cur_id = -1
-                        cur_j = 0
-                        for j in range(sh[1]):
-                            if self.target_ids[i, j] != cur_id:
-                                cur_id = self.target_ids[i, j]
-                                reduced_ids[i, cur_j] = cur_id
-                                cur_j += 1
-                            if j >= decoder_lengths[i]:
-                                reduced_lens[i] = cur_j
-                                break
+                    # reduce consecutive equivalent ids to a single occurence
+                    unique_x, indices = torch.unique_consecutive(self.target_ids, return_inverse=True)
+                    indices -= indices.min(dim=1, keepdims=True)[0]
+                    reduced_ids = torch.zeros_like(self.target_ids)
+                    reduced_ids = reduced_ids.scatter_(1, indices, self.target_ids)
+                    reduced_lens = indices.max(dim=-1)[0] + 1
 
                     self.target_ids = reduced_ids.narrow(1, 0, reduced_lens.max())
                     self.target_lengths = reduced_lens

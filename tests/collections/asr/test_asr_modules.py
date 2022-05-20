@@ -178,7 +178,7 @@ class TestASRModulesBasicTests:
     def test_MaskedPatchAugmentation_config(self):
         # Test that dataclass matches signature of module
         result = config_utils.assert_dataclass_signature_match(
-            modules.MaskedPatchAugmentation, modules.audio_preprocessing.MaskedPatchAugmentation,
+            modules.MaskedPatchAugmentation, modules.audio_preprocessing.MaskedPatchAugmentationConfig,
         )
         signatures_match, cls_subset, dataclass_subset = result
 

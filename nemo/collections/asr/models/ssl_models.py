@@ -76,9 +76,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             # need to be separate for moduledict
 
             for decoder_loss_name, decoder_loss_cfg in self._cfg.loss_list.items():
-                print(decoder_loss_name)
-                print(decoder_loss_cfg)
-
                 new_decoder_loss = {
                     'decoder': SpeechEncDecSelfSupervisedModel.from_config_dict(decoder_loss_cfg.decoder),
                     'loss': SpeechEncDecSelfSupervisedModel.from_config_dict(decoder_loss_cfg.loss),
@@ -92,7 +89,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 self.transpose_encoded[decoder_loss_name] = decoder_loss_cfg.get("transpose_encoded", False)
 
                 if self.output_from_layer[decoder_loss_name] is not None:
-                    self.set_access_enabled(True)
+                    self.set_access_enabled(access_enabled=True)
 
             self.decoder_losses = nn.ModuleDict(self.decoder_losses)
 
@@ -302,6 +299,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             2) Masks applied to spectrograms of shape [B, D, T].
             3) Decoder outputs of shape [B, T, D].
         """
+        # reset module registry from AccessMixin
         self.reset_registry()
 
         has_input_signal = input_signal is not None and input_signal_length is not None
@@ -339,6 +337,10 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         return spectrograms, spec_masks, encoded, encoded_len
 
     def decoder_loss_step(self, spectrograms, spec_masks, encoded, encoded_len, targets=None, target_lengths=None):
+        """
+        Forward pass through all decoders and calculate corresponding losses.
+        Returns total loss and dictionary of values for each loss separately.
+        """
         loss_val_dict = {}
 
         if self.decoder_losses is None:
@@ -352,6 +354,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 and hasattr(self, "trainer")
                 and self.trainer is not None
             ):
+                # this is necessary for things such as temperature decay for quantizer in contrastive loss
                 self.loss.set_num_updates(self.trainer.global_step)
             if self.loss.needs_labels:
                 loss_value = self.loss(
@@ -366,28 +369,29 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         else:
 
             loss_value = encoded.new_zeros(1)
-
             outputs = {}
-
-            reg = self.get_module_registry(self.encoder)
+            registry = self.get_module_registry(self.encoder)
 
             for dec_loss_name, dec_loss in self.decoder_losses.items():
-
+                # loop through decoders and corresponding losses
                 if (
                     hasattr(self, "trainer")
                     and self.trainer is not None
                     and self.start_step[dec_loss_name] > self.trainer.global_step
                 ):
+                    # if trainer is defined and global_step is below specified start_step for this decoder-loss, skip
                     continue
 
                 if self.output_from_layer[dec_loss_name] is None:
                     dec_input = encoded
                 else:
-                    dec_input = reg[self.output_from_layer[dec_loss_name]][-1]
+                    # extract output from specified layer using AccessMixin registry
+                    dec_input = registry[self.output_from_layer[dec_loss_name]][-1]
                 if self.transpose_encoded[dec_loss_name]:
                     dec_input = dec_input.transpose(-2, -1)
 
                 if self.targets_from_loss[dec_loss_name] is not None:
+                    # extract targets from specified loss
                     target_loss = self.targets_from_loss[dec_loss_name]
                     targets = self.decoder_losses[target_loss]['loss'].target_ids
                     target_lengths = self.decoder_losses[target_loss]['loss'].target_lengths
@@ -395,22 +399,25 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                         target_lengths = encoded_len
 
                 if hasattr(dec_loss['decoder'], "needs_labels") and dec_loss['decoder'].needs_labels:
+                    # if we are using a decoder which needs labels, provide them
                     outputs[dec_loss_name] = dec_loss['decoder'](
                         encoder_output=dec_input, targets=targets, target_lengths=target_lengths
                     )
                 else:
                     outputs[dec_loss_name] = dec_loss['decoder'](encoder_output=dec_input)
 
-                cur_loss = dec_loss['loss']
+                current_loss = dec_loss['loss']
                 if (
                     self.training
-                    and hasattr(cur_loss, "set_num_updates")
+                    and hasattr(current_loss, "set_num_updates")
                     and hasattr(self, "trainer")
                     and self.trainer is not None
                 ):
-                    cur_loss.set_num_updates(self.trainer.global_step)
-                if cur_loss.needs_labels:
-                    cur_loss_value = cur_loss(
+                    # this is necessary for things such as temperature decay for quantizer in contrastive loss
+                    current_loss.set_num_updates(self.trainer.global_step)
+                if current_loss.needs_labels:
+                    # if we are using a loss which needs labels, provide them
+                    current_loss_value = current_loss(
                         spec_masks=spec_masks,
                         decoder_outputs=outputs[dec_loss_name],
                         targets=targets,
@@ -418,14 +425,14 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                         target_lengths=target_lengths,
                     )
                 else:
-                    cur_loss_value = cur_loss(
+                    current_loss_value = current_loss(
                         spectrograms=spectrograms,
                         spec_masks=spec_masks,
                         decoder_outputs=outputs[dec_loss_name],
                         decoder_lengths=encoded_len,
                     )
-                loss_value = loss_value + cur_loss_value * self.loss_alphas[dec_loss_name]
-                loss_val_dict[dec_loss_name] = cur_loss_value
+                loss_value = loss_value + current_loss_value * self.loss_alphas[dec_loss_name]
+                loss_val_dict[dec_loss_name] = current_loss_value
 
         return loss_value, loss_val_dict
 
