@@ -18,6 +18,8 @@ import torch
 from einops import rearrange
 from pytorch_lightning.trainer.trainer import Trainer
 
+import torch.nn.functional as F
+
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
@@ -287,12 +289,21 @@ class TestRetrievalModuleInference:
         cross_attn_k_pos_emb = rotary_pos_emb(context_chunk_size)
         cross_attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_k_pos_emb)
 
-        dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
-        context_attn_mask = rearrange(context_mask, 'k r n b -> (b k) (r n)')
-        enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
-        )
-        enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+        def get_attn_mask_3d(hidden_mask, context_mask, chunks):
+            causal_padding = text_chunk_size - 1
+            reminder = (text_chunk_size - (hidden_mask.shape[0] -1) % text_chunk_size)
+            hidden_mask = F.pad(hidden_mask, (0, 0, -causal_padding, reminder), value=False)
+
+            dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
+            context_attn_mask = rearrange(context_mask, 'k r n b -> (b k) (r n)')
+            enc_dec_attn_mask_3d = build_attention_mask_3d(
+                source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+            )
+            enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
+            return enc_dec_attn_mask_3d
+
+
+        enc_dec_attn_mask_3d = get_attn_mask_3d(hidden_mask, context_mask, chunks)
 
         init_method = init_method_normal(init_method_std)
 
@@ -311,6 +322,7 @@ class TestRetrievalModuleInference:
             .half()
         )
 
+
         out, bias = cross_attn(
             hidden_emb, enc_dec_attn_mask_3d, encoder_output=retrieved_emb, rotary_pos_emb=cross_attn_pos_emb
         )
@@ -318,14 +330,6 @@ class TestRetrievalModuleInference:
         assert bias.shape == torch.Size([dim])
 
 
-        def get_attn_mask_3d(hidden_mask, context_mask, chunks):
-            dec_attn_mask = rearrange(hidden_mask, '(k n) b -> (b k) n', k=chunks)
-            context_attn_mask = rearrange(context_mask, 'k r n b -> (b k) (r n)')
-            enc_dec_attn_mask_3d = build_attention_mask_3d(
-                source_mask=dec_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
-            )
-            enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
-            return enc_dec_attn_mask_3d
 
         attn_mask_3d = None 
 
@@ -348,7 +352,7 @@ class TestRetrievalModuleInference:
         )
         assert (out_1 - torch.zeros_like(hidden_emb[62:63])).abs().max() == 0
 
-        attn_mask_3d = get_attn_mask_3d(hidden_mask[:64], context_mask[:, :1], 1)
+        attn_mask_3d = get_attn_mask_3d(hidden_mask[:64], context_mask[:1], 1)
         out_2, b = cross_attn(
             hidden_emb[63:64],
             attn_mask_3d,
@@ -360,19 +364,20 @@ class TestRetrievalModuleInference:
         assert (out[63]-out_2[0]).abs().max().item() < 1e-2
 
         for i in range(64, 127):
-            attn_mask_3d = get_attn_mask_3d(hidden_mask[:i+1], context_mask[:, :1], 1)
+            attn_mask_3d = get_attn_mask_3d(hidden_mask[:i+1], context_mask[:1], 1)
             out_2, b = cross_attn(
                 hidden_emb[i:i+1],
-                enc_dec_attn_mask_3d,
+                attn_mask_3d,
                 encoder_output=retrieved_emb[:1],
                 rotary_pos_emb=cross_attn_pos_emb,
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
             )
         i = 127
+        attn_mask_3d = get_attn_mask_3d(hidden_mask[:i+1], context_mask[:2], 2)
         out_3, b = cross_attn(
             hidden_emb[i:i+1],
-            enc_dec_attn_mask_3d,
+            attn_mask_3d,
             encoder_output=retrieved_emb[:2],
             rotary_pos_emb=cross_attn_pos_emb,
             set_inference_key_value_memory=False,
