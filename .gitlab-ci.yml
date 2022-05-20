@@ -72,11 +72,7 @@ gpt3.126m_short:
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - pwd
     - bash tests/ci_tests/launch_selene_gpt3_126m.sh
-    - echo "Finished training job"
-    - pip3 install pytest
-    - pip3 install tensorboard
-    - pytest tests/ci_tests
-    - echo "Finished pytest job"
+    - echo "Finished GPT-3 126M job"
   rules:
     - when: always
   needs:
