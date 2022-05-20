@@ -151,37 +151,60 @@ class TestRetrievalModuleInference:
             inference_max_sequence_len=input_length,
             neighbors=neighbors,
         )
-        # assert (out_gt[:, 0,] - out_2[:, 0]).abs().max().item() < 1e-5
-        print((out_gt[:, 0,] - out_2[:, 0]).abs().max().item())
+        assert (encoder.encoder_output - hidden_emb[:, :64]).abs().max().item() < 1e-5
+        assert (out_gt[:, 0,] - out_2[:, 0]).abs().max().item() < 1e-2
+        out_test = encoder(
+            retrieved_emb[:, :1],
+            context_mask[:, :1],
+            context_attn_mask=hidden_mask[:, :64],
+            encoder_output=hidden_emb[:, :64],
+        )
+        assert (out_gt[:, 0,] - out_test[:, 0]).abs().max().item() < 1e-2
+        assert (out_gt[:, 0,] - out_2[:, 0]).abs().max().item() < 1e-2
 
         for i in range(64, 127):
             out_3 = encoder(
                 retrieved_emb[:, :1],
                 context_mask[:, :1],
-                context_attn_mask=hidden_mask[:, i:i+1],
-                encoder_output=hidden_emb[:, i:i+1, :],
+                context_attn_mask=hidden_mask[:, i : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1, :],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
                 neighbors=neighbors,
             )
-        print((encoder.encoder_output - hidden_emb[:, :64, :]).abs().max())
-        out_test = encoder(retrieved_emb[:, :1], context_mask[:, :1], context_attn_mask=hidden_mask[:, :64], encoder_output=hidden_emb[:, :64])
-        print((out_gt[:, 0,] - out_test[:, 0]).abs().max().item())
-
-        print((out_gt[:, 0,] - out_3[:, 0]).abs().max().item())
+        i = 127
+        out_3 = encoder(
+            retrieved_emb[:, :2],
+            context_mask[:, :2],
+            context_attn_mask=hidden_mask[:, i : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1, :],
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+            neighbors=neighbors,
+        )
+        assert (encoder.encoder_output - hidden_emb[:, 64:128]).abs().max().item() < 1e-5
+        assert (out_gt[:, :2,] - out_3).abs().max().item() < 1e-2
         # test inference
-        for i in range(127, 191):
+        for i in range(128, 191):
             out_4 = encoder(
                 retrieved_emb[:, :2],
                 context_mask[:, :2],
-                context_attn_mask=hidden_mask[:, i:i+1],
-                encoder_output=hidden_emb[:, i:i+1, :],
+                context_attn_mask=hidden_mask[:, i : i + 1],
+                encoder_output=hidden_emb[:, i : i + 1, :],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
                 neighbors=neighbors,
             )
+        i = 191
+        out_4 = encoder(
+            retrieved_emb[:, :3],
+            context_mask[:, :3],
+            context_attn_mask=hidden_mask[:, i : i + 1],
+            encoder_output=hidden_emb[:, i : i + 1, :],
+            set_inference_key_value_memory=False,
+            inference_max_sequence_len=input_length,
+            neighbors=neighbors,
+        )
 
-        print((out_gt[:, 1,] - out_4[:, 1]).abs().max().item())
-
-        print((encoder.encoder_output - hidden_emb[:, 64:128, :]).abs().max())
-        out_test = encoder(retrieved_emb[:, :1], context_mask[:, :1], context_attn_mask=hidden_mask[:, :64], encoder_output=hidden_emb[:, :64])
+        assert (encoder.encoder_output - hidden_emb[:, 128:192]).abs().max().item() < 1e-5
+        assert (out_gt[:, :3,] - out_4).abs().max().item() < 1e-2

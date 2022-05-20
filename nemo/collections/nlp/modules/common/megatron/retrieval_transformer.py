@@ -14,6 +14,7 @@
 
 """Retrieval Transformer."""
 
+import torch
 from einops import rearrange, repeat
 from zmq import device
 
@@ -21,7 +22,6 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import RotaryEmbedding
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, build_attention_mask_3d
-import torch
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -161,33 +161,25 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         b, n, dim = encoder_output.shape
 
         if set_inference_key_value_memory:
+            # run once to setup the cache
             chunk_start = 0
             num_seq_chunks = n // self.chunk_size
             num_chunks = inference_max_sequence_len // self.chunk_size
             self.cache_output = self._allocate_memory(
-                b,
-                num_chunks,
-                neighbors,
-                self.chunk_size * 2,
-                dim,
-                dtype=encoder_output.dtype)
+                b, num_chunks, neighbors, self.chunk_size * 2, dim, dtype=encoder_output.dtype
+            )
             self.seq_pos_in_chunk = n
             self.current_chunk = n // self.chunk_size
-            self.encoder_output = self._allocate_memory(
-                b,
-                self.chunk_size,
-                dim,
-                dtype=encoder_output.dtype)
-            self.context_attn_mask = self._allocate_memory(
-                b,
-                self.chunk_size,
-                dtype=context_attn_mask.dtype)
+            self.encoder_output = self._allocate_memory(b, self.chunk_size, dim, dtype=encoder_output.dtype)
+            self.context_attn_mask = self._allocate_memory(b, self.chunk_size, dtype=context_attn_mask.dtype)
             self.context_attn_mask
-            chunk_beg = self.chunk_size*num_seq_chunks
-            chunk_end = self.chunk_size*num_seq_chunks + self.seq_pos_in_chunk % self.chunk_size
-            self.encoder_output[:, :self.seq_pos_in_chunk, :] = encoder_output[:, chunk_beg:chunk_end, :]
-            self.context_attn_mask[:, :self.seq_pos_in_chunk] = context_attn_mask[:, chunk_beg:chunk_end]
+            chunk_beg = self.chunk_size * num_seq_chunks
+            chunk_end = self.chunk_size * num_seq_chunks + self.seq_pos_in_chunk % self.chunk_size
+            # store the remainders
+            self.encoder_output[:, : self.seq_pos_in_chunk, :] = encoder_output[:, chunk_beg:chunk_end, :]
+            self.context_attn_mask[:, : self.seq_pos_in_chunk] = context_attn_mask[:, chunk_beg:chunk_end]
         elif inference_max_sequence_len is not None:
+            # second time of running
             self.seq_pos_in_chunk += n
             self.current_chunk = self.seq_pos_in_chunk // self.chunk_size
             # if exceed the chunk size
@@ -196,14 +188,19 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             #     self.current_chunk += 1
             #     self.seq_pos_in_chunk -= self.chunk_size
             chunk_start = self.current_chunk - 1
-            self.encoder_output[:, pos_beg:pos_beg+1, :] = encoder_output
-            self.context_attn_mask[:, pos_beg:pos_beg+1] = context_attn_mask
-            encoder_output = self.encoder_output[:, :pos_beg+1, :]
-            context_attn_mask = self.context_attn_mask[:, :pos_beg+1]
+            self.encoder_output[:, pos_beg : pos_beg + 1, :] = encoder_output
+            self.context_attn_mask[:, pos_beg : pos_beg + 1] = context_attn_mask
+            encoder_output = self.encoder_output[:, : pos_beg + 1, :]
+            context_attn_mask = self.context_attn_mask[:, : pos_beg + 1]
             num_seq_chunks = 1
+            if not self.seq_pos_in_chunk % self.chunk_size == 0:
+                # still accumulate the encoder_output
+                # return the cached results
+                return self.cache_output[:, : self.current_chunk]
             if enc_input is not None:
-                enc_input = enc_input[:, self.current_chunk - 1:self.current_chunk]
-                enc_attn_mask = enc_attn_mask[:, self.current_chunk - 1:self.current_chunk]
+                # only need one chunk for the later calculation
+                enc_input = enc_input[:, self.current_chunk - 1 : self.current_chunk]
+                enc_attn_mask = enc_attn_mask[:, self.current_chunk - 1 : self.current_chunk]
 
         if enc_input is None:
             return None
@@ -228,11 +225,15 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         if inference_max_sequence_len is not None:
             cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
-            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=pos_beg+1, r=r)
-            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg+1, r=r)
+            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=pos_beg + 1, r=r)
+            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg + 1, r=r)
         else:
-            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
-            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
+            embed_as_context = repeat(
+                encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r
+            )
+            context_attn_mask = repeat(
+                context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r
+            )
             cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, offset=0)
 
         attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
@@ -263,9 +264,9 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         if inference_max_sequence_len is not None:
             # update encoded for current chunk
-            self.cache_output[:, chunk_start:self.current_chunk, :, : ,: ] = enc_output
+            self.cache_output[:, chunk_start : self.current_chunk, :, :, :] = enc_output
             # read all encodings
-            enc_output = self.cache_output[:, :self.current_chunk]
+            enc_output = self.cache_output[:, : self.current_chunk]
         return enc_output
 
     def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
