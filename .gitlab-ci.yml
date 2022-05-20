@@ -69,7 +69,7 @@ gpt3.126m_short:
   script:
     - set -x
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - bash ./.gitlab-ci/launch_selene_gpt3_126m.sh
+    - bash ./tests/ci/launch_selene_gpt3_126m.sh
     - echo "Finished"
   rules:
     - when: always
