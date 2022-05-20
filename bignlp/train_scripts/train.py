@@ -8,7 +8,6 @@ from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
 
 
 def create_srun_command(
-    new_script_path,
     train_cmd,
     job_name,
     flags="",
@@ -40,7 +39,7 @@ def create_srun_command(
         f"srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} "
         f"--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} "
         f"{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} "
-        f'{overcommit_cmd} sh -c "{train_cmd}"\n\n '
+        f'{overcommit_cmd} {flags} sh -c "{train_cmd}"\n\n '
     )
     return cmd
 
@@ -167,7 +166,6 @@ def run_training(cfg, hydra_args="", dependency=None):
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
             train_cmd = f"PYTHONPATH={bignlp_path}:\\${{PYTHONPATH}} \\\n {base_cmd}"
             cmd = create_srun_command(
-                new_script_path=new_script_path,
                 train_cmd=train_cmd,
                 job_name=job_name,
                 flags=flags,
@@ -181,6 +179,8 @@ def run_training(cfg, hydra_args="", dependency=None):
                 partition=partition,
                 account=account,
             )
+            print("COMMAND")
+            print(cmd)
             os.system(cmd)
         else:
             train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
