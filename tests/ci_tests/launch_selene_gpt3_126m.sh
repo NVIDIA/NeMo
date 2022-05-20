@@ -1,4 +1,4 @@
-python3 main.py \
+HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     training=gpt3/126m \
     run_data_preparation=False \
