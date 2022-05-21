@@ -188,7 +188,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
         self._async_grad_allreduce = async_grad_allreduce
-        self._grad_scale = 1/float(get_data_parallel_world_size())
+        self._grad_scale = 1 / float(get_data_parallel_world_size())
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
@@ -325,9 +325,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                         else:
                             allreduce_tensor.div_(get_data_parallel_world_size())
                             torch.distributed.all_reduce(
-                                allreduce_tensor,
-                                group=get_data_parallel_group(),
-                                async_op=True,
+                                allreduce_tensor, group=get_data_parallel_group(), async_op=True,
                             )
                 else:
                     if self._grad_scale_ar_fusion:
@@ -340,9 +338,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                     else:
                         main_param.grad.div_(get_data_parallel_world_size())
                         torch.distributed.all_reduce(
-                            main_param.grad,
-                            group=get_data_parallel_group(),
-                            async_op=True,
+                            main_param.grad, group=get_data_parallel_group(), async_op=True,
                         )
 
         return param_hook
