@@ -103,7 +103,6 @@ def clip_grad_norm_fp32(parameters, max_norm, norm_type=2):
                 grad_norm = torch.norm(grad, norm_type)
                 total_norm += grad_norm ** norm_type
 
-        print(f"Total Grad norm : {total_norm}")
         # Sum across all model-parallel GPUs.
         torch.distributed.all_reduce(
             total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
