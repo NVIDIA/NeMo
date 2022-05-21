@@ -12,6 +12,20 @@ stages:
 # JOB Templates
 ################
 
+test:unit_tests:
+  tags:
+    - V100
+  stage: test
+  script:
+    - pip install -r requirements.txt
+    - pip install pytest
+    - pip install requests-mock
+    - export PATH="/home/gitlab-runner/.local/bin:$PATH"
+    - pytest tests/unit_tests
+  rules:
+    - when: always
+
+
 before_script:
   - export DOCKERFILE=./Dockerfile
   - if [[ -z ${BASE_IMAGE} ]]; then
