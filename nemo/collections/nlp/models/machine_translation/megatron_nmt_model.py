@@ -239,6 +239,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             outputs=tokens_enc, tokenizer=self.encoder_tokenizer, processor=source_processor,
         )
 
+        logging.info(f'Inputs : {encoder_inputs}')
+        logging.info(f'Translations : {preds}')
+        logging.info(f'GTs : {labels}')
+        logging.info(f'Loss : {reduced_loss}')
+
         return {
             'inputs': encoder_inputs,
             'translations': preds,
@@ -380,6 +385,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             else:
                 bleu_score = 0.0
 
+            logging.info(f'Epoch End BLEU : {bleu_score}')
             loss_list.append(averaged_loss.cpu().numpy())
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
