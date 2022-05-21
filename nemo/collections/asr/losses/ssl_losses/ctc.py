@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.losses import CTCLoss
-from nemo.core import typecheck
+import torch
+from torch import nn
+
+from nemo.core import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LossType, NeuralType, SpectrogramType, VoidType
+from nemo.collections.asr.losses import CTCLoss
 
 __all__ = ["CTCLossForSSL"]
 
 
-class CTCLossForSSL(CTCLoss):
+class CTCLossForSSL(Loss):
     @property
     def input_types(self):
         """Input types definitions for Contrastive.
@@ -45,11 +48,13 @@ class CTCLossForSSL(CTCLoss):
         return True
 
     def __init__(self, num_classes, zero_infinity=True, reduction='mean_batch'):
-        super().__init__(num_classes=num_classes, reduction=reduction, zero_infinity=zero_infinity)
+        super().__init__()
+        self.loss = CTCLoss(num_classes=num_classes, reduction=reduction, zero_infinity=zero_infinity)
 
     @typecheck()
     def forward(self, spec_masks, decoder_outputs, targets, decoder_lengths=None, target_lengths=None):
-        loss = super().forward(
-            log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
+        loss = self.loss(
+            log_probs=decoder_outputs, targets=targets, input_lengths=decoder_lengths, target_lengths=target_lengths
         )
+
         return loss
