@@ -158,7 +158,7 @@ model:
 
   encoder_tokenizer:
     library: yttm
-    tokenizer_model: null
+    model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
@@ -169,7 +169,7 @@ model:
 
   decoder_tokenizer:
     library: yttm
-    tokenizer_model: null
+    model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
