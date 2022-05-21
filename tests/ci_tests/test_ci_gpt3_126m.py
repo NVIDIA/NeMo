@@ -44,7 +44,7 @@ class TestCIGPT126m:
 
     def test_ci_gpt3_126m_train_step_timing_1node(self):
         # Expected average training time per global step.
-        expected_avg = 0.453
+        expected_avg = 0.896
 
         results_dir = f"{CI_RESULTS_DIR}/ci_gpt3_126m_deterministic"
         files = os.listdir(results_dir)
@@ -56,7 +56,7 @@ class TestCIGPT126m:
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 train_time = ea.Scalars("train_step_timing")
-                train_time = train_time[5:]
+                train_time = train_time[6:]
                 train_time_avg = sum([round(x.value, 5) for x in train_time]) / len(train_time)
                 print(train_time)
                 print(train_time_avg)
