@@ -20,7 +20,8 @@ class TestCIGPT126m:
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 train_loss = ea.Scalars("reduced_train_loss")
-                train_loss_vals = [x.value for x in train_loss]
+                train_loss_vals = [round(x.value, 5) for x in train_loss]
+                print(train_loss_vals)
                 break
 
         assert train_loss is not None, f"No TensorBoard events file was found in the logs."
