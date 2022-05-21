@@ -19,5 +19,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.num_nodes=${NUM_NODES} \
     training.trainer.max_steps=50 \
     training.trainer.log_every_n_steps=1 \
+    training.trainer.val_check_interval=10 \
+    training.trainer.limit_val_batches=10 \
     training.model.data.data_prefix=[1.0,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data/my-gpt3_00_text_document] 
     

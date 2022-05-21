@@ -42,6 +42,32 @@ class TestCIGPT126m:
         for step in range(0, 50, 5):
             assert expected[step] == train_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_vals[step]}."
 
+    def test_ci_gpt3_126m_val_loss_deterministic(self):
+        # Expected validation loss curve at different global steps.
+        expected = [10.9099, 10.88668, 10.9028, 10.90496, 10.76744, 10.46561, 10.33317, 9.9591, 
+                    9.98051, 9.61251, 9.62183, 9.51763, 9.41488, 9.38017, 9.38307, 9.33679, 
+        ]
+
+        results_dir = f"{CI_RESULTS_DIR}/ci_gpt3_126m_deterministic"
+        files = os.listdir(results_dir)
+
+        val_loss = None
+        for f in files:
+            if f[:6] == "events":
+                event_file = os.path.join(results_dir, f)
+                ea = event_accumulator.EventAccumulator(event_file)
+                ea.Reload()
+                val_loss = ea.Scalars("val_loss")
+                val_loss_vals = [round(x.value, 5) for x in val_loss]
+                print(val_loss_vals)
+                break
+
+        assert val_loss is not None, f"No TensorBoard events file was found in the logs."
+        assert len(val_loss_vals) == 50, f"The events file must have 10 values."
+
+        for step in range(0, 10):
+            assert expected[step] == val_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {val_loss_vals[step]}."
+
     def test_ci_gpt3_126m_train_step_timing_1node(self):
         # Expected average training time per global step.
         expected_avg = 1.115
