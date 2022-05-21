@@ -54,7 +54,7 @@ class TestCIGPT126m:
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 train_time = ea.Scalars("train_step_timing")
-                train_time_avg = sum([round(x.value, 5) for x in train_loss]) / len(train_loss)
+                train_time_avg = sum([round(x.value, 5) for x in train_time]) / len(train_time)
                 print(train_time)
                 print(train_time_avg)
                 break
