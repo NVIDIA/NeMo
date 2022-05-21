@@ -20,4 +20,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.max_steps=50 \
     training.model.data.data_prefix=[1.0,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data/my-gpt3_00_text_document] 
 
-srun --nodes=1 --ntasks-per-node=1 --account=${SLURM_ACCOUNT} --partition=${SLURM_PARTITION} --job-name="${SLURM_ACCOUNT}-bignlp_ci:pytest_gpt3_126m" --time=20:00 --dependency=singleton --exclusive --mem=0 --overcommit --container-image=${BUILD_IMAGE_NAME_SRUN} --container-mounts=.:/workspace/bignlp-scripts sh -c "cd /workspace/bignlp-scripts; pytest tests/ci_tests"
+srun --nodes=1 --ntasks-per-node=1 --account=${SLURM_ACCOUNT} --partition=${SLURM_PARTITION} --job-name="${SLURM_ACCOUNT}-bignlp_ci:pytest_gpt3_126m" --time=20:00 --dependency=singleton --exclusive --mem=0 --overcommit --container-image=${BUILD_IMAGE_NAME_SRUN} --container-mounts=.:/workspace/bignlp-scripts,/lustre/fsw/joc/big_nlp/bignlp_ci/results:/workspace/bignlp-scripts/results sh -c "cd /workspace/bignlp-scripts; pytest tests/ci_tests"
