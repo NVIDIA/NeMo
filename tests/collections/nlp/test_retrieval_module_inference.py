@@ -603,6 +603,7 @@ class TestRetrievalModuleInference:
             retrieved_ids=None,
             set_inference_key_value_memory=True,
             inference_max_sequence_len=input_length,
+            neighbors=neighbors,
         )
         assert (out[:, :62] - out_1[:, :62]).abs().max().item() < 1e-2
 
@@ -613,6 +614,7 @@ class TestRetrievalModuleInference:
             retrieved_ids=None,
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
+            neighbors=neighbors,
         )
         assert (out[:, 62] - out_1[:, 0]).abs().max().item() < 1e-2
 
@@ -623,6 +625,7 @@ class TestRetrievalModuleInference:
             retrieved_attn_mask=context_mask[:, :1],
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
+            neighbors=neighbors,
         )
         assert (out[:, 63] - out_2[:, 0]).abs().max().item() < 1e-2
         for i in range(64, 127):
@@ -633,6 +636,7 @@ class TestRetrievalModuleInference:
                 retrieved_attn_mask=context_mask[:, :1],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
+                neighbors=neighbors,
             )
             assert (out[:, i] - out_2[:, 0]).abs().max().item() < 1e-2
         for i in range(127, 191):
@@ -643,6 +647,7 @@ class TestRetrievalModuleInference:
                 retrieved_attn_mask=context_mask[:, :2],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
+                neighbors=neighbors,
             )
             assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
 
@@ -653,6 +658,7 @@ class TestRetrievalModuleInference:
             retrieved_attn_mask=context_mask[:, :2],
             set_inference_key_value_memory=True,
             inference_max_sequence_len=input_length,
+            neighbors=neighbors,
         )
         assert (out[:, :130] - out_1[:, :130]).abs().max().item() < 1e-2
         for i in range(130, 191):
@@ -663,5 +669,6 @@ class TestRetrievalModuleInference:
                 retrieved_attn_mask=context_mask[:, :2],
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
+                neighbors=neighbors,
             )
             assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
