@@ -14,6 +14,7 @@
 
 import math
 
+import torch
 from torch import nn
 
 from nemo.core.classes import Loss, typecheck
@@ -79,5 +80,5 @@ class SpanningLoss(Loss):
         end_loss = loss_fct(end_logits, end_positions)
         total_loss = (start_loss + end_loss) / 2
         if math.isnan(total_loss):
-            total_loss = 0
+            total_loss.data = torch.zeros(1).to(total_loss.device)
         return total_loss, start_logits, end_logits
