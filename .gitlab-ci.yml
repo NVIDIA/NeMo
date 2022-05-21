@@ -69,6 +69,7 @@ gpt3.126m_short:
     <<: [*VARS, *LUNA_VARS]
   script:
     - set -x
+    - rm -rf /lustre/fsw/joc/big_nlp/bignlp_ci/results/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - pwd
     - bash tests/ci_tests/launch_selene_gpt3_126m.sh
