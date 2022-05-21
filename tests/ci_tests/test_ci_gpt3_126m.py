@@ -6,6 +6,9 @@ from tensorboard.backend.event_processing import event_accumulator
 CI_RESULTS_DIR = "/lustre/fsw/joc/big_nlp/bignlp_ci/results"
 
 class TestCIGPT126m:
+
+    margin = 0.05
+
     def test_ci_gpt3_126m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
         expected = [10.9099, 10.88668, 10.9028, 10.90496, 10.76744, 10.46561, 10.33317, 9.9591, 
@@ -36,3 +39,25 @@ class TestCIGPT126m:
 
         for step in range(0, 50, 5):
             assert expected[step] == train_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_vals[step]}."
+
+    def test_ci_gpt3_126m_train_step_timing_1node(self):
+        # Expected average training time per global step.
+        expected_avg = 0.453
+
+        results_dir = f"{CI_RESULTS_DIR}/ci_gpt3_126m_deterministic"
+        files = os.listdir(results_dir)
+
+        train_time = None
+        for f in files:
+            if f[:6] == "events":
+                event_file = os.path.join(results_dir, f)
+                ea = event_accumulator.EventAccumulator(event_file)
+                ea.Reload()
+                train_time = ea.Scalars("train_step_timing")
+                train_time_avg = sum([round(x.value, 5) for x in train_loss]) / len(train_loss)
+                print(train_time)
+                print(train_time_avg)
+                break
+
+        assert train_time is not None, f"No TensorBoard events file was found in the logs."
+        assert train_time_avg == pytest.approx(expected=expected_avg, rel=self.margin), f"The time per global step must be approximately {expected_avg} but it is {train_time_avg}."

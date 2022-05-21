@@ -25,7 +25,6 @@ test:unit_tests:
   rules:
     - when: always
 
-
 before_script:
   - export DOCKERFILE=./Dockerfile
   - if [[ -z ${BASE_IMAGE} ]]; then
@@ -71,8 +70,6 @@ before_script:
   tags: &LUNA_TAGS
     - selene_ssh
 
-
-
 build-BigNLP:
   <<: *build_template
 
@@ -95,4 +92,3 @@ gpt3.126m_short:
     - when: always
   needs:
     - build-BigNLP
-
