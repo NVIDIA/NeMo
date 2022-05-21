@@ -742,9 +742,15 @@ class SquadDataset(Dataset):
                 output["text"] = entry.text
                 output["probability"] = probs[i]
                 output["start_logit"] = (
-                    entry.start_logit if isinstance(entry.start_logit, float) else list(entry.start_logit)
+                    entry.start_logit
+                    if (isinstance(entry.start_logit, float) or isinstance(entry.start_logit, int))
+                    else list(entry.start_logit)
                 )
-                output["end_logit"] = entry.end_logit if isinstance(entry.end_logit, float) else list(entry.end_logit)
+                output["end_logit"] = (
+                    entry.end_logit
+                    if (isinstance(entry.end_logit, float) or isinstance(entry.end_logit, int))
+                    else list(entry.end_logit)
+                )
                 nbest_json.append(output)
 
             assert len(nbest_json) >= 1
