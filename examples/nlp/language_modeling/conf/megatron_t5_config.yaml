@@ -62,6 +62,9 @@ model:
   init_method_std: 0.02 # Standard deviation of the zero mean normal distribution used for weight initialization.')
   hidden_dropout: 0.1 # Dropout probability for hidden state transformer.
   attention_dropout: 0.1 # Dropout probability in the attention layer.
+  position_embedding_type: 'relative' # Position embedding type. Options ['absolute', 'relative']
+  relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+  relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
@@ -111,7 +114,7 @@ model:
     #   - /raid/data/pile/my-t5_00_text_document
     #   - .5
     #   - /raid/data/pile/my-t5_01_text_document
-    data_prefix: ???
+    data_prefix: [1,/datasets/nemo_t5_test/my-t5_test_bert_tokenizer_text_document]
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 949,45,5
