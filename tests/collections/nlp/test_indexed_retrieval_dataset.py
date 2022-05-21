@@ -35,6 +35,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
+@pytest.mark.run_only_on('GPU')
+@pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")
 class TestRetrievalIndexFiles:
     @pytest.mark.unit
     def test_index(self):
