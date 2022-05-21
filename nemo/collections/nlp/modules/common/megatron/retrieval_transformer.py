@@ -455,20 +455,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             self.current_len += n
             self_attn_emb = self.rotary_pos_emb(self.current_len)
             num_seq_chunks = self.current_len // self.chunk_size
-            token_pos = (self.current_len - 1) % self.chunk_size
-            chunk_id = self.current_len // self.chunk_size
-            # if chunk_id <= 0:
-            #     # if sequence length less than chunk size, do an early return
-            #     return torch.zeros_like(hidden_states), empty_bias
-            # causal_padding = chunk_size - 1
-            # # pad it as a full chunk, put it at the end of the chunk position
-            # hidden_states = F.pad(hidden_states, (0, 0, 0, 0, causal_padding, 0), value=0.0)
-            # # only use the relevant context
-            # context = context[chunk_id - 1 : chunk_id, :, :, :, :]
-            # attention_mask = rearrange(attention_mask, '(b k) 1 q v -> b k 1 q v', b=b)
-            # # select the relevant chunk attn mask
-            # attention_mask = attention_mask[:, chunk_id - 1]
-            # seq_index = chunk_size
         else:
             # this is normal forward without inference
             num_seq_chunks = n // self.chunk_size
