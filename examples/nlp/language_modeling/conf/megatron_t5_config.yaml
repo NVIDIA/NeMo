@@ -114,7 +114,7 @@ model:
     #   - /raid/data/pile/my-t5_00_text_document
     #   - .5
     #   - /raid/data/pile/my-t5_01_text_document
-    data_prefix: [1,/datasets/nemo_t5_test/my-t5_test_bert_tokenizer_text_document]
+    data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
     data_impl: mmap
     splits_string: 949,45,5
