@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from torch import nn
-
+from nemo.collections.asr.losses import CTCLoss
 from nemo.core import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LossType, NeuralType, SpectrogramType, VoidType
-from nemo.collections.asr.losses import CTCLoss
 
 __all__ = ["CTCLossForSSL"]
 
