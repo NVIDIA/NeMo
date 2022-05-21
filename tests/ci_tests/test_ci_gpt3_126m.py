@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from tensorboard.backend.event_processing import event_accumulator
 
 
