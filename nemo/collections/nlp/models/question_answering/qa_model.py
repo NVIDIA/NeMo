@@ -78,7 +78,8 @@ class QAModel(NLPModel):
             loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
         except:
             for i in range(input_ids.size(0)):
-                print('input_ids ', i, ' : ', input_ids[i])
+                print('input_ids max', i, ' : ', torch.max(input_ids[i]))
+                print('input_ids min', i, ' : ', torch.min(input_ids[i]))
             raise ValueError
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
