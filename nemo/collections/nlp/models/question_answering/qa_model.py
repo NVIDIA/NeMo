@@ -74,7 +74,12 @@ class QAModel(NLPModel):
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
+        try:
+            loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
+        except:
+            for i in range(input_ids.size(0)):
+                print('input_ids ', i, ' : ', input_ids[i])
+
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
