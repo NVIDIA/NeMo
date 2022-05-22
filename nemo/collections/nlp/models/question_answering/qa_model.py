@@ -79,7 +79,7 @@ class QAModel(NLPModel):
         except:
             for i in range(input_ids.size(0)):
                 print('input_ids ', i, ' : ', input_ids[i])
-
+            raise ValueError
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
