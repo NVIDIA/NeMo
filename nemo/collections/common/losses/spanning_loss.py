@@ -80,6 +80,8 @@ class SpanningLoss(Loss):
         end_loss = loss_fct(end_logits, end_positions)
         total_loss = (start_loss + end_loss) / 2
         if math.isnan(total_loss):
+            print("start loss:", start_loss)
+            print("end loss:", end_loss)
             print('start_positions: ', start_positions)
             print('end_positions: ', end_positions)
             for i in range(start_logits.size(0)):
