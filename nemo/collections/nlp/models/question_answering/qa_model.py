@@ -80,7 +80,8 @@ class QAModel(NLPModel):
             for i in range(input_ids.size(0)):
                 print('input_ids max', i, ' : ', torch.max(input_ids[i]))
                 print('input_ids min', i, ' : ', torch.min(input_ids[i]))
-                print('input_ids decoded', i, ' : ',self.tokenizer.tokenizer.decode(input_ids[i]))
+                print('input_ids 301', i, ' : ', input_ids[i][301])
+                print('input_ids decoded', i, ' : ',self.tokenizer.tokenizer.decode(input_ids[i][301]))
             raise ValueError
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
