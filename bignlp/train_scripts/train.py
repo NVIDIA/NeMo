@@ -153,6 +153,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         gpus_per_task = cluster_cfg.get("gpus_per_task")
         gpus_per_node = cluster_cfg.get("gpus_per_node")
         job_name_prefix = cluster_cfg.get("job_name_prefix")
+        overcommit = cluster_cfg.get("overcommit")
 
         if dependency is None:
             dependency = run_cfg.get("dependency")
@@ -173,6 +174,7 @@ def run_training(cfg, hydra_args="", dependency=None):
                 flags=flags,
                 dependency=dependency,
                 exclusive=exclusive,
+                overcommit=overcommit,
                 time=time_limit,
                 nodes=nodes,
                 ntasks_per_node=ntasks_per_node,
@@ -197,6 +199,7 @@ def run_training(cfg, hydra_args="", dependency=None):
                 flags=flags,
                 dependency=dependency,
                 exclusive=exclusive,
+                overcommit=overcommit,
                 time=time_limit,
                 nodes=nodes,
                 ntasks_per_node=ntasks_per_node,
