@@ -1159,8 +1159,6 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
 
 
 # Add the adapter compatible modules to the registry
-if adapter_mixins.get_registered_adapter(RNNTDecoder) is None:
-    adapter_mixins.register_adapter(RNNTDecoder, RNNTDecoder)  # base class is adapter compatible itself
-
-if adapter_mixins.get_registered_adapter(RNNTJoint) is None:
-    adapter_mixins.register_adapter(RNNTJoint, RNNTJoint)  # base class is adapter compatible itself
+for cls in [RNNTDecoder, RNNTJoint]:
+    if adapter_mixins.get_registered_adapter(cls) is None:
+        adapter_mixins.register_adapter(cls, cls)  # base class is adapter compatible itself
