@@ -297,6 +297,9 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                             self._handle_artifacts(model, nemo_file_folder=tmpdir)
                             self._update_artifact_paths(model, path2yaml_file=config_yaml)
 
+                        # Migrate frozen model artifacts to prompt learning model .nemo file
+                        self._preserve_frozen_model_artifacts(model, tmpdir)
+
                         # create tar file
                         self._make_nemo_file_from_folder(save_path, tmpdir)
 

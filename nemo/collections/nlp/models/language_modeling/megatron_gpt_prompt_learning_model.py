@@ -84,6 +84,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Load pretrained GPT model and tokenizer
         if cfg.get('language_model_path', None):
+            self.language_model_path = cfg.get('language_model_path')
             self.frozen_model = MegatronGPTModel.restore_from(
                 cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
             )
@@ -99,6 +100,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
+        self.language_model_path = cfg.get('language_model_path')
         self.tokenizer = self.frozen_model.tokenizer
         self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -494,12 +496,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             # No longer need gpt model's .nemo file.
             self.cfg.language_model_path = None
 
-        # Take artifacts from frozen GPT model and save them to this model's .nemo file instead
-        self.artifacts = self.frozen_model.artifacts
-
         # GPT model weights are saved in this model's model_weights.ckpt and gpt config
         # saved as artifact with name frozen_model_config.yaml.
-        # tmpdir = tempfile.mkdtemp()
         with tempfile.TemporaryDirectory() as tmpdir:
             frozen_model_config_yaml = os.path.join(tmpdir, "frozen_model_config.yaml")
             self.frozen_model.to_config_file(path2yaml_file=frozen_model_config_yaml)
