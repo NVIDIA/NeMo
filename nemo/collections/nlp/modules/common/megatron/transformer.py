@@ -1260,6 +1260,14 @@ class ParallelTransformerLayer_(MegatronModule):
 
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
 
+        # Layernorm on the input data.
+        if normalization == 'layernorm':
+            self.input_layernorm = get_layer_norm(
+                hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+            )
+        else:
+            self.input_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
