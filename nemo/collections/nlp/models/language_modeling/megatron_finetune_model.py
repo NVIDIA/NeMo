@@ -404,6 +404,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         if k != 'acc' and 'total' not in k:
                             self.log(metric_log_key + f'_{k}', v)
                             logging.info(f"{mode} {metric_name} lang {k} : {v}")
+                    metric = metric['acc']
             else:
                 self.log(metric_log_key, metric)
                 logging.info(f"{mode} {metric_name}: {metric}")
