@@ -32,10 +32,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils import adapter_utils, rnnt_utils
 from nemo.collections.common.parts import rnn
 from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.mixins import AdapterModuleMixin
 from nemo.core.neural_types import (
     AcousticEncodedRepresentation,
     ElementType,
@@ -49,7 +50,7 @@ from nemo.core.neural_types import (
 from nemo.utils import logging
 
 
-class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, adapter_mixins.AdapterModuleMixin):
+class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Decoder / Prediction Network (RNN-T Prediction Network).
     An RNN-T Decoder/Prediction network, comprised of a stateful LSTM model.
 
@@ -623,25 +624,11 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, adapter_mixins.
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        if 'in_features' in cfg:
-            in_planes = cfg['in_features']
-
-            if in_planes != self.pred_hidden:
-                logging.info(
-                    f"Updating {self.__class__.__name__} Adapter input dim from {in_planes} " f"to {self.pred_hidden}"
-                )
-                in_planes = self.pred_hidden
-
-            cfg['in_features'] = in_planes
-            return cfg
-        else:
-            raise ValueError(
-                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
-                f"{OmegaConf.to_yaml(cfg)}"
-            )
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.pred_hidden)
+        return cfg
 
 
-class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.AdapterModuleMixin):
+class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin):
     """A Recurrent Neural Network Transducer Joint Network (RNN-T Joint Network).
     An RNN-T Joint network, comprised of a feedforward model.
 
@@ -1080,22 +1067,8 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, adapter_mixins.Adap
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        if 'in_features' in cfg:
-            in_planes = cfg['in_features']
-
-            if in_planes != self.joint_hidden:
-                logging.info(
-                    f"Updating {self.__class__.__name__} Adapter input dim from {in_planes} " f"to {self.joint_hidden}"
-                )
-                in_planes = self.joint_hidden
-
-            cfg['in_features'] = in_planes
-            return cfg
-        else:
-            raise ValueError(
-                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
-                f"{OmegaConf.to_yaml(cfg)}"
-            )
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
+        return cfg
 
     @property
     def num_classes_with_blank(self):

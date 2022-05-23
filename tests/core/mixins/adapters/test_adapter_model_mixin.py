@@ -23,6 +23,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.core import ModelPT, NeuralModule
 from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.utils import logging, logging_mode
 
 
 class DefaultModule(NeuralModule):
@@ -166,14 +167,14 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         decoder_adapter = global_cfg.get('decoder_adapter', False)
 
         if encoder_adapter and not hasattr(self, 'encoder'):
-            raise ValueError("Encoder not available")
+            logging.warning("Encoder not available", mode=logging_mode.ONCE)
         elif encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
-            raise ValueError("Encoder does not support adapters !")
+            logging.warning("Encoder does not support adapters !", mode=logging_mode.ONCE)
 
         if decoder_adapter and not hasattr(self, 'decoder'):
-            raise ValueError("Decoder is not available")
+            logging.warning("Decoder is not available", mode=logging_mode.ONCE)
         elif decoder_adapter and not isinstance(self.decoder, AdapterModuleMixin):
-            raise ValueError("Decoder does not support adapters !")
+            logging.warning("Decoder does not support adapters !", mode=logging_mode.ONCE)
 
     def resolve_adapter_module_name_(self, name: str) -> (str, str):
         # resolve name and module
@@ -276,15 +277,29 @@ if adapter_mixins.get_registered_adapter(DefaultModule) is None:
 
 class TestAdapterModelMixin:
     @pytest.mark.unit
-    def test_base_model_no_support_for_adapters(self):
+    def test_base_model_no_support_for_adapters(self, caplog):
+        logging._logger.propagate = True
+        original_verbosity = logging.get_verbosity()
+        logging.set_verbosity(logging.WARNING)
+        caplog.set_level(logging.WARNING)
+
         cfg = get_model_config(in_features=50, update_adapter_cfg=False)
         model = DefaultAdapterModel(cfg)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(AttributeError):
             model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
 
-        with pytest.raises(ValueError):
-            model.get_enabled_adapters()
+        # check that warning message indicates that it module is not available
+        assert """Encoder does not support adapters !""" in caplog.text
+
+        caplog.clear()
+        model.get_enabled_adapters()
+
+        # check that there is not warning message, since it should log only once.
+        assert """Encoder does not support adapters !""" not in caplog.text
+
+        logging._logger.propagate = False
+        logging.set_verbosity(original_verbosity)
 
     @pytest.mark.unit
     def test_single_adapter(self):

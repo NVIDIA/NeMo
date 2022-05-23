@@ -17,6 +17,7 @@ from typing import List, Optional
 from omegaconf import DictConfig, open_dict
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.utils import logging, logging_mode
 
 
 class ASRAdapterModelMixin(AdapterModelPTMixin):
@@ -101,7 +102,7 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
                 # Check if joint adapters should be added;
                 # Note: We need additional check if joint even exists in model (for CTC models)
-                if module_name == 'joint' and hasattr(self, 'joint'):
+                if hasattr(self, 'joint') and module_name == 'joint':
                     # Dispatch call to the joint.
                     self.joint.add_adapter(name=name, cfg=cfg)
 
@@ -208,29 +209,43 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         global_cfg = self._get_global_cfg()
 
         # Test whether the encoder supports adapters
-        use_encoder_adapter = global_cfg.get('check_encoder_adapter', False)
+        use_encoder_adapter = global_cfg.get('check_encoder_adapter', True)
         if use_encoder_adapter:
             if not hasattr(self, 'encoder'):
-                raise ValueError("Cannot add adapter to this object as it does not have an `encoder` sub-module!")
+                logging.warning(
+                    "Cannot add adapter to this object as it does not have an `encoder` sub-module!",
+                    mode=logging_mode.ONCE,
+                )
 
             if hasattr(self, 'encoder') and not isinstance(self.encoder, AdapterModuleMixin):
-                raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
+                logging.warning(
+                    f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`',
+                    mode=logging_mode.ONCE,
+                )
 
         # Test whether the decoder supports adapters
-        use_decoder_adapter = global_cfg.get('check_decoder_adapter', False)
+        use_decoder_adapter = global_cfg.get('check_decoder_adapter', True)
         if use_decoder_adapter:
             if not hasattr(self, 'decoder'):
-                raise ValueError("Cannot add adapter to this object as it does not have an `decoder` sub-module!")
+                logging.warning(
+                    "Cannot add adapter to this object as it does not have an `decoder` sub-module!",
+                    mode=logging_mode.ONCE,
+                )
 
             if hasattr(self, 'decoder') and not isinstance(self.decoder, AdapterModuleMixin):
-                raise ValueError(f'{self.decoder.__class__.__name__} does not implement `AdapterModuleMixin`')
+                logging.warning(
+                    f'{self.decoder.__class__.__name__} does not implement `AdapterModuleMixin`',
+                    mode=logging_mode.ONCE,
+                )
 
         # Test whether the joint supports adapters
-        use_joint_adapter = global_cfg.get('check_joint_adapter', False)
+        use_joint_adapter = global_cfg.get('check_joint_adapter', True)
         if use_joint_adapter:
             # Joint is only for RNNT models, skip assertion that it must always exist.
             if hasattr(self, 'joint') and not isinstance(self.joint, AdapterModuleMixin):
-                raise ValueError(f'{self.joint.__class__.__name__} does not implement `AdapterModuleMixin`')
+                logging.warning(
+                    f'{self.joint.__class__.__name__} does not implement `AdapterModuleMixin`', mode=logging_mode.ONCE
+                )
 
     def resolve_adapter_module_name_(self, name: str) -> (str, str):
         """

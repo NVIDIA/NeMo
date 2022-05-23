@@ -35,6 +35,7 @@ from nemo.collections.asr.parts.submodules.tdnn_attention import (
     TDNNModule,
     TDNNSEModule,
 )
+from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
@@ -477,22 +478,8 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        if 'in_features' in cfg:
-            in_planes = cfg['in_features']
-
-            if in_planes != self._feat_in:
-                logging.info(
-                    f"Updating {self.__class__.__name__} Adapter input dim from {in_planes} " f"to {self._feat_in}"
-                )
-                in_planes = self._feat_in
-
-            cfg['in_features'] = in_planes
-            return cfg
-        else:
-            raise ValueError(
-                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
-                f"{OmegaConf.to_yaml(cfg)}"
-            )
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self._feat_in)
+        return cfg
 
     @property
     def vocabulary(self):
@@ -908,20 +895,8 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
         return names
 
     def _update_adapter_cfg_input_dim(self, block: JasperBlock, cfg):
-        if 'in_features' in cfg:
-            in_planes = cfg['in_features']
-
-            if in_planes != block.planes:
-                logging.info(f"Updating ConvASR Encoder Adapter input dim from {in_planes} to {block.planes}")
-                in_planes = block.planes
-
-            cfg['in_features'] = in_planes
-            return cfg
-        else:
-            raise ValueError(
-                f"Failed to infer the input dimension of the Adapter cfg. Provided config : \n"
-                f"{OmegaConf.to_yaml(cfg)}"
-            )
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=block.planes)
+        return cfg
 
 
 @dataclass
