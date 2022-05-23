@@ -272,7 +272,7 @@ class ParallelAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        position_embedding_type='relative',
+        position_embedding_type='learned_absolute',
         relative_attention_num_buckets=32,
         relative_attention_max_distance=128,
         layer_type=None,
@@ -376,7 +376,7 @@ class ParallelAttention(MegatronModule):
         self.relative_attention_max_distance = relative_attention_max_distance
         if self.position_embedding_type == 'relative':
             self.relative_attention_bias =\
-                torch.nn.Embedding(relative_attention_num_buckets, num_attention_heads)\
+                torch.nn.Embedding(relative_attention_num_buckets, self.num_attention_heads_per_partition)\
                 .to(torch.cuda.current_device())
         self.layer_type = layer_type
 
@@ -680,8 +680,9 @@ class ParallelAttention(MegatronModule):
             if layer_past is not None:
                 position_bias = position_bias[:, :, -hidden_states.size(0) :, :]
 
-            position_bias = position_bias + attention_mask
-            attention_scores += position_bias
+            if self.position_embedding_type == 'relative':
+                position_bias = position_bias + attention_mask
+                attention_scores += position_bias
         
         # ===========================
         # Attention probs and dropout
@@ -895,7 +896,7 @@ class ParallelTransformerLayer_(MegatronModule):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        position_embedding_type='relative',
+        position_embedding_type='learned_absolute',
         relative_attention_num_buckets=32,
         relative_attention_max_distance=128,
         activation='gelu',
@@ -1315,7 +1316,7 @@ class ParallelTransformer(MegatronModule):
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         attention_dropout=0.1,
-        position_embedding_type='relative',
+        position_embedding_type='learned_absolute',
         relative_attention_num_buckets=32,
         relative_attention_max_distance=128,
         use_cpu_initialization=False,
@@ -1633,7 +1634,7 @@ class ParallelTransformer(MegatronModule):
                     elif len(hidden_states) == 3:
                         hidden_states, position_bias, encoder_decoder_position_bias = hidden_states
                     else:
-                        raise('hidden_states in transformer not matching')
+                        raise IndexError('hidden_states needs to be tuple containing 2 or 3 elements.')
 
         # Final layer norm.
         if self.post_process:

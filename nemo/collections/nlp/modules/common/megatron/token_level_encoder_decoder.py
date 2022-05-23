@@ -130,6 +130,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
 
+        if self.position_embedding_type == 'absolute' or 'learned_absolute':
+            add_position_embedding = True
+        elif self.position_embedding_type == 'relative':
+            add_position_embedding = False
+        else:
+            raise('Unknown position embeeding type.')
+
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -139,14 +146,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         encoder, decoder = None, None
         if add_encoder:
             if pre_process:
-
-                if self.position_embedding_type == 'absolute':
-                    add_position_embedding = True
-                elif self.position_embedding_type == 'relative':
-                    add_position_embedding = False
-                else:
-                    raise('Unknown position embeeding type.')
-
                 self.encoder_embedding = Embedding(
                     hidden_size=hidden_size,
                     vocab_size=vocab_size,
@@ -218,6 +217,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         num_tokentypes=num_tokentypes,
                         use_cpu_initialization=use_cpu_initialization,
                         embedding_dropout_prob=hidden_dropout,
+                        add_position_embedding=add_position_embedding
                     )
                     self.decoder_embedding.zero_parameters()
 
@@ -242,6 +242,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 attention_dropout=attention_dropout,
                 position_embedding_type=position_embedding_type,
                 relative_attention_num_buckets=relative_attention_num_buckets,
+                relative_attention_max_distance=relative_attention_max_distance,
                 precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,

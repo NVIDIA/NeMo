@@ -58,7 +58,7 @@ class MegatronTransformerDecoderModule(MegatronModule):
         decoder_attn_mask_type=AttnMaskType.causal,
         hidden_dropout=0.1,
         attention_dropout=0.1,
-        position_embedding_type='relative',
+        position_embedding_type='learned_absolute',
         relative_attention_num_buckets=32,
         relative_attention_max_distance=128,
         precision=16,
