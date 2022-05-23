@@ -464,8 +464,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         if cfg.get("sampler", "distributed") == 'distributed':
             sampler = torch.utils.data.distributed.DistributedSampler(
-                dataset, num_replicas=world_size, rank=rank, shuffle=True,
-                seed=consumed_samples # Ensures that each time the model is restored, a new seed is used to see examples in a different order.
+                dataset,
+                num_replicas=world_size,
+                rank=rank,
+                shuffle=True,
+                seed=consumed_samples,  # Ensures that each time the model is restored, a new seed is used to see examples in a different order.
             )
             return torch.utils.data.DataLoader(
                 dataset,
@@ -793,6 +796,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_validation_start(self) -> None:
         """PTL hook used to override DataFetcher with GlobalBatchDataFetcher """
+        logging.info('Validation start ...')
         self.trainer.fit_loop.epoch_loop.val_loop._data_fetcher = GlobalBatchDataFetcher()
         self.trainer.validate_loop._data_fetcher = GlobalBatchDataFetcher()
 
