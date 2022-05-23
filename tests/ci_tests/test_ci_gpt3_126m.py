@@ -44,9 +44,7 @@ class TestCIGPT126m:
 
     def test_ci_gpt3_126m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
-        expected = [10.9099, 10.88668, 10.9028, 10.90496, 10.76744, 10.46561, 10.33317, 9.9591, 
-                    9.98051, 9.61251, 9.62183, 9.51763, 9.41488, 9.38017, 9.38307, 9.33679, 
-        ]
+        expected = [9.0641, 8.51007, 8.26597, 7.97282, 7.65916]
 
         results_dir = f"{CI_RESULTS_DIR}/ci_gpt3_126m_deterministic"
         files = os.listdir(results_dir)
