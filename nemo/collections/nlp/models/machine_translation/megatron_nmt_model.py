@@ -200,6 +200,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def eval_step(self, batch, batch_idx, dataloader_idx, data_cfg):
         # Need to squeze dim 0 for tarred datasets since things are pre-batched and we ask the dataloader for batch size 1.
+        logging.info('Eval step ...')
         batch = [[x.squeeze(dim=0) if x.ndim == 3 else x for x in microbatch] for microbatch in batch]
         batch = self.process_global_batch_for_tarred_datasets(batch)
         if data_cfg.dataset_type in ['tarred', 'text']:
@@ -311,7 +312,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         return self.eval_epoch_end(outputs, 'test')
 
     def eval_epoch_end(self, outputs, mode):
+        logging.info('Eval epoch end ...')
         if not outputs:
+            logging.info('No outputs ...')
             return
         if isinstance(outputs[0], dict):
             outputs = [outputs]
