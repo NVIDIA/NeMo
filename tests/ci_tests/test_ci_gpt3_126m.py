@@ -37,7 +37,7 @@ class TestCIGPT126m:
                 break
 
         assert train_loss is not None, f"No TensorBoard events file was found in the logs."
-        assert len(train_loss_vals) == 50, f"The events file must have 50 values, one per training iteration."
+        assert len(train_loss_vals) == 50, f"The events file must have 50 training loss values, one per training iteration."
 
         for step in range(0, 50, 5):
             assert expected[step] == train_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_vals[step]}."
@@ -63,7 +63,7 @@ class TestCIGPT126m:
                 break
 
         assert val_loss is not None, f"No TensorBoard events file was found in the logs."
-        assert len(val_loss_vals) == 50, f"The events file must have 10 values."
+        assert len(val_loss_vals) == 5, f"The events file must have 5 validation loss values."
 
         for step in range(0, 10):
             assert expected[step] == val_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {val_loss_vals[step]}."
@@ -82,9 +82,10 @@ class TestCIGPT126m:
                 ea = event_accumulator.EventAccumulator(event_file)
                 ea.Reload()
                 train_time = ea.Scalars("train_step_timing")
-                train_time = train_time[6:]
-                train_time_avg = sum([round(x.value, 5) for x in train_time]) / len(train_time)
-                print(train_time)
+                #train_time = train_time[6:]
+                train_time_list = [round(x.value, 5) for x in train_time][6:]
+                train_time_avg = sum(train_time_list) / len(train_time_list)
+                print(train_time_list)
                 print(train_time_avg)
                 break
 
