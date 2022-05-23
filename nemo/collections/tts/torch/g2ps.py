@@ -243,7 +243,7 @@ class IPAG2P(BaseG2p):
     def __init__(
         self,
         phoneme_dict,
-        word_tokenize_func=lambda x: x,  # TODO: Hmm. english_word_tokenize
+        word_tokenize_func=english_word_tokenize,
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
@@ -267,7 +267,7 @@ class IPAG2P(BaseG2p):
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
         """
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
-            self.phoneme_dict, self.symbols = self.parse_as_cmu_dict(phoneme_dict)
+            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict)
         else:
             logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
             self.phoneme_dict = phoneme_dict
@@ -320,6 +320,9 @@ class IPAG2P(BaseG2p):
         with open(p, 'r') as f:
             return [l.rstrip() for l in f.readlines()]
 
+    def is_unique_in_phoneme_dict(self, word):
+        return len(self.phoneme_dict[word]) == 1
+
     def parse_one_word(self, word: str):
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
@@ -351,7 +354,7 @@ class IPAG2P(BaseG2p):
         ):
             return self.phoneme_dict[word[:-1]][0] + ["z"], True
 
-        # Phoneme dict lookup for unique words (or default pron if ignore_ambiguous_words=True)
+        # Phoneme dict lookup for unique words (or default pron if ignore_ambiguous_words=False)
         if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
             return self.phoneme_dict[word][0], True
 
@@ -364,7 +367,11 @@ class IPAG2P(BaseG2p):
         words = self.word_tokenize_func(text)
 
         prons = []
-        for word in words:
+        for word, without_changes in words:
+            if without_changes:
+                prons.extend(word)
+                continue
+
             pron, is_handled = self.parse_one_word(word)
 
             word_by_hyphen = word.split("-")

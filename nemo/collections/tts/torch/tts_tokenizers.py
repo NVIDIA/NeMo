@@ -453,7 +453,7 @@ class IPATokenizer(BaseTokenizer):
             if p == space and len(ps) > 0 and ps[-1] != space:
                 # Add space if last token isn't one
                 ps.append(p)
-            elif (p.isalnum() or p == "'") and p in tokens:
+            elif p in tokens:
                 # Add next phoneme or char (if chars=True)
                 ps.append(p)
             elif (p in self.PUNCT_LIST) and self.punct:

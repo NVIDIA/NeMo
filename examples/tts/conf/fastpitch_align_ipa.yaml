@@ -69,7 +69,6 @@ model:
   text_tokenizer:
     _target_: nemo.collections.tts.torch.tts_tokenizers.IPATokenizer
     punct: true
-    stresses: true
     chars: true
     apostrophe: true
     pad_with_space: true
