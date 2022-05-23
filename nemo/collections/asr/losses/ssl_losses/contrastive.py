@@ -68,6 +68,7 @@ class ContrastiveLoss(Loss):
         mask_threshold: float = 0.8,
         store_ids: bool = True,
         reduce_ids: bool = False,
+        multiplier: float = 16.0
     ):
         """
         Loss function representing the contrastive task of identifying the true latent speech representation of
@@ -94,6 +95,7 @@ class ContrastiveLoss(Loss):
             mask_threshold: Float threshold for determining if a time step of the spectrogram is masked based on percent of masked channels.
             store_ids: Bool that determines if the quantizer ids will be stored to be potentially used by other losses.
             reduce_ids: Bool that determines if we convert any sequence of consecutive equivalent ids to a single occurence of that id.
+            multiplier: Float multipler on final loss
         """
 
         super().__init__()
@@ -122,6 +124,7 @@ class ContrastiveLoss(Loss):
         self.sample_from_codebook = sample_from_codebook
         self.group_loss = group_loss
         self.mask_threshold = mask_threshold
+        self.multiplier = multiplier
 
         self.store_ids = store_ids
         self.reduce_ids = reduce_ids
@@ -267,6 +270,8 @@ class ContrastiveLoss(Loss):
 
         if not isinstance(loss, torch.Tensor):
             loss = torch.Tensor([0]).to(device=decoder_outputs.device)
+
+        loss *= self.multiplier / spectrograms.shape[0]
 
         return loss
 
