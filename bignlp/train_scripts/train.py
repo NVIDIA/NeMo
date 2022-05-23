@@ -39,7 +39,7 @@ def create_srun_command(
         f"srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} "
         f"--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} "
         f"{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} "
-        f'{overcommit_cmd} {flags} sh -c "{train_cmd}"\n\n '
+        f'{overcommit_cmd} --cpus-per-task=32 {flags} sh -c "{train_cmd}"\n\n '
     )
     return cmd
 

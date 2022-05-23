@@ -68,7 +68,7 @@ class TestCIGPT126m:
 
     def test_ci_gpt3_126m_train_step_timing_1node(self):
         # Expected average training time per global step.
-        expected_avg = 1.115
+        expected_avg = 0.89
 
         results_dir = f"{CI_RESULTS_DIR}/ci_gpt3_126m_deterministic"
         files = os.listdir(results_dir)
