@@ -3,8 +3,8 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   convert_name: convert_nemo
-  model_train_name: t5_220m
-  task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
+  model_train_name: mt5_390m
+  task_name: "custom_task"  # Rename this name to be more clear
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 
 trainer:
@@ -25,10 +25,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${finetuning.run.results_dir}
   exp_dir: null
-  name: megatron_t5_glue
+  name: megatron_mt5_${finetuning.run.task_name}
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_t5_glue
+    project: nemo_mt5_${finetuning.run.task_name}
     name: ${finetuning.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -39,12 +39,12 @@ exp_manager:
     mode: max
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
-    filename: 'megatron_t5--{validation_acc:.3f}-{step}'
+    filename: 'megatron_mt5--{validation_acc:.3f}-{step}'
     model_parallel_size: ${finetuning.model.model_parallel_size}
     save_best_model: True
 
-model: # For different finetuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
-  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_t5.nemo # Path to a trained T5 .nemo file
+model: # For different finetuning tasks, tuning the hyper parameters accordingly
+  restore_from_path: ${base_results_dir}/${finetuning.run.model_train_name}/${finetuning.run.convert_name}/megatron_mt5.nemo # Path to a trained mt5 .nemo file
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
@@ -57,25 +57,31 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
 
   data:
     train_ds:
-      task_name: ${finetuning.run.task_name}
-      file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/train.tsv # Path to the TSV file for MNLI train
+      src_file_name: ??? # Path to the txt file corresponding to the source data.
+      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: True
       num_workers: 0  # Known issue: > 0 may not work
       pin_memory: True
-      max_seq_length: 512
+      max_src_seq_length: 512
+      max_tgt_seq_length: 128
       drop_last: True
+      concat_sampling_technique: temperature # When providing a list of datasets, this arg defines the sampling strategy. Options: ['temperature', 'random']
+      concat_sampling_temperature: 5 # When providing a list of datasets, this arg defines the sampling temperature when strategy='temperature'
+      concat_sampling_probabilities: null # When providing a list of datasets, this arg defines the sampling probabilities from each dataset when strategy='random'
 
     validation_ds:
-      task_name: ${finetuning.run.task_name}
-      file_path: ${data_dir}/glue_data/${finetuning.run.task_name}/dev_matched.tsv # Path to the TSV file for MNLI dev. Replace `dev_matched.tsv` with `dev.tsv` if not finetuning MNLI
+      src_file_name: ??? # Path to the txt file corresponding to the source data.
+      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
+      names: null # If src/tgt file names are ListConfigs, the corresponding label is used to log metrics.
       global_batch_size: 128
       micro_batch_size: 16
       shuffle: False
       num_workers: 4
       pin_memory: True
-      max_seq_length: 512
+      max_src_seq_length: 512
+      max_tgt_seq_length: 128
       drop_last: False
 
   optim:

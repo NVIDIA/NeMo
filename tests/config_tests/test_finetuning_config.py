@@ -47,7 +47,7 @@ class TestFinetuningT5Config:
             always_save_nemo: False
             save_nemo_on_train_end: True # Set to true for subsequent validation runs.
             filename: 'megatron_t5--{validation_acc:.3f}-{step}'
-            model_parallel_size: ${finetuning.model.tensor_model_parallel_size}
+            model_parallel_size: ${finetuning.model.model_parallel_size}
             save_best_model: True
         
         model: # For different finetuning tasks, tuning the hyper parameters accordingly; below is only for MNLI
@@ -55,6 +55,7 @@ class TestFinetuningT5Config:
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
           pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+          model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           megatron_amp_O2: False # Enable O2 optimization for megatron amp
           resume_from_checkpoint: null
@@ -68,10 +69,10 @@ class TestFinetuningT5Config:
               global_batch_size: 128
               micro_batch_size: 16
               shuffle: True
-              num_workers: 0
+              num_workers: 0  # Known issue: > 0 may not work
               pin_memory: True
               max_seq_length: 512
-              drop_last: False
+              drop_last: True
         
             validation_ds:
               task_name: ${finetuning.run.task_name}

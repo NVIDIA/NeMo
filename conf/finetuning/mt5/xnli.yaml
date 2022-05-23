@@ -40,7 +40,7 @@ exp_manager:
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
     filename: 'megatron_mt5--{validation_acc:.3f}-{step}'
-    model_parallel_size: ${finetuning.model.tensor_model_parallel_size}
+    model_parallel_size: ${finetuning.model.model_parallel_size}
     save_best_model: True
 
 model: # For different finetuning tasks, tuning the hyper parameters accordingly
@@ -48,6 +48,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1
   pipeline_model_parallel_split_rank: ${divide_floor:${.pipeline_model_parallel_size}, 2}
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
   megatron_amp_O2: False # Enable O2 optimization for megatron amp
   eval_languages: ['fr', 'de', 'en', 'es'] # List of languages to evaluate zero-shot XNLI performance. Full language list: ar,bg,de,el,en,es,fr,hi,ru,sw,th,tr,ur,vi,zh
@@ -65,7 +66,7 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
       num_workers: 0  # Known issue: > 0 may not work
       pin_memory: True
       max_seq_length: 512
-      drop_last: False
+      drop_last: True
 
     validation_ds:
       task_name: 'xnli'
