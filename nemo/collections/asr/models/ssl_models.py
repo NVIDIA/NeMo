@@ -455,7 +455,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
-            input_signal=signal, input_signal_length=signal_len, targets=targets, target_lengths=target_lengths
+            input_signal=signal, input_signal_length=signal_len,
         )
 
         loss_value, _ = self.decoder_loss_step(spectrograms, spec_masks, encoded, encoded_len, targets, target_lengths)
