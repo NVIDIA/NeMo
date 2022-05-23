@@ -39,7 +39,7 @@ class TestCIGPT126m:
         assert train_loss is not None, f"No TensorBoard events file was found in the logs."
         assert len(train_loss_vals) == 50, f"The events file must have 50 training loss values, one per training iteration."
 
-        for step in range(0, 50, 5):
+        for step in range(0, 50):
             assert expected[step] == train_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_vals[step]}."
 
     def test_ci_gpt3_126m_val_loss_deterministic(self):
