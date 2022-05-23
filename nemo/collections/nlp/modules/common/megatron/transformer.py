@@ -1710,7 +1710,7 @@ class ParallelTransformer(MegatronModule):
         transformer_block_type='pre_ln',
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
-        recompute_granularity=None,
+        activations_checkpoint_granularity=None,
         sequence_parallel=False,
     ):
         super(ParallelTransformer, self).__init__()
@@ -1734,7 +1734,7 @@ class ParallelTransformer(MegatronModule):
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
-        self.recompute_granularity = recompute_granularity
+        self.activations_checkpoint_granularity = activations_checkpoint_granularity
 
         self.sequence_parallel = sequence_parallel
 
