@@ -69,7 +69,7 @@ class QAModel(NLPModel):
                 hidden_states = hidden_states[0]
 
             logits = self.classifier(hidden_states=hidden_states)
-        return logits.float()
+        return logits
 
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
