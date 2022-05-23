@@ -179,30 +179,31 @@ class UL2Dataset(T5Dataset):
         # 1. Small masking prob, large spans.
         # 2. Large masking prob, small spans.
         # 3. Large masking prob, large spans.
-        masked_lm_prob = self.masked_lm_prob if np_rng.randint(0, 3) == 0 else self.extreme_masked_lm_prob
-        if masked_lm_prob == self.masked_lm_prob:
-            # Large spans.
-            max_ngram_size, mean_ngram_size, min_ngram_size = (
+        task_type = np_rng.randint(0, 3)
+        if task_type == 0:
+            # Large spans, small masking prob
+            max_ngram_size, mean_ngram_size, min_ngram_size, masked_lm_prob = (
                 self.extreme_max_ngram_size,
                 self.extreme_mean_ngram_size,
                 self.extreme_min_ngram_size,
+                self.masked_lm_prob,
+            )
+        elif task_type == 1:
+            # Small spans, large masking prob
+            max_ngram_size, mean_ngram_size, min_ngram_size, masked_lm_prob = (
+                self.max_ngram_size,
+                self.mean_ngram_size,
+                self.min_ngram_size,
+                self.extreme_masked_lm_prob,
             )
         else:
-            # For large masking prob, decide if short or large spans.
-            if np_rng.randint(0, 2) == 0:
-                # Small spans.
-                max_ngram_size, mean_ngram_size, min_ngram_size = (
-                    self.max_ngram_size,
-                    self.mean_ngram_size,
-                    self.min_ngram_size,
-                )
-            else:
-                # Large spans.
-                max_ngram_size, mean_ngram_size, min_ngram_size = (
-                    self.extreme_max_ngram_size,
-                    self.extreme_mean_ngram_size,
-                    self.extreme_mean_ngram_size,
-                )
+            # Large spans, large masking prob
+            max_ngram_size, mean_ngram_size, min_ngram_size, masked_lm_prob = (
+                self.extreme_max_ngram_size,
+                self.extreme_mean_ngram_size,
+                self.extreme_mean_ngram_size,
+                self.extreme_masked_lm_prob,
+            )
 
         # Masking.
         max_predictions_per_seq = masked_lm_prob * max_num_tokens
