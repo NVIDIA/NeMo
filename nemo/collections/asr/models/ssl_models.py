@@ -276,8 +276,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         input_signal_length=None,
         processed_signal=None,
         processed_signal_length=None,
-        targets=None,
-        target_lengths=None,
     ):
         """
         Forward pass of the model.
@@ -294,10 +292,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 processed audio sequences.
 
         Returns:
-            A tuple of 3 elements -
+            A tuple of 4 elements -
             1) Processed spectrograms of shape [B, D, T].
             2) Masks applied to spectrograms of shape [B, D, T].
-            3) Decoder outputs of shape [B, T, D].
+            3) The encoded features tensor of shape [B, D, T].
+            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
         # reset module registry from AccessMixin
         self.reset_registry()
@@ -440,7 +439,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     def training_step(self, batch, batch_nb):
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
-            input_signal=signal, input_signal_length=signal_len, targets=targets, target_lengths=target_lengths
+            input_signal=signal, input_signal_length=signal_len,
         )
 
         loss_value, loss_val_dict = self.decoder_loss_step(
