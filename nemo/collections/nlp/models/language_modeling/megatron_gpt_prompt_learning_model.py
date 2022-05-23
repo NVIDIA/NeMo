@@ -84,7 +84,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Load pretrained GPT model and tokenizer
         if cfg.get('language_model_path', None):
-            self.language_model_path = cfg.get('language_model_path')
             self.frozen_model = MegatronGPTModel.restore_from(
                 cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
             )
