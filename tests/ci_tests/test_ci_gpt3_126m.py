@@ -63,7 +63,7 @@ class TestCIGPT126m:
         assert val_loss is not None, f"No TensorBoard events file was found in the logs."
         assert len(val_loss_vals) == 5, f"The events file must have 5 validation loss values."
 
-        for step in range(0, 10):
+        for step in range(0, 5):
             assert expected[step] == val_loss_vals[step], f"The loss at step {step} should be {expected[step]} but it is {val_loss_vals[step]}."
 
     def test_ci_gpt3_126m_train_step_timing_1node(self):
