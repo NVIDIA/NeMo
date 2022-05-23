@@ -87,20 +87,31 @@ class IdentitySplitter(object):
         return text
 
 
+def get_tokenizer(args):
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        model_name=args.tokenizer_type,
+        tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        merges_file=args.merge_file,
+        delimiter=args.delimiter,
+    )
+    if args.need_pad_id:
+        if not hasattr(tokenizer, "pad_id"):
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
+            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+    return tokenizer
+
+
 class Encoder(object):
     def __init__(self, args):
         self.args = args
 
     def initializer(self):
         # Use Encoder class as a container for global data
-        Encoder.tokenizer = get_nmt_tokenizer(
-            library=self.args.tokenizer_library,
-            model_name=self.args.tokenizer_type,
-            tokenizer_model=self.args.tokenizer_model,
-            vocab_file=self.args.vocab_file,
-            merges_file=self.args.merge_file,
-            delimiter=self.args.delimiter,
-        )
+        Encoder.tokenizer = get_tokenizer(self.args)
+          
         if self.args.split_sentences:
             if not nltk_available:
                 print("NLTK is not available to split sentences.")
@@ -169,6 +180,7 @@ def get_args():
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
     group.add_argument('--append-eod', action='store_true', help='Append an <eod> token to the end of a document.')
     group.add_argument('--retrieval-db', action='store_true', help='Dataset used for retrieval.')
+    group.add_argument('--need-pad-id', action='store_true', help='Whether we need the pad id for the tokenizer')
     group = parser.add_argument_group(title='output data')
     group.add_argument('--output-prefix', type=str, required=True, help='Path to binary output file without suffix')
     group.add_argument('--dataset-impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
@@ -224,14 +236,7 @@ def main():
 
     encoder = Encoder(args)
 
-    tokenizer = get_nmt_tokenizer(
-        library=args.tokenizer_library,
-        model_name=args.tokenizer_type,
-        tokenizer_model=args.tokenizer_model,
-        vocab_file=args.vocab_file,
-        merges_file=args.merge_file,
-        delimiter=args.delimiter,
-    )
+    tokenizer = get_tokenizer(args)
 
     level = "document"
     if args.split_sentences:

@@ -277,7 +277,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         def get_chunk_id(self, sentence_id, position):
             """ get the chunk id from sentence idx and offset position.
             """
-            return (self._chunk_id_start[sentence_id] + position // self.chunk_size).item()
+            chunk_offset = position // self.chunk_size
+            size = self._sizes[sentence_id]
+            if chunk_offset * self.chunk_size >= size:
+                raise ValueError('offset is too large')
+            return (self._chunk_id_start[sentence_id] + chunk_offset).item()
 
         def __del__(self):
             self._bin_buffer_mmap._mmap.close()
@@ -292,11 +296,10 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
             return self._sizes
 
         @lru_cache(maxsize=8)
-        def get_chunk(self, chunk_id):
-            return self._pointers[i], self._sizes[i]
-
-        @lru_cache(maxsize=8)
         def __getitem__(self, i):
+            """
+            return a single sentence staring address (in bytes) and number of tokens
+            """
             return self._pointers[i], self._sizes[i]
 
         def __len__(self):
@@ -339,7 +342,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
     # @lru_cache(maxsize=8)
     def __getitem__(self, idx):
+        """
+        return a single sentence or a slice of sentences, excluding the paddings for the retrieval db
+        """
         if isinstance(idx, int):
+            # no need to handle retrieval_db since size exclude the paddings
             ptr, size = self._index[idx]
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=size, offset=ptr)
             return np_array
@@ -349,14 +356,17 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 raise ValueError("Slices into indexed_dataset must be contiguous")
             ptr = self._index._pointers[start]
             if self._index.retrieval_db:
+                # for retrieval db, need to add the padding of chunk_size at the end of each sentence
                 sizes = self._index._sizes[idx] + self._index.chunk_size
             else:
                 sizes = self._index._sizes[idx]
+            # offsets get the number of tokens for each sentence including the paddings
             offsets = list(accumulate(sizes))
             total_size = sum(sizes)
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
             sents = np.split(np_array, offsets[:-1])
             if self._index.retrieval_db:
+                # remove the paddings
                 sents = [sent[: -self._index.chunk_size] for sent in sents]
             return sents
 
@@ -366,6 +376,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
         get(idx) is the same as [idx] but get() does not support slicing.
         """
+        # no need to handle retrieval_db since size exclude the paddings
         ptr, size = self._index[idx]
         if length is None:
             length = size - offset
