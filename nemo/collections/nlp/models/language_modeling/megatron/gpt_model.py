@@ -102,6 +102,13 @@ class GPTModel(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        masked_softmax_fusion=True,
+        bias_dropout_add_fusion=True,
+        bias=True,
+        normalization='layernorm',
+        activation='gelu',
+        headscale=False,
+        transformer_block_type='pre_ln',
     ):
 
         super(GPTModel, self).__init__()
@@ -145,6 +152,13 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            masked_softmax_fusion=masked_softmax_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
+            bias=bias,
+            normalization=normalization,
+            activation=activation,
+            headscale=headscale,
+            transformer_block_type=transformer_block_type,
         )
 
         self.initialize_word_embeddings(

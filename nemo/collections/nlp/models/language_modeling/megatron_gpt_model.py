@@ -142,6 +142,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+            bias_gelu_fusion=self.cfg.get('bias_gelu_fusion', True),
+            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
+            bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
+            bias=self.cfg.get('bias', True),
+            normalization=self.cfg.get('normalization', 'layernorm'),
+            activation=self.cfg.get('activation', 'gelu'),
+            headscale=self.cfg.get('headscale', False),
+            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
         )
 
         return model

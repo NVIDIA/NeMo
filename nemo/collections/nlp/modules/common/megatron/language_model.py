@@ -70,6 +70,12 @@ def get_language_model(
     openai_gelu=False,
     onnx_safe=False,
     megatron_legacy=False,
+    bias_dropout_add_fusion=True,
+    bias=True,
+    normalization='layernorm',
+    activation='gelu',
+    headscale=False,
+    transformer_block_type='pre_ln',
 ):
     """Build language model and return along with the key to save."""
 
@@ -117,6 +123,12 @@ def get_language_model(
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
         megatron_legacy=megatron_legacy,
+        bias_dropout_add_fusion=bias_dropout_add_fusion,
+        bias=bias,
+        normalization=normalization,
+        activation=activation,
+        headscale=headscale,
+        transformer_block_type=transformer_block_type,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -362,6 +374,12 @@ class TransformerLanguageModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         megatron_legacy=False,
+        bias_dropout_add_fusion=True,
+        bias=True,
+        normalization='layernorm',
+        activation='gelu',
+        headscale=False,
+        transformer_block_type='pre_ln',
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -426,6 +444,12 @@ class TransformerLanguageModel(MegatronModule):
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
             megatron_legacy=megatron_legacy,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
+            bias=bias,
+            normalization=normalization,
+            activation=activation,
+            headscale=headscale,
+            transformer_block_type=transformer_block_type,
         )
         self._encoder_key = 'encoder'
 
@@ -457,6 +481,12 @@ class TransformerLanguageModel(MegatronModule):
                 onnx_safe=onnx_safe,
                 masked_softmax_fusion=masked_softmax_fusion,
                 megatron_legacy=megatron_legacy,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
+                bias=bias,
+                normalization=normalization,
+                activation=activation,
+                headscale=headscale,
+                transformer_block_type=transformer_block_type,
             )
             self._decoder_key = 'decoder'
 
