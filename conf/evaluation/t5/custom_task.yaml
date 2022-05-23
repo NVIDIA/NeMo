@@ -1,0 +1,44 @@
+run:
+  name: eval_${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  model_train_name: t5_220m
+  task_name: "custom_task"  # Rename this name to be more clear
+  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
+
+trainer:
+  devices: 8
+  num_nodes: 1
+  accelerator: gpu
+  precision: bf16
+  logger: False # logger provided by exp_manager
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  log_every_n_steps: 10
+
+
+exp_manager:
+  explicit_log_dir: ${evaluation.run.results_dir}
+  exp_dir: null
+  name: megatron_t5_${finetuning.run.task_name}_eval
+  create_checkpoint_callback: False
+
+model:
+  restore_from_path: ${evaluation.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo # Path to a finetuned T5 .nemo file
+  gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
+  megatron_amp_O2: False # Enable O2 optimization for megatron amp
+
+  data:
+    validation_ds:
+      src_file_name: ??? # Path to the txt file corresponding to the source data.
+      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
+      names: null # If src/tgt file names are ListConfigs, the corresponding label is used to log metrics.
+      global_batch_size: 128
+      micro_batch_size: 16
+      shuffle: False
+      num_workers: 4
+      pin_memory: True
+      max_src_seq_length: 512
+      max_tgt_seq_length: 128
+      drop_last: False

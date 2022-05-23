@@ -34,7 +34,7 @@ def main(cfg):
     cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
 
     code_dir = "/opt/bignlp/NeMo"
-    code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_t5_glue.py"
+    code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_t5_seq2seq_finetune.py"
 
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
     # Write command to launch training.
