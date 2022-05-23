@@ -137,11 +137,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
+            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
             activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             onnx_safe=self.cfg.get('onnx_safe', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
+            sequence_parallel=self.cfg.get('sequence_parallel', False),
         )
 
         return model

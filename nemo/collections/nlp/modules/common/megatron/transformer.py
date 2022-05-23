@@ -1514,6 +1514,7 @@ class ParallelTransformer(MegatronModule):
                 normalization=normalization,
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
             )
 
