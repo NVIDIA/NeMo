@@ -95,6 +95,7 @@ class GPTModel(MegatronModule):
         hidden_dropout=0.1,
         precision=16,
         fp32_residual_connection=False,
+        activations_checkpoint_granularity=None,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
@@ -102,6 +103,7 @@ class GPTModel(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
+        sequence_parallel=False,
     ):
 
         super(GPTModel, self).__init__()
@@ -138,6 +140,7 @@ class GPTModel(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
@@ -145,6 +148,7 @@ class GPTModel(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
+            sequence_parallel=sequence_parallel,
         )
 
         self.initialize_word_embeddings(

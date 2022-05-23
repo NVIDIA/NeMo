@@ -70,6 +70,8 @@ def get_language_model(
     openai_gelu=False,
     onnx_safe=False,
     megatron_legacy=False,
+    activations_checkpoint_granularity=None,
+    sequence_parallel=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -117,6 +119,8 @@ def get_language_model(
         openai_gelu=openai_gelu,
         onnx_safe=onnx_safe,
         megatron_legacy=megatron_legacy,
+        activations_checkpoint_granularity=activations_checkpoint_granularity,
+        sequence_parallel=sequence_parallel,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -136,13 +140,20 @@ class Pooler(MegatronModule):
             bias is set to zero.
     """
 
-    def __init__(self, hidden_size, init_method):
+    def __init__(self, hidden_size, init_method, sequence_parallel=False):
         super(Pooler, self).__init__()
         self.dense = get_linear_layer(hidden_size, hidden_size, init_method)
+        self.sequence_parallel = sequence_parallel
 
     def forward(self, hidden_states, sequence_index=0):
-        # hidden_states: [b, s, h]prompt_embeddings
+        # hidden_states: [s, b, h] prompt_embeddings
         # sequence_index: index of the token to pool.
+
+        # gather data along sequence dimensions
+        # same pooler is run on all tensor parallel nodes
+        if self.sequence_parallel:
+            hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
+
         pooled = hidden_states[:, sequence_index, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)
@@ -175,6 +186,8 @@ class Embedding(MegatronModule):
         num_tokentypes=0,
         use_cpu_initialization=False,
         add_position_embedding=True,
+        fp32_residual_connection=False,
+        sequence_parallel=False,
     ):
         super(Embedding, self).__init__()
 
@@ -208,6 +221,9 @@ class Embedding(MegatronModule):
             self.init_method(self.tokentype_embeddings.weight)
         else:
             self.tokentype_embeddings = None
+
+        self.fp32_residual_connection = fp32_residual_connection
+        self.sequence_parallel = sequence_parallel
 
         # Embeddings dropout
         self.embedding_dropout = torch.nn.Dropout(embedding_dropout_prob)
@@ -251,8 +267,20 @@ class Embedding(MegatronModule):
         else:
             assert self.tokentype_embeddings is None
 
+        # Data format change to avoid explicit tranposes : [b s h] --> [s b h].
+        embeddings = embeddings.transpose(0, 1).contiguous()
+
+        # If the input flag for fp32 residual connection is set, convert for float.
+        if self.fp32_residual_connection:
+            embeddings = embeddings.float()
+
         # Dropout.
-        embeddings = self.embedding_dropout(embeddings)
+        if self.sequence_parallel:
+            embeddings = tensor_parallel.mappings.scatter_to_sequence_parallel_region(embeddings)
+            with tensor_parallel.random.get_cuda_rng_tracker().fork():
+                embeddings = self.embedding_dropout(embeddings)
+        else:
+            embeddings = self.embedding_dropout(embeddings)
 
         return embeddings
 
@@ -362,6 +390,8 @@ class TransformerLanguageModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         megatron_legacy=False,
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -397,6 +427,8 @@ class TransformerLanguageModel(MegatronModule):
                 num_tokentypes=self.num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=self.hidden_dropout,
+                sequence_parallel=sequence_parallel,
+                fp32_residual_connection=fp32_residual_connection,
             )
             self._embedding_key = 'embedding'
 
@@ -426,6 +458,8 @@ class TransformerLanguageModel(MegatronModule):
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
             megatron_legacy=megatron_legacy,
+            sequence_parallel=sequence_parallel,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
         )
         self._encoder_key = 'encoder'
 
@@ -457,13 +491,15 @@ class TransformerLanguageModel(MegatronModule):
                 onnx_safe=onnx_safe,
                 masked_softmax_fusion=masked_softmax_fusion,
                 megatron_legacy=megatron_legacy,
+                sequence_parallel=sequence_parallel,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
             )
             self._decoder_key = 'decoder'
 
         if self.post_process:
             # Pooler.
             if self.add_pooler:
-                self.pooler = Pooler(self.hidden_size, self.init_method)
+                self.pooler = Pooler(self.hidden_size, self.init_method, sequence_parallel=sequence_parallel)
                 self._pooler_key = 'pooler'
 
     def set_input_tensor(self, input_tensor):
