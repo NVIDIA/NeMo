@@ -483,7 +483,7 @@ class ParallelAttention(MegatronModule):
         megatron_legacy=False,
         bias=True,
         headscale=False,
-        recompute_granularity=None,
+        activations_checkpoint_granularity=None,
         sequence_parallel=False,
     ):
         super(ParallelAttention, self).__init__()
@@ -539,7 +539,7 @@ class ParallelAttention(MegatronModule):
             headscale=headscale,
             sequence_parallel=sequence_parallel,
         )
-        self.checkpoint_core_attention = recompute_granularity == 'selective'
+        self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
 
         # Output.
         self.dense = tensor_parallel.RowParallelLinear(
@@ -1034,6 +1034,7 @@ class ParallelTransformerLayer_(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
+        activations_checkpoint_granularity=None,
         sequence_parallel=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
@@ -1090,6 +1091,8 @@ class ParallelTransformerLayer_(MegatronModule):
             megatron_legacy=megatron_legacy,
             bias=bias,
             headscale=headscale,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
+            sequence_parallel=sequence_parallel,
         )
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
@@ -1128,6 +1131,8 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
+                activations_checkpoint_granularity=activations_checkpoint_granularity,
+                sequence_parallel=sequence_parallel,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
