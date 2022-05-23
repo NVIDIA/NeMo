@@ -461,7 +461,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         if cfg.get("sampler", "distributed") == 'distributed':
             sampler = torch.utils.data.distributed.DistributedSampler(
-                dataset, num_replicas=world_size, rank=rank, shuffle=True
+                dataset, num_replicas=world_size, rank=rank, shuffle=True,
+                seed=consumed_samples # Ensures that each time the model is restored, a new seed is used to see examples in a different order.
             )
             return torch.utils.data.DataLoader(
                 dataset,
