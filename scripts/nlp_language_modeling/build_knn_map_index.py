@@ -55,6 +55,22 @@ queue = multiprocessing.Queue(10)
 emb_queue = multiprocessing.Queue(10)
 
 
+def get_tokenizer(args):
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        model_name=args.tokenizer_type,
+        tokenizer_model=args.tokenizer_model,
+        vocab_file=args.vocab_file,
+        merges_file=args.merge_file,
+        delimiter=args.delimiter,
+    )
+    if not hasattr(tokenizer, "pad_id"):
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+    elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
+        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+    return tokenizer
+
+
 def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int):
     total_chunks = ds.chunks
     start = 0
@@ -138,15 +154,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     model = SentenceTransformer(args.sentence_transformer_model)
-    tokenizer = get_nmt_tokenizer(
-        library=args.tokenizer_library,
-        model_name=args.tokenizer_type,
-        tokenizer_model=args.tokenizer_model,
-        vocab_file=args.vocab_file,
-        merges_file=args.merge_file,
-        delimiter=args.delimiter,
-    )
-
+    tokenizer = get_tokenizer(args)
     ds = MMapRetrievalIndexedDataset(args.input_file)
     index = faiss.read_index(args.faiss_index)
 

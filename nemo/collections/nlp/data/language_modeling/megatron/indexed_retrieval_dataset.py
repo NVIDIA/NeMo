@@ -17,16 +17,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Most of the code here has been copied from:
-#   fairseq/fairseq/data/indexed_dataset.py
-
-# with some modifications:
-
-# Removed IndexedRawTextDataset since it relied on Fairseq dictionary
-# other slight modifications to remove fairseq dependencies
-# Added document index to index file and made it accessible.
-#    An empty sentence no longer separates documents.
-
 import os
 import shutil
 import struct
@@ -66,6 +56,15 @@ def _warmup_mmap_file(path):
 
 
 class KNNIndex(object):
+    """
+    Index file for fast KNN mapping.
+    It is built by `build_knn_map_index.py` script.
+    It contains a big matrix of shape (chunk_id, K neighbors)
+    where `chunk_id` are all the chunk ids in the RETRO training data.
+    E.g. the KNN neighbor chunk ids in the retrieval data for ith chunk id in the training data
+    is self.knn_map[i]
+    """
+
     _HDR_MAGIC = b'KNNRETM\x00\x00'
 
     @classmethod
@@ -91,7 +90,7 @@ class KNNIndex(object):
 
             def __exit__(self, exc_type, exc_val, exc_tb):
                 self._file.close()
-                # update the chunk size
+                # Update the chunk size, Since total number of chunks is determined in the end
                 _bin_buffer_mmap = np.memmap(self.path, mode='r+', order='C', shape=(9 + 8 + 8 + 8),)
                 buffer = memoryview(_bin_buffer_mmap)
                 len_array = np.frombuffer(buffer, dtype=np.int64, count=1, offset=9 + 8 + 8)
@@ -124,7 +123,7 @@ class KNNIndex(object):
         )
 
     def get_KNN_chunk_ids(self, chunk_id):
-        """ get the chunk address from chunk id
+        """ get the chunk address (in bytes) from chunk id
         """
         return self.knn_map[chunk_id]
 
@@ -132,15 +131,24 @@ class KNNIndex(object):
         self._bin_buffer_mmap._mmap.close()
         del self._bin_buffer_mmap
 
-    @property
-    def sizes(self):
-        return self.len
-
     def __len__(self):
-        return self._len
+        """
+        total number of chunks in the data
+        """
+        return self.len
 
 
 class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
+    """
+    Memory Map Index and Binary file for RETRO DATA.
+    It provides `chunks` to the original MMap data so data can be fetched at both document and chunk level.
+    It can be used both for training data and Retrieval Data.
+    Retrieval Dataset adds an extra `chunk_size` padded tokens at the end of each document.
+
+    It is built by `preprocess_data_for_megatron.py` script.
+
+    """
+
     class Index(object):
         _HDR_MAGIC = b'MMIDRET\x00\x00'
 
@@ -181,7 +189,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                         chunk_ids.append(last_id)
                         num_of_chunks = size // chunk_size
                         if size % chunk_size != 0:
-                            raise ValueError(f"the sentence size {size} should be the multiple of {chunk_size}")
+                            raise ValueError(f"the document size {size} should be the multiple of {chunk_size}")
                         for _ in range(num_of_chunks):
                             pointers.append(address)
                             address += chunk_size * dtype_size
@@ -248,13 +256,13 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
             self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
             self._bin_buffer = memoryview(self._bin_buffer_mmap)
-            logging.info("    reading sentences sizes...")
+            logging.info("    reading document sizes...")
             self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
-            logging.info("    reading sentences pointers...")
+            logging.info("    reading document pointers...")
             self._pointers = np.frombuffer(
                 self._bin_buffer, dtype=np.int64, count=self._len, offset=offset + self._sizes.nbytes
             )
-            logging.info("    reading sentence chunk offset...")
+            logging.info("    reading document chunk offset...")
             self._chunk_id_start = np.frombuffer(
                 self._bin_buffer,
                 dtype=np.int64,
@@ -289,16 +297,22 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
         @property
         def dtype(self):
+            """
+            Token id integer type
+            """
             return self._dtype
 
         @property
         def sizes(self):
+            """
+            number of tokens for each of the documents
+            """
             return self._sizes
 
         @lru_cache(maxsize=8)
         def __getitem__(self, i):
             """
-            return a single sentence staring address (in bytes) and number of tokens
+            return a single document staring address (in bytes) and number of tokens
             """
             return self._pointers[i], self._sizes[i]
 
@@ -338,12 +352,15 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         del self._index
 
     def __len__(self):
+        """
+        Total number of documents
+        """
         return len(self._index)
 
     # @lru_cache(maxsize=8)
     def __getitem__(self, idx):
         """
-        return a single sentence or a slice of sentences, excluding the paddings for the retrieval db
+        return a single document or a slice of documents, excluding the paddings for the retrieval db
         """
         if isinstance(idx, int):
             # no need to handle retrieval_db since size exclude the paddings
@@ -356,11 +373,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 raise ValueError("Slices into indexed_dataset must be contiguous")
             ptr = self._index._pointers[start]
             if self._index.retrieval_db:
-                # for retrieval db, need to add the padding of chunk_size at the end of each sentence
+                # for retrieval db, need to add the padding of chunk_size at the end of each document
                 sizes = self._index._sizes[idx] + self._index.chunk_size
             else:
                 sizes = self._index._sizes[idx]
-            # offsets get the number of tokens for each sentence including the paddings
+            # offsets get the number of tokens for each document including the paddings
             offsets = list(accumulate(sizes))
             total_size = sum(sizes)
             np_array = np.frombuffer(self._bin_buffer, dtype=self._index.dtype, count=total_size, offset=ptr)
@@ -385,7 +402,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         return np_array
 
     def get_chunk_id(self, idx, offset=0):
-        """ get the chunk id from sentence idx and offset position.
+        """ get the chunk id from document idx and offset position.
         """
         # make sure offset is a multiple of chunk_size
         assert offset % self._index.chunk_size == 0
@@ -393,6 +410,9 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
     def get_chunk(self, chunk_id, force_no_padding=False):
         """ Retrieves a single chunk item from the dataset.
+        It will get chunk_size tokens for training data
+        or 2*chunk_size tokens for retrieval data.
+        If force_no_padding=True, it will always get chunk_size tokens
         """
         if isinstance(chunk_id, (int, np.int64, np.int32)):
             ptr = self._index.get_chunk_address(chunk_id)
@@ -421,14 +441,23 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
     @property
     def sizes(self):
+        """
+        Number of tokens for each of the documents
+        """
         return self._index.sizes
 
     @property
     def chunks(self):
+        """
+        Total number of chunks
+        """
         return self._index.num_chunks
 
     @property
     def chunk_size(self):
+        """
+        Number of tokens per chunk
+        """
         return self._index.chunk_size
 
     @property
@@ -450,6 +479,11 @@ class MMapRetrievalIndexedDatasetBuilder(object):
         self.pad_id = pad_id
 
     def add_item(self, tensor):
+        """
+        Add one document to the indexed dataset.
+        It will pad the tokens to be the multiple of chunk_size.
+        If it is retrieval dataset, it will pad extra chunk_size tokens at the end of the document.
+        """
         np_array = np.array(tensor.numpy(), dtype=self._dtype)
         padded_size = self.chunk_size - (len(np_array) % self.chunk_size)
         data_size = np_array.size + padded_size
@@ -461,6 +495,9 @@ class MMapRetrievalIndexedDatasetBuilder(object):
         self._sizes.append(data_size)
 
     def end_document(self):
+        """
+        Do nothing. Since each item is one document
+        """
         pass
 
     def merge_file_(self, another_file):
@@ -476,6 +513,11 @@ class MMapRetrievalIndexedDatasetBuilder(object):
             shutil.copyfileobj(f, self._data_file)
 
     def finalize(self, index_file):
+        """
+        Last step of creating the indexed dataset.
+        Flush and close the binary file.
+        Finalizing the index file by using the aggregated document size information.
+        """
         self._data_file.close()
 
         with MMapRetrievalIndexedDataset.Index.writer(index_file, self._dtype, self.retrieval_db) as index:

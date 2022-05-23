@@ -25,6 +25,7 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --dataset-impl=retmmap \
     --tokenizer-model=tokenizer.model \
     --output-prefix=retro_db \
+    --need-pad-id \
     --append-eod \
     --retrieval-db \
     --chunk_size=64 \
@@ -41,6 +42,7 @@ python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
     --dataset-impl=retmmap \
     --tokenizer-model=tokenizer.model \
     --output-prefix=retro_data \
+    --need-pad-id \
     --append-eod \
     --chunk_size=64 \
     --workers=64 
@@ -111,7 +113,7 @@ class Encoder(object):
     def initializer(self):
         # Use Encoder class as a container for global data
         Encoder.tokenizer = get_tokenizer(self.args)
-          
+
         if self.args.split_sentences:
             if not nltk_available:
                 print("NLTK is not available to split sentences.")
