@@ -14,7 +14,9 @@
 # limitations under the License.
 
 """Transformer."""
+from contextlib import nullcontext
 import math
+from regex import W
 
 import torch
 import torch.nn.functional as F
@@ -1436,6 +1438,8 @@ class ParallelTransformer(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
+        recompute_granularity=None,
+        sequence_parallel=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1457,6 +1461,9 @@ class ParallelTransformer(MegatronModule):
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
+        self.recompute_granularity = recompute_granularity
+
+        self.sequence_parallel = sequence_parallel
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1502,6 +1509,7 @@ class ParallelTransformer(MegatronModule):
                 normalization=normalization,
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
+                sequence_parallel=sequence_parallel,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1543,7 +1551,9 @@ class ParallelTransformer(MegatronModule):
         if self.post_process:
             # Final layer norm before output.
             if normalization == 'layernorm':
-                self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+                self.final_layernorm = get_layer_norm(
+                    hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
+                )
             else:
                 self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1667,56 +1677,51 @@ class ParallelTransformer(MegatronModule):
                 'get_key_value does not work with ' 'activation checkpointing'
             )
 
-        if self.pre_process:
-            # Data format change to avoid explicit tranposes : [b s h] --> [s b h].
-            # If the input flag for fp32 residual connection is set, convert for float.
-            if self.fp32_residual_connection:
-                hidden_states = hidden_states.transpose(0, 1).contiguous().float()
-            # Otherwise, leave it as is.
-            else:
-                hidden_states = hidden_states.transpose(0, 1).contiguous()
-        else:
+        if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
 
-        if encoder_output is not None:
-            encoder_output = encoder_output.transpose(0, 1).contiguous()
-        elif retrieved_emb is not None:
+        # TODO: @Yi Dong, what should this be?
+        if retrieved_emb is not None:
             assert len(retrieved_emb.shape) == 5
             # this is retrieval decoder, need special transpose
             encoder_output = rearrange(retrieved_emb, 'b k r n d -> k r n b d').contiguous()
 
-        if self.activations_checkpoint_method is not None:
-            hidden_states = self._checkpointed_forward(
-                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
-            )
+        if self.sequence_parallel:
+            rng_context = tensor_parallel.random.get_cuda_rng_tracker().fork()
         else:
-            if get_key_value:
-                presents = []
-            for index in range(self.num_layers):
-                layer = self._get_layer(index)
-                past = None
-                if layer_past is not None:
-                    past = layer_past[index]
-                hidden_states = layer(
-                    hidden_states,
-                    attention_mask,
-                    encoder_output=encoder_output,
-                    enc_dec_attn_mask=enc_dec_attn_mask,
-                    layer_past=past,
-                    get_key_value=get_key_value,
-                    set_inference_key_value_memory=set_inference_key_value_memory,
-                    inference_max_sequence_len=inference_max_sequence_len,
-                    rotary_pos_emb=rotary_pos_emb,
+            rng_context = nullcontext()
+
+        with rng_context:
+            if self.activations_checkpoint_method == 'full':
+                hidden_states = self._checkpointed_forward(
+                    hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
                 )
+            else:
                 if get_key_value:
-                    hidden_states, present = hidden_states
-                    presents.append(present)
+                    presents = []
+                for index in range(self.num_layers):
+                    layer = self._get_layer(index)
+                    past = None
+                    if layer_past is not None:
+                        past = layer_past[index]
+                    hidden_states = layer(
+                        hidden_states,
+                        attention_mask,
+                        encoder_output=encoder_output,
+                        enc_dec_attn_mask=enc_dec_attn_mask,
+                        layer_past=past,
+                        get_key_value=get_key_value,
+                        set_inference_key_value_memory=set_inference_key_value_memory,
+                        inference_max_sequence_len=inference_max_sequence_len,
+                        rotary_pos_emb=rotary_pos_emb,
+                    )
+                    if get_key_value:
+                        hidden_states, present = hidden_states
+                        presents.append(present)
 
         # Final layer norm.
         if self.post_process:
-            # Reverting data format change [s b h] --> [b s h].
-            hidden_states = hidden_states.transpose(0, 1).contiguous()
             output = self.final_layernorm(hidden_states)
         else:
             output = hidden_states
