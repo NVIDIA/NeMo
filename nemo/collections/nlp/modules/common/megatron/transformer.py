@@ -14,8 +14,8 @@
 # limitations under the License.
 
 """Transformer."""
-import math
 from contextlib import nullcontext
+import math
 
 import torch
 import torch.nn.functional as F
