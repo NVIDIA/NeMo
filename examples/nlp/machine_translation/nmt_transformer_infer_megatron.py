@@ -29,7 +29,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
 from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -73,7 +73,10 @@ def main(cfg) -> None:
     if cfg.model_file is not None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
-        model = MegatronNMTModel.restore_from(restore_path=cfg.model_file, trainer=trainer)
+        model = MegatronNMTModel.restore_from(
+            restore_path=cfg.model_file, trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
+        )
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
         model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
