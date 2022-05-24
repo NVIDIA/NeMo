@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 class RangeFst(GraphFst):
     """
     This class is a composite class of two other class instances
-    
+
     Args:
         time: composed tagger and verbalizer
         date: composed tagger and verbalizer
@@ -52,15 +52,15 @@ class RangeFst(GraphFst):
         self.graph = time_graph | (approx + time)
 
         # YEAR
-        date_year_four_digit = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
-        date_year_two_digit = (NEMO_DIGIT ** 2 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
+        date_year_four_digit = (NEMO_DIGIT**4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
+        date_year_two_digit = (NEMO_DIGIT**2 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
 
         year_to_year_graph = (
             date_year_four_digit
             + delete_space
             + pynini.cross("-", " to ")
             + delete_space
-            + (date_year_four_digit | date_year_two_digit | (NEMO_DIGIT ** 2 @ cardinal))
+            + (date_year_four_digit | date_year_two_digit | (NEMO_DIGIT**2 @ cardinal))
         )
         self.graph |= year_to_year_graph
 

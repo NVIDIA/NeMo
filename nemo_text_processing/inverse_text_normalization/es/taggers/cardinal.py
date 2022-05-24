@@ -35,10 +35,10 @@ except (ModuleNotFoundError, ImportError):
 class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals
-        e.g. menos veintitrés -> cardinal { negative: "-" integer: "23"} 
+        e.g. menos veintitrés -> cardinal { negative: "-" integer: "23"}
     This class converts cardinals up to (but not including) "un cuatrillón",
     i.e up to "one septillion" in English (10^{24}).
-    Cardinals below ten are not converted (in order to avoid 
+    Cardinals below ten are not converted (in order to avoid
     "vivo en una casa" --> "vivo en 1 casa" and any other odd conversions.)
 
     Although technically Spanish grammar requires that "y" only comes after
@@ -163,18 +163,18 @@ class CardinalFst(GraphFst):
         self.graph_no_exception = graph
 
         # save self.numbers_up_to_thousand for use in DecimalFst
-        digits_up_to_thousand = NEMO_DIGIT | (NEMO_DIGIT ** 2) | (NEMO_DIGIT ** 3)
+        digits_up_to_thousand = NEMO_DIGIT | (NEMO_DIGIT**2) | (NEMO_DIGIT**3)
         numbers_up_to_thousand = pynini.compose(graph, digits_up_to_thousand).optimize()
         self.numbers_up_to_thousand = numbers_up_to_thousand
 
         # save self.numbers_up_to_million for use in DecimalFst
         digits_up_to_million = (
             NEMO_DIGIT
-            | (NEMO_DIGIT ** 2)
-            | (NEMO_DIGIT ** 3)
-            | (NEMO_DIGIT ** 4)
-            | (NEMO_DIGIT ** 5)
-            | (NEMO_DIGIT ** 6)
+            | (NEMO_DIGIT**2)
+            | (NEMO_DIGIT**3)
+            | (NEMO_DIGIT**4)
+            | (NEMO_DIGIT**5)
+            | (NEMO_DIGIT**6)
         )
         numbers_up_to_million = pynini.compose(graph, digits_up_to_million).optimize()
         self.numbers_up_to_million = numbers_up_to_million

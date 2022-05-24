@@ -55,7 +55,7 @@ def prepare_labels_for_insertion(file_path: str):
 
 class DecimalFst(GraphFst):
     """
-    Finite state transducer for classifying decimal, e.g. 
+    Finite state transducer for classifying decimal, e.g.
         "1,08" -> tokens { decimal { integer_part: "одно целая" fractional_part: "восемь сотых} }
 
     Args:

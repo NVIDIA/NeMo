@@ -60,7 +60,7 @@ def get_one_to_one_thousand(cardinal: 'pynini.FstLike') -> 'pynini.FstLike':
 class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal
-        	"21.º" -> ordinal { integer: "vigésimo primero" morphosyntactic_features: "gender_masc" }
+                "21.º" -> ordinal { integer: "vigésimo primero" morphosyntactic_features: "gender_masc" }
     This class converts ordinal up to the millionth (millonésimo) order (exclusive).
 
     This FST also records the ending of the ordinal (called "morphosyntactic_features"):

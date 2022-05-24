@@ -27,7 +27,7 @@ except (ModuleNotFoundError, ImportError):
 
 class VerbalizeFinalFst(GraphFst):
     """
-    Finite state transducer that verbalizes an entire sentence, e.g. 
+    Finite state transducer that verbalizes an entire sentence, e.g.
     tokens { name: "jetzt" } tokens { name: "ist" } tokens { time { hours: "12" minutes: "30" } } -> jetzt ist 12:30 Uhr
     """
 

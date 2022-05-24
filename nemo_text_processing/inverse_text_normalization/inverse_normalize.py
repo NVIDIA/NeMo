@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util as import_util
 from argparse import ArgumentParser
 from time import perf_counter
 from typing import List
-
-import importlib.util as import_util
 
 from nemo_text_processing.text_normalization.data_loader_utils import (
     check_installation,
@@ -44,7 +43,7 @@ class InverseNormalizer(Normalizer):
         if not check_installation():
             raise ImportError(get_installation_msg())
 
-        (tagger_spec,verbalizer_spec) = self.check_lang_module(lang)
+        (tagger_spec, verbalizer_spec) = self.check_lang_module(lang)
 
         tagger = import_util.module_from_spec(tagger_spec)
         verbalizer = import_util.module_from_spec(verbalizer_spec)
@@ -71,12 +70,11 @@ class InverseNormalizer(Normalizer):
             print(f'ITN module for language: {lang} cannot be found')
             raise exp
         else:
-            return (tagger_spec,verbalizer_spec)
-
+            return (tagger_spec, verbalizer_spec)
 
     def inverse_normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
-        NeMo inverse text normalizer 
+        NeMo inverse text normalizer
 
         Args:
             texts: list of input strings

@@ -26,7 +26,7 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone numbers, e.g. 
+    Finite state transducer for classifying telephone numbers, e.g.
         uno dos tres uno dos tres cinco seis siete ocho -> { number_part: "123-123-5678" }.
         If 10 digits are spoken, they are grouped as 3+3+4 (eg. 123-456-7890).
         If 9 digits are spoken, they are grouped as 3+3+3 (eg. 123-456-789).
@@ -135,7 +135,11 @@ class TelephoneFst(GraphFst):
             + double_digits
         )
 
-        number_part = pynini.union(ten_digit_graph, nine_digit_graph, eight_digit_graph,)
+        number_part = pynini.union(
+            ten_digit_graph,
+            nine_digit_graph,
+            eight_digit_graph,
+        )
 
         number_part = pynutil.insert("number_part: \"") + pynini.invert(number_part) + pynutil.insert("\"")
 

@@ -103,7 +103,9 @@ class TimeFst(GraphFst):
         final_graph_minute = pynutil.insert("minutes: \"") + graph_minute + pynutil.insert("\"")
         final_graph_second = pynutil.insert("seconds: \"") + graph_minute + pynutil.insert("\"")
         final_time_zone_optional = pynini.closure(
-            delete_space + insert_space + pynutil.insert("zone: \"") + time_zone_graph + pynutil.insert("\""), 0, 1,
+            delete_space + insert_space + pynutil.insert("zone: \"") + time_zone_graph + pynutil.insert("\""),
+            0,
+            1,
         )
 
         # 02.30 h

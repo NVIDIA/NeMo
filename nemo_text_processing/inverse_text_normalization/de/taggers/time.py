@@ -36,7 +36,7 @@ class TimeFst(GraphFst):
         e.g. drei vor zwölf -> time { minutes: "57" hours: "11" }
         e.g. drei nach zwölf -> time { minutes: "3" hours: "12" }
         e.g. drei uhr zehn minuten zehn sekunden -> time { hours: "3" hours: "10" sekunden: "10"}
-    
+
     Args:
         tn_time_verbalizer: TN time verbalizer
     """
