@@ -1,35 +1,13 @@
 Checkpoints
 ===========
 
-There are two main ways to load pretrained checkpoints in NeMo:
-
-* Using the :code:`restore_from()` method to load a local checkpoint file (``.nemo``), or
-* Using the :code:`from_pretrained()` method to download and set up a checkpoint from NGC.
-
-Refer to the following sections for instructions and examples for each.
-
-Note that these instructions are for loading fully trained checkpoints for fine-tuning. For resuming an unfinished 
-training experiment, use the Experiment Manager to do so by setting the ``resume_if_exists`` flag to ``True``.
-
-Loading Local Checkpoints
--------------------------
-
-NeMo automatically saves checkpoints of a model that is trained in a ``.nemo`` format. Alternatively, to manually save the model at any 
-point, issue :code:`model.save_to(<checkpoint_path>.nemo)`.
-
-If there is a local ``.nemo`` checkpoint that you'd like to load, use the :code:`restore_from()` method:
-
-.. code-block:: python
-
-  import nemo.collections.asr as nemo_asr
-  model = nemo_asr.models.<MODEL_BASE_CLASS>.restore_from(restore_path="<path/to/checkpoint/file.nemo>")
-
-Where the model base class is the ASR model class of the original checkpoint, or the general ``ASRModel`` class.
+Refer to `ASR Checkpoints <../results.rst>` for details about loading pre-trained checkpoints in NeMo.
+For SSL specific checkpoints, refer to the section below.
 
 NGC Pretrained Checkpoints
 --------------------------
 
-The SSL collection has checkpoints of several models trained on various datasets for a variety of tasks. These checkpoints are 
+The SSL collection has checkpoints of several models trained on various datasets. These checkpoints are 
 obtainable via NGC `NeMo Automatic Speech Recognition collection <https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_asr>`_.
 The model cards on NGC contain more information about each of the checkpoints available.
 
@@ -50,7 +28,7 @@ For example, to load the conformer Large SSL checkpoint, run:
   model = nemo_asr.models.ASRModel.from_pretrained(model_name="ssl_en_conformer_large")
 
 You can also call :code:`from_pretrained()` from the specific model class (such as :code:`SpeechEncDecSelfSupervisedModel`
-for QuartzNet) if you need to access a specific model functionality.
+for Conformer) if you need to access a specific model functionality.
 
 If you would like to programatically list the models available for a particular base class, you can use the
 :code:`list_available_models()` method.
