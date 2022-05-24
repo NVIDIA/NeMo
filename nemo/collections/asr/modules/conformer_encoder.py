@@ -292,7 +292,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
                 dropout_att=dropout_att,
                 pos_bias_u=pos_bias_u,
                 pos_bias_v=pos_bias_v,
-                # is_causal=is_causal,
                 att_context_size=self.att_context_size,
             )
             self.layers.append(layer)
@@ -337,9 +336,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             )
             att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
 
-        # att_mask = ~att_mask
-
-        if hasattr(self, 'seq_range'):
+        if hasattr(self, 'att_mask'):
             self.att_mask = att_mask
         else:
             self.register_buffer('att_mask', att_mask, persistent=False)
