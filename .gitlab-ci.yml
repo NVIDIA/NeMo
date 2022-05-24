@@ -92,6 +92,7 @@ gpt3.126m_short:
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
+    - chmod 744 ./*
     - pwd
     - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
