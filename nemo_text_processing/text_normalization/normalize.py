@@ -78,6 +78,17 @@ class Normalizer:
         if not PYNINI_AVAILABLE:
             raise ImportError(get_installation_msg())
 
+
+        if lang == 'en' and not deterministic:
+            if lm:
+                self.tagger_path=f'nemo_text_processing.text_normalization.{lang}.taggers.tokenize_and_classify_lm'
+            else:
+                self.tagger_path = f'nemo_text_processing.text_normalization.{lang}.taggers.tokenize_and_classify_with_audio'
+        else:
+            self.tagger_path = f'nemo_text_processing.text_normalization.{lang}.taggers.tokenize_and_classify'
+
+        self.verbalizer_path = f'nemo_text_processing.text_normalization.{lang}.verbalizers.verbalize_final'
+
         (tagger_spec, verbalizer_spec) = self.check_lang_module(lang)
 
         tagger = import_util.module_from_spec(tagger_spec)
@@ -103,17 +114,15 @@ class Normalizer:
             self.processor = None
             print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
 
-    @staticmethod
-    def check_lang_module(lang: str):
+
+    def check_lang_module(self,lang: str):
         """
         Check if TN tagger and verbalizer modules for the requested language exists.
         """
-        tagger_path = f'nemo_text_processing.text_normalization.{lang}.taggers.tokenize_and_classify'
-        verbalizer_path = f'nemo_text_processing.text_normalization.{lang}.verbalizers.verbalize_final'
 
         try:
-            tagger_spec = import_util.find_spec(tagger_path)
-            verbalizer_spec = import_util.find_spec(verbalizer_path)
+            tagger_spec = import_util.find_spec(self.tagger_path)
+            verbalizer_spec = import_util.find_spec(self.verbalizer_path)
         except Exception as exp:
             print(f'ITN module for language: {lang} cannot be found')
             raise exp
