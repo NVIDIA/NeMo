@@ -36,9 +36,9 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_thousand: 'pynini.Fst
     e.g. one million -> integer_part: "1" quantity: "million"
     e.g. one point five million -> integer_part: "1" fractional_part: "5" quantity: "million"
 
-    Will tag cases up to denominations of tens of hundreds of thousand. 'douze cent mille millions' -> 1 200 000 millions 
+    Will tag cases up to denominations of tens of hundreds of thousand. 'douze cent mille millions' -> 1 200 000 millions
 
-    Args: 
+    Args:
         decimal: decimal FST
         cardinal_up_to_million: cardinal FST
     """
@@ -84,7 +84,7 @@ class DecimalFst(GraphFst):
         This decimal rule assumes that decimals can be pronounced as:
         (a cardinal) + ('virgule') plus (any sequence of cardinals <1 million, including 'zero')
 
-        Also writes large numbers in shortened form, e.g. 
+        Also writes large numbers in shortened form, e.g.
             e.g. un virgule deux-six-million -> decimal { negative: "false" integer_part: "1" fractional_part: "26" quantity: "million" }
             e.g. deux-million -> decimal { negative: "false" integer_part: "2" quantity: "millions" }
             e.g. moins cent-vingt-quatre-millions -> decimal { negative: "true" integer_part: "124" quantity: "millions" }

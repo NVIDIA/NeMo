@@ -35,7 +35,7 @@ class FractionFst(GraphFst):
         e.g. demi -> tokens { fraction { numerator: "1" denominator: "2" } }
         e.g. un et demi -> tokens { fraction { integer_part: "1" numerator: "1" denominator: "2" } }
         e.g. trois et deux centième -> tokens { fraction { integer_part: "3" numerator: "2" denominator: "100" } }
-    
+
     Args:
         cardinal: OrdinalFst
     """

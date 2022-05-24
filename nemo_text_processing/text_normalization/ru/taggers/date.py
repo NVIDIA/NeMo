@@ -34,7 +34,7 @@ except (ModuleNotFoundError, ImportError):
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for classifying date, e.g. 
+    Finite state transducer for classifying date, e.g.
         "01.05" -> tokens { date { day: "первое мая" } }
 
     Args:
@@ -83,7 +83,7 @@ class DateFst(GraphFst):
         month = (
             pynutil.insert("month: \"") + (month_name | pynutil.add_weight(digit_month, 0.1)) + pynutil.insert("\"")
         ).optimize()
-        year = pynini.compose(((NEMO_DIGIT ** 4) | (NEMO_DIGIT ** 2)), numbers).optimize()
+        year = pynini.compose(((NEMO_DIGIT**4) | (NEMO_DIGIT**2)), numbers).optimize()
         year |= zero_digit
 
         # reduce year options

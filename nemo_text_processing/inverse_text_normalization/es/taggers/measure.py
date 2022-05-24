@@ -33,7 +33,7 @@ except (ModuleNotFoundError, ImportError):
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure
-        e.g. menos doce kilogramos -> measure { cardinal { negative: "true" integer: "12" } units: "kg" } 
+        e.g. menos doce kilogramos -> measure { cardinal { negative: "true" integer: "12" } units: "kg" }
 
     Args:
         cardinal: CardinalFst

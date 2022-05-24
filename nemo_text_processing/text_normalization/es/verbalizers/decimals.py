@@ -38,14 +38,14 @@ except (ModuleNotFoundError, ImportError):
 
 class DecimalFst(GraphFst):
     """
-	Finite state transducer for classifying decimal, e.g.
-		decimal { negative: "true" integer_part: "dos"  fractional_part: "cuatro cero" quantity: "billones" } -> menos dos coma quatro cero billones
-		decimal { integer_part: "un" quantity: "billón" } -> un billón
+        Finite state transducer for classifying decimal, e.g.
+                decimal { negative: "true" integer_part: "dos"  fractional_part: "cuatro cero" quantity: "billones" } -> menos dos coma quatro cero billones
+                decimal { integer_part: "un" quantity: "billón" } -> un billón
 
     Args:
-		deterministic: if True will provide a single transduction option,
-			for False multiple transduction are generated (used for audio-based normalization)
-	"""
+                deterministic: if True will provide a single transduction option,
+                        for False multiple transduction are generated (used for audio-based normalization)
+    """
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="decimal", kind="classify", deterministic=deterministic)

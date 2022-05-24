@@ -54,7 +54,7 @@ class MoneyFst(GraphFst):
         # "one fifty" -> "one hundred fifty"
         with_hundred = pynini.compose(
             pynini.closure(NEMO_NOT_SPACE) + pynini.accep(" ") + pynutil.insert("hundred ") + NEMO_SIGMA,
-            pynini.compose(cardinal_graph, NEMO_DIGIT ** 3),
+            pynini.compose(cardinal_graph, NEMO_DIGIT**3),
         )
         cardinal_graph |= with_hundred
         graph_decimal_final = decimal.final_graph_wo_negative

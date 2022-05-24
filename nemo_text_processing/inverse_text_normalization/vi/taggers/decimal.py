@@ -128,10 +128,12 @@ class DecimalFst(GraphFst):
         final_graph = optional_graph_negative + final_graph_wo_sign
 
         self.final_graph_wo_negative = final_graph_wo_sign | get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit,
+            final_graph_wo_sign,
+            cardinal.graph_hundred_component_at_least_one_none_zero_digit,
         )
         final_graph |= optional_graph_negative + get_quantity(
-            final_graph_wo_sign, cardinal.graph_hundred_component_at_least_one_none_zero_digit,
+            final_graph_wo_sign,
+            cardinal.graph_hundred_component_at_least_one_none_zero_digit,
         )
         final_graph = self.add_tokens(final_graph)
         self.fst = final_graph.optimize()

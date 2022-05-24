@@ -67,7 +67,7 @@ class Filter:
 
         Args:
             processes given instance with process function
-            
+
         Returns: processed instance if instance belongs to expected class type or original instance
         """
         if instance.token_type != self.class_type:
