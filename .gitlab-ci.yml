@@ -106,6 +106,7 @@ gpt3.126m_short:
     - echo "Finished GPT-3 126M training job"
     # Run Pytest
     - pip3 install pytest
+    - cd ${GPFSFOLDER}
     - pytest tests/ci_tests/test_ci_gpt3_126m.py
     - echo "Finished pytest job"
   rules:
