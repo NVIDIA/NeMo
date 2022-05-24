@@ -110,7 +110,7 @@ model:
     dropout_emb: 0.0 # The dropout used for embeddings
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
-  dec_out: &dec_out 128
+  decoder_out: 128
 
   loss_list:
     contrastive:
@@ -119,7 +119,7 @@ model:
         feat_in: ${model.encoder.d_model}
         feat_hidden: 128
         # features in hidden layer of decoder
-        feat_out: *dec_out
+        feat_out: ${model.decoder_out}
         stride_layers: 0
         # if loss.combine_time_steps is less than the encoder stride, then a corresponding amount of stride_layers needs to
         # be added to the decoder (here stride and combine_time_steps are both 4)
@@ -127,7 +127,7 @@ model:
       loss:
         _target_: nemo.collections.asr.losses.ContrastiveLoss
         in_dim: ${model.preprocessor.features}
-        proj_dim: *dec_out
+        proj_dim: ${model.decoder_out}
         combine_time_steps: 4 # how many spectrogram time steps are used for one target/representation for contrastive task
         quantized_targets: true # should quantizer or linear layer be used
         # (quantizer is required to extract pseudo-labels for other losses)
