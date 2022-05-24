@@ -29,7 +29,7 @@ class TimeFst(GraphFst):
     """
     Finite state transducer for classifying time, e.g.
         "02:15" -> time { hours: "два часа пятнадцать минут" }
-    
+
     Args:
         number_names: number_names for cardinal and ordinal numbers
         deterministic: if True will provide a single transduction option,

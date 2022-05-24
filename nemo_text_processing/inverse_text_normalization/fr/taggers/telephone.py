@@ -32,7 +32,7 @@ except (ModuleNotFoundError, ImportError):
 class TelephoneFst(GraphFst):
     """
     Finite state transducer for classifying telephone numbers. Assumes conventional grouping for Metropolitan France (and overseas departments)
-    (two number sequences are grouped as individual cardinals) or digit by digit (chiffre-par-chiffre) e.g. 
+    (two number sequences are grouped as individual cardinals) or digit by digit (chiffre-par-chiffre) e.g.
     "zero un quatre-vingt-deux zero deux vingt-deux cinquante" -> { number_part: "01 42 02 22 50" }
     "zero un quatre deux zero deux deux deux cinq zero" -> { number_part: "01 42 02 22 50" }
 

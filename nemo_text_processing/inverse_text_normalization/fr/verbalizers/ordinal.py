@@ -66,12 +66,12 @@ class OrdinalFst(GraphFst):
         graph_roman_hundreds = pynini.string_file(get_abs_path("data/roman/hundreds_large.tsv")).invert()
         graph_roman_zero_digit = pynutil.delete("0")
 
-        graph_roman_hundreds = NEMO_DIGIT ** 3 @ (
+        graph_roman_hundreds = NEMO_DIGIT**3 @ (
             graph_roman_hundreds
             + pynini.union(graph_roman_ties, graph_roman_zero_digit)
             + pynini.union(graph_roman_digits, graph_roman_zero_digit)
         )
-        graph_roman_ties = NEMO_DIGIT ** 2 @ (
+        graph_roman_ties = NEMO_DIGIT**2 @ (
             graph_roman_ties + pynini.union(graph_roman_digits, graph_roman_zero_digit)
         )
         graph_roman_digits = NEMO_DIGIT @ graph_roman_digits

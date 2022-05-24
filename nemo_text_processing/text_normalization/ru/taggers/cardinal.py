@@ -37,7 +37,7 @@ except (ModuleNotFoundError, ImportError):
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
+    Finite state transducer for classifying cardinals, e.g.
         "1 001" ->  cardinal { integer: "тысяча один" }
 
     Args:

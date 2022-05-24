@@ -25,7 +25,7 @@ except (ModuleNotFoundError, ImportError):
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals. Numbers below ten are not converted. 
+    Finite state transducer for classifying cardinals. Numbers below ten are not converted.
     Allows both compound numeral strings or separated by whitespace.
     "und" (en: "and") can be inserted between "hundert" and following number or "tausend" and following single or double digit number.
 
@@ -37,7 +37,7 @@ class CardinalFst(GraphFst):
         e.g. ein tausend -> cardinal { integer: "1000" } }
         e.g. eintausend -> cardinal { integer: "1000" } }
         e.g. ein tausend zwanzig -> cardinal { integer: "1020" } }
-    
+
     Args:
         tn_cardinal_tagger: TN cardinal tagger
     """

@@ -51,7 +51,10 @@ class OrdinalFst(GraphFst):
         convert_rest = pynutil.insert("th")
 
         suffix = pynini.cdrewrite(
-            graph_digit | graph_teens | pynini.cross("ty", "tieth") | convert_rest, "", "[EOS]", NEMO_SIGMA,
+            graph_digit | graph_teens | pynini.cross("ty", "tieth") | convert_rest,
+            "",
+            "[EOS]",
+            NEMO_SIGMA,
         ).optimize()
         self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix

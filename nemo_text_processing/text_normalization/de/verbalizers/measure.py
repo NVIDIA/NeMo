@@ -33,7 +33,7 @@ class MeasureFst(GraphFst):
     Finite state transducer for verbalizing measure, e.g.
         measure { cardinal { integer: "zwei" units: "unzen" } } -> "zwei unzen"
         measure { cardinal { integer_part: "zwei" quantity: "millionen" units: "unzen" } } -> "zwei millionen unzen"
-    
+
     Args:
         decimal: decimal GraphFst
         cardinal: cardinal GraphFst

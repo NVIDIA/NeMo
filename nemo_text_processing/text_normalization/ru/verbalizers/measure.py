@@ -33,7 +33,7 @@ class MeasureFst(GraphFst):
     """
     Finite state transducer for verbalizing measure, e.g.
         measure { cardinal { integer: "два килограма" } } -> "два килограма"
-    
+
     Args:
         deterministic: if True will provide a single transduction option,
             for False multiple transduction are generated (used for audio-based normalization)
