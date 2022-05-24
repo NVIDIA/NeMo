@@ -193,7 +193,7 @@ class CardinalFst(GraphFst):
         )
 
         graph = pynini.union(
-            (graph_ind) + delete_space + graph_hundred_component,
+            (graph_int | graph_ind) + delete_space + graph_hundred_component,
             graph_zero,
         )
 
