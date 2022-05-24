@@ -99,7 +99,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
-        self.language_model_path = cfg.get('language_model_path')
+        self.frozen_model_path = cfg.get('language_model_path')
         self.tokenizer = self.frozen_model.tokenizer
         self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size

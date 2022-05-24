@@ -41,6 +41,7 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
+from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
@@ -290,21 +291,19 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                                     ),
                                 )
 
-                        # create config and artifacts in tmpdir
-                        config_yaml = os.path.join(tmpdir, self.model_config_yaml)
-                        model.to_config_file(path2yaml_file=config_yaml)
-                        if hasattr(model, 'artifacts') and model.artifacts is not None:
-                            self._handle_artifacts(model, nemo_file_folder=tmpdir)
-                            self._update_artifact_paths(model, path2yaml_file=config_yaml)
-
-                        # Migrate frozen model artifacts to prompt learning model .nemo file
-                        self._preserve_frozen_model_artifacts(model, tmpdir)
-
                         # create tar file
+                        self._save_config_and_artifacts(model, tmpdir)
                         self._make_nemo_file_from_folder(save_path, tmpdir)
 
         else:
-            return super().save_to(model, save_path)
+            if is_global_rank_zero():
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
+                    self._save_config_and_artifacts(model, tmpdir)
+                    self._save_state_dict_to_disk(model.state_dict(), model_weights)
+                    self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            else:
+                return
 
     def modify_state_dict(self, conf, state_dict):
         if conf.get('megatron_legacy', False):
@@ -361,6 +360,41 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         super().load_instance_with_state_dict(instance, state_dict, strict)
         logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
         return instance
+
+    def _save_config_and_artifacts(self, model, tmpdir):
+        """
+        Prepares model's config and artifacts to be saved in the model's .nemo tar file.
+        """
+        # create config and artifacts in tmpdir
+        config_yaml = os.path.join(tmpdir, self.model_config_yaml)
+        model.to_config_file(path2yaml_file=config_yaml)
+        if hasattr(model, 'artifacts') and model.artifacts is not None:
+            self._handle_artifacts(model, nemo_file_folder=tmpdir)
+            self._update_artifact_paths(model, path2yaml_file=config_yaml)
+
+        # If needed, migrate frozen model artifacts to prompt learning model .nemo file
+        self._preserve_frozen_model_artifacts(model, tmpdir)
+
+    def _preserve_frozen_model_artifacts(self, model, current_model_artifact_dir):
+        """
+        Moves artifacts from a frozen GPT/T5 model that was restored within a PromptLearningModel
+        to the PromptLearningModel's .nemo file. Keeps the uniq artifact names so they
+        match the names in the GPT/T5 model config (which is also stored as an artifact). 
+
+        Args:
+            model: ModelPT object to be saved.
+            current_model_artifact_dir: The dir where the model's other artifacts are being
+                                        held temporarily before creating the tar file. 
+        """
+
+        # Need to move artifacts from frozen GPT/T5 model's .nemo file and store them in this model's .nemo file instead
+        if hasattr(model, "frozen_model_path") and model.frozen_model_path is not None:
+            with tempfile.TemporaryDirectory() as frozen_model_artifact_dir:
+                self._unpack_nemo_file(model.frozen_model_path, frozen_model_artifact_dir)
+
+                for artifact in os.listdir(frozen_model_artifact_dir):
+                    if artifact not in [self._model_config_yaml, self._model_weights_ckpt]:
+                        shutil.move(os.path.join(frozen_model_artifact_dir, artifact), current_model_artifact_dir)
 
 
 class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):

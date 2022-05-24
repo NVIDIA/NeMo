@@ -61,7 +61,6 @@ class SaveRestoreConnector:
                     # We should not update self._cfg here - the model can still be in use
                     self._update_artifact_paths(model, path2yaml_file=config_yaml)
                 self._save_state_dict_to_disk(model.state_dict(), model_weights)
-                self._preserve_frozen_model_artifacts(model, tmpdir)
                 self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
         else:
             return
@@ -465,30 +464,6 @@ class SaveRestoreConnector:
         model_weights = os.path.join(dirname, basename)
         model_weights = inject_model_parallel_rank(model_weights)
         return model_weights
-
-    def _preserve_frozen_model_artifacts(self, model, current_model_artifact_dir):
-        """
-        Moves artifacts from a gpt model restored within MegatronGPTPromptLearningModel class
-        to MegatronGPTPromptLearningModel's .nemo file. Keeps the uniq artifact names so they
-        match the names in the gpt config file that is also stored as an artifact. 
-
-        Args:
-            model: ModelPT object to be saved.
-            current_model_artifact_dir: The tempdir where the model's other artifacts are being
-                                        held temporarily before creating the tar file. 
-        """
-
-        # Importing here to avoid circular import errors
-        from nemo.collections.nlp.models.language_modeling import MegatronGPTPromptLearningModel
-
-        # Need to move artifacts from GPT model's .nemo file and store them in this model's .nemo file instead
-        if isinstance(model, MegatronGPTPromptLearningModel) and model.language_model_path is not None:
-            with tempfile.TemporaryDirectory() as frozen_model_artifact_dir:
-                self._unpack_nemo_file(model.language_model_path, frozen_model_artifact_dir)
-
-                for artifact in os.listdir(frozen_model_artifact_dir):
-                    if artifact not in [self._model_config_yaml, self._model_weights_ckpt]:
-                        shutil.move(os.path.join(frozen_model_artifact_dir, artifact), current_model_artifact_dir)
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
