@@ -91,7 +91,8 @@ gpt3.126m_short:
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${MODEL_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
-    - .tests/ci_tests/utils/jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - cd tests/ci_tests/utils
+    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
     - export -p > "${JOB_DIR}/.env" # Save environment (to restore it in after_script).
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"

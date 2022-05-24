@@ -10,7 +10,7 @@ fi
 JOBID="$1"
 
 while true; do
-    export STATE=$(tests/ci_tests/utils/jobstate.sh "${JOBID}")
+    export STATE=$(./jobstate.sh "${JOBID}")
     case "${STATE}" in
         PENDING|RUNNING|REQUEUED)
             sleep 15s
