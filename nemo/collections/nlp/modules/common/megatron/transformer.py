@@ -259,8 +259,6 @@ class CoreAttention(MegatronModule):
 
     """
 
-    matmul_input_buffer = None
-
     def __init__(
         self,
         layer_number,
@@ -367,24 +365,17 @@ class CoreAttention(MegatronModule):
         key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
 
         # preallocting input tensor: [b * np, sq, sk]
-        if CoreAttention.matmul_input_buffer is None:
-            CoreAttention.matmul_input_buffer = torch.empty(
-                output_size[0] * output_size[1],
-                output_size[2],
-                output_size[3],
-                dtype=query_layer.dtype,
-                device=torch.cuda.current_device(),
-            )
-        else:
-            assert CoreAttention.matmul_input_buffer.size() == (
-                output_size[0] * output_size[1],
-                output_size[2],
-                output_size[3],
-            ), "buffer dimensions should remain the same during the training run"
+        matmul_input_buffer = torch.empty(
+            output_size[0] * output_size[1],
+            output_size[2],
+            output_size[3],
+            dtype=query_layer.dtype,
+            device=torch.cuda.current_device(),
+        )
 
         # Raw attention scores. [b * np, sq, sk]
         matmul_result = torch.baddbmm(
-            CoreAttention.matmul_input_buffer,
+            matmul_input_buffer,
             query_layer.transpose(0, 1),  # [b * np, sq, hn]
             key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
             beta=0.0,
