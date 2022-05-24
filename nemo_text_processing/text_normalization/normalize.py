@@ -20,6 +20,9 @@ from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
 
+import importlib.util as import_util
+
+
 from nemo_text_processing.text_normalization.data_loader_utils import (
     get_installation_msg,
     load_file,
@@ -77,36 +80,22 @@ class Normalizer:
         if not PYNINI_AVAILABLE:
             raise ImportError(get_installation_msg())
 
-        if lang == 'en' and deterministic:
-            from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'en' and not deterministic:
-            if lm:
-                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_lm import ClassifyFst
-            else:
-                from nemo_text_processing.text_normalization.en.taggers.tokenize_and_classify_with_audio import (
-                    ClassifyFst,
-                )
-            from nemo_text_processing.text_normalization.en.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'ru':
-            # Ru TN only support non-deterministic cases and produces multiple normalization options
-            # use normalize_with_audio.py
-            from nemo_text_processing.text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.ru.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'de':
-            from nemo_text_processing.text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.de.verbalizers.verbalize_final import VerbalizeFinalFst
-        elif lang == 'es':
-            from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
-        self.tagger = ClassifyFst(
+        (tagger_spec, verbalizer_spec) = self.check_lang_module(lang)
+
+        tagger = import_util.module_from_spec(tagger_spec)
+        verbalizer = import_util.module_from_spec(verbalizer_spec)
+
+        tagger_spec.loader.exec_module(tagger)
+        verbalizer_spec.loader.exec_module(verbalizer)
+
+        self.tagger = tagger.ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
             cache_dir=cache_dir,
             overwrite_cache=overwrite_cache,
             whitelist=whitelist,
         )
-        self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        self.verbalizer = verbalizer.VerbalizeFinalFst(deterministic=deterministic)
         self.parser = TokenParser()
         self.lang = lang
 
@@ -115,6 +104,23 @@ class Normalizer:
         else:
             self.processor = None
             print("NeMo NLP is not available. Moses de-tokenization will be skipped.")
+
+    @staticmethod
+    def check_lang_module(lang: str):
+        """
+        Check if language folder for ITN exists.
+        """
+        tagger_path = f'nemo_text_processing.text_normalization.{lang}.taggers.tokenize_and_classify'
+        verbalizer_path = f'nemo_text_processing.text_normalization.{lang}.verbalizers.verbalize_final'
+
+        try:
+            tagger_spec = import_util.find_spec(tagger_path)
+            verbalizer_spec = import_util.find_spec(verbalizer_path)
+        except Exception as exp:
+            print(f'ITN module for language: {lang} cannot be found')
+            raise exp
+        else:
+            return (tagger_spec, verbalizer_spec)
 
     def normalize_list(
         self, texts: List[str], verbose=False, punct_pre_process: bool = False, punct_post_process: bool = False
