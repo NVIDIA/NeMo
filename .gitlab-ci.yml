@@ -36,7 +36,6 @@ before_script:
   - export IMAGE_NAME=${IMAGE_NAME%:*}
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
-  - export RESULTS_DIR=/lustre/fsw/joc/big_nlp/bignlp_ci/results
 
 .build: &build_template
   stage: build
@@ -83,11 +82,13 @@ gpt3.126m_short:
     - set -x
     - rm -rf /lustre/fsw/joc/big_nlp/bignlp_ci/results/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
+    - export RESULTS_DIR=/lustre/fsw/joc/big_nlp/bignlp_ci/results
+    - export MODEL_RESULTS_DIR=${RESULTS_DIR}/ci_gpt3_126m_deterministic
     - pwd
     - bash tests/ci_tests/launch_selene_gpt3_126m.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${MODEL_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - .tests/ci_tests/utils/jobwait.sh "${SLURM_JOBID}" & PID=$!
