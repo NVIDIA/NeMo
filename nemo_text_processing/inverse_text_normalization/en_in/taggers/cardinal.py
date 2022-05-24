@@ -68,9 +68,8 @@ class CardinalFst(GraphFst):
 
 
         # %% Indian numeric format simple
-        graph_ties_component = pynini.union(graph_digit + delete_space + graph_ties, pynutil.insert("0"))
-        graph_ties_component += delete_space
-        graph_ties_component += pynini.union(
+
+        graph_ties_component = pynini.union(
             graph_teen | pynutil.insert("00"),
             (graph_ties | pynutil.insert("0")) + delete_space + (graph_digit | pynutil.insert("0"))
 
@@ -86,44 +85,38 @@ class CardinalFst(GraphFst):
             pynutil.insert("00", weight=0.11),
         )
         graph_in_lakhs = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("lakh") | pynutil.delete("lakhs")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("lakh") | pynutil.delete("lakhs")),
             pynutil.insert("00", weight=0.11),
         )
 
         graph_in_crores = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("crore") | pynutil.delete("crores")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("crore") | pynutil.delete("crores")),
             pynutil.insert("00", weight=0.11),
         )
 
+
         graph_in_arabs = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("arab") | pynutil.delete("arabs")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("arab") | pynutil.delete("arabs")),
             pynutil.insert("00", weight=0.11),
         )
 
         graph_in_kharabs = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("kharab") | pynutil.delete("kharabs")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("kharab") | pynutil.delete("kharabs")),
             pynutil.insert("00", weight=0.11),
         )
 
         graph_in_nils = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("nil") | pynutil.delete("nils")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("nil") | pynutil.delete("nils")),
             pynutil.insert("00", weight=0.11),
         )
 
         graph_in_padmas = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("padma") | pynutil.delete("padmas")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("padma") | pynutil.delete("padmas")),
             pynutil.insert("00", weight=0.11),
         )
 
         graph_in_shankhs = pynini.union(
-            graph_ties_component_at_least_one_none_zero_digit
-            + delete_space + (pynutil.delete("shankh") | pynutil.delete("shankhs")),
+            graph_ties_component_at_least_one_none_zero_digit + delete_space + (pynutil.delete("shankh") | pynutil.delete("shankhs")),
             pynutil.insert("00", weight=0.11),
         )
 
@@ -195,7 +188,7 @@ class CardinalFst(GraphFst):
             + graph_thousands
         )
 
-        graph = pynini.union((graph_int | graph_ind)
+        graph = pynini.union((graph_ind)
                              + delete_space
                              + graph_hundred_component,
                              graph_zero,
