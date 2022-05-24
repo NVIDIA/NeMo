@@ -90,7 +90,8 @@ gpt3.126m_short:
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${MODEL_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
+    - export SLURM_OUTPUT=${MODEL_RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 744 ./*
     - pwd

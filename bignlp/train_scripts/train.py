@@ -166,7 +166,7 @@ def run_training(cfg, hydra_args="", dependency=None):
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
             flags = (
                 f"--container-image {container} --container-mounts {mounts_str} "
-                f"-o {results_dir}/slurm_%j.log "
+                f"-o {results_dir}/slurmm_%j.log "
             )
         else:
             flags = (
