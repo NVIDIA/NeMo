@@ -162,7 +162,7 @@ class ContrastiveLoss(Loss):
 
                 if self.reduce_ids:
                     # reduce consecutive equivalent ids to a single occurence
-                    unique_x, indices = torch.unique_consecutive(self.target_ids, return_inverse=True)
+                    _, indices = torch.unique_consecutive(self.target_ids, return_inverse=True)
                     indices -= indices.min(dim=1, keepdims=True)[0]
                     reduced_ids = torch.zeros_like(self.target_ids)
                     reduced_ids = reduced_ids.scatter_(1, indices, self.target_ids)
@@ -271,7 +271,8 @@ class ContrastiveLoss(Loss):
         if not isinstance(loss, torch.Tensor):
             loss = torch.Tensor([0]).to(device=decoder_outputs.device)
 
-        loss *= self.multiplier / spectrograms.shape[0]
+        batch_size = spectrograms.shape[0]
+        loss *= self.multiplier / batch_size
 
         return loss
 

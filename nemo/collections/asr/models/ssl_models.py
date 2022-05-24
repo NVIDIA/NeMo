@@ -334,7 +334,18 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
     def decoder_loss_step(self, spectrograms, spec_masks, encoded, encoded_len, targets=None, target_lengths=None):
         """
         Forward pass through all decoders and calculate corresponding losses.
-        Returns total loss and dictionary of values for each loss separately.
+        Args:
+            spectrograms: Processed spectrograms of shape [B, D, T].
+            spec_masks: Masks applied to spectrograms of shape [B, D, T].
+            encoded: The encoded features tensor of shape [B, D, T].
+            encoded_len: The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            targets: Optional target labels of shape [B, T]
+            target_lengths: Optional target label lengths of shape [B]
+
+        Returns:
+            A tuple of 2 elements -
+            1) Total sum of losses weighted by corresponding loss_alphas
+            2) Dictionary of unweighted losses
         """
         loss_val_dict = {}
 
