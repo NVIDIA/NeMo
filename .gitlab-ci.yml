@@ -92,6 +92,7 @@ gpt3.126m_short:
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
+    - pwd
     - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
@@ -107,6 +108,8 @@ gpt3.126m_short:
     # Run Pytest
     - pip3 install pytest
     - cd ${GPFSFOLDER}
+    - pwd
+    - echo "$PWD"
     - pytest tests/ci_tests/test_ci_gpt3_126m.py
     - echo "Finished pytest job"
   rules:
