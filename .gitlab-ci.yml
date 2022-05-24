@@ -50,7 +50,6 @@ before_script:
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
-    - export JOB_DIR="${GPFSFOLDER}/${CI_JOB_ID}"
   allow_failure: false
   tags:
     - vm-builder
@@ -81,6 +80,7 @@ gpt3.126m_short:
     <<: [*VARS, *LUNA_VARS]
   script:
     - set -x
+    - export JOB_DIR="${GPFSFOLDER}/${CI_JOB_ID}"
     - rm -rf /lustre/fsw/joc/big_nlp/bignlp_ci/results/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RESULTS_DIR=/lustre/fsw/joc/big_nlp/bignlp_ci/results
