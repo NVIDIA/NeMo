@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util as import_util
 import itertools
 import os
 import re
@@ -19,9 +20,6 @@ from argparse import ArgumentParser
 from collections import OrderedDict
 from math import factorial
 from typing import Dict, List, Union
-
-import importlib.util as import_util
-
 
 from nemo_text_processing.text_normalization.data_loader_utils import (
     get_installation_msg,

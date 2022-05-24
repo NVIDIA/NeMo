@@ -31,8 +31,8 @@ except (ModuleNotFoundError, ImportError):
 
 class NumberParser(GraphFst):
     """
-    Finite state transducer for parsing strings of digis. Breaks up digit strings into groups of three for 
-	strings of digits of four or more (inclusive). Groupings are separated by non-breaking space.
+    Finite state transducer for parsing strings of digis. Breaks up digit strings into groups of three for
+        strings of digits of four or more (inclusive). Groupings are separated by non-breaking space.
     e.g. '1000' -> '1 000'
     e.g. '1000,33333' -> '1 000,333 33
     """
@@ -51,7 +51,7 @@ class DecimalFst(GraphFst):
         super().__init__(name="decimal", kind="verbalize")
 
         # Need parser to group digits by threes
-        exactly_three_digits = NEMO_DIGIT ** 3
+        exactly_three_digits = NEMO_DIGIT**3
         at_most_three_digits = pynini.closure(NEMO_DIGIT, 1, 3)
 
         space_every_three_integer = (

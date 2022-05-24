@@ -30,7 +30,7 @@ except (ModuleNotFoundError, ImportError):
 
 class OrdinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
+    Finite state transducer for classifying cardinals, e.g.
         "2" -> ordinal { integer: "второе" } }
 
     Args:

@@ -47,14 +47,14 @@ class TimeFst(GraphFst):
         e.g. cuarto para las dos -> time { minutes: "45" hours: "la 1" }
 
     Note that times on the hour (e.g. "las dos" i.e. "two o'clock") do not get
-    converted into a time format. This is to avoid converting phrases that are 
+    converted into a time format. This is to avoid converting phrases that are
     not part of a time phrase (e.g. "las dos personas" i.e. "the two people")
         e.g. las dos -> tokens { name: "las" } tokens { name: "dos" }
-    However, if a time on the hour is followed by a suffix (indicating 'a.m.' 
+    However, if a time on the hour is followed by a suffix (indicating 'a.m.'
     or 'p.m.'), it will be converted.
         e.g. las dos pe eme -> time { hours: "las 2" minutes: "00" suffix: "p.m." }
 
-    Note that although the TimeFst verbalizer can accept 'zone' (timezone) fields, 
+    Note that although the TimeFst verbalizer can accept 'zone' (timezone) fields,
     so far the rules have not been added to the TimeFst tagger to process
     timezones (to keep the rules simple, and because timezones are not very
     often specified in Spanish.)
@@ -113,7 +113,10 @@ class TimeFst(GraphFst):
         # un cuarto para las cinco
         graph_mh = (
             pynutil.insert("minutes: \"")
-            + pynini.union(pynini.cross("un cuarto para", "45"), pynini.cross("cuarto para", "45"),)
+            + pynini.union(
+                pynini.cross("un cuarto para", "45"),
+                pynini.cross("cuarto para", "45"),
+            )
             + pynutil.insert("\"")
             + delete_extra_space
             + pynutil.insert("hours: \"")

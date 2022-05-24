@@ -71,7 +71,7 @@ def get_ties_digit(digit_path: str, tie_path: str) -> 'pynini.FstLike':
 
 class CardinalFst(GraphFst):
     """
-    Finite state transducer for classifying cardinals, e.g. 
+    Finite state transducer for classifying cardinals, e.g.
         "101" ->  cardinal { integer: "ein hundert und zehn" }
 
     Args:
@@ -171,7 +171,7 @@ class CardinalFst(GraphFst):
         self.graph = (
             ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
-            @ NEMO_DIGIT ** 24
+            @ NEMO_DIGIT**24
             @ graph
             @ pynini.cdrewrite(delete_space, "[BOS]", "", NEMO_SIGMA)
             @ pynini.cdrewrite(delete_space, "", "[EOS]", NEMO_SIGMA)
@@ -186,7 +186,7 @@ class CardinalFst(GraphFst):
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             ((NEMO_DIGIT - "0" + pynini.closure(NEMO_DIGIT, 0)) - "0" - "1")
             @ pynini.cdrewrite(pynini.closure(pynutil.insert("0")), "[BOS]", "", NEMO_SIGMA)
-            @ NEMO_DIGIT ** 3
+            @ NEMO_DIGIT**3
             @ hundred_non_zero()
         ) | pynini.cross("1", "eins")
 

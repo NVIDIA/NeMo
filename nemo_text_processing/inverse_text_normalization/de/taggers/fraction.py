@@ -34,7 +34,7 @@ class FractionFst(GraphFst):
         e.g. ein halb -> tokens { name: "1/2" }
         e.g. ein ein halb -> tokens { name: "1 1/2" }
         e.g. drei zwei ein hundertstel -> tokens { name: "3 2/100" }
-    
+
     Args:
         itn_cardinal_tagger: ITN cardinal tagger
         tn_fraction_verbalizer: TN fraction verbalizer

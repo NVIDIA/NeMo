@@ -44,7 +44,7 @@ except (ModuleNotFoundError, ImportError):
 
 class MeasureFst(GraphFst):
     """
-    Finite state transducer for classifying measure, suppletive aware, e.g. 
+    Finite state transducer for classifying measure, suppletive aware, e.g.
         -12kg -> measure { negative: "true" cardinal { integer: "twelve" } units: "kilograms" }
         1kg -> measure { cardinal { integer: "one" } units: "kilogram" }
         .5kg -> measure { decimal { fractional_part: "five" } units: "kilograms" }
@@ -79,7 +79,9 @@ class MeasureFst(GraphFst):
         )
 
         optional_graph_unit2 = pynini.closure(
-            delete_zero_or_one_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2, 0, 1,
+            delete_zero_or_one_space + pynutil.insert(NEMO_NON_BREAKING_SPACE) + graph_unit2,
+            0,
+            1,
         )
 
         unit_plural = (
@@ -249,7 +251,7 @@ class MeasureFst(GraphFst):
         )
 
         address_num = NEMO_DIGIT ** (1, 2) @ cardinal.graph_hundred_component_at_least_one_none_zero_digit
-        address_num += insert_space + NEMO_DIGIT ** 2 @ (
+        address_num += insert_space + NEMO_DIGIT**2 @ (
             pynini.closure(pynini.cross("0", "zero "), 0, 1)
             + cardinal.graph_hundred_component_at_least_one_none_zero_digit
         )
@@ -287,8 +289,12 @@ class MeasureFst(GraphFst):
         state = pynini.invert(state_graph)
         state = pynini.closure(pynini.accep(",") + pynini.accep(NEMO_SPACE) + state, 0, 1)
 
-        zip_code = pynini.compose(NEMO_DIGIT ** 5, cardinal.single_digits_graph)
-        zip_code = pynini.closure(pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code, 0, 1,)
+        zip_code = pynini.compose(NEMO_DIGIT**5, cardinal.single_digits_graph)
+        zip_code = pynini.closure(
+            pynini.closure(pynini.accep(","), 0, 1) + pynini.accep(NEMO_SPACE) + zip_code,
+            0,
+            1,
+        )
 
         address = address_num + direction + address_words + pynini.closure(city + state + zip_code, 0, 1)
 

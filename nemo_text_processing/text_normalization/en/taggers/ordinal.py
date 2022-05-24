@@ -28,7 +28,7 @@ class OrdinalFst(GraphFst):
     """
     Finite state transducer for classifying ordinal, e.g.
         13th -> ordinal { integer: "thirteen" }
-        
+
     Args:
         cardinal: CardinalFst
         deterministic: if True will provide a single transduction option,

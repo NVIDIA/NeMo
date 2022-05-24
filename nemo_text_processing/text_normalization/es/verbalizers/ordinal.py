@@ -29,7 +29,7 @@ class OrdinalFst(GraphFst):
     Finite state transducer for verbalizing ordinals
         e.g. ordinal { integer: "tercer" } } -> "tercero"
                                            -> "tercera"
-										   -> "tercer"
+                                                                                   -> "tercer"
 
     Args:
         deterministic: if True will provide a single transduction option,

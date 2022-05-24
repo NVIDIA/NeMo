@@ -26,9 +26,9 @@ except (ModuleNotFoundError, ImportError):
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone, which includes country code, number part and extension 
+    Finite state transducer for classifying telephone, which includes country code, number part and extension
 
-    E.g 
+    E.g
     "8-913-983-56-01" -> telephone { number_part: "восемь девятьсот тринадцать девятьсот восемьдесят три пятьдесят шесть ноль один" }
 
     Args:
@@ -53,13 +53,13 @@ class TelephoneFst(GraphFst):
         optional_country_code = pynini.closure(country_code + insert_space, 0, 1)
 
         number_part = (
-            NEMO_DIGIT ** 3 @ number
+            NEMO_DIGIT**3 @ number
             + separator
-            + NEMO_DIGIT ** 3 @ number
+            + NEMO_DIGIT**3 @ number
             + separator
-            + NEMO_DIGIT ** 2 @ number
+            + NEMO_DIGIT**2 @ number
             + separator
-            + NEMO_DIGIT ** 2 @ (pynini.closure(pynini.cross("0", "ноль ")) + number)
+            + NEMO_DIGIT**2 @ (pynini.closure(pynini.cross("0", "ноль ")) + number)
         )
         number_part = pynutil.insert("number_part: \"") + number_part + pynutil.insert("\"")
         tagger_graph = (optional_country_code + number_part).optimize()

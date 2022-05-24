@@ -34,7 +34,7 @@ class TimeFst(GraphFst):
     Finite state transducer for verbalizing time, e.g.
         time { hours: "8" minutes: "30" suffix: "du matin"} -> 8 h 30
         time { hours: "8" minutes: "30" } -> 8 h 30
-        time { hours: "8" minutes: "30" suffix: "du soir"} -> 20 h 30  
+        time { hours: "8" minutes: "30" suffix: "du soir"} -> 20 h 30
     """
 
     def __init__(self):

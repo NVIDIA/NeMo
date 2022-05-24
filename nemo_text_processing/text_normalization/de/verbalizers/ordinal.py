@@ -48,7 +48,10 @@ class OrdinalFst(GraphFst):
         self.ordinal_stem = graph_digit | graph_ties | graph_thousands
 
         suffix = pynini.cdrewrite(
-            pynini.closure(self.ordinal_stem, 0, 1) + convert_rest, "", "[EOS]", NEMO_SIGMA,
+            pynini.closure(self.ordinal_stem, 0, 1) + convert_rest,
+            "",
+            "[EOS]",
+            NEMO_SIGMA,
         ).optimize()
         self.graph = pynini.compose(graph, suffix)
         self.suffix = suffix

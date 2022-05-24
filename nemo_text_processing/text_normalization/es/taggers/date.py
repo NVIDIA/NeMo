@@ -97,7 +97,7 @@ class DateFst(GraphFst):
 
         dash = "-"
         day_optional = pynini.closure(pynini.cross(dash, NEMO_SPACE) + day, 0, 1)
-        graph_ymd = NEMO_DIGIT ** 4 @ year_only + pynini.cross(dash, NEMO_SPACE) + month_number + day_optional
+        graph_ymd = NEMO_DIGIT**4 @ year_only + pynini.cross(dash, NEMO_SPACE) + month_number + day_optional
 
         final_graph = graph_dmy + pynutil.insert(" preserve_order: true")
         final_graph |= graph_ymd

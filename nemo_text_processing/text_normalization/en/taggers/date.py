@@ -53,7 +53,7 @@ except (ModuleNotFoundError, ImportError):
 
 def get_ties_graph(deterministic: bool = True):
     """
-    Returns two digit transducer, e.g. 
+    Returns two digit transducer, e.g.
     03 -> o three
     12 -> thirteen
     20 -> twenty
@@ -129,18 +129,18 @@ def _get_year_graph(cardinal_graph, deterministic: bool = True):
     Transducer for year, only from 1000 - 2999 e.g.
     1290 -> twelve nineteen
     2000 - 2009 will be verbalized as two thousand.
-    
+
     Transducer for 3 digit year, e.g. 123-> one twenty three
-    
+
     Transducer for year with suffix
     123 A.D., 4200 B.C
     """
     graph = get_four_digit_year_graph(deterministic)
-    graph = (pynini.union("1", "2") + (NEMO_DIGIT ** 3) + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)) @ graph
+    graph = (pynini.union("1", "2") + (NEMO_DIGIT**3) + pynini.closure(pynini.cross(" s", "s") | "s", 0, 1)) @ graph
 
     graph |= _get_two_digit_year_with_s_graph()
 
-    three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT ** 2) @ cardinal_graph
+    three_digit_year = (NEMO_DIGIT @ cardinal_graph) + insert_space + (NEMO_DIGIT**2) @ cardinal_graph
     year_with_suffix = (
         (get_four_digit_year_graph(deterministic=True) | three_digit_year) + delete_space + insert_space + year_suffix
     )
@@ -155,7 +155,7 @@ def _get_two_digit_year(cardinal_graph, single_digits_graph):
 
 class DateFst(GraphFst):
     """
-    Finite state transducer for classifying date, e.g. 
+    Finite state transducer for classifying date, e.g.
         jan. 5, 2012 -> date { month: "january" day: "five" year: "twenty twelve" preserve_order: true }
         jan. 5 -> date { month: "january" day: "five" preserve_order: true }
         5 january 2012 -> date { day: "five" month: "january" year: "twenty twelve" preserve_order: true }
@@ -266,7 +266,7 @@ class DateFst(GraphFst):
             )
 
         graph_dmy = day_graph + delete_extra_space + month_graph + optional_graph_year
-        day_ex_month = (NEMO_DIGIT ** 2 - pynini.project(month_numbers_graph, "input")) @ day_graph
+        day_ex_month = (NEMO_DIGIT**2 - pynini.project(month_numbers_graph, "input")) @ day_graph
         for x in ["-", "/", "."]:
             delete_sep = pynutil.delete(x)
             graph_dmy |= (

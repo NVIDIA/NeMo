@@ -38,7 +38,7 @@ except (ModuleNotFoundError, ImportError):
 
 class MoneyFst(GraphFst):
     """
-    Finite state transducer for classifying money, suppletive aware, e.g. 
+    Finite state transducer for classifying money, suppletive aware, e.g.
         $12.05 -> money { integer_part: "twelve" currency_maj: "dollars" fractional_part: "five" currency_min: "cents" preserve_order: true }
         $12.0500 -> money { integer_part: "twelve" currency_maj: "dollars" fractional_part: "five" currency_min: "cents" preserve_order: true }
         $1 -> money { currency_maj: "dollar" integer_part: "one" }

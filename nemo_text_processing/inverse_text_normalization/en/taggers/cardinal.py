@@ -37,7 +37,7 @@ class CardinalFst(GraphFst):
     """
     Finite state transducer for classifying cardinals
         e.g. minus twenty three -> cardinal { integer: "23" negative: "-" } }
-    Numbers below thirteen are not converted. 
+    Numbers below thirteen are not converted.
     """
 
     def __init__(self):

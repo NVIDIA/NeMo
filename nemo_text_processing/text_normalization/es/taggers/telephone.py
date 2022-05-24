@@ -48,8 +48,8 @@ class TelephoneFst(GraphFst):
         (we ignore more complicated cases such as "doscientos y dos" or "tres nueves").
 
     Args:
-		deterministic: if True will provide a single transduction option,
-			for False multiple transduction are generated (used for audio-based normalization)
+                deterministic: if True will provide a single transduction option,
+                        for False multiple transduction are generated (used for audio-based normalization)
     """
 
     def __init__(self, deterministic: bool = True):
