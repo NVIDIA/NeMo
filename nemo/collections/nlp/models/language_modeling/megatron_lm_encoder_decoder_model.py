@@ -421,6 +421,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def get_forward_output_only_func(self, args_idx):
         """
         args_idx - maps batch into index of args (with None filling gaps)
+
+        model(
+        enc_input_ids,
+        enc_attn_mask,
+        dec_input_ids,
+        dec_attn_mask,
+        token_type_ids=None,
+        labels=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        enc_input=None,
+        output_enc_hidden_only=False,
+        )
         """
         def fwd_output_only_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
