@@ -424,8 +424,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
-            # "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            # "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
         }
 
     @property
