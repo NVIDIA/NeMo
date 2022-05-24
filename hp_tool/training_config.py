@@ -96,7 +96,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
     tp_sizes = train_cfg.get("tensor_parallel_sizes")
-    pp_sizes = train_cfg.get("pipeline_model_parallel_sizes")
+    pp_sizes = train_cfg.get("pipeline_parallel_sizes")
     mbs_sizes = train_cfg.get("micro_batch_sizes")
 
     multiplier = 1 if model_name == "gpt3" else 2
