@@ -79,6 +79,8 @@ class RETRODataset(Dataset):
         self.retrieval_index: MMapRetrievalIndexedDataset = retrieval_index
         self.chunk_size = self.indexed_dataset.chunk_size
 
+        # make sure seq_length is a multiple of chunk_size
+        assert seq_length % self.chunk_size == 0
         # Checks
         assert np.min(documents) >= 0
         assert np.max(documents) < indexed_dataset.sizes.shape[0]
@@ -109,6 +111,7 @@ class RETRODataset(Dataset):
             seed,
             index_mapping_dir=self.index_mapping_dir,
         )
+        self.padding_context = np.ones(2 * self.chunk_size, dtype=self.retrieval_index._index.dtype) * self.pad_id
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
@@ -124,7 +127,11 @@ class RETRODataset(Dataset):
         for i in range(chunk_id, chunk_id + num_chunks):
             knn = self.knn_index.get_KNN_chunk_ids(i)
             for rid in knn[: self.neighbors]:
-                one_chunk = self.retrieval_index.get_chunk(rid)
+                if rid < 0:
+                    # no neighbor, just pad it
+                    one_chunk = self.padding_context
+                else:
+                    one_chunk = self.retrieval_index.get_chunk(rid)
                 chunks.append(one_chunk)
 
     def _get_text(self, idx: int) -> np.ndarray:

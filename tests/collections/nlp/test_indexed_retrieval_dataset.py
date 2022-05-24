@@ -224,6 +224,9 @@ class TestRetrievalIndexFiles:
         sentence3 = torch.arange(0, 300, 2, dtype=torch.int64)
         sentence4 = torch.arange(1, 400, 2, dtype=torch.int64)
 
+        # test the case that
+        # training data and retrieval data are different
+
         data_file = '/tmp/test_data'
         data_index_file = data_file + '.idx'
         data_bin_file = data_file + '.bin'
@@ -273,7 +276,7 @@ class TestRetrievalIndexFiles:
             db_index = MMapRetrievalIndexedDataset(db_file)
 
             with KNNIndex.writer(map_index_file, K) as w:
-                map_np = np.random.randint(0, db_index.chunks, (data_index.chunks, K))
+                map_np = np.random.randint(-3, db_index.chunks, (data_index.chunks, K))
                 w.write(map_np)
             map_index = KNNIndex(map_index_file)
 
@@ -304,6 +307,59 @@ class TestRetrievalIndexFiles:
         finally:
             os.remove(data_bin_file)
             os.remove(data_index_file)
+            os.remove(db_bin_file)
+            os.remove(db_index_file)
+            os.remove(map_index_file)
+            os.remove(doc_idx_filename)
+            os.remove(sample_idx_filename)
+            os.remove(shuffle_idx_filename)
+
+        # test the case that
+        # training data and retrieval data are the same
+
+        try:
+
+            builder = MMapRetrievalIndexedDatasetBuilder(db_bin_file, chunk_size, pad_id, True)
+            builder.add_item(sentence1)
+            builder.add_item(sentence2)
+            builder.add_item(sentence3)
+            builder.add_item(sentence4)
+            builder.finalize(db_index_file)
+
+            # load the data
+            data_index = MMapRetrievalIndexedDataset(db_file)
+            db_index = MMapRetrievalIndexedDataset(db_file)
+
+            with KNNIndex.writer(map_index_file, K) as w:
+                map_np = np.random.randint(-3, db_index.chunks, (data_index.chunks, K))
+                w.write(map_np)
+            map_index = KNNIndex(map_index_file)
+
+            documents = np.arange(0, data_index.sizes.shape[0])
+            d = RETRODataset(
+                cfg,
+                None,
+                tokenizer,
+                name,
+                data_prefix,
+                documents,
+                data_index,
+                num_samples,
+                seq_len,
+                seed,
+                map_index,
+                db_index,
+            )
+            for i in range(len(d)):
+                record = d[i]
+                assert record['tokens'].shape[0] == seq_len
+                assert record['labels'].shape[0] == seq_len
+                assert record['retrieved_ids'].shape[0] == seq_len // chunk_size
+                assert record['retrieved_ids'].shape[1] == K
+                assert record['retrieved_ids'].shape[2] == chunk_size * 2
+                assert record['tokens_mask'].shape[0] == seq_len
+
+        finally:
             os.remove(db_bin_file)
             os.remove(db_index_file)
             os.remove(map_index_file)
