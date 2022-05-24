@@ -8,7 +8,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     run_evaluation=False \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data \
-    base_results_dir=/lustre/fsw/joc/big_nlp/bignlp_ci/results \
+    base_results_dir=${RESULTS_DIR} \
     "container='${BUILD_IMAGE_NAME_SRUN}'" \
     cluster.partition=luna \
     cluster.account=joc \
@@ -21,5 +21,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.log_every_n_steps=1 \
     training.trainer.val_check_interval=10 \
     training.trainer.limit_val_batches=10 \
-    training.model.data.data_prefix=[1.0,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data/my-gpt3_00_text_document] 
-    
+    training.model.data.data_prefix=[1.0,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data/my-gpt3_00_text_document]
