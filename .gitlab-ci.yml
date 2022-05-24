@@ -50,6 +50,7 @@ before_script:
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
+    - export JOB_DIR="${GPFSFOLDER}/${CI_JOB_ID}"
   allow_failure: false
   tags:
     - vm-builder
