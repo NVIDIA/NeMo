@@ -87,7 +87,7 @@ gpt3.126m_short:
     - bash tests/ci_tests/launch_selene_gpt3_126m.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/logs/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - .tests/ci_tests/utils/jobwait.sh "${SLURM_JOBID}" & PID=$!
