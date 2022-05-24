@@ -129,19 +129,20 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = [0,5,10,15,20,'clean']
+    db_list = ['clean']
     modes = ['offline']
     langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ['neural_vad']
-    models = ['citrinet', 'nr_citrinet', 'nr_conformer_ctc', 'nr_conformer_transducer', 'nr_contextnet'] 
+    vad_exps = ['oracle_vad', 'neural_vad']
+    models = ['citrinet', 'nr_citrinet'] 
 
-    ref="energy_vad"
+    # ref="energy_vad"
+    ref='oracle_vad'
     
-    subset="test"
+    subset="dev"
     single= False # True
     exp = "_single" if single else ""
-    exp = "_min5"
-    res_file = f"res{exp}_asr_offline_multiple_fixSNR_tunedClean_energyO.csv"
+    exp = "_min10"
+    res_file = f"res{exp}_asr_offline_multiple_fixSNR_tunedClean.csv"
 
     si_ratio = False  #True
 
@@ -152,7 +153,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"final_multiple_fixed_{exp}_tunedClean_energyO"
+    final_output_folder = f"final_multiple_fixed_{exp}_tunedClean"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True
