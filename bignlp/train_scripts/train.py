@@ -193,7 +193,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             account=account,
         )
         if cfg.get("ci_test"):
-            job_id = subprocess.check_output([f'sbatch --parsable {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+            job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
         else:
             job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id = job_id.decode("utf-8")
