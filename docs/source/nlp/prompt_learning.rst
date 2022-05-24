@@ -237,12 +237,15 @@ First define a config called ``multitask-prompt-learning.yaml`` that looks like:
       total_virtual_tokens: 100 
       virtual_token_splits: [100] 
       truncate_field: null
+      answer_only_loss: False
 
     - taskname: "intent_and_slot"
       prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
       total_virtual_tokens: 100 
       virtual_token_splits: [80, 20]
       truncate_field: null
+      answer_only_loss: True
+      answer_field: "label"
 
     prompt_tuning: 
       new_prompt_init_methods: ["text", "text"] 
@@ -300,12 +303,15 @@ In this example, the SQuAD task includes the question context as part of the pro
     total_virtual_tokens: 100 
     virtual_token_splits: [100] 
     truncate_field: null
+    answer_only_loss: False
 
   - taskname: "intent_and_slot"
     prompt_template: "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}" 
     total_virtual_tokens: 100 
     virtual_token_splits: [80, 20]
     truncate_field: null
+    answer_only_loss: True
+    answer_field: "label"
 
   - taskname: "squad" # ***
     prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # *** 
@@ -313,7 +319,7 @@ In this example, the SQuAD task includes the question context as part of the pro
     virtual_token_splits: [9] # ***
     truncate_field: context # ***
     answer_only_loss: True # ***
-    answer_field: 'answer # ***
+    answer_field: "answer" # ***
 
   p_tuning: # ***
       dropout: 0.0 # ***
