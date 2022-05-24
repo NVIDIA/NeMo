@@ -59,7 +59,7 @@ class InverseNormalizer(Normalizer):
     @staticmethod
     def check_lang_module(lang: str):
         """
-        Check if language folder for ITN exists.
+        Check if ITN tagger and verbalizer modules for the requested language exists.
         """
         tagger_path = f'nemo_text_processing.inverse_text_normalization.{lang}.taggers.tokenize_and_classify'
         verbalizer_path = f'nemo_text_processing.inverse_text_normalization.{lang}.verbalizers.verbalize_final'
