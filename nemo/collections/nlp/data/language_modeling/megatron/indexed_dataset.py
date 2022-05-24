@@ -102,8 +102,7 @@ def make_dataset(path, impl, skip_warmup=False):
         return MMapIndexedDataset(path, skip_warmup)
     elif impl == 'retmmap':
         return MMapRetrievalIndexedDataset(path, skip_warmup)
-    print(f"Unknown dataset implementation: {impl}")
-    return None
+    raise ValueError(f"Unknown dataset implementation: {impl}")
 
 
 def dataset_exists(path, impl):

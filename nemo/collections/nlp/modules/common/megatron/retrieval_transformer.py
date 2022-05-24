@@ -149,7 +149,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         encoder_output=None,
         layer_past=None,
         get_key_value=False,
-        set_inference_key_value_memory=False,
+        set_inference_key_value_memory=False,  # when doing inference, set this to true to allocate all the cached matrix. later set false to do incremental inference
         inference_max_sequence_len=None,
         neighbors=2,
     ):

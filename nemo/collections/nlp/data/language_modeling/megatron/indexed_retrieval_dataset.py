@@ -143,7 +143,8 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
     Memory Map Index and Binary file for RETRO DATA.
     It provides `chunks` to the original MMap data so data can be fetched at both document and chunk level.
     It can be used both for training data and Retrieval Data.
-    Retrieval Dataset adds an extra `chunk_size` padded tokens at the end of each document.
+    Retrieval Dataset adds an extra `chunk_size` padded tokens at the end of each document. '
+    `self._index.retrieval_db` is indicating whether it is retrieval dataset or not.
 
     It is built by `preprocess_data_for_megatron.py` script.
 

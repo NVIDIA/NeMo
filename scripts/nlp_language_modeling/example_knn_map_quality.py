@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-This is the script to example the KNN mapping quality between indexed data and indexed retrieval database. 
+This is the script to exam the KNN mapping quality between indexed data and indexed retrieval database. 
 
 It requires the training text data to be converted into `bin` and `idx` files by `preprocess_data_for_megatron.py` script.
 It also requires KNNIndex built by `build_retrieval_index.py` script.
@@ -88,8 +88,6 @@ if __name__ == "__main__":
 
     data_ds = MMapRetrievalIndexedDataset(args.input_data_prefix)
     retrieval_ds = MMapRetrievalIndexedDataset(args.input_retrieval_prefix)
-    assert not data_ds._index.retrieval_db
-    assert retrieval_ds._index.retrieval_db
     knn_index = KNNIndex(args.knn_index)
     assert knn_index.len == data_ds.chunks
     logging.info(f'Data index has {data_ds.chunks} chunks')

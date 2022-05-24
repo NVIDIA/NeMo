@@ -511,6 +511,8 @@ class ParallelAttention(MegatronModule):
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
                 if not set_inference_key_value_memory:
+                    # In inference, we compute one token at a time.
+                    # Select the correct positional embedding.
                     q_pos_emb = q_pos_emb[end - 1 : end]
                 k_pos_emb = k_pos_emb[:end, :, :, :]
                 rotary_pos_emb = (q_pos_emb, k_pos_emb)
