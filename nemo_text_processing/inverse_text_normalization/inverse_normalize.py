@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib.util as import_util
 from argparse import ArgumentParser
 from time import perf_counter
 from typing import List
@@ -28,7 +29,7 @@ from nemo_text_processing.text_normalization.token_parser import TokenParser
 
 class InverseNormalizer(Normalizer):
     """
-    Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing. 
+    Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing.
     Input is expected to have no punctuation outside of approstrophe (') and dash (-) and be lower cased.
 
     Args:
@@ -41,47 +42,39 @@ class InverseNormalizer(Normalizer):
 
         if not check_installation():
             raise ImportError(get_installation_msg())
-        if lang == 'en':
-            from nemo_text_processing.inverse_text_normalization.en.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.en.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
 
-        elif lang == 'es':
-            from nemo_text_processing.inverse_text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.es.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
+        (tagger_spec, verbalizer_spec) = self.check_lang_module(lang)
 
-        elif lang == 'ru':
-            from nemo_text_processing.inverse_text_normalization.ru.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.ru.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
+        tagger = import_util.module_from_spec(tagger_spec)
+        verbalizer = import_util.module_from_spec(verbalizer_spec)
 
-        elif lang == 'de':
-            from nemo_text_processing.inverse_text_normalization.de.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.de.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
-        elif lang == 'fr':
-            from nemo_text_processing.inverse_text_normalization.fr.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.fr.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
-        elif lang == 'vi':
-            from nemo_text_processing.inverse_text_normalization.vi.taggers.tokenize_and_classify import ClassifyFst
-            from nemo_text_processing.inverse_text_normalization.vi.verbalizers.verbalize_final import (
-                VerbalizeFinalFst,
-            )
+        tagger_spec.loader.exec_module(tagger)
+        verbalizer_spec.loader.exec_module(verbalizer)
 
-        self.tagger = ClassifyFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)
-        self.verbalizer = VerbalizeFinalFst()
+        self.tagger = tagger.ClassifyFst(cache_dir=cache_dir, overwrite_cache=overwrite_cache)
+        self.verbalizer = verbalizer.VerbalizeFinalFst()
         self.parser = TokenParser()
+
+    @staticmethod
+    def check_lang_module(lang: str):
+        """
+        Check if ITN tagger and verbalizer modules for the requested language exists.
+        """
+        tagger_path = f'nemo_text_processing.inverse_text_normalization.{lang}.taggers.tokenize_and_classify'
+        verbalizer_path = f'nemo_text_processing.inverse_text_normalization.{lang}.verbalizers.verbalize_final'
+
+        try:
+            tagger_spec = import_util.find_spec(tagger_path)
+            verbalizer_spec = import_util.find_spec(verbalizer_path)
+        except Exception as exp:
+            print(f'ITN module for language: {lang} cannot be found')
+            raise exp
+        else:
+            return (tagger_spec, verbalizer_spec)
 
     def inverse_normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
-        NeMo inverse text normalizer 
+        NeMo inverse text normalizer
 
         Args:
             texts: list of input strings
