@@ -1273,20 +1273,11 @@ class FramewiseStreamingAudioBuffer:
             yield audio_chunk, chunk_lengths
 
     def get_valid_out_len(self):
-        if self.step <= 1:
-            if isinstance(self.streaming_cfg.valid_out_len, list):
-                valid_out_len = self.streaming_cfg.valid_out_len[0]
-            else:
-                valid_out_len = self.streaming_cfg.valid_out_len
-        elif self.buffer_idx >= self.buffer.size(-1):
-            if isinstance(self.streaming_cfg.valid_out_len, list):
-                valid_out_len = self.streaming_cfg.valid_out_len[1]
-            else:
-                valid_out_len = self.streaming_cfg.valid_out_len
+        # TODO: streaming fix here
+        if self.step <= 1 or self.buffer_idx >= self.buffer.size(-1):
+            return self.streaming_cfg.valid_out_len
         else:
-            valid_out_len = None
-        # TODO: fix here
-        return valid_out_len
+            return None
 
     def __len__(self):
         return len(self.buffer)
@@ -1346,8 +1337,7 @@ class FramewiseStreamingAudioBuffer:
             needed_len = self.streams_length[stream_id] + processed_signal_length
             if needed_len > self.buffer.size(-1):
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
-            # torch.cat((self.buffer, processed_signal), dim=-1)
-            # self.buffer = torch.cat((self.buffer, processed_signal), dim=-1)
+
             self.buffer[
                 stream_id, :, self.streams_length[stream_id] : self.streams_length[stream_id] + processed_signal_length
             ] = processed_signal
@@ -1363,7 +1353,6 @@ class FramewiseStreamingAudioBuffer:
 
     def get_model_device(self):
         return self.model.device
-        # return next(self.model.parameters()).device
 
     def preprocess_audio(self, audio, device=None):
         if device is None:

@@ -354,7 +354,6 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
     @typecheck()
     def forward_for_export(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         max_audio_length: int = audio_signal.size(-1)
-        length = length.to(audio_signal.device)
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
         if length is None:
@@ -371,9 +370,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
         if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(x=audio_signal)
         else:
-            audio_signal, length = self.pre_encode(
-                x=audio_signal, lengths=length  # , cache=cache_pre_encode, cache_next=cache_pre_encode_next
-            )
+            audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
             if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 # TODO: find a better solution
@@ -527,10 +524,9 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
 
         if valid_out_len is None:
             if isinstance(streaming_cfg.shift_size, list):
-                streaming_cfg.valid_out_len = [
-                    (streaming_cfg.shift_size[0] - sampling_frames[0]) // self.subsampling_factor + 1,
+                streaming_cfg.valid_out_len = (
                     (streaming_cfg.shift_size[1] - sampling_frames[1]) // self.subsampling_factor + 1,
-                ]
+                )
             else:
                 streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
         else:

@@ -108,7 +108,6 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        valid_out_len = streaming_buffer.get_valid_out_len()
         with autocast():
             with torch.no_grad():
                 (
@@ -120,7 +119,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                 ) = asr_model.stream_step(
                     processed_signal=chunk_audio,
                     processed_signal_length=chunk_lengths,
-                    valid_out_len=valid_out_len,
+                    valid_out_len=streaming_buffer.get_valid_out_len(),
                     cache_last_channel=cache_last_channel,
                     cache_last_time=cache_last_time,
                     previous_hypotheses=previous_hypotheses,
