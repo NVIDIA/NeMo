@@ -91,11 +91,19 @@ class TestRetrievalIndexFiles:
             assert np.array_equal(fetch2, gt2)
             chunk_id = ds.get_chunk_id(0, 64)
             assert chunk_id == 1
+            assert ds.from_chunk_id_to_doc_id(0) == 0
+            assert ds.from_chunk_id_to_doc_id(1) == 0
             with pytest.raises(ValueError):
                 ds.get_chunk_id(0, 128)
             assert np.array_equal(ds.get_chunk(chunk_id), gt1[64 : 64 + 64])
             chunk_id = ds.get_chunk_id(1, 0)
             assert chunk_id == 2
+            assert ds.from_chunk_id_to_doc_id(2) == 1
+            assert ds.from_chunk_id_to_doc_id(3) == 1
+            assert ds.from_chunk_id_to_doc_id(4) == 1
+            assert ds.from_chunk_id_to_doc_id(5) == 1
+            with pytest.raises(ValueError):
+                ds.from_chunk_id_to_doc_id(6)
             assert np.array_equal(ds.get_chunk(chunk_id), gt2[0:64])
             assert np.array_equal(ds.get_chunk(chunk_id + 1), gt2[64:128])
             assert np.array_equal(ds.get_chunk(chunk_id + 2), gt2[128:192])
@@ -141,11 +149,19 @@ class TestRetrievalIndexFiles:
             assert np.array_equal(fetch2, gt2)
             chunk_id = ds.get_chunk_id(0, 64)
             assert chunk_id == 1
+            assert ds.from_chunk_id_to_doc_id(0) == 0
+            assert ds.from_chunk_id_to_doc_id(1) == 0
             with pytest.raises(ValueError):
                 ds.get_chunk_id(0, 128)
             assert np.array_equal(ds.get_chunk(chunk_id), padded_gt1[64 : 64 + 64 * 2])
             chunk_id = ds.get_chunk_id(1, 0)
             assert chunk_id == 2
+            assert ds.from_chunk_id_to_doc_id(2) == 1
+            assert ds.from_chunk_id_to_doc_id(3) == 1
+            assert ds.from_chunk_id_to_doc_id(4) == 1
+            assert ds.from_chunk_id_to_doc_id(5) == 1
+            with pytest.raises(ValueError):
+                ds.from_chunk_id_to_doc_id(6)
             assert np.array_equal(ds.get_chunk(chunk_id), padded_gt2[0:128])
             assert np.array_equal(ds.get_chunk(chunk_id + 1), padded_gt2[64:192])
             assert np.array_equal(ds.get_chunk(chunk_id + 2), padded_gt2[128:256])

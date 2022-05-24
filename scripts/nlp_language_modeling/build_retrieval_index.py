@@ -45,8 +45,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 
-queue = multiprocessing.Queue(10)
-emb_queue = multiprocessing.Queue(10)
+QUEUE_SIZE = 30
+
+queue = multiprocessing.Queue(QUEUE_SIZE)
+emb_queue = multiprocessing.Queue(QUEUE_SIZE)
 
 
 def get_tokenizer(args):

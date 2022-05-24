@@ -291,6 +291,14 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
                 raise ValueError('offset is too large')
             return (self._chunk_id_start[sentence_id] + chunk_offset).item()
 
+        def from_chunk_id_to_doc_id(self, chunk_id):
+            """ from chunk_id, calculate the document id
+            """
+            if chunk_id >= self.num_chunks:
+                raise ValueError('chunk_id is out of bound')
+            doc_id = np.searchsorted(self._chunk_id_start, chunk_id, side='right')
+            return doc_id - 1
+
         def __del__(self):
             self._bin_buffer_mmap._mmap.close()
             del self._bin_buffer_mmap
@@ -407,6 +415,11 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         # make sure offset is a multiple of chunk_size
         assert offset % self._index.chunk_size == 0
         return self._index.get_chunk_id(idx, offset)
+
+    def from_chunk_id_to_doc_id(self, chunk_id):
+        """ from chunk_id, calculate the document id
+        """
+        return self._index.from_chunk_id_to_doc_id(chunk_id)
 
     def get_chunk(self, chunk_id, force_no_padding=False):
         """ Retrieves a single chunk item from the dataset.
