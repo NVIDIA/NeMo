@@ -77,7 +77,7 @@ model:
     freq_masks: 3
     freq_width: 20
     patch_size: 48
-    mask_patches: 10
+    mask_patches: 0.5
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder
