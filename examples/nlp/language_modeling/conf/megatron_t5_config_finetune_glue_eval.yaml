@@ -13,7 +13,7 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: megatron_t5_glue_eval
-  enable_checkpointing: False  # Provided by exp_manager
+  create_checkpoint_callback: False
 
 model:
   restore_from_path: ??? # Path to a finetuned T5 .nemo file
