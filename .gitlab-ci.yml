@@ -80,7 +80,6 @@ gpt3.126m_short:
     <<: [*VARS, *LUNA_VARS]
   script:
     - set -x
-    - export JOB_DIR="${GPFSFOLDER}/${CI_JOB_ID}"
     - rm -rf /lustre/fsw/joc/big_nlp/bignlp_ci/results/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RESULTS_DIR=/lustre/fsw/joc/big_nlp/bignlp_ci/results
@@ -94,7 +93,6 @@ gpt3.126m_short:
     - export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
-    - export -p > "${JOB_DIR}/.env" # Save environment (to restore it in after_script).
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
