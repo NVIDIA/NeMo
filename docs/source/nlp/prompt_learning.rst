@@ -10,6 +10,8 @@ Instead of selecting discrete text prompts in a manual or automated fashion, pro
 
 Our continuous learning capability for combined p-tuning and prompt tuning with GPT style models is a NeMo specific extension of the author's original work.
 
+Please also checkout our `prompt learning tutorial notebook. <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
+
 
 Terminology
 ^^^^^^^^^^
@@ -89,14 +91,17 @@ the input will be translated into ``VVV Hypothesis: And he said, Mama, I'm home.
         "prompt_template": "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}",
         "total_virtual_tokens": 10,
         "virtual_token_splits": [10],
-        "truncate_field": "sentence"
+        "truncate_field": "sentence",
+        "answer_only_loss": False,
     },
     {
         "taskname": "intent_and_slot",
         "prompt_template": "<|VIRTUAL_PROMPT_0|> Predict intent and slot <|VIRTUAL_PROMPT_1|> :\n{utterance}{label}",
         "total_virtual_tokens": 10,
         "virtual_token_splits": [7, 3],
-        "truncate_field": None
+        "truncate_field": None,
+        "answer_only_loss": True,
+        "answer_field": "label"
     }
   ]
 
@@ -287,7 +292,7 @@ In this example, the SQuAD task includes the question context as part of the pro
   restore_path: multitask_prompt_tuning.nemo # ***
   language_model_path: models/megatron_125M_gpt.nemo
   existing_tasks: ["sentiment", "intent_and_slot"] # ***
-  new_tasks: ["sentiment", "intent_and_slot"] 
+  new_tasks: ["squad"] 
 
   task_templates: 
   - taskname: "sentiment" 
@@ -303,9 +308,9 @@ In this example, the SQuAD task includes the question context as part of the pro
     truncate_field: null
 
   - taskname: "squad" # ***
-    prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context <|VIRTUAL_PROMPT_1|> {question} <|VIRTUAL_PROMPT_2|> {context} <|VIRTUAL_PROMPT_3|>  Answer: {answer}" # *** 
-    total_virtual_tokens: 16 # ***
-    virtual_token_splits: [4, 4, 4, 4] # ***
+    prompt_template: "<|VIRTUAL_PROMPT_0|> Answer the question from the context {question} {context} Answer: {answer}" # *** 
+    total_virtual_tokens: 9 # ***
+    virtual_token_splits: [9] # ***
     truncate_field: context # ***
     answer_only_loss: True # ***
     answer_field: 'answer # ***
