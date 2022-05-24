@@ -49,7 +49,7 @@ def post_language_model_processing(
     if get_key_value:
         lm_output, presents = lm_output
 
-    # Output.
+    # Output. Format is [s b h]
     if forward_method_parallel_output is not None:
         parallel_output = forward_method_parallel_output
     output = parallel_lm_logits(lm_output, logit_weights, parallel_output)
@@ -58,13 +58,20 @@ def post_language_model_processing(
         output = [output, presents]
 
     if labels is None:
-        return output
+        # [s b h] -> [b s h]
+        return output.transpose(0, 1).contiguous()
     else:
+        # [b s] -> [s b]
+        labels = labels.transpose(0, 1).contiguous()
+
         if fp16_lm_cross_entropy:
             assert output.dtype == torch.half
             loss = tensor_parallel.vocab_parallel_cross_entropy(output, labels)
         else:
             loss = tensor_parallel.vocab_parallel_cross_entropy(output.float(), labels)
+
+        # [s b] -> [b, s]
+        loss = loss.transpose(0, 1).contiguous()
 
         if return_logits:
             return loss, output
