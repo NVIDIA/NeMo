@@ -67,8 +67,18 @@ def get_tokenizer(args):
     return tokenizer
 
 
-def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int, warm_up_size: int):
+def process_sentence_chunks(
+    ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int, warm_up_size: int, percent: float
+):
     total_chunks = ds.chunks
+    num_docs = len(ds._index.sizes)
+    assert len(ds._index.sizes) == len(ds._index._chunk_id_start)
+    if percent < 1.0:
+        use_num_docs = int(num_docs * percent)
+        logging.info(f"Use {use_num_docs} out of {num_docs} docs to build index")
+        total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
+    logging.info(f"{total_chunks} chunks are used to build the index")
+    assert warm_up_size < total_chunks
     warm_up_slices = ds.get_chunk(slice(0, warm_up_size), force_no_padding=True)
     sentences = [tokenizer.ids_to_text(ids) for ids in warm_up_slices]
     queue.put(sentences)
@@ -125,6 +135,9 @@ if __name__ == "__main__":
         '--output_file', type=str, required=True, help='Output Faiss index file',
     )
     parser.add_argument(
+        '--percent', type=float, default=1.0, help='percent of documents used for building the search index',
+    )
+    parser.add_argument(
         '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
     )
     parser.add_argument(
@@ -161,7 +174,8 @@ if __name__ == "__main__":
         )
 
     process = multiprocessing.Process(
-        target=process_sentence_chunks, args=(ds, tokenizer, args.train_chunk_size, args.train_index_size)
+        target=process_sentence_chunks,
+        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size, args.percent),
     )
     process.start()
 
