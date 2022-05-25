@@ -39,7 +39,8 @@ before_script:
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
   - export DATETIME="$(date "+%D_%T")"
   - export DATETIME_REPLACE="${DATETIME//\//\-}"
-  - export BASE_RESULTS_DIR_UNIQUE="${BASE_RESULTS_DIR}/${DATETIME_REPLACE}_${CI_PIPELINE_ID}"
+  - export DATETIME_REPLACE2="${DATETIME_REPLACE//\:/\-}"
+  - export BASE_RESULTS_DIR_UNIQUE="${BASE_RESULTS_DIR}/${DATETIME_REPLACE2}_${CI_PIPELINE_ID}"
 
 .build: &build_template
   stage: build
