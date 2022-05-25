@@ -275,6 +275,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return tasks
 
     def state_dict(self):
+        """
+        Custom state dict that only contains prompt table and prompt encoder parameters. 
+        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
+        are only in state dict for intermediate checkpoints saved during training. Final
+        nemo checkpoints at the end of training will contain prompt table parameters only. 
+        """
         state_dict_ = {}
         state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
 
@@ -284,6 +290,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return state_dict_
 
     def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Custom load state dict method that only loads prompt table and prompt encoder
+        parameters. Matching load method for this class' custom state dict method. 
+        """
         if self._prompt_table_key in state_dict:
             state_dict_ = state_dict[self._prompt_table_key]
             self.prompt_table.load_state_dict(state_dict_, strict)
@@ -496,7 +506,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
-        #self.state_dict = self.prompt_table.state_dict
 
         # Move new tags to existing tag list for loading during inference later
         with open_dict(self.cfg):
