@@ -74,8 +74,7 @@ def main(cfg) -> None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
         model = MegatronNMTModel.restore_from(
-            restore_path=cfg.model_file, trainer=trainer,
-            save_restore_connector=NLPSaveRestoreConnector(),
+            restore_path=cfg.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
         )
     elif cfg.checkpoint_dir is not None:
         checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
