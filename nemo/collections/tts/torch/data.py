@@ -189,6 +189,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "speaker_id": item["speaker"] if "speaker" in item else None,
+                        "phoneme": item["phoneme"] if "phoneme" in item else None
                     }
 
                     if "normalized_text" not in item:
@@ -406,6 +407,8 @@ class TTSDataset(Dataset):
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+        if sample["phoneme"] == 1:
+            rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_") + "_phoneme"
 
         # Load audio
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
