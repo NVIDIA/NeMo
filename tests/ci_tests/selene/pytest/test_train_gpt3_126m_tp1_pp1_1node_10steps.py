@@ -45,7 +45,7 @@ class TestCIGPT126m:
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(train_loss_list) == 10, f"The events file must have 10 training loss values, one per training iteration."
         for step in range(0, 10):
-            assert train_loss_list[step] == expected[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_vals[step]}."
+            assert train_loss_list[step] == expected[step], f"The loss at step {step} should be {expected[step]} but it is {train_loss_list[step]}."
 
     def test_ci_gpt3_126m_train_loss_approx(self):
         # Expected training loss curve at different global steps.
@@ -58,7 +58,7 @@ class TestCIGPT126m:
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(train_loss_list) == 10, f"The events file must have 10 training loss values, one per training iteration."
         for step in range(0, 10):
-            assert train_loss_list[step] == pytest.approx(expected=expected[step], rel=self.margin), f"The loss at step {step} should be approximately {expected[step]} but it is {train_loss_vals[step]}."
+            assert train_loss_list[step] == pytest.approx(expected=expected[step], rel=self.margin), f"The loss at step {step} should be approximately {expected[step]} but it is {train_loss_list[step]}."
 
     def test_ci_gpt3_126m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
@@ -68,7 +68,7 @@ class TestCIGPT126m:
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
         for step in range(0, 5):
-            assert val_loss_list[step] == expected[step], f"The loss at step {step} should be {expected[step]} but it is {val_loss_vals[step]}."
+            assert val_loss_list[step] == expected[step], f"The loss at step {step} should be {expected[step]} but it is {val_loss_list[step]}."
 
     def test_ci_gpt3_126m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
@@ -78,7 +78,7 @@ class TestCIGPT126m:
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
         for step in range(0, 5):
-            assert val_loss_list[step] == pytest.approx(expected=expected[step], rel=self.margin), f"The loss at step {step} should be approximately {expected[step]} but it is {val_loss_vals[step]}."
+            assert val_loss_list[step] == pytest.approx(expected=expected[step], rel=self.margin), f"The loss at step {step} should be approximately {expected[step]} but it is {val_loss_list[step]}."
 
     def test_ci_gpt3_126m_train_step_timing_1node(self):
         # Expected average training time per global step.
