@@ -30,7 +30,7 @@ dataset config:
       duration_sec: 16 # specify the duration you want
 
 3) You can also use bucketing to ensure similar utterance lengths within batches.
-See `Bucketing documentation <../datasets.html#Bucketing Datasets>`__.
+See `Bucketing documentation <../datasets.html#bucketing-datasets>`__.
 
 An example of SSL train and validation configuration should look similar to the following:
 
@@ -109,7 +109,7 @@ Unlike the encoders, the decoders and corresponding losses will be specific to t
 you can discard them when transferring the model to fine-tuning.
 
 The most basic method of pre-training we can use is to have the model solve a contrastive task
-(this is the approach used in wav2vec 2.0:cite:`wav2vec2`)
+(this is the approach used in wav2vec 2.0 :cite:`wav2vec2`)
 We can define the corresponding decoder and loss configs in the following way for an encoder with stride 4x.
 
 .. code-block:: yaml
@@ -174,31 +174,16 @@ which can contain any amount of corresponding decoders and losses. For each deco
 we can specify a separate named sub-config, which contains the following fields:
 
 1. ``decoder`` - The decoder config, specifying a ``target`` class and parameters.
-
-
 2. ``loss`` - The corresponding loss config, specifying a ``target`` class and parameters.
-
-
 3. ``loss_alpha`` - A multiplier on this loss (1.0 by default).
-
-
-4. ``targets_from_loss`` - This parameter specifies which contrastive loss we should extract labels from. It is necessary for
-any loss which requires labels, if labels aren't present in your manifest.
-
-
+4. ``targets_from_loss`` - This parameter specifies which contrastive loss we should extract labels from. It is necessary for any loss which requires labels, if labels aren't present in your manifest.
 5. ``transpose_encoded`` - This parameter is used to optionally transpose the encoded features before passing them into this loss.
-
-
 6. ``start_step`` - The training step at which we should start using this decoder+loss.
-
-
-7. ``output_from_layer`` - This parameter can be used to specify the name of the layer that
-we should extract encoded features from to pass into this decoder. If it's not specified or set to null, the final encoder
-layer is used.
+7. ``output_from_layer`` - This parameter can be used to specify the name of the layer that we should extract encoded features from to pass into this decoder. If it's not specified or set to null, the final encoder layer is used.
 
 
 The following is an example of a `loss_list` for a combination of contrastive+mlm losses,
-where the mlm loss used targets from the quantization module of the contrastive loss.
+where the mlm loss uses targets from the quantization module of the contrastive loss.
 
 
 .. code-block:: yaml
@@ -404,6 +389,7 @@ respectively from 6th, 12th and final layer.
       targets_from_loss: "contr"
       loss_alpha: 300.
       output_from_layer: "layers.5"
+      transpose_encoded: true
 
     mlm_3:
       decoder:
@@ -416,3 +402,12 @@ respectively from 6th, 12th and final layer.
       targets_from_loss: "contr"
       loss_alpha: 300.
       output_from_layer: "layers.11"
+      transpose_encoded: true
+
+References
+-----------
+
+.. bibliography:: ../asr_all.bib
+    :style: plain
+    :labelprefix: SSL-MODELS
+    :keyprefix: ssl-models-

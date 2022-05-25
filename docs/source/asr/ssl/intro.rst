@@ -12,7 +12,7 @@ based approaches. In contrastive methods, models learn by distinguising between 
 tokens (or latents). Examples of contrastive approaches are Contrastive Predictive Coding (CPC), 
 Masked Language Modeling (MLM) etc. In reconstruction methods, models learn by directly estimating 
 the missing (intentionally leftout) portions of the input. Masked Reconstruction, Autoregressive 
-Predictive Coding (APC) are few examples. Here, we mainly focus on contrastive approaches. 
+Predictive Coding (APC) are few examples.
 
 In the recent past, SSL has been a major benefactor in improving Acoustic Modeling (AM), i.e., the 
 encoder module of neural ASR models. Here too, majority of SSL effort is focused on improving AM. 
