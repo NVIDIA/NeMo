@@ -114,7 +114,6 @@ class ParallelMLP(MegatronModule):
         ffn_hidden_size,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
-        hto4h_gemms_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
         activation='gelu',
@@ -150,26 +149,15 @@ class ParallelMLP(MegatronModule):
         if activation in ['geglu', 'reglu', 'swiglu']:
             # Separate linear layer for *GLU activations.
             # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
-            if hto4h_gemms_fusion:
-                self.dense_h_to_4h = ColumnLinear(
-                    hidden_size,
-                    2 * ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
-                    gather_output=False,
-                    init_method=init_method,
-                    skip_bias_add=True,
-                    use_cpu_initialization=use_cpu_initialization,
-                    bias=bias,
-                )
-            else:
-                self.dense_h_to_4h_2 = ColumnLinear(
-                    hidden_size,
-                    ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
-                    gather_output=False,
-                    init_method=init_method,
-                    skip_bias_add=True,
-                    use_cpu_initialization=use_cpu_initialization,
-                    bias=bias,
-                )
+            self.dense_h_to_4h_2 = ColumnLinear(
+                hidden_size,
+                ffn_hidden_size,  # NOTE: When using *glu, divide ffn dim by 2/3 to keep overall params the same.
+                gather_output=False,
+                init_method=init_method,
+                skip_bias_add=True,
+                use_cpu_initialization=use_cpu_initialization,
+                bias=bias,
+            )
 
         glu_activation_family = activation in ['reglu', 'swiglu']
 
@@ -196,7 +184,6 @@ class ParallelMLP(MegatronModule):
             glu_activation_family = False
 
         self.bias_activation_fusion = bias_activation_fusion
-        self.hto4h_gemms_fusion = hto4h_gemms_fusion
 
         if activation in ["gelu", "geglu"]:
             self.activation_func = F.gelu
@@ -238,11 +225,7 @@ class ParallelMLP(MegatronModule):
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
         if self.activation in ['geglu', 'reglu', 'swiglu']:
-            if self.hto4h_gemms_fusion:
-                intermediate_parallel, intermediate_parallel_2 = tensor_parallel.split_tensor_along_last_dim(intermediate_parallel, 2)
-                bias_parallel, bias_parallel_2 = tensor_parallel.split_tensor_along_last_dim(bias_parallel, 2)
-            else:
-                intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+            intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
         if self.bias_activation_fusion:
             if self.activation == 'gelu':
