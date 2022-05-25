@@ -3,8 +3,6 @@ variables: &VARS
   BIGNLP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.04-py3"
   BIGNLP_BUILD_PATH: "/lustre/fsw/joc/bignlp/bignlp_ci"
   BASE_RESULTS_DIR: "${BIGNLP_BUILD_PATH}/results"
-  DATETIME: "$(date "+%D_%T")"
-  #BASE_RESULTS_DIR_UNIQUE: "${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}"
 
 stages:
   - build
@@ -39,6 +37,8 @@ before_script:
   - export IMAGE_NAME=${IMAGE_NAME%:*}
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
+  - export DATETIME="$(date "+%D_%T")"
+  - export BASE_RESULTS_DIR_UNIQUE="${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}"
 
 .build: &build_template
   stage: build
