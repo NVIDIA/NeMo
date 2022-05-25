@@ -7,44 +7,6 @@ import omegaconf
 from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
 
 
-def create_srun_command(
-    train_cmd,
-    job_name,
-    flags="",
-    dependency=None,
-    time="04:00:00",
-    exclusive=True,
-    mem=0,
-    overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
-    gpus_per_task=None,
-    gpus_per_node=None,
-    partition="batch",
-    account=None,
-):
-    """Creates the srun command to launch the job in interactive mode."""
-    gpus_per_task_cmd = f"--gpus-per-task={gpus_per_task} " if gpus_per_task is not None else ""
-    gpus_per_node_cmd = f"--gpus-per-node={gpus_per_node} " if gpus_per_node is not None else ""
-    dependency_cmd = ""
-    if dependency is not None:
-        if dependency != "singleton":
-            dependency = f"afterany:{dependency}"
-        dependency_cmd = f"--dependency={dependency} "
-    account_cmd = f"--account={account} " if account is not None else ""
-    exclusive_cmd = f"--exclusive " if exclusive else ""
-    overcommit_cmd = f"--overcommit " if overcommit else ""
-
-    cmd = (
-        f"srun --nodes={nodes} --ntasks-per-node={ntasks_per_node} --partition={partition} "
-        f"--job-name={job_name} --mem={mem} --time={time} {gpus_per_task_cmd} "
-        f"{gpus_per_node_cmd} {dependency_cmd} {account_cmd} {exclusive_cmd} "
-        f'{overcommit_cmd} --cpus-per-task={256//ntasks_per_node} {flags} '
-        f'sh -c "{train_cmd}"\n\n '
-    )
-    return cmd
-
-
 def create_slurm_file(
     new_script_path,
     train_cmd,
