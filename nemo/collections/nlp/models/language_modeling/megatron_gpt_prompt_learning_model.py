@@ -12,13 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import re
-import tempfile
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
@@ -296,9 +294,17 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
         if self._prompt_table_key in state_dict:
             state_dict_ = state_dict[self._prompt_table_key]
-            self.prompt_table.load_state_dict(state_dict_, strict)
+        else:
+            # Handle loading state dict before weight saving change for backward compatibility.
+            state_dict_ = OrderedDict()
+            for key in state_dict.keys():
+                if key.startswith(self._prompt_table_key):
+                    key_substring = ".".join(key.split(".")[1:])
+                    state_dict_[key_substring] = state_dict[key]
 
-        if self._prompt_encoder_key in state_dict:
+        self.prompt_table.load_state_dict(state_dict_, strict)
+
+        if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             state_dict_ = state_dict[self._prompt_encoder_key]
             self.prompt_encoder.load_state_dict(state_dict_, strict)
 
