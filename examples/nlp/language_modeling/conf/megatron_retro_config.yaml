@@ -13,8 +13,8 @@ trainer:
   max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 100
-  limit_val_batches: 50
-  limit_test_batches: 500
+  limit_val_batches: null
+  limit_test_batches: null
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
