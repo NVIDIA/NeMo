@@ -247,6 +247,7 @@ class IPAG2P(BaseG2p):
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
+        phoneme_probability: Optional[float] = None,
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -265,6 +266,9 @@ class IPAG2P(BaseG2p):
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
                 Defaults to True.
             heteronyms (str, Path, List): Path to file with heteronyms (every line is new word) or list of words.
+            phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
+                Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
+                as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
         """
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
             self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict)
@@ -294,6 +298,8 @@ class IPAG2P(BaseG2p):
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )
+        self.phoneme_probability = phoneme_probability
+        self._rng = random.Random()
 
     @staticmethod
     def _parse_as_cmu_dict(phoneme_dict_path):
@@ -326,6 +332,9 @@ class IPAG2P(BaseG2p):
     def parse_one_word(self, word: str):
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
+        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+            return word, True
+
         # Punctuation (assumes other chars have been stripped)
         if re.search("[a-zA-Z]", word) is None:
             return list(word), True

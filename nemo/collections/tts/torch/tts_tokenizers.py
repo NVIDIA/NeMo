@@ -395,7 +395,7 @@ class IPATokenizer(BaseTokenizer):
         sep='|',  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
-        text_preprocessing_func=lambda x: x, #TODO: Hmm. lambda text: english_text_preprocessing(text, lower=False),
+        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
     ):
         #TODO(jocelynh): Write full docstring
         """General IPA-based tokenizer.
@@ -411,10 +411,19 @@ class IPATokenizer(BaseTokenizer):
             )
             raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
 
+        self.phoneme_probability = None
+        if hasattr(g2p, "phoneme_probability"):
+            self.phoneme_probability = g2p.phoneme_probability
+
         # Build tokens list
         tokens = list(g2p.symbols)
 
-        if chars:
+        if chars or self.phoneme_probability is not None:
+            if not chars:
+                logging.warning(
+                    "phoneme_probability was not None, characters will be enabled even though "
+                    "chars was set to False."
+                )
             tokens.extend(string.ascii_lowercase)
 
         if space in g2p.symbols:
@@ -435,7 +444,7 @@ class IPATokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
-        self.chars = chars
+        self.chars = chars if self.phoneme_probability is None else True
         self.punct = punct
         self.pad_with_space = pad_with_space
 
@@ -474,3 +483,13 @@ class IPATokenizer(BaseTokenizer):
 
         # Token index lookups
         return [self._token2id[p] for p in ps]
+
+    @contextmanager
+    def set_phone_prob(self, prob):
+        if hasattr(self.g2p, "phoneme_probability"):
+            self.g2p.phoneme_probability = prob
+        try:
+            yield
+        finally:
+            if hasattr(self.g2p, "phoneme_probability"):
+                self.g2p.phoneme_probability = self.phoneme_probability
