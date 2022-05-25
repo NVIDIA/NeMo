@@ -43,6 +43,7 @@ from nemo.collections.tts.modules.vits_modules import (
     spec_to_mel_torch,
 )
 from nemo.core.classes.common import PretrainedModelInfo
+from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
 
 class VitsModel(TextToWaveform):
@@ -164,13 +165,21 @@ class VitsModel(TextToWaveform):
     def configure_optimizers(self):
         optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
         optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
+        
+        max_steps=400000
+        min_lr = 1e-5
+        wu_ratio = 0.02
+        
+        # scheduler_g = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr, warmup_steps=max_steps * wu_ratio,)
+        # scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr,)
 
         scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
+        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
         scheduler_g_dict = {
             'scheduler': scheduler_g,
             'interval': 'step',
         }
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
+        
         scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
         return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
 
