@@ -297,11 +297,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         if self._prompt_table_key in state_dict:
             state_dict_ = state_dict[self._prompt_table_key]
             self.prompt_table.load_state_dict(state_dict_, strict)
-        
+
         if self._prompt_encoder_key in state_dict:
             state_dict_ = state_dict[self._prompt_encoder_key]
             self.prompt_encoder.load_state_dict(state_dict_, strict)
-
 
     def forward(
         self,
