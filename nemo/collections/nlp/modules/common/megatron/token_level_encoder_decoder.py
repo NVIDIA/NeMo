@@ -135,8 +135,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         elif self.position_embedding_type == 'relative':
             add_position_embedding = False
         else:
-            raise ValueError('Unknown position embeeding type. Options: '\
-                '[learned_absolute | relative]')
+            raise ValueError('Unknown position embeeding type. Options: ' '[learned_absolute | relative]')
 
         if kv_channels is None:
             assert (
@@ -155,7 +154,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     num_tokentypes=num_tokentypes,
                     use_cpu_initialization=use_cpu_initialization,
                     embedding_dropout_prob=hidden_dropout,
-                    add_position_embedding=add_position_embedding
+                    add_position_embedding=add_position_embedding,
                 )
                 self._encoder_embedding_key = "encoder_embedding"
 
@@ -218,7 +217,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         num_tokentypes=num_tokentypes,
                         use_cpu_initialization=use_cpu_initialization,
                         embedding_dropout_prob=hidden_dropout,
-                        add_position_embedding=add_position_embedding
+                        add_position_embedding=add_position_embedding,
                     )
                     self.decoder_embedding.zero_parameters()
 

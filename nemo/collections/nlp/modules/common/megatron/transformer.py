@@ -375,9 +375,9 @@ class ParallelAttention(MegatronModule):
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
         if self.position_embedding_type == 'relative':
-            self.relative_attention_bias =\
-                torch.nn.Embedding(relative_attention_num_buckets, self.num_attention_heads_per_partition)\
-                .to(torch.cuda.current_device())
+            self.relative_attention_bias = torch.nn.Embedding(
+                relative_attention_num_buckets, self.num_attention_heads_per_partition
+            ).to(torch.cuda.current_device())
         self.layer_type = layer_type
 
     def _allocate_memory(self, inference_max_sequence_len, batch_size, dtype):
@@ -490,7 +490,7 @@ class ParallelAttention(MegatronModule):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(self.layer_type != LayerType.decoder), # (not self.is_decoder),
+            bidirectional=(self.layer_type != LayerType.decoder),  # (not self.is_decoder),
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -673,7 +673,7 @@ class ParallelAttention(MegatronModule):
             if self.position_embedding_type == 'relative':
                 position_bias = self.compute_bias(real_seq_length, key_length)
             else:
-                pass # HuggingFace implementation initialize position_bias to zero when not using
+                pass  # HuggingFace implementation initialize position_bias to zero when not using
 
             # if key and values are already calculated
             # we want only the last query position bias
@@ -1477,8 +1477,16 @@ class ParallelTransformer(MegatronModule):
 
         return num_layers
 
-    def _checkpointed_forward(self, hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb,
-        position_bias, encoder_decoder_position_bias):
+    def _checkpointed_forward(
+        self,
+        hidden_states,
+        attention_mask,
+        encoder_output,
+        enc_dec_attn_mask,
+        rotary_pos_emb,
+        position_bias,
+        encoder_decoder_position_bias,
+    ):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
@@ -1492,8 +1500,15 @@ class ParallelTransformer(MegatronModule):
                 encoder_decoder_position_bias = inputs[6]
                 for index in range(start, end):
                     layer = self._get_layer(index)
-                    x_ = layer(x_, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb,
-                        position_bias, encoder_decoder_position_bias)
+                    x_ = layer(
+                        x_,
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb,
+                        position_bias,
+                        encoder_decoder_position_bias,
+                    )
                 return x_
 
             return custom_forward
@@ -1515,7 +1530,7 @@ class ParallelTransformer(MegatronModule):
                     enc_dec_attn_mask,
                     rotary_pos_emb,
                     position_bias,
-                    encoder_decoder_position_bias
+                    encoder_decoder_position_bias,
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
@@ -1532,12 +1547,17 @@ class ParallelTransformer(MegatronModule):
                         enc_dec_attn_mask,
                         rotary_pos_emb,
                         position_bias,
-                        encoder_decoder_position_bias
+                        encoder_decoder_position_bias,
                     )
                 else:
                     hidden_states = custom(l, l + 1)(
-                        hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb,
-                        position_bias, encoder_decoder_position_bias
+                        hidden_states,
+                        attention_mask,
+                        encoder_output,
+                        enc_dec_attn_mask,
+                        rotary_pos_emb,
+                        position_bias,
+                        encoder_decoder_position_bias,
                     )
         else:
             raise ValueError("Invalid activation checkpoint method.")
