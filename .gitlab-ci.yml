@@ -3,6 +3,8 @@ variables: &VARS
   BIGNLP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.04-py3"
   BIGNLP_BUILD_PATH: "/lustre/fsw/joc/bignlp/bignlp_ci"
   BASE_RESULTS_DIR: "${BIGNLP_BUILD_PATH}/results"
+  DATETIME: "$(date "+%D_%T")"
+  BASE_RESULTS_DIR_UNIQUE: "${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}"
 
 stages:
   - build
@@ -51,8 +53,6 @@ before_script:
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
-    - export DATETIME=$(date "+%D_%T")
-    - export BASE_RESULTS_DIR_UNIQUE=${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}
   allow_failure: false
   tags:
     - vm-builder
