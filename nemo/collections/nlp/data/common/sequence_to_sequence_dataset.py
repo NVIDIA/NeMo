@@ -211,7 +211,7 @@ class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         self._dataset_length = lambda dataset: dataset.sizes.shape[0]
         if not end_index:
             self.end_index = self._dataset_length(self.src_indexed_dataset) - 1
-        self._print_stats('Source Datset', self.start_index, self.end_index)
+        self._print_stats('Source Dataset', self.start_index, self.end_index)
         self._print_stats('Target Dataset', self.start_index, self.end_index)
 
     def __len__(self):
