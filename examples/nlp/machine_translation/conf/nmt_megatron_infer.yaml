@@ -3,8 +3,6 @@ trainer:
   num_nodes: 1
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: gpu
-  accumulate_grad_batches: 1
-  gradient_clip_val: 1.0
 
 model_file: ???
 checkpoint_dir: null
