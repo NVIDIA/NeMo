@@ -17,14 +17,18 @@
 
 import collections
 import os
+import json
+import gc
 import pickle
 from functools import lru_cache
 from typing import Dict, List, Optional
+from memory_profiler import profile
 
 import numpy as np
 import psutil
 import torch
-from tqdm import trange
+from tqdm import trange, tqdm
+import ijson
 
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import is_whitespace
@@ -187,7 +191,7 @@ class SquadDataset(Dataset):
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
-            + '_cache'
+            + '_new2_cache'
             + '_{}_{}_{}_{}_{}_{}_{}'.format(
                 mode,
                 tokenizer.name,
@@ -211,19 +215,37 @@ class SquadDataset(Dataset):
             logging.info(f"loading from {cached_features_file}")
             # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
-                self.examples = []
+                del self.examples
                 del self.processor
-            with open(cached_features_file, "rb") as reader:
-                items_to_pickle = pickle.load(reader)
-                (
-                    self.features,
-                    self.input_mask_id_to_input_mask,
-                    self.input_mask_to_input_mask_id,
-                    self.segment_mask_id_to_segment_mask,
-                    self.segment_mask_to_segment_mask_id,
-                ) = items_to_pickle
+                gc.collect()
+            # with open(cached_features_file, "rb") as reader:
+            #     items_to_pickle = pickle.load(reader)
+            #     (
+            #         self.features,
+            #         self.input_mask_id_to_input_mask,
+            #         self.input_mask_to_input_mask_id,
+            #         self.segment_mask_id_to_segment_mask,
+            #         self.segment_mask_to_segment_mask_id,
+            #     ) = items_to_pickle
+            #     items_to_pickle = None
+            #     del items_to_pickle
+            
+            
+            with open(cached_features_file, "r") as reader:
+                items_to_pickle = json.load(reader)
+                #features_iter = ijson.items(reader, 'features.item')
+                #self.features = [feature for feature in tqdm(features_iter)]
+                # from collections import Counter
+                # print(Counter(end_positions))
+                #raise ValueError
+                self.features = items_to_pickle["features"]
+                self.input_mask_id_to_input_mask = {int(k): v for k, v in items_to_pickle["input_mask_id_to_input_mask"].items()}
+                self.input_mask_to_input_mask_id = {tuple(v): k for k, v in self.input_mask_id_to_input_mask.items()}
+                self.segment_mask_id_to_segment_mask = {int(k): v for k, v in items_to_pickle["segment_mask_id_to_segment_mask"].items()}
+                self.segment_mask_to_segment_mask_id =  {tuple(v): k for k, v in self.segment_mask_id_to_segment_mask.items()}
                 items_to_pickle = None
                 del items_to_pickle
+
         else:
             logging.info(f"Preprocessing data.")
 
@@ -240,20 +262,31 @@ class SquadDataset(Dataset):
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
                     logging.info("  Saving train features into cached file %s", cached_features_file)
-                    with open(cached_features_file, "wb") as writer:
-                        items_to_pickle = [
-                            self.features,
-                            self.input_mask_id_to_input_mask,
-                            self.input_mask_to_input_mask_id,
-                            self.segment_mask_id_to_segment_mask,
-                            self.segment_mask_to_segment_mask_id,
-                        ]
-                        pickle.dump(items_to_pickle, writer)
+                    # with open(cached_features_file, "wb") as writer:
+                    #     items_to_pickle = [
+                    #         self.features,
+                    #         self.input_mask_id_to_input_mask,
+                    #         self.input_mask_to_input_mask_id,
+                    #         self.segment_mask_id_to_segment_mask,
+                    #         self.segment_mask_to_segment_mask_id,
+                    #     ]
+                    #     pickle.dump(items_to_pickle, writer)
+
+                    json_file_content = {
+                        "features": self.features,
+                        "input_mask_id_to_input_mask": self.input_mask_id_to_input_mask,
+                        "segment_mask_id_to_segment_mask": self.segment_mask_id_to_segment_mask,
+                    }
+                    with open(cached_features_file, "w") as writer:
+                        json.dump(json_file_content, writer)
 
             # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
                 self.examples = []
                 del self.processor
+        logging.info("Converting json features into object features")
+        for i in trange(len(self.features)):
+            self.features[i] = InputFeatures(**self.features[i])
 
     @staticmethod
     def get_doc_tokens_and_offset_from_context_id(
@@ -537,29 +570,29 @@ class SquadDataset(Dataset):
                 # end memoization
 
                 if self.mode == TRAINING_MODE:
-                    input_feature = InputFeatures(
-                        unique_id=unique_id,
-                        input_ids=input_ids,
-                        input_mask=feature_input_mask_id,
-                        segment_ids=feature_segment_mask_id,
-                        start_position=start_position,
-                        end_position=end_position,
-                    )
+                    input_feature = {
+                        "unique_id": unique_id,
+                        "input_ids": input_ids,
+                        "input_mask": feature_input_mask_id,
+                        "segment_ids": feature_segment_mask_id,
+                        "start_position": start_position,
+                        "end_position": end_position,
+                    }
                 else:
-                    input_feature = InputFeatures(
-                        unique_id=unique_id,
-                        input_ids=input_ids,
-                        input_mask=feature_input_mask_id,
-                        segment_ids=feature_segment_mask_id,
-                        start_position=start_position,
-                        end_position=end_position,
-                        example_index=example_index,
-                        doc_span_index=doc_span_index,
-                        tokens=tokens,
-                        token_to_orig_map=token_to_orig_map,
-                        token_is_max_context=token_is_max_context,
-                        is_impossible=example.is_impossible,
-                    )
+                    input_feature = {
+                        "unique_id": unique_id,
+                        "input_ids": input_ids,
+                        "input_mask": feature_input_mask_id,
+                        "segment_ids": feature_segment_mask_id,
+                        "start_position": start_position,
+                        "end_position": end_position,
+                        "example_index": example_index,
+                        "doc_span_index": doc_span_index,
+                        "tokens": tokens,
+                        "token_to_orig_map": token_to_orig_map,
+                        "token_is_max_context": token_is_max_context,
+                        "is_impossible": example.is_impossible,
+                    }
 
                 features.append(input_feature)
                 unique_id += 1
