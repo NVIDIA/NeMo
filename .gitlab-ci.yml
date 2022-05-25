@@ -4,7 +4,7 @@ variables: &VARS
   BIGNLP_BUILD_PATH: "/lustre/fsw/joc/bignlp/bignlp_ci"
   BASE_RESULTS_DIR: "${BIGNLP_BUILD_PATH}/results"
   DATETIME: "$(date "+%D_%T")"
-  BASE_RESULTS_DIR_UNIQUE: "${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}"
+  #BASE_RESULTS_DIR_UNIQUE: "${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}"
 
 stages:
   - build
