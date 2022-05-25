@@ -383,10 +383,12 @@ class RetrievalTranslationDataset(TranslationDataset):
             to_add = []
             # add the original src sentence
             to_add.extend(src_ids[i])
-            for nn_id in self.nn_list[i].tolist():
-                # Add the src and tgt of nearest neighbor
-                to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
-                to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+            samp_prob = 0.2
+            if np.random.uniform(0,1) > samp_prob:
+                for nn_id in self.nn_list[i].tolist():
+                    # Add the src and tgt of nearest neighbor
+                    to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                    to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
             src_ids_extended.append(to_add)
         src_ids = src_ids_extended
 

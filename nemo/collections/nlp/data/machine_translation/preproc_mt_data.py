@@ -229,7 +229,7 @@ class MTDataPreproc:
                     if cfg.train_ds.get('retrieval') and len(src_file_list) != len(retrieval_indices_file_list):
                         raise ValueError("Number of source files, target files, and retrieval files must be the same.")
                     # TODO: Get over this hack
-                    if not cfg.get('retrieval', False):
+                    if not cfg.train_ds.get('retrieval', False):
                         retrieval_indices_file_list = [None] * len(src_file_list)
 
                     # TODO: have to get tokenizers inside .preprocess_parallel because they can't be pickled
