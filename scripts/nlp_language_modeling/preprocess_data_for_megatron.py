@@ -14,6 +14,39 @@
 
 """Processing data for megatron pretraining.
 
+It can be used to convert the text data into indexed dataset for BERT, GPT, T5, RETRO models etc.
+
+
+Example script to preprocess the loose JSON file for BERT model
+
+```python
+python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
+    --input=PATH_TO_THE_RETRIEVAL_DB_LOOSE_JSON_FILE \
+    --json-keys=text \
+    --vocab-file=PATH_TO_VOCAB_FILE \
+    --dataset-impl=mmap \
+    --output-prefix=YOUR_DATA_PREFIX \
+    --tokenizer-library=megatron \
+    --tokenizer-type=BertWordPieceCase \
+    --split-sentences \
+    --workers=48
+```
+
+Example script to preprocess the loose JSON file for GPT model
+
+```python
+python scripts/nlp_language_modeling/preprocess_data_for_megatron.py \
+    --input=PATH_TO_THE_RETRIEVAL_DB_LOOSE_JSON_FILE \
+    --json-keys=text \
+    --tokenizer-library=megatron \
+    --tokenizer-type=GPT2BPETokenizer \
+    --dataset-impl=mmap \
+    --merge-file=YOUR_MERGE_FILE \
+    --vocab-file=YOUR_VOCAB_FILE \
+    --output-prefix=YOUR_DATA_PREFIX \
+    --append-eod \
+    --workers=48
+```
 
 Example script to preprocess the loose JSON file for retrieval DB Dataset
 
