@@ -255,6 +255,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
             return
         averaged_loss = torch.stack(outputs).mean()
         self.log('val_loss', averaged_loss, prog_bar=True)
+        # formula to compute the perplexity
+        # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
+        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True)
         self.log('consumed_samples', self.compute_consumed_samples(self.trainer.global_step - self.init_global_step))
         return averaged_loss
 
