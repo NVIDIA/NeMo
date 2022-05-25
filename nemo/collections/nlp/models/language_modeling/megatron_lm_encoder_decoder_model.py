@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import re
 from typing import Any, Dict, Optional
 
@@ -418,7 +419,54 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    def get_forward_output_only_func(self, args_idx, arg_names, shared_args_dict={}):
+    @functools.cached_property
+    def _kwargs_to_arg_idx(self):
+        """
+        Returns a dict {kwarg name: arg index} to be used when mapping
+        kwargs into a list of args.
+        
+        Computed on first call, and then cached.
+        """
+        # build mapping of kwargs to arg index at first run
+        args_name = inspect.getfullargspec(self.enc_dec_model.forward)[0][1:]
+        kwargs_to_arg_idx = {k: v for k, v in zip(args_name, range(len(args_name)))}
+        
+        return kwargs_to_arg_idx
+    
+    def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
+        """
+        A helper method that converts arguments into positional arguments (by name)
+        
+        args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
+        args_name - a list of argument name (to be matched against allowed kwargs)
+        kwargs - a dict {arg name: arg value} (used for non-tensor values)
+        """
+        # sanity checks
+        if len(args) != len(args_name):
+            raise ValueError(f"Mismatch between length in args_name ({len(args_name)}) and args ({len(args)})")
+        if any([n in kwargs for n in args_name]):
+            raise ValueError(f"args_name = {args_name} cannot overlap kwargs = {list(kwargs.keys())}")
+
+        # get mapping of kwarg names to arg index
+        kwargs_to_arg_idx = self._kwargs_to_arg_idx
+
+        # collect all arguments
+        all_args_name = args_name[:]
+        all_args = args[:]
+        for k, v in kwargs.items():
+            all_args_name.append(name)
+            all_args.append(v)
+
+        args_idx = [kwargs_to_arg_idx[n] for n in all_args_name]
+
+        # construct args ordered by name (with None as place-holder)
+        forward_args = [None] * max(args_idx)
+        for i, v in zip(args_idx, all_args):
+            forward_args[i] = v
+        
+        return forward_args
+        
+    def get_forward_output_only_func(self, arg_names, shared_args_dict={}):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
@@ -441,38 +489,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_only_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             
-            # add shared args
-            shared_arg_names, shared_args_idx, shared_args_value = [(k, v[0], v[1]) for k, v in shared_args_dict.items()]
-            batch.extend(shared_args_value)
-            args_idx.extend(shared_args_idx)
-            arg_names.extend(shared_arg_names)
-            
-            if len(args_idx) != len(batch):
-                raise ValueError(f"wrong number of items in the batch, expected {len(args_idx)} but received {len(batch)}. arg_names ={arg_names}")
-            # create default None values
-            args = [None] * max(args_idx)
-            for i, b in zip(args_idx, batch):
-                args[i] = b
-                
+            # map batch and shared args into forward args            
+            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **shared_args_dict)
             output = model(*args)
                 
-            # if len(batch) == 4:
-            #     encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
-            #     enc_input = None
-            # elif len(batch) == 5:
-            #     encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask, enc_input = batch
-            # else:
-            #     raise ValueError("wrong number of items in the batch")
-            # output = model(
-            #     encoder_input_ids,  # enc_input_ids
-            #     encoder_attn_mask,  # enc_attn_mask
-            #     decoder_input_ids,  # dec_input_ids
-            #     decoder_attn_mask,  # dec_attn_mask
-            #     None,  # token_type_ids
-            #     None,  # labels
-            #     enc_input,  # enc_input
-            # )
-
             def id_func(output_tensor):
                 return output_tensor, {'logits': output_tensor}
 
@@ -812,12 +832,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None):
+        """
+        tokens_enc - encoder input tokens 
+        enc_mask - corresponding mask
+        encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
+        """
         # If classes that inherit from this class are using a different tokenizer,
         app_state = AppState()
         if tokens_enc is not None:
             global_batch_per_gpu = tokens_enc.size(0)
+            encoder_seq_length = tokens_enc.size(1)
         else:
             global_batch_per_gpu = encoder_input.size(0)
+            encoder_seq_length = encoder_input.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -829,12 +856,78 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        predicted_tokens_dec = (
-            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(tokens_enc.device)
-        )
-        encoder_seq_length = tokens_enc.size(1)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
+
+        # build input arguments description        
+        shared_args_dict={'output_enc_hidden_only': (9, True)}
+
+        if tokens_enc is not None:
+            batch_for_pipeline = [tokens_enc, enc_mask]
+            args_idx = [0, 1]
+            arg_names = ['enc_input_ids', 'enc_attn_mask']
+        else:
+            if encoder_input is None:
+                raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
+
+            batch_for_pipeline = [enc_mask]
+            args_idx = [1]
+            arg_names = ['enc_attn_mask']
+
+        if encoder_input is not None:
+            batch_for_pipeline.append(encoder_input)
+            args_idx.append(8)
+            arg_names.append('enc_input')
+        
+        forward_step_func = self.get_forward_output_only_func(args_idx=args_idx, arg_names=arg_names, shared_args_dict=shared_args_dict)
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+            )
+
+        # get output tensor
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = output_tensor[0]['logits']
+            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
+            predicted_tokens_dec = torch.cat(
+                [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
+            )
+        else:
+            log_probs = torch.zeros(
+                (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1]), dtype=self.autocast_dtype
+            ).cuda()
+            predicted_tokens_dec = torch.zeros(
+                (predicted_tokens_dec.shape[0], predicted_tokens_dec.shape[1] + 1),
+                dtype=predicted_tokens_dec.dtype,
+            ).cuda()
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # Broadcast from the last pipeline stage to all other model-parallel ranks.
+            torch.distributed.broadcast(
+                predicted_tokens_dec,
+                parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_model_parallel_group(),
+            )
+            torch.distributed.broadcast(
+                log_probs,
+                parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_model_parallel_group(),
+            )
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, encoder_input=None, tokenizer=None,
                enc_output=None, enc_output_attn_mask=None):
@@ -870,7 +963,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # else:
             #     batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
                 
-            batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
+            batch_for_pipeline = [tokens_enc, enc_mask, predicted_tokens_dec, dec_mask]
             args_idx = [0, 1, 2, 3]
             arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
@@ -884,7 +977,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_for_pipeline.append(enc_output)
                 batch_for_pipeline.append(enc_output_attn_mask)
             if encoder_input is not None:
-                args_idx.append(9)
+                args_idx.append(8)
                 arg_names.append('enc_input')
                 batch_for_pipeline.append(encoder_input)
             
