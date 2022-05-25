@@ -289,6 +289,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                                         tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
                                     ),
                                 )
+                                
                         # create config and artifacts in tmpdir
                         config_yaml = os.path.join(tmpdir, self.model_config_yaml)
                         model.to_config_file(path2yaml_file=config_yaml)
