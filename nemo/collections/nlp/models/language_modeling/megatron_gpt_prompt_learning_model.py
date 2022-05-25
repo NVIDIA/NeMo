@@ -88,18 +88,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
             )
 
-        elif cfg.get('language_model_config_path', None):
-            frozen_model_config = OmegaConf.load(
-                self.register_artifact('language_model_config_path', cfg.get('language_model_config_path'))
-            )
-            self.frozen_model = MegatronGPTModel(frozen_model_config, trainer=trainer)
-
-        else:
-            raise ValueError("Neither a valid GPT .nemo path nor a valid gpt config path was given.")
-
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
-        self.frozen_model_path = cfg.get('language_model_path')
         self.tokenizer = self.frozen_model.tokenizer
         self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -117,6 +107,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_id_num_to_name=self.task_id_num_to_name,
             hidden_size=self.hidden_size,
         )
+        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
+        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
@@ -281,6 +273,25 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             tasks[taskname] = self.task_templates[taskname].copy()
 
         return tasks
+
+    def state_dict(self):
+        state_dict_ = {}
+        state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
+
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if self._prompt_table_key in state_dict:
+            state_dict_ = state_dict[self._prompt_table_key]
+            self.prompt_table.load_state_dict(state_dict_, strict)
+        
+        if self._prompt_encoder_key in state_dict:
+            state_dict_ = state_dict[self._prompt_encoder_key]
+            self.prompt_encoder.load_state_dict(state_dict_, strict)
+
 
     def forward(
         self,
@@ -485,6 +496,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.virtual_prompt_style = VirtualPromptStyle.INFERENCE
         self.virtual_prompt_source = VirtualPromptSource.PROMPT_TABLE
+        #self.state_dict = self.prompt_table.state_dict
 
         # Move new tags to existing tag list for loading during inference later
         with open_dict(self.cfg):
@@ -492,21 +504,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             self.cfg.new_tasks = []
             self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE.value
 
-            # No longer need gpt model's .nemo file.
-            self.cfg.language_model_path = None
-
-        # GPT model weights are saved in this model's model_weights.ckpt and gpt config
-        # saved as artifact with name frozen_model_config.yaml.
-        with tempfile.TemporaryDirectory() as tmpdir:
-            frozen_model_config_yaml = os.path.join(tmpdir, "frozen_model_config.yaml")
-            self.frozen_model.to_config_file(path2yaml_file=frozen_model_config_yaml)
-            self.cfg.language_model_config_path = self.register_artifact(
-                "language_model_config_path", frozen_model_config_yaml
-            )
-
-            # Save the best nemo model
-            self.save_to(save_path=self.cfg.nemo_path)
-
+        # Save the best nemo model
+        self.save_to(save_path=self.cfg.nemo_path)
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
