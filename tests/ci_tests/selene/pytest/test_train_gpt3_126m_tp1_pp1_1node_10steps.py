@@ -62,7 +62,7 @@ class TestCIGPT126m:
 
     def test_ci_gpt3_126m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
-        expected = [9.0641, 8.51007, 8.26597, 7.97282, 7.65916]
+        expected = [10.78457, 10.58221, 9.97985, 9.31694, 9.0641]
         val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
@@ -72,7 +72,7 @@ class TestCIGPT126m:
 
     def test_ci_gpt3_126m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
-        expected = [9.0641, 8.51007, 8.26597, 7.97282, 7.65916]
+        expected = [10.78457, 10.58221, 9.97985, 9.31694, 9.0641]
         val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
