@@ -76,7 +76,7 @@ before_script:
 build-BigNLP:
   <<: *build_template
 
-gpt3.126m_tp1_pp1_1node_10steps:
+train.gpt3.126m_tp1_pp1_1node_10steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -84,9 +84,10 @@ gpt3.126m_tp1_pp1_1node_10steps:
   script:
     - set -x
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RESULTS_DIR=${BASE_RESULTS_DIR_UNIQUE}/gpt3_126m_tp1_pp1_1node_10steps
+    - export RUN_NAME=train_gpt3_126m_tp1_pp1_1node_10steps
+    - export RESULTS_DIR=${BASE_RESULTS_DIR_UNIQUE}/${RUN_NAME}
     - pwd
-    - bash tests/ci_tests/selene/scripts/gpt3_126m_tp1_pp1_1node_10steps.sh
+    - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
@@ -107,13 +108,12 @@ gpt3.126m_tp1_pp1_1node_10steps:
     - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
     # Follow output of the job
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
-    - echo "Finished GPT-3 126M TP1 PP1 1node 10steps training job"
+    - echo "Finished job with name: ${RUN_NAME}"
+    - cd ${GIT_CLONE_PATH}
+
     # Run Pytest
     - pip3 install pytest
-    - cd ${GIT_CLONE_PATH}
-    - pwd
-    - echo "$PWD"
-    - pytest tests/ci_tests/selene/pytest/test_gpt3_126m_tp1_pp1_1node_10steps.py
+    - pytest tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
     - echo "Finished pytest job"
   rules:
     - when: always
