@@ -22,7 +22,6 @@ import gc
 import pickle
 from functools import lru_cache
 from typing import Dict, List, Optional
-from memory_profiler import profile
 
 import numpy as np
 import psutil
