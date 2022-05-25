@@ -20,7 +20,7 @@ def _read_tb_logs_as_list(path, summary_name):
     files = os.listdir(path)
     for f in files:
         if f[:6] == "events":
-            event_file = os.path.join(results_dir, f)
+            event_file = os.path.join(path, f)
             ea = event_accumulator.EventAccumulator(event_file)
             ea.Reload()
             summary = ea.Scalars(summary_name)
