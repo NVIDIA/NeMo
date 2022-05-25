@@ -76,7 +76,7 @@ before_script:
 build-BigNLP:
   <<: *build_template
 
-gpt3.126m_tp1_pp1_1node_10steps:
+gpt3.126m_short:
   tags: *LUNA_TAGS
   stage: test
   variables:
