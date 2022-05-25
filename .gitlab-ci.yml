@@ -1,8 +1,8 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BUILD_PATH: "/lustre/fsw/joc/bignlp/bignlp_ci"
   BIGNLP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.04-py3"
-  DATETIME: date "+%D_%T"
+  BIGNLP_BUILD_PATH: "/lustre/fsw/joc/bignlp/bignlp_ci"
+  BASE_RESULTS_DIR: "${BIGNLP_BUILD_PATH}/results"
 
 stages:
   - build
@@ -29,9 +29,9 @@ test:unit_tests:
 before_script:
   - export DOCKERFILE=./Dockerfile
   - if [[ -z ${BASE_IMAGE} ]]; then
-    export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
+      export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
     else
-    export FROM_IMAGE_NAME=$BASE_IMAGE;
+      export FROM_IMAGE_NAME=$BASE_IMAGE;
     fi
   - export IMAGE_NAME=${BASE_IMAGE##*/}
   - export IMAGE_NAME=${IMAGE_NAME%:*}
@@ -51,6 +51,8 @@ before_script:
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
+    - export DATETIME=$(date "+%D_%T")
+    - export BASE_RESULTS_DIR_UNIQUE=${BASE_RESULTS_DIR}/${DATETIME}_${CI_PIPELINE_ID}
   allow_failure: false
   tags:
     - vm-builder
@@ -74,25 +76,22 @@ before_script:
 build-BigNLP:
   <<: *build_template
 
-gpt3.126m_short:
+gpt3.126m_tp1_pp1_1node_10steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
     - set -x
-    - echo $DATETIME
-    - rm -rf /lustre/fsw/joc/big_nlp/bignlp_ci/results/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RESULTS_DIR=/lustre/fsw/joc/big_nlp/bignlp_ci/results
-    - export MODEL_RESULTS_DIR=${RESULTS_DIR}/ci_gpt3_126m_deterministic
+    - export RESULTS_DIR=${BASE_RESULTS_DIR_UNIQUE}/gpt3_126m_tp1_pp1_1node_10steps
     - pwd
-    - bash tests/ci_tests/launch_selene_gpt3_126m.sh
+    - bash tests/ci_tests/selene/scripts/gpt3_126m_tp1_pp1_1node_10steps.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${MODEL_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=${MODEL_RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 744 ./*
@@ -108,13 +107,13 @@ gpt3.126m_short:
     - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
     # Follow output of the job
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
-    - echo "Finished GPT-3 126M training job"
+    - echo "Finished GPT-3 126M TP1 PP1 1node 10steps training job"
     # Run Pytest
     - pip3 install pytest
     - cd ${GIT_CLONE_PATH}
     - pwd
     - echo "$PWD"
-    - pytest tests/ci_tests/test_ci_gpt3_126m.py
+    - pytest tests/ci_tests/selene/pytest/test_gpt3_126m_tp1_pp1_1node_10steps.py
     - echo "Finished pytest job"
   rules:
     - when: always
