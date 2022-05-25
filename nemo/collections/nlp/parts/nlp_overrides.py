@@ -41,7 +41,6 @@ from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.utils import AppState, logging
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
@@ -290,7 +289,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                                         tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
                                     ),
                                 )
-
+                        # create config and artifacts in tmpdir
                         config_yaml = os.path.join(tmpdir, self.model_config_yaml)
                         model.to_config_file(path2yaml_file=config_yaml)
                         if hasattr(model, 'artifacts') and model.artifacts is not None:
