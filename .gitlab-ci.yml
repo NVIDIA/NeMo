@@ -76,7 +76,7 @@ before_script:
 build-BigNLP:
   <<: *build_template
 
-gpt3.126m_short:
+train.gpt3.126m_tp1_pp1_1node_10steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -108,7 +108,7 @@ gpt3.126m_short:
     - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
     # Follow output of the job
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
-    - echo "Finished job with name: ${RUN_NAME}"
+    - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
 
     # Run Pytest
