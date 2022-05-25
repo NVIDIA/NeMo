@@ -99,6 +99,7 @@ class TestTrainingGPT3Config:
           
           # Megatron O2-style half-precision
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
@@ -294,6 +295,7 @@ class TestTrainingGPT3Config:
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
@@ -491,6 +493,7 @@ class TestTrainingGPT3Config:
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
@@ -685,7 +688,8 @@ class TestTrainingGPT3Config:
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
           # Megatron O2-style half-precision
-          megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
+          megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
@@ -880,7 +884,8 @@ class TestTrainingGPT3Config:
           fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
 
           # Megatron O2-style half-precision
-          megatron_amp_O2: True # Enable O2-level automatic mixed precision using master parameters
+          megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
