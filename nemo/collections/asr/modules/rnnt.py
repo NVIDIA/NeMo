@@ -1189,8 +1189,8 @@ class RNNTDecoderJointSSL(torch.nn.Module):
 
         return log_probs
 
+
 # Add the adapter compatible modules to the registry
 for cls in [RNNTDecoder, RNNTJoint]:
     if adapter_mixins.get_registered_adapter(cls) is None:
         adapter_mixins.register_adapter(cls, cls)  # base class is adapter compatible itself
-
