@@ -130,13 +130,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
 
-        if self.position_embedding_type == 'absolute' or 'learned_absolute':
+        if self.position_embedding_type == 'learned_absolute':
             add_position_embedding = True
         elif self.position_embedding_type == 'relative':
             add_position_embedding = False
         else:
-            raise ValueError('Unknown position embeeding type. Options: [absolute '\
-                '| learned_absolute | relative]')
+            raise ValueError('Unknown position embeeding type. Options: '\
+                '[learned_absolute | relative]')
 
         if kv_channels is None:
             assert (
