@@ -15,8 +15,8 @@
 import argparse
 import json
 import multiprocessing
-import random
 import os
+import random
 import subprocess
 import tarfile
 import urllib.request
@@ -122,7 +122,6 @@ def main():
     # ToDo(@aroraakshit): correct the following two functions
     # __maybe_download_file(URL + ZIPPED_FOLDER, dataset_root / ZIPPED_FOLDER)
     # __extract_file(dataset_root / ZIPPED_FOLDER, dataset_root)
-    
     __process_data(
         dataset_root / EXTRACTED_FOLDER, args.val_size, args.test_size, args.seed_for_ds_split,
     )
