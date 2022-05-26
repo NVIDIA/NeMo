@@ -242,7 +242,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
         loss = super().validation_step(processed_batch, batch_idx)
 
-        predicted_token_ids, _ = self.decode(tokens_enc=processed_batch['text_enc'], enc_mask=processed_batch['enc_mask'], num_tokens_to_generate=30)
+        predicted_token_ids, _ = self.decode(
+            tokens_enc=processed_batch['text_enc'], enc_mask=processed_batch['enc_mask'], num_tokens_to_generate=30
+        )
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = self.ids_to_text(predicted_token_ids)
