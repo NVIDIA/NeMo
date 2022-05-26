@@ -169,6 +169,8 @@ class Normalizer:
             )
         except BaseException as e:
             raise e
+
+        normalized_texts = list(itertools.chain(*normalized_texts))
         return normalized_texts
 
     def __process_batch(self, batch, verbose, punct_pre_process, punct_post_process):
