@@ -88,6 +88,9 @@ class RETRODataset(Dataset):
         self.eos_id = tokenizer.eos_id
         self.pad_id = tokenizer.pad_id
 
+        assert self.retrieval_index._index.retrieval_db
+        self._validate_pad_id()
+
         # save index mappings to a configurable dir
         self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
         self.neighbors = cfg.data.get('neighbors', self.knn_index.K)
@@ -112,6 +115,27 @@ class RETRODataset(Dataset):
             index_mapping_dir=self.index_mapping_dir,
         )
         self.padding_context = np.ones(2 * self.chunk_size, dtype=self.retrieval_index._index.dtype) * self.pad_id
+
+    def _validate_pad_id(self):
+        # validate the pad_id matches the dataset pad_id
+        ptr, size = self.retrieval_index._index[0]
+        ptr += size * np.dtype(self.retrieval_index._index.dtype).itemsize
+        # padded chunk_size of pad_ids at the end of the doc
+        retrieval_paddings = np.frombuffer(
+            self.retrieval_index._bin_buffer,
+            dtype=self.retrieval_index._index.dtype,
+            count=self.chunk_size,
+            offset=ptr,
+        )
+        assert (retrieval_paddings == self.pad_id).all()
+
+        ptr, size = self.indexed_dataset._index[0]
+        ptr += (size - 1) * np.dtype(self.indexed_dataset._index.dtype).itemsize
+        data_paddings = np.frombuffer(
+            self.indexed_dataset._bin_buffer, dtype=self.indexed_dataset._index.dtype, count=1, offset=ptr
+        )
+        # the last element is either a padding or an eos
+        assert (data_paddings == self.pad_id).all() or (data_paddings == self.eos_id).all()
 
     def __len__(self):
         # -1 is due to data structure used to retieve the index:
