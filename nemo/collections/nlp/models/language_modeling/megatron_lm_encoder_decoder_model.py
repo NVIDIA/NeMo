@@ -845,7 +845,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
-        assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
         # build input arguments description        
         if tokens_enc is not None:
