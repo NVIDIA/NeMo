@@ -96,37 +96,23 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if hasattr(self, '_train_ds'):
             self.setup_training_data()
 
-    def process_global_batch(self, global_batch):
+    def _process_global_batch(self, global_batch):
         """Process a list of microbatches into a global batch."""
         # If there is no language information in the global batch (ex: English MNLI), we can use the parent global batch processor as is.
-        if len(global_batch[0]) == 6:
+        if 'lang' not in global_batch[0]:
             return self._process_global_batch_without_megatron_batch_sampler(global_batch)
 
         # For validation data (XNLI), we need to process the global batch and and then deal with language info separately.
         else:
-            assert len(global_batch[0]) == 7
+            assert all(['lang' in micro_batch for micro_batch in global_batch])
             langs_list = []
-            (
-                tokens_enc_tensor,
-                tokens_dec_tensor,
-                loss_mask_tensor,
-                labels_tensor,
-                enc_mask_tensor,
-                dec_mask_tensor,
-            ) = self._process_global_batch_without_megatron_batch_sampler(
+            processed_global_batch = self._process_global_batch_without_megatron_batch_sampler(
                 [{k: v for k, v in micro_batch.items() if k != 'lang'} for micro_batch in global_batch]
             )
             for micro_batch in global_batch:
                 langs_list.extend(micro_batch['lang'])
-            return (
-                tokens_enc_tensor,
-                tokens_dec_tensor,
-                loss_mask_tensor,
-                labels_tensor,
-                enc_mask_tensor,
-                dec_mask_tensor,
-                langs_list,
-            )
+            processed_global_batch['lang'] = langs_list
+            return processed_global_batch
 
     def on_validation_epoch_start(self):
         app_state = AppState()
@@ -176,6 +162,10 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 micro_batch_size=micro_batch_size,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
+        # At this point batch is a list of dictionaries where eatch dict is a microbatch.
+        # After the process_global_batch call, batch will be a single dictionary containing the global batch.
+        # This is required since the parent class expects a single global batch dictioanry.
+        batch = self._process_global_batch(batch)
         return super().training_step(batch, batch_idx)
 
     def cast_for_metric(self, pred, label, metric_name):
@@ -243,26 +233,26 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
+        # At this point processed_batch is a list of dictionaries where eatch dict is a microbatch.
+        # After the process_global_batch call, processed_batch will be a single dictionary containing the global batch.
+        # This is required since the parent class expects a single global batch dictioanry.
+        processed_batch = self._process_global_batch(processed_batch)
+
         # Call parent validation step to get the loss.
+        # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
         loss = super().validation_step(processed_batch, batch_idx)
 
-        # Remainder of the code is to run the decoding loop, and compute accuracies.
-        if batch_has_lang_information:
-            tokens_enc, _, _, labels, enc_mask, _, langs = self.process_global_batch(batch)
-        else:
-            tokens_enc, _, _, labels, enc_mask, _ = self.process_global_batch(batch)
-
-        predicted_token_ids, _ = self.decode(tokens_enc=tokens_enc, enc_mask=enc_mask, num_tokens_to_generate=30)
+        predicted_token_ids, _ = self.decode(tokens_enc=processed_batch['text_enc'], enc_mask=processed_batch['enc_mask'], num_tokens_to_generate=30)
 
         # Special ids to text function to handle stripping <eos> and special tokens with sentencepiece tokenizers.
         preds_text = self.ids_to_text(predicted_token_ids)
-        labels_text = self.ids_to_text(labels)
-        input_text = self.ids_to_text(tokens_enc)
+        labels_text = self.ids_to_text(processed_batch['labels'])
+        input_text = self.ids_to_text(processed_batch['text_enc'])
 
         if not batch_has_lang_information:
             categories = [None] * len(preds_text)
         else:
-            categories = langs
+            categories = processed_batch['langs']
 
         metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
         assert len(categories) == len(preds_text) == len(labels_text)
