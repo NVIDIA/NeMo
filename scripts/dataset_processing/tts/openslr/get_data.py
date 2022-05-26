@@ -14,23 +14,21 @@
 
 import argparse
 import json
+import multiprocessing
 import random
 import os
 import subprocess
 import tarfile
-import numpy as np
 import urllib.request
 from pathlib import Path
-import multiprocessing
 
+import numpy as np
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 
 def get_args():
-    parser = argparse.ArgumentParser(
-        description='Download openSLR dataset and create manifests with predefined split'
-    )
+    parser = argparse.ArgumentParser(description='Download openSLR dataset and create manifests with predefined split')
 
     parser.add_argument("--data-root", type=Path, help="where the resulting dataset will reside", default="/data")
     parser.add_argument("--val-size", default=0.1, type=float)
@@ -45,9 +43,11 @@ def get_args():
     args = parser.parse_args()
     return args
 
+
 URL = "https://www.openslr.org/resources/95/"
 ZIPPED_FOLDER = "thorsten-de_v02.tgz"
 EXTRACTED_FOLDER = "thorsten-de"
+
 
 def __maybe_download_file(source_url, destination_path):
     if not destination_path.exists():
@@ -91,13 +91,16 @@ def __process_transcript(file_path: str):
             entries.append(entry)
     return entries
 
+
 def __process_data(dataset_path, val_size, test_size, seed_for_ds_split):
     entries = __process_transcript(dataset_path)
 
     random.Random(seed_for_ds_split).shuffle(entries)
 
     train_size = 1.0 - val_size - test_size
-    train_entries, validate_entries, test_entries = np.split(entries, [int(len(entries)*train_size), int(len(entries)*(train_size+val_size))])
+    train_entries, validate_entries, test_entries = np.split(
+        entries, [int(len(entries) * train_size), int(len(entries) * (train_size + val_size))]
+    )
 
     assert len(train_entries) > 0, "Not enough data for train, val and test"
 
@@ -116,16 +119,12 @@ def main():
 
     dataset_root = args.data_root / "openslr-95-german-neutral-tts"
     dataset_root.mkdir(parents=True, exist_ok=True)
-    #ToDo(@aroraakshit): correct the following two functions
+    # ToDo(@aroraakshit): correct the following two functions
     # __maybe_download_file(URL + ZIPPED_FOLDER, dataset_root / ZIPPED_FOLDER)
-    
     # __extract_file(dataset_root / ZIPPED_FOLDER, dataset_root)
     
     __process_data(
-        dataset_root / EXTRACTED_FOLDER,
-        args.val_size, 
-        args.test_size,
-        args.seed_for_ds_split,
+        dataset_root / EXTRACTED_FOLDER, args.val_size, args.test_size, args.seed_for_ds_split,
     )
 
 
