@@ -449,7 +449,6 @@ def normalize_manifest(
                 f_out.write(json.dumps(line, ensure_ascii=False) + '\n')
 
         print(f"Batch -- {batch_idx} -- is complete")
-        return normalized_lines
 
     manifest_out = audio_data.replace('.json', '_normalized.json')
     with open(audio_data, 'r') as f:
