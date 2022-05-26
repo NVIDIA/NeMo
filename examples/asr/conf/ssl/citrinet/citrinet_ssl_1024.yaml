@@ -408,6 +408,7 @@ model:
         _target_: nemo.collections.asr.modules.ConvASRDecoderReconstruction
         feat_in: ${model.model_defaults.enc_final}
         feat_hidden: 128
+        # features in hidden layer of decoder
         feat_out: ${model.model_defaults.decoder_out_channels}
         stride_layers: 1
         # if loss.combine_time_steps is different than the encoder stride,
