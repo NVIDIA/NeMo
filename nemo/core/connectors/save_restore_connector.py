@@ -166,6 +166,25 @@ class SaveRestoreConnector:
 
         return (conf, instance, state_dict)
 
+    def modify_state_dict(self, conf, state_dict):
+        """
+        Utility method that allows to modify the state dict before loading parameters into a model.
+        Args:
+            conf: A model level OmegaConf object.
+            state_dict: The state dict restored from the checkpoint.
+        Returns:
+            A potentially modified state dict.
+        """
+
+        # NOTE and TODO (sandeepsub) This is duplicated across save_restore_connector and nlp_save_restore_connector. This shouldn't be here.
+        if conf.get('megatron_amp_O2', False):
+            new_state_dict = {}
+            for key in state_dict.keys():
+                new_key = key.replace('model.', 'model.module.', 1)
+                new_state_dict[new_key] = state_dict[key]
+            state_dict = new_state_dict
+        return state_dict
+
     def load_instance_with_state_dict(self, instance, state_dict, strict):
         """
         Utility method that loads a model instance with the (potentially modified) state dict.
