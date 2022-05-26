@@ -486,12 +486,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # map batch and shared args into forward args            
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
             
-            print(f"args = {args}")
+            # print(f"args = {args}")
             
             output = model(*args)
                 
-            return output
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
 
+            return output, id_func
+
+        return fwd_output_only_func
         return fwd_output_only_func
 
     def validation_step(self, batch, batch_idx):
@@ -889,6 +893,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get output tensor
         if parallel_state.is_pipeline_last_stage():
+            output_tensor = output_tensor[0]
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
         
         return output_tensor
@@ -957,9 +962,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     decoder_sequence_length=decoder_seq_length,
                     dtype=self.autocast_dtype,
                 )
-
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
+                output_tensor = output_tensor[0]
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
