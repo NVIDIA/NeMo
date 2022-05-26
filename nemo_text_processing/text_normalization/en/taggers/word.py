@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    MIN_NEG_WEIGHT,
     NEMO_ALPHA,
     NEMO_DIGIT,
     NEMO_NOT_SPACE,
@@ -21,7 +20,6 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
     convert_space,
 )
-from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 
 try:
     import pynini
@@ -46,39 +44,8 @@ class WordFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
-        punct = PunctuationFst().graph
-        punct_symbols = punct.project("input")
-        graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, punct_symbols), 1)
-
-        if not deterministic:
-            graph = pynini.closure(
-                pynini.difference(
-                    graph, pynini.union("$", "€", "₩", "£", "¥", "#", "$", "%") + pynini.closure(NEMO_DIGIT, 1)
-                ),
-                1,
-            )
-
-        # to allow alpha with punctuation words "I'm", "O'Neil", "Then..." to be tagged as a word
-        # so that no extra spaces are added around punctuation mark
-        # non_digit is needed to allow non-ascii chars, like in "Müller's"
-        non_digit = pynini.difference(NEMO_NOT_SPACE, NEMO_DIGIT).optimize()
-        at_least_one_alpha = (
-            pynini.closure(non_digit) + pynini.closure(NEMO_ALPHA, 1) + pynini.closure(non_digit)
-        ).optimize()
-
-        # punct followed by word and another punct mark: { "And, }
-        alpha_with_punct_graph = (
-            pynini.closure(punct_symbols)
-            + at_least_one_alpha
-            + pynini.closure(punct_symbols, 1)
-            + pynini.closure(non_digit)
-            + pynini.closure(NEMO_ALPHA)
-        ).optimize()
-
-        # punct followed by word: { "And }
-        alpha_with_punct_graph |= pynini.closure(punct_symbols) + at_least_one_alpha
-        alpha_with_punct_graph = pynutil.add_weight(alpha_with_punct_graph.optimize(), MIN_NEG_WEIGHT).optimize()
-        graph |= alpha_with_punct_graph
+        symbols_to_exclude = (pynini.union("$", "€", "₩", "£", "¥", "#", "%") | NEMO_DIGIT).optimize()
+        graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, symbols_to_exclude), 1)
 
         # leave phones of format [HH AH0 L OW1] untouched
         phoneme_unit = pynini.closure(NEMO_ALPHA, 1) + pynini.closure(NEMO_DIGIT)

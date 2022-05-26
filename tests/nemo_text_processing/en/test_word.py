@@ -44,7 +44,7 @@ class TestWord:
     )
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if PYNINI_AVAILABLE and CACHE_DIR and False
+        if PYNINI_AVAILABLE and CACHE_DIR
         else None
     )
 
@@ -60,6 +60,6 @@ class TestWord:
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=200, punct_post_process=False
+                test_input, n_tagged=3, punct_post_process=False
             )
             assert expected in pred_non_deterministic, f"input: {test_input}"

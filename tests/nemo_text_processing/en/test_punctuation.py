@@ -22,13 +22,7 @@ from ..utils import CACHE_DIR, PYNINI_AVAILABLE, parse_test_case_file
 
 class TestPunctuation:
     normalizer_en = (
-        Normalizer(
-            input_case='cased',
-            lang='en',
-            cache_dir="/home/ebakhturina/NeMo/nemo_text_processing/text_normalization/cache_dir",
-            overwrite_cache=False,
-            post_process=True,
-        )
+        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True,)
         if PYNINI_AVAILABLE
         else None
     )
@@ -57,8 +51,5 @@ class TestPunctuation:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm_python_punct_post_process(self, test_input, expected):
-        if self.normalizer_with_audio_en:
-            pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=70, punct_post_process=True
-            )
-            assert expected in pred_non_deterministic, f"input: |{pred_non_deterministic}| != |{expected}|"
+        pred = self.normalizer_en.normalize(test_input, verbose=True, punct_post_process=True)
+        assert pred == expected, f"input: {test_input} != {expected}"

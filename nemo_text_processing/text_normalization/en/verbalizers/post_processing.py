@@ -122,14 +122,8 @@ class PostProcessingFst:
 
         open_close_double_quotes = [('"', '"'), ("``", "``"), ("“", "”")]
         open_close_symbols = open_close_single_quotes + open_close_double_quotes
-        allow_space_before_punct = (
-            ["&"]
-            + quotes
-            + dashes
-            + brackets
-            + [k[0] for k in open_close_symbols]
-            + [k[0][0] for k in open_close_symbols]
-        )
+        allow_space_before_punct = ["&"] + quotes + dashes + brackets + [k[0] for k in open_close_symbols]
+
         no_space_before_punct = [m for m in punct_marks_all if m not in allow_space_before_punct]
         no_space_before_punct = pynini.union(*no_space_before_punct)
         no_space_after_punct = pynini.union(*brackets)
