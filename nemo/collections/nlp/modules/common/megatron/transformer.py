@@ -588,6 +588,13 @@ class ParallelAttention(MegatronModule):
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
 
+        # Currently if all key sequences are masked, attention will be uniformly distributed.
+        # E.g. attention_mask last dimension all True, attention prob is 1 / last_dim
+        # # The correct behavior should be paying zero attention to them
+        all_k_masked = attention_mask.all(axis=-1)
+        zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
+        attention_probs = attention_probs * zero_attention_mask
+
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         with tensor_parallel.random.get_cuda_rng_tracker().fork():
