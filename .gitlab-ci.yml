@@ -36,7 +36,7 @@ before_script:
   - export IMAGE_NAME=${IMAGE_NAME%:*}
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
-  - export PIPELINE_DIR="${BIGNLP_CI_PATH}/{CI_PIPELINE_ID}"
+  - export PIPELINE_DIR="${BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
   - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
 
 .build: &build_template
