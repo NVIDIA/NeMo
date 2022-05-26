@@ -208,7 +208,7 @@ After you p-tune or prompt-tune your model, you can always go back and p-tune or
 
 Example Multi-Task Prompt Tuning Config and Command
 ^^^^^^^^^^
-First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` that you set. 
+First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set. 
 
 .. code::
   
