@@ -471,17 +471,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         
         return forward_args
         
-    def get_forward_output_only_func(self, arg_names, shared_args_dict={}):
+    def get_forward_output_only_func(self, arg_names, **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
-        shared_args_dict - a dictionary of shared arguments (non tensors) {name: (arg_idx, arg_value)}
+        kwargs - shared arguments (non tensors)
         """
         def fwd_output_only_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             
             # map batch and shared args into forward args            
-            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **shared_args_dict)
+            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
             output = model(*args)
                 
             return output
