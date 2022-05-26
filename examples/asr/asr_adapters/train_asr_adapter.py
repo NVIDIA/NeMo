@@ -78,8 +78,15 @@ def update_encoder_config_to_support_adapter(model_cfg):
 
 
 def update_model_cfg(original_cfg, new_cfg):
-    with open_dict(new_cfg):
-        # drop keys which dont exist in old config
+    with open_dict(original_cfg), open_dict(new_cfg):
+        # force inject some keys into the config
+        whitelist_keys = ['num_workers', 'pin_memory']
+        for wkey in whitelist_keys:
+            if wkey in new_cfg:
+                original_cfg[wkey] = new_cfg[wkey]
+                print(f"Injecting white listed key `{wkey}` into config")
+
+        # drop keys which dont exist in old config and are not whitelisted
         new_keys = list(new_cfg.keys())
         for key in new_keys:
             if key not in original_cfg:
@@ -134,11 +141,11 @@ def main(cfg):
 
     # Setup model for finetuning (train and validation only)
     cfg.model.train_ds = update_model_cfg(model.cfg.train_ds, cfg.model.train_ds)
-    cfg.model.validation_ds = update_model_cfg(model.cfg.validation_ds, cfg.model.validation_ds)
-
-    # Call the dataloaders and optimizer + scheduler
     model.setup_training_data(cfg.model.train_ds)
-    model.setup_multiple_validation_data(cfg.model.validation_ds)
+
+    if 'validation_ds' in cfg.model:
+        cfg.model.validation_ds = update_model_cfg(model.cfg.validation_ds, cfg.model.validation_ds)
+        model.setup_multiple_validation_data(cfg.model.validation_ds)
 
     # Setup optimizer
     cfg.model.optim = update_model_cfg(model.cfg.optim, cfg.model.optim)
