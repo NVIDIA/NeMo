@@ -1621,7 +1621,8 @@ class ParallelTransformer(MegatronModule):
 
         if self.activations_checkpoint_method is not None:
             hidden_states = self._checkpointed_forward(
-                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
+                hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb,
+                position_bias, encoder_decoder_position_bias
             )
         else:
             if get_key_value:
