@@ -308,7 +308,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             if enc_output is None:
                 enc_output = self.enc_dec_model.encode(
                     enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
-                    output_enc_hidden_only=True,
                 )
             return enc_output
         else:
