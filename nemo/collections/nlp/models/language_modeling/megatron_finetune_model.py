@@ -254,7 +254,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if not batch_has_lang_information:
             categories = [None] * len(preds_text)
         else:
-            categories = processed_batch['langs']
+            categories = processed_batch['lang']
 
         metric = self.val_metric[dataloader_idx] if mode == 'validation' else self.test_metric[dataloader_idx]
         assert len(categories) == len(preds_text) == len(labels_text)
