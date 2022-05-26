@@ -33,7 +33,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 2
     mode: min
-    save_nemo_on_train_end: True
+    save_nemo_on_train_end: False
     filename: 'megatron_gpt_prompt_tune--{val_loss:.3f}-{step}'
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -72,8 +72,8 @@ model:
 
   - taskname: 'rte'
     prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
-    total_virtual_tokens: 100 
-    virtual_token_splits: [100]
+    total_virtual_tokens: 10 
+    virtual_token_splits: [10]
     truncate_field: null
     answer_only_loss: True
     answer_field: 'answer'
@@ -87,8 +87,8 @@ model:
     num_layers: 2
 
   data:
-    train_ds: [data/squad_train.jsonl,]
-    validation_ds: [data/squad_val.jsonl,]
+    train_ds: [data/rte_train.jsonl,]
+    validation_ds: [data/rte_val.jsonl,]
     add_eos: True
     shuffle: True
     num_workers: 1
