@@ -210,16 +210,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
         batch_has_lang_information = len(batch[0]) == 7
-        # XNLI Batches have language information that need to be removed before calling the parent validation step.
-        if batch_has_lang_information:
-            processed_batch = []
-            for micro_batch in batch:
-                micro_batch = {k: v for k, v in micro_batch.items() if k != 'lang'}
-                processed_batch.append(micro_batch)
-        else:
-            processed_batch = batch
 
-        micro_batch_size = processed_batch[0]['text_enc'].size(0)
+        micro_batch_size = batch[0]['text_enc'].size(0)
         # This should happen only on the last batch of the dataset.
         if micro_batch_size != self.cfg.data.validation_ds.micro_batch_size:
             app_state = AppState()
@@ -236,7 +228,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         # At this point processed_batch is a list of dictionaries where eatch dict is a microbatch.
         # After the process_global_batch call, processed_batch will be a single dictionary containing the global batch.
         # This is required since the parent class expects a single global batch dictioanry.
-        processed_batch = self._process_global_batch(processed_batch)
+        processed_batch = self._process_global_batch(batch)
 
         # Call parent validation step to get the loss.
         # NOTE: There could be extra keys in the processed_batch dictionary such as "langs" for XNLI, this will be ignored in the parent class.
