@@ -466,7 +466,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         args_idx = [kwargs_to_arg_idx[n] for n in all_args_name]
 
         # construct args ordered by name (with None as place-holder)
-        forward_args = [None] * max(args_idx)
+        forward_args = [None] * (max(args_idx) + 1)
         for i, v in zip(args_idx, all_args):
             forward_args[i] = v
         
