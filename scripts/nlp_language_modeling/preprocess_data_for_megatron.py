@@ -87,9 +87,6 @@ class Encoder(object):
     def encode(self, json_line):
         if not self.args.text_file:
             data = json.loads(json_line)
-        else:
-            data = json_line
-        if not self.args.text_file:
             ids = {}
             for key in self.args.json_keys:
                 text = data[key]
@@ -104,6 +101,7 @@ class Encoder(object):
                     doc_ids[-1].append(Encoder.tokenizer.eos_id)
                 ids[key] = doc_ids
         else:
+            data = json_line
             ids = {}
             text = data.strip()
             if self.args.apply_ftfy:
