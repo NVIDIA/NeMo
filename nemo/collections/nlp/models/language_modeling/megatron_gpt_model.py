@@ -183,8 +183,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
         else:
-            # no pipeline parallelism so we reduce grads asynchronously
-            if self.megatron_amp_o2:
+            # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
+            if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
                 custom_sync_context_handler = self._optimizer.no_sync
             else:
                 # TODO: enable async grad all reduce for O1/autocast mixed precision training
@@ -209,14 +209,18 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             loss_mean = torch.tensor(0.0).cuda()
 
+        # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
+        if self.cfg.get('tensor_model_prallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+            self.allreduce_sequence_parallel_gradients()
+
         if self.megatron_amp_o2:
-            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-            # so we allreduce gradients after the pipeline
+            # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -303,6 +307,48 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             We want this to do nothing as we are zeroing grads during the training_step.
         """
         return
+
+    def allreduce_sequence_parallel_gradients(self):
+        """ All-reduce layernorm parameters across model parallel nodes when sequence parallelism is used.
+            Modified from megatron-lm:
+            https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/3f91f09bb2ab32f9904b47f46f19d2fc3f518ed8/megatron/training.py#L425
+        """
+        grads = []
+        for param in self.model.parameters():
+            if getattr(param, 'sequence_parallel', False):
+                if self.megatron_amp_o2:
+                    grad = param.main_grad
+                else:
+                    grad = param.grad
+                grads.append(grad.data)
+        coalesced = torch._utils._flatten_dense_tensors(grads)
+        torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
+        for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+            buf.copy_(synced)
+
+    def allreduce_gradients(self):
+        """Reduce gradients across data parallel ranks.
+           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
+        """
+        # Bucketize and all-reduce
+        buckets = {}
+        for param in self.parameters():
+            if param.requires_grad and param.grad is not None:
+                tp = param.data.type()
+                if tp not in buckets:
+                    buckets[tp] = []
+                buckets[tp].append(param)
+                # param.main_grad = param.grad
+
+        # For each bucket, all-reduce and copy all-reduced grads.
+        for tp in buckets:
+            bucket = buckets[tp]
+            grads = [param.grad.data for param in bucket]
+            coalesced = torch._utils._flatten_dense_tensors(grads)
+            coalesced /= parallel_state.get_data_parallel_world_size()
+            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
+            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+                buf.copy_(synced)
 
     def allreduce_first_last_embeddings(self):
 
