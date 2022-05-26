@@ -912,6 +912,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
+        # get encoder hiddens (output)
+        if enc_output is None:
+            enc_output = self.encode(tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input)
+        if enc_output_attn_mask is None:
+            enc_output_attn_mask = enc_mask
+
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -922,21 +928,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # else:
             #     batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
                 
-            batch_for_pipeline = [tokens_enc, enc_mask, predicted_tokens_dec, dec_mask]
-            arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
-
-            if enc_output is not None:
-                if enc_output_attn_mask is None:
-                    enc_output_attn_mask = enc_mask
-                arg_names.append('enc_output')
-                arg_names.append('enc_output_attn_mask')
-                batch_for_pipeline.append(enc_output)
-                batch_for_pipeline.append(enc_output_attn_mask)
-            if encoder_input is not None:
-                arg_names.append('enc_input')
-                batch_for_pipeline.append(encoder_input)
+            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
             
-            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, shared_args_dict=shared_args_dict)
+            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=forward_step_func,
