@@ -31,14 +31,12 @@
 # with some modifications.
 
 import collections
-import math
 import os
 import subprocess
 import time
 
 import numpy as np
 import torch
-from sklearn.metrics import multilabel_confusion_matrix
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
