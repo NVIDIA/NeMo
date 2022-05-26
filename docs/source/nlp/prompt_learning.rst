@@ -375,7 +375,7 @@ And the dataset class will automatically format your input to have the form:
       '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
   ]
         
-Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE``to your command if you're using a p-tuned/prompt-tuned model. 
+Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model. 
 
 Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 
