@@ -211,7 +211,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             loss_mean = torch.tensor(0.0).cuda()
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_prallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
             self.allreduce_sequence_parallel_gradients()
 
         if self.megatron_amp_o2:
