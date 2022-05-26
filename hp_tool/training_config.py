@@ -73,6 +73,8 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                         valid_pp_list.append(pp)
 
     # Generate grid search configs.
+    override_nodes = train_cfg.get("override_search_num_nodes")
+    num_nodes = max(valid_pp_list) if override_nodes is None else override_nodes
     for tp in tp_list:
         for pp in pp_list:
             act_ckpt_layers = [
@@ -83,7 +85,13 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
             for act in act_ckpt_layers:
                 for mbs in mbs_list:
                     new_cfg = utils.modify_cfg(
-                        base_cfg, act, tp, pp, mbs, max_minutes, max(valid_pp_list)
+                        base_cfg=base_cfg,
+                        act=act,
+                        tp=tp,
+                        pp=pp,
+                        mbs=mbs,
+                        max_minutes=max_minutes,
+                        num_nodes=num_nodes,
                     )
                     if new_cfg:  # Save candidate cfg.
                         file_name = f"{model_name}_{model_size_in_b}b_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"

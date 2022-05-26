@@ -17,6 +17,7 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}
+          override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
           micro_batch_sizes: null
@@ -55,6 +56,7 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}
+          override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
           micro_batch_sizes: null
@@ -93,6 +95,7 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}
+          override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
           micro_batch_sizes: null
@@ -131,6 +134,7 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}
+          override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
           micro_batch_sizes: null
@@ -169,6 +173,7 @@ class TestGPT3Config:
           num_tokens_in_b: 300
           vocab_size: 51200
           logs: ${base_results_dir}/${search_config_value}
+          override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
           micro_batch_sizes: null
