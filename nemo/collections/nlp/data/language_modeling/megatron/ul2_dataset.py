@@ -22,7 +22,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
 
 
-class SpanLengthDistribution(enum.Enum):
+class LengthDistribution(enum.Enum):
     uniform = 1
     geometric = 2
     truncated_normal = 3
@@ -59,8 +59,8 @@ class UL2Dataset(T5Dataset):
         extreme_min_ngram_size=32,
         extreme_mean_ngram_size=64,
         prefix_lm_pivot_mean=0.25,  # This is represented as a percentage of the total length.
-        ngram_span_length_distribution=SpanLengthDistribution.geometric,
-        extreme_ngram_span_length_distribution=SpanLengthDistribution.truncated_normal,
+        ngram_span_length_distribution=LengthDistribution.geometric,
+        extreme_ngram_span_length_distribution=LengthDistribution.truncated_normal,
         permutation=False,
         whole_word_masking=True,
         favor_long_ngrams=False,
@@ -81,7 +81,7 @@ class UL2Dataset(T5Dataset):
             short_seq_prob=short_seq_prob,
             max_ngram_size=max_ngram_size,
             mean_ngram_size=None,  # TODO: Determin if we want to actually pass mean ngram as an override to max here.
-            geometric_dist=ngram_span_length_distribution == SpanLengthDistribution.geometric,
+            geometric_dist=ngram_span_length_distribution == LengthDistribution.geometric,
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,

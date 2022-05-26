@@ -698,7 +698,7 @@ def _build_train_valid_test_datasets(
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, SpanLengthDistribution
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, LengthDistribution
         from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
 
         dataset = None
@@ -804,18 +804,18 @@ def _build_train_valid_test_datasets(
                 )
                 ngram_span_length_distribution = cfg.data.get("ngram_span_length_distribution", "geometric")
                 if extreme_ngram_span_length_distribution == "truncated_normal":
-                    extreme_ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
+                    extreme_ngram_span_length_distribution = LengthDistribution.truncated_normal
                 elif extreme_ngram_span_length_distribution == "uniform":
-                    extreme_ngram_span_length_distribution = SpanLengthDistribution.uniform
+                    extreme_ngram_span_length_distribution = LengthDistribution.uniform
                 elif extreme_ngram_span_length_distribution == "geometric":
-                    extreme_ngram_span_length_distribution = SpanLengthDistribution.geometric
+                    extreme_ngram_span_length_distribution = LengthDistribution.geometric
 
                 if ngram_span_length_distribution == "truncated_normal":
-                    ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
+                    ngram_span_length_distribution = LengthDistribution.truncated_normal
                 elif ngram_span_length_distribution == "uniform":
-                    ngram_span_length_distribution = SpanLengthDistribution.uniform
+                    ngram_span_length_distribution = LengthDistribution.uniform
                 elif ngram_span_length_distribution == "geometric":
-                    ngram_span_length_distribution = SpanLengthDistribution.geometric
+                    ngram_span_length_distribution = LengthDistribution.geometric
 
                 dataset = UL2Dataset(
                     cfg=cfg,

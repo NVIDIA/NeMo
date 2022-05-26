@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import LengthDistribution
 
 
 class T5LMAdaptedDataset(GPTDataset):
@@ -66,14 +66,10 @@ class T5LMAdaptedDataset(GPTDataset):
         np_rng,
         tokenizer,
         pivot_mean=0.25,
-        pivot_distribution="uniform",
+        pivot_distribution=LengthDistribution.uniform,
     ):
         # get random split index
-        if pivot_distribution not in ["uniform", "truncated_normal"]:
-            raise ValueError(
-                f"Invalid pivot_distribution: {pivot_distribution}. Must be one of ['uniform', 'truncated_normal']"
-            )
-        if pivot_distribution == "truncated_normal" and (pivot_mean < 0.0 or pivot_mean > 1.0):
+        if pivot_distribution == LengthDistribution.truncated_normal and (pivot_mean < 0.0 or pivot_mean > 1.0):
             raise ValueError(
                 f"Invalid pivot_mean: {pivot_mean}. Must be in [0.0, 1.0]. It is a fraction of the encoder sequence length."
             )
@@ -81,11 +77,13 @@ class T5LMAdaptedDataset(GPTDataset):
         # If the sample is larger than max encoder sequence length, use max encoder sequence length, otherwwise use sample length.
         max_split_idx = min(len(sample), max_seq_length_encoder)
 
-        if pivot_distribution == "uniform":
+        if pivot_distribution == LengthDistribution.uniform:
             split_idx = np_rng.randint(0, max_split_idx)
-        else:
+        elif pivot_distribution == LengthDistribution.truncated_normal:
             loc = pivot_mean * max_split_idx
             split_idx = np.clip(int(np_rng.normal(loc=loc, scale=loc)), 0, max_split_idx,)
+        else:
+            raise ValueError(f"Invalid pivot_distribution: {pivot_distribution}")
 
         # Encoder inputs get truncated based on the split indx
         tokens_enc = np.concatenate(
@@ -129,6 +127,6 @@ class T5LMAdaptedDataset(GPTDataset):
             max_seq_length_decoder=self.max_seq_length_decoder,
             np_rng=np_rng,
             tokenizer=self.tokenizer,
-            pivot_distribution="uniform",
+            pivot_distribution=LengthDistribution.uniform,
         )
         return sample
