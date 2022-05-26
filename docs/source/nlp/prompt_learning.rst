@@ -145,9 +145,6 @@ Prompt Learning Specific Config Values
    * - **model.nemo_path**
      - string
      - Path to where you want to save your model after prompt tuning/p-tuning, must end in `.nemo`
-   * - **model.lm_finetune**
-     - bool
-     - whether fine tune all the GPT language model weights
    * - **model.virtual_prompt_style**
      - string
      - one of 'prompt-tuning', 'p-tuning', or 'inference'
