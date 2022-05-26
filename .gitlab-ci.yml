@@ -36,11 +36,7 @@ before_script:
   - export IMAGE_NAME=${IMAGE_NAME%:*}
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
-
-  - export DT="$(date "+%D_%T")"
-  - export DT_REPLACE="${DT//\//\-}"
-  - export DATETIME="${DT_REPLACE//\:/\-}"
-  - export PIPELINE_DIR="${BIGNLP_CI_PATH}/${DATETIME}_${CI_PIPELINE_ID}"
+  - export PIPELINE_DIR="${BIGNLP_CI_PATH}/{CI_PIPELINE_ID}"
   - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
 
 .build: &build_template
@@ -68,7 +64,7 @@ before_script:
     CLUSTER:       "selene"
     PYXIS_LITE:    "1"
     ENROOT_MOUNT_HOME: "n"
-    GIT_CLONE_PATH: $PIPELINE_DIR/$CI_PROJECT_NAME # THIS DOES NOT HAVE QUOTES FOR A REASON
+    GIT_CLONE_PATH: /lustre/fsw/joc/big_nlp/bignlp_ci/$CI_PIPELINE_ID/$CI_PROJECT_NAME # THIS DOES NOT HAVE QUOTES FOR A REASON
     EXCLUDE_NODES: ""
     GPU_ARCH:      "A100"
   tags: &LUNA_TAGS
