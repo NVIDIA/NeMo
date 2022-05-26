@@ -321,7 +321,7 @@ class AdapterModuleMixin(ABC):
                         continue
 
                     # Check if adapter is enabled or not
-                    if self.adapter_cfg[name]['enabled']:
+                    if self.adapter_cfg[name]['enabled'] and name in module.adapter_layer:
                         # Recursively set training mode of submodules
                         module.adapter_layer[name].train()
 
@@ -330,12 +330,12 @@ class AdapterModuleMixin(ABC):
                             param.requires_grad_(True)
 
                         # unfreeze batch norm if any in the adapter submodules
-                        for mname, module in module.adapter_layer[name].named_modules():
-                            if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
-                                module.track_running_stats = (
+                        for mname, module_ in module.adapter_layer[name].named_modules():
+                            if isinstance(module_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d)):
+                                module_.track_running_stats = (
                                     True  # prevent running stats from updated during finetuning
                                 )
-                                logging.info(f"Unfroze adapter module {mname}: {module}")
+                                logging.info(f"Unfroze adapter module {mname}: {module_}")
 
                         adapter_names.add(name)
 
@@ -773,9 +773,26 @@ class AdapterModelPTMixin(AdapterModuleMixin):
 
         # For all module:adapter names (note, for global modules, we ignore the module: part)
         for module_adapter_name in name:
+            # Extract current config as copy
+            internal_adapter_cfg = None
+            if hasattr(self, 'adapter_cfg') and self.adapter_cfg is not None:
+                internal_adapter_cfg = self.adapter_cfg
+
+            # Override internal adapter config with restoration config
+            self.adapter_cfg = config
+
             # Resolve the adapter name and extract the adapter's config from the checkpoint.
             module_name, adapter_name = self.resolve_adapter_module_name_(module_adapter_name)
             adapter_cfg = config[adapter_name]
+
+            # Recreate the module:adapter_name
+            if module_name is '':
+                module_adapter_name = adapter_name
+            else:
+                module_adapter_name = f'{module_name}:{adapter_name}'
+
+            # Reset internal adapter config
+            self.adapter_cfg = internal_adapter_cfg
 
             # Skip the global config key
             if adapter_name == self.adapter_global_cfg_key:
@@ -834,3 +851,17 @@ class AdapterModelPTMixin(AdapterModuleMixin):
         for module in self.modules():  # access PT subclass method via inheritance
             if isinstance(module, AdapterModuleMixin):
                 module.adapter_cfg = cfg
+
+    @property
+    def adapter_module_names(self) -> List[str]:
+        """
+        List of valid adapter modules that are supported by the model.
+
+        **Note**: Subclasses should override this property and return a list of str names, of all the modules
+            that they support, which will enable users to determine where to place the adapter modules.
+
+        Returns:
+            A list of str, one for each of the adapter modules that are supported. By default, the subclass
+            should support the "global adapter" ('').
+        """
+        return ['']
