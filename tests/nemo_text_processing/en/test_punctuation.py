@@ -27,12 +27,6 @@ class TestPunctuation:
         else None
     )
 
-    normalizer_with_audio_en = (
-        NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if PYNINI_AVAILABLE and CACHE_DIR
-        else None
-    )
-
     # address is tagged by the measure class
     @parameterized.expand(parse_test_case_file('en/data_text_normalization/test_cases_punctuation.txt'))
     @pytest.mark.skipif(

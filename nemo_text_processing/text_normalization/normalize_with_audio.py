@@ -423,7 +423,7 @@ def normalize_manifest(
         args.audio_data: path to .json manifest file.
     """
 
-    def __process_batch(batch_idx: int, batch: list[str], dir_name: str):
+    def __process_batch(batch_idx: int, batch: List[str], dir_name: str):
         """
         Normalizes batch of text sequences
         Args:
