@@ -316,7 +316,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         grads = []
         for param in self.model.parameters():
-            if getattr(param, 'sequence_parallel', False):
+            if getattr(param, 'sequence_parallel_enabled', False):
                 if self.megatron_amp_o2:
                     grad = param.main_grad
                 else:
