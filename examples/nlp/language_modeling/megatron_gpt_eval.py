@@ -15,7 +15,8 @@
 import os
 
 import torch
-from omegaconf.omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
+from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
@@ -214,9 +215,7 @@ def main(cfg) -> None:
 
         # Now load prompt learning model with frozen gpt model base
         model = MegatronGPTPromptLearningModel.restore_from(
-            restore_path=cfg.virtual_prompt_model_file, 
-            trainer=trainer,
-            override_config_path=prompt_learning_cfg
+            restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
         )
 
     # Or load regular GPT model
