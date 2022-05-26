@@ -63,7 +63,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c \"{train_cmd}\" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -115,24 +115,29 @@ def run_training(cfg, hydra_args="", dependency=None):
         gpus_per_task = cluster_cfg.get("gpus_per_task")
         gpus_per_node = cluster_cfg.get("gpus_per_node")
         job_name_prefix = cluster_cfg.get("job_name_prefix")
+        overcommit = cluster_cfg.get("overcommit")
 
         if dependency is None:
             dependency = run_cfg.get("dependency")
         job_name = job_name_prefix + name
 
-        train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
-
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
-        flags = (
-            f"--container-image {container} "
-            f"--container-mounts {mounts_str} "
-            f"-o {results_dir}/{name}-%j.log "
-            f"-e {results_dir}/{name}-%j.error "
-        )
-
+        if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+            flags = (
+                f"--container-image {container} --container-mounts {mounts_str} "
+                f"-o {results_dir}/slurm_%j.log "
+            )
+        else:
+            flags = (
+                f"--container-image {container} --container-mounts {mounts_str} "
+                f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
+            )
+            
+        train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
+        
         create_slurm_file(
             new_script_path=new_script_path,
             train_cmd=train_cmd,
@@ -140,6 +145,7 @@ def run_training(cfg, hydra_args="", dependency=None):
             flags=flags,
             dependency=dependency,
             exclusive=exclusive,
+            overcommit=overcommit,
             time=time_limit,
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
@@ -148,7 +154,10 @@ def run_training(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+        if cfg.get("ci_test"):
+            job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+        else:
+            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id = job_id.decode("utf-8")
         print(f"Submitted Training script with job id: {dependency}")
         return dependency
