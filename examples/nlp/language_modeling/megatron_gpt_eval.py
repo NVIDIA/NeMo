@@ -47,7 +47,7 @@ Usage:
     Assume the model has TP=1, PP=1 in the following use cases.
     a. run greedy inference from a nemo file:
         python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.greedy=True \
             inference.add_BOS=True \
             trainer.devices=1 \
@@ -71,7 +71,7 @@ Usage:
 
     c. run top_p inference from a nemo file:
         python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.greedy=False \
             inference.top_k=0 \
             inference.top_p=0.9 \
@@ -85,7 +85,7 @@ Usage:
 
     d. If you don't need to generate tokens and need model to compute logprobs:
          python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             inference.compute_logprob=True \
             trainer.devices=1 \
             trainer.num_nodes=1 \
@@ -95,7 +95,7 @@ Usage:
 
     e. Launch the inference server
          python megatron_gpt_eval.py \
-            model_file=PATH_TO_MODEL \
+            gpt_model_file=PATH_TO_MODEL \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
@@ -139,7 +139,7 @@ Usage:
     f. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
         python megatron_gpt_eval.py \
             virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
-            model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
+            gpt_model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
             inference.greedy=True \
             inference.add_BOS=False \
             trainer.devices=1 \
@@ -211,7 +211,7 @@ def main(cfg) -> None:
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.language_model_path = cfg.model_file
+            prompt_learning_cfg.language_model_path = cfg.gpt_model_file
 
         # Now load prompt learning model with frozen gpt model base
         model = MegatronGPTPromptLearningModel.restore_from(
@@ -219,8 +219,8 @@ def main(cfg) -> None:
         )
 
     # Or load regular GPT model
-    elif cfg.model_file:
-        model = MegatronGPTModel.restore_from(restore_path=cfg.model_file, trainer=trainer)
+    elif cfg.gpt_model_file:
+        model = MegatronGPTModel.restore_from(restore_path=cfg.gpt_model_file, trainer=trainer)
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
