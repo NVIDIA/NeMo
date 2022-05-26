@@ -14,6 +14,7 @@
 
 import enum
 
+
 class LengthDistribution(enum.Enum):
     uniform = 1
     geometric = 2
