@@ -1484,8 +1484,8 @@ class ParallelTransformer(MegatronModule):
         encoder_output,
         enc_dec_attn_mask,
         rotary_pos_emb,
-        position_bias,
-        encoder_decoder_position_bias,
+        position_bias=None,
+        encoder_decoder_position_bias=None,
     ):
         """Forward method with activation checkpointing."""
 
