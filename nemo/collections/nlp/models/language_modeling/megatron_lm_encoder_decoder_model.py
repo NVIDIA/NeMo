@@ -460,7 +460,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         all_args_name = args_name[:]
         all_args = args[:]
         for k, v in kwargs.items():
-            all_args_name.append(name)
+            all_args_name.append(k)
             all_args.append(v)
 
         args_idx = [kwargs_to_arg_idx[n] for n in all_args_name]
