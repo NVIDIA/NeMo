@@ -86,7 +86,7 @@ def update_model_cfg(original_cfg, new_cfg):
                 original_cfg[wkey] = new_cfg[wkey]
                 print(f"Injecting white listed key `{wkey}` into config")
 
-        # drop keys which dont exist in old config and are not whitelisted
+        # drop keys which don't exist in old config and are not whitelisted
         new_keys = list(new_cfg.keys())
         for key in new_keys:
             if key not in original_cfg:
