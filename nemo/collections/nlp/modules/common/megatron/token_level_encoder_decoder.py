@@ -284,8 +284,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def forward(
         self,
-        enc_input_ids,
-        enc_attn_mask,
+        enc_input_ids=None,
+        enc_attn_mask=None,
         dec_input_ids=None,
         dec_attn_mask=None,
         token_type_ids=None,
