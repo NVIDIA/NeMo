@@ -500,7 +500,10 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        return OrderedDict({"spec_recon": NeuralType(('B', 'T', 'D'), SpectrogramType())})
+        if self.apply_softmax:
+            return OrderedDict({"out": NeuralType(('B', 'T', 'D'), LogprobsType())})
+        else:
+            return OrderedDict({"out": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
 
     def __init__(
         self,
