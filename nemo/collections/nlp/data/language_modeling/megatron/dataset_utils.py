@@ -698,7 +698,7 @@ def _build_train_valid_test_datasets(
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
         from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
         from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset, SpanLengthDistribution
         from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
 
         dataset = None
@@ -799,6 +799,26 @@ def _build_train_valid_test_datasets(
             elif dataset_type == DSET_TYPE_UL2:
                 assert tokenizer is not None, "Tokenizer is required for UL2 dataset"
                 logging.info("Instatiating UL2 Dataset ...")
+                extreme_ngram_span_length_distribution = cfg.data.get(
+                    "extreme_ngram_span_length_distribution", "truncated_normal"
+                )
+                ngram_span_length_distribution = cfg.data.get(
+                    "ngram_span_length_distribution", "geometric"
+                )
+                if  extreme_ngram_span_length_distribution == "truncated_normal":
+                    extreme_ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
+                elif extreme_ngram_span_length_distribution == "uniform":
+                    extreme_ngram_span_length_distribution = SpanLengthDistribution.uniform
+                elif extreme_ngram_span_length_distribution == "geometric":
+                    extreme_ngram_span_length_distribution = SpanLengthDistribution.geometric
+
+                if  ngram_span_length_distribution == "truncated_normal":
+                    ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
+                elif ngram_span_length_distribution == "uniform":
+                    ngram_span_length_distribution = SpanLengthDistribution.uniform
+                elif ngram_span_length_distribution == "geometric":
+                    ngram_span_length_distribution = SpanLengthDistribution.geometric
+
                 dataset = UL2Dataset(
                     cfg=cfg,
                     trainer=trainer,
@@ -809,10 +829,8 @@ def _build_train_valid_test_datasets(
                     short_seq_prob=short_seq_prob,
                     max_ngram_size=max_ngram_size,
                     mean_ngram_size=mean_ngram_size,
-                    ngram_span_length_distribution=cfg.data.get("ngram_span_length_distribution", "geometric"),
-                    extreme_ngram_span_length_distribution=cfg.data.get(
-                        "extreme_ngram_span_length_distribution", "truncated_normal"
-                    ),
+                    ngram_span_length_distribution=ngram_span_length_distribution,
+                    extreme_ngram_span_length_distribution=extreme_ngram_span_length_distribution,
                     permutation=permutation,
                     whole_word_masking=whole_word_masking,
                     favor_long_ngrams=favor_long_ngrams,
