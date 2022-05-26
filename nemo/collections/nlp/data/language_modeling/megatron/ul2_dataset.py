@@ -12,21 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""T5 Style dataset."""
-import enum
-
+"""UL2 Style dataset from https://arxiv.org/abs/2205.05131"""
 import numpy as np
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
 from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
 from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-
-
-class LengthDistribution(enum.Enum):
-    uniform = 1
-    geometric = 2
-    truncated_normal = 3
-
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 
 class UL2Dataset(T5Dataset):
     """ UL2 Dataset from https://arxiv.org/abs/2205.05131.
