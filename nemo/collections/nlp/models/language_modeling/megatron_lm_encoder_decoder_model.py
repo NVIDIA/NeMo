@@ -960,7 +960,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-                output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
