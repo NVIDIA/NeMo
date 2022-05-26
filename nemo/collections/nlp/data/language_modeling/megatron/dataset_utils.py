@@ -802,17 +802,15 @@ def _build_train_valid_test_datasets(
                 extreme_ngram_span_length_distribution = cfg.data.get(
                     "extreme_ngram_span_length_distribution", "truncated_normal"
                 )
-                ngram_span_length_distribution = cfg.data.get(
-                    "ngram_span_length_distribution", "geometric"
-                )
-                if  extreme_ngram_span_length_distribution == "truncated_normal":
+                ngram_span_length_distribution = cfg.data.get("ngram_span_length_distribution", "geometric")
+                if extreme_ngram_span_length_distribution == "truncated_normal":
                     extreme_ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
                 elif extreme_ngram_span_length_distribution == "uniform":
                     extreme_ngram_span_length_distribution = SpanLengthDistribution.uniform
                 elif extreme_ngram_span_length_distribution == "geometric":
                     extreme_ngram_span_length_distribution = SpanLengthDistribution.geometric
 
-                if  ngram_span_length_distribution == "truncated_normal":
+                if ngram_span_length_distribution == "truncated_normal":
                     ngram_span_length_distribution = SpanLengthDistribution.truncated_normal
                 elif ngram_span_length_distribution == "uniform":
                     ngram_span_length_distribution = SpanLengthDistribution.uniform
