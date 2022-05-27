@@ -195,7 +195,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=init_method_normal(init_method_std),
                 scaled_init_method=scaled_init_method_normal(init_method_std, dec_num_layers),
                 pre_process=pre_process,
-                post_process=post_process,
+                post_process=False,  # no need for post process
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -322,6 +322,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
             )
+            hidden = hidden.transpose(0, 1).contiguous()
 
         if self.add_encoder:
             if retrieved_emb is not None and neighbors is None:
