@@ -67,9 +67,9 @@ def item_iter(
 
     k = -1
     for manifest_file in manifests_files:
-        manifest_file = Path(manifest_file)
-        manifest_dir = Path(manifest_file.parent)
-        with open(expanduser(str(manifest_file)), 'r') as f:
+        manifest_file = expanduser(manifest_file)
+        manifest_dir = Path(manifest_file).parent
+        with open(manifest_file, 'r') as f:
             for line in f:
                 k += 1
                 item = parse_func(line, manifest_file)
