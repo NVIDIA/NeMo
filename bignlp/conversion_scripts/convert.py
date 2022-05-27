@@ -20,7 +20,8 @@ def create_slurm_file(
     overcommit=True,
     nodes=1,
     ntasks_per_node=1,
-    gpus_per_task=1,
+    gpus_per_task=None,
+    gpus_per_node=None,
     partition="batch",
     account=None,
 ):
@@ -30,6 +31,8 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -129,6 +132,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
         exclusive = cluster_cfg.get("exclusive")
         job_name_prefix = cluster_cfg.get("job_name_prefix")
         gpus_per_task = cluster_cfg.get("gpus_per_task")
+        gpus_per_node = cluster_cfg.get("gpus_per_node")
 
         # Process container-mounts.
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
@@ -154,6 +158,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             gpus_per_task=gpus_per_task,
+            gpus_per_node=gpus_per_node,
             partition=partition,
             account=account,
         )
