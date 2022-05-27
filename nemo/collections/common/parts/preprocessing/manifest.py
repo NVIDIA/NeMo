@@ -76,8 +76,9 @@ def item_iter(
                 # If the audio path is relative, and not using tarred dataset,
                 # attach the parent directory of manifest to the audio path.
                 # Assume "audio_file" starts with a dir, such as "wavs/xxxxx.wav".
-                # If using a tarred dataset, the "audio_path" is like "_home_data_tarred_wavs_xxxx.wav".
-                if not audio_file.is_file() and audio_file.parent != Path("."):
+                # If using a tarred dataset, the "audio_path" is like "_home_data_tarred_wavs_xxxx.wav",
+                # so we will just ignore it.
+                if not audio_file.is_absolute() and audio_file.parent != Path("."):
                     # assume the wavs/ dir and manifest are under the same parent dir
                     audio_file = manifest_dir / audio_file 
                 item['id'] = k
