@@ -39,17 +39,17 @@ class TestCIGPT126m:
             "end_step": 10,
             "step_interval": 1,
             "values": [
-                10.9099, 10.88668, 10.9028, 10.90496, 10.76744, 
-                10.46561, 10.33317, 9.9591, 9.98051, 9.61251, 
+                10.87277, 10.90254, 10.86743, 10.89007, 10.7969,
+                10.42582, 10.39847, 10.0611, 9.76372, 9.67488
             ],
         },
         "val_loss": {
             "start_step": 0,
             "end_step": 5,
             "step_interval": 1,
-            "values": [10.78457, 10.58221, 9.97985, 9.31694, 9.0641],
+            "values": [10.7669, 10.58599, 10.03427, 9.35224, 9.08602],
         },
-        "train_step_timing_avg": 0.89,
+        "train_step_timing_avg": 1.115,
     }
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
