@@ -123,6 +123,7 @@ class ParallelMLP(MegatronModule):
         normalization='layernorm',
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
+        sequence_parallel=False,
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -136,6 +137,7 @@ class ParallelMLP(MegatronModule):
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
 
+        # TODO: figure out async
         # Project to 4h.
         self.dense_h_to_4h = ColumnLinear(
             hidden_size,
@@ -145,6 +147,8 @@ class ParallelMLP(MegatronModule):
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
+            no_async_tensor_model_parallel_allreduce=True,
         )
 
         if activation in ['geglu', 'reglu', 'swiglu']:
@@ -158,6 +162,8 @@ class ParallelMLP(MegatronModule):
                 skip_bias_add=True,
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
+                sequence_parallel_enabled=sequence_parallel,
+                no_async_tensor_model_parallel_allreduce=True,
             )
             glu_activation_family = True
         else:
@@ -208,6 +214,7 @@ class ParallelMLP(MegatronModule):
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
         )
 
         # Normformer normalization
@@ -506,15 +513,29 @@ class ParallelAttention(MegatronModule):
                 init_method=init_method,
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
+                sequence_parallel_enabled=sequence_parallel,
+                no_async_tensor_model_parallel_allreduce=True,
             )
         else:
             assert attention_type == AttnType.cross_attn
             self.query = ColumnLinear(
-                hidden_size, projection_size, gather_output=False, init_method=init_method, bias=bias
+                hidden_size,
+                projection_size,
+                gather_output=False,
+                init_method=init_method,
+                bias=bias,
+                sequence_parallel_enabled=sequence_parallel,
+                no_async_tensor_model_parallel_allreduce=True,
             )
 
             self.key_value = ColumnLinear(
-                hidden_size, 2 * projection_size, gather_output=False, init_method=init_method, bias=bias
+                hidden_size,
+                2 * projection_size,
+                gather_output=False,
+                init_method=init_method,
+                bias=bias,
+                sequence_parallel_enabled=sequence_parallel,
+                no_async_tensor_model_parallel_allreduce=True,
             )
 
         self.core_attention = CoreAttention(
@@ -541,6 +562,7 @@ class ParallelAttention(MegatronModule):
             skip_bias_add=True,
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
+            sequence_parallel_enabled=sequence_parallel,
         )
 
         # Inference key-value memory
@@ -1100,7 +1122,9 @@ class ParallelTransformerLayer_(MegatronModule):
 
         # Layernorm on the attention output
         if normalization == 'layernorm':
-            self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+            self.post_attention_layernorm = get_layer_norm(
+                hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel=sequence_parallel
+            )
         else:
             self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -1191,6 +1215,7 @@ class ParallelTransformerLayer_(MegatronModule):
             normalization=normalization,
             layernorm_epsilon=layernorm_epsilon,
             persist_layer_norm=persist_layer_norm,
+            sequence_parallel=sequence_parallel,
         )
 
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
