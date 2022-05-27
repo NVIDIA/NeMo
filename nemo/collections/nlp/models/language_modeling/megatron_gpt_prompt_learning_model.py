@@ -80,10 +80,20 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.cfg = cfg
 
+        frozen_model_cfg = MegatronGPTModel.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, return_config=True
+        )
+        # amp o2 not supported
+        with open_dict(frozen_model_cfg):
+            frozen_model_cfg.megatron_amp_O2 = False
+
         # Load pretrained GPT model and tokenizer
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(
-                cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+                cfg.get('language_model_path'),
+                trainer=trainer,
+                save_restore_connector=NLPSaveRestoreConnector(),
+                override_config_path=frozen_model_cfg,
             )
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
