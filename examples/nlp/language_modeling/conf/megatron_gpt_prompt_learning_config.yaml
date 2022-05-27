@@ -72,8 +72,8 @@ model:
 
   - taskname: 'rte'
     prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
-    total_virtual_tokens: 10 
-    virtual_token_splits: [10]
+    total_virtual_tokens: 100 
+    virtual_token_splits: [100]
     truncate_field: null
     answer_only_loss: True
     answer_field: 'answer'
