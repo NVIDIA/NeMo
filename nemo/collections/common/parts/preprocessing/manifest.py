@@ -15,7 +15,7 @@
 import json
 from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
-
+from pathlib import Path
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
@@ -66,12 +66,22 @@ def item_iter(
 
     k = -1
     for manifest_file in manifests_files:
-        with open(expanduser(manifest_file), 'r') as f:
+        manifest_file = Path(manifest_file)
+        manifest_dir = Path(manifest_file.parent)
+        with open(expanduser(str(manifest_file)), 'r') as f:
             for line in f:
                 k += 1
                 item = parse_func(line, manifest_file)
+                audio_file = Path(item['audio_file'])
+                # If the audio path is relative, and not using tarred dataset,
+                # attach the parent directory of manifest to the audio path.
+                # Assume "audio_file" starts with a dir, such as "wavs/xxxxx.wav".
+                # If using a tarred dataset, the "audio_path" is like "_home_data_tarred_wavs_xxxx.wav".
+                if not audio_file.is_file() and audio_file.parent != Path("."):
+                    # assume the wavs/ dir and manifest are under the same parent dir
+                    audio_file = manifest_dir / audio_file 
                 item['id'] = k
-
+                item['audio_file'] = str(audio_file)
                 yield item
 
 
