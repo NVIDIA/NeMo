@@ -14,8 +14,9 @@
 
 import json
 from os.path import expanduser
-from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
+
 
 class ManifestBase:
     def __init__(self, *args, **kwargs):
@@ -80,7 +81,7 @@ def item_iter(
                 # so we will just ignore it.
                 if not audio_file.is_absolute() and audio_file.parent != Path("."):
                     # assume the wavs/ dir and manifest are under the same parent dir
-                    audio_file = manifest_dir / audio_file 
+                    audio_file = manifest_dir / audio_file
                 item['id'] = k
                 item['audio_file'] = str(audio_file)
                 yield item
