@@ -1,8 +1,8 @@
 partition: null
 account: null
 exclusive: True
-gpus_per_task: 1
-gpus_per_node: null
+gpus_per_task: null
+gpus_per_node: 8
 mem: 0
 overcommit: False
 job_name_prefix: "bignlp-"
