@@ -23,4 +23,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.limit_val_batches=10 \
     training.model.tensor_model_parallel_size=1 \
     training.model.pipeline_model_parallel_size=1 \
-    training.model.data.data_prefix=[1.0,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_ci/data/my-gpt3_00_text_document]
+    training.model.data.data_prefix=[1.0,/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document]
