@@ -502,13 +502,13 @@ class ParallelAttention(MegatronModule):
         self,
         hidden_states,
         attention_mask,
-        position_bias=None,
         layer_past=None,
         get_key_value=False,
         encoder_output=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
+        position_bias=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -763,6 +763,9 @@ class ParallelChunkedCrossAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        position_embedding_type='learned_absolute',
+        relative_attention_num_buckets=32,
+        relative_attention_max_distance=128,
         megatron_legacy=False,
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
@@ -782,6 +785,9 @@ class ParallelChunkedCrossAttention(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
+            position_embedding_type=position_embedding_type,
+            relative_attention_num_buckets=relative_attention_num_buckets,
+            relative_attention_max_distance=relative_attention_max_distance,
             megatron_legacy=megatron_legacy,
             bias=bias,
         )
@@ -999,6 +1005,9 @@ class ParallelTransformerLayer_(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
+                position_embedding_type=position_embedding_type,
+                relative_attention_num_buckets=relative_attention_num_buckets,
+                relative_attention_max_distance=relative_attention_max_distance,
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
@@ -1032,6 +1041,9 @@ class ParallelTransformerLayer_(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 masked_softmax_fusion=masked_softmax_fusion,
                 attention_dropout=attention_dropout,
+                position_embedding_type=position_embedding_type,
+                relative_attention_num_buckets=relative_attention_num_buckets,
+                relative_attention_max_distance=relative_attention_max_distance,
                 megatron_legacy=megatron_legacy,
                 chunk_size=chunk_size,
                 bias=bias,
@@ -1098,8 +1110,6 @@ class ParallelTransformerLayer_(MegatronModule):
         self,
         hidden_states,
         attention_mask,
-        position_bias=None,
-        encoder_decoder_position_bias=None,
         encoder_output=None,
         enc_dec_attn_mask=None,
         layer_past=None,
@@ -1107,12 +1117,22 @@ class ParallelTransformerLayer_(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
+        position_bias=None,
+        encoder_decoder_position_bias=None,
     ):
         # hidden_states: [b, s, h]
 
         # Pre-LN: x -> LN -> MHA -> Residual -> LN -> MLP -> Residual
         # Post-LN: x -> MHA -> Residual -> LN -> MLP -> Residual -> LN
         # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
+
+        if type(hidden_states) is tuple:
+            if len(hidden_states) == 2:
+                hidden_states, position_bias = hidden_states
+            elif len(hidden_states) == 3:
+                hidden_states, position_bias, encoder_decoder_position_bias = hidden_states
+            else:
+                raise IndexError('Hidden_states needs to be tuple containing 2 or 3 elements.')
 
         residual = hidden_states
         # Layer norm at the beginning of the transformer layer.
@@ -1179,9 +1199,9 @@ class ParallelTransformerLayer_(MegatronModule):
             attention_output, attention_bias = self.inter_attention(
                 normalization_output,
                 enc_dec_attn_mask,
-                position_bias=encoder_decoder_position_bias,
                 encoder_output=encoder_output,
                 rotary_pos_emb=cross_attention_pos_emb,
+                position_bias=encoder_decoder_position_bias,
             )
             if self.position_embedding_type == 'relative':
                 attention_output, encoder_decoder_position_bias = attention_output[0], attention_output[1]
@@ -1252,8 +1272,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         self,
         hidden_states,
         attention_mask,
-        position_bias=None,
-        encoder_decoder_position_bias=None,
         encoder_output=None,
         enc_dec_attn_mask=None,
         rotary_pos_emb=None,
@@ -1261,13 +1279,13 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         get_key_value=False,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        position_bias=None,
+        encoder_decoder_position_bias=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
                 hidden_states,
                 attention_mask,
-                position_bias,
-                encoder_decoder_position_bias,
                 encoder_output,
                 enc_dec_attn_mask,
                 layer_past,
@@ -1275,13 +1293,13 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
                 rotary_pos_emb,
+                position_bias,
+                encoder_decoder_position_bias,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
                 hidden_states,
                 attention_mask,
-                position_bias,
-                encoder_decoder_position_bias,
                 encoder_output,
                 enc_dec_attn_mask,
                 layer_past,
@@ -1289,6 +1307,8 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 set_inference_key_value_memory,
                 inference_max_sequence_len,
                 rotary_pos_emb,
+                position_bias,
+                encoder_decoder_position_bias,
             )
 
 
@@ -1578,8 +1598,6 @@ class ParallelTransformer(MegatronModule):
         self,
         hidden_states,
         attention_mask,
-        position_bias=None,
-        encoder_decoder_position_bias=None,
         layer_past=None,
         get_key_value=False,
         encoder_output=None,
@@ -1588,6 +1606,8 @@ class ParallelTransformer(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
+        position_bias=None,
+        encoder_decoder_position_bias=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1629,6 +1649,14 @@ class ParallelTransformer(MegatronModule):
                 position_bias,
                 encoder_decoder_position_bias,
             )
+
+            if type(hidden_states) is tuple:
+                if len(hidden_states) == 2:
+                    hidden_states, position_bias = hidden_states
+                elif len(hidden_states) == 3:
+                    hidden_states, position_bias, encoder_decoder_position_bias = hidden_states
+                else:
+                    raise IndexError('Hidden_states needs to be tuple containing 2 or 3 elements.')
         else:
             if get_key_value:
                 presents = []
@@ -1640,8 +1668,6 @@ class ParallelTransformer(MegatronModule):
                 hidden_states = layer(
                     hidden_states,
                     attention_mask,
-                    position_bias,
-                    encoder_decoder_position_bias,
                     encoder_output=encoder_output,
                     enc_dec_attn_mask=enc_dec_attn_mask,
                     layer_past=past,
@@ -1649,6 +1675,8 @@ class ParallelTransformer(MegatronModule):
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
                     rotary_pos_emb=rotary_pos_emb,
+                    position_bias=position_bias,
+                    encoder_decoder_position_bias=encoder_decoder_position_bias,
                 )
                 if get_key_value:
                     hidden_states, present = hidden_states
