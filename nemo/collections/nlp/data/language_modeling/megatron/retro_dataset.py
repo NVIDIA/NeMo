@@ -114,6 +114,8 @@ class RETRODataset(Dataset):
             seed,
             index_mapping_dir=self.index_mapping_dir,
         )
+        if len(self.doc_idx) > np.iinfo('int32').max:
+            raise "number of epochs exceeds the maximum number for int32 used by sample_idx"
         self.padding_context = np.ones(2 * self.chunk_size, dtype=self.retrieval_index._index.dtype) * self.pad_id
 
     def _validate_pad_id(self):
