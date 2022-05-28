@@ -73,6 +73,8 @@ def item_iter(
             for line in f:
                 k += 1
                 item = parse_func(line, manifest_file)
+                if 'audio_file' not in item:
+                    print(item.keys())
                 audio_file = Path(item['audio_file'])
                 # If the audio path is relative, and not using tarred dataset,
                 # attach the parent directory of manifest to the audio path.
