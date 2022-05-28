@@ -169,7 +169,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 else:
                     has_two_fields.append(False)
                 audio_file = Path(item['audio_filepath'])
-                if not audio_file.is_absolute():
+                if not audio_file.is_file() and not audio_file.is_absolute():
                     audio_file = manifest_dir / audio_file
                 filepaths.append(str(audio_file))
         partial_audio = all(has_two_fields)

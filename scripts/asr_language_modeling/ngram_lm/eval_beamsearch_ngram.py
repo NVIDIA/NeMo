@@ -237,7 +237,7 @@ def main():
         for line in tqdm(manifest_file, desc=f"Reading Manifest {args.input_manifest} ...", ncols=120):
             data = json.loads(line)
             audio_file = Path(data['audio_filepath'])
-            if not audio_file.is_absolute():
+            if not audio_file.is_file() and not audio_file.is_absolute():
                 audio_file = manifest_dir / audio_file
             target_transcripts.append(data['text'])
             audio_file_paths.append(str(audio_file))
