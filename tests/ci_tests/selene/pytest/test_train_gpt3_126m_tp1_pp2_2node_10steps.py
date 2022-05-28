@@ -49,7 +49,7 @@ class TestCIGPT126m:
             "step_interval": 1,
             "values": [10.88569, 10.69234, 10.08759, 9.37511, 9.10205],
         },
-        "train_step_timing_avg": 0.916,
+        "train_step_timing_avg": 0.642,
     }
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
