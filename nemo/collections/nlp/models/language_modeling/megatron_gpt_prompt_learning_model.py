@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Union
 
 import torch
@@ -80,20 +81,17 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.cfg = cfg
 
         # Load pretrained GPT model and tokenizer
-        self.model = MegatronGPTModel.restore_from(
-            self.register_artifact('language_model_path', cfg.get('language_model_path', None)),
-            trainer=trainer,
-            save_restore_connector=NLPSaveRestoreConnector(),
-        )
+        if cfg.get('language_model_path', None):
+            self.frozen_model = MegatronGPTModel.restore_from(
+                cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
+            )
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
-        if not cfg.lm_finetune:
-            self.model.freeze()
-
-        self.tokenizer = self.model.tokenizer
-        self.float_type = self.model.model.language_model.encoder.layers[0].dtype
-        self.hidden_size = self.model.cfg.hidden_size
-        self.word_embeddings = self.model.model.language_model.embedding.word_embeddings
+        self.frozen_model.freeze()
+        self.tokenizer = self.frozen_model.tokenizer
+        self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
+        self.hidden_size = self.frozen_model.cfg.hidden_size
+        self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
 
@@ -107,6 +105,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_id_num_to_name=self.task_id_num_to_name,
             hidden_size=self.hidden_size,
         )
+        self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
+        self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
 
         # Prepare pseudo token ids for virtual/virtual prompt tokens
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
@@ -272,6 +272,42 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return tasks
 
+    def state_dict(self):
+        """
+        Custom state dict that only contains prompt table and prompt encoder parameters. 
+        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
+        are only in state dict for intermediate checkpoints saved during training. Final
+        nemo checkpoints at the end of training will contain prompt table parameters only. 
+        """
+        state_dict_ = {}
+        state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
+
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
+
+        return state_dict_
+
+    def load_state_dict(self, state_dict, strict: bool = True):
+        """
+        Custom load state dict method that only loads prompt table and prompt encoder
+        parameters. Matching load method for this class' custom state dict method. 
+        """
+        if self._prompt_table_key in state_dict:
+            state_dict_ = state_dict[self._prompt_table_key]
+        else:
+            # Handle loading state dict before weight saving change for backward compatibility.
+            state_dict_ = OrderedDict()
+            for key in state_dict.keys():
+                if key.startswith(self._prompt_table_key):
+                    key_substring = ".".join(key.split(".")[1:])
+                    state_dict_[key_substring] = state_dict[key]
+
+        self.prompt_table.load_state_dict(state_dict_, strict)
+
+        if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            state_dict_ = state_dict[self._prompt_encoder_key]
+            self.prompt_encoder.load_state_dict(state_dict_, strict)
+
     def forward(
         self,
         input_ids,
@@ -294,12 +330,12 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        position_embeddings = self.model.model.language_model.embedding.position_embeddings(position_ids)
+        position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
         encoder_input = input_embeds + position_embeddings
 
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
-            output = self.model.model(
+            output = self.frozen_model.model(
                 input_ids=None,
                 position_ids=None,
                 encoder_input=encoder_input,
@@ -310,7 +346,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
-                output = self.model.model(
+                output = self.frozen_model.model(
                     input_ids=None,
                     position_ids=None,
                     encoder_input=encoder_input,
@@ -422,7 +458,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
         output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
         output_tensor, encoder_hidden_states = output
-        loss = self.model.loss_func(loss_mask, output_tensor)
+        loss = self.frozen_model.loss_func(loss_mask, output_tensor)
         self.log('train_loss', loss)
 
         # Reduced loss for logging.
@@ -447,8 +483,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         with torch.no_grad():
             output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
-            output_tensor, encoder_hidden_states = output
-            loss = self.model.loss_func(loss_mask, output_tensor)
+            output_tensor, _ = output
+            loss = self.frozen_model.loss_func(loss_mask, output_tensor)
             self.log('val_loss', loss)
 
             return loss
@@ -550,7 +586,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_templates=self.task_templates,
             pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
+            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=self.cfg.data.get('add_bos', False),
             add_eos=self.cfg.data.get('add_eos', True),
@@ -609,14 +645,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             task_templates=self.task_templates,
             pseudo_tokens=self.pseudo_tokens,
             pad_token_id=self.pad_token_id,
-            max_seq_length=self.cfg.data.get('max_seq_length', self.model.cfg.max_position_embeddings),
+            max_seq_length=self.cfg.data.get('max_seq_length', self.frozen_model.cfg.max_position_embeddings),
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=sampling_params["add_BOS"],
             add_eos=False,
             for_train=False,
         )
         task_ids, processed_inputs = dataset.get_all_examples(tokens_to_generate=length_params['max_length'])
-        self.model.model.parallel_output = False
+        self.frozen_model.model.parallel_output = False
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
