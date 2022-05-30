@@ -260,9 +260,9 @@ class SquadDataset(Dataset):
                 self.examples = []
                 del self.processor
 
-        logging.info("Converting json features into object features")
-        for i in trange(len(self.features)):
-            self.features[i] = InputFeatures(**self.features[i])
+        # logging.info("Converting json features into object features")
+        # for i in trange(len(self.features)):
+        #     self.features[i] = InputFeatures(**self.features[i])
 
     @staticmethod
     def get_doc_tokens_and_offset_from_context_id(
