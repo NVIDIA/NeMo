@@ -174,11 +174,16 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             pre_decoder_layer_types = []
             for i in range(pre_decoder_num_layers):
                 pre_decoder_layer_types.append(LayerType.encoder)
+            pre_decoder_layer_types.append(LayerType.decoder_pre_mlp)
 
             post_decoder_num_layers = dec_num_layers - pre_decoder_num_layers
             post_decoder_layer_types = []
+            # the first layer in post decoder has to be chunked cross attention without self attention
+            assert pre_decoder_num_layers in dec_cross_attention
             for i in range(post_decoder_num_layers):
-                if i + pre_decoder_num_layers in dec_cross_attention:
+                if i == 0:
+                    post_decoder_layer_types.append(LayerType.retrieval_decoder_after_self_attn)
+                elif i + pre_decoder_num_layers in dec_cross_attention:
                     post_decoder_layer_types.append(LayerType.retrieval_decoder)
                 else:
                     post_decoder_layer_types.append(LayerType.encoder)
@@ -188,7 +193,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 arch="retro",
                 hidden_size=hidden_size,
                 ffn_hidden_size=ffn_hidden_size,
-                num_layers=pre_decoder_num_layers,
+                num_layers=pre_decoder_num_layers + 1,
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
@@ -234,7 +239,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 kv_channels=kv_channels,
                 init_method=init_method_normal(init_method_std),
                 scaled_init_method=scaled_init_method_normal(init_method_std, dec_num_layers),
-                pre_process=pre_process,
+                pre_process=False,  # directly take the pre_decoder output, skip preprocess
                 post_process=post_process,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
@@ -322,7 +327,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
             )
-            hidden = hidden.transpose(0, 1).contiguous()
+            # hidden is a tuple, (layernorm_input, layernorm_output)
+            self.post_decoder.set_input_tensor(hidden)
+            encoder_input = hidden[1].transpose(0, 1).contiguous()
 
         if self.add_encoder:
             if retrieved_emb is not None and neighbors is None:
@@ -331,7 +338,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 retrieved_emb,
                 retrieved_attn_mask,
                 context_attn_mask=input_attn_mask,
-                encoder_output=hidden,
+                encoder_output=encoder_input,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 neighbors=neighbors,
