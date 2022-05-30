@@ -190,7 +190,7 @@ class SquadDataset(Dataset):
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
-            + '_new3_cache'
+            + '_cache'
             + '_{}_{}_{}_{}_{}_{}_{}'.format(
                 mode,
                 tokenizer.name,
