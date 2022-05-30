@@ -16,18 +16,18 @@
 
 
 import collections
-import os
-import json
 import gc
+import json
+import os
 import pickle
 from functools import lru_cache
 from typing import Dict, List, Optional
 
+import ijson
 import numpy as np
 import psutil
 import torch
-from tqdm import trange, tqdm
-import ijson
+from tqdm import tqdm, trange
 
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import is_whitespace
@@ -190,7 +190,7 @@ class SquadDataset(Dataset):
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
-            + '_new2_cache'
+            + '_new3_cache'
             + '_{}_{}_{}_{}_{}_{}_{}'.format(
                 mode,
                 tokenizer.name,
@@ -216,32 +216,16 @@ class SquadDataset(Dataset):
             if self.mode == TRAINING_MODE:
                 del self.examples
                 del self.processor
-                gc.collect()
-            # with open(cached_features_file, "rb") as reader:
-            #     items_to_pickle = pickle.load(reader)
-            #     (
-            #         self.features,
-            #         self.input_mask_id_to_input_mask,
-            #         self.input_mask_to_input_mask_id,
-            #         self.segment_mask_id_to_segment_mask,
-            #         self.segment_mask_to_segment_mask_id,
-            #     ) = items_to_pickle
-            #     items_to_pickle = None
-            #     del items_to_pickle
-            
-            
-            with open(cached_features_file, "r") as reader:
-                items_to_pickle = json.load(reader)
-                #features_iter = ijson.items(reader, 'features.item')
-                #self.features = [feature for feature in tqdm(features_iter)]
-                # from collections import Counter
-                # print(Counter(end_positions))
-                #raise ValueError
-                self.features = items_to_pickle["features"]
-                self.input_mask_id_to_input_mask = {int(k): v for k, v in items_to_pickle["input_mask_id_to_input_mask"].items()}
-                self.input_mask_to_input_mask_id = {tuple(v): k for k, v in self.input_mask_id_to_input_mask.items()}
-                self.segment_mask_id_to_segment_mask = {int(k): v for k, v in items_to_pickle["segment_mask_id_to_segment_mask"].items()}
-                self.segment_mask_to_segment_mask_id =  {tuple(v): k for k, v in self.segment_mask_id_to_segment_mask.items()}
+
+            with open(cached_features_file, "rb") as reader:
+                items_to_pickle = pickle.load(reader)
+                (
+                    self.features,
+                    self.input_mask_id_to_input_mask,
+                    self.input_mask_to_input_mask_id,
+                    self.segment_mask_id_to_segment_mask,
+                    self.segment_mask_to_segment_mask_id,
+                ) = items_to_pickle
                 items_to_pickle = None
                 del items_to_pickle
 
@@ -261,28 +245,21 @@ class SquadDataset(Dataset):
                 master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
                 if master_device:
                     logging.info("  Saving train features into cached file %s", cached_features_file)
-                    # with open(cached_features_file, "wb") as writer:
-                    #     items_to_pickle = [
-                    #         self.features,
-                    #         self.input_mask_id_to_input_mask,
-                    #         self.input_mask_to_input_mask_id,
-                    #         self.segment_mask_id_to_segment_mask,
-                    #         self.segment_mask_to_segment_mask_id,
-                    #     ]
-                    #     pickle.dump(items_to_pickle, writer)
-
-                    json_file_content = {
-                        "features": self.features,
-                        "input_mask_id_to_input_mask": self.input_mask_id_to_input_mask,
-                        "segment_mask_id_to_segment_mask": self.segment_mask_id_to_segment_mask,
-                    }
-                    with open(cached_features_file, "w") as writer:
-                        json.dump(json_file_content, writer)
+                    with open(cached_features_file, "wb") as writer:
+                        items_to_pickle = [
+                            self.features,
+                            self.input_mask_id_to_input_mask,
+                            self.input_mask_to_input_mask_id,
+                            self.segment_mask_id_to_segment_mask,
+                            self.segment_mask_to_segment_mask_id,
+                        ]
+                        pickle.dump(items_to_pickle, writer)
 
             # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
                 self.examples = []
                 del self.processor
+
         logging.info("Converting json features into object features")
         for i in trange(len(self.features)):
             self.features[i] = InputFeatures(**self.features[i])
@@ -365,7 +342,7 @@ class SquadDataset(Dataset):
             if start_offset + length == len(all_doc_tokens):
                 break
             start_offset += min(length, doc_stride)
-        return tuple(doc_spans)
+        return doc_spans
 
     @staticmethod
     def check_if_sufficient_memory():
@@ -377,6 +354,41 @@ class SquadDataset(Dataset):
         percent_memory = psutil.virtual_memory().percent
         if percent_memory > 75:
             raise ValueError('Please use a device with more CPU ram or a smaller dataset')
+
+    @staticmethod
+    def get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position):
+        center_answer = (tok_start_position + tok_end_position) // 2
+        dist_to_start = abs(doc_span.start - center_answer)
+        dist_to_end = abs(doc_span.start + doc_span.length - 1 - center_answer)
+        return (dist_to_start + dist_to_end) // 2
+
+    @staticmethod
+    def keep_relevant_docspans(doc_spans, tok_start_position, tok_end_position, mode):
+        if mode == 'all':
+            return doc_spans
+        elif mode == 'only_positive':
+            if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
+                return []
+            else:
+                return [
+                    doc_span
+                    for doc_span in doc_spans
+                    if tok_start_position >= doc_span.start
+                    and tok_end_position <= doc_span.start + doc_span.length - 1
+                ]
+        elif mode == 'limited_negative':
+            n_candidates = 10
+            if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
+                pass
+            else:
+                doc_spans.sort(
+                    key=lambda doc_span: SquadDataset.get_average_dist_to_tok_start_and_end(
+                        doc_span, tok_start_position, tok_end_position
+                    )
+                )
+            return doc_spans[:n_candidates]
+        else:
+            raise ValueError('mode can only be in {all, only_positive and limited_negative')
 
     def convert_examples_to_features(
         self,
@@ -463,6 +475,13 @@ class SquadDataset(Dataset):
             max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
 
             doc_spans = SquadDataset.get_docspans(all_doc_tokens, max_tokens_for_doc, doc_stride)
+
+            doc_spans = SquadDataset.keep_relevant_docspans(
+                doc_spans, tok_start_position, tok_end_position, 'limited_negative'
+            )
+
+            # make compatible for hashing
+            doc_spans = tuple(doc_spans)
 
             for (doc_span_index, doc_span) in enumerate(doc_spans):
 

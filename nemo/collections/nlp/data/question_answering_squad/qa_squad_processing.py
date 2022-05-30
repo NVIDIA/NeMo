@@ -319,12 +319,13 @@ class SquadProcessor(DataProcessor):
         if self.data_file is None:
             raise ValueError(f"{self.mode} data file is None.")
 
-        len_docs = []
+        # remove this line and the replace cache line below - which is a temp fix
         with open(self.data_file.replace('_cache', ''), "r", encoding="utf-8") as reader:
             input_data = ijson.items(reader, "data.item")
 
             examples = []
-            for entry in tqdm(input_data):
+            for entry in input_data:
+                len_docs = []
                 title = entry["title"]
                 for paragraph in entry["paragraphs"]:
                     context_text = paragraph["context"]
@@ -371,8 +372,8 @@ class SquadProcessor(DataProcessor):
 
                         examples.append(example)
 
-        logging.info('mean no. of chars in doc: {}'.format(np.mean(len_docs)))
-        logging.info('max no. of chars in doc: {}'.format(np.max(len_docs)))
+                logging.info('mean no. of chars in doc: {}'.format(np.mean(len_docs)))
+                logging.info('max no. of chars in doc: {}'.format(np.max(len_docs)))
         return examples
 
 

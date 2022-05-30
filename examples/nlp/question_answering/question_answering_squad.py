@@ -95,7 +95,9 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if not cfg.pretrained_model:
+    if cfg.model.nemo_path is not None and os.path.isfile(cfg.model.nemo_path):
+        model = QAModel.restore_from(cfg.model.nemo_path, override_config_path=cfg, trainer=trainer)
+    elif not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = QAModel(cfg.model, trainer=trainer)
     else:

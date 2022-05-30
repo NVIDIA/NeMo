@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 from pydoc import doc
 
 import pytest
@@ -106,3 +107,79 @@ def test_get_doc_spans():
     assert doc_spans[0].length == 10
     assert doc_spans[1].start == 5
     assert doc_spans[1].length == 10
+
+
+@pytest.mark.unit
+def test_get_average_dist_to_tok_start_and_end():
+    _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
+
+    doc_span = _DocSpan(start=0, length=5)
+
+    tok_start_position = 1
+    tok_end_position = 3
+
+    assert 2 == SquadDataset.get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position)
+
+    doc_span = _DocSpan(start=5, length=5)
+
+    tok_start_position = 1
+    tok_end_position = 2
+
+    assert 6 == SquadDataset.get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position)
+
+    doc_span = _DocSpan(start=5, length=4)
+
+    tok_start_position = 1
+    tok_end_position = 2
+
+    assert 5 == SquadDataset.get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position)
+
+
+@pytest.mark.unit
+def test_keep_relevant_docspans():
+
+    _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
+
+    doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]
+
+    tok_start_position = 1
+    tok_end_position = 2
+
+    mode = 'all'
+    assert doc_spans == SquadDataset.keep_relevant_docspans(doc_spans, tok_start_position, tok_end_position, mode)
+
+    doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]
+
+    tok_start_position = -1
+    tok_end_position = -1
+
+    mode = 'only_positive'
+
+    expected_doc_spans = []
+    assert expected_doc_spans == SquadDataset.keep_relevant_docspans(
+        doc_spans, tok_start_position, tok_end_position, mode
+    )
+
+    doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]
+
+    tok_start_position = 1
+    tok_end_position = 2
+
+    mode = 'only_positive'
+
+    expected_doc_spans = [_DocSpan(start=0, length=5), _DocSpan(start=1, length=5)]
+    assert expected_doc_spans == SquadDataset.keep_relevant_docspans(
+        doc_spans, tok_start_position, tok_end_position, mode
+    )
+
+    doc_spans = [_DocSpan(start=start, length=5) for start in range(15)]
+
+    tok_start_position = 1
+    tok_end_position = 2
+
+    mode = 'limited_negative'
+
+    expected_doc_spans = [_DocSpan(start=start, length=5) for start in range(10)]
+    assert expected_doc_spans == SquadDataset.keep_relevant_docspans(
+        doc_spans, tok_start_position, tok_end_position, mode
+    )
