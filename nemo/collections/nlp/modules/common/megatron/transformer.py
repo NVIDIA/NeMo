@@ -1279,7 +1279,6 @@ class ParallelTransformerLayer_(MegatronModule):
                     enc_dec_attn_mask,
                     encoder_output=encoder_output,
                     rotary_pos_emb=cross_attention_pos_emb,
-                    position_bias=encoder_decoder_position_bias,
                     set_inference_key_value_memory=set_inference_key_value_memory,
                     inference_max_sequence_len=inference_max_sequence_len,
                 )
