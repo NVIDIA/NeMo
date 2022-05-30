@@ -1207,7 +1207,6 @@ class ParallelTransformerLayer_(MegatronModule):
                 else:
                     raise IndexError('Hidden_states needs to be tuple containing 2 or 3 elements.')
 
-
             residual = hidden_states
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
