@@ -80,28 +80,24 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.cfg = cfg
 
-        frozen_model_cfg = MegatronGPTModel.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, return_config=True
-        )
-        # amp o2 not supported
-        with open_dict(frozen_model_cfg):
-            frozen_model_cfg.megatron_amp_O2 = False
-
         # Load pretrained GPT model and tokenizer
         if cfg.get('language_model_path', None):
             self.frozen_model = MegatronGPTModel.restore_from(
-                cfg.get('language_model_path'),
-                trainer=trainer,
-                save_restore_connector=NLPSaveRestoreConnector(),
-                override_config_path=frozen_model_cfg,
+                cfg.get('language_model_path'), trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
             )
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
         self.tokenizer = self.frozen_model.tokenizer
-        self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
+
+        if self.frozen_model.megatron_amp_o2:
+            self.float_type = self.frozen_model.model.module.language_model.encoder.layers[0].dtype
+            self.word_embeddings = self.frozen_model.model.module.language_model.embedding.word_embeddings
+        else:
+            self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
+            self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+
         self.hidden_size = self.frozen_model.cfg.hidden_size
-        self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
 
@@ -340,7 +336,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
 
-        position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+        if self.frozen_model.megatron_amp_o2:
+            position_embeddings = self.frozen_model.model.module.language_model.embedding.position_embeddings(position_ids)
+        else:
+             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+
         encoder_input = input_embeds + position_embeddings
 
         # Call forward on GPT model with preprocessed embeddings
