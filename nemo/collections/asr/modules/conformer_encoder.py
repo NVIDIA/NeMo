@@ -257,6 +257,8 @@ class ConformerEncoder(NeuralModule, Exportable):
         if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
         else:
+            # added in order to prevent slowdown in bfloat16 with CUDNN v8 API
+            # to be removed once the above is fixed in cudnn
             with torch.cuda.amp.autocast(dtype=torch.float32)
                 audio_signal, length = self.pre_encode(audio_signal, length)
 
