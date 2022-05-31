@@ -2097,9 +2097,9 @@ pipeline {
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
         model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
         sh "python examples/nlp/machine_translation/megatron_nmt_training.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
@@ -2129,9 +2129,9 @@ pipeline {
         ~model.test_ds \
         model.train_ds.dataset_type=text_memmap \
         model.encoder_tokenizer.library=sentencepiece \
-        model.encoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
+        model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model \
         model.decoder_tokenizer.library=sentencepiece \
-        model.decoder_tokenizer.tokenizer_model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
+        model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model"
         sh "rm -rf examples/nlp/machine_translation/megatron_nmt_results"
       }
     }
