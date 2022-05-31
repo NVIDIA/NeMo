@@ -72,8 +72,8 @@ model:
 
   - taskname: 'rte'
     prompt_template: '<|VIRTUAL_PROMPT_0|>{text}{answer}'
-    total_virtual_tokens: 10 
-    virtual_token_splits: [10]
+    total_virtual_tokens: 9 
+    virtual_token_splits: [9]
     truncate_field: null
     answer_only_loss: True
     answer_field: 'answer'
@@ -91,7 +91,7 @@ model:
     validation_ds: [data/rte_val.jsonl,]
     add_eos: True
     shuffle: True
-    num_workers: 8
+    num_workers: 1
     pin_memory: True
 
 
