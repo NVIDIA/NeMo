@@ -291,6 +291,7 @@ class QAModel(NLPModel):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
+            keep_doc_spans=self._cfg.dataset.keep_doc_spans,
             doc_stride=self._cfg.dataset.doc_stride,
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,

@@ -155,6 +155,7 @@ class SquadDataset(Dataset):
     def __init__(
         self,
         data_file: str,
+        keep_doc_spans: str,
         tokenizer: object,
         doc_stride: int,
         max_query_length: int,
@@ -168,6 +169,7 @@ class SquadDataset(Dataset):
         self.version_2_with_negative = version_2_with_negative
         self.processor = SquadProcessor(data_file=data_file, mode=mode)
         self.mode = mode
+        self.keep_doc_spans = keep_doc_spans
 
         # hashing to reduce memory use
         self.input_mask_id = 0
@@ -328,6 +330,17 @@ class SquadDataset(Dataset):
 
     @staticmethod
     def get_docspans(all_doc_tokens, max_tokens_for_doc, doc_stride):
+        """
+        Get docspans which are sliding window spans from a document
+
+        Args:
+            all_doc_tokens: list of all tokens in document
+            max_tokens_for_doc: maximum number of tokens in each doc span
+            doc_stride: stride size which sliding window moves with
+        
+        Returns:
+            doc_spans: all possible doc_spans from document
+        """
         _DocSpan = collections.namedtuple("DocSpan", ["start", "length"])
         doc_spans = []
         start_offset = 0
@@ -354,6 +367,18 @@ class SquadDataset(Dataset):
 
     @staticmethod
     def get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position):
+        """
+        Find distance between doc_span and answer_span to determine if doc_span is likely to be useful for the answer
+        Helper function to filter out doc_spans that may not be helpful
+
+        Args:
+            doc_span
+            tok_start_position: start position of answer in document
+            tok_end_position: end position of answer in document
+        
+        Returns:
+            average distance of doc_span to answer
+        """
         center_answer = (tok_start_position + tok_end_position) // 2
         dist_to_start = abs(doc_span.start - center_answer)
         dist_to_end = abs(doc_span.start + doc_span.length - 1 - center_answer)
@@ -361,6 +386,22 @@ class SquadDataset(Dataset):
 
     @staticmethod
     def keep_relevant_docspans(doc_spans, tok_start_position, tok_end_position, mode):
+        """
+        Filters out doc_spans, which might not be relevant to answering question, 
+        which can be helpful when document is extremely long leading to many doc_spans with no answers
+
+        Args:
+            doc_spans: all possible doc_spans
+            tok_start_position: start position of answer in document
+            tok_end_position: end position of answer in document
+            mode:
+                all: do not filter
+                only_positive: only keep doc_spans containing the answer
+                limited_negative: only keep 10 doc_spans that are nearest to answer
+        
+        Returns:
+            doc_spans: doc_spans after filtering
+        """
         if mode == 'all':
             return doc_spans
         elif mode == 'only_positive':
@@ -474,7 +515,7 @@ class SquadDataset(Dataset):
             doc_spans = SquadDataset.get_docspans(all_doc_tokens, max_tokens_for_doc, doc_stride)
 
             doc_spans = SquadDataset.keep_relevant_docspans(
-                doc_spans, tok_start_position, tok_end_position, 'limited_negative'
+                doc_spans, tok_start_position, tok_end_position, self.keep_doc_spans
             )
 
             # make compatible for hashing
