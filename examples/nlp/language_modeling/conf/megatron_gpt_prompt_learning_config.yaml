@@ -44,7 +44,8 @@ model:
   encoder_seq_length: 2048 
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
-  batch_size: 8
+  global_batch_size: 8
+  micro_batch_size: 4
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   language_model_path: models/megatron_125M_gpt.nemo # Path to the GPT language model .nemo file, not needed if restore path is set  
@@ -103,6 +104,6 @@ model:
       name: CosineAnnealing
       warmup_steps: 50
       constant_steps: 10
-      min_lr: 1e-6
+      min_lr: 0.0
       monitor: val_loss
       reduce_on_plateau: false
