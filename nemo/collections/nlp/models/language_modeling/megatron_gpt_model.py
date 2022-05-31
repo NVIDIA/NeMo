@@ -182,6 +182,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             )
         else:
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
@@ -440,6 +441,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 forward_only=True,
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
+                sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
             )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
