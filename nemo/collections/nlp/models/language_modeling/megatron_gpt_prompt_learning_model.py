@@ -91,11 +91,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.tokenizer = self.frozen_model.tokenizer
 
         if self.frozen_model.megatron_amp_o2:
-            self.float_type = self.frozen_model.model.module.language_model.encoder.layers[0].dtype
             self.word_embeddings = self.frozen_model.model.module.language_model.embedding.word_embeddings
+            if self.frozen_model.cfg.precision == 16:
+                self.float_type = torch.float16
+            elif self.frozen_model.cfg.precision == 'bf16':
+                self.float_type = torch.bfloat16
+            else:
+                raise ValueError(f'Precision {self.frozen_model.precision} Not supported with O2')
         else:
-            self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+            self.float_type = torch.float
 
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
@@ -335,13 +340,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             input_embeds = self.embed_input_inference(input_ids, taskname_ids)
         else:
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
+        print(input_embeds.dtype)
         if self.frozen_model.megatron_amp_o2:
             position_embeddings = self.frozen_model.model.module.language_model.embedding.position_embeddings(position_ids)
         else:
              position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
-
+        print(position_embeddings.dtype)
         encoder_input = input_embeds + position_embeddings
+        print(encoder_input.dtype)
 
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
@@ -356,6 +362,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
+                print(encoder_input.dtype)
                 output = self.frozen_model.model(
                     input_ids=None,
                     position_ids=None,
