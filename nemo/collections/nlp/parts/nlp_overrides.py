@@ -319,7 +319,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 new_key = key.replace('model.', 'model.module.', 1)
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
-            
+
         return state_dict
 
     def restore_from(

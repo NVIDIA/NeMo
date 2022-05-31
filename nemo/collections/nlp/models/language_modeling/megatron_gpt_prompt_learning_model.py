@@ -340,14 +340,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             input_embeds = self.embed_input_inference(input_ids, taskname_ids)
         else:
             input_embeds = self.embed_input_train(input_ids, taskname_ids)
-        print(input_embeds.dtype)
+
         if self.frozen_model.megatron_amp_o2:
-            position_embeddings = self.frozen_model.model.module.language_model.embedding.position_embeddings(position_ids)
+            position_embeddings = self.frozen_model.model.module.language_model.embedding.position_embeddings(
+                position_ids
+            )
         else:
-             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
-        print(position_embeddings.dtype)
+            position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
+
         encoder_input = input_embeds + position_embeddings
-        print(encoder_input.dtype)
 
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
@@ -362,7 +363,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
         else:
             with torch.autocast(device_type="cuda", dtype=self.float_type):
-                print(encoder_input.dtype)
                 output = self.frozen_model.model(
                     input_ids=None,
                     position_ids=None,
