@@ -138,7 +138,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
                 init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, enc_num_layers),
+                scaled_init_method=scaled_init_method_normal(init_method_std, dec_num_layers),  # since the encoder is not independent of decoder, use decoder num of layers
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=init_method_std,
