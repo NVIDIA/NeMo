@@ -257,7 +257,7 @@ class ConformerEncoder(NeuralModule, Exportable):
         if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
         else:
-            with torch.cuda.amp.autocast(dtype=torch.float32)`
+            with torch.cuda.amp.autocast(dtype=torch.float32)
                 audio_signal, length = self.pre_encode(audio_signal, length)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
