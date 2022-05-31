@@ -1,5 +1,5 @@
-# This config contains the default values for training FastPitch model with aligner on LJSpeech dataset.
-# If you want to train model on other dataset, you can change config values according to your dataset.
+# This config contains the default values for training a FastPitch model with aligner.
+# If you want to train a model on other dataset, you can change config values according to your dataset.
 # Most dataset-specific arguments are in the head of the config file, see below.
 
 name: FastPitch
@@ -28,7 +28,7 @@ highfreq: 8000
 window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.01.txt"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms.txt"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
 model:

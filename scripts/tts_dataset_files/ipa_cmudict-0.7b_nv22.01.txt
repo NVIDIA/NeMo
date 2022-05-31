@@ -1,6 +1,78 @@
+;;; # Copyright (c) 2022 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+;;; # Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
+;;; # English (US) IPA data based on https://github.com/open-dict-data/ipa-dict (Copyright (c) 2016 dohliam MIT License)
+;;; # and https://github.com/lingz/cmudict-ipa (Copyright (c) 2016 Lingliang Zhang MIT License)
+;;; #
+;;; # CMUdict  --  Major Version: 0.07
+;;;
+;;; # $HeadURL$
+;;; # $Date::                                                   $:
+;;; # $Id::                                                     $:
+;;; # $Rev::                                                    $:
+;;; # $Author::                                                 $:
+;;;
+;;; #
+;;; # ========================================================================
+;;; # Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
+;;; #
+;;; # Redistribution and use in source and binary forms, with or without
+;;; # modification, are permitted provided that the following conditions
+;;; # are met:
+;;; #
+;;; # 1. Redistributions of source code must retain the above copyright
+;;; #    notice, this list of conditions and the following disclaimer.
+;;; #    The contents of this file are deemed to be source code.
+;;; #
+;;; # 2. Redistributions in binary form must reproduce the above copyright
+;;; #    notice, this list of conditions and the following disclaimer in
+;;; #    the documentation and/or other materials provided with the
+;;; #    distribution.
+;;; #
+;;; # This work was supported in part by funding from the Defense Advanced
+;;; # Research Projects Agency, the Office of Naval Research and the National
+;;; # Science Foundation of the United States of America, and by member
+;;; # companies of the Carnegie Mellon Sphinx Speech Consortium. We acknowledge
+;;; # the contributions of many volunteers to the expansion and improvement of
+;;; # this dictionary.
+;;; #
+;;; # THIS SOFTWARE IS PROVIDED BY CARNEGIE MELLON UNIVERSITY ``AS IS'' AND
+;;; # ANY EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+;;; # THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+;;; # PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY
+;;; # NOR ITS EMPLOYEES BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+;;; # SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+;;; # LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+;;; # DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+;;; # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+;;; # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+;;; # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+;;; #
+;;; # ========================================================================
+;;; #
+;;;
+;;;  NOTES  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;;  [20080401] (air)  New dict file format introduced
+;;;   - comments (like this section) are allowed
+;;;   - file name is major version; vers/rev information is now in the header
+;;;
+;;;
+;;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+!EXCLAMATION-POINT  ˌɛkskɫəˈmeɪʃənˌpɔɪnt
+"CLOSE-QUOTE  ˈkɫoʊzˈkwoʊt
+"DOUBLE-QUOTE  ˈdəbəɫˈkwoʊt
+"END-OF-QUOTE  ˈɛndəvˈkwoʊt
+"END-QUOTE  ˈɛndˈkwoʊt
+"IN-QUOTES  ˈɪnˈkwoʊts
+"QUOTE  ˈkwoʊt
+"UNQUOTE  ˈənˈkwoʊt
+#HASH-MARK  ˈhæˌmɑɹk
+#POUND-SIGN  ˈpaʊndˌsaɪn
+#SHARP-SIGN  ˈʃɑɹpˌsaɪn
+%PERCENT  pɝˈsɛnt
+&AMPERSAND  ˈæmpɝˌsænd
 'ALLO  ˌɑˈɫoʊ
-'ALLO  ˌɑˈɫoʊ
-'APOSTROPHE  əˈpɑstɹəfi
 'APOSTROPHE  əˈpɑstɹəfi
 'BOUT  ˈbaʊt
 'CAUSE  kəz
@@ -8,25 +80,58 @@
 'CUSE  ˈkjuz
 'EM  əm
 'END-INNER-QUOTE  ˈɛnˈdɪnɝˈkwoʊt
-'END-INNER-QUOTE  ˈɛnˈdɪnɝˈkwoʊt
-'END-QUOTE  ˈɛndˈkwoʊt
 'END-QUOTE  ˈɛndˈkwoʊt
 'FRISCO  ˈfɹɪskoʊ
 'GAIN  ˈɡɛn
-'INNER-QUOTE  ˈɪnɝˈkwoʊt
 'INNER-QUOTE  ˈɪnɝˈkwoʊt
 'KAY  ˈkeɪ
 'M  əm
 'N  ən
 'QUOTE  ˈkwoʊt
-'QUOTE  ˈkwoʊt
 'ROUND  ˈɹaʊnd
 'S  ˈɛs
-'SINGLE-QUOTE  ˈsɪŋɡəɫˈkwoʊt
 'SINGLE-QUOTE  ˈsɪŋɡəɫˈkwoʊt
 'TIL  ˈtɪɫ
 'TIS  ˈtɪz
 'TWAS  ˈtwəz
+(BEGIN-PARENS  bɪˈɡɪnpɝˈɛnz
+(IN-PARENTHESES  ˈɪnpɝˈɛnθəˌsiz
+(LEFT-PAREN  ˈɫɛftpɝˈɛn
+(OPEN-PARENTHESES  ˈoʊpənpɝˈɛnθəˌsiz
+(PAREN  pɝˈɛn
+(PARENS  pɝˈɛnz
+(PARENTHESES  pɝˈɛnθəˌsiz
+)CLOSE-PAREN  ˈkɫoʊzpɝˈɛn
+)CLOSE-PARENTHESES  ˈkɫoʊzpɝˈɛnθəˌsiz
+)END-PAREN  ˈɛndpɝˈɛn
+)END-PARENS  ˈɛndpɝˈɛnz
+)END-PARENTHESES  ˈɛndpɝˈɛnθəˌsiz
+)END-THE-PAREN  ˈɛndðəpɝˈɛn
+)PAREN  pɝˈɛn
+)PARENS  pɝˈɛnz
+)RIGHT-PAREN  ˈɹaɪtˌpɛɹən
+)UN-PARENTHESES  ˈənpɝˈɛnθəˈsiz
++PLUS  ˈpɫʊs
+,COMMA  ˈkɑmə
+--DASH  ˈdæʃ
+-DASH  ˈdæʃ
+-HYPHEN  ˈhaɪfən
+...ELLIPSIS  ˌɪˈɫɪpsɪs
+.DECIMAL  ˈdɛsəməɫ
+.DOT  ˈdɑt
+.FULL-STOP  ˈfʊɫˈstɑp
+.PERIOD  ˈpɪɹiəd
+.POINT  ˈpɔɪnt
+/SLASH  ˈsɫæʃ
+3-D  ˈθɹiˌdi
+3D  ˈθɹiˌdi
+4K  ˈfɔɹˈkeɪ
+5G  ˈfaɪvˈdʒi
+8N  ˈeɪˈtɛn
+:COLON  ˈkoʊɫən
+;SEMI-COLON  ˈsɛmiˈkoʊɫən
+;SEMI-COLON  ˈsɛmɪˌkoʊɫən
+?QUESTION-MARK  ˈkwɛstʃənˈmɑɹk
 A  ˈeɪ
 A  ˈə
 A'S  ˈeɪz
@@ -35,14 +140,11 @@ A.'S  ˈeɪz
 A.M.  ˈeɪˈæm
 A.S  ˈeɪz
 A42128  ˈeɪˈfɔɹˈtuˈwənˈtuˈeɪt
-A42128  ˈeɪˈfɔɹˈtuˈwənˈtuˈeɪt
-AA  ˌeɪˈeɪ
 AA  ˌeɪˈeɪ
 AAA  ˌtɹɪpəˈɫeɪ
 AABERG  ˈɑbɝɡ
 AACHEN  ˈɑkən
 AACHENER  ˈɑkənɝ
-AAH  ˈɑ
 AAH  ˈɑ
 AAKER  ˈɑkɝ
 AALIYAH  ˌɑˈɫiˌɑ
@@ -1537,7 +1639,6 @@ AESTHETIC  ɛsˈθɛtɪk
 AESTHETICALLY  ɛsˈθɛtɪkɫi
 AESTHETICS  ɛsˈθɛtɪks
 AETERNA  ˌɛˈtɝnə
-AETERNA  ˌɛˈtɝnə
 AETNA  ˈɛtnə
 AETNA'S  ˈɛtnəz
 AFANASYEV  ˌæfəˈneɪsiɛv
@@ -1548,6 +1649,7 @@ AFFAIR  əˈfɛɹ
 AFFAIR'S  əˈfɛɹz
 AFFAIRS  əˈfɛɹz
 AFFECT  əˈfɛkt
+AFFECT  ˈæˌfɛkt
 AFFECTATION  ˌæfɛkˈteɪʃən
 AFFECTED  əˈfɛktɪd
 AFFECTING  əˈfɛktɪŋ
@@ -2096,7 +2198,6 @@ AIR  ˈɛɹ
 AIR'S  ˈɛɹz
 AIR-CONDITIONING  ˈɛɹkənˌdɪʃənɪŋ
 AIR_FORCE  ˈɛɹfɔɹs
-AIR_FORCE  ˈɛɹfɔɹs
 AIRBAG  ˈɛɹˌbæɡ
 AIRBAGS  ˈɛɹˌbæɡz
 AIRBASE  ˈɛɹˌbeɪs
@@ -2309,7 +2410,6 @@ AL'S  ˈæɫz
 AL-QAEDA  ˌɑɫˈkaɪdɑ
 AL.  ˈæɫ
 AL.  ˌæɫəˈbæmə
-AL_AMEIN  ˈæɫəˌmeɪn
 AL_AMEIN  ˈæɫəˌmeɪn
 ALA  ˈæɫə
 ALA  ˈeɪɫə
@@ -4864,7 +4964,6 @@ APICELLA  ˌɑpɪˈsɛɫə
 APIECE  əˈpis
 APING  ˈeɪpɪŋ
 APIS  ˈeɪpɪˈaɪs
-APIS  ˈeɪpɪˈaɪs
 APLENTY  əˈpɫɛnti
 APLIN  ˈæpɫɪn
 APLOMB  əˈpɫɑm
@@ -6192,9 +6291,7 @@ ASPIRING  əˈspaɪɹɪŋ
 ASPLUND  ˈæspɫənd
 ASPNES  ˈæspnɛz
 ASPX  ˈæsˈpɛks
-ASPX  ˈæsˈpɛks
 ASQUITH  ˈæskwɪθ
-ASR  ˈeɪˈɛˈsɑɹ
 ASR  ˈeɪˈɛˈsɑɹ
 ASS  ˈæs
 ASSAD  əˈsɑd
@@ -6804,6 +6901,8 @@ AUGURING  ˈɔɡɝɪŋ
 AUGURS  ˈɔɡɝz
 AUGUST  ˈɑɡəst
 AUGUST  ˈɔɡəst
+AUGUST  ˌɑˈɡəst
+AUGUST  ˈaʊˌɡʊst
 AUGUST'S  ˈɔɡəsts
 AUGUSTA  əˈɡəstə
 AUGUSTA'S  əˈɡəstəz
@@ -7249,7 +7348,6 @@ AWNING  ˈɑnɪŋ
 AWOKE  əˈwoʊk
 AWOL  ˈeɪˌwɔɫ
 AWRY  ɝˈaɪ
-AWS  ˈeɪˈdəbəɫjuˈɛs
 AWS  ˈeɪˈdəbəɫjuˈɛs
 AWTREY  ˈɔtɹi
 AX  ˈæks
@@ -11202,7 +11300,6 @@ BEZEK  ˈbɛzɛk
 BEZNER  ˈbɛznɝ
 BEZOLD  ˈbɛzoʊɫd
 BF  ˈbiˈɛf
-BF  ˈbiˈɛf
 BHAGWAN  ˈbɑɡwɑn
 BHAKTA  ˈbɑktə
 BHANGRA  ˈbɑŋɡɹə
@@ -11683,7 +11780,6 @@ BINZ  ˈbɪnz
 BIO  ˌbaɪˈoʊ
 BIO'S  ˌbaɪˈoʊz
 BIOBERT  ˌbaɪˈoʊˈbɝt
-BIOBERT  ˌbaɪˈoʊˈbɝt
 BIOCHEM  ˈbaɪoʊˌkɛm
 BIOCHEMICAL  ˌbaɪoʊˈkɛmɪkəɫ
 BIOCHEMICAL  ˌbaɪoʊˈkɛməkəɫ
@@ -11721,7 +11817,6 @@ BIOLOGISTS  baɪˈɑɫədʒɪsts
 BIOLOGY  baɪˈɑɫədʒi
 BIOLOGY'S  baɪˈɑɫədʒiz
 BIOMARKER  ˌbaɪˈoʊˈmɑɹkɝ
-BIOMARKER  ˌbaɪˈoʊˈmɑɹkɝ
 BIOMASS  ˈbaɪəmæs
 BIOMATERIAL  ˌbaɪoʊməˈtɪɹiəɫ
 BIOMATERIALS  ˌbaɪoʊməˈtɪɹiəɫz
@@ -11730,7 +11825,6 @@ BIOMED  ˌbaɪoʊˈmɛd
 BIOMED'S  ˌbaɪoʊˈmɛdz
 BIOMEDICAL  ˌbaɪoʊˈmɛdɪkəɫ
 BIOMEDICALS  ˌbaɪoʊˈmɛdɪkəɫz
-BIOMEGATRON  ˌbaɪˈoʊmɛɡəˌtɹɔn
 BIOMEGATRON  ˌbaɪˈoʊmɛɡəˌtɹɔn
 BIOMES  ˌbaɪˈoʊmz
 BIOMET  ˈbaɪoʊmɛt
@@ -12343,6 +12437,7 @@ BLEPHARISMA  ˌbɫɛfɝˈɪzmə
 BLESER  ˈbɫizɝ
 BLESS  ˈbɫɛs
 BLESSED  ˈbɫɛst
+BLESSED  ˈbɫɛsəd
 BLESSEDLY  ˈbɫɛsədɫi
 BLESSEDNESS  ˈbɫɛsədnəs
 BLESSES  ˈbɫɛsɪz
@@ -14721,7 +14816,6 @@ BREAKNECK  ˈbɹeɪkˌnɛk
 BREAKOUT  ˈbɹeɪˌkaʊt
 BREAKOUTS  ˈbɹeɪˌkaʊts
 BREAKPOINT  ˈbɹeɪkˌpɔɪnt
-BREAKPOINT  ˈbɹeɪkˌpɔɪnt
 BREAKS  ˈbɹeɪks
 BREAKTHROUGH  ˈbɹeɪkˌθɹu
 BREAKTHROUGHS  ˈbɹeɪkˌθɹuz
@@ -15433,7 +15527,6 @@ BRONC  ˈbɹɑŋk
 BRONCHIAL  ˈbɹɑntʃiəɫ
 BRONCHITIS  bɹɑŋˈkaɪtəs
 BRONCHOSCOPE  ˈbɹɑnkəˈskoʊp
-BRONCHOSCOPY  bɹɑnˈkɑskəpi
 BRONCHOSCOPY  bɹɑnˈkɑskəpi
 BRONCO  ˈbɹɑŋkoʊ
 BRONCOS  ˈbɹɑŋkoʊz
@@ -17125,14 +17218,9 @@ C.D.S  ˈsiˈdiz
 C.O.D.  ˈsiˈoʊˈdi
 C.S  ˈsiz
 C1  ˈsiˈwən
-C1  ˈsiˈwən
-C2  ˈsiˈtu
 C2  ˈsiˈtu
 C3  ˈsiˈθɹi
-C3  ˈsiˈθɹi
 C4  ˈsiˈfɔɹ
-C4  ˈsiˈfɔɹ
-C5  ˈsiˈfaɪv
 C5  ˈsiˈfaɪv
 CA  ˈkə
 CA  ˈsiˈeɪ
@@ -17459,7 +17547,6 @@ CALEF  ˈkæɫɪf
 CALEMBURG  ˈkæɫəmbɝɡ
 CALENDAR  ˈkæɫəndɝ
 CALENDARING  ˈkæɫəndɹɪŋ
-CALENDARING  ˈkæɫəndɹɪŋ
 CALENDARS  ˈkæɫəndɝz
 CALENDULA  kəˈɫɛdʒəɫə
 CALER  ˈkeɪɫɝ
@@ -17619,7 +17706,6 @@ CALPERS'S  ˈkæɫpɝzɪz
 CALPIS  ˈkæɫpɪs
 CALTABIANO  kɑɫtɑbiˈɑnoʊ
 CALTAGIRONE  kɑɫtɑdʒɪˈɹoʊni
-CALTECH  ˈkəɫˈtɛk
 CALTECH  ˈkəɫˈtɛk
 CALTEX  ˈkəɫˈtɛks
 CALTHA  ˈkæɫðə
@@ -19166,14 +19252,9 @@ CASWELL  ˈkæzˌwɛɫ
 CAT  ˈkæt
 CAT'S  ˈkæts
 CAT-1  ˌkætˈwɔn
-CAT-1  ˌkætˈwɔn
-CAT-2  ˌkætˈtu
 CAT-2  ˌkætˈtu
 CAT-3  ˌkætˈθɹi
-CAT-3  ˌkætˈθɹi
 CAT-4  ˌkætˈfɔɹ
-CAT-4  ˌkætˈfɔɹ
-CAT-6  ˌkætˌsɪks
 CAT-6  ˌkætˌsɪks
 CAT-O-NINE-TAILS  ˈkætoʊˌnaɪnˌteɪɫz
 CATACLYSM  ˈkætəˌkɫɪsəm
@@ -19529,7 +19610,6 @@ CCS  ˈsiˈsiˈɛs
 CCS  ˈsiˈsiz
 CCTV  ˈsiˌsiˈtiˌvi
 CD  ˈsiˈdi
-CDAC  ˈsiˈdæk
 CDAC  ˈsiˈdæk
 CDC  ˈsiˌdiˈsi
 CDEBACA  sidɪˈbɑkə
@@ -19924,7 +20004,6 @@ CERVINI  tʃɝˈvini
 CERVIX  ˈsɝvɪks
 CERVONE  tʃɝˈvoʊni
 CERYL  ˈsɛɹəɫ
-CES  ˈsiˈiˈɛs
 CES  ˈsiˈiˈɛs
 CESAR  ˈsizɝ
 CESARE  tʃeɪˈzɑɹeɪ
@@ -20402,7 +20481,6 @@ CHASTISING  tʃæˈstaɪzɪŋ
 CHASTITY  ˈtʃæstəti
 CHAT  ˈtʃæt
 CHATAQUA  ʃəˈtɑkwə
-CHATBOT  ˈtʃætˌbɑt
 CHATBOT  ˈtʃætˌbɑt
 CHATEAU  ʃæˈtoʊ
 CHATEAUX  ʃəˈtoʊ
@@ -23748,7 +23826,6 @@ COMPORT  kəmˈpɔɹt
 COMPORTED  kəmˈpɔɹtəd
 COMPORTMENT  kəmˈpɔɹtmənt
 COMPOSABLE  kəmˈpoʊzəbəɫ
-COMPOSABLE  kəmˈpoʊzəbəɫ
 COMPOSE  kəmˈpoʊz
 COMPOSED  kəmˈpoʊzd
 COMPOSER  kəmˈpoʊzɝ
@@ -23836,7 +23913,6 @@ COMPUSERVE'S  ˈkɑmpjusɝvz
 COMPUTALOG  ˈkɑmpjuˌtæɫɔɡ
 COMPUTATION  ˌkɑmpjəˈteɪʃən
 COMPUTATIONAL  ˌkɑmpjuˈteɪʃənəɫ
-COMPUTATIONALLY  ˌkɑmpjuˈteɪʃənəɫi
 COMPUTATIONALLY  ˌkɑmpjuˈteɪʃənəɫi
 COMPUTATIONS  ˌkɑmpjuˈteɪʃənz
 COMPUTE  kəmˈpjut
@@ -24148,7 +24224,6 @@ CONFIDENTLY  ˈkɑnfədəntɫi
 CONFIDES  kənˈfaɪdz
 CONFIDING  kənˈfaɪdɪŋ
 CONFIG  ˈkənˌfɪɡ
-CONFIG  ˈkənˌfɪɡ
 CONFIGURATION  kənˌfɪɡjɝˈeɪʃən
 CONFIGURATIONS  kənˌfɪɡjɝˈeɪʃənz
 CONFIGURE  kənˈfɪɡjɝ
@@ -24241,6 +24316,7 @@ CONGESTION  kənˈdʒɛstʃən
 CONGESTIVE  kənˈdʒɛstɪv
 CONGLETON  ˈkɑŋɡəɫtɑn
 CONGLOMERATE  kənˈɡɫɑmɝət
+CONGLOMERATE  kənˈɡɫɑmɝˌeɪt
 CONGLOMERATE'S  kənˈɡɫɑmɝəts
 CONGLOMERATES  kənˈɡɫɑmɝəts
 CONGLOMERATION  kənˌɡɫɑmɝˈeɪʃən
@@ -24544,6 +24620,7 @@ CONSONANTAL  ˌkɑnsəˈnɑntəɫ
 CONSONANTAL  ˌkɑnsəˈnɑnəɫ
 CONSONANTS  ˈkɑnsənənts
 CONSORT  kənˈsɔɹt
+CONSORT  ˈkɑnˌsɔɹt
 CONSORTIA  kənˈsɔɹʃə
 CONSORTING  kənˈsɔɹtɪŋ
 CONSORTIUM  kənˈsɔɹʃiəm
@@ -25311,7 +25388,6 @@ CORETECH  ˈkɔɹˌtɛk
 CORETTA  kɔˈɹɛtə
 CORETTE  ˈkɔˈɹɛt
 COREWARE  ˈkɔɹˌwɛɹ
-COREWARE  ˈkɔɹˌwɛɹ
 COREXIT  kɔˈɹɛksɪts
 COREY  ˈkɔɹi
 CORGI  ˈkɔɹɡi
@@ -25696,7 +25772,6 @@ COSSMAN  ˈkɔsmən
 COST  ˈkɑst
 COST  ˈkɔst
 COSTA  ˈkɔstɑ
-COSTA_RICA  ˈkɔstəˈɹikə
 COSTA_RICA  ˈkɔstəˈɹikə
 COSTABILE  ˈkɔstəˌbaɪɫ
 COSTAIN  ˌkoʊˈsteɪn
@@ -26161,7 +26236,6 @@ COVETED  ˈkəvətɪd
 COVETS  ˈkəvəts
 COVEY  ˈkəvi
 COVIA  ˈkoʊviə
-COVID  ˈkoʊvɪd
 COVID  ˈkoʊvɪd
 COVIELLO  ˌkoʊviˈɛɫoʊ
 COVILL  ˈkɑvəɫ
@@ -26986,7 +27060,6 @@ CROSSFIRE  ˈkɹɔsfaɪɹ
 CROSSFIRE  ˈkɹɔsˌfaɪɹ
 CROSSFIRE'S  ˈkɹɔsfaɪɹz
 CROSSHAIR  ˈkɹɔsˈhɛɹ
-CROSSHAIR  ˈkɹɔsˈhɛɹ
 CROSSIN  ˈkɹɑsɪn
 CROSSING  ˈkɹɔsɪŋ
 CROSSINGS  ˈkɹɔsɪŋz
@@ -27208,7 +27281,6 @@ CRYER  ˈkɹaɪɝ
 CRYING  ˈkɹaɪɪŋ
 CRYMES  ˈkɹaɪmz
 CRYO  ˈkɹaɪˈoʊ
-CRYO  ˈkɹaɪˈoʊ
 CRYOGENIC  ˈkɹaɪəˌdʒɛnɪk
 CRYOGENICS  ˈkɹaɪəˌdʒɛnɪks
 CRYOLITE  ˈkɹaɪəˌɫaɪt
@@ -27236,11 +27308,9 @@ CSAR  ˈzɑɹ
 CSASZAR  ˌtsɑˈʃɑɹ
 CSI  ˈsiˌɛˈsaɪ
 CSP  ˈsiˈɛsˈpi
-CSP  ˈsiˈɛsˈpi
 CSPAN  ˈsiˈspæn
 CSPI  ˈsiˈɛsˈpiˈaɪ
 CT  ˈkɔɹt
-CTR  ˈsɪˈtiˈɑɹ
 CTR  ˈsɪˈtiˈɑɹ
 CUADRA  kuˈɑdɹə
 CUADRADO  kuɑˈdɹɑdoʊ
@@ -27281,7 +27351,6 @@ CUCO  ˈkukoʊ
 CUCUMBER  ˈkjukəmbɝ
 CUCUMBERS  ˈkjukəmbɝz
 CUDA  ˈkudə
-CUDA  ˈkudə
 CUDAHY  ˈkədəhi
 CUDD  ˈkəd
 CUDDEBACK  ˈkədbæk
@@ -27296,7 +27365,6 @@ CUDGEL  ˈkədʒəɫ
 CUDGELS  ˈkədʒəɫz
 CUDMORE  ˈkədmɔɹ
 CUDNEY  ˈkədni
-CUDNN  ˈkuˈdiˌɛˌnɛn
 CUDNN  ˈkuˈdiˌɛˌnɛn
 CUDWORTH  ˈkədˌwɝθ
 CUE  ˈkju
@@ -27327,7 +27395,6 @@ CUISINARTS  ˈkwizɪˌnɑɹts
 CUISINE  kwɪˈzin
 CUISINES  kwɪˈzinz
 CUL  ˈkəɫ
-CUL_DE_SAC  ˈkəɫdɪˌsæk
 CUL_DE_SAC  ˈkəɫdɪˌsæk
 CULBERSON  ˈkəɫbɝsən
 CULBERT  ˈkəɫbɝt
@@ -27763,7 +27830,6 @@ CYB  ˈsiˈwaɪˈbi
 CYBER  ˈsaɪbɝ
 CYBERCASH  ˈsaɪbɝˌkæʃ
 CYBERCRIME  ˈsaɪbɝˈkɹaɪm
-CYBERCRIME  ˈsaɪbɝˈkɹaɪm
 CYBERPORN  ˈsaɪbɝˌpɔɹn
 CYBERSEX  ˈsaɪbɝˌsɛks
 CYBERSPACE  ˈsaɪbɝˌspeɪs
@@ -27957,7 +28023,6 @@ D'SOUZA  diˈsuzə
 D.  ˈdi
 D.'S  ˈdiz
 D.S  ˈdiz
-D_C  ˈdiˈsi
 D_C  ˈdiˈsi
 DA  ˈdɑ
 DA  ˈdiˈeɪ
@@ -28643,7 +28708,6 @@ DATACARD  ˈdætəˌkɑɹd
 DATACARDS  ˈdeɪtəˌkɑɹdz
 DATACARDS  ˈdætəˌkɑɹdz
 DATACENTER  ˈdeɪtəˌsɛntɝ
-DATACENTER  ˈdeɪtəˌsɛntɝ
 DATACOMM  ˈdeɪtəˌkɑm
 DATACOMM  ˈdætəˌkɑm
 DATACOMP  ˈdeɪtəˌkɑmp
@@ -28867,7 +28931,6 @@ DAZZO  ˈdæzoʊ
 DBASE  ˈdiˌbeɪs
 DC  ˌdiˈsi
 DDOS  ˌdiˈdɔs
-DDOS  ˌdiˈdɔs
 DDT  ˌdiˌdiˈti
 DE  ˈdi
 DE  ˈdeɪ
@@ -28912,7 +28975,6 @@ DEAF  ˈdɛf
 DEAFEN  ˈdɛfən
 DEAFENING  ˈdɛfənɪŋ
 DEAFENING  ˈdɛfnɪŋ
-DEAFHEAVEN  ˈdɛfˈhɛvən
 DEAFHEAVEN  ˈdɛfˈhɛvən
 DEAFNESS  ˈdɛfnəs
 DEAHL  ˈdiɫ
@@ -30898,7 +30960,6 @@ DERYLE  ˈdɛɹəɫ
 DES  ˈdɛs
 DES  ˌdɪ
 DES_MOINES  ˌdɛˈmɔɪnz
-DES_MOINES  ˌdɛˈmɔɪnz
 DESAI  deɪˈsɑi
 DESALINATION  diˌseɪɫɪˈneɪʃən
 DESALINIZATION  diˌseɪɫɪnəˈzeɪʃən
@@ -31389,6 +31450,7 @@ DEVIANCY  ˈdivjɛnsi
 DEVIANT  ˈdiviənt
 DEVIANTS  ˈdiviənts
 DEVIATE  ˈdiviˌeɪt
+DEVIATE  ˈdiˌviət
 DEVIATED  ˈdiviˌeɪtɪd
 DEVIATES  ˈdiviˌeɪts
 DEVIATING  ˈdiviˌeɪtɪŋ
@@ -31539,7 +31601,6 @@ DEZIEL  ˈdɛziɫ
 DFW  ˈdiˈɛfˈdəbəɫˈju
 DFW  ˈdiˈɛfˈdəbəˈju
 DGX  ˈdiˈdʒiˈɛks
-DGX  ˈdiˈdʒiˈɛks
 DHABI  ˈdɑbi
 DHAHARAN  dəˈɹɑn
 DHAHRAN  dəˈɹɑn
@@ -31579,6 +31640,7 @@ DIADEM  ˈdaɪəˌdɛm
 DIAGNOSE  ˌdaɪəɡˈnoʊs
 DIAGNOSED  ˌdaɪəɡˈnoʊst
 DIAGNOSES  ˌdaɪəɡˈnoʊsiz
+DIAGNOSES  ˌdaɪəɡˈnoʊsəz
 DIAGNOSING  ˌdaɪəɡˈnoʊsɪŋ
 DIAGNOSIS  ˌdaɪəɡˈnoʊsəs
 DIAGNOSTEK  ˌdaɪəɡˈnɑstɛk
@@ -32445,7 +32507,6 @@ DIRECTV  daɪˈɹɛkˈtiˈvi
 DIRECTV  diˈɹɛkˈtiˈvi
 DIRECTV  dɪˈɹɛkˈtiˈvi
 DIRECTX  dɪˈɹɛkˈtɛks
-DIRECTX  dɪˈɹɛkˈtɛks
 DIRENZO  dɪˈɹɛnˌzoʊ
 DIREST  ˈdaɪɹəst
 DIRGE  ˈdɝdʒ
@@ -32576,6 +32637,8 @@ DISBURSEMENTS  dɪsˈbɝsmənts
 DISBURSING  dɪsˈbɝsɪŋ
 DISC  ˈdɪsk
 DISCARD  dɪˈskɑɹd
+DISCARD  ˈdɪsˌkɑɹd
+DISCARD  dəsˈkɑɹd
 DISCARDED  dɪˈskɑɹdɪd
 DISCARDING  dɪˈskɑɹdɪŋ
 DISCARDS  dɪˈskɑɹdz
@@ -33379,7 +33442,6 @@ DJURDJEVIC  ˈdʒɝdʒəvɪk
 DK  ˈdiˈkeɪ
 DLOUHY  dəˈɫaʊi
 DLSS  ˈdiˈɛˈɫɛˈsɛs
-DLSS  ˈdiˈɛˈɫɛˈsɛs
 DLUGOS  dəˈɫuɡoʊs
 DLUGOSZ  dəˈɫuɡoʊs
 DLUGOSZ  dəˈɫuɡoʊʃ
@@ -33391,7 +33453,6 @@ DNASE  ˈdiˌɛˌneɪs
 DNASE  ˈdiˌɛˌneɪz
 DNC  ˈdiˌɛnˌsi
 DNIESTER  ˈdnistɝ
-DNM  ˈdiˌɛˈnɛm
 DNM  ˈdiˌɛˈnɛm
 DO  ˈdu
 DO'S  ˈduz
@@ -33452,7 +33513,6 @@ DOBSONS  ˈdɑbsənz
 DOBY  ˈdoʊbi
 DOBYNS  ˈdoʊbɪnz
 DOC  ˈdɑk
-DOCA  ˈdoʊkə
 DOCA  ˈdoʊkə
 DOCENT  ˈdoʊsənt
 DOCENTS  ˈdoʊsənts
@@ -34415,7 +34475,6 @@ DOZES  ˈdoʊzɪz
 DOZIER  ˈdoʊziɝ
 DOZING  ˈdoʊzɪŋ
 DPU  ˈdiˈpiˈju
-DPU  ˈdiˈpiˈju
 DQALPHA  ˈdikˈjuˈæɫfə
 DR  ˈdɹaɪv
 DR  ˈdɑktɝ
@@ -34906,7 +34965,6 @@ DRYSDALE  ˈdɹaɪzˌdeɪɫ
 DRYSER  ˈdɹaɪsɝ
 DRYWALL  ˈdɹaɪˌwɑɫ
 DRZEWIECKI  dʒuˈitski
-DS  ˈdiˈɛs
 DS  ˈdiˈɛs
 DSOUZA  dəˈsuzə
 DSS  ˈdiˈɛˈsɛs
@@ -35673,8 +35731,6 @@ DYSPHORIC  ˌdɪsˈfɔɹɪk
 DYSPLASIA  ˌdɪsˈpɫeɪʒə
 DYSPNEA  ˌdɪspˈniə
 DYSTOPIA  ˈdɪsˈtoʊpiə
-DYSTOPIA  ˈdɪsˈtoʊpiə
-DYSTOPIAN  ˈdɪsˈtoʊpiən
 DYSTOPIAN  ˈdɪsˈtoʊpiən
 DYSTROPHIN  ˈdɪstɹəfɪn
 DYSTROPHY  ˈdɪstɹəfi
@@ -35692,7 +35748,6 @@ DZIKOWSKI  dʒɪˈkɔfˌski
 DZIUBA  dʒiˈubə
 DZIUK  dʒiˈuk
 DZOKHAR  ˌdʒoʊˈkɑɹ
-DÉJÀ  ˌdeɪˈdʒɑ
 DÉJÀ  ˌdeɪˈdʒɑ
 E  ˈi
 E'S  ˈiz
@@ -36536,7 +36591,6 @@ EGREGIOUS  ɪˈɡɹidʒəs
 EGREGIOUSLY  ɪˈɡɹidʒəsɫi
 EGRESS  ɪˈɡɹɛs
 EGRET  ˈɛɡɹət
-EGX  ˈiˈdʒiˈɛks
 EGX  ˈiˈdʒiˈɛks
 EGYPT  ˈidʒəpt
 EGYPT  ˈidʒɪpt
@@ -37792,7 +37846,6 @@ ENCLOSURES  ɪnˈkɫoʊʒɝz
 ENCODE  ɛnˈkoʊd
 ENCODED  ɛnˈkoʊdɪd
 ENCODER  ɛnˈkoʊdɝ
-ENCODER  ɛnˈkoʊdɝ
 ENCODING  ɛnˈkoʊdɪŋ
 ENCOMPASS  ɛnˈkəmpəs
 ENCOMPASSED  ɛnˈkəmpəst
@@ -38401,6 +38454,7 @@ ENTOURAGES  ˌɑntɝˈɑʒəz
 ENTRAIL  ˈɛntɹəɫ
 ENTRAILS  ˈɛntɹəɫz
 ENTRANCE  ˈɛntɹəns
+ENTRANCE  əˈntɹæns
 ENTRANCED  ɪnˈtɹænst
 ENTRANCES  ˈɛntɹənsəz
 ENTRANT  ˈɛntɹənt
@@ -39298,7 +39352,6 @@ ETIOLOGY  ˌitiˈɑɫədʒi
 ETIOLOGY  ˌiˌtiˈɑɫədʒi
 ETIQUETTE  ˈɛtəkət
 ETL  ˈiˈtiˈɛɫ
-ETL  ˈiˈtiˈɛɫ
 ETLING  ˈɛtɫɪŋ
 ETNA  ˈɛtnə
 ETON  ˈitən
@@ -39745,7 +39798,6 @@ EX-HUSBANDS  ˈɛksˈhəzbəndz
 EX-VOTO  ɛksˈvoʊˈtoʊ
 EX-WIFE  ˈɛkˈswaɪf
 EX-WIVES  ˈɛkˈswaɪvz
-EXA  ˈɛksə
 EXA  ˈɛksə
 EXABYTE  ˈɛksəˌbaɪt
 EXACERBATE  ɪɡˈzæsɝˌbeɪt
@@ -40211,6 +40263,7 @@ EXPONENTIAL  ˌɛkspoʊˈnɛnʃəɫ
 EXPONENTIALLY  ˌɛkspoʊˈnɛnʃəɫi
 EXPONENTS  ɪkˈspoʊnənts
 EXPORT  ˈɛkspɔɹt
+EXPORT  əkˈspɔɹt
 EXPORTABLE  ɛkˈspɔɹtəbəɫ
 EXPORTED  ɪkˈspɔɹtəd
 EXPORTER  ɪkˈspɔɹtɝ
@@ -40220,6 +40273,8 @@ EXPORTING  ɪkˈspɔɹtɪŋ
 EXPORTS  ˈɛkspɔɹts
 EXPOS  ˈɛkspoʊz
 EXPOSE  ɪkˈspoʊz
+EXPOSE  ˌɛkˌspoʊˈzeɪ
+EXPOSE  əkˈspoʊz
 EXPOSED  ɪkˈspoʊzd
 EXPOSES  ɪkˈspoʊzɪz
 EXPOSING  ɪkˈspoʊzɪŋ
@@ -40471,7 +40526,6 @@ F'D  ˈɛfd
 F'S  ˈɛfs
 F.  ˈɛf
 F.'S  ˈɛfs
-F1  ˈɛfˈwən
 F1  ˈɛfˈwən
 FAAL  ˈfɑɫ
 FAAL'S  ˈfɑɫz
@@ -43409,7 +43463,6 @@ FLOWN  ˈfɫoʊn
 FLOWS  ˈfɫoʊz
 FLOWTON  ˈfɫoʊtən
 FLOWTRON  ˌfɫoʊˈtɹɑn
-FLOWTRON  ˌfɫoʊˈtɹɑn
 FLOY  ˈfɫɔɪ
 FLOYD  ˈfɫɔɪd
 FLU  ˈfɫu
@@ -44211,7 +44264,6 @@ FORTNIGHT  ˈfɔɹtˌnaɪt
 FORTNIGHTLY  ˈfɔɹtˌnaɪtɫi
 FORTNIGHTS  ˈfɔɹtˌnaɪts
 FORTNITE  ˈfɔɹtˌnaɪt
-FORTNITE  ˈfɔɹtˌnaɪt
 FORTON  ˈfɔɹtən
 FORTRESS  ˈfɔɹtɹəs
 FORTRESSES  ˈfɔɹtɹəsɪz
@@ -44394,8 +44446,6 @@ FOYER  ˈfɔɪɝ
 FOYLE  ˈfɔɪɫ
 FOYT  ˈfɔɪt
 FP  ˈɛfˈpi
-FP  ˈɛfˈpi
-FPS  ˈɛfˈpiˈɛs
 FPS  ˈɛfˈpiˈɛs
 FRAAS  ˈfɹɑz
 FRABLE  ˈfɹeɪbəɫ
@@ -44424,6 +44474,7 @@ FRAGER  ˈfɹeɪɡɝ
 FRAGILE  ˈfɹædʒəɫ
 FRAGILITY  fɹəˈdʒɪɫəti
 FRAGMENT  ˈfɹæɡmənt
+FRAGMENT  ˌfɹæɡˈmɛnt
 FRAGMENTARY  ˈfɹæɡmənˌtɛɹi
 FRAGMENTATION  ˌfɹæɡmənˈteɪʃən
 FRAGMENTED  ˈfɹæɡməntɪd
@@ -44896,6 +44947,7 @@ FREQUENCIES  ˈfɹikwənsiz
 FREQUENCY  ˈfɹikwənsi
 FREQUENT  ˈfɹikwənt
 FREQUENT  ˈfɹiˌkwɛnt
+FREQUENT  ˌfɹiˈkwɛnt
 FREQUENTED  ˈfɹikwəntɪd
 FREQUENTING  ˈfɹikwəntɪŋ
 FREQUENTING  ˈfɹiˌkwɛntɪŋ
@@ -45716,8 +45768,6 @@ G.  ˈdʒi
 G.'S  ˈdʒiz
 G.S  ˈdʒiz
 G6  ˈdʒiˈsɪks
-G6  ˈdʒiˈsɪks
-G6X  ˈdʒiˈsɪkˈsɛks
 G6X  ˈdʒiˈsɪkˈsɛks
 GA  ˈɡɑ
 GA  ˈdʒiˈeɪ
@@ -46818,9 +46868,7 @@ GAZONSKY'S  ɡəˈzɑnskiz
 GAZPROM  ˈɡæzˌpɹɑm
 GAZZOLA  ɡɑtˈsoʊɫə
 GCP  ˈdʒiˈsiˈpi
-GCP  ˈdʒiˈsiˈpi
 GDANSK  ˈɡdænsk
-GE  dʒiˈi
 GE  dʒiˈi
 GEAC  ˈɡik
 GEAC  ˈdʒiˈiˈeɪˈsi
@@ -46893,7 +46941,6 @@ GEFFERT  ˈɡɛfɝt
 GEFFNER  ˈɡɛfnɝ
 GEFFRE  ˈdʒɛfɝ
 GEFINOR  ˈɡɛfɪnɝ
-GEFORCE  ˈdʒiˈfɔɹs
 GEFORCE  ˈdʒiˈfɔɹs
 GEGENHEIMER  ˈɡɛɡɪnhaɪmɝ
 GEGG  ˈdʒɛɡ
@@ -47619,7 +47666,6 @@ GHRIST  ˈɡɹɪst
 GHULAM  ˈɡjuɫæm
 GHULOUM  ˌɡuˈɫoʊm
 GI  ˈdʒiˈeɪ
-GI  ˈdʒiˈeɪ
 GIA'S  ˈdʒiəz
 GIACALONE  ˈdʒɑkɑˌɫoʊˌni
 GIACCO  ˈdʒɑˌkoʊ
@@ -47788,7 +47834,6 @@ GIGABYTE  ˈɡɪɡəˌbaɪt
 GIGABYTES  ˈɡɪɡəˌbaɪts
 GIGAFLOP  ˈɡɪɡəˌfɫɑp
 GIGAFLOPS  ˈɡɪɡəˌfɫɑps
-GIGAHERTZ  ˈɡɪɡəˌhɛɹts
 GIGAHERTZ  ˈɡɪɡəˌhɛɹts
 GIGANTE  dʒiˈɡɑnti
 GIGANTIC  dʒaɪˈɡæntɪk
@@ -49458,8 +49503,6 @@ GOZO'S  ˈɡoʊzoʊz
 GOZOFSKY  ɡəˈzɔfski
 GPS  ˈdʒipiˈɛs
 GPU  ˈdʒiˈpiˈju
-GPU  ˈdʒiˈpiˈju
-GPUS  ˈdʒiˈpiˈjuz
 GPUS  ˈdʒiˈpiˈjuz
 GRAB  ˈɡɹæb
 GRABAU  ˈɡɹæbaʊ
@@ -50753,14 +50796,10 @@ GRZYWINSKI  ɡɝzɪˈwɪnski
 GSCHWIND  ɡəʃˈwɪnd
 GSELL  ɡəˈsɛɫ
 GSK  ˈdʒiˈɛsˈkeɪ
-GSK  ˈdʒiˈɛsˈkeɪ
 GT  ˈdʒiˈti
-GT  ˈdʒiˈti
-GTC  ˈdʒiˈtiˈsi
 GTC  ˈdʒiˈtiˈsi
 GTECH  ˈdʒiˌtɛk
 GTECH'S  ˈdʒiˌtɛks
-GTX  ˈdʒiˈtiˈɛks
 GTX  ˈdʒiˈtiˈɛks
 GU  ˈɡu
 GUACAMOLE  ˌɡwɑkəˈmoʊɫi
@@ -53404,13 +53443,10 @@ HAZLEWOOD  ˈheɪzəɫˌwʊd
 HAZY  ˈheɪzi
 HAZZARD  ˈhæzɝd
 HB  ˈeɪtʃˈbi
-HB  ˈeɪtʃˈbi
 HBO  ˈeɪtʃbiˈoʊ
 HBOX  ˈeɪtʃˈbɔks
 HCES  ˈeɪtʃˈsiˈiˈɛs
 HD  ˈeɪtʃˈdi
-HD  ˈeɪtʃˈdi
-HDMI  ˌeɪtʃˈdiˈɛˈmeɪ
 HDMI  ˌeɪtʃˈdiˈɛˈmeɪ
 HE  ˈhi
 HE'D  ˈhid
@@ -55177,7 +55213,6 @@ HILTNER  ˈhɪɫtnɝ
 HILTON  ˈhɪɫtən
 HILTON'S  ˈhɪɫtənz
 HILTON_HEAD  ˈhɪɫtənˈhɛd
-HILTON_HEAD  ˈhɪɫtənˈhɛd
 HILTONS  ˈhɪɫtənz
 HILTS  ˈhɪɫts
 HILTUNEN  ˈhɪɫtənən
@@ -56551,8 +56586,6 @@ HORRORS  ˈhɔɹɝz
 HORS  ˈhɔɹz
 HORS  ˌɔɹ
 HORS_D'OEUVRE  ˌɔɹˈdɝv
-HORS_D'OEUVRE  ˌɔɹˈdɝv
-HORS_D'OEUVRES  ˌɔɹˈdɝvz
 HORS_D'OEUVRES  ˌɔɹˈdɝvz
 HORSCH  ˈhɔɹʃ
 HORSE  ˈhɔɹs
@@ -56957,7 +56990,6 @@ HOYOS  ˈhɔɪoʊz
 HOYT  ˈhɔɪt
 HOYVALD  ˈhɔɪvəɫd
 HP  ˈeɪtʃˈpi
-HPC  ˈeɪtʃˈpiˈsi
 HPC  ˈeɪtʃˈpiˈsi
 HRABAK  ˈhɹɑbək
 HRABAK  ˈɹɑbək
@@ -57934,8 +57966,6 @@ I.  ˈaɪ
 I.'S  ˈaɪz
 I.S  ˈaɪz
 I_P  ˈɪˈpi
-I_P  ˈɪˈpi
-I_R_A  ˈaɪˈɑˈɹeɪ
 I_R_A  ˈaɪˈɑˈɹeɪ
 IA  ˈiə
 IACOBELLI  iˌɑkoʊˈbɛɫi
@@ -58327,7 +58357,6 @@ ILYA  ˈɪɫjə
 ILYARONOFF  ˈɪɫjɑˈɹɔnɔf
 IM  ˈɪm
 IMAC  aɪˈmæk
-IMAC  aɪˈmæk
 IMAGE  ˈɪmədʒ
 IMAGE  ˈɪmɪdʒ
 IMAGERIES  ˈɪmɪdʒɹiz
@@ -58599,6 +58628,7 @@ IMPLANTS  ˈɪmˌpɫænts
 IMPLAUSIBLE  ˌɪmˈpɫɔzəbəɫ
 IMPLAUSIBLY  ˌɪmˈpɫɔzəbɫi
 IMPLEMENT  ˈɪmpɫəmənt
+IMPLEMENT  ˈɪmpɫəˌmɛnt
 IMPLEMENTATION  ˌɪmpɫəmɛnˈteɪʃən
 IMPLEMENTED  ˈɪmpɫəˌmɛntəd
 IMPLEMENTED  ˈɪmpɫəˌmɛnəd
@@ -59023,6 +59053,7 @@ INCREDIBLY  ˌɪnˈkɹɛdəbɫi
 INCREDULITY  ˌɪnkɹəˈduɫɪti
 INCREDULOUS  ˌɪnˈkɹɛdʒəɫəs
 INCREMENT  ˈɪnkɹəmənt
+INCREMENT  ˈɪnkɹəˌmɛnt
 INCREMENTAL  ˌɪnkɹəˈmɛntəɫ
 INCREMENTALISM  ˌɪnkɹəˈmɛntəˌɫɪzm
 INCREMENTALLY  ˌɪnkɹəˈmɛntəˌɫi
@@ -59639,13 +59670,13 @@ INITIAL  ˌɪˈnɪʃəɫ
 INITIALED  ˌɪˈnɪʃəɫd
 INITIALING  ˌɪˈnɪʃəɫɪŋ
 INITIALISM  ˌɪˈnɪʃəˌɫɪzəm
-INITIALISM  ˌɪˈnɪʃəˌɫɪzəm
 INITIALIZE  ˌɪˈnɪʃəˌɫaɪz
 INITIALIZED  ˌɪˈnɪʃəˌɫaɪzd
 INITIALLING  ˌɪˈnɪʃəɫɪŋ
 INITIALLY  ˌɪˈnɪʃəɫi
 INITIALS  ˌɪˈnɪʃəɫz
 INITIATE  ˌɪˈnɪʃiˌeɪt
+INITIATE  əˈnɪˌʃiət
 INITIATED  ˌɪˈnɪʃiˌeɪtəd
 INITIATED  ˌɪˈnɪʃiˌeɪtɪd
 INITIATES  ˌɪˈnɪʃiəts
@@ -60005,6 +60036,7 @@ INSTRUCTOR  ˌɪnˈstɹəktɝ
 INSTRUCTORS  ˌɪnˈstɹəktɝz
 INSTRUCTS  ˌɪnˈstɹəkts
 INSTRUMENT  ˈɪnstɹəmənt
+INSTRUMENT  ˈɪnstɹəˌmɛnt
 INSTRUMENT'S  ˈɪnstɹəmənts
 INSTRUMENTAL  ˌɪnstɹəˈmɛntəɫ
 INSTRUMENTAL  ˌɪnstɹəˈmɛnəɫ
@@ -60066,7 +60098,6 @@ INSURGENTS'  ˌɪnˈsɝdʒənts
 INSURING  ˌɪnˈʃʊɹɪŋ
 INSURMOUNTABLE  ˌɪnsɝˈmaʊntəbəɫ
 INSURRECTION  ˌɪnsɝˈɛkʃən
-INT  ˈɪnt
 INT  ˈɪnt
 INTACT  ˌɪnˈtækt
 INTAGLIO  ˌɪnˈtæɫjoʊ
@@ -60221,6 +60252,7 @@ INTERCESSION  ˌɪntɝˈsɛʃən
 INTERCESSION  ˌɪnɝˈsɛʃən
 INTERCHANGE  ˌɪntɝˈtʃeɪndʒ
 INTERCHANGE  ˌɪnɝˈtʃeɪndʒ
+INTERCHANGE  ˈɪntɝˌtʃeɪndʒ
 INTERCHANGEABLE  ˌɪntɝˈtʃeɪndʒəbəɫ
 INTERCHANGEABLE  ˌɪnɝˈtʃeɪndʒəbəɫ
 INTERCHANGEABLY  ˌɪntɝˈtʃeɪndʒəbɫi
@@ -60707,12 +60739,13 @@ INVERSE  ˌɪnˈvɝs
 INVERSELY  ˌɪnˈvɝsɫi
 INVERSION  ˌɪnˈvɝʒən
 INVERT  ˌɪnˈvɝt
+INVERT  ˈɪnvɝt
+INVERT  ənˈvɝt
 INVERTEBRATE  ˌɪnˈvɝtəbɹət
 INVERTEBRATE  ˌɪnˈvɝtəˌbɹeɪt
 INVERTEBRATES  ˌɪnˈvɝtəbɹəts
 INVERTEBRATES  ˌɪnˈvɝtəˌbɹeɪts
 INVERTED  ˌɪnˈvɝtɪd
-INVERTIBLE  ˌɪnˈvɝtəbəɫ
 INVERTIBLE  ˌɪnˈvɝtəbəɫ
 INVESCO  ˌɪnˈvɛskoʊ
 INVESCO'S  ˌɪnˈvɛsoʊz
@@ -60770,6 +60803,8 @@ INVITATION  ˌɪnvɪˈteɪʃən
 INVITATIONAL  ˌɪnvəˈteɪʃənəɫ
 INVITATIONS  ˌɪnvɪˈteɪʃənz
 INVITE  ˌɪnˈvaɪt
+INVITE  ˈɪnˌvaɪt
+INVITE  ənˈvaɪt
 INVITED  ˌɪnˈvaɪtəd
 INVITED  ˌɪnˈvaɪtɪd
 INVITEE  ˌɪnvaɪˈti
@@ -60840,7 +60875,6 @@ IOSIF  ˈaɪəsɪf
 IOSIF  ˈjɛsəf
 IOSUE  aɪˈoʊsu
 IOT  ˈaɪˈoʊˈti
-IOT  ˈaɪˈoʊˈti
 IOTA  ˌaɪˈoʊtə
 IOTT  ˈaɪət
 IOU  ˌaɪˌoʊˈju
@@ -60869,7 +60903,6 @@ IPOD  ˈaɪˌpɔd
 IPODS  ˈaɪˌpɔdz
 IPPOLITO  ˌɪpoʊˈɫitoʊ
 IPSCO  ˈɪpskoʊ
-IPSEC  ˌaɪˌpiˈsɛk
 IPSEC  ˌaɪˌpiˈsɛk
 IPSEN  ˈɪpsən
 IPTAY  ˈɪpteɪ
@@ -61168,6 +61201,7 @@ ISOETEC  ˈaɪsoʊˌtɛk
 ISOGENIC  ˌaɪsoʊˈdʒɛnək
 ISOLA  aɪˈsɑɫə
 ISOLATE  ˈaɪsəˌɫeɪt
+ISOLATE  ˈaɪsəɫət
 ISOLATED  ˈaɪsəˌɫeɪtəd
 ISOLATED  ˈaɪsəˌɫeɪtɪd
 ISOLATES  ˈaɪsəˌɫeɪts
@@ -62037,7 +62071,6 @@ JEMMIE  ˈdʒɛmi
 JEMMOTT  ˈdʒɛmət
 JEN  ˈdʒɛn
 JEN-HSUN  ˈdʒɛnsun
-JEN-HSUN  ˈdʒɛnsun
 JENA  ˈdʒinə
 JENCKS  ˈdʒɛŋks
 JENDRO  ˈdʒɛndɹoʊ
@@ -62184,6 +62217,7 @@ JESUIT  ˈdʒɛʒuɪt
 JESUITS  ˈdʒɛʒuɪts
 JESUP  ˈdʒɛsəp
 JESUS  ˈdʒizəs
+JESUS  ˌheɪˈsus
 JESUS'  ˈdʒizəs
 JESUS'S  ˈdʒizəsɪz
 JET  ˈdʒɛt
@@ -64472,8 +64506,6 @@ KEWLEY  ˈkjuɫi
 KEY  ˈki
 KEY'S  ˈkiz
 KEY_LARGO  ˌkiˈɫɑɹɡoʊ
-KEY_LARGO  ˌkiˈɫɑɹɡoʊ
-KEY_WEST  ˌkiˈwɛst
 KEY_WEST  ˌkiˈwɛst
 KEYBOARD  ˈkiˌbɔɹd
 KEYBOARDS  ˈkiˌbɔɹdz
@@ -64785,7 +64817,6 @@ KILOBYTE  ˈkɪɫoʊˌbaɪt
 KILOBYTES  ˈkɪɫoʊˌbaɪts
 KILOGRAM  ˈkɪɫəˌɡɹæm
 KILOGRAMS  ˈkɪɫəˌɡɹæmz
-KILOHERTZ  ˈkɪɫəˌhɛɹts
 KILOHERTZ  ˈkɪɫəˌhɛɹts
 KILOMETER  kəˈɫɑmətɝ
 KILOMETER  ˈkɪɫəˌmitɝ
@@ -65244,7 +65275,6 @@ KIWANIS  kɪˈwɑnɪs
 KIWI  ˈkiwi
 KIWI'S  ˈkiwiz
 KIWIBOT  ˈkiwiˌbɑt
-KIWIBOT  ˈkiwiˌbɑt
 KIWIS  ˈkiwiz
 KIYOHIDA  ˌkioʊˈhidə
 KIYOSHI  kiˈoʊʃi
@@ -65268,7 +65298,6 @@ KLAGES  ˈkɫeɪdʒɪz
 KLAHN  ˈkɫæn
 KLAHR  ˈkɫæɹ
 KLAIBER  ˈkɫeɪbɝ
-KLAMATH_FALLS  ˈkɫæməθˈfɔɫz
 KLAMATH_FALLS  ˈkɫæməθˈfɔɫz
 KLAMER  ˈkɫeɪmɝ
 KLAMM  ˈkɫæm
@@ -67263,16 +67292,10 @@ L.S  ˈɛɫz
 LA  ˈɛˈɫeɪ
 LA  ˈɫɑ
 LA_CARRE  ˈɫɑˌkɑˈɹeɪ
-LA_CARRE  ˈɫɑˌkɑˈɹeɪ
-LA_CROSSE  ɫəˈkɹɔs
 LA_CROSSE  ɫəˈkɹɔs
 LA_GUARDIA  ɫəˈɡwɑɹdiə
-LA_GUARDIA  ɫəˈɡwɑɹdiə
-LA_NINA  ɫəˈninjə
 LA_NINA  ɫəˈninjə
 LA_PAZ  ˈɫəpɔz
-LA_PAZ  ˈɫəpɔz
-LA_QUINTA  ɫəˈkwɪntə
 LA_QUINTA  ɫəˈkwɪntə
 LAABS  ˈɫɑbz
 LAACK  ˈɫɑk
@@ -67853,7 +67876,6 @@ LANAGAN  ˈɫænəɡæn
 LANAHAN  ˈɫænəhæn
 LANAI  ɫəˈnaɪ
 LANAI_CITY  ɫəˈnaɪˌsɪti
-LANAI_CITY  ɫəˈnaɪˌsɪti
 LANASA  ɫɑˈnɑsə
 LANCASHIRE  ˈɫæŋkəˌʃaɪɹ
 LANCASTER  ˈɫænˌkæstɝ
@@ -68349,7 +68371,6 @@ LARZELERE  ɫɝˈzɛɫɝ
 LAS  ˈɫɑs
 LAS  ˈɛˈɫeɪˈɛs
 LAS_VEGAS  ˈɫɑsˈveɪɡəs
-LAS_VEGAS  ˈɫɑsˈveɪɡəs
 LASAGNA  ɫɑˈsɑnjə
 LASAGNA  ɫəˈzɑnjə
 LASALA  ɫɑˈsɑɫə
@@ -68615,7 +68636,6 @@ LAUNCHES  ˈɫɔntʃəz
 LAUNCHES  ˈɫɔntʃɪz
 LAUNCHING  ˈɫɔntʃɪŋ
 LAUNCHINGS  ˈɫɔntʃɪŋz
-LAUNCHPAD  ˈɫɔntʃˌpæd
 LAUNCHPAD  ˈɫɔntʃˌpæd
 LAUNDER  ˈɫɔndɝ
 LAUNDERED  ˈɫɔndɝd
@@ -71037,7 +71057,6 @@ LITTIG  ˈɫɪtɪɡ
 LITTLE  ˈɫɪtəɫ
 LITTLE'S  ˈɫɪtəɫz
 LITTLE_ROCK  ˈɫɪtəɫˈɹɔk
-LITTLE_ROCK  ˈɫɪtəɫˈɹɔk
 LITTLEBOY  ˈɫɪtəɫˌbɔɪ
 LITTLECHILD  ˈɫɪtəɫˌtʃaɪɫd
 LITTLEFIELD  ˈɫɪtəɫˌfiɫd
@@ -71556,8 +71575,6 @@ LONG-RANGE  ˈɫɔŋˈɹeɪndʒ
 LONG-TERM  ˈɫɔŋˈtɝm
 LONG-WINDED  ˈɫɔŋˈwɪndɪd
 LONG_BEACH  ˈɫɔŋˈbitʃ
-LONG_BEACH  ˈɫɔŋˈbitʃ
-LONG_ISLAND  ˌɫɔˈŋaɪɫənd
 LONG_ISLAND  ˌɫɔˈŋaɪɫənd
 LONGACRE  ˈɫɔˌŋeɪkɝ
 LONGAKER  ˈɫɑŋɡəkɝ
@@ -71825,8 +71842,6 @@ LORY  ˈɫɔɹi
 LOS  ˈɫoʊs
 LOS  ˈɫɔs
 LOS_ANGELES  ˌɫɔˈsændʒəɫəs
-LOS_ANGELES  ˌɫɔˈsændʒəɫəs
-LOS_PALMAS  ˌɫɑˈspɑɫməs
 LOS_PALMAS  ˌɫɑˈspɑɫməs
 LOSADA  ɫoʊˈsɑdə
 LOSASSO  ɫoʊˈsɑsoʊ
@@ -72108,7 +72123,6 @@ LP  ˈɛɫˈpi
 LPN  ˈɛɫˈpiˈɛn
 LS  ˈɛˈɫɛs
 LSD  ˌɛˌɫɛsˈdi
-LSI  ˌɛˌɫɛˈsaɪ
 LSI  ˌɛˌɫɛˈsaɪ
 LTD  ˈɫɪmɪtɪd
 LTD  ˈɛɫˈtiˈdi
@@ -72785,8 +72799,6 @@ M'BOW  ˈmboʊ
 M'BOW  ˌɛmˈboʊ
 M'S  ˈɛmz
 M-8  ˈɛˈmeɪt
-M-8  ˈɛˈmeɪt
-M-80  ˈɛˈmeɪti
 M-80  ˈɛˈmeɪti
 M-CODE  ˈɛmˈkoʊd
 M-CODES  ˈɛmˈkoʊdz
@@ -72794,14 +72806,9 @@ M.  ˈɛm
 M.'S  ˈɛmz
 M.S  ˈɛmz
 M1  ˈɛmˈwən
-M1  ˈɛmˈwən
-M2  ˈɛmˈtu
 M2  ˈɛmˈtu
 M3  ˈɛmˈθɹi
-M3  ˈɛmˈθɹi
 M4  ˈɛmˈfɔɹ
-M4  ˈɛmˈfɔɹ
-M5  ˈɛmˈfaɪv
 M5  ˈɛmˈfaɪv
 MA  ˈmɑ
 MA'AM  ˈmæm
@@ -75362,6 +75369,7 @@ MATCHMAKING  ˈmætʃˌmeɪkɪŋ
 MATCHUP  ˈmætʃəp
 MATCHUPS  ˈmætʃəps
 MATE  ˈmeɪt
+MATE  ˈmɑˌteɪ
 MATECKI  məˈtɛki
 MATED  ˈmeɪtɪd
 MATEER  məˈtɪɹ
@@ -78138,8 +78146,6 @@ METASTASIZE  məˈtæstəˌsaɪz
 METASTASIZED  məˈtæstəˌsaɪzd
 METATHORAX  ˌmɛtəˈθɔˌɹæks
 METAVERSE  ˈmɛtəˌvɝs
-METAVERSE  ˈmɛtəˌvɝs
-METAVERSES  ˈmɛtəˌvɝsɪz
 METAVERSES  ˈmɛtəˌvɝsɪz
 METAVSKY  məˈtævski
 METAXAS  məˈtæksəs
@@ -78521,7 +78527,6 @@ MICROSCOPIC  ˌmaɪkɹəˈskɑpɪk
 MICROSCOPICALLY  ˌmaɪkɹəˈskɑpɪkɫi
 MICROSCOPY  maɪˈkɹəskəpi
 MICROSEMI  ˌmaɪkɹoʊˈsɛmi
-MICROSERVICE  ˌmaɪkɹoʊˈsɝvɪs
 MICROSERVICE  ˌmaɪkɹoʊˈsɝvɪs
 MICROSOFT  ˈmaɪˌkɹoʊˈsɔft
 MICROSOFT'S  ˈmaɪˌkɹoʊˈsɔfts
@@ -79933,17 +79938,14 @@ MIZZELL  ˈmɪzəɫ
 MJ'S  ˈɛmˈdʒeɪz
 MKHATSHWA  məˈkætʃwə
 ML  ˌɛˈmɛɫ
-ML  ˌɛˈmɛɫ
 MLADENIC  ˌmɫɑˈdɛnɪtʃ
 MLADIC  ˈmɫɑdɪtʃ
 MLADIC'S  ˈmɫɑdɪtʃɪz
 MLECKO  ˈmɫɛkoʊ
 MLECKO  məˈɫɛkoʊ
 MLOPS  ˌɛˌmɛˌɫɑps
-MLOPS  ˌɛˌmɛˌɫɑps
 MLOTOK  ˈmɫoʊˌtɑk
 MLOTOK  məˈɫɑˌtɑk
-MLPERF  ˌɛˌmɛɫˈpɝf
 MLPERF  ˌɛˌmɛɫˈpɝf
 MMABATHO  məˈbɑθoʊ
 MNEMONIC  nɪˈmɑnɪk
@@ -79979,6 +79981,8 @@ MOBERLY  ˈmoʊbɝɫi
 MOBIL  ˈmoʊbəɫ
 MOBIL'S  ˈmoʊbəɫz
 MOBILE  ˈmoʊbəɫ
+MOBILE  ˌmoʊˈbiɫ
+MOBILE  ˈmoʊˌbiɫ
 MOBILE'S  ˈmoʊbəɫz
 MOBILER  ˈmoʊbɪɫɝ
 MOBILES  ˈmoʊbəɫz
@@ -81382,7 +81386,6 @@ MOUNGER  ˈmaʊŋɝ
 MOUNSEY  ˈmaʊnsi
 MOUNT  ˈmaʊnt
 MOUNT_EVEREST  ˌmaʊnˈtɛvɝɛst
-MOUNT_EVEREST  ˌmaʊnˈtɛvɝɛst
 MOUNTAIN  ˈmaʊntən
 MOUNTAIN'S  ˈmaʊntənz
 MOUNTAINEER  ˈmaʊntɪˌnɪɹ
@@ -81434,6 +81437,7 @@ MOUSSORGSKY  muˈzɔɹɡski
 MOUSTACHE  ˈməsˌtæʃ
 MOUSY  ˈmaʊsi
 MOUTH  ˈmaʊθ
+MOUTH  ˈmaʊð
 MOUTHED  ˈmaʊðd
 MOUTHFUL  ˈmaʊθˌfʊɫ
 MOUTHING  ˈmaʊðɪŋ
@@ -81547,7 +81551,6 @@ MRUK  ˈmɹək
 MS  ˈmɪz
 MS.  ˈmɪz
 MSGR  mɑnˈsinjɝ
-MSI  ˈɛˈmɛˈsaɪ
 MSI  ˈɛˈmɛˈsaɪ
 MSSRS  ˈmɛsɝz
 MSSRS.  ˈmɛsɝz
@@ -82360,8 +82363,6 @@ N.  ˈɛn
 N.'S  ˈɛnz
 N.S  ˈɛnz
 N92762  ˈɛnˈnaɪnˈtuˈsɛvənˈsɪkˈstu
-N92762  ˈɛnˈnaɪnˈtuˈsɛvənˈsɪkˈstu
-N_WORDS  ˈɛnˈwɝdz
 N_WORDS  ˈɛnˈwɝdz
 NA  ˈnɑ
 NAAB  ˈnɑb
@@ -82412,7 +82413,6 @@ NADEAU  nəˈdoʊ
 NADEIN  nəˈdaɪn
 NADEL  nɑˈdɛɫ
 NADELL  nɑˈdeɪɫ
-NADELLA  nɑˈdɛɫə
 NADELLA  nɑˈdɛɫə
 NADER  ˈneɪdɝ
 NADER'S  ˈneɪdɝz
@@ -82594,7 +82594,6 @@ NANOGRAM  ˈnænoʊɡɹæm
 NANOGRAMS  ˈnænoʊɡɹæmz
 NANOMETER  ˈnænoʊˌmitɝ
 NANOMETERS  ˈnænoʊˌmitɝz
-NANOPORE  ˈnɑnoʊpɔɹ
 NANOPORE  ˈnɑnoʊpɔɹ
 NANOS  ˈnɑnoʊz
 NANOS  ˈnænoʊz
@@ -83445,6 +83444,7 @@ NESTERS  ˈnɛstɝz
 NESTING  ˈnɛstɪŋ
 NESTLE  ˈnɛsəɫ
 NESTLE  ˈnɛsˈɫi
+NESTLE  ˈnɛˌsɫi
 NESTLE'S  ˈnɛsəɫz
 NESTLE'S  ˈnɛsˈɫiz
 NESTLED  ˈnɛsəɫd
@@ -83650,44 +83650,24 @@ NEW-YEARS  ˈnujiɹz
 NEW-YORKER  ˈnuˈjɔɹkɝ
 NEW-YORKERS  ˈnuˈjɔɹkɝz
 NEW_BEDFORD  ˌnuˈbɛdfɝd
-NEW_BEDFORD  ˌnuˈbɛdfɝd
-NEW_BERN  nuˈbɝn
 NEW_BERN  nuˈbɝn
 NEW_CALEDONIA  ˈnuˌkæɫəˈdoʊniə
-NEW_CALEDONIA  ˈnuˌkæɫəˈdoʊniə
-NEW_DELHI  nuˈdɛɫi
 NEW_DELHI  nuˈdɛɫi
 NEW_HAMPSHIRE  ˈnuˈhæmpʃɝ
-NEW_HAMPSHIRE  ˈnuˈhæmpʃɝ
-NEW_HAMPSHIRE'S  ˈnuˈhæmpʃɝz
 NEW_HAMPSHIRE'S  ˈnuˈhæmpʃɝz
 NEW_HAMPSHIRITE  ˈnuˈhæmpʃɝˌaɪt
-NEW_HAMPSHIRITE  ˈnuˈhæmpʃɝˌaɪt
-NEW_HAMPSHIRITES  ˈnuˈhæmpʃɝˌaɪts
 NEW_HAMPSHIRITES  ˈnuˈhæmpʃɝˌaɪts
 NEW_HAVEN  ˈnuheɪvən
-NEW_HAVEN  ˈnuheɪvən
-NEW_JERSEY  ˈnuˈdʒɝzi
 NEW_JERSEY  ˈnuˈdʒɝzi
 NEW_JERSEY'S  ˈnuˈdʒɝziz
-NEW_JERSEY'S  ˈnuˈdʒɝziz
-NEW_LONDON  nuˈɫəndən
 NEW_LONDON  nuˈɫəndən
 NEW_MEXICO  ˈnuˈmɛksəˌkoʊ
-NEW_MEXICO  ˈnuˈmɛksəˌkoʊ
-NEW_MEXICO'S  ˈnuˈmɛksəˌkoʊz
 NEW_MEXICO'S  ˈnuˈmɛksəˌkoʊz
 NEW_ORLEANS  nuˈɔɹɫinz
 NEW_ORLEANS  ˈnjuˈɔɹɫinz
-NEW_ORLEANS  nuˈɔɹɫinz
-NEW_ORLEANS  ˈnjuˈɔɹɫinz
-NEW_YORK  ˈnuˈjɔɹk
 NEW_YORK  ˈnuˈjɔɹk
 NEW_YORK'S  ˈnuˈjɔɹks
-NEW_YORK'S  ˈnuˈjɔɹks
 NEW_YORK_CITY  ˈnuˈjɔɹkˈsɪti
-NEW_YORK_CITY  ˈnuˈjɔɹkˈsɪti
-NEW_ZEALAND  ˈnuˈziɫənd
 NEW_ZEALAND  ˈnuˈziɫənd
 NEWALL  ˈnuˌɔɫ
 NEWARK  ˈnuɝk
@@ -83877,7 +83857,6 @@ NG  ˈɪŋ
 NGAI  ˈɡaɪ
 NGAI  ɛnˈɡaɪ
 NGC  ˈɛnˈdʒiˈsi
-NGC  ˈɛnˈdʒiˈsi
 NGEMA  ɛnˈɡɛmɑ
 NGHI  ˈɡi
 NGHI  ɛnˈɡi
@@ -83887,8 +83866,6 @@ NGOS  ɛŋˈɡoʊz
 NGUEPPE  ɛŋˈɡɛpi
 NGUYEN  nuˈjɛn
 NGX  ˈɛnˈdʒiˈɛks
-NGX  ˈɛnˈdʒiˈɛks
-NHS  ˈɛˈneɪˈtʃɛs
 NHS  ˈɛˈneɪˈtʃɛs
 NI  ˈni
 NIACIN  ˈnaɪəsən
@@ -84162,7 +84139,6 @@ NIGRELLI  niˈɡɹɛɫi
 NIGRIS  ˈnɪɡɹɪs
 NIGRO  ˈnɪɡɹoʊ
 NIGUEL  nɪˈɡɛɫ
-NIH  ˈɛˈnaɪˈeɪtʃ
 NIH  ˈɛˈnaɪˈeɪtʃ
 NIHART  ˈnɪhɑɹt
 NIHAY  ˈnaɪheɪ
@@ -85545,17 +85521,11 @@ NVHOME  ˈɛnˈviˈhoʊm
 NVHOMES  ˈɛnˈviˈhoʊmz
 NVIDIA  ɛnˈvidiə
 NVIDIA'S  ɛnˈvidiəz
-NVIDIA'S  ɛnˈvidiəz
 NVLINK  ˈɛnˈviˈɫɪŋk
-NVLINK  ˈɛnˈviˈɫɪŋk
-NVME  ˈɛnˈviˈɛˈmi
 NVME  ˈɛnˈviˈɛˈmi
 NVRYAN  ɛnvˈɹaɪən
 NVSWITCH  ˈɛnˈvɪsˈwɪtʃ
-NVSWITCH  ˈɛnˈvɪsˈwɪtʃ
 NVSWITCHES  ˈɛnˈvɪsˈwɪtʃɪz
-NVSWITCHES  ˈɛnˈvɪsˈwɪtʃɪz
-NVTABULAR  ˈɛnˈvɪˈtæbjəˈɫɑɹ
 NVTABULAR  ˈɛnˈvɪˈtæbjəˈɫɑɹ
 NYACK  ˈnaɪˌæk
 NYBERG  ˈnaɪbɝɡ
@@ -86216,7 +86186,6 @@ OELMAN  ˈoʊɫmən
 OELRICH  ˈoʊɫɹɪk
 OELSCHLAGER  ˈoʊɫʃɫeɪɡɝ
 OEM  ˈoʊˈiˈɛm
-OEM  ˈoʊˈiˈɛm
 OENOPHILE  ˈinəˌfaɪɫ
 OERLIKON  ˈɔɹɫɪˌkɑn
 OERTEL  ˈɔɹtəɫ
@@ -86310,7 +86279,6 @@ OFFING  ˈɔfɪŋ
 OFFLIMIT  ˌɔˈfɫɪmɪt
 OFFLIMITS  ˌɔˈfɫɪmɪts
 OFFLINE  ˈɔˌfɫaɪn
-OFFLOAD  ˈɔˌfɫoʊd
 OFFLOAD  ˈɔˌfɫoʊd
 OFFNER  ˈɑfnɝ
 OFFORD  ˈɑfɝd
@@ -86776,7 +86744,6 @@ OMNIPRESENCE  ˌɑmnəˈpɹɛzəns
 OMNIPRESENT  ˌɑmnɪˈpɹɛzənt
 OMNISCIENT  ɑmˈnɪʃənt
 OMNIVERSE  ˈɑmniˈvɝs
-OMNIVERSE  ˈɑmniˈvɝs
 OMNIVOROUS  ɑmˈnɪvɝəs
 OMOHUNDRO  oʊmoʊˈhundɹoʊ
 OMONIA  əˈmoʊniə
@@ -86950,7 +86917,6 @@ OPENNESS  ˈoʊpənnəs
 OPENNESS  ˈoʊpənəs
 OPENS  ˈoʊpənz
 OPENSHAW  ˈoʊpənˌʃɔ
-OPENSTACK  ˈoʊpənˈstək
 OPENSTACK  ˈoʊpənˈstək
 OPENWORK  ˈoʊpənˌwɝk
 OPERA  ˈɑpɹə
@@ -87404,6 +87370,7 @@ ORMSBY'S  ˈɔɹmzbiz
 ORN  ˈɔɹn
 ORNA  ˈɔɹnə
 ORNAMENT  ˈɔɹnəmənt
+ORNAMENT  ˌɔɹnəˈmɛnt
 ORNAMENTAL  ˌɔɹnəˈmɛntəɫ
 ORNAMENTALLY  ˌɔɹnəˈmɛntəɫi
 ORNAMENTATION  ˌɔɹnəmɛnˈteɪʃən
@@ -88419,6 +88386,7 @@ OVERTAX  ˈoʊvɝˌtæks
 OVERTAXED  ˌoʊvɝˈtækst
 OVERTHREW  ˌoʊvɝˈθɹu
 OVERTHROW  ˈoʊvɝˌθɹoʊ
+OVERTHROW  ˌoʊvɝˈθɹoʊ
 OVERTHROWING  ˈoʊvɝˌθɹoʊɪŋ
 OVERTHROWN  ˌoʊvɝˈθɹoʊn
 OVERTHROWS  ˈoʊvɝˌθɹoʊz
@@ -88788,7 +88756,6 @@ PAGLIUCA  ˌpæɡɫiˈukə
 PAGLIUCA'S  ˌpæɡɫiˈukəz
 PAGNI  ˈpæɡni
 PAGNOTTA  pɑɡˈnoʊtə
-PAGO_PAGO  ˌpɑɡoʊˈpɑɡoʊ
 PAGO_PAGO  ˌpɑɡoʊˈpɑɡoʊ
 PAGODA  pəˈɡoʊdə
 PAGODA'S  pəˈɡoʊdəz
@@ -89321,7 +89288,6 @@ PARABLE  ˈpɛɹəbəɫ
 PARABLES  ˈpɛɹəbəɫz
 PARABOLA  pɝˈæbəɫə
 PARABOLIC  ˌpɛɹəˈbɑɫɪk
-PARABRICK  ˈpɛɹəbɹɪk
 PARABRICK  ˈpɛɹəbɹɪk
 PARACHUTE  ˈpɛɹəˌʃut
 PARACHUTED  ˈpɛɹəˌʃutɪd
@@ -89894,6 +89860,8 @@ PASTS  ˈpæsts
 PASTULA  pɑˈstuɫə
 PASTURE  ˈpæstʃɝ
 PASTURES  ˈpæstʃɝz
+PASTY  ˈpeɪˌsti
+PASTY  ˈpæsˌti
 PASZEK  ˈpɑʃɛk
 PASZKIEWICZ  ˈpɑʃkəvɪtʃ
 PASZTOR  ˈpæstɝ
@@ -90262,10 +90230,7 @@ PAZUTO  pəˈzutoʊ
 PC  ˈpiˈsi
 PC'S  ˈpiˈsiz
 PCB  ˈpiˈsiˈbi
-PCB  ˈpiˈsiˈbi
 PCI  ˈpiˈsiˈeɪ
-PCI  ˈpiˈsiˈeɪ
-PCIE  ˈpiˈsiˈeɪˈi
 PCIE  ˈpiˈsiˈeɪˈi
 PCS  ˈpiˈsiz
 PEA  ˈpi
@@ -91010,7 +90975,6 @@ PERFORMANCE  pɝˈfɔɹməns
 PERFORMANCES  pɝˈfɔɹmənsəz
 PERFORMANCES  pɝˈfɔɹmənsɪz
 PERFORMANT  pɝˈfɔɹmənt
-PERFORMANT  pɝˈfɔɹmənt
 PERFORMATIVE  pɝˈfɔɹmətɪv
 PERFORMATIVES  pɝˈfɔɹmətɪvz
 PERFORMED  pɝˈfɔɹmd
@@ -91020,6 +90984,8 @@ PERFORMERS'  pɝˈfɔɹmɝz
 PERFORMING  pɝˈfɔɹmɪŋ
 PERFORMS  pɝˈfɔɹmz
 PERFUME  pɝfˈjum
+PERFUME  ˈpɝˌfjum
+PERFUME  pɝˈfjum
 PERFUMED  pɝfˈjumd
 PERFUMES  pɝfˈjumz
 PERFUMING  pɝfˈjumɪŋ
@@ -91435,8 +91401,6 @@ PETA  ˈpɛtə
 PETA'S  ˈpitəz
 PETAFLOP  ˈpɛtəˌfɫɑp
 PETAFLOP  ˈpitəˌfɫɑp
-PETAFLOP  ˈpɛtəˌfɫɑp
-PETAFLOP  ˈpitəˌfɫɑp
 PETAIN  pəˈteɪn
 PETAIN  peɪˈtæn
 PETAK  ˈpɛtək
@@ -91750,8 +91714,6 @@ PHARMACIES  ˈfɑɹməsiz
 PHARMACIST  ˈfɑɹməsɪst
 PHARMACISTS  ˈfɑɹməsɪsts
 PHARMACO  ˌfɑɹməkə
-PHARMACO  ˌfɑɹməkə
-PHARMACOKINETIC  ˌfɑɹməkəkɪˈnɛtɪk
 PHARMACOKINETIC  ˌfɑɹməkəkɪˈnɛtɪk
 PHARMACOLOGICAL  ˌfɑɹməkəˈɫɑdʒɪkəɫ
 PHARMACOLOGIST  ˌfɑɹməˈkɑɫədʒɪst
@@ -92005,7 +91967,6 @@ PHOTON  ˈfoʊˌtɑn
 PHOTONS  ˈfoʊˌtɑnz
 PHOTOOP  ˈfoʊtoʊˈɔp
 PHOTOPHORESIS  ˌfoʊtoʊfɝˈisɪs
-PHOTOREALISTIC  ˈfoʊˌtoʊˌɹiəˈɫɪstɪk
 PHOTOREALISTIC  ˈfoʊˌtoʊˌɹiəˈɫɪstɪk
 PHOTOREFRACTIVE  ˌfoʊtoʊɹɪˈfɹæktɪv
 PHOTOS  ˈfoʊˌtoʊz
@@ -92326,6 +92287,8 @@ PIGLET  ˈpɪɡɫɪt
 PIGLETS  ˈpɪɡɫɪts
 PIGMAN  ˈpɪɡmən
 PIGMENT  ˈpɪɡmɛnt
+PIGMENT  ˈpɪɡmənt
+PIGMENT  pəɡˈmɛnt
 PIGMENTATION  ˌpɪɡmənˈteɪʃən
 PIGMENTED  ˌpɪɡˈmɛtɪd
 PIGMENTS  ˈpɪɡˌmɛnts
@@ -93211,7 +93174,6 @@ PLOSS  ˈpɫɔs
 PLOT  ˈpɫɑt
 PLOTKIN  ˈpɫɑtkɪn
 PLOTLY  ˈpɫɑtɫi
-PLOTLY  ˈpɫɑtɫi
 PLOTNER  ˈpɫɑtnɝ
 PLOTNICK  ˈpɫɑtnɪk
 PLOTS  ˈpɫɑts
@@ -94080,7 +94042,6 @@ PORT-CLINTON  ˈpɔɹtˈkɫɪntən
 PORT-LONDON  ˈpɔɹtˈɫəndən
 PORT-VICTORIA  ˈpɔɹtvɪkˈtɔɹiə
 PORT_AU_PRINCE  ˈpɔɹtoʊˈpɹɪns
-PORT_AU_PRINCE  ˈpɔɹtoʊˈpɹɪns
 PORTA  ˈpɔɹtə
 PORTABILITY  ˌpɔɹtəˈbɪɫɪti
 PORTABLE  ˈpɔɹtəbəɫ
@@ -94668,6 +94629,8 @@ PRECIOUS  ˈpɹɛʃəs
 PRECIP  ˈpɹɛsɪp
 PRECIPICE  ˈpɹɛsɪpəs
 PRECIPITATE  pɹɪˈsɪpɪˌteɪt
+PRECIPITATE  pɹəˈsɪpətət
+PRECIPITATE  pɹəˈsɪpəˌteɪt
 PRECIPITATED  pɹɪˈsɪpɪˌteɪtɪd
 PRECIPITATING  pɹɪˈsɪpəˌteɪtɪŋ
 PRECIPITATION  pɹɪˌsɪpɪˈteɪʃən
@@ -96260,7 +96223,6 @@ PROXMIRE  ˈpɹɑksˌmaɪɹ
 PROXY  ˈpɹɑksi
 PROZAC  ˈpɹoʊˌzæk
 PRS  ˈpiˈɑˈɹɛs
-PRS  ˈpiˈɑˈɹɛs
 PRU  ˈpɹu
 PRU'S  ˈpɹuz
 PRUCAPITAL  ˌpɹuˈkæpɪtəɫ
@@ -96479,14 +96441,8 @@ PUERTO-RICO  ˈpɔɹtəˈɹikoʊ
 PUERTO-RICO  ˈpɔɹtɝˈɹikoʊ
 PUERTO_RICAN  ˈpwɛɹˌtoʊˈɹikən
 PUERTO_RICAN  ˈpɔɹtəˈɹikən
-PUERTO_RICAN  ˈpwɛɹˌtoʊˈɹikən
-PUERTO_RICAN  ˈpɔɹtəˈɹikən
 PUERTO_RICANS  ˈpwɛɹˌtoʊˈɹikənz
 PUERTO_RICANS  ˈpɔɹtəˈɹikənz
-PUERTO_RICANS  ˈpwɛɹˌtoʊˈɹikənz
-PUERTO_RICANS  ˈpɔɹtəˈɹikənz
-PUERTO_RICO  ˈpwɛɹˌtoʊˈɹikoʊ
-PUERTO_RICO  ˈpɔɹtəˈɹikoʊ
 PUERTO_RICO  ˈpwɛɹˌtoʊˈɹikoʊ
 PUERTO_RICO  ˈpɔɹtəˈɹikoʊ
 PUETT  ˈput
@@ -96507,7 +96463,6 @@ PUG  ˈpəɡ
 PUGA  ˈpjuɡə
 PUGET  ˈpjudʒɪt
 PUGET  ˈpjudʒɪtˈwən
-PUGET-1  ˈpjudʒɪtˈwən
 PUGET-1  ˈpjudʒɪtˈwən
 PUGH  ˈpju
 PUGH'S  ˈpjuz
@@ -96986,7 +96941,6 @@ QUADRENNIAL  kwɑˈdɹɛniəɫ
 QUADREX  ˈkwɑdɹɛks
 QUADRICEPS  ˈkwɑdɹəˌsɛps
 QUADRIPLEGIC  ˌkwɑdɹəˈpɫidʒɪk
-QUADRO  ˈkwædɹoʊ
 QUADRO  ˈkwædɹoʊ
 QUADRUPLE  kwɑˈdɹupəɫ
 QUADRUPLED  kwɑˈdɹupəɫd
@@ -98533,7 +98487,6 @@ RAYTECH  ˈɹeɪˌtɛk
 RAYTHEON  ˈɹeɪθiɑn
 RAYTHEON'S  ˈɹeɪθiɑnz
 RAYTRACING  ˈɹeɪˈtɹeɪsɪŋ
-RAYTRACING  ˈɹeɪˈtɹeɪsɪŋ
 RAZ  ˈɹæz
 RAZA  ˈɹæzə
 RAZALEIGH  ˈɹæzəˌɫi
@@ -98550,7 +98503,6 @@ RAZORS  ˈɹeɪzɝz
 RAZZANO  ɹɑtˈsɑnoʊ
 RAZZLE  ˈɹæzəɫ
 RAZZMATAZZ  ˈɹæzməˈtæz
-RDMA  ˈɑɹˈdiˈɛˈmeɪ
 RDMA  ˈɑɹˈdiˈɛˈmeɪ
 RE  ˈɹeɪ
 RE  ˈɹi
@@ -99116,7 +99068,6 @@ RECOMMENDATIONS  ˌɹɛkəmənˈdeɪʃənz
 RECOMMENDED  ˌɹɛkəˈmɛndəd
 RECOMMENDED  ˌɹɛkəˈmɛndɪd
 RECOMMENDER  ˌɹɛkəˈmɛndɝ
-RECOMMENDER  ˌɹɛkəˈmɛndɝ
 RECOMMENDING  ˌɹɛkəˈmɛndɪŋ
 RECOMMENDS  ˌɹɛkəˈmɛndz
 RECOMMIT  ɹɪˈkɑmɪt
@@ -99191,6 +99142,7 @@ RECORE  ɹɛˈkɔɹi
 RECOTON  ɹɪˈkɔtɪn
 RECOUNT  ɹɪˈkaʊnt
 RECOUNT  ˌɹiˈkaʊnt
+RECOUNT  ˈɹiˌkaʊnt
 RECOUNTED  ɹɪˈkaʊntɪd
 RECOUNTED  ˌɹiˈkaʊntɪd
 RECOUNTING  ɹɪˈkaʊntɪŋ
@@ -100018,7 +99970,6 @@ REIGHARD  ˈɹaɪɡhɝd
 REIGLE  ˈɹiɡəɫ
 REIGN  ˈɹeɪn
 REIGNED  ˈɹeɪnd
-REIGNETH  ˈɹeɪnɪθ
 REIGNETH  ˈɹeɪnɪθ
 REIGNING  ˈɹeɪnɪŋ
 REIGNITE  ˌɹiɪɡˈnaɪt
@@ -101009,8 +100960,6 @@ REPURCHASED  ɹiˈpɝtʃəst
 REPURCHASES  ɹiˈpɝtʃəsɪz
 REPURCHASING  ɹiˈpɝtʃəsɪŋ
 REPURPOSE  ɹiˈpɝˌpoʊz
-REPURPOSE  ɹiˈpɝˌpoʊz
-REPURPOSED  ɹiˈpɝˌpoʊzd
 REPURPOSED  ɹiˈpɝˌpoʊzd
 REPUTABLE  ˈɹɛpjətəbəɫ
 REPUTATION  ˌɹɛpjəˈteɪʃən
@@ -101054,6 +101003,8 @@ REREAD  ˈɹiˈɹid
 REREADING  ˈɹiˈɹidɪŋ
 REREGULATE  ɹiˈɹɛɡjəˌɫeɪt
 REREGULATION  ɹiɹɛɡjəˈɫeɪʃən
+RERELEASE  ˈɹiɹəˌɫis
+RERELEASE  ˌɹiɹəˈɫis
 REROUTE  ɹiˈɹut
 REROUTE  ɹiˈɹaʊt
 REROUTED  ɹiˈɹutɪd
@@ -101529,6 +101480,7 @@ RETALIATORY  ɹiˈtæɫjəˌtɔɹi
 RETANA  ɹɛˈtænə
 RETARD  ɹɪˈtɑɹd
 RETARD  ɹiˈtɑɹd
+RETARD  ˈɹitɑɹd
 RETARDANT  ɹiˈtɑɹdənt
 RETARDATION  ɹitɑɹˈdeɪʃən
 RETARDED  ɹɪˈtɑɹdɪd
@@ -103109,6 +103061,7 @@ RODENT  ˈɹoʊdənt
 RODENTICIDE  ɹoʊˈdɛntɪsaɪd
 RODENTS  ˈɹoʊdənts
 RODEO  ˈɹoʊdiˌoʊ
+RODEO  ˌɹoʊˈdeɪˌoʊ
 RODEOS  ˈɹoʊdiˌoʊz
 RODER  ˈɹoʊdɝ
 RODERICA  ɹoʊdɝˈikə
@@ -104007,6 +103960,7 @@ ROVIRA  ɹoʊˈvɪɹə
 ROVITO  ɹoʊˈvitoʊ
 ROVNER  ˈɹɑvnɝ
 ROW  ˈɹoʊ
+ROW  ˈɹaʊ
 ROW'S  ˈɹoʊz
 ROWAINE  ɹoʊˈeɪn
 ROWAINE'S  ɹoʊˈeɪnz
@@ -104117,8 +104071,6 @@ ROZZI  ˈɹɑzi
 RPF  ˈɑɹˈpiˈɛf
 RPM  ˈɑɹˈpiˈɛm
 RT  ˈɑɹˈti
-RT  ˈɑɹˈti
-RTX  ˈɑɹˈtiˈɛks
 RTX  ˈɑɹˈtiˈɛks
 RU  ˈɹu
 RU  ˈɑɹˈju
@@ -104495,7 +104447,6 @@ RUNOFF  ˈɹəˌnɔf
 RUNQUIST  ˈɹənˌkwɪst
 RUNS  ˈɹənz
 RUNTE  ˈɹənt
-RUNTIME  ˈɹənˌtaɪm
 RUNTIME  ˈɹənˌtaɪm
 RUNUP  ˈɹəˌnəp
 RUNUPS  ˈɹəˌnəps
@@ -105117,6 +105068,7 @@ SAKAROV  sɑˈkɑˌɹɔv
 SAKATA  sɑˈkɑtə
 SAKAU  sɑˈkɑu
 SAKE  ˈseɪk
+SAKE  ˈsɑˌkeɪ
 SAKE'S  ˈseɪks
 SAKER  ˈseɪkɝ
 SAKES  ˈseɪks
@@ -107780,7 +107732,6 @@ SCYTHIAN  ˈsɪθiən
 SCZECHUAN  ˈsɛtʃuɑn
 SCZEPANSKI  sɪˈpænski
 SDK  ˈɛsˈdiˈkeɪ
-SDK  ˈɛsˈdiˈkeɪ
 SDN  ˈɛsˈdiˈɛn
 SE  ˈseɪ
 SEA  ˈsi
@@ -108450,7 +108401,6 @@ SELF-TORMENTS  ˌsɛɫfˈtɔɹˌmɛnts
 SELFIE  ˈsɛɫˌfi
 SELFIES  ˈsɛɫˌfiz
 SELFISH  ˈsɛɫfɪʃ
-SELFISHLY  ˈsɛɫfɪʃɫi
 SELFISHLY  ˈsɛɫfɪʃɫi
 SELFISHNESS  ˈsɛɫfɪʃnəs
 SELFLESS  ˈsɛɫfɫəs
@@ -109221,7 +109171,6 @@ SEYMORE  ˈsimɔɹ
 SEYMOUR  ˈsimɔɹ
 SEYMOUR'S  ˈsimɔɹz
 SF  ˈɛˈsɛf
-SF  ˈɛˈsɛf
 SFERNICE  ˈsfɝnɪs
 SFERNICE  səˈfɝnɪs
 SFERRA  ˈsfɛɹə
@@ -109229,7 +109178,6 @@ SFERRAZZA  sfɝˈɑtsə
 SFFED  ˈsfɛd
 SFFED  ˈɛˌsɛˈfɛd
 SFFED  ˈɛˈsɛˈfɛˈfiˈdi
-SFO  ˈɛˈsɛˈfoʊ
 SFO  ˈɛˈsɛˈfoʊ
 SFORZA  ˈsfɔɹzə
 SFUZZI  ˈsfutzi
@@ -109309,7 +109257,6 @@ SHAFTING  ˈʃæftɪŋ
 SHAFTS  ˈʃæfts
 SHAG  ˈʃæɡ
 SHAGGY  ˈʃæɡi
-SHAGING  ˈʃæɡɪŋ
 SHAGING  ˈʃæɡɪŋ
 SHAGS  ˈʃæɡz
 SHAH  ˈʃɑ
@@ -110874,7 +110821,6 @@ SIGG  ˈsɪɡ
 SIGGERS  ˈsɪɡɝz
 SIGGINS  ˈsɪɡɪnz
 SIGGRAPH  ˈsɪˌɡɹæf
-SIGGRAPH  ˈsɪˌɡɹæf
 SIGH  ˈsaɪ
 SIGHED  ˈsaɪd
 SIGHING  ˈsaɪɪŋ
@@ -111003,7 +110949,6 @@ SILICATE  ˈsɪɫəkət
 SILICATE  ˈsɪɫəˌkeɪt
 SILICATES  ˈsɪɫəkəts
 SILICATES  ˈsɪɫəˌkeɪts
-SILICO  ˈsɪɫəkoʊ
 SILICO  ˈsɪɫəkoʊ
 SILICON  ˈsɪɫəkən
 SILICONE  ˈsɪɫəˌkoʊn
@@ -112741,7 +112686,6 @@ SOBRIQUET  ˈsoʊbɹəˌkeɪ
 SOBRIQUET  ˌsoʊbɹəˈkɛt
 SOBS  ˈsɑbz
 SOC  ˈɛˈsoʊˈsi
-SOC  ˈɛˈsoʊˈsi
 SOCAL  ˈsoʊkəɫ
 SOCALLED  ˈsoʊˌkɑɫd
 SOCANAV  ˈsɑkənɑv
@@ -113403,7 +113347,6 @@ SOURBY  ˈsaʊɹbi
 SOURCE  ˈsɔɹs
 SOURCE'S  ˈsɔɹsɪz
 SOURCEBOOK  ˈsɔɹsˌbʊk
-SOURCED  ˈsɔɹst
 SOURCED  ˈsɔɹst
 SOURCES  ˈsɔɹsəz
 SOURCES'  ˈsɔɹsəz
@@ -114572,80 +114515,44 @@ SROUFE  ˈʃɹoʊf
 SRPSKA  ˈsɹəpskə
 SSANGYONG  ˈsæŋˌjɔŋ
 SSD  ˈɛˈsɛsˈdi
-SSD  ˈɛˈsɛsˈdi
 ST  ˈstɹit
 ST  ˈseɪnt
 ST-JAMES  ˈseɪntˈdʒeɪmz
 ST-JOHNS  ˈseɪntˈdʒɑnz
 ST.  ˈstɹit
 ST.  ˈseɪnt
-ST.  ˈstɹit
-ST.  ˈseɪnt
-ST_CHARLES  ˈseɪntˈtʃɑɹəɫz
 ST_CHARLES  ˈseɪntˈtʃɑɹəɫz
 ST_CLAIR  ˈseɪntˈkɫɛɹ
-ST_CLAIR  ˈseɪntˈkɫɛɹ
-ST_CLAIRE  ˈseɪntˈkɫɛɹ
 ST_CLAIRE  ˈseɪntˈkɫɛɹ
 ST_CYR  ˈseɪntˈkɪɹ
 ST_CYR  ˈseɪntˈsɪɹ
-ST_CYR  ˈseɪntˈkɪɹ
-ST_CYR  ˈseɪntˈsɪɹ
-ST_DENIS  ˈseɪntˈdɛnɪs
 ST_DENIS  ˈseɪntˈdɛnɪs
 ST_DENNIS  ˈseɪntˈdɛnɪs
-ST_DENNIS  ˈseɪntˈdɛnɪs
 ST_GEORGE  ˈseɪntˈdʒɔɹdʒ
-ST_GEORGE  ˈseɪntˈdʒɔɹdʒ
-ST_GERMAIN  ˈseɪntˌdʒɝˈmeɪn
 ST_GERMAIN  ˈseɪntˌdʒɝˈmeɪn
 ST_GERMAINE  ˈseɪntˌdʒɝˈmeɪn
 ST_GERMAINE  ˈsɑnˌʒɝˈmeɪn
-ST_GERMAINE  ˈseɪntˌdʒɝˈmeɪn
-ST_GERMAINE  ˈsɑnˌʒɝˈmeɪn
-ST_HILAIRE  ˈseɪnthɪˈɫeɪɹ
 ST_HILAIRE  ˈseɪnthɪˈɫeɪɹ
 ST_JACQUES  ˈseɪntˈdʒɑks
 ST_JACQUES  ˈsɑnˈʒɑks
-ST_JACQUES  ˈseɪntˈdʒɑks
-ST_JACQUES  ˈsɑnˈʒɑks
-ST_JAMES  ˈseɪntˈdʒeɪmz
 ST_JAMES  ˈseɪntˈdʒeɪmz
 ST_JEAN  ˈseɪntˈdʒin
-ST_JEAN  ˈseɪntˈdʒin
-ST_JOHN  ˈseɪntˈdʒɑn
 ST_JOHN  ˈseɪntˈdʒɑn
 ST_JOHNS  ˈseɪntˈdʒɑnz
-ST_JOHNS  ˈseɪntˈdʒɑnz
-ST_JULIEN  ˈseɪntˈdʒuɫiən
 ST_JULIEN  ˈseɪntˈdʒuɫiən
 ST_LAURENT  ˈseɪntˈɫɔɹənt
 ST_LAURENT  ˈsɑnˌɫɔˈɹɔnt
-ST_LAURENT  ˈseɪntˈɫɔɹənt
-ST_LAURENT  ˈsɑnˌɫɔˈɹɔnt
 ST_LAWRENCE  ˈseɪntˈɫɔɹəns
-ST_LAWRENCE  ˈseɪntˈɫɔɹəns
-ST_LOUIS  ˈseɪntˈɫuəs
-ST_LOUIS  ˈseɪntˈɫui
 ST_LOUIS  ˈseɪntˈɫuəs
 ST_LOUIS  ˈseɪntˈɫui
 ST_LUCIA  ˈseɪntˈɫuʃə
 ST_LUCIA  ˈseɪntˌɫuˈsiə
-ST_LUCIA  ˈseɪntˈɫuʃə
-ST_LUCIA  ˈseɪntˌɫuˈsiə
-ST_MARIE  ˈseɪntmɝˈi
 ST_MARIE  ˈseɪntmɝˈi
 ST_MARTIN  ˈseɪntˈmɑɹtɪn
-ST_MARTIN  ˈseɪntˈmɑɹtɪn
-ST_MARY  ˈseɪntˈmɛɹi
 ST_MARY  ˈseɪntˈmɛɹi
 ST_PETER  ˈseɪntˈpitɝ
-ST_PETER  ˈseɪntˈpitɝ
-ST_PETERSBURG  ˈseɪntˈpitɝzbɝɡ
 ST_PETERSBURG  ˈseɪntˈpitɝzbɝɡ
 ST_PIERRE  ˈseɪntˈpjɛɹ
-ST_PIERRE  ˈseɪntˈpjɛɹ
-ST_THOMAS  ˈseɪnˈtɑməs
 ST_THOMAS  ˈseɪnˈtɑməs
 STA  ˈstə
 STA  ˈɛsˈtiˈeɪ
@@ -117362,7 +117269,6 @@ SUFFIX  ˈsəfɪks
 SUFFOCATE  ˈsəfəˌkeɪt
 SUFFOCATED  ˈsəfəˌkeɪtɪd
 SUFFOCATES  ˈsəfəˌkeɪts
-SUFFOCATES  ˈsəfəˌkeɪts
 SUFFOCATING  ˈsəfəˌkeɪtɪŋ
 SUFFOCATION  ˌsəfəˈkeɪʃən
 SUFFOLK  ˈsəfək
@@ -117722,7 +117628,6 @@ SUPERBOWL'S  ˈsupɝˌboʊɫz
 SUPERBOWLS  ˈsupɝˌboʊɫz
 SUPERCALIFRAGILISTIC  ˌsupɝˌkæɫəˈfɹædʒəˌɫɪstɪk
 SUPERCALIFRAGILISTICEXPIALIDOCIOUS  ˌsupɝˌkæɫəˈfɹædʒəˌɫɪstɪˌkɛkspiˌæɫəˈdoʊʃəs
-SUPERCALIFRAGILISTICEXPIALIDOCIOUS  ˌsupɝˌkæɫəˈfɹædʒəˌɫɪstɪˌkɛkspiˌæɫəˈdoʊʃəs
 SUPERCENTER  ˈsupɝˌsɛntɝ
 SUPERCENTERS  ˈsupɝˌsɛntɝs
 SUPERCHARGE  ˌsupɝˈtʃɑɹdʒ
@@ -117799,7 +117704,6 @@ SUPERNATURALISM  ˌsupɝˈnætʃɝəˌɫɪzəm
 SUPERNOVA  ˌsupɝˈnoʊvə
 SUPEROXIDE  ˌsupɝˈɑkˌsaɪd
 SUPERPOD  ˌsupɝˈpɔd
-SUPERPOD  ˌsupɝˈpɔd
 SUPERPOWER  ˌsupɝˈpaʊɝ
 SUPERPOWERS  ˌsupɝˈpaʊɝz
 SUPERPOWERS'  ˈsupɝˌpaʊɹz
@@ -117808,7 +117712,6 @@ SUPERPREMIUM  ˌsupɝˈpɹimjəm
 SUPERREGIONAL  ˌsupɝˈɹidʒənəɫ
 SUPERREGIONALS  ˌsupɝˈɹidʒənəɫz
 SUPERREGIONALS'  supɝˈɹidʒənəɫz
-SUPERRES  ˌsupɝɹˈɹæs
 SUPERRES  ˌsupɝɹˈɹæs
 SUPERS  ˈsupɝz
 SUPERSAVER  ˈsupɝˌseɪvɝ
@@ -118878,8 +118781,6 @@ T.'S  ˈtiz
 T.S  ˈtiz
 T_A_C  ˈtiˈeɪˈsi
 T_A_C  ˈtæk
-T_A_C  ˈtiˈeɪˈsi
-T_A_C  ˈtæk
 TA  ˈtɑ
 TAAFFE  ˈtɑf
 TAB  ˈtæb
@@ -118929,7 +118830,6 @@ TABORN  ˈtæbɝn
 TABRON  ˈtæbɹən
 TABS  ˈtæbz
 TABUCHI  ˌtɑˈbutʃi
-TABULAR  ˈtæbjəˈɫɑɹ
 TABULAR  ˈtæbjəˈɫɑɹ
 TABULATE  ˈtæbjəˌɫeɪt
 TABULATED  ˈtæbjəˌɫeɪtɪd
@@ -119719,7 +119619,6 @@ TCHAIKOVSKY'S  ˌtʃaɪˈkɑvskiz
 TCHAIKOVSKY'S  ˌtʃaɪˈkɑfskiz
 TCHURUK  ˈtʃʊɹɪk
 TCO  ˈtiˈsiˈoʊ
-TCO  ˈtiˈsiˈoʊ
 TE  ˈti
 TEA  ˈti
 TEAC  ˈtik
@@ -119968,7 +119867,6 @@ TEK  ˈtɛk
 TEKNOWLEDGE  ˌtɛkˈnɑɫɛdʒ
 TEKTRONIX  ˌtɛkˈtɹɑnɪks
 TEL  ˈtɛɫ
-TEL_AVIV  ˈtɛɫɑˈviv
 TEL_AVIV  ˈtɛɫɑˈviv
 TELACTION  tɛˈɫækʃən
 TELAMON  ˈtɛɫəmən
@@ -120298,7 +120196,6 @@ TENSION  ˈtɛnʃən
 TENSIONS  ˈtɛntʃənz
 TENSOR  ˈtɛnsɝ
 TENSORRT  ˈtɛnsɝˈɑɹˈti
-TENSORRT  ˈtɛnsɝˈɑɹˈti
 TENT  ˈtɛnt
 TENTACLE  ˈtɛntəkəɫ
 TENTACLES  ˈtɛntəkəɫz
@@ -120329,7 +120226,6 @@ TEQUILA  təˈkiɫə
 TEQUILIU  təˈkiɫju
 TER  ˈtɝ
 TERA  ˈtɛɹə
-TERA  ˈtɛɹə
 TERABYTE  ˌtɛɹəˈbaɪt
 TERABYTES  ˌtɛɹəˈbaɪts
 TERADA  tɝˈɑdə
@@ -120337,8 +120233,6 @@ TERADATA  ˌtɛɹəˈdɑtə
 TERADYNE  ˈtɛɹəˌdaɪn
 TERADYNE'S  ˈtɛɹəˌdaɪnz
 TERAFLOP  ˈtɛɹəˌfɫɑp
-TERAFLOP  ˈtɛɹəˌfɫɑp
-TERAFLOPS  ˈtɛɹəˌfɫɑpz
 TERAFLOPS  ˈtɛɹəˌfɫɑpz
 TERAN  ˈtɛɹən
 TERASAWA  ˌtɛɹəˈsɑwə
@@ -120419,8 +120313,6 @@ TERRASI  tɝˈɑˌsi
 TERRAZAS  tɛˈɹɑˌzɑz
 TERRE  ˈtɛɹə
 TERRE  ˈtɛɹ
-TERRE_HAUTE  ˈtɛɹəˈhoʊt
-TERRE_HAUTE  ˈtɛɹəˈhət
 TERRE_HAUTE  ˈtɛɹəˈhoʊt
 TERRE_HAUTE  ˈtɛɹəˈhət
 TERREBONNE  ˌtɝəˈbɔn
@@ -120641,7 +120533,6 @@ TEXTURED  ˈtɛkstʃɝd
 TEXTURES  ˈtɛkstʃɝz
 TEZAK  ˈtɛzək
 TEZENO  teɪˈzeɪnoʊ
-TF  ˈtiˈɛf
 TF  ˈtiˈɛf
 TH  ˈtiˈeɪtʃ
 THABO  ˈθeɪboʊ
@@ -121627,7 +121518,6 @@ TIMBUKTU  ˌtɪmbəkˈtu
 TIME  ˈtaɪm
 TIME'S  ˈtaɪmz
 TIME0-OUT  ˈtaɪˌmaʊt
-TIME0-OUT  ˈtaɪˌmaʊt
 TIMED  ˈtaɪmd
 TIMEFRAME  ˈtaɪmˌfɹeɪm
 TIMELESS  ˈtaɪmɫəs
@@ -122538,7 +122428,6 @@ TOUCHET  tuˈʃɛt
 TOUCHETTE  ˌtuˈʃɛt
 TOUCHING  ˈtətʃɪŋ
 TOUCHSCREEN  ˈtətʃsˌkɹin
-TOUCHSCREEN  ˈtətʃsˌkɹin
 TOUCHSTONE  ˈtətʃˌstoʊn
 TOUCHTON  ˈtətʃtən
 TOUCHY  ˈtətʃi
@@ -123045,6 +122934,7 @@ TRANSPIRED  tɹænˈspaɪɝd
 TRANSPIRES  tɹænˈspaɪɝz
 TRANSPIRING  tɹænˈspaɪɝɪŋ
 TRANSPLANT  tɹænsˈpɫænt
+TRANSPLANT  ˈtɹænsˌpɫænt
 TRANSPLANTATION  ˌtɹænzpɫænˈteɪʃən
 TRANSPLANTED  tɹænsˈpɫæntɪd
 TRANSPLANTING  tɹænsˈpɫæntɪŋ
@@ -123900,7 +123790,6 @@ TRZCINSKI  tɝˈʒɪnski
 TRZECIAK  tɝˈzɛtʃiæk
 TS  ˈtiˈɛs
 TSA  ˈtiˈɛˈsaɪ
-TSA  ˈtiˈɛˈsaɪ
 TSAI  ˈtsaɪ
 TSAI  ˈsaɪ
 TSAI'S  ˈtsaɪz
@@ -123931,7 +123820,6 @@ TSIANG  ˈtsjæŋ
 TSINGTAO  ˈsɪŋˌtaʊ
 TSINGTAO  ˈtsɪŋˌdaʊ
 TSMC  ˈtiˈɛˈsɛmˈsi
-TSMC  ˈtiˈɛˈsɛmˈsi
 TSO  ˈtsoʊ
 TSO  ˈsoʊ
 TSONGAS  ˈtsɔŋɡəs
@@ -123959,7 +123847,6 @@ TSURUMI  tsuˈɹumi
 TSURUMI  suˈɹumi
 TSUTOMU  tsuˈtoʊmu
 TT'S  ˈtiˈtiz
-TTS  ˈtiˈtiˈɛs
 TTS  ˈtiˈtiˈɛs
 TU  ˈtu
 TUB  ˈtəb
@@ -124067,7 +123954,6 @@ TULLOCK  ˈtəɫək
 TULLOS  ˈtəɫoʊz
 TULLY  ˈtəɫi
 TULSA  ˈtəɫsə
-TUM  təm
 TUM  təm
 TUMA  ˈtumə
 TUMACOCERI  ˌtuməˈkoʊtʃɝi
@@ -124577,8 +124463,6 @@ U.  ˈju
 U.'S  ˈjuz
 U.S  ˈjuz
 U_L  ˈjuˈɛɫ
-U_L  ˈjuˈɛɫ
-U_S_M_C  ˈjuˈɛˈsɛmˈsi
 U_S_M_C  ˈjuˈɛˈsɛmˈsi
 UARCO  ˌjuˈɑɹkoʊ
 UART  ˈjuɑɹt
@@ -124593,7 +124477,6 @@ UCCI  ˈutʃi
 UCHIDA  uˈkidə
 UCLAF  ˈəkɫæf
 UCLAF  ˈjukɫæf
-UCX  ˈjuˈsiˈɛks
 UCX  ˈjuˈsiˈɛks
 UDAGAWA  ˌudɑˈɡɑwə
 UDALE  ˈjuˌdeɪɫ
@@ -125151,7 +125034,6 @@ UNDERPOWERED  ˌəndɝˈpaʊɝd
 UNDERPRICE  ˈəndɝˌpɹaɪs
 UNDERPRICED  ˈəndɝˌpɹaɪst
 UNDERPRICING  ˈəndɝˌpɹaɪsɪŋ
-UNDERPRIVILEDGED  ˌəndɝˈpɹɪvɫɪdʒd
 UNDERPRIVILEDGED  ˌəndɝˈpɹɪvɫɪdʒd
 UNDERRATE  ˌəndɝˈɹeɪt
 UNDERRATED  ˌəndɝˈɹeɪtɪd
@@ -126076,7 +125958,6 @@ UPPERS  ˈəpɝz
 UPPING  ˈəpɪŋ
 UPPITY  ˈəpəti
 UPRES  əˈpɹæs
-UPRES  əˈpɹæs
 UPRIGHT  əˈpɹaɪt
 UPRIGHT  ˈəˌpɹaɪt
 UPRIGHTS  ˈəˌpɹaɪts
@@ -126315,7 +126196,6 @@ USURPS  ˌjuˈsɝps
 USURY  ˈjuʒɝi
 USURY  ˈjuzɝi
 UT  ˈjuˈti
-UT  ˈjuˈti
 UTAH  ˈjuˌtɔ
 UTAH'S  ˈjutɑz
 UTAMARO  ˌjutəˈmɑɹoʊ
@@ -126363,7 +126243,6 @@ UTTERED  ˈətɝd
 UTTERING  ˈətɝɪŋ
 UTTERLY  ˈətɝɫi
 UTTERMOST  ˈətɝˈmoʊst
-UTTERMOST  ˈətɝˈmoʊst
 UTTERS  ˈətɝz
 UTZ  ˈəts
 UTZINGER  ˈətzɪŋɝ
@@ -126392,7 +126271,6 @@ V.  ˈvi
 V.'S  ˈviz
 V.A.  ˌviˈeɪ
 V.S  ˈviz
-V_S  ˈviˈɛs
 V_S  ˈviˈɛs
 VAAL  ˈvɑɫ
 VAAPENFABRIKK  ˌvɑˈpɛnfəbɹɪk
@@ -126645,7 +126523,6 @@ VAMPIRE'S  ˈvæmpaɪɹz
 VAMPIRES  ˈvæmpaɪɹz
 VAMPIRIC  væmˈpɪɹɪk
 VAN  ˈvæn
-VAN_GOGH  ˈvænˈɡoʊ
 VAN_GOGH  ˈvænˈɡoʊ
 VANA  ˈvænə
 VANACKER  væˈnækɝ
@@ -127049,7 +126926,6 @@ VARIANCES  ˈvɛɹiənsɪz
 VARIANT  ˈvɛɹiənt
 VARIANTS  ˈvɛɹiənts
 VARIATION  ˌvɛɹiˈeɪʃən
-VARIATIONAL  ˌvɛɹiˈeɪʃənəɫ
 VARIATIONAL  ˌvɛɹiˈeɪʃənəɫ
 VARIATIONS  ˌvɛɹiˈeɪʃənz
 VARICK  ˈvɛɹɪk
@@ -128215,8 +128091,6 @@ VIROMUNE  ˌvaɪɹoʊmˈjun
 VIRTS  ˈvɝts
 VIRTUAL  ˈvɝtʃuəɫ
 VIRTUALIZED  ˈvɝtʃuəˌɫaɪzd
-VIRTUALIZED  ˈvɝtʃuəˌɫaɪzd
-VIRTUALLIZED  ˈvɝtʃuəˌɫaɪzd
 VIRTUALLIZED  ˈvɝtʃuəˌɫaɪzd
 VIRTUALLY  ˈvɝtʃuəɫi
 VIRTUALLY  ˈvɝtʃuɫi
@@ -128401,7 +128275,6 @@ VLASIC  ˈvɫæzɪk
 VLCEK  ˈvɫɛsɪk
 VLIET  ˈvɫit
 VLOK  ˈvɫɑk
-VMWARE  ˌviˌɛmˈwɛɹ
 VMWARE  ˌviˌɛmˈwɛɹ
 VNESHECONOMBANK  vəˌnɛʃəˈkɑnəmˌbæŋk
 VO  ˈvoʊ
@@ -128754,7 +128627,6 @@ VUNCANNON  vənˈkænən
 VUOLO  vuˈoʊɫoʊ
 VUONG  vuˈɔŋ
 VXLAN  ˈviˈɛkˈsɫæn
-VXLAN  ˈviˈɛkˈsɫæn
 VY  ˈvaɪ
 VYACHESLAV  ˈvjɑtʃəsɫɑv
 VYAS  ˈvjɑs
@@ -128765,7 +128637,6 @@ W'S  ˈdəbəɫjuz
 W.  ˈdəbəɫju
 W.'S  ˈdəbəɫjuz
 W.S  ˈdəbəɫjuz
-W00T  ˈwut
 W00T  ˈwut
 WA  ˈwɑ
 WAACK  ˈwɑk
@@ -129706,7 +129577,6 @@ WAUSAU  ˈwɔsɔ
 WAUTERS  ˈwaʊtɝz
 WAVE  ˈweɪv
 WAVED  ˈweɪvd
-WAVEGLOW  ˈweɪvˌɡɫoʊ
 WAVEGLOW  ˈweɪvˌɡɫoʊ
 WAVELENGTH  ˈweɪvˌɫɛŋθ
 WAVELENGTHS  ˈweɪvˌɫɛŋθs
@@ -130737,7 +130607,6 @@ WHEELERS  ˈwiɫɝz
 WHEELERS  ˈhwiɫɝz
 WHEELESS  ˈwiɫəs
 WHEELESS  ˈhwiɫəs
-WHEELHOUSE  ˈwiɫˌhaʊs
 WHEELHOUSE  ˈwiɫˌhaʊs
 WHEELING  ˈwiɫɪŋ
 WHEELING  ˈhwiɫɪŋ
@@ -132352,7 +132221,6 @@ WIZARDRY  ˈwɪzɝdɹi
 WIZARDS  ˈwɪzɝdz
 WIZEN  ˈwaɪzən
 WIZENED  ˈwaɪzənd
-WJH  ˈdəbəɫjuˈdʒeɪˈeɪtʃ
 WJH  ˈdəbəɫjuˈdʒeɪˈeɪtʃ
 WLODARCZYK  wəˈɫɑdɝtʃɪk
 WLODARSKI  wəɫəˈdɑɹski
@@ -134892,3 +134760,8 @@ ZYUGANOV  ˈzuɡɑnɑv
 ZYUGANOV'S  ˈzjuɡɑnɑvz
 ZYUGANOV'S  ˈzuɡɑnɑvz
 ZYWICKI  zɪˈwɪki
+{BRACE  ˈbɹeɪs
+{LEFT-BRACE  ˈɫɛftˈbɹeɪs
+{OPEN-BRACE  ˈoʊpɛnˈbɹeɪs
+}CLOSE-BRACE  ˈkɫoʊzˈbɹeɪs
+}RIGHT-BRACE  ˈɹaɪtˈbɹeɪs
