@@ -88,6 +88,22 @@ model:
   headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
 
+  # precision
+  native_amp_init_scale: 4294967296 # 2 ** 32
+  native_amp_growth_interval: 1000
+  fp32_residual_connection: False # Move residual connections to fp32
+  fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+
+  # miscellaneous
+  seed: 1234
+  use_cpu_initialization: False # Init weights on the CPU (slow for large models)
+  onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
+  apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+
+  # not implemented in NeMo yet
+  activations_checkpoint_method: null # 'uniform', 'block'
+  activations_checkpoint_num_layers: 1 
+
   train_ds:
     src_file_name: null
     tgt_file_name: null
