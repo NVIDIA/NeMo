@@ -19,7 +19,6 @@ from typing import List
 
 import ijson
 import numpy as np
-from tqdm import tqdm
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
 from nemo.collections.nlp.data.data_utils import (

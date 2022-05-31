@@ -16,18 +16,15 @@
 
 
 import collections
-import gc
-import json
 import os
 import pickle
 from functools import lru_cache
 from typing import Dict, List, Optional
 
-import ijson
 import numpy as np
 import psutil
 import torch
-from tqdm import tqdm, trange
+from tqdm import trange
 
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import is_whitespace
@@ -260,9 +257,9 @@ class SquadDataset(Dataset):
                 self.examples = []
                 del self.processor
 
-        # logging.info("Converting json features into object features")
-        # for i in trange(len(self.features)):
-        #     self.features[i] = InputFeatures(**self.features[i])
+        logging.info("Converting dict features into object features")
+        for i in trange(len(self.features)):
+            self.features[i] = InputFeatures(**self.features[i])
 
     @staticmethod
     def get_doc_tokens_and_offset_from_context_id(
