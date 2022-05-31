@@ -30,7 +30,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
 import os
-impot logging
+import logging
 from contextlib import nullcontext
 
 
