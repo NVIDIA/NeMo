@@ -643,9 +643,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             multilingual_ids=self.multilingual_ids,
         )
 
-    def build_megatron_train_valid_test_datasets(self):
-        self._validate_megatron_data_config(self._cfg.train_ds)
-
     def list_available_models(self):
         pass
 
@@ -768,7 +765,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         normalizer=None,
     ) -> List[str]:
         """
-        Calls the translate() method with the option of running ITN (inverse text-normalization) on the input adn TN (text-normalization) on the output.
+        Calls the translate() method with the option of running ITN (inverse text-normalization) on the input and TN (text-normalization) on the output.
         Pipeline : ITN -> translate -> TN
         NOTE: ITN and TN objects must be initialized with the right languages.
         Args:
