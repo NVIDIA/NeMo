@@ -49,22 +49,6 @@ ZIPPED_FOLDER = "thorsten-de_v02.tgz"
 EXTRACTED_FOLDER = "thorsten-de"
 
 
-def __maybe_download_file(source_url, destination_path):
-    if not destination_path.exists():
-        tmp_file_path = destination_path.with_suffix('.tmp')
-        urllib.request.urlretrieve(source_url, filename=str(tmp_file_path))
-        tmp_file_path.rename(destination_path)
-
-
-def __extract_file(filepath, data_dir):
-    try:
-        tar = tarfile.open(filepath)
-        tar.extractall(data_dir)
-        tar.close()
-    except Exception:
-        print(f"Error while extracting {filepath}. Already extracted?")
-
-
 def __process_transcript(file_path: str):
     # Create normalizer
     text_normalizer = Normalizer(
@@ -116,12 +100,8 @@ def __process_data(dataset_path, val_size, test_size, seed_for_ds_split):
 
 def main():
     args = get_args()
-
     dataset_root = args.data_root / "openslr-95-german-neutral-tts"
     dataset_root.mkdir(parents=True, exist_ok=True)
-    # ToDo(@aroraakshit): correct the following two functions
-    # __maybe_download_file(URL + ZIPPED_FOLDER, dataset_root / ZIPPED_FOLDER)
-    # __extract_file(dataset_root / ZIPPED_FOLDER, dataset_root)
     __process_data(
         dataset_root / EXTRACTED_FOLDER, args.val_size, args.test_size, args.seed_for_ds_split,
     )

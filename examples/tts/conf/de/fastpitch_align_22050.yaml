@@ -1,3 +1,6 @@
+# This config contains the default values for training FastPitch model with aligner using 22KHz sampling 
+# rate. If you want to train model on other dataset, you can change config values according to your dataset. 
+# Most dataset-specific arguments are in the head of the config file, see below.
 
 name: FastPitch
 
@@ -5,24 +8,24 @@ train_dataset: ???
 validation_datasets: ???
 sup_data_path: ???
 sup_data_types: [ "align_prior_matrix", "pitch" ]
-exp_dir_var: ???
 
 # Default values from librosa.pyin
 pitch_fmin: 65.40639132514966
 pitch_fmax: 2093.004522404789
 
-# openslr/95
+# Stats (per frame), train (these values depend on pitch_fmin and pitch_fmax)
+# For example, on Thorsten Muller (German Neutral-TTS dataset): http://www.openslr.org/95/
 pitch_mean: 132.524658203125
 pitch_std: 37.389366149902344
 
-# Default values for dataset with sample_rate=44100
+# Default values for dataset with sample_rate=22050
 sample_rate: 22050
 n_mel_channels: 80
 n_window_size: 1024
 n_window_stride: 256
 n_fft: 1024
 lowfreq: 0
-highfreq: 8000
+highfreq: null
 window: hann
 
 whitelist_path: "nemo_text_processing/text_normalization/de/data/whitelist.tsv"
@@ -83,7 +86,7 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: 14
+      max_duration: 14 # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
       trim: false
@@ -113,7 +116,7 @@ model:
       n_mels: ${model.n_mel_channels}
       lowfreq: ${model.lowfreq}
       highfreq: ${model.highfreq}
-      max_duration: 14
+      max_duration: 14 # change to null to include longer audios.
       min_duration: 0.1
       ignore_file: null
       trim: false
@@ -201,7 +204,7 @@ model:
     name: adamw
     lr: 1e-1
     # optimizer arguments
-    betas: [0.9, 0.98]
+    betas: [0.9, 0.999]
     weight_decay: 1e-6
 
     sched:
@@ -212,21 +215,21 @@ model:
 
 trainer:
   num_nodes: 1
-  devices: -1
+  devices: -1 # number of gpus
   accelerator: gpu
   strategy: ddp
-  precision: 32
+  precision: 16
   max_epochs: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
-  checkpoint_callback: False # Provided by exp_manager
+  enable_checkpointing: false # Provided by exp_manager
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
-  flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 5
+  benchmark: false
 
 exp_manager:
-  exp_dir: ${exp_dir_var}
+  exp_dir: null
   name: ${name}
   create_tensorboard_logger: true
   create_checkpoint_callback: true
