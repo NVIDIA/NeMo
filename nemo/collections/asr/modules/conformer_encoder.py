@@ -29,6 +29,28 @@ from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 
+import os
+impot logging
+from contextlib import nullcontext
+
+
+FORCE_PRECISION = False
+ac_context = nullcontext()
+if os.getenv('FORCE_PRECISION') is not None:
+    FORCE_PRECISION = os.getenv('FORCE_PRECISION')
+    logging.warning(f"Precision forced to {FORCE_PRECISION}")
+    if FORCE_PRECISION == '16':
+        ac_context = torch.cuda.amp.autocast(dtype=torch.float16)
+    elif FORCE_PRECISION == '32':
+        ac_context = torch.cuda.amp.autocast(dtype=torch.float32)
+    elif FORCE_PRECISION == 'bf16':
+        ac_context = torch.cuda.amp.autocast(dtype=torch.bfloat16)
+    else:
+        logging.warning("Precision not recognized")
+else:
+    logging.warning("Precision not forced")
+
+
 __all__ = ['ConformerEncoder']
 
 
@@ -257,7 +279,9 @@ class ConformerEncoder(NeuralModule, Exportable):
         if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
         else:
-            audio_signal, length = self.pre_encode(audio_signal, length)
+            # optionally, force specific precision
+            with ac_context:
+                audio_signal, length = self.pre_encode(audio_signal, length)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
         # adjust size
