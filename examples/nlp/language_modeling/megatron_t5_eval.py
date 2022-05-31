@@ -79,9 +79,7 @@ def main():
         )
 
     model = MegatronT5Model.restore_from(
-        restore_path=args.model_file,
-        trainer=trainer,
-        save_restore_connector=NLPSaveRestoreConnector(),
+        restore_path=args.model_file, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector(),
     )
     model.freeze()
 
