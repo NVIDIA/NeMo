@@ -240,7 +240,7 @@ def main():
             if not audio_file.is_file() and not audio_file.is_absolute():
                 audio_file = manifest_dir / audio_file
             target_transcripts.append(data['text'])
-            audio_file_paths.append(str(audio_file))
+            audio_file_paths.append(str(audio_file.absolute()))
 
     if args.probs_cache_file and os.path.exists(args.probs_cache_file):
         logging.info(f"Found a pickle file of probabilities at '{args.probs_cache_file}'.")

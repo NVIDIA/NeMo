@@ -171,7 +171,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 audio_file = Path(item['audio_filepath'])
                 if not audio_file.is_file() and not audio_file.is_absolute():
                     audio_file = manifest_dir / audio_file
-                filepaths.append(str(audio_file))
+                filepaths.append(str(audio_file.absolute()))
         partial_audio = all(has_two_fields)
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
