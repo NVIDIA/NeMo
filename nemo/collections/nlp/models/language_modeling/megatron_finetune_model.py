@@ -206,6 +206,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
 
+        else:
+            raise ValueError(f'Metric {metric_name} not supported.')
+
         return pred, label
 
     def inference_step(self, batch, batch_idx, mode, dataloader_idx=0):
