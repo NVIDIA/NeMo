@@ -12,6 +12,7 @@ class TestT5Config:
           max_training_days: 4
           limit_search_runs: 100
           output_top_n: 10
+          max_steps_per_run: 15
           max_minutes_per_run: 20
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -50,6 +51,7 @@ class TestT5Config:
           max_training_days: 16
           limit_search_runs: 100
           output_top_n: 10
+          max_steps_per_run: 15
           max_minutes_per_run: 35
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -88,6 +90,7 @@ class TestT5Config:
           max_training_days: 45
           limit_search_runs: 100
           output_top_n: 10
+          max_steps_per_run: 15
           max_minutes_per_run: 50
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -126,6 +129,7 @@ class TestT5Config:
           max_training_days: 48
           limit_search_runs: 100
           output_top_n: 10
+          max_steps_per_run: 15
           max_minutes_per_run: 80
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -164,6 +168,7 @@ class TestT5Config:
           max_training_days: 85
           limit_search_runs: 100
           output_top_n: 10
+          max_steps_per_run: 15
           max_minutes_per_run: 90
           tflops_per_gpu: 140
           num_tokens_in_b: 1000

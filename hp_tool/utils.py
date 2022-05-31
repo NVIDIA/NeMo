@@ -235,7 +235,7 @@ def generic_base_config(cfg, model_name="gpt3"):
     return base_cfg
 
 
-def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, num_nodes):
+def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
     new_cfg = copy.deepcopy(base_cfg)
     new_cfg["model"]["activations_checkpoint_num_layers"] = act
     new_cfg["model"]["tensor_model_parallel_size"] = tp
@@ -254,13 +254,14 @@ def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, num_nodes):
     if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
         # Valid config
         new_cfg["trainer"]["num_nodes"] = num_nodes  # Necessary for short single-node test.
+        new_cfg["trainer"]["max_steps"] = max_steps
         days = max_minutes // 3600
         hours = (max_minutes % 3600) // 60
         mins = (max_minutes % 3600) % 60
         new_cfg["run"]["time_limit"] = f"{days}-{hours}:{mins}:00"
         new_cfg["run"][
             "name"
-        ] = f"{new_cfg['run']['name']}_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
+        ] = f"{new_cfg['run']['name']}_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}"
         print(
             f"Valid config: GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, act_ckpt_layers={act}. Adding to directory."
         )

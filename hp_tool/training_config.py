@@ -10,11 +10,12 @@ from hp_tool import utils, train
 
 def search_training_config(base_cfg, model_size, model_name, cfg):
     # Generate candidate configs.
-    base_dir, results_cfgs = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
+    base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
+    #job_ids = None
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
@@ -38,7 +39,8 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     base_dir = f"{cfg.search_config.train_settings.logs}/candidate_configs"
     os.makedirs(base_dir, exist_ok=True)
 
-    max_minutes = cfg.search_config.train_settings.max_minutes_per_run
+    max_minutes = train_cfg.get("max_minutes_per_run")
+    max_steps = train_cfg.get("max_steps_per_run")
 
     if model_name in ["t5", "mt5"]:
         if model_size_in_b < 1.0:
@@ -91,15 +93,16 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                         pp=pp,
                         mbs=mbs,
                         max_minutes=max_minutes,
+                        max_steps=max_steps,
                         num_nodes=num_nodes,
                     )
                     if new_cfg:  # Save candidate cfg.
-                        file_name = f"{model_name}_{model_size_in_b}b_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
+                        file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
                         results_cfgs[act].append(file_name)
                         with open(f"{base_dir}/{file_name}", "w") as f:
                             yaml.dump(new_cfg, f)
     print("\nAll candidate configurations created correctly.\n")
-    return base_dir, results_cfgs
+    return base_dir, results_cfgs, num_nodes
 
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
@@ -269,7 +272,7 @@ def create_bignlp_config(model_name, cfg):
     return new_cfg
 
 
-def launch_throughput_measure(dependency_list, model_name, model_size_in_b, cfg):
+def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, cfg):
     """Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
     so it will only start running once all the jobs are finished.
@@ -293,7 +296,6 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, cfg)
     partition = cluster_cfg.get("partition")
     account = cluster_cfg.get("account")
     time_limit = "30:00"
-    nodes = 1
     exclusive = cluster_cfg.get("exclusive")
     mem = cluster_cfg.get("mem")
     overcommit = cluster_cfg.get("overcommit")
@@ -322,12 +324,12 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, cfg)
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
-        f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b-%j.log "
-        f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b-%j.error "
+        f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.log "
+        f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.error "
     )
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,
@@ -338,7 +340,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, cfg)
         mem=mem,
         overcommit=overcommit,
         time=time_limit,
-        nodes=nodes,
+        nodes=1,
         ntasks_per_node=ntasks_per_node,
         gpus_per_task=gpus_per_task,
         partition=partition,

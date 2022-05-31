@@ -60,7 +60,7 @@ def search_inference_config(model_size_in_b, model_name, base_cfg, cfg):
 
     # Launch profile script
     inference_profile_cmd = (
-        f"python3 -u {inference_profile_path} "
+        f"HYDRA_FULL_ERROR=1 python3 -u {inference_profile_path} "
         f"--cluster-config-path {cluster_config_path} "
         f"--navigator-config-path {navigator_config_path} "
         f"--model-path {model_spec_dir} "
