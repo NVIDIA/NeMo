@@ -90,7 +90,6 @@ class UL2Dataset(T5Dataset):
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
 
     def __getitem__(self, idx):
-
         start_index, end_index, seq_length = self.samples_mapping[idx]
         sample = []
         for index in range(start_index, end_index):
@@ -108,7 +107,6 @@ class UL2Dataset(T5Dataset):
                 sample=sample, target_seq_length=seq_length, np_rng=np_rng
             )
             sample = self._prepend_mask_type_token(sample, '<extra_id_x>')
-
         elif masking_type == 2:
             sample = [token for sentence in sample for token in sentence]
             sample = T5LMAdaptedDataset.get_prefix_lm_sample(

@@ -34,6 +34,7 @@ import collections
 import os
 import subprocess
 import time
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
 
 import numpy as np
 import torch
@@ -395,7 +396,7 @@ def create_extreme_masked_lm_predictions(
     max_ngram_size=10,
     min_ngram_size=2,
     mean_ngram_size=5,
-    span_length_distribution="geometric",
+    span_length_distribution=LengthDistribution.uniform,
 ):
     """Creates the predictions for the extreme span-masking UL2 objective.
     Note: Tokens here are vocab ids and not text tokens."""
@@ -436,12 +437,12 @@ def create_extreme_masked_lm_predictions(
                 if index in covered_indexes:
                     continue
 
-        if span_length_distribution == "uniform":
+        if span_length_distribution == LengthDistribution.uniform:
             n = np_rng.choice(
                 ngrams[: len(cand_index_set)],
                 p=pvals[: len(cand_index_set)] / pvals[: len(cand_index_set)].sum(keepdims=True),
             )
-        elif span_length_distribution == "geometric":
+        elif span_length_distribution == LengthDistribution.geometric:
             # Sampling "n" from the geometric distribution and clipping it to
             # the max_ngrams. Using p=0.2 default from the SpanBERT paper
             # https://arxiv.org/pdf/1907.10529.pdf (Sec 3.1)
@@ -450,8 +451,7 @@ def create_extreme_masked_lm_predictions(
             p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
             n = np_rng.geometric(p)
             n = int(np.clip(n, min_ngram_size, max_ngram_size))
-
-        elif span_length_distribution == "truncated_normal":
+        elif span_length_distribution == LengthDistribution.truncated_normal:
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
             n = int(np.clip(np_rng.normal(loc=mu, scale=np.sqrt(mu)), min_ngram_size, max_ngram_size))
