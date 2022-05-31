@@ -56,7 +56,6 @@ def __process_transcript(file_path: str):
     )
     text_normalizer_call_kwargs = {"punct_pre_process": True, "punct_post_process": True}
     normalizer_call = lambda x: text_normalizer.normalize(x, **text_normalizer_call_kwargs)
-    print("reached process transcript")
     entries = []
     with open(file_path / "metadata.csv", encoding="utf-8") as fin:
         for line in fin:
@@ -71,7 +70,6 @@ def __process_transcript(file_path: str):
                 'text': text,
                 'normalized_text': normalized_text,
             }
-            print(entry)
             entries.append(entry)
     return entries
 
@@ -100,7 +98,7 @@ def __process_data(dataset_path, val_size, test_size, seed_for_ds_split):
 
 def main():
     args = get_args()
-    dataset_root = args.data_root / "openslr-95-german-neutral-tts"
+    dataset_root = args.data_root
     dataset_root.mkdir(parents=True, exist_ok=True)
     __process_data(
         dataset_root / EXTRACTED_FOLDER, args.val_size, args.test_size, args.seed_for_ds_split,
