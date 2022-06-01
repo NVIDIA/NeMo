@@ -255,13 +255,14 @@ class IPAG2P(BaseG2p):
         
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
-                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/cmudict-0.7b_nv22.01-ipa.)
+                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/cmudict-0.7b_nv22.06-ipa.)
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word
                 representation and flag whether to leave unchanged or not.
                 It is expected that unchangeable word representation will be represented as List[str], other
                 cases are represented as str.
                 It is useful to mark word as unchangeable which is already in phoneme representation.
+                Defaults to the English word tokenizer.
             apply_to_oov_word: Function that will be applied to out of phoneme_dict word.
             ignore_ambiguous_words: Whether to not handle word via phoneme_dict with ambiguous phoneme sequences.
                 Defaults to True.
@@ -278,7 +279,7 @@ class IPAG2P(BaseG2p):
             self.symbols = set()
             for entries in phoneme_dict.values():
                 for phonemes in entries:
-                    self.symbols.update(phonemes)  # TODO(jocelynh): check this is adding correctly
+                    self.symbols.update(phonemes)
 
         if apply_to_oov_word is None:
             logging.warning(
@@ -294,7 +295,7 @@ class IPAG2P(BaseG2p):
 
         self.ignore_ambiguous_words = ignore_ambiguous_words
         self.heteronyms = (
-            set(self._parse_file_by_lines(heteronyms))  # TODO(jocelynh): double-check encoding for read
+            set(self._parse_file_by_lines(heteronyms))
             if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path)
             else heteronyms
         )

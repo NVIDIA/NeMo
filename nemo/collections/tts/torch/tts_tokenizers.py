@@ -280,7 +280,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
             pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
             text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
              Basically, it replaces all non-unicode characters with unicode ones.
-             Note that lower() function shouldn't applied here, because text can contains phonemes (it will be handled by g2p).
+             Note that lower() function shouldn't applied here, in case the text contains phonemes (it will be handled by g2p).
         """
 
         self.phoneme_probability = None
@@ -380,7 +380,6 @@ class IPATokenizer(BaseTokenizer):
         ')', '[', ']', '{', '}',
     )
 
-    #TODO(jocelynh): Check that all args are used
     def __init__(
         self,
         g2p,
@@ -390,18 +389,31 @@ class IPATokenizer(BaseTokenizer):
         *,
         space=' ',
         silence=None,
-        apostrophe=True,
+        apostrophe=False,
         oov=BaseTokenizer.OOV,
-        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        sep='|',  # To be able to distinguish between symbols
         add_blank_at=None,
         pad_with_space=False,
         text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
     ):
-        #TODO(jocelynh): Write full docstring
-        """General IPA-based tokenizer.
+        """General-purpose IPA-based tokenizer.
         Args:
             g2p: Grapheme to phoneme module, should be IPAG2P or some subclass thereof.
-            ...
+            punct: Whether to reserve grapheme for basic punctuation or not.
+            non_default_punct_list: List of punctuation marks which will be used instead default, if any.
+            chars: Whether to additionally use chars together with phonemes. It is useful if g2p module can return chars too.
+            space: Space token as string.
+            silence: Silence token as string (will be disabled if it is None).
+            apostrophe: Whether to use apostrophe or not.
+            oov: OOV token as string.
+            sep: Separation token as string.
+            add_blank_at: Add blank to labels in the specified order ("last") or after tokens (any non None),
+             if None then no blank in labels.
+            pad_with_space: Whether to pad text with spaces at the beginning and at the end or not.
+            text_preprocessing_func: Text preprocessing function for correct execution of the tokenizer.
+             Basically, it replaces all non-unicode characters with unicode ones.
+             Note that lower() function shouldn't applied here, in case the text contains phonemes (it will be handled by g2p).
+             Defaults to English text preprocessing.
         """
         if not hasattr(g2p, "symbols"):
             logging.error(
