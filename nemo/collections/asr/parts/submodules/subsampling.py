@@ -144,7 +144,7 @@ class ConvSubsampling(torch.nn.Module):
             with torch.cuda.amp.autocast(dtype=torch.float32):
                 x = self.conv(x)
         else:
-             x = self.conv(x)
+            x = self.conv(x)
 
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
