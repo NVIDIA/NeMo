@@ -24,7 +24,7 @@ class TestCIGPT126m:
         files = list(p.glob('eval_gpt3_126m_tp1_pp2_lambada*/metrics.json'))
         assert len(files) == 1, f"Only one metrics.json file should be present inside {CI_JOB_RESULTS}"
 
-        metrics_file = os.path.join(CI_JOB_RESULTS, files[0])
+        metrics_file = files[0])
         assert os.path.exists(metrics_file), f"metrics.json file does not exist: {metrics_file}"
 
         with open(metrics_file) as json_file:
