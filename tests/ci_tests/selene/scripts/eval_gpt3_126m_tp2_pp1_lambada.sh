@@ -17,9 +17,10 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     evaluation.run.name=${RUN_NAME} \
     evaluation.run.time_limit="30:00" \
     evaluation.run.nodes=1 \
-    evaluation.run.model_train_name=gpt3_126m_tp1_pp1 \
-    evaluation.run.train_dir=${BASE_RESULTS_DIR}/train_gpt3_126m_tp1_pp1_1node_100steps \
+    evaluation.run.model_train_name=gpt3_126m_tp2_pp1 \
+    evaluation.run.train_dir=${BASE_RESULTS_DIR}/train_gpt3_126m_tp2_pp1_1node_100steps \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     evaluation.model.eval_batch_size=16 \
-    evaluation.model.tensor_model_parallel_size=1 \
+    evaluation.model.tensor_model_parallel_size=2 \
     evaluation.model.pipeline_model_parallel_size=1
+
