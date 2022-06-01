@@ -29,7 +29,7 @@ class TestCIGPT126m:
         with open(metrics_file) as json_file:
             metrics = json.load(json_file)["lambada"]
             expected_lambada = expected["lambada"]
-            assert metrics["ppl"] pytest.approx(expected=expected_lambada["ppl"], rel=self.margin), f"Lambada PPL should be {expected_lambada['ppl']} but it is {metrics['ppl']"
-            assert metrics["ppl_stderr"] pytest.approx(expected=expected_lambada["ppl_stderr"], rel=self.margin), f"Lambada PPL StdErr should be {expected_lambada['ppl_stderr']} but it is {metrics['ppl_stderr']"
-            assert metrics["acc"] pytest.approx(expected=expected_lambada["acc"], rel=self.margin), f"Lambada Accuracy should be {expected_lambada['acc']} but it is {metrics['acc']"
-            assert metrics["acc_stderr"] pytest.approx(expected=expected_lambada["acc_stderr"], rel=self.margin), f"Lambada Accuracy StdErr should be {expected_lambada['acc_stderr']} but it is {metrics['acc_stderr']"
+            assert metrics["ppl"] == pytest.approx(expected=expected_lambada["ppl"], rel=self.margin), f"Lambada PPL should be {expected_lambada['ppl']} but it is {metrics['ppl']"
+            assert metrics["ppl_stderr"] == pytest.approx(expected=expected_lambada["ppl_stderr"], rel=self.margin), f"Lambada PPL StdErr should be {expected_lambada['ppl_stderr']} but it is {metrics['ppl_stderr']"
+            assert metrics["acc"] == pytest.approx(expected=expected_lambada["acc"], rel=self.margin), f"Lambada Accuracy should be {expected_lambada['acc']} but it is {metrics['acc']"
+            assert metrics["acc_stderr"] == pytest.approx(expected=expected_lambada["acc_stderr"], rel=self.margin), f"Lambada Accuracy StdErr should be {expected_lambada['acc_stderr']} but it is {metrics['acc_stderr']"
