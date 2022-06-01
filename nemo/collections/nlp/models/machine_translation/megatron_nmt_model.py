@@ -112,7 +112,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         self.build_train_valid_test_datasets()
         self.setup_training_data(self._cfg.train_ds)
         self.setup_validation_data(self._cfg.validation_ds)
-        self.setup_test_data(self._cfg.test_ds)
+        if hasattr(self._cfg, 'test_ds'):
+            self.setup_test_data(self._cfg.test_ds)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
