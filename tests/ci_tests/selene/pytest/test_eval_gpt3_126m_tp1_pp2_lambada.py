@@ -12,8 +12,8 @@ class TestCIGPT126m:
     margin = 0.05
     expected = {
         "lambada": {
-            "ppl": 1220967,
-            "ppl_stderr": 105379,
+            "ppl": 934206,
+            "ppl_stderr": 68483,
             "acc": 0.0,
             "acc_stderr": 0.0,
         },

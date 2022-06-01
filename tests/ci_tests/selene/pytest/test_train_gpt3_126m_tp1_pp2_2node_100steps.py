@@ -102,7 +102,7 @@ class TestCIGPT126m:
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
-        train_time_list = train_time_list[5:] # Discard first 5 steps until time stabilizes.
+        train_time_list = train_time_list[len(train_time_list)//2:] # Discard the first half..
         train_time_avg = sum(train_time_list) / len(train_time_list)
 
         assert train_time_list is not None, f"No TensorBoard events file was found in the logs."
