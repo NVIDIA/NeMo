@@ -79,6 +79,7 @@ train.gpt3.126m_tp1_pp1_1node_10steps:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
+    - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RUN_NAME=train_gpt3_126m_tp1_pp1_1node_10steps
@@ -122,6 +123,7 @@ train.gpt3.126m_tp2_pp1_1node_10steps:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
+    - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RUN_NAME=train_gpt3_126m_tp2_pp1_1node_10steps
@@ -165,6 +167,7 @@ train.gpt3.126m_tp1_pp2_2node_10steps:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
+    - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RUN_NAME=train_gpt3_126m_tp1_pp2_2node_10steps
@@ -208,6 +211,7 @@ train.gpt3.126m_tp2_pp2_2node_10steps:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
+    - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RUN_NAME=train_gpt3_126m_tp2_pp2_2node_10steps
@@ -252,6 +256,7 @@ eval.gpt3.126m_tp1_pp1_lambada:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
+    - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - export RUN_NAME=eval_gpt3_126m_tp1_pp1_lambada
