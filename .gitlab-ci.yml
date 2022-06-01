@@ -92,8 +92,8 @@ train.gpt3.126m_tp1_pp1_1node_10steps:
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
-    - chmod 774 ./* -R
-    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
@@ -135,8 +135,8 @@ train.gpt3.126m_tp2_pp1_1node_10steps:
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
-    - chmod 774 ./* -R
-    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
@@ -178,8 +178,8 @@ train.gpt3.126m_tp1_pp2_2node_10steps:
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
-    - chmod 774 ./* -R
-    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
@@ -221,8 +221,8 @@ train.gpt3.126m_tp2_pp2_2node_10steps:
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
-    - chmod 774 ./* -R
-    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
@@ -265,8 +265,8 @@ eval.gpt3.126m_tp1_pp1_lambada:
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
-    - chmod 774 ./* -R
-    - ./jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
     - echo -e " ---------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
