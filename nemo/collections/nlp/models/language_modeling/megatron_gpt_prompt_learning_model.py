@@ -14,13 +14,13 @@
 
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch import Tensor, tensor
+from torch import Tensor
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -110,7 +110,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
-            
+
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
@@ -278,7 +278,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                     params.requires_grad = False
 
         # Make sure word embeddings are frozen
-        #if parallel_state.is_pipeline_first_stage():
+        # if parallel_state.is_pipeline_first_stage():
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
@@ -327,7 +327,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             self.prompt_table.load_state_dict(state_dict_, strict)
 
-            if self._prompt_encoder_key in state_dict and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            if (
+                self._prompt_encoder_key in state_dict
+                and self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER
+            ):
                 state_dict_ = state_dict[self._prompt_encoder_key]
                 self.prompt_encoder.load_state_dict(state_dict_, strict)
 
@@ -343,21 +346,15 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
 
         virtual_prompt_params = {'params': []}
-        frozen_model_params = {'params': [], 'lr': 0.0}
+        frozen_model_params = {'params': [], 'lr': 0.0, 'sched': {'min_lr': 0.0}}
 
-        frozen_model_params['params'].extend(
-            [param for param in self.frozen_model.parameters()]
-        )
+        frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
 
         if self.frozen_model.model.pre_process:
-            virtual_prompt_params['params'].extend(
-                [param for param in self.prompt_table.parameters()]
-            )
+            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
 
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend(
-                    [param for param in self.prompt_encoder.parameters()]
-                )
+                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
 
         self._optimizer_param_groups = virtual_prompt_params, frozen_model_params
 
@@ -669,7 +666,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
                 buf.copy_(synced)
 
-
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING and self.frozen_model.model.pre_process:
@@ -703,10 +699,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 self.init_new_prompts()
             elif self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
                 self.init_prompt_encoder()
-            
+
             self.freeze_existing_virtual_prompt_params()
 
-        self.setup_optimizer_param_groups()
         self.setup_training_data()
         self.setup_validation_data()
 
@@ -864,7 +859,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         model's forward_step_func won't have it. This function is thus
         used by internal code to bypass the input provided by the
         forward_step_func"""
-        #self.input_tensor = input_tensor
+        # self.input_tensor = input_tensor
         self.frozen_model.model.set_input_tensor(input_tensor)
 
     def get_forward_output_and_loss_func(self):
