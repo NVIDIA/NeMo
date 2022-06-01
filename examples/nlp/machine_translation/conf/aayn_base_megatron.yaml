@@ -66,12 +66,14 @@ model:
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  encoder_arch: 'transformer'
-  decoder_arch: 'transformer'
-  activation: 'gelu'
-  masked_softmax_fusion: False # This needs to be False to avoid an issue with the fused softmax kernel with variable sequence lengths.
-  bias_gelu_fusion: True
-  resume_from_checkpoint: null
+  encoder_arch: 'transformer' # Options: ['transformer', 'perceiver']
+  decoder_arch: 'transformer' # Options: ['transformer']
+  activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
+  headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
+  transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+  hidden_steps: 32 # Number of latent vectors to use for pereceiver encoders
+  num_self_attention_per_cross_attention: 1 # Number of self-attention layers for every cross-attention layer.
+  num_init_cross_attn_layers: 1 # Number of initial cross-attention layers.
 
   train_ds:
     src_file_name: null
