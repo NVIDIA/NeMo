@@ -1642,7 +1642,7 @@ pipeline {
               "${conf_path}/${conf_name}.yaml" && \
             sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
               "${conf_path}/${conf_name}.yaml" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               --config-path "${conf_path}" \
               --config-name "${conf_name}" \
               model.train_ds.use_tarred_dataset=false \
@@ -1658,7 +1658,7 @@ pipeline {
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
