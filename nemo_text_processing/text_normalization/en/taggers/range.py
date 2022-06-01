@@ -68,7 +68,9 @@ class RangeFst(GraphFst):
             + delete_space
             + (date_year_four_digit | date_year_two_digit | (NEMO_DIGIT ** 2 @ cardinal))
         )
-        self.graph |= year_to_year_graph
+        mid_year_graph = pynini.accep("mid") + pynini.cross("-", " ") + (date_year_four_digit | date_year_two_digit)
+
+        self.graph |= year_to_year_graph | mid_year_graph
 
         # Date
         # 27 July - 26 July, 2003

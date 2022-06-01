@@ -19,3 +19,5 @@ from 2-10~from two - ten
 1973-1975~nineteen seventy three to nineteen seventy five
 15.01.2020-15-01-2020~the fifteenth of january twenty twenty to the fifteenth of january twenty twenty
 01/07/98-11-03-2016~january seventh ninety eight to november third twenty sixteen
+mid-1980s~mid nineteen eighties
+mid-80s~mid nineteen eighties
