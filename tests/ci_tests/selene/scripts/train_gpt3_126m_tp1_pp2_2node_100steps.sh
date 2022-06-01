@@ -13,6 +13,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.partition=${SLURM_PARTITION} \
     cluster.account=${SLURM_ACCOUNT} \
     cluster.gpus_per_task=null \
+    cluster.gpus_per_node=null \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     training.run.name=${RUN_NAME} \
     training.run.time_limit="20:00" \
