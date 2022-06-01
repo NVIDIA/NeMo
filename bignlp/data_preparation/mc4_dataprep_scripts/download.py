@@ -1,10 +1,3 @@
-import os
-import sys
-import time
-import argparse
-from prepare import LANG_SPLIT
-from prepare import setup_git_lfs
-
 """
 Example usage:
  python download.py \
@@ -12,6 +5,13 @@ Example usage:
     --git-lfs-path=<path/to/git/lfs/folder> \
     --worker-mapping-file=<path/to/download_mapping_file>
 """
+
+import os
+import sys
+import time
+import argparse
+from prepare import LANG_SPLIT
+from prepare import setup_git_lfs
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download (m)C4")
