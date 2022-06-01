@@ -17,6 +17,7 @@ from typing import List, Optional
 from omegaconf import DictConfig, open_dict
 
 from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.utils import logging, logging_mode
 
 
 class ASRAdapterModelMixin(AdapterModelPTMixin):
@@ -56,6 +57,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             supports_adapters |= True
 
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            supports_adapters |= True
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            supports_adapters |= True
+
         # If adapters are supported, setup the adapter config + any modules (pre-existing adapter modules)
         if supports_adapters:
             super().setup_adapters()
@@ -68,20 +75,36 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             name: A globally unique name for the adapter. Will be used to access, enable and disable adapters.
             cfg: A DictConfig that contains at the bare minimum `__target__` to instantiate a new Adapter module.
         """
+        # setup the config for adapters
         super().add_adapter(name=name, cfg=cfg)
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        # Resolve module name and adapter name
+        module_name, _ = self.resolve_adapter_module_name_(name)
+
+        # Use + as a splitter, in order to share one name across multiple modules
+        if '+' in module_name:
+            module_names = module_name.split('+')
+        else:
+            module_names = [module_name]
 
         # Update the model.cfg with information about the new adapter from cfg
         with open_dict(self.cfg):
-            # Check if encoder adapters should be added
-            use_encoder_adapters = global_config.get('encoder_adapter', True)
-            if use_encoder_adapters:
-                # Dispatch the call to the encoder.
-                self.encoder.add_adapter(name=name, cfg=self.cfg.adapters[name])
+            for module_name in module_names:
+                # Check if encoder adapters should be added
+                if module_name in ('', 'encoder'):
+                    # Dispatch the call to the encoder.
+                    self.encoder.add_adapter(name=name, cfg=cfg)
+
+                # Check if decoder adapters should be added
+                if module_name == 'decoder':
+                    # Dispatch call to the decoder.
+                    self.decoder.add_adapter(name=name, cfg=cfg)
+
+                # Check if joint adapters should be added;
+                # Note: We need additional check if joint even exists in model (for CTC models)
+                if hasattr(self, 'joint') and module_name == 'joint':
+                    # Dispatch call to the joint.
+                    self.joint.add_adapter(name=name, cfg=cfg)
 
     def is_adapter_available(self) -> bool:
         """
@@ -92,7 +115,18 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             enabled or disabled, false only if no adapters exist.
         """
         config_contains_adapter = super().is_adapter_available()
-        return self.encoder.is_adapter_available() and config_contains_adapter
+
+        # Forward the method call to the individual modules
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
+            config_contains_adapter |= self.encoder.is_adapter_available()
+
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            config_contains_adapter |= self.decoder.is_adapter_available()
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            config_contains_adapter |= self.joint.is_adapter_available()
+
+        return config_contains_adapter
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         """
@@ -114,17 +148,35 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         super().set_enabled_adapters(name=name, enabled=enabled)
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
+        # Resolve the module name and adapter name
+        if name is not None:
+            module_name, _ = self.resolve_adapter_module_name_(name)
+        else:
+            module_name = None
 
-        # Check if encoder adapters should be used
-        use_encoder_adapters = global_config.get('encoder_adapter', True)
+        # Use + as a splitter, in order to share one name across multiple modules
+        if module_name is not None and '+' in module_name:
+            module_names = module_name.split('+')
+        else:
+            module_names = [module_name]
 
-        # Dispatch the call to the encoder.
-        if use_encoder_adapters:
-            self.encoder.set_enabled_adapters(name=name, enabled=enabled)
+        for module_name in module_names:
+            # Check if encoder adapters should be used
+            # Dispatch the call to the encoder.
+            if name is None or module_name in ('', 'encoder'):
+                if self.encoder.is_adapter_available():
+                    self.encoder.set_enabled_adapters(name=name, enabled=enabled)
+
+            # Dispatch the call to the decoder.
+            if name is None or module_name == 'decoder':
+                if self.decoder.is_adapter_available():
+                    self.decoder.set_enabled_adapters(name=name, enabled=enabled)
+
+            # Dispatch the call to the joint.
+            # Note: We need additional check for joint, since it may not exist (CTC models).
+            if name is None or module_name == 'joint':
+                if hasattr(self, 'joint') and self.joint.is_adapter_available():
+                    self.joint.set_enabled_adapters(name=name, enabled=enabled)
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -135,35 +187,109 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         enabled_adapters = super().get_enabled_adapters()
 
-        # Try to retrieve global adapter config
-        global_config = DictConfig({})
-        if self.adapter_global_cfg_key in self.cfg.adapters:
-            global_config = self.cfg.adapters[self.adapter_global_cfg_key]
-
-        # Check if encoder adapters should be used
-        use_encoder_adapters = global_config.get('encoder_adapter', True)
-
-        if use_encoder_adapters:
+        # Check if encoder adapters should be used or are enabled
+        if hasattr(self, 'encoder') and isinstance(self.encoder, AdapterModuleMixin):
             enabled_adapters.extend(self.encoder.get_enabled_adapters())
+
+        if hasattr(self, 'decoder') and isinstance(self.decoder, AdapterModuleMixin):
+            enabled_adapters.extend(self.decoder.get_enabled_adapters())
+
+        if hasattr(self, 'joint') and isinstance(self.joint, AdapterModuleMixin):
+            enabled_adapters.extend(self.joint.get_enabled_adapters())
+
+        enabled_adapters = list(sorted(list(set(enabled_adapters))))
 
         return enabled_adapters
 
-    def _check_valid_model_with_adapter_support(self):
+    def check_valid_model_with_adapter_support_(self):
         """
         Utility method to test if the subclass of this mixin is an appropriate subclass of ModelPT itself.
         """
         # Obtain the global adapter config if possible, otherwise use sensible defaults.
-        global_cfg = DictConfig({})
-        if hasattr(self, 'adapter_cfg'):
-            global_cfg = self.adapter_cfg
-
-            if self.adapter_global_cfg_key in global_cfg:
-                global_cfg = global_cfg[self.adapter_global_cfg_key]
+        global_cfg = self._get_global_cfg()
 
         # Test whether the encoder supports adapters
-        use_encoder_adapter = global_cfg.get('encoder_adapter', True)
-        if use_encoder_adapter and not hasattr(self, 'encoder'):
-            raise ValueError("Cannot add adapter to this object as it does not have an `encoder` sub-module!")
+        use_encoder_adapter = global_cfg.get('check_encoder_adapter', True)
+        if use_encoder_adapter:
+            if not hasattr(self, 'encoder'):
+                logging.warning(
+                    "Cannot add adapter to this object as it does not have an `encoder` sub-module!",
+                    mode=logging_mode.ONCE,
+                )
 
-        if use_encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
-            raise ValueError(f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`')
+            if hasattr(self, 'encoder') and not isinstance(self.encoder, AdapterModuleMixin):
+                logging.warning(
+                    f'{self.encoder.__class__.__name__} does not implement `AdapterModuleMixin`',
+                    mode=logging_mode.ONCE,
+                )
+
+        # Test whether the decoder supports adapters
+        use_decoder_adapter = global_cfg.get('check_decoder_adapter', True)
+        if use_decoder_adapter:
+            if not hasattr(self, 'decoder'):
+                logging.warning(
+                    "Cannot add adapter to this object as it does not have an `decoder` sub-module!",
+                    mode=logging_mode.ONCE,
+                )
+
+            if hasattr(self, 'decoder') and not isinstance(self.decoder, AdapterModuleMixin):
+                logging.warning(
+                    f'{self.decoder.__class__.__name__} does not implement `AdapterModuleMixin`',
+                    mode=logging_mode.ONCE,
+                )
+
+        # Test whether the joint supports adapters
+        use_joint_adapter = global_cfg.get('check_joint_adapter', True)
+        if use_joint_adapter:
+            # Joint is only for RNNT models, skip assertion that it must always exist.
+            if hasattr(self, 'joint') and not isinstance(self.joint, AdapterModuleMixin):
+                logging.warning(
+                    f'{self.joint.__class__.__name__} does not implement `AdapterModuleMixin`', mode=logging_mode.ONCE
+                )
+
+    def resolve_adapter_module_name_(self, name: str) -> (str, str):
+        """
+        Utility method to resolve a given global/module adapter name to its components.
+        Always returns a tuple representing (module_name, adapter_name). ":" is used as the
+        delimiter for denoting the module name vs the adapter name.
+
+        Will attempt to also resolve a given adapter_name alone back to (module_name, adapter_name)
+        if the metadata config exists for access.
+
+        Args:
+            name: A global adapter, or a module adapter name (with structure module_name:adapter_name).
+
+        Returns:
+            A tuple representing (module_name, adapter_name). If a global adapter is provided,
+            module_name is set to ''.
+        """
+        module_name, adapter_name = super().resolve_adapter_module_name_(name)
+
+        # Use + as a splitter, in order to share one name across multiple modules
+        if '+' in module_name:
+            module_names = module_name.split('+')
+        else:
+            module_names = [module_name]
+
+        # resolve name and module only for valid modules
+        valid_module_names = self.adapter_module_names
+
+        for mod_name in module_names:
+            if mod_name not in valid_module_names:
+                raise ValueError(f"Provided module name `{mod_name}` is not in valid list : {valid_module_names}")
+
+        return (module_name, adapter_name)
+
+    def _get_global_cfg(self):
+        """
+        Utility method, to either extract or construct the global config inside adapters config.
+        """
+        global_config = DictConfig({})
+        if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
+            global_config = self.adapter_cfg[self.adapter_global_cfg_key]
+        return global_config
+
+    @property
+    def adapter_module_names(self) -> List[str]:
+        valid_module_names = ['', 'encoder', 'decoder', 'joint']
+        return valid_module_names
