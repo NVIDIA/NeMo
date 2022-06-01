@@ -1500,7 +1500,7 @@ pipeline {
               model.train_ds.ds_item="${tmp_data_dir_2}" \
               model.validation_ds.ds_item="${tmp_data_dir_2}" \
               model.test_ds.ds_item="${tmp_data_dir_2}" \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
