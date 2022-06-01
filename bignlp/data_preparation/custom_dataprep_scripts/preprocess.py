@@ -7,7 +7,6 @@ Example usage:
     --tokenizer-model <some_tokenizer_model> \
     --dataset-impl mmap \
     --workers 80  \
-    --preproc-folder \
     --apply-ftfy
 """
 
@@ -19,10 +18,8 @@ import glob
 import argparse
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Preprocess (m)C4", allow_abbrev=False)
-    parser.add_argument(
-        "--rm-downloaded", help="Whether to remove original downloaded data", action="store_true"
-    )
+    parser = argparse.ArgumentParser(description="Preprocess custom dataset", allow_abbrev=False)
+
     parser.add_argument("--output-path", help="Path to store output bin files", required=True)
     parser.add_argument(
         "--worker-mapping-file", help="Decide which worker download which languages", required=True
@@ -47,14 +44,10 @@ if __name__ == "__main__":
 
     with open(args.worker_mapping_file) as f:
         mapping = f.readlines()
-    lang_splits = []
+    data_files = []
     if task_id * workers_per_node + rank < len(mapping):
-        lang_splits = mapping[task_id * workers_per_node + rank].strip().split(",")
-    print(
-        " ****** Task ID {:02d} Rank {:02d} is preparing to preprocess {:}...".format(
-            task_id, rank, lang_splits
-        )
-    )
+        data_files = mapping[task_id * workers_per_node + rank].strip().split(",")
+    print(f" ****** Task ID {task_id:02d} Rank {rank:02d} is preparing to preprocess {data_files}...")
 
     os.makedirs(args.output_path, exist_ok=True)
     start_time = time.time()
@@ -62,28 +55,14 @@ if __name__ == "__main__":
         "python",
         "/opt/bignlp/NeMo/scripts/nlp_language_modeling/preprocess_data_for_megatron.py",
     ]
-    for split in lang_splits:
+    for split in data_files:
         if not split:  # Remove empty split
             continue
-        print(
-            " ****** Task ID {:02d} Rank {:02d} starts to preprocess {:}...".format(
-                task_id, rank, os.path.basename(split)
-            )
-        )
+        print(f" ****** Task ID {task_id:02d} Rank {rank:02d} starts to preprocess {os.path.basename(split)}...")
         input_arg = ["--input", split]
         output_arg = ["--output-prefix", os.path.join(args.output_path, os.path.basename(split))]
         subprocess.check_call(cmd + input_arg + output_arg + other_args)
+        print(f" ****** Task ID {task_id:02d} Rank {rank:02d} finished preprocessing {os.path.basename(split)}...")
         print(
-            " ****** Task ID {:02d} Rank {:02d} finished preprocessing {:}...".format(
-                task_id, rank, os.path.basename(split)
-            )
+            f" ****** Task ID {task_id:02d} Rank {rank:02d} time elapsed {(time.time() - start_time) / 60:.2f} min."
         )
-        print(
-            " ****** Task ID {:02d} Rank {:02d} time elapsed {:.2f} min.".format(
-                task_id, rank, (time.time() - start_time) / 60
-            )
-        )
-        if args.rm_downloaded:
-            for f in os.listdir(split):
-                os.remove(os.readlink(os.path.join(split, f)))
-            shutil.rmtree(split)

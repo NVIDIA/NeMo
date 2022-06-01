@@ -1,0 +1,27 @@
+dataset: custom_dataset
+custom_dataset_dir: ${data_dir}/custom_dataset
+train_tokenizer: True # True to train a sentence piece tokenizer
+train_tokenizer_args: # For all options please check: https://github.com/google/sentencepiece/blob/master/doc/options.md
+   input: null # text file for training tokenizer
+   input_format: "text" # text or tsv
+   model_prefix: "custom_sp_tokenizer"
+   model_type: "bpe" # model algorithm: unigram, bpe, word or char
+   vocab_size: 8000 # Vocabulary size
+   character_coverage: 0.9995 # character coverage to determine the minimum symbols
+   unk_id: 1
+   bos_id: 2
+   eos_id: 3
+   pad_id: 0
+bpe_save_dir: ${.custom_dataset_dir}/bpe # Dir to save sentence piece tokenizer model and vocab files
+# ----------------------------------------------------------------------------------------------
+preprocess_data: True  # True to preprocess the data from json, jsonl or json.gz files, False otherwise.
+raw_dataset_files:
+  - null # Each file should be input json, jsonl or json.gz file
+tokenizer_model: ${.bpe_save_dir}/${data_preparation.train_tokenizer_args.model_prefix}.model # trained SentencePiece tokenizer model
+preprocess_worker_mapping: ${.custom_dataset_dir}/preprocess_mapping
+preprocessed_dir: ${.custom_dataset_dir}/preprocessed
+log_dir: ${base_results_dir}/data_preparation/custom_dataset_logs  # Where to save the logs
+nodes: 20
+cpus_per_node: 256 # 256 cpus for A100(80G)
+time_limit: "24:00:00"
+workers_per_node: 1 # Number of workers per node in preprocessing step.

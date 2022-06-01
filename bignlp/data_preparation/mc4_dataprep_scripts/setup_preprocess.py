@@ -1,11 +1,3 @@
-import os
-import glob
-import shutil
-import math
-import argparse
-
-from prepare import ALL_LANGS
-
 """
 Example usage:
  python setup_preprocess.py \
@@ -17,6 +9,12 @@ Example usage:
     --worker-mapping-file=<path/to/preprocess_mapping_file>
 """
 
+import os
+import glob
+import shutil
+import math
+import argparse
+from prepare import ALL_LANGS
 
 def split_languages(c4_path, languages, max_split_size, soft_link_path, cleaned_en=False):
     if languages == "all":

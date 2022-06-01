@@ -205,7 +205,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {prepare_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            time.sleep(0.5)
             print(f"Submitted mC4 Prepare script with job id: {dependency}")
 
             # Download mC4 dataset files
@@ -232,7 +231,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {download_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            time.sleep(0.5)
             print(f"Submitted mC4 Download script with job id: {dependency}")
 
         assert isinstance(preprocess_data, bool), "preprocess_data must be bool."
@@ -260,7 +258,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {setup_preprocess_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            time.sleep(0.5)
             print(f"Submitted mC4 Setup Preprocessing script with job id: {dependency}")
 
             # Preprocess the dataset
@@ -290,7 +287,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 [f"sbatch --parsable {preprocess_script_path}"], shell=True
             )
             dependency = job_id.decode("utf-8")
-            time.sleep(0.5)
             print(f"Submitted mC4 Preprocessing script with job id: {dependency}")
         return dependency
 

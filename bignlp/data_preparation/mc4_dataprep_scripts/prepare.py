@@ -1,8 +1,3 @@
-import os
-import sys
-import subprocess
-import argparse
-
 """
 Example usage:
  python prepare.py \
@@ -12,6 +7,11 @@ Example usage:
     --node-array-size=20 \
     --worker-mapping-file=<path/to/download_mapping_file>
 """
+
+import os
+import sys
+import subprocess
+import argparse
 
 # fmt: off
 ALL_LANGS = [

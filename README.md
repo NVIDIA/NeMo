@@ -1652,22 +1652,109 @@ existing model configurations.
 
 ### 4.5. Bring Your Own Dataset
 <a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
-If you want to train the GPT-3 or T5 models on your own dataset (which is already
+If you want to train the GPT-3, T5 or mT5 models on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
-Then, you can run the data preprocessing pipeline without needing to download
-the Pile by modifying the configuration in
-`conf/data_preparation/download_gpt3_pile.yaml` for GPT-3 models
-or `conf/data_preparation/download_t5_pile.yaml` for T5 models. You should 
-set `download_the_pile` to `False`, and keep `preprocess_data` as `True`. When 
-running the data preparation pipeline, 
-the jsonl files must be stored in the directory indicated in the
-`data_dir` parameter. The result will be a preprocessed dataset, stored in
-the same directory, and ready to be used for training. To train the model on
-your dataset, the training config file must be modified with the desired blend
-of training datasets, by changing the blend in the `model.data.data_prefix`
-parameter.
 
-We don't support training mT5 models on you own dataset at the moment.
+As discussed in previous sections, the `data_preparation` parameter in `conf/config.yaml` 
+specifies which file to use for data preparation
+configuration purposes. The `data_preparation` parameter needs to be specified as `custom_dataset` for
+bringing your own dataset and `run_data_preparation` must be set to True to run it. 
+The `custom_dataset` config file can be found in `conf/data_preparation/custom_dataset.yaml`.
+With our scripts, you can train your own tokenizer and preprocess your own dataset into a format
+that can be consumed by our training scripts. 
+
+Custom dataset only supports SentencePiece tokenizers at the moment. You can either train 
+a fresh SentencePiece tokenizer with our scripts or load existing ones.
+
+The data preparation can be parallelized by using multiple nodes (default 20 nodes) to preprocess 
+all custom dataset files in parallel.
+
+###### 4.5.1. Slurm
+<a id="markdown-451-slurm" name="451-slurm"></a>
+
+First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` file is correct.
+The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to bcm.
+Then, modify the `time_limit` or any other parameter related to the job in the `custom_dataset.yaml`
+file.
+The data preparation can be parallelized by using `nodes * workers_per_node` number of workers (up to each dataset file per worker).
+
+Example:
+
+To run only the data preparation pipeline and not the training, evaluation or
+inference pipelines, set the `conf/config.yaml` file to:
+```yaml
+run_data_preparation: True
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_evaluation: False
+```
+
+And then run:
+```
+python3 main.py
+```
+
+###### 4.5.2. Base Command Platform
+<a id="markdown-452-base-command-platform" name="452-base-command-platform"></a>
+
+In order to run the data preparation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. 
+By default, the data preparation script will put the preprocessed data into the `bignlp-scripts/data/` directory.
+We recommend that the `data_dir` parameter is set to a workspace, so that the data 
+is visible across multiple jobs later on. The tokenizer model files should also be 
+stored to the same workspace as the dataset, for later usage. The data preparation code 
+must be launched in a multi-node job. It can be parallelized to use between 2 and number of custom
+dataset files of nodes for faster preparation of the dataset.
+
+To run the data preparation pipeline for GPT-3 models, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False    \
+run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results data_preparation=custom_dataset \
+dataprepartion.train_tokenizer_args.inp=/path/to/text/file/for/training/tokenizer \
+datapreparation.raw_dataset_files=[/path/to/custom_data_files] \
+>> /results/data_custom_dataset_log.txt 2>&1
+```
+
+The command above assumes you mounted the data 
+workspace in `/mount/data`, and the results workspace in `/mount/results`. Stdout and stderr are redirected to the `/results/data_gpt3_log.txt` file, so it can be downloaded from NGC. 
+Any other parameter can also be added to the command to modify its behavior.
+
+###### 4.5.3. Common
+<a id="markdown-453-common" name="453-common"></a>
+
+Set the configuration for the custom data preparation job in the YAML file:
+```yaml
+  dataset: custom_dataset
+  custom_dataset_dir: ${data_dir}/custom_dataset
+  train_tokenizer: True # True to train a sentence piece tokenizer
+  train_tokenizer_args: # For all options please check: https://github.com/google/sentencepiece/blob/master/doc/options.md
+     input: null # text file for training tokenizer
+     input_format: "text" # text or tsv
+     model_prefix: "custom_sp_tokenizer"
+     model_type: "bpe" # model algorithm: unigram, bpe, word or char
+     vocab_size: 8000 # Vocabulary size
+     character_coverage: 0.9995 # character coverage to determine the minimum symbols
+     unk_id: 1
+     bos_id: 2
+     eos_id: 3
+     pad_id: 0
+  bpe_save_dir: ${.custom_dataset_dir}/bpe # Dir to save sentence piece tokenizer model and vocab files
+  preprocess_data: True  # True to preprocess the data from json, jsonl or json.gz files, False otherwise.
+  raw_dataset_files:
+    - null # Each file should be input json, jsonl or json.gz file
+  tokenizer_model: ${.bpe_save_dir}/${data_preparation.train_tokenizer_args.model_prefix}.model # trained SentencePiece tokenizer model
+  preprocess_worker_mapping: ${.custom_dataset_dir}/preprocess_mapping
+  preprocessed_dir: ${.custom_dataset_dir}/preprocessed
+  log_dir: ${base_results_dir}/data_preparation/custom_dataset_logs  # Where to save the logs
+  nodes: 20
+  cpus_per_node: 256 # 256 cpus for A100(80G)
+  time_limit: "24:00:00"
+  workers_per_node: 1 # Number of workers per node in preprocessing step.
+```
+
 
 ### 4.6. Model Training
 <a id="markdown-model-training" name="model-training"></a>

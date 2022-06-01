@@ -38,6 +38,8 @@ def main(cfg):
         from bignlp.data_preparation import data_preparation_pile as data_preparation
     elif "mc4" in data_config:
         from bignlp.data_preparation import data_preparation_mc4 as data_preparation
+    elif "custom" in data_config:
+        from bignlp.data_preparation import data_preparation_custom as data_preparation
     else:
         raise ValueError(f"Unrecognized dataset in data config `{data_config}`.")
 
@@ -74,7 +76,7 @@ def main(cfg):
     else:
         cfg_copy._content.pop("evaluation", None)
 
-    print(omegaconf.OmegaConf.to_yaml(cfg_copy))
+    # print(omegaconf.OmegaConf.to_yaml(cfg_copy))
 
 
 if __name__ == "__main__":
