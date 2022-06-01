@@ -73,7 +73,7 @@ before_script:
 build-BigNLP:
   <<: *build_template
 
-train.gpt3.126m_tp1_pp1_1node_10steps:
+train.gpt3.126m_tp1_pp1_1node_100steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -82,7 +82,7 @@ train.gpt3.126m_tp1_pp1_1node_10steps:
     - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RUN_NAME=train_gpt3_126m_tp1_pp1_1node_10steps
+    - export RUN_NAME=train_gpt3_126m_tp1_pp1_1node_100steps
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
@@ -117,7 +117,7 @@ train.gpt3.126m_tp1_pp1_1node_10steps:
   needs:
     - build-BigNLP
 
-train.gpt3.126m_tp2_pp1_1node_10steps:
+train.gpt3.126m_tp2_pp1_1node_100steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -126,7 +126,7 @@ train.gpt3.126m_tp2_pp1_1node_10steps:
     - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RUN_NAME=train_gpt3_126m_tp2_pp1_1node_10steps
+    - export RUN_NAME=train_gpt3_126m_tp2_pp1_1node_100steps
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
@@ -161,7 +161,7 @@ train.gpt3.126m_tp2_pp1_1node_10steps:
   needs:
     - build-BigNLP
 
-train.gpt3.126m_tp1_pp2_2node_10steps:
+train.gpt3.126m_tp1_pp2_2node_100steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -170,7 +170,7 @@ train.gpt3.126m_tp1_pp2_2node_10steps:
     - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RUN_NAME=train_gpt3_126m_tp1_pp2_2node_10steps
+    - export RUN_NAME=train_gpt3_126m_tp1_pp2_2node_100steps
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
@@ -205,7 +205,7 @@ train.gpt3.126m_tp1_pp2_2node_10steps:
   needs:
     - build-BigNLP
 
-train.gpt3.126m_tp2_pp2_2node_10steps:
+train.gpt3.126m_tp2_pp2_2node_100steps:
   tags: *LUNA_TAGS
   stage: test
   variables:
@@ -214,7 +214,7 @@ train.gpt3.126m_tp2_pp2_2node_10steps:
     - sleep 10s # Wait for cloning the repo
     - chmod 774 ./* -R
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
-    - export RUN_NAME=train_gpt3_126m_tp2_pp2_2node_10steps
+    - export RUN_NAME=train_gpt3_126m_tp2_pp2_2node_100steps
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
@@ -292,4 +292,4 @@ eval.gpt3.126m_tp1_pp1_lambada:
   rules:
     - when: always
   needs:
-    - train.gpt3.126m_tp1_pp1_1node_10steps
+    - train.gpt3.126m_tp1_pp1_1node_100steps
