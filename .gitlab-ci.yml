@@ -282,4 +282,4 @@ eval.gpt3.126m_tp1_pp1_lambada:
   rules:
     - when: always
   needs:
-    - train.gpt3.126m_tp2_pp1_1node_10steps
+    - train.gpt3.126m_tp1_pp1_1node_10steps
