@@ -32,7 +32,7 @@ def _read_tb_logs_as_list(path, summary_name):
 
 class TestCIGPT126m:
 
-    margin = 0.05
+    margin = 0.1
     expected = {
         "reduced_train_loss": {
             "start_step": 0,
@@ -49,7 +49,7 @@ class TestCIGPT126m:
             "step_interval": 1,
             "values": [10.7669, 10.58599, 10.03427, 9.35224, 9.08602],
         },
-        "train_step_timing_avg": 1.115,
+        "train_step_timing_avg": 1.260,
     }
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
