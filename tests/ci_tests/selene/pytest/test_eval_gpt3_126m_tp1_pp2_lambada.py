@@ -31,6 +31,7 @@ class TestCIGPT126m:
 
         with open(metrics_file) as json_file:
             metrics = json.load(json_file)["lambada"]
+            print(metrics)
             expected_lambada = self.expected["lambada"]
             assert metrics["ppl"] == pytest.approx(expected=expected_lambada["ppl"], rel=self.margin), f"Lambada PPL should be {expected_lambada['ppl']} but it is {metrics['ppl']}"
             assert metrics["ppl_stderr"] == pytest.approx(expected=expected_lambada["ppl_stderr"], rel=self.margin), f"Lambada PPL StdErr should be {expected_lambada['ppl_stderr']} but it is {metrics['ppl_stderr']}"
