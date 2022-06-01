@@ -32,24 +32,26 @@ def _read_tb_logs_as_list(path, summary_name):
 
 class TestCIGPT126m:
 
-    margin = 0.05
+    margin = 0.1
     expected = {
         "reduced_train_loss": {
             "start_step": 0,
-            "end_step": 10,
-            "step_interval": 1,
+            "end_step": 100,
+            "step_interval": 5,
             "values": [
-                10.93451, 10.9697, 10.94154, 10.94307, 10.84738,
-                10.47519, 10.44202, 10.07936, 9.7863, 9.69353,
+                10.91022, 10.49807, 9.62442, 9.34875, 8.89447,
+                8.95262, 8.70716, 8.77551, 8.38191, 8.22379,
+                7.99194, 7.90321, 7.78475, 7.56459, 7.35744,
+                7.09149, 7.15741, 6.96999, 6.87279, 6.79443,
             ],
         },
         "val_loss": {
             "start_step": 0,
             "end_step": 5,
             "step_interval": 1,
-            "values": [10.88569, 10.69234, 10.08759, 9.37511, 9.10205],
+            "values": [8.39118, 7.86789, 7.21749, 6.63896, 6.27195],
         },
-        "train_step_timing_avg": 0.642,
+        "train_step_timing_avg": 1.13,
     }
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
@@ -59,7 +61,7 @@ class TestCIGPT126m:
         train_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "reduced_train_loss")
 
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(train_loss_list) == 10, f"The events file must have 10 training loss values, one per training iteration."
+        assert len(train_loss_list) == 100, f"The events file must have 100 training loss values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {train_loss_list[step]}."
 
@@ -70,7 +72,7 @@ class TestCIGPT126m:
         train_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "reduced_train_loss")
 
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(train_loss_list) == 10, f"The events file must have 10 training loss values, one per training iteration."
+        assert len(train_loss_list) == 100, f"The events file must have 100 training loss values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
 
@@ -100,7 +102,7 @@ class TestCIGPT126m:
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
-        train_time_list = train_time_list[5:] # Discard first 5 steps until time stabilizes.
+        train_time_list = train_time_list[len(train_time_list)//2:] # Discard the first half.
         train_time_avg = sum(train_time_list) / len(train_time_list)
 
         assert train_time_list is not None, f"No TensorBoard events file was found in the logs."
