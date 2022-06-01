@@ -98,6 +98,10 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.num_self_attention_per_cross_attention = num_self_attention_per_cross_attention
         self.num_init_cross_attn_layers = num_init_cross_attn_layers
 
+        assert self.num_self_attention_per_cross_attention >= 1
+        assert self.num_init_cross_attn_layers >= 1
+        assert self.hidden_steps >= 1
+
         if kv_channels is None:
 
             assert (
@@ -228,7 +232,8 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
-        self.model.set_input_tensor(input_tensor)
+        # TODO: Fix this.
+        pass
 
     def forward(
         self, enc_input, enc_attn_mask, layer_past=None, get_key_value=False,
@@ -242,7 +247,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         )
 
         if parallel_state.is_pipeline_first_stage():
-            hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size[0], -1, -1)
+            hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1)
             hidden_states = self.init_cross_att(
                 hidden_states=hidden_states,
                 attention_mask=latent_attention_mask_3d,

@@ -115,6 +115,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         headscale=False,
         add_encoder=True,
         add_decoder=True,
+        num_self_attention_per_cross_attention=1,
+        num_init_cross_attn_layers=1
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -197,6 +199,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
+                num_self_attention_per_cross_attention=num_self_attention_per_cross_attention,
+                num_init_cross_attn_layers=num_init_cross_attn_layers
             )
 
         if add_decoder:

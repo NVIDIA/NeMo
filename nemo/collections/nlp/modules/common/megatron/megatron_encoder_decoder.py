@@ -16,6 +16,7 @@
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -50,6 +51,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         if encoder_attn_mask_type is None:
             if encoder is None:
                 encoder_attn_mask_type = None
+            # Perceiver does not have a `.model` attribute, assume it always uses padding mask.
+            elif isinstance(encoder,MegatronPerceiverEncoderModule):
+                encoder_attn_mask_type = AttnMaskType.padding
             elif hasattr(encoder.model, 'self_attn_mask_type'):
                 encoder_attn_mask_type = encoder.model.self_attn_mask_type
             else:
