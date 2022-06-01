@@ -23,7 +23,6 @@ from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
 from nemo.utils import logging
 from nemo.utils.export_utils import (
     ExportFormat,
-    augment_filename,
     get_export_format,
     parse_input_example,
     replace_for_export,
@@ -125,7 +124,7 @@ class Exportable(ABC):
                             check_tolerance=check_tolerance,
                         )
                     if not self.training:
-                        jitted_model = torch.jit.optimize_for_inference(jitted_model)
+                        jitted_model = torch.jit.optimize_for_inference(torch.jit.freeze(jitted_model))
                     if verbose:
                         logging.info(f"JIT code:\n{jitted_model.code}")
                     jitted_model.save(output)
@@ -200,3 +199,19 @@ class Exportable(ABC):
     @property
     def output_names(self):
         return get_io_names(self.output_module.output_types, self.disabled_deployment_output_names)
+
+    def get_export_subnet(self, subnet=None):
+        """
+        Returns Exportable subnet model/module to export 
+        """
+        if subnet is None or subnet == 'self':
+            return self
+        else:
+            return getattr(self, subnet)
+
+    def list_export_subnets(self):
+        """
+        Returns default set of subnet names exported for this model
+        First goes the one receiving input (input_example)
+        """
+        return ['self']

@@ -65,12 +65,6 @@ def get_export_format(filename: str):
         raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
 
 
-def augment_filename(output: str, prepend: str):
-    path, filename = os.path.split(output)
-    filename = f"{prepend}-{filename}"
-    return os.path.join(path, filename)
-
-
 def forward_method(self):
     if hasattr(self, "forward_for_export"):
         return self.forward_for_export
