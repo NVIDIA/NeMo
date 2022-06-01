@@ -117,7 +117,7 @@ model:
     knn_index: ???  # list of KNN map index files
     retrieval_prefix: ???   # a singe path to retrieval data
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: retmmap
+    data_impl: retmmap   # for retro model, this is the only allowed type
     splits_string: 900,50,50
     seq_length: ${model.encoder_seq_length}  # must be multiple of the chunk_size in your dataset
     skip_warmup: True

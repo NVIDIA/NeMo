@@ -52,6 +52,15 @@ __all__ = [
 
 
 class RETRODataset(Dataset):
+    """
+    Dataset for RETRO model.
+
+    It constructs single data record from the training/retrieval indexed retrieval dataset and knn index file.
+    The KNN index file maps data chunk id to K-nearest neighbors in the the retrieval dataset chunk ids.
+    First, it loads a long sequence (2048) from training dataset. Then for each chunk in the sequence, it finds the kNN 
+    chunks from the retrieval dataset using the KNN index. Lastly, compute the masks based on pad id.
+    """
+
     def __init__(
         self,
         cfg,
@@ -59,10 +68,10 @@ class RETRODataset(Dataset):
         tokenizer,
         name: str,
         data_prefix: str,
-        documents,
+        documents,  # document ids in the indexed_dataset used for this dataset
         indexed_dataset: MMapRetrievalIndexedDataset,
-        num_samples: int,
-        seq_length: int,
+        num_samples: int,  # number of data samples,  max_steps * global_batch_size
+        seq_length: int,  # input seq length
         seed: int,
         knn_index: KNNIndex,
         retrieval_index: MMapRetrievalIndexedDataset,

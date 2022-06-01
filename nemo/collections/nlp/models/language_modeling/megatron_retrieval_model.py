@@ -231,7 +231,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
                         scheduler['scheduler'].step()
 
                     # Increase the max step count by 1
-                    # self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
 
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
