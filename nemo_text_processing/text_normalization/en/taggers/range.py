@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, GraphFst, convert_space
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SIGMA, GraphFst, convert_space
 
 try:
     import pynini
@@ -32,18 +32,24 @@ class RangeFst(GraphFst):
         time: composed tagger and verbalizer
         date: composed tagger and verbalizer
         cardinal: tagger
+        ordinal: composed tagger and verbalizer
         deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)
         lm: whether to use for hybrid LM
     """
 
     def __init__(
-        self, time: GraphFst, date: GraphFst, cardinal: GraphFst, deterministic: bool = True, lm: bool = False
+        self,
+        time: GraphFst,
+        date: GraphFst,
+        cardinal: GraphFst,
+        ordinal: GraphFst,
+        deterministic: bool = True,
+        lm: bool = False,
     ):
         super().__init__(name="range", kind="classify", deterministic=deterministic)
 
         delete_space = pynini.closure(pynutil.delete(" "), 0, 1)
-        cardinal = cardinal.graph_with_and
 
         approx = pynini.cross("~", "approximately")
 
@@ -51,10 +57,10 @@ class RangeFst(GraphFst):
         time_graph = time + delete_space + pynini.cross("-", " to ") + delete_space + time
         self.graph = time_graph | (approx + time)
 
+        cardinal = cardinal.graph_with_and
         # YEAR
         date_year_four_digit = (NEMO_DIGIT ** 4 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
         date_year_two_digit = (NEMO_DIGIT ** 2 + pynini.closure(pynini.accep("s"), 0, 1)) @ date
-
         year_to_year_graph = (
             date_year_four_digit
             + delete_space
@@ -63,6 +69,29 @@ class RangeFst(GraphFst):
             + (date_year_four_digit | date_year_two_digit | (NEMO_DIGIT ** 2 @ cardinal))
         )
         self.graph |= year_to_year_graph
+
+        # Date
+        # 27 July - 26 July, 2003
+        # 27-23 July, 2003
+        # 10/12/2000-11/12/2000
+        date_wo_year = (
+            pynini.project(date, "input") - (NEMO_DIGIT ** (2, 4) + pynini.closure(pynini.union("s", " s"), 0, 1))
+        ) @ date
+        date_graph = date_wo_year + delete_space + pynini.cross("-", " to ") + delete_space + date_wo_year
+        date_graph |= (
+            (
+                pynini.cdrewrite(
+                    NEMO_DIGIT ** (1, 2) + pynutil.insert(pynini.union("th", "nd", "st", "rd")), "", "", NEMO_SIGMA
+                )
+                @ ordinal
+            )
+            + delete_space
+            + pynini.cross("-", " to ")
+            + delete_space
+            + date_wo_year
+        )
+
+        self.graph |= date_graph
 
         # ADDITION
         range_graph = cardinal + pynini.closure(pynini.cross("+", " plus ") + cardinal, 1)

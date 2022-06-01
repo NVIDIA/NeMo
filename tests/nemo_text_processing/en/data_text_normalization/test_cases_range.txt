@@ -14,3 +14,8 @@ from 2-10~from two - ten
 1960s-80s~nineteen sixties to eighties
 1960s-1980s~nineteen sixties to nineteen eighties
 1960-80~nineteen sixty to eighty
+27-28 July~twenty seventh to the twenty eighth of july
+2-28 July~second to the twenty eighth of july
+1973-1975~nineteen seventy three to nineteen seventy five
+15.01.2020-15-01-2020~the fifteenth of january twenty twenty to the fifteenth of january twenty twenty
+01/07/98-11-03-2016~january seventh ninety eight to november third twenty sixteen
