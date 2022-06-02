@@ -1,3 +1,4 @@
+export RUN_NAME_REPLACE = ${RUN_NAME//\//\_}
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     training=gpt3/126m \
@@ -15,7 +16,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
-    training.run.name=${RUN_NAME} \
+    training.run.name=${RUN_NAME_REPLACE} \
     training.run.time_limit="20:00" \
     training.trainer.num_nodes=1 \
     training.trainer.max_steps=100 \

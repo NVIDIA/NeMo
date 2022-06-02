@@ -26,6 +26,7 @@ test:unit_tests:
     - when: always
 
 before_script:
+  - umask 0007
   - export DOCKERFILE=./Dockerfile
   - if [[ -z ${BASE_IMAGE} ]]; then
       export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
