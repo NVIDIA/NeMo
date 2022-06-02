@@ -186,7 +186,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             transformer_block_type=self.transformer_block_type,
             headscale=self.headscale,
         )
-    
+
     def _build_self_attn_layer(self):
         return ParallelTransformer(
             layer_type=LayerType.encoder,
@@ -247,17 +247,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
         ))
 
-        if parallel_state.is_pipeline_first_stage():
-            hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1) # sequence x batch x dim
-            hidden_states = self.init_cross_att(
-                hidden_states=hidden_states,
-                attention_mask=latent_attention_mask_4d, # Post process just unsqueezes for the head dim
-                enc_dec_attn_mask=enc_dec_attn_mask_4d, # Post process just unsqueezes for the head dim
-                encoder_output=enc_input,
-            ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
-        else:
-            hidden_states = enc_input
-
+        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1) # sequence x batch x dim
         for i in range(self.num_layers):
             residual = hidden_states
 
