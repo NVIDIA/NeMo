@@ -58,7 +58,7 @@ def collect_train_test_metrics(pytest_file):
         "train_step_timing_avg": train_time_avg,
     }
     train_metrics_file = os.path.join(CI_JOB_RESULTS, "ci_train_metrics.json")
-    with open(train_metrics_file) as out_file:
+    with open(train_metrics_file, "w") as out_file:
         json.dump(train_metrics, out_file)
     print(f" ****** CI train metrics logged in {train_metrics_file}", flush=True)
 
