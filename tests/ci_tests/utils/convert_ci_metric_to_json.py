@@ -6,6 +6,7 @@ from tensorboard.backend.event_processing import event_accumulator
 
 
 CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
+RUN_TASK = os.environ.get("RUN_TASK")
 
 def _read_tb_logs_as_list(path, summary_name):
     """Reads a TensorBoard Events file from the input path, and returns the
@@ -66,6 +67,6 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     pytest_file = args[0]
 
-    if "test_train" in pytest_file:
+    if RUN_TASK == "train":
         collect_train_test_metrics(pytest_file)
 
