@@ -44,15 +44,6 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
-
-def augment_filename(output: str, prefix: str):
-    if not prefix or prefix == 'self':
-        return output
-    path, filename = os.path.split(output)
-    filename = f"{prefix}-{filename}"
-    return os.path.join(path, filename)
-
-
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Export NeMo models to ONNX/Torchscript",
@@ -133,10 +124,9 @@ def nemo_export(argv):
         autocast = torch.cuda.amp.autocast
     try:
         with autocast(), torch.inference_mode():
-            _, descriptions = model.export_all(
+            _, descriptions = model.export(
                 out,
                 check_trace=args.runtime_check,
-                input_example=input_example,
                 onnx_opset_version=args.onnx_opset,
                 verbose=args.verbose,
             )
