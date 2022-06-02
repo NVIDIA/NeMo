@@ -83,7 +83,6 @@ model:
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
   hidden_steps: 32 # Number of latent vectors to use for pereceiver encoders
   num_self_attention_per_cross_attention: 1 # Number of self-attention layers for every cross-attention layer.
-  num_init_cross_attn_layers: 1 # Number of initial cross-attention layers.
 
   tokenizer:
     library: 'megatron'

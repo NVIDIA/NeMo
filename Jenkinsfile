@@ -3074,6 +3074,9 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
+        model.encoder_arch='perceiver' \
+        model.hidden_steps=16 \
+        model.num_self_attention_per_cross_attention=2 \
         model.bias_gelu_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
@@ -3096,6 +3099,9 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
+        model.encoder_arch='perceiver' \
+        model.hidden_steps=16 \
+        model.num_self_attention_per_cross_attention=2 \
         model.bias_gelu_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
