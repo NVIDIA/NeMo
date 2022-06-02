@@ -10,6 +10,7 @@ from bignlp.bignlp_utils import convert_to_cli, fake_submit
 from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.finetune_scripts import finetune
+from bignlp.prompt_learn_scripts import prompt_learn
 from bignlp.eval_scripts import evaluate_gpt, evaluate_t5
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
@@ -30,6 +31,7 @@ def main(cfg):
     run_training = cfg.get("run_training")
     run_conversion = cfg.get("run_conversion")
     run_finetuning = cfg.get("run_finetuning")
+    run_prompt_learning = cfg.get("run_prompt_learning")
     run_evaluation = cfg.get("run_evaluation")
 
     # TODO: build a mapping from dataset name to modules
@@ -64,6 +66,11 @@ def main(cfg):
         dependency = finetune.run_finetuning(cfg, hydra_args=hydra_args, dependency=dependency)
     else:
         cfg_copy._content.pop("finetuning", None)
+
+    if run_prompt_learning:
+        dependency = prompt_learn.run_prompt_learning(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("prompt_learning", None)
 
     # TODO: merge evaluation harness
     if run_evaluation:

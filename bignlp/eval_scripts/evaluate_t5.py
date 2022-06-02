@@ -99,7 +99,6 @@ def run_evaluation(cfg, hydra_args="", dependency=None):
     new_script_path = os.path.join(bignlp_path, f"bignlp/eval_scripts/{name}.sh")
     code_path = os.path.join(bignlp_path, "bignlp/eval_scripts/eval_t5/evaluate.py")
 
-    hydra_args = hydra_args.replace(" ", " \\\n  ")
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = eval_cfg.trainer.num_nodes

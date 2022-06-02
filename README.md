@@ -87,19 +87,19 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [4.9.2.1. Common](#4921-common)
       - [4.9.2.2. Slurm](#4922-slurm)
       - [4.9.2.3. Base Command Platform](#4923-base-command-platform)
-  * [4.10. Model Evaluation](#410-model-evaluation)
-    + [4.10.1. GPT-3 Evaluation](#4101-gpt-3-evaluation)
-      - [4.10.1.1. Common](#41011-common)
-      - [4.10.1.2. Slurm](#41012-slurm)
-      - [4.10.1.3. Base Command Platform](#41013-base-command-platform)
-    + [4.10.2. T5 Evaluation](#4102-t5-evaluation)
-      - [4.10.2.1. Common](#41021-common)
-      - [4.10.2.2. Slurm](#41022-slurm)
-      - [4.10.2.3. Base Command Platform](#41023-base-command-platform)
-    + [4.10.3. mT5 Evaluation](#4103-mt5-evaluation)
-      - [4.10.3.1. Common](#41031-common)
-      - [4.10.3.2. Slurm](#41032-slurm)
-      - [4.10.3.3. Base Command Platform](#41033-base-command-platform)
+  * [4.11. Model Evaluation](#411-model-evaluation)
+    + [4.11.1. GPT-3 Evaluation](#4111-gpt-3-evaluation)
+      - [4.11.1.1. Common](#41111-common)
+      - [4.11.1.2. Slurm](#41112-slurm)
+      - [4.11.1.3. Base Command Platform](#41113-base-command-platform)
+    + [4.11.2. T5 Evaluation](#4112-t5-evaluation)
+      - [4.11.2.1. Common](#41121-common)
+      - [4.11.2.2. Slurm](#41122-slurm)
+      - [4.11.2.3. Base Command Platform](#41123-base-command-platform)
+    + [4.11.3. mT5 Evaluation](#4113-mt5-evaluation)
+      - [4.11.3.1. Common](#41131-common)
+      - [4.11.3.2. Slurm](#41132-slurm)
+      - [4.11.3.3. Base Command Platform](#41133-base-command-platform)
 - [5. Deploying the BigNLP Model](#5-deploying-the-bignlp-model)
   * [5.1. Model Inference Deployment Process](#51-model-inference-deployment-process)
   * [5.2. Prepare Environment](#52-prepare-environment)
@@ -416,6 +416,7 @@ run_data_preparation: True
 run_training: True
 run_conversion: True
 run_finetuning: True
+run_prompt_learning: False
 run_evaluation: True
 ```
 
@@ -433,6 +434,7 @@ run_data_preparation: True
 run_training: True
 run_conversion: True
 run_finetuning: True
+run_prompt_learning: False
 run_evaluation: True
 ```
 
@@ -516,6 +518,7 @@ run_data_preparation: True
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -608,6 +611,7 @@ run_data_preparation: True
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -703,6 +707,7 @@ run_data_preparation: True
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -1808,6 +1813,7 @@ run_data_preparation: False
 run_training: True
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 And then run:
@@ -1867,6 +1873,7 @@ run_data_preparation: False
 run_training: True
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 And then run:
@@ -1927,6 +1934,7 @@ run_data_preparation: False
 run_training: True
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 And then run:
@@ -2034,6 +2042,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: True
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -2131,6 +2140,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: True
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -2231,6 +2241,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: True
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -2334,6 +2345,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: False
 run_finetuning: True
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -2427,6 +2439,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: False
 run_finetuning: True
+run_prompt_learning: False
 run_evaluation: False
 ```
 
@@ -2457,11 +2470,127 @@ The stdout and stderr outputs will also be redirected to the /results/finetune_m
 Any other parameter can also be added to the command to modify its behavior.
 
 
+### 4.10. Model Prompt Learning
+<a id="markdown-model-prompt-tuning" name="model-prompt-tuning"></a>
 
-### 4.10. Model Evaluation
+
+Within NeMo Megatron we refer to **p-tuning** and **prompt tuning** methods collectively as prompt
+learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language
+models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream
+tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks
+to your model without overwriting or disrupting previous tasks for which the model has already been
+p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either
+method, p-tuning/prompt-tuning also avoid cartographic forgetting issues often encountered when
+fine-tuning models. 
+
+Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient decent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
+
+- Our prompt tuning implementation is based off Lester et. al’s EMNLP 2021 paper "[The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/abs/2104.08691)"
+- Our p-tuning implementation is based off Liu et al's paper "[GPT Understands, Too](https://arxiv.org/abs/2103.10385)"
+
+For more details of our implementation, please check [Prompt Learning](https://github.com/NVIDIA/NeMo/blob/main/docs/source/nlp/prompt_learning.rst) in NeMo.
+
+We support prompt learning on NeMo Megatron GPT-3 models.
+
+#### 4.10.1. GPT-3 Prompt Learning
+<a id="markdown-gpt-3-prompt-learning" name="gpt-3-prompt-learning"></a>
+
+SQuAD v2.0 benchmark is supported for prompt-tuning. With default prompt learning config file, 
+our scripts will download and preprocess original SQuAD dataset to prompt learning dataset format.
+You can also bring your own task dataset as long as it has been processed into the prompt learning dataset 
+format.
+
+The configuration used for the prompt learning needs to be specified in the
+`conf/config.yaml` file, specifying the `prompt_learning` parameter, which specifies the
+file to use for prompt learning purposes. The `run_prompt_learning` parameter must be set
+to `True` to run the prompt learning pipeline. To prompt learn on `squad` task, set
+`prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
+
+##### 4.10.1.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration for prompt learning, 
+use all the `run` parameters to define the job specific config:
+```yaml
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: gpt3_5b
+  task_name: "squad"
+  results_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_${.task_name}
+```
+
+To specify which language model checkpoint to load and its definition, use the `model` parameter:
+
+```yaml
+model:
+  language_model_path: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}/megatron_gpt.nemo # Restore lanugage model from pre-trained .nemo checkpoint
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1
+```
+
+##### 4.10.1.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the prompt learning pipeline and not the data preparation, training, 
+conversion or other pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: True
+run_evaluation: False
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 4.10.1.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the prompt learning script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the prompt learning pipeline to prompt-learn a 390M mT5 model converted checkpoint stored in 
+/mount/results/gpt3_5b/convert_nemo, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py  prompt_learning=gpt3/squad run_data_preparation=False run_training=False \
+run_conversion=False run_finetuning=False run_evaluation=False run_prompt_tuning=True cluster_type=bcp \
+bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data base_results_dir=/mount/results \
+prompt_learning.run.model_train_name=gpt3_5b \
+prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/megatron_gpt.nemo \
+>> /results/prompt_learning_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
+The stdout and stderr outputs will also be redirected to the /results/prompt_learning_gpt3_log.txt file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+### 4.11. Model Evaluation
 <a id="markdown-model-evaluation" name="model-evaluation"></a>
 
-#### 4.10.1. GPT-3 Evaluation
+#### 4.11.1. GPT-3 Evaluation
 <a id="markdown-gpt-3-evaluation" name="gpt-3-evaluation"></a>
 
 We also provide a simple tool to help evaluate the trained checkpoints. You can
@@ -2480,7 +2609,7 @@ to `True` to run the evaluation pipeline. The default value is set to
 parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
-##### 4.10.1.1. Common
+##### 4.11.1.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.tasks` parameter. 
 And use all the `run` parameters to define the job specific config:
@@ -2514,7 +2643,7 @@ model:
     merge_file: ${data_dir}/bpe/merges.txt
 ```
 
-##### 4.10.1.2. Slurm
+##### 4.11.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2540,6 +2669,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: True
 ```
 
@@ -2548,7 +2678,7 @@ then run:
 python3 main.py
 ```
 
-##### 4.10.1.3. Base Command Platform
+##### 4.11.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
@@ -2571,7 +2701,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_gpt3
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 4.10.2. T5 Evaluation
+#### 4.11.2. T5 Evaluation
 <a id="markdown-t5-evaluation" name="gpt-3-evaluation"></a>
 
 
@@ -2592,7 +2722,7 @@ parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
 
-##### 4.10.2.1. Common
+##### 4.11.2.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config: 
@@ -2616,7 +2746,7 @@ model:
     pipeline_model_parallel_size: 1
 ```
 
-##### 4.10.2.2. Slurm
+##### 4.11.2.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2642,6 +2772,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: True
 ```
 
@@ -2650,7 +2781,7 @@ then run:
 python3 main.py
 ```
 
-##### 4.10.2.3. Base Command Platform
+##### 4.11.2.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for T5 models, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
@@ -2672,7 +2803,7 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_t5_l
 Any other parameter can also be added to the command to modify its behavior.
 
 
-#### 4.10.3. mT5 Evaluation
+#### 4.11.3. mT5 Evaluation
 <a id="markdown-mt5-evaluation" name="mt5-evaluation"></a>
 
 
@@ -2692,7 +2823,7 @@ parameters can be modified to adapt different evaluation tasks and checkpoints
 in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
 
 
-##### 4.10.3.1. Common
+##### 4.11.3.1. Common
 <a id="markdown-common" name="common"></a>
 To specify the configuration for what tasks to run for evaluation, use the `run.task_name` parameter. 
 And use all the `run` parameters to define the job specific config: 
@@ -2716,7 +2847,7 @@ model:
     pipeline_model_parallel_size: 1
 ```
 
-##### 4.10.3.2. Slurm
+##### 4.11.3.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -2742,6 +2873,7 @@ run_data_preparation: False
 run_training: False
 run_conversion: False
 run_finetuning: False
+run_prompt_learning: False
 run_evaluation: True
 ```
 
@@ -2750,7 +2882,7 @@ then run:
 python3 main.py
 ```
 
-##### 4.10.3.3. Base Command Platform
+##### 4.11.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the evaluation script on Base Command Platform for mT5 models, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden

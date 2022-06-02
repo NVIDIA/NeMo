@@ -1,0 +1,100 @@
+run:
+  name: ${.task_name}_${.model_train_name}
+  time_limit: "04:00:00"
+  dependency: "singleton"
+  convert_name: convert_nemo
+  model_train_name: gpt3_5b
+  task_name: "squad"
+  results_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_${.task_name}
+
+trainer:
+  devices: 8
+  num_nodes: 1
+  accelerator: gpu
+  precision: bf16
+  logger: False
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  max_epochs: 4
+  max_steps: null
+  log_every_n_steps: 10
+  val_check_interval: 200
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+
+exp_manager:
+  explicit_log_dir: ${prompt_learning.run.results_dir}
+  exp_dir: null
+  name: megatron_gpt_prompt
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    project: nemo_gpt3_prompt
+    name: ${prompt_learning.run.name}
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 5
+    mode: min
+    save_nemo_on_train_end: False
+    filename: "megatron_gpt_prompt_learn--{val_loss:.3f}-{step}"
+    model_parallel_size: ${prompt_learning.model.model_parallel_size}
+    save_best_model: True
+
+model:
+  seed: 1234
+  nemo_path: ${prompt_learning.run.results_dir}/megatron_gpt_prompt.nemo # the place to save prompt learning nemo checkpoint
+  virtual_prompt_style: 'p-tuning' # One of 'p-tuning', 'prompt-tuning', or 'inference'. We recommend 'p-tuning' over 'prompt-tuning'.
+  encoder_seq_length: 2048
+  tensor_model_parallel_size: 2
+  pipeline_model_parallel_size: 1
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+  batch_size: 8
+
+  restore_path: null # used to restore from a prompt tuned checkpoint and add new tasks
+  language_model_path: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}/megatron_gpt.nemo # Restore lanugage model from pre-trained .nemo checkpoint
+  existing_tasks: [] # if restore from a prompt tuned checkpoint and add new tasks, existing task names should be included here.
+  new_tasks: ["squad"] # multiple tasks can be tuned at the same time
+
+  task_templates: # task_templates for all existing_tasks and new_tasks are required.
+  - taskname: "squad" # The task name
+    prompt_template: "<|VIRTUAL_PROMPT_0|>Context: {context} Question: {question} Answer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+    total_virtual_tokens: 10 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
+    virtual_token_splits: [10] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
+    truncate_field: "context" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    answer_field: "answer" # Answer/Target field
+    answer_only_loss: True # If true, the loss will only be calculated with answer_field text vs. ground truth. If false, the loss will be calculated over entire sentence.
+
+  prompt_learning: # Prompt tunin specific params
+    new_prompt_init_methods: null # e.g ['text'], List of 'text' or 'random', should correspond to tasks listed in new tasks
+    new_prompt_init_text: null # e.g ['some init text goes here'], some init text if init method is text, or None if init method is random
+
+  p_tuning: # P-tuning specific params
+    dropout: 0.0
+    num_layers: 2
+
+  data:
+    train_ds:
+      - ${data_dir}/prompt_data/squad-v2.0/squad_train.jsonl # multiple prompt dataset can be given at the same time
+    validation_ds:
+      - ${data_dir}/prompt_data/squad-v2.0/squad_val.jsonl
+    add_eos: True
+    shuffle: True
+    num_workers: 4
+    pin_memory: True
+
+  optim:
+    name: fused_adam
+    lr: 2.0e-4
+    weight_decay: 0.01
+    betas:
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      constant_steps: 10
+      min_lr: 2.0e-5
+      monitor: val_loss
+      reduce_on_plateau: false

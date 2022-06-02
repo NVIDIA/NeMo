@@ -101,7 +101,6 @@ def run_training(cfg, hydra_args="", dependency=None):
     else:
         raise ValueError(f"Unrecognized model type in training config `{cfg.training_config}`.")
 
-    hydra_args = hydra_args.replace(" ", " \\\n  ")
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
     nodes = train_cfg.get("trainer").get("num_nodes")

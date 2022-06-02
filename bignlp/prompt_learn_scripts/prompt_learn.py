@@ -4,73 +4,13 @@ import subprocess
 
 import hydra
 import omegaconf
-from bignlp.bignlp_utils import convert_to_cli, add_container_mounts
+
+from bignlp.bignlp_utils import convert_to_cli, add_container_mounts, create_slurm_file, create_bcp_file
 from bignlp.finetune_scripts.data import download_glue
+from bignlp.data_preparation.pile_dataprep_scripts.utils import download_single_file
 
 
-def create_slurm_file(
-    new_script_path,
-    train_cmd,
-    job_name,
-    flags="",
-    dependency=None,
-    time="04:00:00",
-    exclusive=True,
-    mem=0,
-    overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
-    gpus_per_task=None,
-    gpus_per_node=None,
-    partition="batch",
-    account=None,
-):
-    """
-    Creates a slurm file to launch a training job.
-    """
-    with open(new_script_path, "w") as f:
-        f.writelines("#!/bin/bash\n")
-        f.writelines(f"#SBATCH --nodes={nodes}\n")
-        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
-        if gpus_per_task is not None:
-            f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
-        if gpus_per_node is not None:
-            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
-        if dependency is not None:
-            if dependency != "singleton":
-                dependency = f"afterany:{dependency}"
-            f.writelines(f"#SBATCH --dependency={dependency}\n")
-        f.writelines(f"#SBATCH -p {partition}\n")
-        if account is not None:
-            f.writelines(f"#SBATCH -A {account}\n")
-        f.writelines(f"#SBATCH --job-name={job_name}\n")
-        f.writelines(f"#SBATCH --mem={mem}\n")
-        if exclusive:
-            f.writelines("#SBATCH --exclusive\n")
-        if overcommit:
-            f.writelines("#SBATCH --overcommit\n")
-        f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
-        f.writelines("set +x\n")
-
-
-def create_bcp_file(
-    train_cmd,
-    num_nodes,
-    log_file,
-    new_script_path,
-    env_exports=None,
-):
-    with open(new_script_path, "w") as f:
-        if env_exports is not None:
-            env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
-        f.writelines("\n")
-        f.writelines("set +x \n")
-    os.chmod(new_script_path, 0o755)
-
-
-def run_finetuning(cfg, hydra_args="", dependency=None):
+def run_prompt_learning(cfg, hydra_args="", dependency=None):
     """
     Main function to launch a training job, with the config given in cfg.
     """
@@ -78,11 +18,11 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     bignlp_path = cfg.get("bignlp_path")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("container")
-    finetune_cfg = cfg.get("finetuning")
+    prompt_learn_cfg = cfg.get("prompt_learning")
     cluster_cfg = cfg.get("cluster")
     data_dir = cfg.get("data_dir")
     base_results_dir = cfg.get("base_results_dir")
-    run_cfg = finetune_cfg.get("run")
+    run_cfg = prompt_learn_cfg.get("run")
 
     # Run parameters
     name = run_cfg.get("name")
@@ -90,19 +30,32 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     time_limit = run_cfg.get("time_limit")
     task_name = run_cfg.get("task_name")
 
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-
-    download_glue.download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
+    os.makedirs(results_dir, exist_ok=True)
 
     # Shared between BCP and BCM
-    new_script_path = os.path.join(bignlp_path, f"bignlp/finetune_scripts/{name}.sh")
-    code_path = os.path.join(bignlp_path, "bignlp/finetune_scripts/finetune_t5.py")
+    new_script_path = os.path.join(bignlp_path, f"bignlp/prompt_learn_scripts/{name}.sh")
+    code_path = os.path.join(bignlp_path, "bignlp/prompt_learn_scripts/prompt_learn_gpt.py")
+
+    # prepare dataset for squad
+    if task_name == 'squad':
+        data_dir = os.path.join(data_dir, "prompt_data")
+        squad_dir = os.path.join(data_dir, 'squad-v2.0')
+        if not os.path.exists(squad_dir):
+            os.makedirs(squad_dir)
+            download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json", squad_dir, "train-v2.0.json")
+            download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json", squad_dir, "dev-v2.0.json")
+            preprocess_script = os.path.join(bignlp_path, "bignlp/prompt_learn_scripts/data/squad/prompt_learning_squad_preprocessing.py")
+            os.system(f"python {preprocess_script} "
+                      f"--data-dir={squad_dir} "
+                      f"--file-name='train-v2.0.json' "
+                      f"--save-name-base='squad' "
+                      f"--make-ground-truth "
+                      f"--train-percent=0.8")
 
     base_cmd = f"python3 -u {code_path} \\\n  {hydra_args}"
 
-    nodes = finetune_cfg.trainer.num_nodes
-    ntasks_per_node = finetune_cfg.trainer.devices
+    nodes = prompt_learn_cfg.trainer.num_nodes
+    ntasks_per_node = prompt_learn_cfg.trainer.devices
 
     # BCM parameters
     if cfg.get("cluster_type") == "bcm":
@@ -132,7 +85,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
 
         create_slurm_file(
             new_script_path=new_script_path,
-            train_cmd=train_cmd,
+            slurm_cmd=train_cmd,
             job_name=job_name,
             flags=flags,
             dependency=dependency,
@@ -155,7 +108,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
         env_exports = f"PYTHONPATH=${{PYTHONPATH}}:{bignlp_path}"
         create_bcp_file(
             new_script_path=new_script_path,
-            train_cmd=base_cmd,
+            bcp_cmd=base_cmd,
             num_nodes=nodes,
             log_file=f"{results_dir}/{name}.log",
             env_exports=env_exports,
