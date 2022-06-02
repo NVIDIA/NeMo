@@ -185,8 +185,8 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
 def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     """
     Generate a hard-label (0 or 1) for each base-scale segment. soft_label_thres is a threshold for determining
-    how much overlap we require for labeling a segment-level label. Note that label_vec varialbe is not a one-hot encoded vector.
-    label_vec is a multidimensional hard-label that can contain annotations for indicating overlapp of speech.
+    how much overlap we require for labeling a segment-level label. Note that label_vec variable is not a one-hot encoded vector.
+    label_vec is a multidimensional hard-label that can contain annotations for indicating an overlap of two speech segments.
 
     Args:
         uniq_id (str):
@@ -315,7 +315,7 @@ class _AudioDiarTrainDataset(Dataset):
             uniq_id (str):
                 Unique sample ID for training.
             base_scale_clus_label (torch.tensor):
-                Tensor varialbe containing the speaker labels for the base-scale segments.
+                Tensor variable containing the speaker labels for the base-scale segments.
         Returns:
             per_scale_clus_label (torch.tensor):
                 Tensor variable containing the speaker labels for each segment in each scale.
@@ -344,7 +344,7 @@ class _AudioDiarTrainDataset(Dataset):
 
     def get_diar_target_labels(self, uniq_id, fr_level_target):
         """
-        Convert frame-level diarization target varialbe into segment-level target variable. Since the granularity is reduced
+        Convert frame-level diarization target variable into segment-level target variable. Since the granularity is reduced
         from frame level (10ms) to segment level (100ms~500ms), we need a threshold value, soft_label_thres, which determines
         the label of each segment based on the overlap between a segment range (start and end time) and the frame-level target variable.
 
@@ -397,7 +397,7 @@ class _AudioDiarTrainDataset(Dataset):
             clus_label_index (torch.tensor):
                 Groundtruth Clustering label (cluster index for each segment) from RTTM files for training purpose.
             seg_target  (torch.tensor):
-                Tensor varialble containing hard-labels of speaker activity in each base-scale segment.
+                Tensor variable containing hard-labels of speaker activity in each base-scale segment.
             scale_mapping (torch.tensor):
                 Matrix containing the segment indices of each scale. scale_mapping is necessary for reshaping the
                 multiscale embeddings to form an input matrix for the MSDD model.
@@ -489,7 +489,7 @@ class _AudioMSDDDataset(Dataset):
     Dataset class that loads a json file containing paths to audio files,
     rttm files and number of speakers. This Dataset class is built for diarization inference and
     evaluation. Speaker embedding sequences, segment timestamps, cluster-average speaker embeddings
-    are loaded from memory and fed into dataloader.
+    are loaded from memory and fed into the dataloader.
 
     Example:
     {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
@@ -584,7 +584,7 @@ class _AudioMSDDDataset(Dataset):
                 Example of target_spks: (2, 3)
         Returns:
             seg_target (torch.tensor):
-                Tensor varialble containing hard-labels of speaker activity in each base-scale segment.
+                Tensor variable containing hard-labels of speaker activity in each base-scale segment.
         """
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = os.path.splitext(os.path.basename(sample.rttm_file))[0]
@@ -597,8 +597,8 @@ class _AudioMSDDDataset(Dataset):
         """
         Generate base-scale level binary diarization label from frame-level target matrix. For the given frame-level
         speaker target matrix fr_level_target, we count the number of frames that belong to each speaker and calculate
-        ratios for each speaker into soft_label_vec variable. Finally, soft_label_vec variable is compared with soft_label_thres
-        to determine whether label vector should contain 0 or 1 for each speaker bin. Note that seg_target variable has
+        ratios for each speaker into the soft_label_vec variable. Finally, soft_label_vec variable is compared with soft_label_thres
+        to determine whether a label vector should contain 0 or 1 for each speaker bin. Note that seg_target variable has
         dimension of (number of base-scale segments x 2) dimension.
 
         Example of seg_target:
@@ -612,7 +612,7 @@ class _AudioMSDDDataset(Dataset):
 
         Returns:
             seg_target (torch.tensor):
-                Tensor varialble containing binary hard-labels of speaker activity in each base-scale segment.
+                Tensor variable containing binary hard-labels of speaker activity in each base-scale segment.
 
         """
         if fr_level_target is None:
