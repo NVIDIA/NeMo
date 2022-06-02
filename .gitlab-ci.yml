@@ -110,6 +110,7 @@ build-BigNLP:
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
     - echo "Finished pytest job"
+  allow_failure: false
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
