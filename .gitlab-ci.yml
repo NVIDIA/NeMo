@@ -166,7 +166,7 @@ train.t5.220m_tp1_pp1_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_t5_220m_tp1_pp1_1node_100steps
   rules:
-    - when: always
+    - when: manual
   needs:
     - build-BigNLP
 
@@ -176,7 +176,7 @@ train.t5.220m_tp2_pp1_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_t5_220m_tp2_pp1_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -186,7 +186,7 @@ train.t5.220m_tp1_pp2_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_t5_220m_tp1_pp2_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -196,7 +196,7 @@ train.t5.220m_tp2_pp2_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_t5_220m_tp2_pp2_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
