@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -722,12 +722,12 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
         item['audio_file'] = os.path.expanduser(item['audio_file'])
-        item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0]
+        item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0] 
 
         # Duration.
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
-
+        
         item = dict(
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
