@@ -517,8 +517,8 @@ class DiarizationLabel(_Collection):
             offsets:
                 List of offsets or None.
             target_spks (tuple):
-                List of tuples containing the two inndices of targeted speakers for evaluation.
-                Example: [(0, 1), (1, 2), (2, 3)]
+                List of tuples containing the two indices of targeted speakers for evaluation.
+                Example: [(0, 1), (1, 2), (0, 2)]
             sess_spk_dict (Dict):
                 List of Mapping dictionaries between RTTM speakers and speaker labels in the clustering result.
             clus_spk_digits (tuple):
@@ -584,7 +584,7 @@ class DiarizationLabel(_Collection):
         logging.info(
             "Filtered duration for loading collection is %f.", duration_filtered,
         )
-        logging.info(f"Total {len(data)} session files loaded accounting to")
+        logging.info(f"Total {len(data)} session files loaded accounting to # {len(audio_files)} audio clips")
 
         super().__init__(data)
 
@@ -597,10 +597,9 @@ class DiarizationSpeechLabel(DiarizationLabel):
         manifests_files: Union[str, List[str]],
         emb_dict: Dict,
         clus_label_dict: Dict,
-        max_spks=8,
         round_digit=2,
         seq_eval_mode=False,
-        bi_ch_infer=False,
+        pairwise_infer=False,
         *args,
         **kwargs,
     ):
@@ -615,15 +614,13 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 Dictionary containing cluster-average embeddings and speaker mapping information.
             clus_label_dict (Dict):
                 Segment-level speaker labels from clustering results.
-            max_spks (int):
-                Integer value that limits the number of speakers.
             round_digit (int):
                 Number of digits to be rounded.
             seq_eval_mode (bool):
                 If True, F1 score will be calculated for each speaker pair as in the validation accuracy in training mode.
-            bi_ch_infer (bool):
-                If True, a Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
-                is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (2,3)]) and then
+            pairwise_infer (bool):
+                If True, this Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
+                is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then
                 fed into the diarization system to merge the individual results.
             *args: Args to pass to `SpeechLabel` constructor.
             **kwargs: Kwargs to pass to `SpeechLabel` constructor.
@@ -632,7 +629,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
         self.emb_dict = emb_dict
         self.clus_label_dict = clus_label_dict
         self.seq_eval_mode = seq_eval_mode
-        self.bi_ch_infer = bi_ch_infer
+        self.pairwise_infer = pairwise_infer
         audio_files, durations, rttm_files, offsets, target_spks_list, sess_spk_dicts, clus_spk_list, rttm_spk_list = (
             [],
             [],
@@ -645,11 +642,10 @@ class DiarizationSpeechLabel(DiarizationLabel):
         )
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
-            uniq_id = item['rttm_file'].split('/')[-1].split('.rttm')[0]
-
-            if self.bi_ch_infer:
-                if item['rttm_file']:
-                    _sess_spk_dict = self.emb_dict[0][uniq_id]['mapping']
+            if self.pairwise_infer:
+                if item['rttm_filepath']:
+                    base_scale_index = max(self.emb_dict.keys())
+                    _sess_spk_dict = self.emb_dict[base_scale_index][item['uniq_id']]['mapping']
                     sess_spk_dict = {int(v.split('_')[-1]): k for k, v in _sess_spk_dict.items()}
                     rttm_speaker_digits = [int(v.split('_')[1]) for k, v in _sess_spk_dict.items()]
                 else:
@@ -659,7 +655,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 if self.seq_eval_mode:
                     clus_speaker_digits = rttm_speaker_digits
                 else:
-                    clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[uniq_id]])))
+                    clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[item['uniq_id']]])))
 
                 if len(clus_speaker_digits) == 1:
                     spk_comb_list = [(0, 1)]
@@ -676,7 +672,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             for target_spks in spk_comb_list:
                 audio_files.append(item['audio_file'])
                 durations.append(item['duration'])
-                rttm_files.append(item['rttm_file'])
+                rttm_files.append(item['rttm_filepath'])
                 offsets.append(item['offset'])
                 target_spks_list.append(target_spks)
                 sess_spk_dicts.append(sess_spk_dict)
@@ -696,10 +692,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
             **kwargs,
         )
 
-    def s2n(self, x):
-        """Convert string to floating point number with rounding"""
-        return round(float(x), self.round_digit)
-
     def get_speakers_from_rttm(self, rttm_path):
         """
         Extract start and end time of each speaker from rttm files.
@@ -708,9 +700,9 @@ class DiarizationSpeechLabel(DiarizationLabel):
         """
         rttm_lines = open(rttm_path).readlines()
         speaker_list = set()
-        for line in rttm_lines:
-            rttm = line.strip().split()
-            start, end, speaker = self.s2n(rttm[3]), self.s2n(rttm[4]) + self.s2n(rttm[3]), rttm[7]
+        for rttm_line in rttm_lines:
+            rttm = rttm_line.strip().split()
+            speaker = rttm[7]
             speaker_list.add(speaker)
 
         spk_num = len(set(speaker_list))
@@ -730,8 +722,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
         item['audio_file'] = os.path.expanduser(item['audio_file'])
-        uniq_id = item['rttm_filepath'].split('/')[-1].split('.rttm')[0]
-        item['uniq_id'] = uniq_id
+        item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0]
 
         # Duration.
         if 'duration' not in item:
@@ -741,7 +732,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
             duration=item['duration'],
-            rttm_file=item['rttm_filepath'],
+            rttm_filepath=item['rttm_filepath'],
             offset=item.get('offset', None),
         )
 
