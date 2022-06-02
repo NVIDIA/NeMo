@@ -43,14 +43,17 @@ def prepare_manifest(config):
         for line in manifest.readlines():
             input_audios.append(json.loads(line.strip()))
 
-    p = Pool(processes=config['num_workers'])
     args_func = {
         'label': 'infer',
         'split_duration': config['split_duration'],
         'time_length': config['time_length'],
     }
-    results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
-    p.close()
+    if config['num_workers'] > 1:
+        p = Pool(processes=config['num_workers'])
+        results = p.starmap(write_vad_infer_manifest, zip(input_audios, repeat(args_func)))
+        p.close()
+    else:
+        result = [write_vad_infer_manifest(input_audio, args_func) for input_audio in input_audios]
 
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
@@ -182,7 +185,6 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         overlap_out_dir(str): directory of generate predictions.
     """
 
-    p = Pool(processes=num_workers)
     frame_filepathlist = glob.glob(frame_pred_dir + "/*.frame")
 
     overlap_out_dir = frame_pred_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
@@ -197,9 +199,15 @@ def generate_overlap_vad_seq(frame_pred_dir, smoothing_method, overlap, seg_len,
         "seg_len": seg_len,
         "shift_len": shift_len,
     }
-    p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
-    p.close()
-    p.join()
+
+    if num_workers > 1:
+        p = Pool(processes=num_workers)
+        p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
+        p.close()
+        p.join()
+    else:
+        for frame_filepath in frame_filepathlist:
+            generate_overlap_vad_seq_per_file(frame_filepath, per_args)
 
     return overlap_out_dir
 
@@ -296,7 +304,6 @@ def generate_vad_segment_table(vad_pred_dir, threshold, shift_len, num_workers):
         table_out_dir(str): directory of generate table.
     """
 
-    p = Pool(processes=num_workers)
     suffixes = ("frame", "mean", "median")
     vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
 
@@ -310,9 +317,14 @@ def generate_vad_segment_table(vad_pred_dir, threshold, shift_len, num_workers):
         "out_dir": table_out_dir,
     }
 
-    p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
-    p.close()
-    p.join()
+    if num_workers > 1:
+        p = Pool(processes=num_workers)
+        p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
+        p.close()
+        p.join()
+    else:
+        for vad_pred_filepath in vad_pred_filepath_list:
+            generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return table_out_dir
 
