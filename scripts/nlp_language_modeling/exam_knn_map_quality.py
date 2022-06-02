@@ -68,6 +68,9 @@ if __name__ == "__main__":
         '--knn_index', type=str, required=True, help='Input knn map index file',
     )
     parser.add_argument(
+        '--neighbors', type=int, default=None, help='number of neighbors',
+    )
+    parser.add_argument(
         '--chunk_ids',
         nargs='+',
         default=[1, 3, 5, 7],
@@ -104,12 +107,17 @@ if __name__ == "__main__":
     logging.info(f'KNN index has {knn_index.K} neighbors')
     assert knn_index.knn_map.max() < retrieval_ds.chunks
     assert data_ds._index.chunk_size == retrieval_ds._index.chunk_size
+    print_num_neighbors = knn_index.K
+    if args.neighbors is not None:
+        assert args.neighbors <= knn_index.K
+        print_num_neighbors = args.neighbors
 
     for chunk_id in args.chunk_ids:
         token_ids = data_ds.get_chunk(chunk_id, force_no_padding=True)
         assert token_ids.shape[0] == data_ds._index.chunk_size
         query_text = tokenizer.ids_to_text(token_ids)
         neighbor_chunk_ids = knn_index.get_KNN_chunk_ids(chunk_id)
+        neighbor_chunk_ids = neighbor_chunk_ids[:print_num_neighbors]
         print(f'Query: {query_text}')
         for i, neighbor in enumerate(neighbor_chunk_ids):
             token_ids = retrieval_ds.get_chunk(neighbor)
