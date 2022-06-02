@@ -113,6 +113,10 @@ build-BigNLP:
 
     # Run metrics collection
     - python3 tests/ci_tests/utils/covert_ci_metric_to_json.py tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
+
+    # Permission change
+    - chmod -R 774 ${GIT_CLONE_PATH}/*
+    - chmod -R 774 ${BASE_RESULTS_DIR}/*
   allow_failure: false
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
@@ -165,6 +169,35 @@ train.t5.220m_tp1_pp1_1node_100steps:
   needs:
     - build-BigNLP
 
+train.t5.220m_tp2_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: train_t5_220m_tp2_pp1_1node_100steps
+  rules:
+    - when: never
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp1_pp2_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: train_t5_220m_tp1_pp2_1node_100steps
+  rules:
+    - when: never
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp2_pp2_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: train_t5_220m_tp2_pp2_1node_100steps
+  rules:
+    - when: never
+  needs:
+    - build-BigNLP
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
