@@ -58,21 +58,8 @@ def invert_permutation(indices: torch.Tensor) -> torch.Tensor:
     return ans
 
 
-def make_blank_first(
-    blank_idx: int, log_probs: torch.Tensor, targets: torch.Tensor
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Puts blank logits at the first place in input log_probs tensor.
-    """
-    index = list(range(log_probs.shape[-1]))
-    del index[blank_idx]
-    index = torch.tensor([blank_idx] + index).to(log_probs.device)
-    new_log_probs = torch.index_select(log_probs, -1, index)
-    # TODO (alaptev): replace targets + 1 with torch.where to work for non-last blank_id
-    return new_log_probs, None if targets is None else targets + 1
-
-
 def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
-    """TBD
+    """Converts input_lengths to a non-padding mask. The mask is 2D.
     """
     batch_size = input_lengths.shape[0]
     seq_range = torch.arange(0, seq_len, device=input_lengths.device)
@@ -85,7 +72,7 @@ def make_non_pad_mask(input_lengths: torch.Tensor, seq_len: int):
 def make_non_pad_mask_3d(
     lengths_x: torch.Tensor, lengths_y: torch.Tensor, max_length_x: int, max_length_y: int
 ) -> torch.Tensor:
-    """TBD
+    """Converts two orthogonal input_lengths to a non-padding mask. The mask is 3D.
     """
     assert lengths_x.size() == lengths_y.size()
     return make_non_pad_mask(lengths_x, max_length_x).unsqueeze(2) & make_non_pad_mask(
@@ -94,7 +81,7 @@ def make_non_pad_mask_3d(
 
 
 def ragged_to_tensor_2axes_simple(rt: k2.RaggedTensor) -> Optional[torch.Tensor]:
-    """TBD
+    """Converts k2.RaggedTensor to torch.Tensor if the RaggedTensor is shallow (has two axes).
     """
     rt_list = rt.tolist()
     result_list = []
@@ -190,18 +177,17 @@ def create_sparse_wrapped(
 def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
     """Performs special epsilon-padding required for composition with some of the topologies.
     """
-    log_softmax_shifted = torch.cat(
+    log_softmax_eps = torch.cat(
         [
-            torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device,),
             log_softmax,
+            torch.full((log_softmax.shape[0], log_softmax.shape[1], 1), -float("inf"), device=log_softmax.device,),
         ],
         axis=-1,
     )
     log_softmax_padded = torch.zeros(
-        (log_softmax_shifted.shape[0], log_softmax_shifted.shape[1] * 2, log_softmax_shifted.shape[2],),
-        device=log_softmax.device,
+        (log_softmax_eps.shape[0], log_softmax_eps.shape[1] * 2, log_softmax_eps.shape[2],), device=log_softmax.device,
     )
-    log_softmax_padded[:, ::2] = log_softmax_shifted
+    log_softmax_padded[:, ::2] = log_softmax_eps
     supervisions_padded = supervisions.clone()
     supervisions_padded[:, 2] *= 2
     dense_log_softmax_padded = k2.DenseFsaVec(log_softmax_padded, supervisions_padded)
@@ -209,7 +195,8 @@ def prep_padded_densefsavec(log_softmax: torch.Tensor, supervisions: torch.Tenso
 
 
 def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
-    """Shifts lattice labels and aux_labels by a given number. This is an in-place operation.
+    """Shifts lattice labels and aux_labels by a given number.
+    This is an in-place operation, if the lattice is on GPU.
     """
     for lattice in lattices:
         mask = lattice.labels > 0
@@ -217,7 +204,34 @@ def shift_labels_inpl(lattices: List['k2.Fsa'], shift: int):
         if hasattr(lattice, "aux_labels"):
             mask = lattice.aux_labels > 0
             lattice.aux_labels[mask] += shift
-    return lattices
+    return reset_properties_fsa(lattices)
+
+
+def reset_properties_fsa(graph: 'k2.Fsa'):
+    """Resets properties of a graph.
+    In-place (does not create a new graph) if the graph is on GPU.
+    Use this every time you alter a graph in-place.
+    See https://github.com/k2-fsa/k2/issues/978 for more information."""
+    graph.__dict__["_properties"] = None
+    # CPU graphs need to be sorted e.g. for intersection
+    if graph.device == torch.device("cpu"):
+        graph = k2.arc_sort(graph)
+    return graph
+
+
+def add_self_loops(graph: 'k2.Fsa', label: int = 0, mode: str = "auto"):
+    """Adds self-loops with given label to a graph.
+    Supported modes are ``input``, ``output``, and ``auto``,
+    Where ``input`` leaves aux_labels zeroes, if present, ``output`` leaves labels zeroes"""
+    assert mode in ("input", "output", "auto"), "Supported modes are ``input``, ``output``, and ``auto``: {mode}"
+    assert mode != "output" or hasattr(graph, "aux_labels"), "Graph must have aux_labels for mode ``output``"
+    new_graph, arc_map = k2.add_epsilon_self_loops(graph, ret_arc_map=True)
+
+    if mode != "output":
+        new_graph.labels[arc_map == -1] = label
+    if mode != "input" and hasattr(graph, "aux_labels"):
+        new_graph.aux_labels[arc_map == -1] = label
+    return reset_properties_fsa(new_graph)
 
 
 def get_arc_weights(graph: 'k2.Fsa') -> torch.Tensor:
@@ -260,7 +274,10 @@ def get_uniform_rnnt_prune_ranges(
     max_seq_len: Optional[int] = None,
     begin_only: bool = False,
 ) -> torch.Tensor:
-    """TBD
+    """Creates the pruning ranges for the Encoder and Predictor of RNNT.
+    The ranges are similar to https://k2-fsa.github.io/k2/python_api/api.html#k2.get_rnnt_prune_ranges
+    but they are constructed under the assumption of the uniform distribution token activations across time frames
+    and without any posterior knowledge.
     """
     assert window_size_with_blank > 1
     assert step >= 1
@@ -289,18 +306,21 @@ def get_uniform_rnnt_prune_ranges(
 
 
 def apply_rnnt_prune_ranges(
-    encoder_outputs: torch.Tensor, decoder_outputs: torch.Tensor, ranges: torch.Tensor, window_size_with_blank: int
+    encoder_outputs: torch.Tensor, decoder_outputs: torch.Tensor, ranges: torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Prepare pruned encoder and decoder outputs according to the prune ranges.
+    """Prepares pruned encoder and decoder outputs according to the prune ranges.
     Based on k2.do_rnnt_pruning(...)
     """
-    assert ranges.size(0) == encoder_outputs.size(0)
-    assert ranges.size(1) == encoder_outputs.size(1)
-    assert ranges.size(0) == decoder_outputs.size(0)
-    encoder_outputs_pruned = encoder_outputs.unsqueeze(2).repeat((1, 1, window_size_with_blank, 1))
+    B, T, window_size_with_blank = ranges.size()
+    D1 = encoder_outputs.size(-1)
+    _, U, D2 = decoder_outputs.size()
+    assert B == encoder_outputs.size(0)
+    assert T == encoder_outputs.size(1)
+    assert B == decoder_outputs.size(0)
+    encoder_outputs_pruned = encoder_outputs.unsqueeze(2).expand((B, T, window_size_with_blank, D1))
     decoder_outputs_pruned = torch.gather(
-        decoder_outputs.unsqueeze(1).repeat((1, encoder_outputs.size(1), 1, 1)),
+        decoder_outputs.unsqueeze(1).expand((B, T, U, D2)),
         dim=2,
-        index=ranges.unsqueeze(-1).repeat((1, 1, 1, decoder_outputs.size(-1))).to(device=decoder_outputs.device),
+        index=ranges.reshape((B, T, window_size_with_blank, 1)).expand((B, T, window_size_with_blank, D2)),
     )
     return encoder_outputs_pruned, decoder_outputs_pruned

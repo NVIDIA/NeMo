@@ -110,7 +110,10 @@ class MAPLoss(MLLoss):
     def _intersect_calc_scores_impl_exact_opt(
         self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
-        """TBD
+        """Inner intersection method.
+        Does joint (simultaneous) exact intersection of dense_fsa_vec against num_graphs and den_graph.
+        
+        Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -169,7 +172,10 @@ class MAPLoss(MLLoss):
     def _intersect_calc_scores_impl_pruned(
         self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
-        """TBD
+        """Inner intersection method.
+        Does exact intersection of dense_fsa_vec against num_graphs and pruned intersection against den_graph.
+        
+        Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
         assert device == num_graphs.device and device == den_graph.device
@@ -202,13 +208,21 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores(
-        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor
+        self,
+        emissions_graphs: 'k2.DenseFsaVec',
+        supervision_graphs: Tuple['k2.Fsa', 'k2.Fsa'],
+        supervisions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """TBD
+        """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
+        This version assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
+
+        It can also calculate accuracy between the numerator and the denominator lattices to use it as additional loss.
+
+        Can be overridden.
         """
         boosted = self.boost_coeff != 0.0
         num_tot_scores, den_tot_scores, num_lats, den_lats = self._intersect_calc_scores_impl(
-            dense_fsa_vec, supervision_graphs[0], supervision_graphs[1], boosted
+            emissions_graphs, supervision_graphs[0], supervision_graphs[1], boosted
         )
 
         inverted_batch_order = invert_permutation(supervisions[:, 0].to(dtype=torch.long))
@@ -220,11 +234,11 @@ class MAPLoss(MLLoss):
             assert num_lats is not None and den_lats is not None
 
             size = (
-                dense_fsa_vec.dim0(),
-                dense_fsa_vec.scores.shape[0],
-                dense_fsa_vec.scores.shape[1] - 1,
+                emissions_graphs.dim0(),
+                emissions_graphs.scores.shape[0],
+                emissions_graphs.scores.shape[1] - 1,
             )
-            row_ids = dense_fsa_vec.dense_fsa_vec.shape().row_ids(1)
+            row_ids = emissions_graphs.emissions_graphs.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
                 indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
                 values=num_lats.get_arc_post(False, True).exp(),
@@ -246,16 +260,26 @@ class MAPLoss(MLLoss):
             acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(acc_loss, self.reduction)
             valid_mask = mmi_valid_mask & acc_valid_mask
             total_loss = (
-                self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask] - mmi_tot_scores[valid_mask]
+                (self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask] - mmi_tot_scores[valid_mask])
+                if self.reduction == "none"
+                else self.boost_coeff * acc_tot_scores - mmi_tot_scores
             )
         else:
             valid_mask = mmi_valid_mask
-            total_loss = -mmi_tot_scores[mmi_valid_mask]
+            total_loss = -mmi_tot_scores[valid_mask] if self.reduction == "none" else -mmi_tot_scores
         return total_loss, valid_mask
 
 
 class CtcMmiLoss(MAPLoss, CtcK2Mixin):
-    """TBD
+    """MMI loss with custom CTC topologies.
+    Available topologies:
+        -   `default`, with or without self-loops
+        -   `compact`, with or without self-loops
+        -   `shared_blank`, with or without self-loops
+        -   `minimal`, without self-loops
+
+    cfg takes precedence over all optional parameters
+    We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
 
     def __init__(
@@ -292,8 +316,8 @@ class CtcMmiLoss(MAPLoss, CtcK2Mixin):
         labels = lm_graph.labels
         if labels.max() != self.num_classes - 1:
             raise ValueError(f"lm_graph is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
-        if self.pad_fsavec:
-            shift_labels_inpl([lm_graph], 1)
         from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
 
-        self.graph_compiler = compiler(self.num_classes, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph)
+        self.graph_compiler = compiler(
+            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph
+        )

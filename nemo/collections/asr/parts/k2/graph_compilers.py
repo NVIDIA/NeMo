@@ -30,7 +30,7 @@ from typing import Optional, Tuple
 
 import torch
 
-from nemo.collections.asr.parts.k2.utils import compose_with_self_loops, intersect_with_self_loops
+from nemo.collections.asr.parts.k2.utils import add_self_loops, compose_with_self_loops, intersect_with_self_loops
 
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
@@ -45,6 +45,7 @@ class CtcTopologyCompiler(object):
     def __init__(
         self,
         num_classes: int,
+        blank: int,
         topo_type: str = "default",
         topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
@@ -53,7 +54,7 @@ class CtcTopologyCompiler(object):
         self.device = device
         from nemo.collections.asr.parts.k2.topologies import build_topo
 
-        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), topo_with_self_loops)).to(
+        self.base_graph = k2.arc_sort(build_topo(topo_type, list(range(num_classes)), blank, topo_with_self_loops)).to(
             self.device
         )
         self.ctc_topo_inv = k2.arc_sort(self.base_graph.invert())
@@ -84,12 +85,13 @@ class CtcNumGraphCompiler(CtcTopologyCompiler):
     def __init__(
         self,
         num_classes: int,
+        blank: int,
         topo_type: str = "default",
         topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
         aux_graph: Optional['k2.Fsa'] = None,
     ):
-        super().__init__(num_classes, topo_type, topo_with_self_loops, device)
+        super().__init__(num_classes, blank, topo_type, topo_with_self_loops, device)
         if aux_graph is None:
             self.decoding_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
@@ -118,12 +120,13 @@ class MmiGraphCompiler(CtcNumGraphCompiler):
     def __init__(
         self,
         num_classes: int,
+        blank: int,
         topo_type: str = "default",
         topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
         aux_graph: Optional['k2.Fsa'] = None,
     ):
-        super().__init__(num_classes, topo_type, topo_with_self_loops, device, aux_graph)
+        super().__init__(num_classes, blank, topo_type, topo_with_self_loops, device, aux_graph)
         if aux_graph is None:
             self.decoding_graph = k2.create_fsa_vec([self.ctc_topo_inv.invert()]).to(self.device)
         else:
@@ -163,21 +166,22 @@ class RnntTopologyCompiler(CtcTopologyCompiler):
     def __init__(
         self,
         num_classes: int,
+        blank: int,
         topo_type: str = "minimal",
         topo_with_self_loops: bool = True,
         device: torch.device = torch.device("cpu"),
         max_adapter_length: int = 0,
     ):
-        super().__init__(num_classes + 1, topo_type, topo_with_self_loops, device)
+        if topo_type == "compact":
+            raise NotImplementedError(f"This compiler does not support topo_type==`compact`.")
+        super().__init__(num_classes, blank, topo_type, topo_with_self_loops, device)
         from nemo.collections.asr.parts.k2.topologies import RnntEmissionAdapterBuilder
 
         self.max_adapter_length = max_adapter_length
-        self._builder = RnntEmissionAdapterBuilder(list(range(num_classes + 1)))
+        self._builder = RnntEmissionAdapterBuilder(list(range(num_classes)), blank, num_classes)
 
     def compile(self, targets: torch.Tensor, target_lengths: torch.Tensor) -> 'k2.Fsa':
-        supervision_graphs = super().compile(targets, target_lengths)
-        supervision_graphs.labels = supervision_graphs.labels + 1
-        supervision_graphs = k2.add_epsilon_self_loops(supervision_graphs)
+        supervision_graphs = add_self_loops(super().compile(targets, target_lengths), self._builder.eps_num, "input")
 
         adapters = self._builder(
             torch.where(target_lengths > self.max_adapter_length, self.max_adapter_length, target_lengths)

@@ -162,9 +162,9 @@ class LatticeLoss(Loss):
                 begin = batch_idx
                 end = min(begin + self.split_batch_size, batch_size)
                 input_lengths_part = input_lengths[begin:end]
-                log_probs_part = log_probs[begin:end, : input_lengths_part.max()].contiguous()
+                log_probs_part = log_probs[begin:end, : input_lengths_part.max()]
                 target_lengths_part = target_lengths[begin:end]
-                targets_part = targets[begin:end, : target_lengths_part.max()].contiguous()
+                targets_part = targets[begin:end, : target_lengths_part.max()]
                 loss_part, _ = (
                     self._partial_loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part)
                     if log_probs_part.requires_grad

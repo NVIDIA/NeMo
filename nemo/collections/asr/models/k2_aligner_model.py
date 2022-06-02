@@ -22,6 +22,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.asr.data.audio_to_ctm_dataset import FrameCtmUnit
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.utils import logging
 
 
 class AlignerWrapperModel(ASRModel):
@@ -125,8 +126,7 @@ class AlignerWrapperModel(ASRModel):
                     self.predictor_window_size + 1,
                     self.predictor_step_size,
                     encoder_outputs.size(1),
-                ),
-                self.predictor_window_size + 1,
+                ).to(device=encoder_outputs.device),
             )
 
             from nemo.collections.asr.parts.k2.classes import GraphModuleConfig
@@ -207,7 +207,8 @@ class AlignerWrapperModel(ASRModel):
         decoder_outputs: torch.Tensor,
         transcript_len: torch.Tensor,
     ) -> torch.Tensor:
-        """TBD
+        """A variant of the RNNT Joiner tensor calculation with pruned Encoder and Predictor sum.
+        Only the uniform pruning is supported at the moment.
         """
         encoder_outputs = self._model.joint.enc(encoder_outputs.transpose(1, 2))  # (B, T, H)
         decoder_outputs = self._model.joint.pred(decoder_outputs.transpose(1, 2))  # (B, U, H)
@@ -285,9 +286,11 @@ class AlignerWrapperModel(ASRModel):
         transcript_len: torch.Tensor,
         sample_id: torch.Tensor,
     ) -> List[Tuple[int, 'FrameCtmUnit']]:
-        """TBD
-        """
+        """Builds time alignment of an encoded sequence.
+        This method assumes that the RNNT model is used and the alignment type is `argmax`.
 
+        It produces a list of sample ids and fours: (label, start_frame, length, probability), called FrameCtmUnit.
+        """
         hypotheses = self._model.decoding.rnnt_decoder_predictions_tensor(
             encoded, encoded_len, return_hypotheses=True
         )[0]
@@ -452,7 +455,10 @@ class AlignerWrapperModel(ASRModel):
         transcript_len: torch.Tensor,
         sample_id: torch.Tensor,
     ) -> List[Tuple[int, 'FrameCtmUnit']]:
-        """TBD
+        """Builds time alignment of an encoded sequence.
+        This method assumes that the CTC model is used.
+
+        It produces a list of sample ids and fours: (label, start_frame, length, probability), called FrameCtmUnit.
         """
         log_probs = encoded
 
@@ -486,7 +492,10 @@ class AlignerWrapperModel(ASRModel):
         transcript_len: torch.Tensor,
         sample_id: torch.Tensor,
     ) -> List[Tuple[int, 'FrameCtmUnit']]:
-        """TBD
+        """Builds time alignment of an encoded sequence.
+        This method assumes that the RNNT model is used.
+
+        It produces a list of sample ids and fours: (label, start_frame, length, probability), called FrameCtmUnit.
         """
         if self.alignment_type == "argmax":
             return self._predict_impl_rnnt_argmax(encoded, encoded_len, transcript, transcript_len, sample_id)
@@ -527,15 +536,68 @@ class AlignerWrapperModel(ASRModel):
         return self._predict_impl(encoded, encoded_len, transcript, transcript_len, sample_id)
 
     @torch.no_grad()
-    def transcribe(
-        self,
-        paths2audio_files: List[str],
-        batch_size: int = 4,
-        logprobs: bool = False,
-        return_hypotheses: bool = False,
-        num_workers: int = None,
-    ) -> List[str]:
-        raise NotImplementedError()
+    def transcribe(self, manifest: List[str], batch_size: int = 4, num_workers: int = None,) -> List['FrameCtmUnit']:
+        """
+        Does alignment. Use this method for debugging and prototyping.
+
+        Args:
+
+            manifest: path to dataset JSON manifest file (in NeMo format). \
+        Recommended length per audio file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+        Bigger will result in better throughput performance but would use more memory.
+            num_workers: (int) number of workers for DataLoader
+
+        Returns:
+            A list of four: (label, start_frame, length, probability), called FrameCtmUnit, \
+            in the same order as in the manifest.
+        """
+        hypotheses = []
+        # Model's mode and device
+        mode = self._model.training
+        device = next(self._model.parameters()).device
+        dither_value = self._model.preprocessor.featurizer.dither
+        pad_to_value = self._model.preprocessor.featurizer.pad_to
+
+        if num_workers is None:
+            num_workers = min(batch_size, os.cpu_count() - 1)
+
+        try:
+            self._model.preprocessor.featurizer.dither = 0.0
+            self._model.preprocessor.featurizer.pad_to = 0
+
+            # Switch model to evaluation mode
+            self._model.eval()
+            # Freeze the encoder and decoder modules
+            self._model.encoder.freeze()
+            self._model.decoder.freeze()
+            if hasattr(self._model, "joint"):
+                self._model.joint.freeze()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+
+            config = {
+                'manifest_filepath': manifest,
+                'batch_size': batch_size,
+                'num_workers': num_workers,
+            }
+            temporary_datalayer = self._model._setup_transcribe_dataloader(config)
+            for test_batch in tqdm(temporary_datalayer, desc="Aligning"):
+                hypotheses += [unit for i, unit in self.predict_step(test_batch, 0)]
+                del test_batch
+        finally:
+            # set mode back to its original value
+            self._model.train(mode=mode)
+            self._model.preprocessor.featurizer.dither = dither_value
+            self._model.preprocessor.featurizer.pad_to = pad_to_value
+
+            logging.set_verbosity(logging_level)
+            if mode is True:
+                self._model.encoder.unfreeze()
+                self._model.decoder.unfreeze()
+                if hasattr(self._model, "joint"):
+                    self._model.joint.unfreeze()
+        return hypotheses
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         raise RuntimeError("This module cannot be used in training.")

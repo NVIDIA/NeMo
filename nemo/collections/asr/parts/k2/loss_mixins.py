@@ -22,7 +22,6 @@ from nemo.collections.asr.parts.k2.utils import (
     create_supervision,
     get_arc_weights,
     get_uniform_rnnt_prune_ranges,
-    make_blank_first,
     make_non_pad_mask,
     make_non_pad_mask_3d,
     prep_padded_densefsavec,
@@ -37,7 +36,12 @@ import k2 # isort:skip
 
 
 class CtcK2Mixin(ABC):
-    """TBD
+    """k2 Mixin class that simplifies the construction of various k2-based CTC-like losses.
+    
+    It does the following:
+        -   Prepares and adapts the input tensors (method _prepare_log_probs_and_targets).
+        -   Creates Emissions graphs (method _prepare_emissions_graphs).
+        -   Extracts the labels and probabilities of the best lattice path (method _extract_labels_and_probabilities).
     """
 
     def _prepare_log_probs_and_targets(
@@ -47,19 +51,23 @@ class CtcK2Mixin(ABC):
         targets: Optional[torch.Tensor] = None,
         target_lengths: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """TBD
+        """Creates k2-style supervisions and shifts targets by one if the <blank> number is not zero.
         """
         assert log_probs.size(-1) == self.num_classes
         supervisions = create_supervision(input_lengths)
-        if self.blank != 0:
-            # rearrange log_probs to put blank at the first place
-            # and shift targets to emulate blank = 0
-            log_probs, targets = make_blank_first(self.blank, log_probs, targets + 1 if self.pad_fsavec else targets)
-        return log_probs, supervisions, targets, target_lengths
-        # return log_probs, supervisions, targets + 1 if self.pad_fsavec else targets, target_lengths
+        # shift targets to make output epsilon ID zero
+        return (
+            log_probs,
+            supervisions,
+            torch.where(targets < self.blank, targets + 1, targets) if targets is not None else None,
+            target_lengths,
+        )
 
     def _prepare_emissions_graphs(self, log_probs: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
-        """TBD
+        """Creates DenseFsaVec, padding it with <epsilon> frames if the topology is `compact`.
+        In particular, every second frame of the DenseFsaVec is the <epsilon> frame.
+
+        <epsilon> frame is a frame with <epsilon> log-probability zero and every other log-probability is -inf.
         """
         return (
             prep_padded_densefsavec(log_probs, supervisions)
@@ -67,7 +75,7 @@ class CtcK2Mixin(ABC):
             else k2.DenseFsaVec(log_probs, supervisions)
         )
 
-    def _normalize_gradients(self, log_probs: torch.Tensor, input_lengths: torch.Tensor) -> torch.Tensor:
+    def _maybe_normalize_gradients(self, log_probs: torch.Tensor, input_lengths: torch.Tensor) -> torch.Tensor:
         """PyTorch is doing the log-softmax normalization as part of the CTC computation.
         More: https://github.com/k2-fsa/k2/issues/575
         """
@@ -76,24 +84,26 @@ class CtcK2Mixin(ABC):
     def _extract_labels_and_probabilities(
         self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        """TBD
+        """Extracts the labels and probabilities of the best lattice path,
+        dropping <epsilon> arcs and restoring the targets shift, if needed.
         """
         shortest_paths = []
         probs = []
         # direct iterating does not work as expected
         for i in range(shortest_path_fsas.shape[0]):
             shortest_path_fsa = shortest_path_fsas[i]
-            non_eps_mask = shortest_path_fsa.labels >= 0
-            if self.pad_fsavec:
-                non_eps_mask[::2] = False
-            labels = (
-                shortest_path_fsa.labels[non_eps_mask]
-                if return_ilabels
-                else shortest_path_fsa.aux_labels[non_eps_mask]
-            ).to(dtype=torch.long)
-            if self.blank != 0:
-                # suppose self.blank == self.num_classes - 1
-                labels = torch.where(labels == 0, self.blank, labels - 1)
+            # suppose that artificial input epsilon numbers >= self.num_classes
+            non_eps_mask = (shortest_path_fsa.labels != -1) & (shortest_path_fsa.labels < self.num_classes)
+            if return_ilabels:
+                labels = shortest_path_fsa.labels[non_eps_mask]
+            else:
+                labels = shortest_path_fsa.aux_labels[non_eps_mask]
+                if self.blank != 0:
+                    # suppose output epsilon number == 0
+                    # since the input epsilons were removed, we treat all remaining epsilons as blanks
+                    labels[labels == 0] = self.blank
+                    labels[(labels > 0) & (labels < self.blank)] -= 1
+            labels = labels.to(dtype=torch.long)
             if not return_ilabels and not output_aligned:
                 labels = labels[labels != self.blank]
             shortest_paths.append(labels)
@@ -102,7 +112,12 @@ class CtcK2Mixin(ABC):
 
 
 class RnntK2Mixin(CtcK2Mixin):
-    """TBD
+    """k2 Mixin class that simplifies the construction of various k2-based RNNT-like losses. Inherits CtcK2Mixin.
+    
+    It does the following:
+        -   Prepares and adapts the input tensors.
+        -   Creates Emissions graphs.
+        -   Extracts the labels and probabilities of the best lattice path (method _extract_labels_and_probabilities).
     """
 
     def _prepare_log_probs_and_targets(
@@ -112,7 +127,12 @@ class RnntK2Mixin(CtcK2Mixin):
         targets: torch.Tensor,
         target_lengths: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """TBD
+        """Before calling super()._prepare_log_probs_and_targets, this method reshapes the log_probs tensor 
+        from (B, T, U+1, D) to (B, T', D) where T' = T*(U+1), shifts paddings along T and U towards the end of T', 
+        and recomputes input_lengths.
+
+        It also calculates indices on which <epsilon> steps should be applied to the log_probs tensor to emulate 
+        <blank> arcs shift of the Emissions graph for the pruned RNNT variant.
         """
         assert len(log_probs.size()) == 4  # B T U D
         B, T, U, D = log_probs.size()
@@ -170,12 +190,18 @@ class RnntK2Mixin(CtcK2Mixin):
         rearranged_indices_buffer = rearranged_indices.clone()
         rearranged_indices[non_pad_mask_fake] = rearranged_indices_buffer[non_pad_mask_true]
         rearranged_indices[~non_pad_mask_fake] = rearranged_indices_buffer[~non_pad_mask_true]
-        log_probs = log_probs.view(-1, D)[rearranged_indices].view(B, -1, D)
+        log_probs = log_probs.reshape(-1, D)[rearranged_indices].view(B, -1, D)
 
         return super()._prepare_log_probs_and_targets(log_probs, input_lengths, targets, target_lengths)
 
     def _prepare_emissions_graphs(self, log_probs: torch.Tensor, supervisions: torch.Tensor) -> 'k2.DenseFsaVec':
-        """TBD
+        """Overrides super()._prepare_emissions_graphs.
+        Creates DenseFsaVec, adding <epsilon> outputs to the end of the D dimension.
+
+        If pruning is used, this method also pads the DenseFsaVec with <epsilon> frames 
+        according to the <epsilon> steps, calculated before.
+
+        <epsilon> frame is a frame with <epsilon> log-probability zero and every other log-probability is -inf.
         """
         if self.__step_indices is None or self.__supervisions_add is None:
             log_probs_eps = torch.cat(
@@ -189,10 +215,10 @@ class RnntK2Mixin(CtcK2Mixin):
             mask[self.__step_indices] = True
             log_probs_eps = torch.zeros((mask.size(0), mask.size(1), log_probs.size(2) + 1), device=log_probs.device)
             log_probs_eps[mask] = torch.tensor(
-                [0] + [torch.finfo(torch.float32).min] * log_probs.size(2), device=log_probs.device
+                [torch.finfo(torch.float32).min] * log_probs.size(2) + [0], device=log_probs.device
             )
             log_probs_eps[~mask] = torch.cat(
-                (torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device), log_probs), dim=2
+                (log_probs, torch.zeros((log_probs.size(0), log_probs.size(1), 1), device=log_probs.device)), dim=2
             ).view(-1, log_probs.size(-1) + 1)
             input_lengths = supervisions[:, -1] + self.__supervisions_add[supervisions[:, 0].to(dtype=torch.long)]
             if not torch.all(input_lengths[:-1] - input_lengths[1:] >= 0):
@@ -207,32 +233,7 @@ class RnntK2Mixin(CtcK2Mixin):
             self.__supervisions_add = None
         return k2.DenseFsaVec(log_probs_eps, supervisions)
 
-    def _normalize_gradients(self, log_probs: torch.Tensor, input_lengths: torch.Tensor) -> torch.Tensor:
-        """TBD
+    def _maybe_normalize_gradients(self, log_probs: torch.Tensor, input_lengths: torch.Tensor) -> torch.Tensor:
+        """Not required for RNNT.
         """
-        return GradExpNormalize.apply(log_probs, input_lengths, "mean" if self.reduction == "mean" else "none")
-
-    def _extract_labels_and_probabilities(
-        self, shortest_path_fsas: 'k2.Fsa', return_ilabels: bool = False, output_aligned: bool = True
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        """TBD
-        """
-        shortest_paths = []
-        probs = []
-        # direct iterating does not work as expected
-        for i in range(shortest_path_fsas.shape[0]):
-            shortest_path_fsa = shortest_path_fsas[i]
-            non_eps_mask = shortest_path_fsa.labels > 0
-            labels = (
-                shortest_path_fsa.labels[non_eps_mask] - 1
-                if return_ilabels
-                else shortest_path_fsa.aux_labels[non_eps_mask]
-            ).to(dtype=torch.long)
-            if self.blank != 0:
-                # suppose self.blank == self.num_classes - 1
-                labels = torch.where(labels == 0, self.blank, labels - 1)
-            if not return_ilabels and not output_aligned:
-                labels = labels[labels != self.blank]
-            shortest_paths.append(labels)
-            probs.append(get_arc_weights(shortest_path_fsa)[non_eps_mask].exp().to(device=shortest_path_fsas.device))
-        return shortest_paths, probs
+        return log_probs

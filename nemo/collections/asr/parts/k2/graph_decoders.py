@@ -27,7 +27,9 @@ from nemo.utils import logging
 class BaseDecoder(object):
     """Base graph decoder with topology for decoding graph.
     Typically uses the same parameters as for the corresponding loss function.
-    
+
+    Can do decoding and forced alignment.
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -107,8 +109,6 @@ class BaseDecoder(object):
                 else self.decoding_graph
             )
             lats = k2.intersect_dense(dec_graphs, emissions_graphs, self.intersect_conf.output_beam)
-        if self.pad_fsavec:
-            shift_labels_inpl([lats], -1)
         self.decoding_graph = None
 
         order = supervisions[:, 0]
@@ -167,7 +167,14 @@ class BaseDecoder(object):
 
 
 class CtcDecoder(BaseDecoder, CtcK2Mixin):
-    """TBD
+    """Regular CTC graph decoder with custom topologies.
+    Available topologies:
+        -   `default`, with or without self-loops
+        -   `compact`, with or without self-loops
+        -   `shared_blank`, with or without self-loops
+        -   `minimal`, without self-loops
+
+    Can do decoding and forced alignment.
     """
 
     def __init__(
@@ -187,13 +194,18 @@ class CtcDecoder(BaseDecoder, CtcK2Mixin):
         from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler
 
         self.graph_compiler = CtcTopologyCompiler(
-            self.num_classes, self.topo_type, self.topo_with_self_loops, self.device
+            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, self.device
         )
         self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(self.device)
 
 
 class RnntAligner(BaseDecoder, RnntK2Mixin):
-    """TBD
+    """RNNT graph decoder with the `minimal` topology.
+    If predictor_window_size is not provided, this decoder works as a Viterbi over regular RNNT lattice.
+    With predictor_window_size provided, it applies uniform pruning when compiling Emission FSAs
+    to reduce memory and compute consumption.
+
+    Can only do forced alignment.
     """
 
     def __init__(
@@ -224,6 +236,7 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
 
         self.graph_compiler = RnntTopologyCompiler(
             self.num_classes,
+            self.blank,
             self.topo_type,
             self.topo_with_self_loops,
             self.device,
@@ -266,7 +279,14 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
 
 class TokenLMDecoder(BaseDecoder):
     """Graph decoder with token_lm-based decoding graph.
-    
+    Available topologies:
+        -   `default`, with or without self-loops
+        -   `compact`, with or without self-loops
+        -   `shared_blank`, with or without self-loops
+        -   `minimal`, without self-loops
+
+    Can do decoding and forced alignment.
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -312,9 +332,7 @@ class TokenLMDecoder(BaseDecoder):
         labels = token_lm.labels
         if labels.max() != self.num_classes - 1:
             raise ValueError(f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
-        if self.pad_fsavec:
-            shift_labels_inpl([token_lm], 1)
         self.graph_compiler = CtcNumGraphCompiler(
-            self.num_classes, self.topo_type, self.topo_with_self_loops, self.device, token_lm
+            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, self.device, token_lm
         )
         self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(self.device)
