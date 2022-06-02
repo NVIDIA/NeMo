@@ -114,9 +114,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
 
-        # for export
-        self.decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
-
     def setup_optim_normalization(self):
         """
         Helper method to setup normalization of certain parts of the model prior to the optimization step.
@@ -923,6 +920,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     # EncDecRNNTModel is exported in 2 parts
     def list_export_subnets(self):
         return ['encoder', 'decoder_joint']
+
+    # for export
+    @property
+    def decoder_joint(self):
+        return RNNTDecoderJoint(self.decoder, self.joint)
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

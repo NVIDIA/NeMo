@@ -93,8 +93,8 @@ class TestWaveGlow:
             WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
                 tmp_file_name,
-                verbose=False,
                 input_example=inp,
+                verbose=False,
                 try_script=False,
                 check_trace=False,
                 do_constant_folding=True,

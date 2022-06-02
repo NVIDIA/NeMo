@@ -23,6 +23,7 @@ from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
 from nemo.utils import logging
 from nemo.utils.export_utils import (
     ExportFormat,
+    augment_filename,
     get_export_format,
     parse_input_example,
     replace_for_export,
@@ -47,7 +48,22 @@ class Exportable(ABC):
     def output_module(self):
         return self
 
-    def export(
+    def export(self, output, input_example=None, **kwargs):
+        all_out = []
+        all_descr = []
+        for subnet_name in self.list_export_subnets():
+            model = self.get_export_subnet(subnet_name)
+            out_name = augment_filename(output, subnet_name)
+            out, descr, out_example = model._export(out_name, input_example=input_example, **kwargs)
+            # Propagate input example (default scenario, may need to be overriden)
+            if input_example is not None:
+                input_example = out_example
+            all_out.append(out)
+            all_descr.append(descr)
+            logging.info("Successfully exported {} to {}".format(model.__class__.__name__, out_name))
+        return (all_out, all_descr)
+
+    def _export(
         self,
         output: str,
         input_example=None,
@@ -105,6 +121,7 @@ class Exportable(ABC):
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names
                 output_names = self.output_names
+                print(input_list, input_dict)
                 output_example = tuple(self.forward(*input_list, **input_dict))
 
                 jitted_model = None
@@ -112,7 +129,7 @@ class Exportable(ABC):
                     try:
                         jitted_model = torch.jit.script(self)
                     except Exception as e:
-                        logging.error(f"jit.script() failed!\{e}")
+                        logging.error(f"jit.script() failed! {e}")
 
                 if format == ExportFormat.TORCHSCRIPT:
                     if jitted_model is None:
@@ -161,7 +178,7 @@ class Exportable(ABC):
             if forward_method:
                 type(self).forward = old_forward_method
             self._export_teardown()
-        return ([output], [output_descr])
+        return (output, output_descr, output_example)
 
     @property
     def disabled_deployment_input_names(self):

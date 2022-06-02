@@ -34,10 +34,9 @@ import torch
 from pytorch_lightning import Trainer
 
 from nemo.core import ModelPT
-from nemo.core.classes import Exportable, typecheck
+from nemo.core.classes import Exportable
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
-from nemo.utils.export_utils import forward_method, parse_input_example, verify_runtime
 
 try:
     from contextlib import nullcontext
@@ -104,7 +103,7 @@ def nemo_export(argv):
     try:
         with torch.inference_mode():
             # Restore instance from .nemo file using generic model restore_from
-            topmodel = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
+            model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
     except Exception as e:
         logging.error(
             "Failed to restore model from NeMo file : {}. Please make sure you have the latest NeMo package installed with [all] dependencies.".format(
@@ -113,10 +112,10 @@ def nemo_export(argv):
         )
         raise e
 
-    logging.info("Model {} restored from '{}'".format(topmodel.__class__.__name__, nemo_in))
+    logging.info("Model {} restored from '{}'".format(model.__class__.__name__, nemo_in))
 
-    if not isinstance(topmodel, Exportable):
-        logging.error("Your NeMo model class ({}) is not Exportable.".format(topmodel.__class__.__name__))
+    if not isinstance(model, Exportable):
+        logging.error("Your NeMo model class ({}) is not Exportable.".format(model.__class__.__name__))
         sys.exit(1)
 
     #
@@ -129,43 +128,26 @@ def nemo_export(argv):
         in_args["max_dim"] = args.max_dim
 
     autocast = nullcontext
-    topmodel = topmodel.to(device=args.device)
-    topmodel.freeze()
+    model.to(device=args.device).freeze()
     if args.autocast:
         autocast = torch.cuda.amp.autocast
-
-    for subnet_name in topmodel.list_export_subnets():
-        model = topmodel.get_export_subnet(subnet_name)
-        try:
-            with autocast(), torch.inference_mode():
-                typecheck.set_typecheck_enabled(enabled=False)
-                input_example = model.input_module.input_example(**in_args)
-                logging.info(f"Getting output example")
-                input_list, input_dict = parse_input_example(input_example)
-                output_example = forward_method(model)(*input_list, **input_dict)
-                logging.info(f"Exporting model with autocast={args.autocast}")
-                input_names = model.input_names
-                output_names = model.output_names
-                out_name = augment_filename(out, subnet_name)
-                _, descriptions = model.export(
-                    out_name,
-                    check_trace=False,
-                    input_example=input_example,
-                    onnx_opset_version=args.onnx_opset,
-                    verbose=args.verbose,
-                )
-                logging.info("Successfully exported to {}".format(out_name))
-
-        except Exception as e:
-            logging.error(
-                "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
-                    model.__class__
-                )
+    try:
+        with autocast(), torch.inference_mode():
+            _, descriptions = model.export_all(
+                out,
+                check_trace=args.runtime_check,
+                input_example=input_example,
+                onnx_opset_version=args.onnx_opset,
+                verbose=args.verbose,
             )
-            raise e
 
-        if args.runtime_check:
-            verify_runtime(out_name, input_list, input_dict, input_names, output_names, output_example)
+    except Exception as e:
+        logging.error(
+            "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
+                model.__class__
+            )
+        )
+        raise e
 
 
 if __name__ == '__main__':
