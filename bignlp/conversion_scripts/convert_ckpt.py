@@ -140,8 +140,12 @@ if __name__ == "__main__":
             with open(hparams_override_file, "w") as f:
                 OmegaConf.save(config=conf, f=f)
 
+        wait_time = 0
         while not os.path.exists(hparams_override_file):
             time.sleep(1)
+            wait_time += 1
+            if wait_time > 60:
+                raise TimeoutError('Timeout waiting for config file to be created.')
 
     code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
     args = (
