@@ -26,7 +26,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import parallel_state
     from apex.transformer.enums import AttnMaskType, ModelType
     from apex.normalization import MixedFusedRMSNorm
 
@@ -129,16 +128,8 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.hidden_steps >= 1
 
-        if kv_channels is None:
-
-            assert (
-                hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
-            kv_channels = hidden_size // num_attention_heads
-
-        if parallel_state.is_pipeline_first_stage():
-            self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
-            self.init_cross_att = self._build_cross_attn_layer()
+        self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
+        self.init_cross_att = self._build_cross_attn_layer()
 
         self.cross_attn_layers = torch.nn.ModuleList([self._build_cross_attn_layer() for _ in range(self.num_layers)])
         self.self_attn_layers = torch.nn.ModuleList(
