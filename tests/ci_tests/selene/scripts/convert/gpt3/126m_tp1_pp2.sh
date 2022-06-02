@@ -21,5 +21,6 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     conversion.run.model_train_name=gpt3_126m_tp1_pp2 \
     conversion.run.train_dir=${BASE_RESULTS_DIR}/train_gpt3_126m_tp1_pp2_2node_100steps \
     conversion.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
+    conversion.run.output_path=${BASE_RESULTS_DIR}/${RUN_NAME} \
     conversion.model.tensor_model_parallel_size=1 \
     conversion.model.pipeline_model_parallel_size=2
