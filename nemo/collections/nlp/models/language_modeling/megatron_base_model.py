@@ -47,7 +47,7 @@ class MegatronBaseModel(NLPModel):
        Otherwise, it uses the parameters calculated in the `setup_optimizer_param_groups` method.
     """
 
-    def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=False):
+    def __init__(self, cfg: DictConfig, trainer: Trainer, no_lm_init=True):
         # FIXME: switch to self._cfg
         if not HAVE_APEX:
             raise ImportError(
@@ -82,7 +82,9 @@ class MegatronBaseModel(NLPModel):
 
         self.grad_clip_pl_default = False  # use pytorch default for gradient clipping. Default False
 
-        if hasattr(self._cfg, "tokenizer"):
+        if hasattr(self._cfg, "tokenizer") or (
+            hasattr(self._cfg, "encoder_tokenizer") and hasattr(self._cfg, "decoder_tokenizer")
+        ):
             # build tokenizer (defaults to nemo supported tokenizers)
             self._build_tokenizer()
 
