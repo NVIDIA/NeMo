@@ -733,7 +733,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         processed_signal_length=None,
         cache_last_channel=None,
         cache_last_time=None,
-        valid_out_len=None,
+        keep_all_outputs=True,
         previous_hypotheses=None,
         previous_pred_out=None,
         drop_extra_pre_encoded=None,
@@ -748,7 +748,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             processed_signal_length=processed_signal_length,
             cache_last_channel=cache_last_channel,
             cache_last_time=cache_last_time,
-            valid_out_len=valid_out_len,
+            keep_all_outputs=keep_all_outputs,
             drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
 

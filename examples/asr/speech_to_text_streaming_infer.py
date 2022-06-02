@@ -49,6 +49,7 @@ import contextlib
 import json
 import time
 from argparse import ArgumentParser
+import os
 
 import torch
 from omegaconf import open_dict
@@ -109,6 +110,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with autocast():
+            # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
+            # otherwise the last outputs would get dropped
             with torch.no_grad():
                 (
                     pred_out_stream,
@@ -119,9 +122,9 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                 ) = asr_model.stream_step(
                     processed_signal=chunk_audio,
                     processed_signal_length=chunk_lengths,
-                    valid_out_len=streaming_buffer.get_valid_out_len(),
                     cache_last_channel=cache_last_channel,
                     cache_last_time=cache_last_time,
+                    keep_all_outputs=streaming_buffer.is_buffer_empty(),
                     previous_hypotheses=previous_hypotheses,
                     previous_pred_out=pred_out_stream,
                     drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
@@ -260,7 +263,7 @@ def main():
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample['audio_filepath'], stream_id=-1
+                os.path.join("/drive3/datasets/eval2", sample['audio_filepath']), stream_id=-1
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])

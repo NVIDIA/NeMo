@@ -50,7 +50,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
         for l in mfst_f:
             asr.reset()
             row = json.loads(l.strip())
-            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
+            asr.read_audio_file(os.path.join("/drive3/datasets/eval3/", row['audio_filepath']), delay, model_stride_in_secs)
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)
             refs.append(row['text'])
@@ -129,7 +129,7 @@ def main():
         model_stride_in_secs,
         asr_model.device,
     )
-    logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
+    logging.info(f"WER is {round(wer, 4)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
 
     if args.output_path is not None:
 

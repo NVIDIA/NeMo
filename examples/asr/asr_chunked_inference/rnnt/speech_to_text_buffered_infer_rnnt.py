@@ -128,7 +128,7 @@ def get_wer_feat(mfst, asr, tokens_per_chunk, delay, model_stride_in_secs, batch
         print("Parsing manifest files...")
         for l in mfst_f:
             row = json.loads(l.strip())
-            audio_filepaths.append(row['audio_filepath'])
+            audio_filepaths.append(os.path.join("/drive3/datasets/eval3/", row['audio_filepath']))
             refs.append(row['text'])
 
     with torch.inference_mode():

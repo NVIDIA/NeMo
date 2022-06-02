@@ -398,6 +398,7 @@ class BeamRNNTInfer(Typing):
             score=0.0, y_sequence=[self.blank], dec_state=dec_state, timestep=[-1], length=encoded_lengths
         )
 
+        # TODO: fix here to support last_token
         if partial_hypotheses is not None:
             if len(partial_hypotheses.y_sequence) > 0:
                 hyp.y_sequence = [int(partial_hypotheses.y_sequence[-1].cpu().numpy())]

@@ -40,7 +40,7 @@ class StreamingEncoder(ABC):
         processed_signal_length=None,
         cache_last_channel=None,
         cache_last_time=None,
-        valid_out_len=None,
+        keep_all_outputs=True,
         drop_extra_pre_encoded=None,
     ):
         if self.streaming_cfg is None:
@@ -69,9 +69,9 @@ class StreamingEncoder(ABC):
 
         if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel_next = cache_last_channel_next[:, :, -self.streaming_cfg.last_channel_cache_size :, :]
-        if valid_out_len is not None:
-            encoded = encoded[:, :, :valid_out_len]
-            encoded_len = torch.clamp(encoded_len, max=valid_out_len)
+        if not keep_all_outputs:
+            encoded = encoded[:, :, :self.streaming_cfg.valid_out_len]
+            encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
 
         if prev_drop_extra_pre_encoded is not None:
             self.streaming_cfg.drop_extra_pre_encoded = prev_drop_extra_pre_encoded
