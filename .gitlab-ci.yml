@@ -94,10 +94,10 @@ build-BigNLP:
     - chmod 777 ./* -R
     - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
     - touch "${SLURM_OUTPUT}"
-    - echo -e " ---------------------------------------------------\n"
+    - \[ ! -z ${SLURM_JOBID} \] && echo -e " --------------------------------------------------\n"
                 "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
                 "---------------------------------------------------\n"
-                "$([ ! -z ${SLURM_JOBID}] && scontrol show job=${SLURM_JOBID})\n"
+                "$(scontrol show job=${SLURM_JOBID})\n"
                 "---------------------------------------------------\n"
     # Gitlab logs collapsible section markers
     - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
