@@ -107,8 +107,8 @@ build-BigNLP:
     - cd ${GIT_CLONE_PATH}
 
     # Permission change
-    - chmod -R 774 ${GIT_CLONE_PATH}/*
-    - chmod -R 774 ${BASE_RESULTS_DIR}/*
+    - chmod -R 777 ${GIT_CLONE_PATH}/*
+    - chmod -R 777 ${BASE_RESULTS_DIR}/*
 
 #    # Run Pytest
 #    - pip3 install pytest
@@ -116,7 +116,7 @@ build-BigNLP:
 #    - echo "Finished pytest job"
 
     # Run metrics collection
-    - python3 tests/ci_tests/utils/covert_ci_metric_to_json.py tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
+    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
 
   allow_failure: false
 
