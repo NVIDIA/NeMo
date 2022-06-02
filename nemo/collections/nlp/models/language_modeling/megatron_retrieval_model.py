@@ -127,6 +127,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
             activation=self.cfg.get('activation', 'gelu'),
             bias=self.cfg.get('bias', True),
             normalization=self.cfg.get('normalization', 'layernorm'),
+            headscale=self.cfg.get('headscale', False),
             transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
