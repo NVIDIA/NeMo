@@ -26,6 +26,7 @@ test:unit_tests:
     - when: always
 
 before_script:
+  - umask 0007
   - export DOCKERFILE=./Dockerfile
   - if [[ -z ${BASE_IMAGE} ]]; then
       export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
@@ -79,11 +80,13 @@ build-BigNLP:
   stage: test
   script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
     - chmod 774 ./* -R
+    - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
+    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
-    - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
+    - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
@@ -108,7 +111,7 @@ build-BigNLP:
 
     # Run Pytest
     - pip3 install pytest
-    - pytest tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
+    - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
     - echo "Finished pytest job"
   allow_failure: false
 
@@ -116,7 +119,9 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp1_pp1_1node_100steps
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1_1node_100steps
   rules:
     - when: always
   needs:
@@ -126,7 +131,9 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp2_pp1_1node_100steps
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp1_1node_100steps
   rules:
     - when: always
   needs:
@@ -136,7 +143,9 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp1_pp2_2node_100steps
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp2_2node_100steps
   rules:
     - when: always
   needs:
@@ -146,7 +155,9 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp2_2node_100steps
   rules:
     - when: always
   needs:
@@ -157,7 +168,9 @@ eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp1_pp1_lambada
+    RUN_TASK: eval
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1_lambada
   rules:
     - when: always
   needs:
@@ -168,7 +181,9 @@ eval.gpt3.126m_tp2_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp2_pp1_lambada
+    RUN_TASK: eval
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp1_lambada
   rules:
     - when: always
   needs:
@@ -179,7 +194,9 @@ eval.gpt3.126m_tp1_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp1_pp2_lambada
+    RUN_TASK: eval
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp2_lambada
   rules:
     - when: always
   needs:
@@ -190,7 +207,61 @@ eval.gpt3.126m_tp2_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp2_pp2_lambada
+    RUN_TASK: eval
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp2_lambada
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp2_pp2_2node_100steps
+
+
+convert.gpt3.126m_tp1_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp1_pp1_1node_100steps
+
+
+convert.gpt3.126m_tp2_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp1
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp2_pp1_1node_100steps
+
+
+convert.gpt3.126m_tp1_pp2:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp2
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp1_pp2_2node_100steps
+
+
+convert.gpt3.126m_tp2_pp2:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp2
   rules:
     - when: always
   needs:
