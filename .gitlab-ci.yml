@@ -6,7 +6,7 @@ variables: &VARS
 stages:
   - build
   - test
-  - upload_results
+  - cleanup
 
 ################
 # JOB Templates
@@ -279,3 +279,15 @@ data_prep.gpt3.the_pile_download_shard0:
     - when: manual
   needs:
     - build-BigNLP
+
+
+cleanup.selene:
+  tags: *LUNA_TAGS
+  stage: cleanup
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - rm -rf $CI_BUILDS_DIR/$SLURM_ACCOUNT/big_nlp/bignlp_ci/*
+    - echo "Finished cleaning everything in Selene"
+  rules:
+    - when: manual
