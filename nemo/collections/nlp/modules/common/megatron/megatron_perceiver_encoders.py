@@ -80,7 +80,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         hidden_steps=32,
         num_self_attention_per_cross_attention=1,
-        num_init_cross_attn_layers=1
     ):
         super(MegatronPerceiverEncoderModule, self).__init__()
 
@@ -97,7 +96,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.transformer_block_type = transformer_block_type
         self.hidden_steps = hidden_steps
         self.num_self_attention_per_cross_attention = num_self_attention_per_cross_attention
-        self.num_init_cross_attn_layers = num_init_cross_attn_layers
         self.num_attention_heads = num_attention_heads
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
         self.kv_channels = kv_channels
@@ -127,7 +125,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.transformer_block_type = transformer_block_type
 
         assert self.num_self_attention_per_cross_attention >= 1
-        assert self.num_init_cross_attn_layers >= 1
         assert self.hidden_steps >= 1
 
         if kv_channels is None:

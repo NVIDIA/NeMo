@@ -81,7 +81,6 @@ def get_encoder_model(
     layer_type=None,
     chunk_size=64,
     num_self_attention_per_cross_attention=1,
-    num_init_cross_attn_layers=1
     layer_number_offset=0,  # this is use only for attention norm_factor scaling
 ):
     """Build language model and return along with the key to save."""
@@ -209,7 +208,6 @@ def get_encoder_model(
             parent_model_type=parent_model_type,
             hidden_steps=hidden_steps,
             num_self_attention_per_cross_attention=num_self_attention_per_cross_attention,
-            num_init_cross_attn_layers=num_init_cross_attn_layers,
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")

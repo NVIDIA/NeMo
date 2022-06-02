@@ -159,7 +159,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             headscale=self.cfg.get('headscale', False),
             hidden_steps=self.cfg.get('hidden_steps', -1),
             num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
-            num_init_cross_attn_layers=self.cfg.get('num_init_cross_attn_layers', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
         )
