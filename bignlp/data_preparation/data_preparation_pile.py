@@ -142,9 +142,10 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}download",
             )
-            job_id_1 = subprocess.check_output(
-                [f"sbatch --parsable {download_script_path}"], shell=True
-            )
+            if cfg.get("ci_test"):
+                job_id_1 = subprocess.check_output([f'sbatch {download_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+            else:
+                job_id_1 = subprocess.check_output([f"sbatch --parsable {download_script_path}"], shell=True)
             dependency = job_id_1.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
@@ -168,9 +169,10 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}extract",
             )
-            job_id_2 = subprocess.check_output(
-                [f"sbatch --parsable {extract_script_path}"], shell=True
-            )
+            if cfg.get("ci_test"):
+                job_id_2 = subprocess.check_output([f'sbatch {extract_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+            else:
+                job_id_2 = subprocess.check_output([f"sbatch --parsable {extract_script_path}"], shell=True)
             dependency = job_id_2.decode("utf-8")
             print(f"Submitted Extract script with job id: {dependency}")
 
@@ -196,9 +198,10 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}preprocess",
             )
-            job_id_3 = subprocess.check_output(
-                [f"sbatch --parsable {preprocess_script_path}"], shell=True
-            )
+            if cfg.get("ci_test"):
+                job_id_3 = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+            else:
+                job_id_3 = subprocess.check_output([f"sbatch --parsable {preprocess_script_path}"], shell=True)
             dependency = job_id_3.decode("utf-8")
             print(f"Submitted Preprocessing script with job id: {dependency}")
         return dependency
