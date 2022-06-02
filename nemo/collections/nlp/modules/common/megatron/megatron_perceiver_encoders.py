@@ -14,7 +14,9 @@
 
 """Transformer based language model."""
 import torch
+
 from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -22,12 +24,12 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     attn_mask_postprocess,
     build_attention_mask_3d,
 )
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 
 try:
     from apex.transformer import parallel_state
     from apex.transformer.enums import AttnMaskType, ModelType
     from apex.normalization import MixedFusedRMSNorm
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -139,7 +141,12 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             self.init_cross_att = self._build_cross_attn_layer()
 
         self.cross_attn_layers = torch.nn.ModuleList([self._build_cross_attn_layer() for _ in range(self.num_layers)])
-        self.self_attn_layers = torch.nn.ModuleList([self._build_self_attn_layer() for _ in range(self.num_layers * self.num_self_attention_per_cross_attention)])
+        self.self_attn_layers = torch.nn.ModuleList(
+            [
+                self._build_self_attn_layer()
+                for _ in range(self.num_layers * self.num_self_attention_per_cross_attention)
+            ]
+        )
         if normalization == 'layernorm':
             self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
         else:
@@ -158,7 +165,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             ffn_hidden_size=self.ffn_hidden_size,
             self_attn_mask_type=self.model_attn_mask_type,
             pre_process=self.pre_process,
-            post_process=False, # This is to avoid the final layernorm and transpose.
+            post_process=False,  # This is to avoid the final layernorm and transpose.
             precision=self.precision,
             fp32_residual_connection=self.fp32_residual_connection,
             activations_checkpoint_method=self.activations_checkpoint_method,
@@ -197,7 +204,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             ffn_hidden_size=self.ffn_hidden_size,
             self_attn_mask_type=self.model_attn_mask_type,
             pre_process=self.pre_process,
-            post_process=False, # This is to avoid the final layernorm and transpose.
+            post_process=False,  # This is to avoid the final layernorm and transpose.
             precision=self.precision,
             fp32_residual_connection=self.fp32_residual_connection,
             activations_checkpoint_method=self.activations_checkpoint_method,
@@ -223,7 +230,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             headscale=self.headscale,
         )
 
-
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         # TODO: Fix this.
@@ -234,17 +240,23 @@ class MegatronPerceiverEncoderModule(MegatronModule):
     ):
         # convert to Megatron mask
         latent_attention_mask = torch.ones(enc_input.size(0), self.hidden_steps).to(enc_input.device)
-        
+
         # First convert from 2D (B x T) to 3D (B x T x T)
         # Next convert to 4D (B x 1 x T x T) - unsqueeze(1) is for the head dim.
-        latent_attention_mask_4d = attn_mask_postprocess(build_attention_mask_3d(
-            source_mask=latent_attention_mask, target_mask=latent_attention_mask, attn_mask_type=AttnMaskType.padding
-        ))
-        enc_dec_attn_mask_4d = attn_mask_postprocess(build_attention_mask_3d(
-            source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
-        ))
+        latent_attention_mask_4d = attn_mask_postprocess(
+            build_attention_mask_3d(
+                source_mask=latent_attention_mask,
+                target_mask=latent_attention_mask,
+                attn_mask_type=AttnMaskType.padding,
+            )
+        )
+        enc_dec_attn_mask_4d = attn_mask_postprocess(
+            build_attention_mask_3d(
+                source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+            )
+        )
 
-        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1) # sequence x batch x dim
+        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1)  # sequence x batch x dim
         for i in range(self.num_layers):
             residual = hidden_states
 
@@ -253,13 +265,16 @@ class MegatronPerceiverEncoderModule(MegatronModule):
                 attention_mask=latent_attention_mask_4d,
                 enc_dec_attn_mask=enc_dec_attn_mask_4d,
                 encoder_output=enc_input,
-            ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
+            ).transpose(
+                1, 0
+            )  # Need to transpose at the end becase pre-process is False
             for j in range(self.num_self_attention_per_cross_attention):
                 hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
-                    hidden_states=hidden_states,
-                    attention_mask=latent_attention_mask_4d,
-                ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
+                    hidden_states=hidden_states, attention_mask=latent_attention_mask_4d,
+                ).transpose(
+                    1, 0
+                )  # Need to transpose at the end becase pre-process is False
 
             hidden_states += residual
 
-        return self.final_layernorm(hidden_states) # Need to transpose at the end becase pre-process is False
+        return self.final_layernorm(hidden_states)  # Need to transpose at the end becase pre-process is False

@@ -14,9 +14,10 @@
 
 """Transformer based language model."""
 import torch
+
+from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
 
 try:
     from apex.transformer.enums import AttnMaskType
@@ -50,7 +51,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         self.decoder = decoder
         self.hidden_steps = hidden_steps
         if isinstance(encoder, MegatronPerceiverEncoderModule) and hidden_steps is None:
-            raise ValueError(f"hidden_steps cannot be None for perceiver encoders. It is needed to compute the encoder-decoder cross attention mask.")
+            raise ValueError(
+                f"hidden_steps cannot be None for perceiver encoders. It is needed to compute the encoder-decoder cross attention mask."
+            )
 
         # try to infer mask_type if not given
         if encoder_attn_mask_type is None:
