@@ -22,12 +22,8 @@ import torch
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import (
-    AudioSignal,
-    EncodedRepresentation,
-    LengthsType,
-    NeuralType,
-)
+from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
+
 
 def get_scale_mapping_list(uniq_timestamps):
     """
@@ -63,11 +59,13 @@ def get_scale_mapping_list(uniq_timestamps):
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
+
 def string_to_float(x, round_digits):
     """
     Convert string to float then round the number.
     """
     return round(float(x), round_digits)
+
 
 def convert_rttm_line(rttm_line, round_digits=2):
     """
@@ -87,11 +85,12 @@ def convert_rttm_line(rttm_line, round_digits=2):
         speaker (str):
             speaker string in RTTM lines.
     """
-    rttm  = rttm_line.strip().split()
+    rttm = rttm_line.strip().split()
     start = string_to_float(rttm[3], round_digits)
     end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
     speaker = rttm[7]
     return start, end, speaker
+
 
 def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
     """
@@ -119,7 +118,7 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
                 bi_ch_infer_spks.append(inv_map[spk_str])
-    
+
     for rttm_line in rttm_lines:
         start, end, speaker = convert_rttm_line(rttm_line, self.round_digits)
         if target_spks is None or speaker in bi_ch_infer_spks:
@@ -214,6 +213,7 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
+
 
 class _AudioDiarTrainDataset(Dataset):
     """
@@ -913,4 +913,3 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
-
