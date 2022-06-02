@@ -166,7 +166,7 @@ class ClassifyFst(GraphFst):
             date_final = pynini.compose(date_graph, v_date_graph)
             ordinal_final = pynini.compose(ordinal_graph, v_ordinal_graph.fst)
             range_graph = RangeFst(
-                time=time_final, date=date_final, cardinal=cardinal, ordinal=ordinal_final, deterministic=deterministic
+                time=time_final, date=date_final, cardinal=cardinal, deterministic=deterministic
             ).fst
             logging.debug(f"range: {time.time() - start_time: .2f}s -- {range_graph.num_states()} nodes")
 

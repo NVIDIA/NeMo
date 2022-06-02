@@ -156,7 +156,7 @@ class ClassifyFst(GraphFst):
             date_final = pynini.compose(date_graph, det_v_date_graph)
             ordinal_final = pynini.compose(ordinal_graph, v_ordinal_graph)
             range_graph = RangeFst(
-                time=time_final, date=date_final, ordinal=ordinal_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
+                time=time_final, date=date_final, cardinal=CardinalFst(deterministic=True), deterministic=deterministic
             ).fst
             v_word_graph = vWord(deterministic=deterministic).fst
 

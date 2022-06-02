@@ -112,7 +112,6 @@ class ClassifyFst(GraphFst):
 
             ordinal = OrdinalFst(cardinal=cardinal, deterministic=True)
             ordinal_graph = ordinal.fst
-            serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic, lm=True).fst
 
             decimal = DecimalFst(cardinal=cardinal, deterministic=True)
             decimal_graph = decimal.fst
@@ -130,7 +129,9 @@ class ClassifyFst(GraphFst):
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
             whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
-            punct_graph = PunctuationFst(deterministic=True).graph
+            punct_graph = PunctuationFst(deterministic=True).graph            
+            serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic, lm=True).fst
+
 
             # VERBALIZERS
             cardinal = vCardinal(deterministic=True)
@@ -156,7 +157,6 @@ class ClassifyFst(GraphFst):
 
 
             time_final = pynini.compose(time_graph, v_time_graph)
-            date_final = pynini.compose(date_graph, v_date_graph)
             ordinal_final = pynini.compose(ordinal_graph, v_ordinal_graph)
             sem_w = 1
             word_w = 100
@@ -181,8 +181,9 @@ class ClassifyFst(GraphFst):
             # the weight matches the word_graph weight for "I" cases in long sentences with multiple semiotic tokens
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(roman_graph, v_roman_graph), sem_w)
 
+            date_final = pynini.compose(date_graph, v_date_graph)
             range_graph = RangeFst(
-                time=time_final, cardinal=cardinal_tagger, ordinal=ordinal_final, date=date_final, deterministic=deterministic
+                time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
             ).fst
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_word_graph), sem_w)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")

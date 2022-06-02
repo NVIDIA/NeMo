@@ -32,7 +32,6 @@ class RangeFst(GraphFst):
         time: composed tagger and verbalizer
         date: composed tagger and verbalizer
         cardinal: tagger
-        ordinal: composed tagger and verbalizer
         deterministic: if True will provide a single transduction option,
         for False multiple transduction are generated (used for audio-based normalization)
         lm: whether to use for hybrid LM
@@ -43,7 +42,6 @@ class RangeFst(GraphFst):
         time: GraphFst,
         date: GraphFst,
         cardinal: GraphFst,
-        ordinal: GraphFst,
         deterministic: bool = True,
         lm: bool = False,
     ):
@@ -70,30 +68,8 @@ class RangeFst(GraphFst):
         )
         mid_year_graph = pynini.accep("mid") + pynini.cross("-", " ") + (date_year_four_digit | date_year_two_digit)
 
-        self.graph |= year_to_year_graph | mid_year_graph
-
-        # Date
-        # 27 July - 26 July, 2003
-        # 27-23 July, 2003
-        # 10/12/2000-11/12/2000
-        date_wo_year = (
-            pynini.project(date, "input") - (NEMO_DIGIT ** (2, 4) + pynini.closure(pynini.union("s", " s"), 0, 1))
-        ) @ date
-        date_graph = date_wo_year + delete_space + pynini.cross("-", " to ") + delete_space + date_wo_year
-        date_graph |= (
-            (
-                pynini.cdrewrite(
-                    NEMO_DIGIT ** (1, 2) + pynutil.insert(pynini.union("th", "nd", "st", "rd")), "", "", NEMO_SIGMA
-                )
-                @ ordinal
-            )
-            + delete_space
-            + pynini.cross("-", " to ")
-            + delete_space
-            + date_wo_year
-        )
-
-        self.graph |= date_graph
+        self.graph |= year_to_year_graph 
+        self.graph |= mid_year_graph
 
         # ADDITION
         range_graph = cardinal + pynini.closure(pynini.cross("+", " plus ") + cardinal, 1)
