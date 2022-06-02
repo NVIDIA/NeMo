@@ -83,8 +83,8 @@ build-BigNLP:
     - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
-    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - export RUN_NAME_REPLACE=${RUN_NAME//\//\_}
+    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME_REPLACE}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_NAME}.sh
     # Wait for job to launch
