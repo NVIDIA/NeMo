@@ -118,7 +118,7 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_gpt3_126m_tp1_pp1_1node_100steps
   rules:
-    - when: always
+    - when: never
   needs:
     - build-BigNLP
 
