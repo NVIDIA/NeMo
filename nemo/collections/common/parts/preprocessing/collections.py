@@ -711,8 +711,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         """Parse each rttm file and save it to in Dict format"""
         item = json.loads(line)
-
-        # Audio file
         if 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
         elif 'audio_filepath' in item:
@@ -722,12 +720,10 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 f"Manifest file has invalid json line " f"structure: {line} without proper audio file key."
             )
         item['audio_file'] = os.path.expanduser(item['audio_file'])
-        item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0] 
-
-        # Duration.
+        item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0]
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
-        
+
         item = dict(
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
@@ -735,5 +731,4 @@ class DiarizationSpeechLabel(DiarizationLabel):
             rttm_filepath=item['rttm_filepath'],
             offset=item.get('offset', None),
         )
-
         return item
