@@ -23,7 +23,7 @@ test:unit_tests:
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
     - pytest tests/unit_tests
   rules:
-    - when: manual
+    - when: never
 
 before_script:
   - export DOCKERFILE=./Dockerfile
@@ -128,7 +128,7 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_gpt3_126m_tp2_pp1_1node_100steps
   rules:
-    - when: manual
+    - when: never
   needs:
     - build-BigNLP
 
@@ -138,7 +138,7 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_gpt3_126m_tp1_pp2_2node_100steps
   rules:
-    - when: manual
+    - when: never
   needs:
     - build-BigNLP
 
@@ -148,7 +148,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps
   rules:
-    - when: manual
+    - when: never
   needs:
     - build-BigNLP
 
@@ -169,7 +169,7 @@ eval.gpt3.126m_tp1_pp1_lambada:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: eval_gpt3_126m_tp1_pp1_lambada
   rules:
-    - when: manual
+    - when: never
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
@@ -180,7 +180,7 @@ eval.gpt3.126m_tp2_pp1_lambada:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: eval_gpt3_126m_tp2_pp1_lambada
   rules:
-    - when: manual
+    - when: never
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
@@ -191,7 +191,7 @@ eval.gpt3.126m_tp1_pp2_lambada:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: eval_gpt3_126m_tp1_pp2_lambada
   rules:
-    - when: manual
+    - when: never
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
@@ -202,6 +202,6 @@ eval.gpt3.126m_tp2_pp2_lambada:
     <<: [*VARS, *LUNA_VARS]
     RUN_NAME: eval_gpt3_126m_tp2_pp2_lambada
   rules:
-    - when: manual
+    - when: never
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
