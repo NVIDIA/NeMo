@@ -117,7 +117,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder_arch == 'perceiver':
+            raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,

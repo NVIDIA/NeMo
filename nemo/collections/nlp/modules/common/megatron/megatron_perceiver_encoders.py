@@ -14,7 +14,7 @@
 
 """Transformer based language model."""
 import torch
-import copy
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -27,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 try:
     from apex.transformer import parallel_state
     from apex.transformer.enums import AttnMaskType, ModelType
+    from apex.normalization import MixedFusedRMSNorm
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -97,6 +98,33 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.hidden_steps = hidden_steps
         self.num_self_attention_per_cross_attention = num_self_attention_per_cross_attention
         self.num_init_cross_attn_layers = num_init_cross_attn_layers
+        self.num_attention_heads = num_attention_heads
+        self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
+        self.kv_channels = kv_channels
+        self.ffn_hidden_size = ffn_hidden_size
+        self.precision = precision
+        self.fp32_residual_connection = fp32_residual_connection
+        self.activations_checkpoint_method = activations_checkpoint_method
+        self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
+        self.layernorm_epsilon = layernorm_epsilon
+        self.bias_gelu_fusion = bias_gelu_fusion
+        self.bias_dropout_add_fusion = bias_dropout_add_fusion
+        self.masked_softmax_fusion = masked_softmax_fusion
+        self.persist_layer_norm = persist_layer_norm
+        self.openai_gelu = openai_gelu
+        self.onnx_safe = onnx_safe
+        self.activation = activation
+        self.bias = bias
+        self.relative_attention_num_buckets = relative_attention_num_buckets
+        self.relative_attention_max_distance = relative_attention_max_distance
+        self.headscale = headscale
+        self.hidden_dropout = hidden_dropout
+        self.attention_dropout = attention_dropout
+        self.position_embedding_type = position_embedding_type
+        self.use_cpu_initialization = use_cpu_initialization
+        self.normalization = normalization
+        self.parent_model_type = parent_model_type
+        self.transformer_block_type = transformer_block_type
 
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.num_init_cross_attn_layers >= 1
@@ -108,127 +136,96 @@ class MegatronPerceiverEncoderModule(MegatronModule):
                 hidden_size % num_attention_heads == 0
             ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
             kv_channels = hidden_size // num_attention_heads
-        
-        latent_attention_mask = torch.ones(hidden_steps, hidden_steps)
-        self.register_buffer('latent_attention_mask', latent_attention_mask)
 
         if parallel_state.is_pipeline_first_stage():
             self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
-            self.init_cross_att = ParallelTransformer(
-                layer_type=LayerType.decoder,
-                init_method=self.init_method,
-                output_layer_init_method=self.output_layer_init_method,
-                num_layers=self.num_init_cross_attn_layers,
-                hidden_size=self.hidden_size,
-                num_attention_heads=num_attention_heads,
-                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-                kv_channels=kv_channels,
-                ffn_hidden_size=ffn_hidden_size,
-                self_attn_mask_type=self.model_attn_mask_type,
-                pre_process=self.pre_process,
-                post_process=False, # This is to avoid the final layernorm and transpose.
-                precision=precision,
-                fp32_residual_connection=fp32_residual_connection,
-                activations_checkpoint_method=activations_checkpoint_method,
-                activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-                layernorm_epsilon=layernorm_epsilon,
-                hidden_dropout=hidden_dropout,
-                attention_dropout=attention_dropout,
-                position_embedding_type=position_embedding_type,
-                relative_attention_num_buckets=relative_attention_num_buckets,
-                relative_attention_max_distance=relative_attention_max_distance,
-                use_cpu_initialization=use_cpu_initialization,
-                bias_gelu_fusion=bias_gelu_fusion,
-                bias_dropout_fusion=bias_dropout_add_fusion,
-                masked_softmax_fusion=masked_softmax_fusion,
-                persist_layer_norm=persist_layer_norm,
-                openai_gelu=openai_gelu,
-                onnx_safe=onnx_safe,
-                activation=activation,
-                bias=bias,
-                normalization=normalization,
-                model_type=parent_model_type,
-                transformer_block_type=transformer_block_type,
-                headscale=headscale,
-            )
+            self.init_cross_att = self._build_cross_attn_layer()
 
-        cross_attn_layer = ParallelTransformer(
+        self.cross_attn_layers = torch.nn.ModuleList([self._build_cross_attn_layer() for _ in range(self.num_layers)])
+        self.self_attn_layers = torch.nn.ModuleList([self._build_self_attn_layer() for _ in range(self.num_layers * self.num_self_attention_per_cross_attention)])
+        if normalization == 'layernorm':
+            self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        else:
+            self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
+    def _build_cross_attn_layer(self):
+        return ParallelTransformer(
             layer_type=LayerType.decoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=1,
             hidden_size=self.hidden_size,
-            num_attention_heads=num_attention_heads,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            kv_channels=kv_channels,
-            ffn_hidden_size=ffn_hidden_size,
+            num_attention_heads=self.num_attention_heads,
+            apply_query_key_layer_scaling=self.apply_query_key_layer_scaling,
+            kv_channels=self.kv_channels,
+            ffn_hidden_size=self.ffn_hidden_size,
             self_attn_mask_type=self.model_attn_mask_type,
             pre_process=self.pre_process,
             post_process=False, # This is to avoid the final layernorm and transpose.
-            precision=precision,
-            fp32_residual_connection=fp32_residual_connection,
-            activations_checkpoint_method=activations_checkpoint_method,
-            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-            layernorm_epsilon=layernorm_epsilon,
-            hidden_dropout=hidden_dropout,
-            attention_dropout=attention_dropout,
-            position_embedding_type=position_embedding_type,
-            relative_attention_num_buckets=relative_attention_num_buckets,
-            relative_attention_max_distance=relative_attention_max_distance,
-            use_cpu_initialization=use_cpu_initialization,
-            bias_gelu_fusion=bias_gelu_fusion,
-            bias_dropout_fusion=bias_dropout_add_fusion,
-            masked_softmax_fusion=masked_softmax_fusion,
-            persist_layer_norm=persist_layer_norm,
-            openai_gelu=openai_gelu,
-            onnx_safe=onnx_safe,
-            activation=activation,
-            bias=bias,
-            normalization=normalization,
-            model_type=parent_model_type,
-            transformer_block_type=transformer_block_type,
-            headscale=headscale,
+            precision=self.precision,
+            fp32_residual_connection=self.fp32_residual_connection,
+            activations_checkpoint_method=self.activations_checkpoint_method,
+            activations_checkpoint_num_layers=self.activations_checkpoint_num_layers,
+            layernorm_epsilon=self.layernorm_epsilon,
+            hidden_dropout=self.hidden_dropout,
+            attention_dropout=self.attention_dropout,
+            position_embedding_type=self.position_embedding_type,
+            relative_attention_num_buckets=self.relative_attention_num_buckets,
+            relative_attention_max_distance=self.relative_attention_max_distance,
+            use_cpu_initialization=self.use_cpu_initialization,
+            bias_gelu_fusion=self.bias_gelu_fusion,
+            bias_dropout_fusion=self.bias_dropout_add_fusion,
+            masked_softmax_fusion=self.masked_softmax_fusion,
+            persist_layer_norm=self.persist_layer_norm,
+            openai_gelu=self.openai_gelu,
+            onnx_safe=self.onnx_safe,
+            activation=self.activation,
+            bias=self.bias,
+            normalization=self.normalization,
+            model_type=self.parent_model_type,
+            transformer_block_type=self.transformer_block_type,
+            headscale=self.headscale,
         )
-        self.cross_attn_layers = torch.nn.ModuleList([copy.deepcopy(cross_attn_layer) for _ in range(self.num_layers)])
-
-        self_attn_layer = ParallelTransformer(
+    
+    def _build_self_attn_layer(self):
+        return ParallelTransformer(
             layer_type=LayerType.encoder,
             init_method=self.init_method,
             output_layer_init_method=self.output_layer_init_method,
             num_layers=1,
             hidden_size=self.hidden_size,
-            num_attention_heads=num_attention_heads,
-            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-            kv_channels=kv_channels,
-            ffn_hidden_size=ffn_hidden_size,
+            num_attention_heads=self.num_attention_heads,
+            apply_query_key_layer_scaling=self.apply_query_key_layer_scaling,
+            kv_channels=self.kv_channels,
+            ffn_hidden_size=self.ffn_hidden_size,
             self_attn_mask_type=self.model_attn_mask_type,
             pre_process=self.pre_process,
             post_process=False, # This is to avoid the final layernorm and transpose.
-            precision=precision,
-            fp32_residual_connection=fp32_residual_connection,
-            activations_checkpoint_method=activations_checkpoint_method,
-            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
-            layernorm_epsilon=layernorm_epsilon,
-            hidden_dropout=hidden_dropout,
-            attention_dropout=attention_dropout,
-            position_embedding_type=position_embedding_type,
-            relative_attention_num_buckets=relative_attention_num_buckets,
-            relative_attention_max_distance=relative_attention_max_distance,
-            use_cpu_initialization=use_cpu_initialization,
-            bias_gelu_fusion=bias_gelu_fusion,
-            bias_dropout_fusion=bias_dropout_add_fusion,
-            masked_softmax_fusion=masked_softmax_fusion,
-            persist_layer_norm=persist_layer_norm,
-            openai_gelu=openai_gelu,
-            onnx_safe=onnx_safe,
-            activation=activation,
-            bias=bias,
-            normalization=normalization,
-            model_type=parent_model_type,
-            transformer_block_type=transformer_block_type,
-            headscale=headscale,
+            precision=self.precision,
+            fp32_residual_connection=self.fp32_residual_connection,
+            activations_checkpoint_method=self.activations_checkpoint_method,
+            activations_checkpoint_num_layers=self.activations_checkpoint_num_layers,
+            layernorm_epsilon=self.layernorm_epsilon,
+            hidden_dropout=self.hidden_dropout,
+            attention_dropout=self.attention_dropout,
+            position_embedding_type=self.position_embedding_type,
+            relative_attention_num_buckets=self.relative_attention_num_buckets,
+            relative_attention_max_distance=self.relative_attention_max_distance,
+            use_cpu_initialization=self.use_cpu_initialization,
+            bias_gelu_fusion=self.bias_gelu_fusion,
+            bias_dropout_fusion=self.bias_dropout_add_fusion,
+            masked_softmax_fusion=self.masked_softmax_fusion,
+            persist_layer_norm=self.persist_layer_norm,
+            openai_gelu=self.openai_gelu,
+            onnx_safe=self.onnx_safe,
+            activation=self.activation,
+            bias=self.bias,
+            normalization=self.normalization,
+            model_type=self.parent_model_type,
+            transformer_block_type=self.transformer_block_type,
+            headscale=self.headscale,
         )
-        self.self_attn_layers = torch.nn.ModuleList([copy.deepcopy(self_attn_layer) for _ in range(self.num_layers * self.num_self_attention_per_cross_attention)])
+
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
@@ -239,21 +236,25 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self, enc_input, enc_attn_mask, layer_past=None, get_key_value=False,
     ):
         # convert to Megatron mask
-        latent_attention_mask_3d = build_attention_mask_3d(
-            source_mask=self.latent_attention_mask, target_mask=self.latent_attention_mask, attn_mask_type=AttnMaskType.padding
-        )
-        enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=self.latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
-        )
+        latent_attention_mask = torch.ones(enc_input.size(0), self.hidden_steps).to(enc_input.device)
+        
+        # First convert from 2D (B x T) to 3D (B x T x T)
+        # Next convert to 4D (B x 1 x T x T) - unsqueeze(1) is for the head dim.
+        latent_attention_mask_4d = attn_mask_postprocess(build_attention_mask_3d(
+            source_mask=latent_attention_mask, target_mask=latent_attention_mask, attn_mask_type=AttnMaskType.padding
+        ))
+        enc_dec_attn_mask_4d = attn_mask_postprocess(build_attention_mask_3d(
+            source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+        ))
 
         if parallel_state.is_pipeline_first_stage():
-            hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1)
+            hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1) # sequence x batch x dim
             hidden_states = self.init_cross_att(
                 hidden_states=hidden_states,
-                attention_mask=latent_attention_mask_3d,
-                enc_dec_attn_mask=enc_dec_attn_mask_3d,
+                attention_mask=latent_attention_mask_4d, # Post process just unsqueezes for the head dim
+                enc_dec_attn_mask=enc_dec_attn_mask_4d, # Post process just unsqueezes for the head dim
                 encoder_output=enc_input,
-            )
+            ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
         else:
             hidden_states = enc_input
 
@@ -262,16 +263,16 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
             hidden_states = self.cross_attn_layers[i](
                 hidden_states=hidden_states,
-                attention_mask=latent_attention_mask_3d,
-                enc_dec_attn_mask=enc_dec_attn_mask_3d,
+                attention_mask=latent_attention_mask_4d,
+                enc_dec_attn_mask=enc_dec_attn_mask_4d,
                 encoder_output=enc_input,
-            )
+            ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
             for j in range(self.num_self_attention_per_cross_attention):
                 hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
                     hidden_states=hidden_states,
-                    attention_mask=latent_attention_mask_3d,
-                )
-            
+                    attention_mask=latent_attention_mask_4d,
+                ).transpose(1, 0) # Need to transpose at the end becase pre-process is False
+
             hidden_states += residual
 
-        return hidden_states
+        return self.final_layernorm(hidden_states) # Need to transpose at the end becase pre-process is False

@@ -268,7 +268,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
-        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder)
+        self.enc_dec_model = MegatronTransformerEncoderDecoderModule(encoder=encoder, decoder=decoder, hidden_steps=hidden_steps)
         self._enc_dec_model_key = "enc_dec_model"
 
         self.initialize_word_embeddings(
