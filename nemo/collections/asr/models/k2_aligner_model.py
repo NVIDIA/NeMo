@@ -583,6 +583,8 @@ class AlignerWrapperModel(ASRModel):
             }
             temporary_datalayer = self._model._setup_transcribe_dataloader(config)
             for test_batch in tqdm(temporary_datalayer, desc="Aligning"):
+                test_batch[0] = test_batch[0].to(device)
+                test_batch[1] = test_batch[1].to(device)
                 hypotheses += [unit for i, unit in self.predict_step(test_batch, 0)]
                 del test_batch
         finally:

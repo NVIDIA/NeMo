@@ -20,7 +20,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
-from nemo.collections.asr.parts.k2.utils import invert_permutation, load_graph, shift_labels_inpl
+from nemo.collections.asr.parts.k2.utils import invert_permutation, load_graph
 from nemo.utils import logging
 
 

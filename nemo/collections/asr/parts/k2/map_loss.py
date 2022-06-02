@@ -39,7 +39,6 @@ from nemo.collections.asr.parts.k2.utils import (
     create_sparse_wrapped,
     get_tot_objf_and_finite_mask,
     load_graph,
-    shift_labels_inpl,
 )
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 from nemo.utils import logging
