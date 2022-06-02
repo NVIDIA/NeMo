@@ -195,3 +195,47 @@ eval.gpt3.126m_tp2_pp2_lambada:
     - when: always
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
+
+
+convert.gpt3.126m_tp1_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: convert_gpt3_126m_tp1_pp1
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp1_pp1_1node_100steps
+
+
+convert.gpt3.126m_tp2_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: convert_gpt3_126m_tp2_pp1
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp2_pp1_1node_100steps
+
+
+convert.gpt3.126m_tp1_pp2a:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: convert_gpt3_126m_tp1_pp2
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp1_pp2_2node_100steps
+
+
+convert.gpt3.126m_tp2_pp2:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_NAME: convert_gpt3_126m_tp2_pp2
+  rules:
+    - when: always
+  needs:
+    - train.gpt3.126m_tp2_pp2_2node_100steps
