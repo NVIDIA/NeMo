@@ -38,12 +38,7 @@ class RangeFst(GraphFst):
     """
 
     def __init__(
-        self,
-        time: GraphFst,
-        date: GraphFst,
-        cardinal: GraphFst,
-        deterministic: bool = True,
-        lm: bool = False,
+        self, time: GraphFst, date: GraphFst, cardinal: GraphFst, deterministic: bool = True, lm: bool = False,
     ):
         super().__init__(name="range", kind="classify", deterministic=deterministic)
 
@@ -68,7 +63,7 @@ class RangeFst(GraphFst):
         )
         mid_year_graph = pynini.accep("mid") + pynini.cross("-", " ") + (date_year_four_digit | date_year_two_digit)
 
-        self.graph |= year_to_year_graph 
+        self.graph |= year_to_year_graph
         self.graph |= mid_year_graph
 
         # ADDITION

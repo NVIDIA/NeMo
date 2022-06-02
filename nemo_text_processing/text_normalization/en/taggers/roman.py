@@ -76,7 +76,7 @@ class RomanFst(GraphFst):
                     + (pynini.string_map([x[0] for x in roman_dict[:50]]).optimize()) @ default_graph
                 ),
             )
-            graph |= roman_to_cardinal 
+            graph |= roman_to_cardinal
         elif not lm:
             # two or more digit roman numerals
             roman_to_cardinal = pynini.compose(
@@ -87,7 +87,7 @@ class RomanFst(GraphFst):
                     + pynutil.insert("\"")
                 ),
             ).optimize()
-            graph |= roman_to_cardinal 
+            graph |= roman_to_cardinal
 
         # convert three digit roman or up with suffix to ordinal
         roman_to_ordinal = pynini.compose(

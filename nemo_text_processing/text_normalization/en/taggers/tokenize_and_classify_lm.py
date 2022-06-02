@@ -129,9 +129,8 @@ class ClassifyFst(GraphFst):
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
             whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
-            punct_graph = PunctuationFst(deterministic=True).graph            
+            punct_graph = PunctuationFst(deterministic=True).graph
             serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic, lm=True).fst
-
 
             # VERBALIZERS
             cardinal = vCardinal(deterministic=True)
@@ -154,7 +153,6 @@ class ClassifyFst(GraphFst):
 
             cardinal_or_date_final = plurals._priority_union(date_graph, cardinal_graph, NEMO_SIGMA)
             cardinal_or_date_final = pynini.compose(cardinal_or_date_final, (v_cardinal_graph | v_date_graph))
-
 
             time_final = pynini.compose(time_graph, v_time_graph)
             ordinal_final = pynini.compose(ordinal_graph, v_ordinal_graph)
