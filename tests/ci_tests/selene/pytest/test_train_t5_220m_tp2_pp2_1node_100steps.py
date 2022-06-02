@@ -36,48 +36,7 @@ class TestCIT5_220m:
     margin = 0.05
     expected_json = \
     r"""
-    {
-      "reduced_train_loss": {
-        "start_step": 0,
-        "end_step": 100,
-        "step_interval": 5,
-        "values": [
-          10.36844,
-          9.24568,
-          8.75858,
-          8.36054,
-          8.03282,
-          7.71879,
-          7.50079,
-          7.30246,
-          7.15135,
-          7.04412,
-          6.98671,
-          6.886,
-          6.86334,
-          6.8116,
-          6.77737,
-          6.75278,
-          6.73427,
-          6.71762,
-          6.70629,
-          6.65894
-        ]
-      },
-      "val_loss": {
-        "start_step": 0,
-        "end_step": 5,
-        "step_interval": 1,
-        "values": [
-          8.07323,
-          7.22778,
-          6.92836,
-          6.8278,
-          6.73949
-        ]
-      },
-      "train_step_timing_avg": 1.2134409999999998
-    }
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.3631, 9.19099, 8.75129, 8.33679, 8.01163, 7.70953, 7.49805, 7.29113, 7.13967, 7.02496, 6.95389, 6.88423, 6.87188, 6.81836, 6.76371, 6.74484, 6.72757, 6.71379, 6.70506, 6.66262]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.05816, 7.21247, 6.93633, 6.8164, 6.74615]}, "train_step_timing_avg": 2.1581964}
     """
 
     expected = json.loads(expected_json)
