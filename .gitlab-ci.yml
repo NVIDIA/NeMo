@@ -79,6 +79,7 @@ build-BigNLP:
   stage: test
   script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
     - chmod 774 ./* -R
+    - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
@@ -116,7 +117,7 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp1_pp1_1node_100steps
+    RUN_NAME: train/gpt3/126m_tp1_pp1_1node_100steps
   rules:
     - when: always
   needs:
@@ -126,7 +127,7 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp2_pp1_1node_100steps
+    RUN_NAME: train/gpt3/126m_tp2_pp1_1node_100steps
   rules:
     - when: always
   needs:
@@ -136,7 +137,7 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp1_pp2_2node_100steps
+    RUN_NAME: train/gpt3/126m_tp1_pp2_2node_100steps
   rules:
     - when: always
   needs:
@@ -146,7 +147,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps
+    RUN_NAME: train/gpt3/126m_tp2_pp2_2node_100steps
   rules:
     - when: always
   needs:
@@ -157,7 +158,7 @@ eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp1_pp1_lambada
+    RUN_NAME: eval/gpt3/126m_tp1_pp1_lambada
   rules:
     - when: always
   needs:
@@ -168,7 +169,7 @@ eval.gpt3.126m_tp2_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp2_pp1_lambada
+    RUN_NAME: eval/gpt3/126m_tp2_pp1_lambada
   rules:
     - when: always
   needs:
@@ -179,7 +180,7 @@ eval.gpt3.126m_tp1_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp1_pp2_lambada
+    RUN_NAME: eval/gpt3/126m_tp1_pp2_lambada
   rules:
     - when: always
   needs:
@@ -190,7 +191,7 @@ eval.gpt3.126m_tp2_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: eval_gpt3_126m_tp2_pp2_lambada
+    RUN_NAME: eval/gpt3/126m_tp2_pp2_lambada
   rules:
     - when: always
   needs:
@@ -201,7 +202,7 @@ convert.gpt3.126m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: convert_gpt3_126m_tp1_pp1
+    RUN_NAME: convert/gpt3_126m_tp1_pp1
   rules:
     - when: always
   needs:
@@ -212,7 +213,7 @@ convert.gpt3.126m_tp2_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: convert_gpt3_126m_tp2_pp1
+    RUN_NAME: convert/gpt3_126m_tp2_pp1
   rules:
     - when: always
   needs:
@@ -223,7 +224,7 @@ convert.gpt3.126m_tp1_pp2a:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: convert_gpt3_126m_tp1_pp2
+    RUN_NAME: convert/gpt3_126m_tp1_pp2
   rules:
     - when: always
   needs:
@@ -234,7 +235,7 @@ convert.gpt3.126m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_NAME: convert_gpt3_126m_tp2_pp2
+    RUN_NAME: convert/gpt3_126m_tp2_pp2
   rules:
     - when: always
   needs:
