@@ -106,17 +106,18 @@ build-BigNLP:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
 
-    # Run Pytest
-    - pip3 install pytest
-    - pytest tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
-    - echo "Finished pytest job"
+    # Permission change
+    - chmod -R 774 ${GIT_CLONE_PATH}/*
+    - chmod -R 774 ${BASE_RESULTS_DIR}/*
+
+#    # Run Pytest
+#    - pip3 install pytest
+#    - pytest tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
+#    - echo "Finished pytest job"
 
     # Run metrics collection
     - python3 tests/ci_tests/utils/covert_ci_metric_to_json.py tests/ci_tests/selene/pytest/test_${RUN_NAME}.py
 
-    # Permission change
-    - chmod -R 774 ${GIT_CLONE_PATH}/*
-    - chmod -R 774 ${BASE_RESULTS_DIR}/*
   allow_failure: false
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
