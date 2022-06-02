@@ -208,9 +208,9 @@ model:
     padding: 1
 
   optim:
-    name: lamb
+    name: adamw
     lr: 1e-1
-    betas: [0.9, 0.98]
+    betas: [0.9, 0.999]
     weight_decay: 1e-6
 
     sched:
@@ -232,6 +232,7 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 200
   check_val_every_n_epoch: 1
+  benchmark: false
 
 exp_manager:
   exp_dir: null
