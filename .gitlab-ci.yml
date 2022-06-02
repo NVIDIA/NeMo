@@ -78,7 +78,7 @@ build-BigNLP:
   tags: *LUNA_TAGS
   stage: test
   script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
-    - chmod 774 ./* -R
+    - chmod -R 774 ${GIT_CLONE_PATH}/*
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
