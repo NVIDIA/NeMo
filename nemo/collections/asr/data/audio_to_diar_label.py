@@ -22,8 +22,12 @@ import torch
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
-
+from nemo.core.neural_types import (
+    AudioSignal,
+    EncodedRepresentation,
+    LengthsType,
+    NeuralType,
+)
 
 def get_scale_mapping_list(uniq_timestamps):
     """
@@ -59,13 +63,11 @@ def get_scale_mapping_list(uniq_timestamps):
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
-
 def string_to_float(x, round_digits):
     """
     Convert string to float then round the number.
     """
     return round(float(x), round_digits)
-
 
 def convert_rttm_line(rttm_line, round_digits=2):
     """
@@ -85,12 +87,11 @@ def convert_rttm_line(rttm_line, round_digits=2):
         speaker (str):
             speaker string in RTTM lines.
     """
-    rttm = rttm_line.strip().split()
+    rttm  = rttm_line.strip().split()
     start = string_to_float(rttm[3], round_digits)
     end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
     speaker = rttm[7]
     return start, end, speaker
-
 
 def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
     """
@@ -114,12 +115,11 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
         label_scale_idx = max(self.emb_dict.keys())
         mapping_dict = self.emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
-
-        for spk_idx in target_spks[0]:
+        for spk_idx in target_spks:
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
                 bi_ch_infer_spks.append(inv_map[spk_str])
-
+    
     for rttm_line in rttm_lines:
         start, end, speaker = convert_rttm_line(rttm_line, self.round_digits)
         if target_spks is None or speaker in bi_ch_infer_spks:
@@ -166,8 +166,6 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
 
         # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
         # Thus, return a zero-filled tensor as a placeholder.
-        if target_spks and target_spks[1] is None:
-            return fr_level_target
         for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
             stt, end = round(stt, self.round_digits), round(end, self.round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
@@ -175,8 +173,8 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
             if target_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
-                if spk in target_spks[0]:
-                    idx = target_spks[0].index(spk)
+                if spk in target_spks:
+                    idx = target_spks.index(spk)
                     fr_level_target[stt_fr:end_fr, idx] = 1
 
         return fr_level_target
@@ -216,7 +214,6 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
-
 
 class _AudioDiarTrainDataset(Dataset):
     """
@@ -586,6 +583,8 @@ class _AudioMSDDDataset(Dataset):
             seg_target (torch.tensor):
                 Tensor variable containing hard-labels of speaker activity in each base-scale segment.
         """
+        if sample.rttm_file is None:
+            raise ValueError(f"RTTM file is not provided for this sample {sample}")
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = os.path.splitext(os.path.basename(sample.rttm_file))[0]
         rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, target_spks)
@@ -879,7 +878,7 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
             If True, F1 score will be calculated for each speaker pair in validation data during training or inference.
         pairwise_infer (bool):
             If True, this Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
-            is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (2,3)]) and then
+            is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then
             fed into the MSDD to merge the individual results.
     """
 
@@ -914,3 +913,4 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
+
