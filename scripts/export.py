@@ -44,6 +44,7 @@ except ImportError:
     # handle python < 3.7
     from contextlib import suppress as nullcontext
 
+
 def get_args(argv):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description=f"Export NeMo models to ONNX/Torchscript",
@@ -125,10 +126,7 @@ def nemo_export(argv):
     try:
         with autocast(), torch.inference_mode():
             _, descriptions = model.export(
-                out,
-                check_trace=args.runtime_check,
-                onnx_opset_version=args.onnx_opset,
-                verbose=args.verbose,
+                out, check_trace=args.runtime_check, onnx_opset_version=args.onnx_opset, verbose=args.verbose,
             )
 
     except Exception as e:
