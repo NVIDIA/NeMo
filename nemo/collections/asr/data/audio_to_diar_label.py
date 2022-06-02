@@ -21,7 +21,7 @@ import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
-from nemo.core.classes import Dataset, IterableDataset
+from nemo.core.classes import Dataset
 from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
 
 
