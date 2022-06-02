@@ -1,4 +1,3 @@
-export RUN_NAME_REPLACE = ${RUN_NAME//\//\_}
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     training=gpt3/126m \
