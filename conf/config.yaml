@@ -5,6 +5,7 @@ defaults:
   - training: gpt3/5b
   - conversion: convert_gpt3
   - finetuning: null
+  - prompt_learning: null
   - evaluation: gpt3/evaluate_all
   - override hydra/job_logging: stdout
 
@@ -18,7 +19,8 @@ debug: False
 run_data_preparation: True
 run_training: True
 run_conversion: True
-run_finetuning: False # Finetuning only supports T5
+run_finetuning: False # Finetuning only supports T5/mT5
+run_prompt_learning: False # Prompt learning only support GPT3 PP=1 models
 run_evaluation: True
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
@@ -46,5 +48,6 @@ numa_mapping:
 data_config: ${hydra:runtime.choices.data_preparation}
 training_config: ${hydra:runtime.choices.training}
 finetuning_config: ${hydra:runtime.choices.finetuning}
+prompt_learning_config: ${hydra:runtime.choices.prompt_learning}
 evaluation_config: ${hydra:runtime.choices.evaluation}
 conversion_config: ${hydra:runtime.choices.conversion}

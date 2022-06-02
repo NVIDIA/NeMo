@@ -135,6 +135,9 @@ def parse_args(parser_main):
     parser.add_argument("--vocab_file", default=None)
     parser.add_argument("--merge_file", default=None)
 
+    parser.add_argument("--prompt_dataset_paths", default=None, help="Jsonl-format prompt dataset for evaluation. Multiple dataset can be split with ','")
+    parser.add_argument("--disable_special_tokens", action="store_true", help="Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.")
+
     # Prompt
     parser.add_argument("--provide_description", action="store_true")
     parser.add_argument("--num_fewshot", type=int, default=0)
@@ -302,51 +305,56 @@ def main():
     vocab_file = args.vocab_file
     merge_file = args.merge_file
 
-    # Checkpoint search
-    if checkpoint_name == "latest":
-        checkpoints = os.path.join(checkpoint_folder, "*.ckpt")
-        checkpoints = _inject_model_parallel_rank(
-            checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size
-        )
-        checkpoint_list = glob.glob(checkpoints)
-        latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
-        checkpoint_name = os.path.basename(latest_checkpoint)
-
-    checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
-    checkpoint = _inject_model_parallel_rank(
-        checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
-    )
-    checkpoint_list = glob.glob(checkpoint)
-    if len(checkpoint_list) > 1:
-        raise ValueError(
-            "Too many checkpoints fit the checkpoint name pattern in conversion config."
-        )
-    if len(checkpoint_list) == 0:
-        raise ValueError(
-            "No checkpoint found with the checkpoint name pattern in conversion config."
-        )
-    args.checkpoint_name = os.path.basename(checkpoint_list[0])
-
-    # Create hparam override file for vocab ,merge, and etc.
     hparams_override_file = None
-    if hparams_file is not None:
-        hparams_override_file = os.path.join(args.output_path, "hparams_override.yaml")
-        conf = OmegaConf.load(hparams_file)
-        if vocab_file is not None:
-            conf.cfg.tokenizer.vocab_file = vocab_file
-        if merge_file is not None:
-            conf.cfg.tokenizer.merge_file = merge_file
+    if args.nemo_model is None:  # Not loading from .nemo checkpoint
+        # Checkpoint search
+        if checkpoint_name == "latest":
+            checkpoints = os.path.join(checkpoint_folder, "*.ckpt")
+            checkpoints = _inject_model_parallel_rank(
+                checkpoints, tensor_model_parallel_size, pipeline_model_parallel_size
+            )
+            checkpoint_list = glob.glob(checkpoints)
+            latest_checkpoint = max(checkpoint_list, key=os.path.getctime)
+            checkpoint_name = os.path.basename(latest_checkpoint)
 
-        # Force activations_checkpoint_method to be None
-        conf.cfg.activations_checkpoint_method = None
+        checkpoint = os.path.join(checkpoint_folder, checkpoint_name)
+        checkpoint = _inject_model_parallel_rank(
+            checkpoint, tensor_model_parallel_size, pipeline_model_parallel_size
+        )
+        checkpoint_list = glob.glob(checkpoint)
+        if len(checkpoint_list) > 1:
+            raise ValueError(
+                "Too many checkpoints fit the checkpoint name pattern in conversion config."
+            )
+        if len(checkpoint_list) == 0:
+            raise ValueError(
+                "No checkpoint found with the checkpoint name pattern in conversion config."
+            )
+        args.checkpoint_name = os.path.basename(checkpoint_list[0])
 
-        if is_global_rank_zero():
-            with open(hparams_override_file, "w") as f:
-                OmegaConf.save(config=conf, f=f)
+        # Create hparam override file for vocab ,merge, and etc.
+        if hparams_file is not None:
+            hparams_override_file = os.path.join(args.output_path, "hparams_override.yaml")
+            conf = OmegaConf.load(hparams_file)
+            if vocab_file is not None:
+                conf.cfg.tokenizer.vocab_file = vocab_file
+            if merge_file is not None:
+                conf.cfg.tokenizer.merge_file = merge_file
 
-        while not os.path.exists(hparams_override_file):
-            time.sleep(1)
-    args.hparams_file = hparams_override_file
+            # Force activations_checkpoint_method to be None
+            conf.cfg.activations_checkpoint_method = None
+
+            if is_global_rank_zero():
+                with open(hparams_override_file, "w") as f:
+                    OmegaConf.save(config=conf, f=f)
+
+            wait_time = 0
+            while not os.path.exists(hparams_override_file):
+                time.sleep(1)
+                wait_time += 1
+                if wait_time > 60:
+                    raise TimeoutError('Timeout waiting for config file to be created.')
+        args.hparams_file = hparams_override_file
 
     lm = models.get_model(args.model)(args, batch_size=args.batch_size)
 
@@ -368,11 +376,26 @@ def main():
         else:
             logger.info("Few-shot example shots will NOT be filtered")
 
-    if args.tasks == "all_tasks":
-        task_names = tasks.ALL_TASKS
-    else:
+    # prompt tasks, forcing prompt task
+    if "prompt" in args.tasks:
+        assert args.prompt_dataset_paths is not None, "Prompt models evaluation requires dataset provided from user."
+        prompt_dataset_paths = args.prompt_dataset_paths.split(",")
         task_names = args.tasks.split(",")
-    task_dict = tasks.get_task_dict(task_names, args.cache_dir)
+        task_dict = tasks.get_prompt_task_dict(
+            task_names,
+            model=lm.model,
+            dataset_paths=prompt_dataset_paths,
+            disable_special_tokens=args.disable_special_tokens,
+        )
+
+    else:
+        # regular tasks
+        if args.tasks == "all_tasks":
+            task_names = tasks.ALL_TASKS
+        else:
+            task_names = args.tasks.split(",")
+        task_dict = tasks.get_task_dict(task_names, args.cache_dir)
+
 
     if args.serialize_predictions:
         no_serialization = [

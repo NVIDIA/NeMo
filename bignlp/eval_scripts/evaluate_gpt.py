@@ -99,8 +99,7 @@ def run_evaluation(cfg, dependency=None):
     tasks = run_cfg.get("tasks")
     results_dir = run_cfg.get("results_dir")
 
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
+    os.makedirs(results_dir, exist_ok=True)
 
     # Command to download the eval datasets.
     cache_dir = os.path.join(results_dir, "data_cache")

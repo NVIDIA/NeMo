@@ -10,7 +10,8 @@ from bignlp.bignlp_utils import convert_to_cli, fake_submit
 from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.finetune_scripts import finetune
-from bignlp.eval_scripts import evaluate_gpt, evaluate_t5
+from bignlp.prompt_learn_scripts import prompt_learn
+from bignlp.eval_scripts import evaluate_gpt, evaluate_t5, evaluate_prompt_gpt
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -30,6 +31,7 @@ def main(cfg):
     run_training = cfg.get("run_training")
     run_conversion = cfg.get("run_conversion")
     run_finetuning = cfg.get("run_finetuning")
+    run_prompt_learning = cfg.get("run_prompt_learning")
     run_evaluation = cfg.get("run_evaluation")
 
     # TODO: build a mapping from dataset name to modules
@@ -65,9 +67,16 @@ def main(cfg):
     else:
         cfg_copy._content.pop("finetuning", None)
 
+    if run_prompt_learning:
+        dependency = prompt_learn.run_prompt_learning(cfg, hydra_args=hydra_args, dependency=dependency)
+    else:
+        cfg_copy._content.pop("prompt_learning", None)
+
     # TODO: merge evaluation harness
     if run_evaluation:
-        if "gpt" in cfg.get("evaluation_config"):
+        if "prompt_gpt3" in cfg.get("evaluation_config"):
+            dependency = evaluate_prompt_gpt.run_evaluation(cfg, dependency=dependency)
+        elif "gpt3" in cfg.get("evaluation_config"):
             dependency = evaluate_gpt.run_evaluation(cfg, dependency=dependency)
         elif "t5" in cfg.get("evaluation_config"):
             dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)
