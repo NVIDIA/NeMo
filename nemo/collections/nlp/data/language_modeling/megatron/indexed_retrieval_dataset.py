@@ -430,7 +430,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         """
         if isinstance(chunk_id, (int, np.int64, np.int32)):
             ptr = self._index.get_chunk_address(chunk_id)
-            if self._index.retrieval_db:
+            if self._index.retrieval_db and (not force_no_padding):
                 size = self._index.chunk_size * 2
             else:
                 size = self._index.chunk_size
