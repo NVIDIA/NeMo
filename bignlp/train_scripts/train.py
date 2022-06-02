@@ -88,8 +88,7 @@ def run_training(cfg, hydra_args="", dependency=None):
     results_dir = run_cfg.get("results_dir")
     time_limit = run_cfg.get("time_limit")
 
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
+    os.makedirs(results_dir, exist_ok=True)
 
     # Shared between BCP and BCM
     new_script_path = os.path.join(bignlp_path, f"bignlp/train_scripts/{name}.sh")
