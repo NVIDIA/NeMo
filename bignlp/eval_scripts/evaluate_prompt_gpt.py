@@ -20,6 +20,7 @@ def create_slurm_file(
     nodes=1,
     ntasks_per_node=8,
     gpus_per_task=1,
+    gpus_per_node=None,
     partition="batch",
     account=None,
 ):
@@ -29,6 +30,8 @@ def create_slurm_file(
         f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
+        if gpus_per_node is not None:
+            f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
@@ -90,6 +93,7 @@ def run_evaluation(cfg, dependency=None):
     nodes = run_cfg.get("nodes")
     ntasks_per_node = run_cfg.get("ntasks_per_node")
     gpus_per_task = cluster_cfg.get("gpus_per_task")
+    gpus_per_node = cluster_cfg.get("gpus_per_node")
     eval_name = run_cfg.get("eval_name")
     convert_name = run_cfg.get("convert_name")
     model_train_name = run_cfg.get("model_train_name")
@@ -152,6 +156,7 @@ def run_evaluation(cfg, dependency=None):
             nodes=nodes,
             ntasks_per_node=ntasks_per_node,
             gpus_per_task=gpus_per_task,
+            gpus_per_node=gpus_per_node,
             partition=partition,
             account=account,
         )
