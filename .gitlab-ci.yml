@@ -242,7 +242,7 @@ convert.gpt3.126m_tp2_pp1:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
 
-convert.gpt3.126m_tp1_pp2a:
+convert.gpt3.126m_tp1_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
