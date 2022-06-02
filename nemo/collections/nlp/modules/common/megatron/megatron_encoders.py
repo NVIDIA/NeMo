@@ -82,6 +82,7 @@ def get_encoder_model(
     chunk_size=64,
     num_self_attention_per_cross_attention=1,
     num_init_cross_attn_layers=1
+    layer_number_offset=0,  # this is use only for attention norm_factor scaling
 ):
     """Build language model and return along with the key to save."""
 
@@ -164,8 +165,11 @@ def get_encoder_model(
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             parent_model_type=parent_model_type,
             chunk_size=chunk_size,
+            layer_number_offset=layer_number_offset,
         )
     elif arch == "perceiver":
         encoder = MegatronPerceiverEncoderModule(
