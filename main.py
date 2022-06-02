@@ -11,7 +11,7 @@ from bignlp.train_scripts import train
 from bignlp.conversion_scripts import convert
 from bignlp.finetune_scripts import finetune
 from bignlp.prompt_learn_scripts import prompt_learn
-from bignlp.eval_scripts import evaluate_gpt, evaluate_t5
+from bignlp.eval_scripts import evaluate_gpt, evaluate_t5, evaluate_prompt_gpt
 
 omegaconf.OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 omegaconf.OmegaConf.register_new_resolver("divide_ceil", lambda x, y: int(math.ceil(x / y)), replace=True)
@@ -74,7 +74,9 @@ def main(cfg):
 
     # TODO: merge evaluation harness
     if run_evaluation:
-        if "gpt" in cfg.get("evaluation_config"):
+        if "prompt_gpt3" in cfg.get("evaluation_config"):
+            dependency = evaluate_prompt_gpt.run_evaluation(cfg, dependency=dependency)
+        elif "gpt3" in cfg.get("evaluation_config"):
             dependency = evaluate_gpt.run_evaluation(cfg, dependency=dependency)
         elif "t5" in cfg.get("evaluation_config"):
             dependency = evaluate_t5.run_evaluation(cfg, hydra_args=hydra_args, dependency=dependency)

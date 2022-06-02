@@ -90,8 +90,7 @@ def run_finetuning(cfg, hydra_args="", dependency=None):
     time_limit = run_cfg.get("time_limit")
     task_name = run_cfg.get("task_name")
 
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
+    os.makedirs(results_dir, exist_ok=True)
 
     download_glue.download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
