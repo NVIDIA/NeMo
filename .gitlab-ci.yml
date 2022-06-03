@@ -6,7 +6,7 @@ variables: &VARS
 stages:
   - build
   - test
-  - upload_results
+  - cleanup
 
 ################
 # JOB Templates
@@ -311,3 +311,28 @@ convert.gpt3.126m_tp2_pp2:
     - when: always
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
+
+
+data_prep.gpt3.the_pile_download_shard0:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: data_prep
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: the_pile_download_shard0
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+
+cleanup.selene:
+  tags: *LUNA_TAGS
+  stage: cleanup
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
+    - echo "Finished cleaning everything in Selene"
+  rules:
+    - when: manual
