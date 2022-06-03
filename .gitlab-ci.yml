@@ -313,13 +313,39 @@ convert.gpt3.126m_tp2_pp2:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
 
-data_prep.gpt3.the_pile_download_shard0:
+data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: data_prep
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: the_pile_download_shard0
+    RUN_JOB_NAME: the_pile_prepare_shard00
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+
+data_prep.t5.the_pile_prepare_shard00:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: data_prep
+    RUN_MODEL: t5
+    RUN_JOB_NAME: the_pile_prepare_shard00
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+
+data_prep.mt5.mc4_prepare_lang_mt:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: data_prep
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: mc4_prepare_lang_mt
   rules:
     - when: manual
   needs:
@@ -334,5 +360,6 @@ cleanup.selene:
   script:
     - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
     - echo "Finished cleaning everything in Selene"
+  allow_failure: true
   rules:
     - when: manual
