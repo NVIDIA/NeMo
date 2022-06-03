@@ -78,9 +78,9 @@ def process_data(data, save_name_base, train_percent, random_seed, include_topic
         list(itertools.chain(*regular_list))
 
     # Flatten data for each split now that topics have been confined to one split
-    train_set = flatten(train_set)
-    val_set = flatten(val_set)
-    test_set = flatten(test_set)
+    train_set = [question for topic in train_set for question in topic]
+    val_set = [question for topic in val_set for question in topic]
+    test_set = [question for topic in test_set for question in topic]
 
     # Shuffle train set questions
     random.shuffle(train_set)
