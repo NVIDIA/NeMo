@@ -39,7 +39,7 @@ exp_manager:
 
 model:
   # pretrained model path
-  pretrained_model_path: /raid/Data/NMT/Models/t5_220m/refactored/bf16_O1/megatron_t5--val_loss-1.47-step-999999-consumed_samples-2047944704.0.nemo
+  pretrained_model_path: ???
 
   # model parallelism 
   micro_batch_size: 4
