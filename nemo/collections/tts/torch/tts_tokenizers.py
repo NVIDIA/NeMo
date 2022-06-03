@@ -201,7 +201,7 @@ class GermanCharsTokenizer(BaseCharsTokenizer):
         pad_with_space=False,
         non_default_punct_list=None,
         text_preprocessing_func=german_text_preprocessing,
-        phonemes=False,
+        phonemes=True,
     ):
         """Deutsch char-based tokenizer.
         Args:
