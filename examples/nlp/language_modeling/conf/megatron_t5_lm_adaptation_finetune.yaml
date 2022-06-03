@@ -72,10 +72,8 @@ model:
     #   - /raid/data/pile/my-t5_00_text_document
     #   - .5
     #   - /raid/data/pile/my-t5_01_text_document
-    data_prefix: 
-      - 1.0
-      - /raid/Data/NMT/Datasources/Monolingual/Pile/the-eye.eu/public/AI/pile/train/my-t5_test_bert_tokenizer_text_document
-    index_mapping_dir: /raid/Data/npy_test
+    data_prefix: ???
+    index_mapping_dir: null
     data_impl: mmap
     splits_string: 949,45,5
     seq_length: ${model.seq_length}
