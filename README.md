@@ -4410,4 +4410,4 @@ The table and chart below show the performance results.
 <a id="markdown-known-issues" name="known-issues"></a>
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
-* For customers looking to do inference on BCP please use the previous inference container
+* For customers looking to do inference on BCP please use a previous inference container
