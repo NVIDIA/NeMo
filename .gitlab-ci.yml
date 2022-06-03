@@ -339,6 +339,19 @@ data_prep.t5.the_pile_prepare_shard00:
     - build-BigNLP
 
 
+data_prep.mt5.mc4_prepare_lang_mt:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: data_prep
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: mc4_prepare_lang_mt
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+
 cleanup.selene:
   tags: *LUNA_TAGS
   stage: cleanup

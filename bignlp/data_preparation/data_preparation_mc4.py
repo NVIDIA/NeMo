@@ -264,6 +264,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             preprocess_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/preprocess_mc4_script.sh"
             )
+            if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+                flags += f" -o {log_dir}/slurm_%j.log "
             preprocess_flags = (
                 flags + f" --ntasks-per-node={workers_per_node} "
                 f" --cpus-per-task={cpus_per_node // workers_per_node}"
@@ -283,9 +285,10 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}preprocess",
             )
-            job_id = subprocess.check_output(
-                [f"sbatch --parsable {preprocess_script_path}"], shell=True
-            )
+            if cfg.get("ci_test"):
+                job_id = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
+            else:
+                job_id = subprocess.check_output([f"sbatch --parsable {preprocess_script_path}"], shell=True)
             dependency = job_id.decode("utf-8")
             print(f"Submitted mC4 Preprocessing script with job id: {dependency}")
         return dependency
