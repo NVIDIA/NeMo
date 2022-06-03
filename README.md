@@ -2904,6 +2904,113 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_mt5_
 Any other parameter can also be added to the command to modify its behavior.
 
 
+#### 4.11.4. Prompt Learnt GPT-3 Evaluation
+<a id="markdown-prompt-learnt-gpt-3-evaluation" name="prompt-learnt-gpt-3-evaluation"></a>
+
+We also provide a simple tool to help evaluate the prompt learnt GPT-3 checkpoints. You can
+evaluate the capabilities of the prompt learnt GPT-3 model on a customized prompt learning test dataset.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
+on the SQuAD test dataset created in prompt learning step.
+
+The configuration used for the evaluation needs to be specified in the
+`conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
+file to use for evaluation purposes. The `run_evaluation` parameter must be set
+to `True` to run the evaluation pipeline. The value should be set to
+`prompt_gpt3/squad.yaml`, which can be found in `conf/evaluation/prompt_gpt3/squad.yaml`. The
+parameters can be modified to adapt different evaluation tasks and checkpoints
+in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+
+##### 4.11.4.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration, use all the `run` parameters to define the job specific config. (
+`run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
+```yaml
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
+  nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+  ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+  eval_name: eval_prompt_squad
+  model_train_name: gpt3_5b
+  tasks: "prompt" # general prompt task
+  prompt_learn_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
+```
+
+To specify which model checkpoint to load and which prompt learning test dataset to evaluate, 
+use the `model` parameter.:
+
+```yaml
+model:
+  model_type: nemo-gpt3-prompt
+  nemo_model: ${evaluation.run.prompt_learn_dir}/megatron_gpt_prompt.nemo
+  tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
+  pipeline_model_parallel_size: 1
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+  precision: bf16 # must match training precision - 32, 16 or bf16
+  eval_batch_size: 4
+  prompt_dataset_paths: ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
+```
+
+##### 4.11.4.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: False
+run_evaluation: True
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 4.11.4.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkpoint stored in 
+`/mount/results/gpt3_5b/checkpoints`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
+evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/megatron_gpt_prompt.nemo \
+evaluation.model.nemo_model=4 evaluation.model.tensor_model_parallel_size=2 \
+>> /results/eval_prompt_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+
 ## 5. Deploying the BigNLP Model
 
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
