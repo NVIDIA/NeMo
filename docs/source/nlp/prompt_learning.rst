@@ -10,7 +10,7 @@ Instead of selecting discrete text prompts in a manual or automated fashion, pro
 
 Our continuous learning capability for combined p-tuning and prompt tuning with GPT style models is a NeMo specific extension of the author's original work.
 
-Please also checkout our `prompt learning tutorial notebook. <https://github.com/NVIDIA/NeMo/blob/r1.9.0/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
+Please also checkout our `prompt learning tutorial notebook. <https://github.com/NVIDIA/NeMo/blob/main/tutorials/nlp/Multitask_Prompt_and_PTuning.ipynb>`_
 
 
 Terminology
@@ -196,7 +196,7 @@ Prompt Learning Specific Config Values
      - bool
      - Whether to add an EOS token at the end of each training example (recommended). 
 
-An example config file can be found at https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
+An example config file can be found at https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml
 
 Setting New Tasks
 ^^^^^^^^^^^^^^^^^
@@ -205,7 +205,7 @@ After you p-tune or prompt-tune your model, you can always go back and p-tune or
 
 Example Multi-Task Prompt Tuning Config and Command
 ^^^^^^^^^^
-First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set. 
+First define a config called ``multitask-prompt-learning.yaml`` demonstrated below. **In the** ``exp_manager`` **portion of the config,** ``save_on_train_end`` **should be set to** ``False`` **to avoid unnecessarily saving the incorrect model weights.** This is already done in the example `megatron_gpt_prompt_learning_config.yaml config <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml>`_ that you should use as your starting point. The correct prompt learning model will be saved at the ``model.nemo_path`` you set. 
 
 .. code::
   
@@ -258,7 +258,7 @@ First define a config called ``multitask-prompt-learning.yaml`` demonstrated bel
 
     optim: ...
 
-(See https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml for what should go in the ``trainer``, ``exp_manager``, and ``optim`` sections.)
+(See https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/conf/megatron_gpt_prompt_learning_config.yaml for what should go in the ``trainer``, ``exp_manager``, and ``optim`` sections.)
 
 Then run the command
 
@@ -385,6 +385,6 @@ And the dataset class will automatically format your input to have the form:
         
 Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model. 
 
-Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
+Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 
-Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_eval.py <https://github.com/NVIDIA/NeMo/blob/r1.9.0/examples/nlp/language_modeling/megatron_gpt_eval.py>`__.
+Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_eval.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_eval.py>`__.
