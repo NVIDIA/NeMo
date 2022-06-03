@@ -378,7 +378,8 @@ class Prompt(Task):
         return ""
 
     def construct_requests(self, doc, ctx):
-        ll, is_greedy, greedy_toks, cont_toks = rf.loglikelihood(ctx, self.doc_to_target(doc))
+        ll, is_greedy, greedy_toks, cont_toks = rf.loglikelihood(ctx, self.doc_to_target(doc), doc["task_id"])
+
         return ll, is_greedy, greedy_toks, cont_toks
 
     def process_results(self, doc, results):
