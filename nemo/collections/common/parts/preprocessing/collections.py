@@ -723,7 +723,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
         item['uniq_id'] = os.path.splitext(os.path.basename(item['rttm_filepath']))[0]
         if 'duration' not in item:
             raise ValueError(f"Manifest file has invalid json line " f"structure: {line} without proper duration key.")
-
         item = dict(
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
