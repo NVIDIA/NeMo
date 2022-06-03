@@ -4285,7 +4285,7 @@ speedup. We are actively working on improving the scaling performance for T5 mod
 |-----|----------------------------------------|--------|--------|--------|--------|--------|---------|
 |         |                                        | 1      | 2            | 4            | 5            | 10         | 20            |
 |         | Tokens per Second                      |103842|	204421	|397813	|489345	|929345	|1701415|
-| 3B    | Perfect Linear Scaling (Tokens)        |  103842|	207685	|415369	|519211	|1038423|	20768|
+| 3B    | Perfect Linear Scaling (Tokens)        |  103842|	207685	|415369	|519211	|1038423|	2076845|
 |         | Speed-up                               |1x	  | 1.97x	|3.83x	|4.71x	|8.95x	|16.38x|
 
 <img src="img/3B_T5_throughput_2205.svg"/>
