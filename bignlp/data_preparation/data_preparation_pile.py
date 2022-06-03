@@ -142,10 +142,8 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}download",
             )
-            if cfg.get("ci_test"):
-                job_id_1 = subprocess.check_output([f'sbatch {download_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
-            else:
-                job_id_1 = subprocess.check_output([f"sbatch --parsable {download_script_path}"], shell=True)
+
+            job_id_1 = subprocess.check_output([f"sbatch --parsable {download_script_path}"], shell=True)
             dependency = job_id_1.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
