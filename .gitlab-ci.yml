@@ -5,8 +5,8 @@ variables: &VARS
 
 stages:
   - build
-  - test
   - cleanup
+  - test
 
 ################
 # JOB Templates
