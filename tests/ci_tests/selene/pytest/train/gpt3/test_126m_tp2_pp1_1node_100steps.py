@@ -32,27 +32,12 @@ def _read_tb_logs_as_list(path, summary_name):
 
 class TestCIGPT126m:
 
-    margin = 0.1
-    expected = {
-        "reduced_train_loss": {
-            "start_step": 0,
-            "end_step": 100,
-            "step_interval": 5,
-            "values": [
-                10.91022, 10.49807, 9.62442, 9.34875, 8.89447,
-                8.95262, 8.70716, 8.77551, 8.38191, 8.22379,
-                7.99194, 7.90321, 7.78475, 7.56459, 7.35744,
-                7.09149, 7.15741, 6.96999, 6.87279, 6.79443,
-            ],
-        },
-        "val_loss": {
-            "start_step": 0,
-            "end_step": 5,
-            "step_interval": 1,
-            "values": [8.39118, 7.86789, 7.21749, 6.63896, 6.27195],
-        },
-        "train_step_timing_avg": 1.13,
-    }
+    margin = 0.05
+    expected_json = \
+    r"""
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.91023, 10.49807, 9.62441, 9.34874, 8.89447, 8.95262, 8.70716, 8.77551, 8.38192, 8.22377, 7.99192, 7.90317, 7.78476, 7.56464, 7.35754, 7.09516, 7.15859, 6.97351, 6.87657, 6.79425]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.39118, 7.86789, 7.2175, 6.63938, 6.27206]}, "train_step_timing_avg": 1.13}
+    """
+    expected = json.loads(expected_json)
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
