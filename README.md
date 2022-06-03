@@ -2904,6 +2904,113 @@ The stdout and stderr outputs will also be redirected to the `/results/eval_mt5_
 Any other parameter can also be added to the command to modify its behavior.
 
 
+#### 4.11.4. Prompt Learnt GPT-3 Evaluation
+<a id="markdown-prompt-learnt-gpt-3-evaluation" name="prompt-learnt-gpt-3-evaluation"></a>
+
+We also provide a simple tool to help evaluate the prompt learnt GPT-3 checkpoints. You can
+evaluate the capabilities of the prompt learnt GPT-3 model on a customized prompt learning test dataset.
+We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
+on the SQuAD test dataset created in prompt learning step.
+
+The configuration used for the evaluation needs to be specified in the
+`conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
+file to use for evaluation purposes. The `run_evaluation` parameter must be set
+to `True` to run the evaluation pipeline. The value should be set to
+`prompt_gpt3/squad.yaml`, which can be found in `conf/evaluation/prompt_gpt3/squad.yaml`. The
+parameters can be modified to adapt different evaluation tasks and checkpoints
+in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+
+##### 4.11.4.1. Common
+<a id="markdown-common" name="common"></a>
+To specify the configuration, use all the `run` parameters to define the job specific config. (
+`run.tasks` has to be set to `prompt` to run evaluation on prompt learning test tasks):
+```yaml
+run:
+  name: ${.eval_name}_${.model_train_name}
+  time_limit: "4:00:00"
+  nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
+  ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
+  eval_name: eval_prompt_squad
+  model_train_name: gpt3_5b
+  tasks: "prompt" # general prompt task
+  prompt_learn_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
+  results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
+```
+
+To specify which model checkpoint to load and which prompt learning test dataset to evaluate, 
+use the `model` parameter.:
+
+```yaml
+model:
+  model_type: nemo-gpt3-prompt
+  nemo_model: ${evaluation.run.prompt_learn_dir}/megatron_gpt_prompt.nemo
+  tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
+  pipeline_model_parallel_size: 1
+  model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
+  precision: bf16 # must match training precision - 32, 16 or bf16
+  eval_batch_size: 4
+  prompt_dataset_paths: ${data_dir}/prompt_data/squad-v2.0/squad_test.jsonl
+  disable_special_tokens: False # Whether to disable virtual tokens in prompt model evaluation. This is equivalent to evaluate without prompt-/p-tuning.
+```
+
+##### 4.11.4.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
+
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
+
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: 1
+gpus_per_node: null
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
+```
+
+**Example:**
+
+To run only the evaluation pipeline and not the data preparation, training, 
+conversion or inference pipelines set the `conf/config.yaml` file to:
+
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: False
+run_evaluation: True
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 4.11.4.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the evaluation script on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
+from the command line, using hydra. The evaluation script must be launched in a multi-node job.
+
+To run the evaluation pipeline to evaluate a prompt learnt 5B GPT-3 model checkpoint stored in 
+`/mount/results/gpt3_5b/checkpoints`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+run_evaluation=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results evaluation.run.results_dir=/mount/results/gpt3_5b/eval_prompt_squad \
+evaluation.model.nemo_model=/mount/results/gpt3_5b/prompt_learning_squad/megatron_gpt_prompt.nemo \
+evaluation.model.nemo_model=4 evaluation.model.tensor_model_parallel_size=2 \
+>> /results/eval_prompt_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+
+
 ## 5. Deploying the BigNLP Model
 
 This section describes the deployment of the BigNLP model on the NVIDIA Triton
@@ -4170,18 +4277,18 @@ given Global Batch Size (GBS).
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
-SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 15.67x
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 16.38x
 speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
-|         |                                                                 |                            |                |                | Nodes    |                |                 |
-|-----| ------------------------------- |--------------|--------|--------|--------|--------|---------|
-|         |                                                                 | 1                        | 2            | 4            | 5            | 10         | 20            |
-|         | Tokens per Second                             | 89029                | 175682 | 349422 | 433354 | 820050 | 1395131 |
-| 3B    | Perfect Linear Scaling (Tokens) | 89029                | 178058 | 356117 | 445146 | 890291 | 1780583 |
-|         | Speed-up                                                | 1x                     | 1.97x    | 3.92x    | 4.87x    | 9.21x    | 15.67x    |
+|         |                                        |        |                |                | Nodes    |                |                 |
+|-----|----------------------------------------|--------|--------|--------|--------|--------|---------|
+|         |                                        | 1      | 2            | 4            | 5            | 10         | 20            |
+|         | Tokens per Second                      |103842|	204421	|397813	|489345	|929345	|1701415|
+| 3B    | Perfect Linear Scaling (Tokens)        |  103842|	207685	|415369	|519211	|1038423|	20768|
+|         | Speed-up                               |1x	  | 1.97x	|3.83x	|4.71x	|8.95x	|16.38x|
 
-<img src="img/3B_T5_throughput_2203.svg"/>
+<img src="img/3B_T5_throughput_2205.svg"/>
 
 
 
@@ -4195,13 +4302,13 @@ We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on 
 task. The results can be found in the table below. The user can 
 finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 finetuning section.
 
-| Task-Language | Metric    | 170M  | 390M  | 3B (750B tokens) |
-|---------------|-----------|-------|-------|------------------|
-| XNLI-en       | Accuracy  | 80.1% | 84.6% | 89.1%            |
-| XNLI-es       | Accuracy  | 73.3% | 79.3% | 85.8%            |
-| XNLI-de       | Accuracy  | 69.6% | 76.4% | 84.2%            |
-| XNLI-fr       | Accuracy  | 72.2% | 78.6% | 85.4%            |
-| XNLI-zh       | Accuracy  | 73.8% | 70.1% | 79.0%            |
+| Task-Language | Metric    | 170M  | 390M  | 3B    |
+|---------------|-----------|-------|-------|-------|
+| XNLI-en       | Accuracy  | 80.1% | 84.6% | 89.4% |
+| XNLI-es       | Accuracy  | 73.3% | 79.3% | 86.4% |
+| XNLI-de       | Accuracy  | 69.6% | 76.4% | 84.5% |
+| XNLI-fr       | Accuracy  | 72.2% | 78.6% | 85.8% |
+| XNLI-zh       | Accuracy  | 73.8% | 70.1% | 79.9% |
 
 
 Training the 170M mT5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
@@ -4232,17 +4339,17 @@ given Global Batch Size (GBS).
 | 64     | 2048 | 512                | 1T             | 1.584 | 3,744,914               | 4                                        |
 
 
-Training the 3B mT5 model to convergence takes 14 days, and the loss curve of a 75% trained model can be seen in the figure below:
+Training the 3B mT5 model to convergence takes 14 days, and the loss curve of a fully trained model can be seen in the figure below:
 
-<img src="img/3B_mT5_loss_75percent.svg"/>
+<img src="img/3B_mT5_loss_final.svg"/>
 
 The table below shows the converged training loss, the throughput, and the
 total time to train for the 3B T5 model, using a given number of GPUs and a
 given Global Batch Size (GBS).
 
-| \#GPUs | GBS  | Seq Length | \#Tokens | Loss (750B tokens) | Throughput (Tokens/sec) | Time to Train (days) |
-|--------|------|------------|----------|--------------------|-------------------------|----------------------|
-| 160        | 1920 | 512                | 1T             | 1.134              | 911,065                 | 14                   |
+| \#GPUs | GBS  | Seq Length | \#Tokens | Loss   | Throughput (Tokens/sec) | Time to Train (days) |
+|--------|------|------------|----------|--------|-------------------------|----------------------|
+| 160        | 1920 | 512                | 1T             | 1.134  | 911,065                 | 14                   |
 
 
 #### 6.3.2. Training Performance Results
@@ -4250,17 +4357,19 @@ given Global Batch Size (GBS).
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
 We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
-SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 13.68x
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 14.87x
 speedup. We are actively working on improving the scaling performance for mT5 models. 
 The table and chart below show the performance results.
 
 
-|         |                                    |             |        |         | Nodes    |          |           |
-|---------|------------------------------------|-------------|--------|---------|----------|----------|-----------|
-|         |                                    | 1           | 2      | 4       | 5        | 10       | 20        |
-|         | Tokens per Second                  | 87654 |  170637 | 325295 | 393846 | 731429 | 1198829  |
-| 3B      | Perfect Linear Scaling (Tokens)    | 87654 |  175308 | 350616 | 438270 | 876540 | 1753081  |
-|         | Speed-up                           | 1x    |  1.95x  | 3.71x  | 4.49x  | 8.34x  | 13.68x  |
+|         |                                    |        |         |         | Nodes   |         |          |
+|---------|------------------------------------|--------|---------|---------|---------|---------|----------|
+|         |                                    | 1      | 2       | 4       | 5       | 10      | 20       |
+|         | Tokens per Second                  | 87685	 | 172433	 | 336312  |411142	| 769202  | 1303767  |
+| 3B      | Perfect Linear Scaling (Tokens)    | 87685	 | 175371	 | 350741  |438427	| 876853  | 1753706  |
+|         | Speed-up                           | 1x	    | 1.97x	  | 3.84x	  |4.69x   	| 8.77x  | 14.87x |
+
+<img src="img/3B_mT5_throughput_2205.svg"/>
 
 
 ## 7. Changelog
