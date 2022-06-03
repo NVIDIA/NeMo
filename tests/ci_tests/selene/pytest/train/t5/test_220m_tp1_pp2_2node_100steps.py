@@ -33,7 +33,7 @@ def _read_tb_logs_as_list(path, summary_name):
 
 class TestCIT5_220m:
 
-    margin = 0.05
+    margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
     {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.37183, 9.25339, 8.77152, 8.41009, 8.06942, 7.75681, 7.53049, 7.32238, 7.17274, 7.06655, 6.97775, 6.89119, 6.86623, 6.80723, 6.76094, 6.75517, 6.73789, 6.72857, 6.71841, 6.67564]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.10622, 7.24422, 6.92028, 6.80865, 6.74414]}, "train_step_timing_avg": 0.8795}
@@ -61,7 +61,7 @@ class TestCIT5_220m:
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(train_loss_list) == 100, f"The events file must have 100 training loss values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
-            assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
+            assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
 
     def test_ci_t5_220m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
@@ -83,7 +83,7 @@ class TestCIT5_220m:
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
         assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
-            assert val_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {val_loss_list[step]}."
+            assert val_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {val_loss_list[step]}."
 
     def test_ci_t5_220m_train_step_timing_1node(self):
         # Expected average training time per global step.
@@ -93,4 +93,4 @@ class TestCIT5_220m:
         train_time_avg = sum(train_time_list) / len(train_time_list)
 
         assert train_time_list is not None, f"No TensorBoard events file was found in the logs."
-        assert train_time_avg == pytest.approx(expected=expected_avg, rel=self.margin), f"The time per global step must be approximately {expected_avg} but it is {train_time_avg}."
+        assert train_time_avg == pytest.approx(expected=expected_avg, rel=self.margin_time), f"The time per global step must be approximately {expected_avg} but it is {train_time_avg}."
