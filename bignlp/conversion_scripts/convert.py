@@ -73,7 +73,7 @@ def convert_ckpt(cfg, hydra_args="", dependency=None):
     model_cfg = convert_cfg.get("model")
 
     # Run parameters
-    job_name = run_cfg.get("job_name")
+    name = job_name = run_cfg.get("job_name")
     nodes = run_cfg.get("nodes")
     time_limit = run_cfg.get("time_limit")
     ntasks_per_node = run_cfg.get("ntasks_per_node")

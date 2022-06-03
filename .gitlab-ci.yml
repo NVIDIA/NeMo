@@ -1,6 +1,6 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "http://nvcr.io/nvidian/bignlp-training:22.05.05-py"
+  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:22.05-py3-base-amd64@sha256:e00055cdca190f58e8cd21b60ae3f216b7b30e18bad970db8aee0d58e72eeac4"
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
 
 stages:
@@ -28,13 +28,8 @@ test:unit_tests:
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
-  - if [[ -z ${BASE_IMAGE} ]]; then
-      export BASE_IMAGE=$(grep -oP "ARG FROM_IMAGE_NAME=\K\S+" ${DOCKERFILE});
-    else
-      export FROM_IMAGE_NAME=$BASE_IMAGE;
-    fi
-  - export IMAGE_NAME=${BASE_IMAGE##*/}
-  - export IMAGE_NAME=${IMAGE_NAME%:*}
+  - export FROM_IMAGE_NAME=$BIGNLP_BASE_IMAGE
+  - export IMAGE_NAME=bignlp_ci
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
   - export PIPELINE_DIR="${BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
@@ -50,7 +45,7 @@ before_script:
     - set -x
     - ls
     - env
-    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${BASE_IMAGE}"
+    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${FROM_IMAGE_NAME}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
   allow_failure: false
@@ -109,6 +104,9 @@ build-BigNLP:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
 
+    # Run metrics collection
+    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
+
     # Run Pytest
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
@@ -163,6 +161,53 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
   needs:
     - build-BigNLP
 
+train.t5.220m_tp1_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp2_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp2_pp1_1node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp1_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp2_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER

@@ -27,7 +27,7 @@ def convert_to_cli(cfg, root=True):
                                    for key, val in d.items()])
                 return f'{{{output}}}'
             v = f"[{','.join([dict2str(d) for d in v])}]"
-            result.append(f"{k}='{v}'")
+            result.append(f"{k}='{v}'".replace('"', '\\"'))
             continue
 
         if isinstance(v, omegaconf.dictconfig.DictConfig):

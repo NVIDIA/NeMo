@@ -98,6 +98,8 @@ def generate_cmd_prefix(cfg, code_dir):
 
 def convert_args_to_hydra_train_args(args, prefix="training."):
     for index, arg in enumerate(args):
+        if "=" not in arg:
+            continue
         k, v = arg.split("=", 1)
         if "splits_string" in k and "\\" not in v:
             args[index] = "{}={}".format(k, v.replace("'", "\\'"))
