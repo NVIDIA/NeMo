@@ -360,5 +360,6 @@ cleanup.selene:
   script:
     - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
     - echo "Finished cleaning everything in Selene"
+  allow_failure: true
   rules:
     - when: manual
