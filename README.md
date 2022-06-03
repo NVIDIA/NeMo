@@ -504,7 +504,7 @@ files 0, 3, 5, 6, and 7.
 <a id="markdown-41211-slurm" name="41211-slurm"></a>
 
 First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` file is correct.
-The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to bcm.
+The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to `bcm`.
 Then, modify the `time_limit` or any other parameter related to the job in the `download_gpt3_pile.yaml`
 file for GPT-3 models.
 The data preparation can be parallelized by using up to 30 nodes to download all 30 files in parallel.
@@ -1627,27 +1627,6 @@ wandb:  # Weights and Biases (W&B) logging.
     project: bignlp-hp-tool
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ### 4.4. Training with Custom Configurations
 <a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
 
@@ -1657,13 +1636,13 @@ existing model configurations.
 
 ### 4.5. Bring Your Own Dataset
 <a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
-If you want to train the GPT-3, T5 or mT5 models on your own dataset (which is already
+If you want to train the GPT-3, T5, or mT5 models on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
 
 As discussed in previous sections, the `data_preparation` parameter in `conf/config.yaml` 
 specifies which file to use for data preparation
 configuration purposes. The `data_preparation` parameter needs to be specified as `custom_dataset` for
-bringing your own dataset and `run_data_preparation` must be set to True to run it. 
+bringing your own dataset and `run_data_preparation` must be set to `True` to run it. 
 The `custom_dataset` config file can be found in `conf/data_preparation/custom_dataset.yaml`.
 With our scripts, you can train your own tokenizer and preprocess your own dataset into a format
 that can be consumed by our training scripts. 
@@ -1671,7 +1650,7 @@ that can be consumed by our training scripts.
 Custom dataset only supports SentencePiece tokenizers at the moment. You can either train 
 a fresh SentencePiece tokenizer with our scripts or load existing ones.
 
-The data preparation can be parallelized by using multiple nodes (default 20 nodes) to preprocess 
+The data preparation can be parallelized by using multiple nodes (by default 20 nodes) to preprocess 
 all custom dataset files in parallel.
 
 ###### 4.5.1. Slurm
@@ -1681,7 +1660,7 @@ First, ensure the cluster related configuration in the `conf/cluster/bcm.yaml` f
 The `cluster` and `cluster_type` parameters in `conf/config.yaml` must be set to bcm.
 Then, modify the `time_limit` or any other parameter related to the job in the `custom_dataset.yaml`
 file.
-The data preparation can be parallelized by using `nodes * workers_per_node` number of workers (up to each dataset file per worker).
+The data preparation can be parallelized by using `nodes * workers_per_node` number of workers (up to one workder for each dataset file).
 
 Example:
 
@@ -1710,10 +1689,10 @@ By default, the data preparation script will put the preprocessed data into the 
 We recommend that the `data_dir` parameter is set to a workspace, so that the data 
 is visible across multiple jobs later on. The tokenizer model files should also be 
 stored to the same workspace as the dataset, for later usage. The data preparation code 
-must be launched in a multi-node job. It can be parallelized to use between 2 and number of custom
-dataset files of nodes for faster preparation of the dataset.
+must be launched in a multi-node job. It can be parallelized to use up to number of
+nodes which is equal to the number of custom dataset files for faster preparation of the dataset.
 
-To run the data preparation pipeline for GPT-3 models, run:
+To run the data preparation pipeline, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=True run_training=False run_conversion=False run_finetuning=False    \
 run_evaluation=False cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
@@ -1736,7 +1715,7 @@ Set the configuration for the custom data preparation job in the YAML file:
   custom_dataset_dir: ${data_dir}/custom_dataset
   train_tokenizer: True # True to train a sentence piece tokenizer
   train_tokenizer_args: # For all options please check: https://github.com/google/sentencepiece/blob/master/doc/options.md
-     input: null # text file for training tokenizer
+     input: /path/to/text/file # text file for training tokenizer
      input_format: "text" # text or tsv
      model_prefix: "custom_sp_tokenizer"
      model_type: "bpe" # model algorithm: unigram, bpe, word or char
@@ -1749,7 +1728,7 @@ Set the configuration for the custom data preparation job in the YAML file:
   bpe_save_dir: ${.custom_dataset_dir}/bpe # Dir to save sentence piece tokenizer model and vocab files
   preprocess_data: True  # True to preprocess the data from json, jsonl or json.gz files, False otherwise.
   raw_dataset_files:
-    - null # Each file should be input json, jsonl or json.gz file
+    - /path/to/dataset/files # Each file should be input json, jsonl or json.gz file
   tokenizer_model: ${.bpe_save_dir}/${data_preparation.train_tokenizer_args.model_prefix}.model # trained SentencePiece tokenizer model
   preprocess_worker_mapping: ${.custom_dataset_dir}/preprocess_mapping
   preprocessed_dir: ${.custom_dataset_dir}/preprocessed
@@ -2471,12 +2450,12 @@ Any other parameter can also be added to the command to modify its behavior.
 
 
 ### 4.10. Model Prompt Learning
-<a id="markdown-model-prompt-tuning" name="model-prompt-tuning"></a>
+<a id="markdown-model-prompt-learning" name="model-prompt-learning"></a>
 
 
 Within NeMo Megatron we refer to **p-tuning** and **prompt tuning** methods collectively as prompt
 learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language
-models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream
+models. Our NeMo implementation makes it possible to use one pretrained GPT-3 model on many downstream
 tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks
 to your model without overwriting or disrupting previous tasks for which the model has already been
 p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either
@@ -2495,15 +2474,15 @@ We support prompt learning on NeMo Megatron GPT-3 models.
 #### 4.10.1. GPT-3 Prompt Learning
 <a id="markdown-gpt-3-prompt-learning" name="gpt-3-prompt-learning"></a>
 
-SQuAD v2.0 benchmark is supported for prompt-tuning. With default prompt learning config file, 
-our scripts will download and preprocess original SQuAD dataset to prompt learning dataset format.
+SQuAD v2.0 benchmark is supported for prompt learning. With default prompt learning config file, 
+our scripts will download and preprocess original SQuAD v2.0 dataset to prompt learning dataset format.
 You can also bring your own task dataset as long as it has been processed into the prompt learning dataset 
 format.
 
-The configuration used for the prompt learning needs to be specified in the
-`conf/config.yaml` file, specifying the `prompt_learning` parameter, which specifies the
+The configuration used for the prompt learning needs to be defined in the
+`conf/config.yaml` file by modifying the `prompt_learning` parameter, which specifies the
 file to use for prompt learning purposes. The `run_prompt_learning` parameter must be set
-to `True` to run the prompt learning pipeline. To prompt learn on `squad` task, set
+to `True` to run the prompt learning pipeline. To prompt learning on `squad` task, set
 `prompt_learning` parameter to `gpt3/squad`, which can be found in `conf/prompt_learning/gpt3/squad.yaml`.
 
 ##### 4.10.1.1. Common
@@ -2571,8 +2550,8 @@ In order to run the prompt learning script on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overriden
 from the command line, using hydra. The evaluation script must be launched in a multi-node job.
 
-To run the prompt learning pipeline to prompt-learn a 390M mT5 model converted checkpoint stored in 
-/mount/results/gpt3_5b/convert_nemo, run:
+To run the prompt learning pipeline to prompt-learn a 5B GPT-3 model converted checkpoint stored in 
+`/mount/results/gpt3_5b/convert_nemo`, run:
 ```
 python3 /opt/bignlp/bignlp-scripts/main.py  prompt_learning=gpt3/squad run_data_preparation=False run_training=False \
 run_conversion=False run_finetuning=False run_evaluation=False run_prompt_tuning=True cluster_type=bcp \
@@ -2582,8 +2561,8 @@ prompt_learning.model.language_model_path=/mount/results/gpt3_5b/convert_nemo/me
 >> /results/prompt_learning_gpt3_log.txt 2>&1
 ```
 
-The command above assumes you mounted the data workspace in /mount/data, and the results workspace in /mount/results. 
-The stdout and stderr outputs will also be redirected to the /results/prompt_learning_gpt3_log.txt file, to be able to download the logs from NGC.
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/prompt_learning_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
 
@@ -2910,15 +2889,15 @@ Any other parameter can also be added to the command to modify its behavior.
 We also provide a simple tool to help evaluate the prompt learnt GPT-3 checkpoints. You can
 evaluate the capabilities of the prompt learnt GPT-3 model on a customized prompt learning test dataset.
 We provide an example to evaluate our checkpoint, which went through prompt learning on SQuAD v2.0,
-on the SQuAD test dataset created in prompt learning step.
+on the SQuAD v2.0 test dataset created in prompt learning step.
 
-The configuration used for the evaluation needs to be specified in the
-`conf/config.yaml` file, specifying the `evaluation` parameter, which specifies the
+The configuration used for the evaluation needs to be defined in the
+`conf/config.yaml` file by modifying the `evaluation` parameter, which specifies the
 file to use for evaluation purposes. The `run_evaluation` parameter must be set
 to `True` to run the evaluation pipeline. The value should be set to
 `prompt_gpt3/squad.yaml`, which can be found in `conf/evaluation/prompt_gpt3/squad.yaml`. The
 parameters can be modified to adapt different evaluation tasks and checkpoints
-in evaluation runs. For Base Command Platform, all these parameters should be overriden from the command line.
+in evaluation runs. For Base Command Platform, all these parameters should be overridden from the command line.
 
 ##### 4.11.4.1. Common
 <a id="markdown-common" name="common"></a>
@@ -2938,7 +2917,7 @@ run:
 ```
 
 To specify which model checkpoint to load and which prompt learning test dataset to evaluate, 
-use the `model` parameter.:
+use the `model` parameter:
 
 ```yaml
 model:
