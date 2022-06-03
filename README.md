@@ -4277,18 +4277,18 @@ given Global Batch Size (GBS).
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
-SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 15.67x
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 16.38x
 speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
-|         |                                                                 |                            |                |                | Nodes    |                |                 |
-|-----| ------------------------------- |--------------|--------|--------|--------|--------|---------|
-|         |                                                                 | 1                        | 2            | 4            | 5            | 10         | 20            |
-|         | Tokens per Second                             | 89029                | 175682 | 349422 | 433354 | 820050 | 1395131 |
-| 3B    | Perfect Linear Scaling (Tokens) | 89029                | 178058 | 356117 | 445146 | 890291 | 1780583 |
-|         | Speed-up                                                | 1x                     | 1.97x    | 3.92x    | 4.87x    | 9.21x    | 15.67x    |
+|         |                                        |        |                |                | Nodes    |                |                 |
+|-----|----------------------------------------|--------|--------|--------|--------|--------|---------|
+|         |                                        | 1      | 2            | 4            | 5            | 10         | 20            |
+|         | Tokens per Second                      |103842|	204421	|397813	|489345	|929345	|1701415|
+| 3B    | Perfect Linear Scaling (Tokens)        |  103842|	207685	|415369	|519211	|1038423|	20768|
+|         | Speed-up                               |1x	  | 1.97x	|3.83x	|4.71x	|8.95x	|16.38x|
 
-<img src="img/3B_T5_throughput_2203.svg"/>
+<img src="img/3B_T5_throughput_2205.svg"/>
 
 
 
@@ -4357,17 +4357,19 @@ given Global Batch Size (GBS).
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
 We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
-SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 13.68x
+SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 14.87x
 speedup. We are actively working on improving the scaling performance for mT5 models. 
 The table and chart below show the performance results.
 
 
-|         |                                    |             |        |         | Nodes    |          |           |
-|---------|------------------------------------|-------------|--------|---------|----------|----------|-----------|
-|         |                                    | 1           | 2      | 4       | 5        | 10       | 20        |
-|         | Tokens per Second                  | 87654 |  170637 | 325295 | 393846 | 731429 | 1198829  |
-| 3B      | Perfect Linear Scaling (Tokens)    | 87654 |  175308 | 350616 | 438270 | 876540 | 1753081  |
-|         | Speed-up                           | 1x    |  1.95x  | 3.71x  | 4.49x  | 8.34x  | 13.68x  |
+|         |                                    |        |         |         | Nodes   |         |          |
+|---------|------------------------------------|--------|---------|---------|---------|---------|----------|
+|         |                                    | 1      | 2       | 4       | 5       | 10      | 20       |
+|         | Tokens per Second                  | 87685	 | 172433	 | 336312  |411142	| 769202  | 1303767  |
+| 3B      | Perfect Linear Scaling (Tokens)    | 87685	 | 175371	 | 350741  |438427	| 876853  | 1753706  |
+|         | Speed-up                           | 1x	    | 1.97x	  | 3.84x	  |4.69x   	| 8.77x  | 14.87x |
+
+<img src="img/3B_mT5_throughput_2205.svg"/>
 
 
 ## 7. Changelog
