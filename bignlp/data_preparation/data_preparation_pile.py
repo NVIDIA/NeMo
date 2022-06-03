@@ -147,6 +147,13 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             dependency = job_id_1.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
+            if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+                flags = (
+                    f"--container-image {container} --container-mounts {mounts_str} "
+                    f"-o {log_dir}/slurm_%j.log "
+                )
+            else:
+                flags = (f"--container-image {container} --container-mounts {mounts_str} ")
             # Extract The Pile dataset files
             extract_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/extract_script.sh"
