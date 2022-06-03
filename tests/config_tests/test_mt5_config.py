@@ -12,7 +12,7 @@ class TestmT5Config:
           max_training_days: 4
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 20
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -51,7 +51,7 @@ class TestmT5Config:
           max_training_days: 5
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 25
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -90,7 +90,7 @@ class TestmT5Config:
           max_training_days: 14
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 35
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -129,7 +129,7 @@ class TestmT5Config:
           max_training_days: 50
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 50
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -168,7 +168,7 @@ class TestmT5Config:
           max_training_days: 55
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 60
           tflops_per_gpu: 140
           num_tokens_in_b: 1000
@@ -207,7 +207,7 @@ class TestmT5Config:
           max_training_days: 90
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 80
           tflops_per_gpu: 140
           num_tokens_in_b: 1000

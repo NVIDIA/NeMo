@@ -24,15 +24,15 @@ class TestConfig:
         data_dir: ${bignlp_scripts_path}/data
         base_results_dir: ${bignlp_hp_tool_path}/results
 
-        training_container: nvcr.io/ea-bignlp/bignlp-training:22.04.01-py3
-        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.04.01-py3
+        training_container: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+        inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
         container_mounts:
-            - null
+          - null
 
         wandb:
-            enable: False
-            api_key_file: null
-            project: bignlp-hp-tool
+          enable: False
+          api_key_file: null
+          project: bignlp-hp-tool
 
         search_config_value: ${hydra:runtime.choices.search_config}
         """

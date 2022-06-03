@@ -12,7 +12,7 @@ class TestGPT3Config:
           max_training_days: 2
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 20
           tflops_per_gpu: 140
           num_tokens_in_b: 300
@@ -52,7 +52,7 @@ class TestGPT3Config:
           max_training_days: 5
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 40
           tflops_per_gpu: 140
           num_tokens_in_b: 300
@@ -92,7 +92,7 @@ class TestGPT3Config:
           max_training_days: 7
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 50
           tflops_per_gpu: 140
           num_tokens_in_b: 300
@@ -132,7 +132,7 @@ class TestGPT3Config:
           max_training_days: 13
           limit_search_runs: 100
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 50
           tflops_per_gpu: 140
           num_tokens_in_b: 300
@@ -172,7 +172,7 @@ class TestGPT3Config:
           max_training_days: 10
           limit_search_runs: 50
           output_top_n: 10
-          max_steps_per_run: 15
+          max_steps_per_run: 50
           max_minutes_per_run: 60
           tflops_per_gpu: 140
           num_tokens_in_b: 300
