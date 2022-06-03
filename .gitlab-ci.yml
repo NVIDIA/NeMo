@@ -287,7 +287,7 @@ cleanup.selene:
   variables:
     <<: [*VARS, *LUNA_VARS]
   script:
-    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/${CI_PIPELINE_ID}/*
+    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
     - echo "Finished cleaning everything in Selene"
   rules:
     - when: manual
