@@ -143,7 +143,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 job_name=f"{job_name_prefix}download",
             )
             if cfg.get("ci_test"):
-                job_id_1 = subprocess.check_output([f'sbatch {download_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+                job_id_1 = subprocess.check_output([f'sbatch {download_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
             else:
                 job_id_1 = subprocess.check_output([f"sbatch --parsable {download_script_path}"], shell=True)
             dependency = job_id_1.decode("utf-8")
@@ -170,7 +170,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 job_name=f"{job_name_prefix}extract",
             )
             if cfg.get("ci_test"):
-                job_id_2 = subprocess.check_output([f'sbatch {extract_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+                job_id_2 = subprocess.check_output([f'sbatch {extract_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
             else:
                 job_id_2 = subprocess.check_output([f"sbatch --parsable {extract_script_path}"], shell=True)
             dependency = job_id_2.decode("utf-8")
@@ -199,7 +199,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 job_name=f"{job_name_prefix}preprocess",
             )
             if cfg.get("ci_test"):
-                job_id_3 = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+                job_id_3 = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
             else:
                 job_id_3 = subprocess.check_output([f"sbatch --parsable {preprocess_script_path}"], shell=True)
             dependency = job_id_3.decode("utf-8")
