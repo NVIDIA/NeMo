@@ -190,25 +190,25 @@ train.t5.220m_tp2_pp1_1node_100steps:
   needs:
     - build-BigNLP
 
-train.t5.220m_tp1_pp2_1node_100steps:
+train.t5.220m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp2_1node_100steps
+    RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
   rules:
     - when: always
   needs:
     - build-BigNLP
 
-train.t5.220m_tp2_pp2_1node_100steps:
+train.t5.220m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2_1node_100steps
+    RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps
   rules:
     - when: always
   needs:
