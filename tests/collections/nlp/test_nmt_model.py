@@ -23,12 +23,12 @@ from nemo.collections.nlp.models import MTEncDecModel
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import AAYNBaseConfig
 
 
-def export_test(model, suffix, try_script=False):
+def export_test(model, suffix):
     with tempfile.TemporaryDirectory() as restore_folder:
         filename = os.path.join(restore_folder, 'nmt' + suffix)
         enc_filename = os.path.join(restore_folder, 'encoder-nmt' + suffix)
         dec_filename = os.path.join(restore_folder, 'decoder-nmt' + suffix)
-        model.export(output=filename, try_script=try_script, check_trace=True)
+        model.export(output=filename, check_trace=True)
         assert os.path.exists(enc_filename)
         assert os.path.exists(dec_filename)
 

@@ -48,13 +48,34 @@ class Exportable(ABC):
     def output_module(self):
         return self
 
-    def export(self, output, input_example=None, **kwargs):
+    def export(
+        self,
+        output: str,
+        input_example=None,
+        verbose=False,
+        do_constant_folding=True,
+        onnx_opset_version=None,
+        training=TrainingMode.EVAL,
+        check_trace: bool = False,
+        dynamic_axes=None,
+        check_tolerance=0.01,
+    ):
         all_out = []
         all_descr = []
         for subnet_name in self.list_export_subnets():
             model = self.get_export_subnet(subnet_name)
             out_name = augment_filename(output, subnet_name)
-            out, descr, out_example = model._export(out_name, input_example=input_example, **kwargs)
+            out, descr, out_example = model._export(
+                out_name,
+                input_example=input_example,
+                verbose=verbose,
+                do_constant_folding=do_constant_folding,
+                onnx_opset_version=onnx_opset_version,
+                training=training,
+                check_trace=check_trace,
+                dynamic_axes=dynamic_axes,
+                check_tolerance=check_tolerance,
+            )
             # Propagate input example (default scenario, may need to be overriden)
             if input_example is not None:
                 input_example = out_example
@@ -68,13 +89,10 @@ class Exportable(ABC):
         output: str,
         input_example=None,
         verbose=False,
-        export_params=True,
         do_constant_folding=True,
         onnx_opset_version=None,
-        try_script: bool = False,
         training=TrainingMode.EVAL,
         check_trace: bool = False,
-        use_dynamic_axes: bool = True,
         dynamic_axes=None,
         check_tolerance=0.01,
     ):
@@ -123,22 +141,14 @@ class Exportable(ABC):
                 output_names = self.output_names
                 output_example = tuple(self.forward(*input_list, **input_dict))
 
-                jitted_model = None
-                if try_script:
-                    try:
-                        jitted_model = torch.jit.script(self)
-                    except Exception as e:
-                        logging.error(f"jit.script() failed! {e}")
-
                 if format == ExportFormat.TORCHSCRIPT:
-                    if jitted_model is None:
-                        jitted_model = torch.jit.trace_module(
-                            self,
-                            {"forward": tuple(input_list) + tuple(input_dict.values())},
-                            strict=True,
-                            check_trace=check_trace,
-                            check_tolerance=check_tolerance,
-                        )
+                    jitted_model = torch.jit.trace_module(
+                        self,
+                        {"forward": tuple(input_list) + tuple(input_dict.values())},
+                        strict=True,
+                        check_trace=check_trace,
+                        check_tolerance=check_tolerance,
+                    )
                     if not self.training:
                         jitted_model = torch.jit.optimize_for_inference(torch.jit.freeze(jitted_model))
                     if verbose:
@@ -146,22 +156,18 @@ class Exportable(ABC):
                     jitted_model.save(output)
                     assert os.path.exists(output)
                 elif format == ExportFormat.ONNX:
-                    if jitted_model is None:
-                        jitted_model = self
-
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
-                    if dynamic_axes is None and use_dynamic_axes:
+                    if dynamic_axes is None:
                         dynamic_axes = get_dynamic_axes(self.input_module.input_types, input_names)
                         dynamic_axes.update(get_dynamic_axes(self.output_module.output_types, output_names))
 
                     torch.onnx.export(
-                        jitted_model,
+                        self,
                         input_example,
                         output,
                         input_names=input_names,
                         output_names=output_names,
                         verbose=verbose,
-                        export_params=export_params,
                         do_constant_folding=do_constant_folding,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
