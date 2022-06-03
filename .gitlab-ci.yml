@@ -1,6 +1,6 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.04-py3"
+  BIGNLP_BASE_IMAGE: "http://nvcr.io/nvidian/bignlp-training:22.05.05-py"
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
 
 stages:
