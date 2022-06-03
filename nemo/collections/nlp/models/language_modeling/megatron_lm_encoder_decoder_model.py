@@ -835,7 +835,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-<<<<<<< HEAD
     def encode(self, tokens_enc, enc_mask, encoder_input=None):
         """
         tokens_enc - encoder input tokens 
