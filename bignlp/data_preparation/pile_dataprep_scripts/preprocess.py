@@ -46,7 +46,7 @@ def main(cfg):
         f"cd {megatron_dir}; "
         f'export PYTHONPATH="/opt/bignlp/NeMo/.:$PYTHONPATH"; '
         f'export TRANSFORMERS_CACHE="/temp_root/.cache/"; '
-        f"CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} {flags}"
+        f"CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7 python3 {code_path} "
     )
 
     if cfg.get("cluster_type") == "bcm":
@@ -69,7 +69,8 @@ def main(cfg):
             f"--append-eod "
         )
         os.system(compilecmd)
-        os.system(runcmd.format(flags=flags))
+        runcmd += f"{flags} "
+        os.system(runcmd)
         if rm_extracted:
             os.remove(extracted_path)
     elif cfg.get("cluster_type") == "bcp":
@@ -109,7 +110,7 @@ def main(cfg):
                 f"--workers {ncpus} "
                 f"--append-eod "
             )
-            proc = subprocess.Popen(runcmd.format(flags=flags), shell=True)
+            proc = subprocess.Popen(runcmd + flags, shell=True)
             proc.wait()
             if rm_extracted:
                 os.remove(extracted_path)

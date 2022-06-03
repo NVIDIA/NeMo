@@ -17,6 +17,5 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     data_preparation.log_dir=${RESULTS_DIR} \
     data_preparation.file_numbers="0" \
-    data_preparation.preprocess_data=False \
     data_preparation.nodes=1 \
     data_preparation.time_limit="4:00:00"

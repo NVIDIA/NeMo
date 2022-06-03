@@ -118,7 +118,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
-        flags = f"--container-image {container} --container-mounts {mounts_str}"
+        flags = f"--container-image {container} --container-mounts {mounts_str} "
 
         assert isinstance(download_the_pile, bool), "download_the_pile must be bool."
         if download_the_pile:
@@ -147,13 +147,6 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             dependency = job_id_1.decode("utf-8")
             print(f"Submitted Download script with job id: {dependency}")
 
-            if cfg.get("ci_test"):  # Whether this job is running in CI or not.
-                flags = (
-                    f"--container-image {container} --container-mounts {mounts_str} "
-                    f"-o {log_dir}/slurm_%j.log "
-                )
-            else:
-                flags = (f"--container-image {container} --container-mounts {mounts_str} ")
             # Extract The Pile dataset files
             extract_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/extract_script.sh"
@@ -174,10 +167,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}extract",
             )
-            if cfg.get("ci_test"):
-                job_id_2 = subprocess.check_output([f'sbatch {extract_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
-            else:
-                job_id_2 = subprocess.check_output([f"sbatch --parsable {extract_script_path}"], shell=True)
+            job_id_2 = subprocess.check_output([f"sbatch --parsable {extract_script_path}"], shell=True)
             dependency = job_id_2.decode("utf-8")
             print(f"Submitted Extract script with job id: {dependency}")
 
@@ -187,6 +177,9 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
             preprocess_script_path = os.path.join(
                 bignlp_path, "bignlp/data_preparation/preprocess_script.sh"
             )
+            if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+                flags += f" -o {log_dir}/slurm_%j.log "
+
             create_slurm_file(
                 new_script_path=preprocess_script_path,
                 code_path=preprocess_code_path,
@@ -203,6 +196,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 overcommit=overcommit,
                 job_name=f"{job_name_prefix}preprocess",
             )
+
             if cfg.get("ci_test"):
                 job_id_3 = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
             else:
