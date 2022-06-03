@@ -109,6 +109,9 @@ build-BigNLP:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
 
+    # Run metrics collection
+    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
+
     # Run Pytest
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
@@ -163,6 +166,53 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
   needs:
     - build-BigNLP
 
+train.t5.220m_tp1_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp2_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp2_pp1_1node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp1_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.t5.220m_tp2_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
 
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
