@@ -139,8 +139,10 @@ def main(cfg):
         print(f"Config #{i+1}: {res[-1]} with {res[12]:.4f}s per global step.")
         if i + 1 == output_top_n:
             break
+
+    top_config = f"{model_name}_{model_size}b_{nodes}nodes_tp_{result[0][2]}_pp_{result[0][3]}_mbs_{result[0][4]}_act_ckpt_{result[0][5]}"
     print("\n==================================================")
-    print(f"Optimal config: {result[0][-1]} with {result[0][12]:.4f}s per global step.")
+    print(f"Optimal config: {top_config} with {result[0][12]:.4f}s per global step.")
     print(f"Saving config to {final_result_logs}/optimal_config_{model_size}b_{nodes}nodes.yaml.")
     print("==================================================\n")
 
@@ -150,7 +152,7 @@ def main(cfg):
     df.to_csv(os.path.join(final_result_logs, f"final_summary_{nodes}nodes.csv"), index=False)
 
     copyfile(
-        os.path.join(candidate_configs, f"{result[0][-1]}.yaml"),
+        os.path.join(candidate_configs, f"{top_config}.yaml"), 
         os.path.join(final_result_logs, f"optimal_config_{model_size}b_{nodes}nodes.yaml"),
     )
 
