@@ -3138,8 +3138,8 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3
 ```
 
 The `cluster` section set Base Command Platform parameters:
@@ -4405,7 +4405,9 @@ The table and chart below show the performance results.
 
 ## 8. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* For customers looking to do inference please use the 22.03 container
+* The 22.05 container provides better performance for large models like 530B but can be slower for 5B model for some configurations. One should consider using container 22.01 in such scenario.
+* The inference profiling scripts fail to produce final summary of results due to division by zero error still the results are present in CSV files.
+* For customers looking to do inference at BCP please use the 22.03 container
 * Selected configurations that used to work result in an out of memory (OOM) error while training on the NVIDIA DGX SuperPOD nodes
 
 | Model Architecture | Model Size | Data Type | AMP Type | \#Activation Checkpoint Layers | MBS | \#PP | \#TP |
