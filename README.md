@@ -4302,13 +4302,13 @@ We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on 
 task. The results can be found in the table below. The user can 
 finetune on top of any `.nemo` trained checkpoint file on `XNLI` task mentioned in mT5 finetuning section.
 
-| Task-Language | Metric    | 170M  | 390M  | 3B (750B tokens) |
-|---------------|-----------|-------|-------|------------------|
-| XNLI-en       | Accuracy  | 80.1% | 84.6% | 89.1%            |
-| XNLI-es       | Accuracy  | 73.3% | 79.3% | 85.8%            |
-| XNLI-de       | Accuracy  | 69.6% | 76.4% | 84.2%            |
-| XNLI-fr       | Accuracy  | 72.2% | 78.6% | 85.4%            |
-| XNLI-zh       | Accuracy  | 73.8% | 70.1% | 79.0%            |
+| Task-Language | Metric    | 170M  | 390M  | 3B    |
+|---------------|-----------|-------|-------|-------|
+| XNLI-en       | Accuracy  | 80.1% | 84.6% | 89.4% |
+| XNLI-es       | Accuracy  | 73.3% | 79.3% | 86.4% |
+| XNLI-de       | Accuracy  | 69.6% | 76.4% | 84.5% |
+| XNLI-fr       | Accuracy  | 72.2% | 78.6% | 85.8% |
+| XNLI-zh       | Accuracy  | 73.8% | 70.1% | 79.9% |
 
 
 Training the 170M mT5 model to convergence takes 4 days, and the loss curve can be seen in the figure below:
@@ -4339,17 +4339,17 @@ given Global Batch Size (GBS).
 | 64     | 2048 | 512                | 1T             | 1.584 | 3,744,914               | 4                                        |
 
 
-Training the 3B mT5 model to convergence takes 14 days, and the loss curve of a 75% trained model can be seen in the figure below:
+Training the 3B mT5 model to convergence takes 14 days, and the loss curve of a fully trained model can be seen in the figure below:
 
-<img src="img/3B_mT5_loss_75percent.svg"/>
+<img src="img/3B_mT5_loss_final.svg"/>
 
 The table below shows the converged training loss, the throughput, and the
 total time to train for the 3B T5 model, using a given number of GPUs and a
 given Global Batch Size (GBS).
 
-| \#GPUs | GBS  | Seq Length | \#Tokens | Loss (750B tokens) | Throughput (Tokens/sec) | Time to Train (days) |
-|--------|------|------------|----------|--------------------|-------------------------|----------------------|
-| 160        | 1920 | 512                | 1T             | 1.134              | 911,065                 | 14                   |
+| \#GPUs | GBS  | Seq Length | \#Tokens | Loss   | Throughput (Tokens/sec) | Time to Train (days) |
+|--------|------|------------|----------|--------|-------------------------|----------------------|
+| 160        | 1920 | 512                | 1T             | 1.134  | 911,065                 | 14                   |
 
 
 #### 6.3.2. Training Performance Results
