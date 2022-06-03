@@ -56,6 +56,9 @@ def get_decoder_model(
     use_cpu_initialization=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
+    position_embedding_type='learned_absolute',
+    relative_attention_num_buckets=32,
+    relative_attention_max_distance=128,
     precision=16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
@@ -77,6 +80,7 @@ def get_decoder_model(
     parent_model_type=ModelType.encoder_or_decoder,
     layer_type=None,
     chunk_size=64,
+    layer_number_offset=0,  # this is use only for attention norm_factor scaling
 ):
     """Build language model and return along with the key to save."""
 
@@ -109,6 +113,9 @@ def get_decoder_model(
             use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
+            position_embedding_type=position_embedding_type,
+            relative_attention_num_buckets=relative_attention_num_buckets,
+            relative_attention_max_distance=relative_attention_max_distance,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
@@ -156,8 +163,11 @@ def get_decoder_model(
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
             parent_model_type=parent_model_type,
             chunk_size=chunk_size,
+            layer_number_offset=layer_number_offset,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")
