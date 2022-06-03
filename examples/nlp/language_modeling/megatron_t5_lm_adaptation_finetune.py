@@ -91,10 +91,14 @@ def main(cfg) -> None:
 
             # Override data from T5 to Prefix-LM
             encoder_seq_length = pretrained_cfg.data.seq_length
-            decoder_seq_length = pretrained_cfg.data.seq_length # Set decoder seq length to be enoder seq length for prefix-lm
+            decoder_seq_length = (
+                pretrained_cfg.data.seq_length
+            )  # Set decoder seq length to be enoder seq length for prefix-lm
             pretrained_cfg.data = cfg.model.data
             pretrained_cfg.data.seq_length = encoder_seq_length
-            pretrained_cfg.data.seq_length_dec = decoder_seq_length - 1 # -1 is to account for the addition of <bos> and <eos> and right shifting to create targets.
+            pretrained_cfg.data.seq_length_dec = (
+                decoder_seq_length - 1
+            )  # -1 is to account for the addition of <bos> and <eos> and right shifting to create targets.
 
             # Override fusion params.
             pretrained_cfg.masked_softmax_fusion = cfg.model.masked_softmax_fusion
@@ -104,7 +108,7 @@ def main(cfg) -> None:
             # Override dropout
             if cfg.model.hidden_dropout is not None:
                 pretrained_cfg.hidden_dropout = cfg.model.hidden_dropout
-            
+
             if cfg.model.attention_dropout is not None:
                 pretrained_cfg.attention_dropout = cfg.model.attention_dropout
 
@@ -131,6 +135,7 @@ def main(cfg) -> None:
         raise ValueError(f'No pretrained model path specified or does not exist {cfg.model.pretrained_model_path}')
 
     trainer.fit(model)
+
 
 if __name__ == '__main__':
     main()
