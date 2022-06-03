@@ -149,7 +149,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
             bias_activation_fusion=(
                 (self.cfg.get('bias_gelu_fusion', True) and self.cfg.get('activation', 'gelu') == 'gelu')
-                or self.cfg.get('bias_activation_fusion', True)
+                or (self.cfg.get('bias_activation_fusion', True) and self.cfg.get('activation', 'gelu') == 'geglu')
             ),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
