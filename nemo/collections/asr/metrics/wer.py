@@ -14,10 +14,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 
 import editdistance
 import torch
+import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
@@ -252,6 +253,13 @@ class AbstractCTCDecoding(ABC):
                 decoded_hyps = self.decode_hypothesis(
                     n_hyps, fold_consecutive
                 )  # type: List[Union[Hypothesis, NBestHypotheses]]
+
+                # If computing timestamps
+                if self.compute_timestamps is True:
+                    timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
+                    for hyp_idx in range(len(decoded_hyps)):
+                        decoded_hyps[hyp_idx] = self.compute_ctc_timestamps(decoded_hyps[hyp_idx], timestamp_type)
+
                 hypotheses.append(decoded_hyps[0])  # best hypothesis
                 all_hypotheses.append(decoded_hyps)
 
@@ -267,8 +275,15 @@ class AbstractCTCDecoding(ABC):
                 hypotheses_list, fold_consecutive
             )  # type: List[Union[Hypothesis, NBestHypotheses]]
 
+            # If computing timestamps
+            if self.compute_timestamps is True:
+                timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
+                for hyp_idx in range(len(hypotheses)):
+                    hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)
+
             if return_hypotheses:
                 return hypotheses, None
+
             best_hyp_text = [h.text for h in hypotheses]
             return best_hyp_text, None
 
@@ -311,8 +326,12 @@ class AbstractCTCDecoding(ABC):
                     prediction = prediction[:predictions_len]
                 decoded_prediction = prediction[prediction != self.blank_id].tolist()
 
-            # De-tokenize the integer tokens
-            hypothesis = self.decode_tokens_to_str(decoded_prediction)
+            # De-tokenize the integer tokens; if not also computing timestamps
+            if self.compute_timestamps is True:
+                hypothesis = decoded_prediction
+            else:
+                hypothesis = self.decode_tokens_to_str(decoded_prediction)
+
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
@@ -345,15 +364,99 @@ class AbstractCTCDecoding(ABC):
         raise NotImplementedError()
 
     def compute_ctc_timestamps(
-        self, decoder_outputs: torch.Tensor, decoder_lengths: torch.Tensor = None, timestamp_type: str = "all"
+        self, hypothesis: Hypothesis, timestamp_type: str = "all"
     ):
-        assert timestamp_type in ['char', 'word', 'subword', 'all']
-        original_timestamps = self.compute_timestamps
+        assert timestamp_type in ['char', 'word', 'all']
 
-        hypothesis, _ = self.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lengths, return_hypotheses=True)
+        # retrieve offsets
+        char_offsets = word_offsets = None
+        char_offsets = self._compute_offsets(hypothesis, self.blank_id)
 
-        # reset timestamps
-        self.compute_timestamps = original_timestamps
+        if len(char_offsets) != len(hypothesis.text):
+            raise ValueError(
+                f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
+                " have to be of the same length, but are: "
+                f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
+                f" {len(hypothesis.text)}"
+            )
+
+        # set tokens to correct processed token
+        for i, char in enumerate(hypothesis.text):
+            char_offsets[i]["char"] = char
+
+        # retrieve word offsets from character offsets
+        word_offsets = None
+        if timestamp_type in ['word', 'all']:
+            word_offsets = self._get_word_offsets(char_offsets, word_delimiter_char=" ")
+
+        # attach results
+        if len(hypothesis.timestep) > 0:
+            timestep_info = hypothesis.timestep
+        else:
+            timestep_info = []
+
+        # Setup defaults
+        hypothesis.timestep = {"timestep": timestep_info}
+
+        if char_offsets is not None and timestamp_type in ['char', 'all']:
+            hypothesis.timestep['char'] = char_offsets
+
+        if word_offsets is not None and timestamp_type in ['word', 'all']:
+            hypothesis.timestep['word'] = word_offsets
+
+        # Convert the temporary indices to text
+        hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
+
+        return hypothesis
+
+    @staticmethod
+    def _compute_offsets(hypothesis: Hypothesis, ctc_token: int) -> List[Dict[str, Union[str, int]]]:
+        end_indices = np.asarray(hypothesis.y_sequence).cumsum()
+        start_indices = np.concatenate(([0], end_indices[:-1]))
+
+        offsets = [
+            {"char": t, "start_offset": s, "end_offset": e}
+            for t, s, e in zip(hypothesis.text, start_indices, end_indices)
+        ]
+
+        # filter out CTC token
+        offsets = list(filter(lambda offsets: offsets["char"] != ctc_token, offsets))
+        return offsets
+
+    @staticmethod
+    def _get_word_offsets(
+        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+    ) -> Dict[str, Union[str, float]]:
+        word_offsets = []
+
+        last_state = "SPACE"
+        word = ""
+        start_offset = 0
+        end_offset = 0
+        for i, offset in enumerate(offsets):
+            char = offset["char"]
+            state = "SPACE" if char == word_delimiter_char else "WORD"
+
+            if state == last_state:
+                # If we are in the same state as before, we simply repeat what we've done before
+                end_offset = offset["end_offset"]
+                word += char
+            else:
+                # Switching state
+                if state == "SPACE":
+                    # Finishing a word
+                    word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+                else:
+                    # Starting a new word
+                    start_offset = offset["start_offset"]
+                    end_offset = offset["end_offset"]
+                    word = char
+
+            last_state = state
+        if last_state == "WORD":
+            word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+
+        return word_offsets
 
     @property
     def preserve_alignments(self):
@@ -627,6 +730,9 @@ class CTCCharDecodingConfig:
 
     # compute ctc time stamps
     compute_timestamps: Optional[bool] = None
+
+    # type of timestamps to calculate
+    ctc_timestamp_type: str = "all"  # can be char, word or all for both
 
     # batch dimension
     batch_dim_index: int = 0

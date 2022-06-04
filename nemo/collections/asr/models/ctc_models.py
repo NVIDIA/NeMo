@@ -145,6 +145,8 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         # We will store transcriptions here
         hypotheses = []
+        all_hypotheses = []
+
         # Model's mode and device
         mode = self.training
         device = next(self.parameters()).device
@@ -186,7 +188,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                             lg = logits[idx][: logits_len[idx]]
                             hypotheses.append(lg.cpu().numpy())
                     else:
-                        current_hypotheses = self.decoding.ctc_decoder_predictions_tensor(
+                        current_hypotheses, all_hyp = self.decoding.ctc_decoder_predictions_tensor(
                             logits, decoder_lengths=logits_len, return_hypotheses=return_hypotheses,
                         )
 
@@ -194,8 +196,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                             # dump log probs per file
                             for idx in range(logits.shape[0]):
                                 current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+                                if current_hypotheses[idx].alignments is None:
+                                    current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
                         hypotheses += current_hypotheses
+
+                        # Keep following for beam search integration
+                        # if all_hyp is not None:
+                        #     all_hypotheses += all_hyp
+                        # else:
+                        #     all_hypotheses += current_hypotheses
 
                     del greedy_predictions
                     del logits
@@ -209,6 +219,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
             logging.set_verbosity(logging_level)
+
         return hypotheses
 
     def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):

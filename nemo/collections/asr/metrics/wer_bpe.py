@@ -184,6 +184,7 @@ class WERBPE(Metric):
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
+    full_state_update: bool = True
 
     def __init__(
         self,
