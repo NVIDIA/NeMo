@@ -105,6 +105,7 @@ class AudioText(_Collection):
         offsets: List[str],
         speakers: List[Optional[int]],
         orig_sampling_rates: List[Optional[int]],
+        token_labels: List[Optional[int]],
         langs: List[Optional[str]],
         parser: parsers.CharParser,
         min_duration: Optional[float] = None,
@@ -116,14 +117,14 @@ class AudioText(_Collection):
         """Instantiates audio-text manifest with filters and preprocessing.
 
         Args:
-            ids: List of example positions.
+            ids: List of examples positions.
             audio_files: List of audio files.
             durations: List of float durations.
             texts: List of raw text transcripts.
             offsets: List of duration offsets or None.
             speakers: List of optional speakers ids.
             orig_sampling_rates: List of original sampling rates of audio files.
-            langs: List of language ids, one for each sample, or None.
+            langs: List of language ids, one for eadh sample, or None.
             parser: Instance of `CharParser` to convert string to tokens.
             min_duration: Minimum duration to keep entry with (default: None).
             max_duration: Maximum duration to keep entry with (default: None).
@@ -137,8 +138,8 @@ class AudioText(_Collection):
         if index_by_file_id:
             self.mapping = {}
 
-        for id_, audio_file, duration, offset, text, speaker, orig_sr, lang in zip(
-            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, langs
+        for id_, audio_file, duration, offset, text, speaker, orig_sr, token_labels, lang in zip(
+            ids, audio_files, durations, offsets, texts, speakers, orig_sampling_rates, token_labels, langs
         ):
             # Duration filters.
             if min_duration is not None and duration < min_duration:
@@ -151,28 +152,33 @@ class AudioText(_Collection):
                 num_filtered += 1
                 continue
 
-            if text != '':
-                if hasattr(parser, "is_aggregate") and parser.is_aggregate:
-                    if lang is not None:
-                        text_tokens = parser(text, lang)
-                    else:
-                        raise ValueError("lang required in manifest when using aggregate tokenizers")
-                else:
-                    text_tokens = parser(text)
+            if token_labels is not None:
+                text_tokens = token_labels
             else:
-                text_tokens = []
+                if text != '':
+                    if hasattr(parser, "is_aggregate") and parser.is_aggregate:
+                        if lang is not None:
+                            text_tokens = parser(text, lang)
+                        else:
+                            raise ValueError("lang required in manifest when using aggregate tokenizers")
+                    else:
+                        text_tokens = parser(text)
+                else:
+                    text_tokens = []
 
-            if text_tokens is None:
-                duration_filtered += duration
-                num_filtered += 1
-                continue
+                if text_tokens is None:
+                    duration_filtered += duration
+                    num_filtered += 1
+                    continue
 
             total_duration += duration
 
             data.append(output_type(id_, audio_file, duration, text_tokens, offset, text, speaker, orig_sr, lang))
             if index_by_file_id:
                 file_id, _ = os.path.splitext(os.path.basename(audio_file))
-                self.mapping[file_id] = len(data) - 1
+                if file_id not in self.mapping:
+                    self.mapping[file_id] = []
+                self.mapping[file_id].append(len(data) - 1)
 
             # Max number of entities filter.
             if len(data) == max_number:
@@ -203,7 +209,8 @@ class ASRAudioText(AudioText):
             **kwargs: Kwargs to pass to `AudioText` constructor.
         """
 
-        ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs = [], [], [], [], [], [], [], []
+        ids, audio_files, durations, texts, offsets, = [], [], [], [], []
+        speakers, orig_srs, token_labels, langs = [], [], [], []
         for item in manifest.item_iter(manifests_files):
             ids.append(item['id'])
             audio_files.append(item['audio_file'])
@@ -212,9 +219,11 @@ class ASRAudioText(AudioText):
             offsets.append(item['offset'])
             speakers.append(item['speaker'])
             orig_srs.append(item['orig_sr'])
+            token_labels.append(item['token_labels'])
             langs.append(item['lang'])
-
-        super().__init__(ids, audio_files, durations, texts, offsets, speakers, orig_srs, langs, *args, **kwargs)
+        super().__init__(
+            ids, audio_files, durations, texts, offsets, speakers, orig_srs, token_labels, langs, *args, **kwargs
+        )
 
 
 class SpeechLabel(_Collection):
@@ -408,7 +417,7 @@ class FeatureSequenceLabel(_Collection):
     def relative_speaker_parser(self, seq_label):
         """ Convert sequence of speaker labels to relative labels.
         Convert sequence of absolute speaker to sequence of relative speaker [E A C A E E C] -> [0 1 2 1 0 0 2]
-        In this seq of label, if a label did not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
+        In this seq of label , if label do not appear before, assign new relative labels len(pos); else reuse previous assigned relative labels.
         Args:
             seq_label (str): A string of a sequence of labels.
 
@@ -481,7 +490,6 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
         item = dict(feature_file=item['feature_file'], seq_label=item['seq_label'],)
 
         return item
-
 
 class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
@@ -617,7 +625,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             round_digit (int):
                 Number of digits to be rounded.
             seq_eval_mode (bool):
-                If True, F1 score will be calculated for each speaker pair as in the validation accuracy in training mode.
+                If True, F1 score will be calculated for each speaker pair during inference mode.
             pairwise_infer (bool):
                 If True, this Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
                 is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then
@@ -643,19 +651,17 @@ class DiarizationSpeechLabel(DiarizationLabel):
 
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             if self.pairwise_infer:
+                clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[item['uniq_id']]])))
                 if item['rttm_filepath']:
                     base_scale_index = max(self.emb_dict.keys())
                     _sess_spk_dict = self.emb_dict[base_scale_index][item['uniq_id']]['mapping']
                     sess_spk_dict = {int(v.split('_')[-1]): k for k, v in _sess_spk_dict.items()}
                     rttm_speaker_digits = [int(v.split('_')[1]) for k, v in _sess_spk_dict.items()]
+                    if self.seq_eval_mode:
+                        clus_speaker_digits = rttm_speaker_digits
                 else:
                     sess_spk_dict = None
                     rttm_speaker_digits = None
-
-                if self.seq_eval_mode:
-                    clus_speaker_digits = rttm_speaker_digits
-                else:
-                    clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[item['uniq_id']]])))
 
                 if len(clus_speaker_digits) == 1:
                     spk_comb_list = [(0, 1)]
@@ -692,22 +698,6 @@ class DiarizationSpeechLabel(DiarizationLabel):
             **kwargs,
         )
 
-    def get_speakers_from_rttm(self, rttm_path):
-        """
-        Extract start and end time of each speaker from rttm files.
-        Args:
-            rttm_path (str): Path of the groundtruth diarization annotation (RTTM format) file.
-        """
-        rttm_lines = open(rttm_path).readlines()
-        speaker_list = set()
-        for rttm_line in rttm_lines:
-            rttm = rttm_line.strip().split()
-            speaker = rttm[7]
-            speaker_list.add(speaker)
-
-        spk_num = len(set(speaker_list))
-        return spk_num, sorted(list(speaker_list))
-
     def __parse_item_rttm(self, line: str, manifest_file: str) -> Dict[str, Any]:
         """Parse each rttm file and save it to in Dict format"""
         item = json.loads(line)
@@ -731,3 +721,4 @@ class DiarizationSpeechLabel(DiarizationLabel):
             offset=item.get('offset', None),
         )
         return item
+
