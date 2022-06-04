@@ -3156,8 +3156,8 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.01-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.01-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
 The `cluster` section set Base Command Platform parameters:
