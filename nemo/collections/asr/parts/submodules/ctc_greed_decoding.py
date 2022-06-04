@@ -143,7 +143,7 @@ class GreedyCTCInfer(Typing):
         prediction_logprobs, prediction_labels = prediction.max(-1)
 
         non_blank_ids = prediction_labels != self.blank_id
-        hypothesis.y_sequence = prediction_labels[non_blank_ids].numpy().tolist()
+        hypothesis.y_sequence = prediction_labels.numpy().tolist()
         hypothesis.score = sum(prediction_logprobs[non_blank_ids])
 
         if self.preserve_alignments:
