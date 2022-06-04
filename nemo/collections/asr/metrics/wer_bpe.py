@@ -12,14 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import List
 
 import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.metrics.wer import AbstractCTCDecoding, CTCCharDecoding
-from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
+from nemo.collections.asr.metrics.wer import (
+    AbstractCTCDecoding,
+    CTCCharDecoding,
+    CTCCharDecodingConfig,
+    move_dimension_to_the_front,
+)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
@@ -259,3 +264,8 @@ class WERBPE(Metric):
         scores = self.scores.detach().float()
         words = self.words.detach().float()
         return scores / words, scores, words
+
+
+@dataclass
+class CTCBPEDecodingConfig(CTCCharDecodingConfig):
+    pass

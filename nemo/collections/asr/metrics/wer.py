@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Union
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, is_dataclass
+from typing import List, Optional, Union
 
 import editdistance
 import torch
+from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
-from abc import ABC, abstractmethod
-from omegaconf import OmegaConf, DictConfig
 
 from nemo.collections.asr.parts.submodules import ctc_greed_decoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
@@ -167,7 +167,8 @@ class AbstractCTCDecoding(ABC):
         # add minimal config
         minimal_cfg = ['greedy']
         for item in minimal_cfg:
-            decoding_cfg[item] = OmegaConf.create({})
+            if item not in decoding_cfg:
+                decoding_cfg[item] = OmegaConf.create({})
 
         self.cfg = decoding_cfg
         self.blank_id = blank_id
@@ -177,7 +178,7 @@ class AbstractCTCDecoding(ABC):
 
         possible_strategies = ['greedy']
         if self.cfg.strategy not in possible_strategies:
-            raise ValueError(f"Decoding strategy must be one of {possible_strategies}")
+            raise ValueError(f"Decoding strategy must be one of {possible_strategies}. Given {self.cfg.strategy}")
 
         # Update preserve alignments
         if self.preserve_alignments is None:
@@ -214,7 +215,7 @@ class AbstractCTCDecoding(ABC):
         Decodes a sequence of labels to words
 
         Args:
-            decoder_outputs: An integer torch.Tensor of shape [Batch, Time] (if ``batch_index_dim == 0``) or [Time, Batch]
+            decoder_outputs: An integer torch.Tensor of shape [Batch, Time, Vocabulary] (if ``batch_index_dim == 0``) or [Time, Batch]
                 (if ``batch_index_dim == 1``) of integer indices that correspond to the index of some character in the
                 label set.
             decoder_lengths: Optional tensor of length `Batch` which contains the integer lengths
@@ -232,8 +233,6 @@ class AbstractCTCDecoding(ABC):
             or a list of Hypothesis objects containing additional information.
         """
         decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
-        if decoder_outputs.ndim > 2 and decoder_outputs.size(1) != self.blank_id:
-            decoder_outputs = decoder_outputs.transpose(1, -1)
 
         with torch.inference_mode():
             # Resolve the forward step of the decoding strategy
@@ -344,6 +343,17 @@ class AbstractCTCDecoding(ABC):
             A list of decoded tokens.
         """
         raise NotImplementedError()
+
+    def compute_ctc_timestamps(
+        self, decoder_outputs: torch.Tensor, decoder_lengths: torch.Tensor = None, timestamp_type: str = "all"
+    ):
+        assert timestamp_type in ['char', 'word', 'subword', 'all']
+        original_timestamps = self.compute_timestamps
+
+        hypothesis, _ = self.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lengths, return_hypotheses=True)
+
+        # reset timestamps
+        self.compute_timestamps = original_timestamps
 
     @property
     def preserve_alignments(self):
@@ -606,3 +616,20 @@ class WER(Metric):
         scores = self.scores.detach().float()
         words = self.words.detach().float()
         return scores / words, scores, words
+
+
+@dataclass
+class CTCCharDecodingConfig:
+    strategy: str = "greedy"
+
+    # preserve decoding alignments
+    preserve_alignments: Optional[bool] = None
+
+    # compute ctc time stamps
+    compute_timestamps: Optional[bool] = None
+
+    # batch dimension
+    batch_dim_index: int = 0
+
+    # greedy decoding config
+    greedy: ctc_greed_decoding.GreedyCTCInferConfig = ctc_greed_decoding.GreedyCTCInferConfig()

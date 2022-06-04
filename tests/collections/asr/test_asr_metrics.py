@@ -69,9 +69,8 @@ class TestWordErrorRate:
         else:
             tensor = tensor.to(torch.int64)
             new_tensor = torch.nn.functional.one_hot(tensor[0], num_classes=blank_id)
-            new_tensor = new_tensor.unsqueeze(0).transpose(1, 2)  # [1, V, T]
+            new_tensor = new_tensor.unsqueeze(0)  # [1, V, T]
             return new_tensor
-
 
     def __reference_string_to_tensor(self, txt: str, use_tokenizer: bool) -> torch.Tensor:
         # Reference tensors aren't produced by CTC logic
@@ -174,13 +173,14 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
+        print(hyp.y_sequence)
         assert (hyp.y_sequence - torch.tensor([3, 1, 20])).sum() == 0
         assert hyp.score == 3  # sum of number of tokens in one hot representation
         assert hyp.text == 'cat'
         assert hyp.alignments == [3, 1, 20]
         assert hyp.length == 0
 
-        length = torch.tensor([tensor.shape[-1]], dtype=torch.long)
+        length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
         hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)
@@ -211,7 +211,7 @@ class TestWordErrorRate:
         assert hyp.alignments == [3, 1, 20]
         assert hyp.length == 0
 
-        length = torch.tensor([tensor.shape[-1]], dtype=torch.long)
+        length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
 
         # pass batchsize 1 tensor, get back list of length 1 Hypothesis [add length info]
         hyp, _ = wer.decoding.ctc_decoder_predictions_tensor(tensor, decoder_lengths=length, return_hypotheses=True)

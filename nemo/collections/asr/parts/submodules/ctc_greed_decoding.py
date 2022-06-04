@@ -20,7 +20,7 @@ import torch
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import LogprobsType, ElementType, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import ElementType, HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
 
 
@@ -80,7 +80,7 @@ class GreedyCTCInfer(Typing):
         """Returns definitions of module input ports.
         """
         return {
-            "decoder_output": NeuralType(('B', 'D', 'T'), LogprobsType()),
+            "decoder_output": NeuralType(('B', 'T', 'D'), LogprobsType()),
             "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -91,10 +91,7 @@ class GreedyCTCInfer(Typing):
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
-        self,
-        blank_id: int,
-        preserve_alignments: bool = False,
-        compute_timestamps: bool = True,
+        self, blank_id: int, preserve_alignments: bool = False, compute_timestamps: bool = False,
     ):
         super().__init__()
 
@@ -104,15 +101,13 @@ class GreedyCTCInfer(Typing):
 
     @typecheck()
     def forward(
-        self,
-        decoder_output: torch.Tensor,
-        decoder_lengths: torch.Tensor,
+        self, decoder_output: torch.Tensor, decoder_lengths: torch.Tensor,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
         Output token is generated auto-repressively.
 
         Args:
-            decoder_output: A tensor of size (batch, features, timesteps).
+            decoder_output: A tensor of size (batch, timesteps, features).
             decoder_lengths: list of int representing the length of each sequence
                 output sequence.
 
@@ -120,12 +115,9 @@ class GreedyCTCInfer(Typing):
             packed list containing batch number of sentences (Hypotheses).
         """
         with torch.inference_mode():
-            # Move tensors to suit shape
-            predictions = decoder_output.transpose(1, 2)  # (B, T, D)
-
             hypotheses = []
             # Process each sequence independently
-            prediction_cpu_tensor = predictions.long().cpu()
+            prediction_cpu_tensor = decoder_output.long().cpu()
             for ind in range(prediction_cpu_tensor.shape[0]):
                 out_len = decoder_lengths[ind] if decoder_lengths is not None else None
                 hypothesis = self._greedy_decode(prediction_cpu_tensor[ind], out_len)
@@ -137,9 +129,7 @@ class GreedyCTCInfer(Typing):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(
-            self, x: torch.Tensor, out_len: torch.Tensor
-    ):
+    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
         # x: [T, 1, D]
         # out_len: [seq_len]
 
@@ -166,3 +156,9 @@ class GreedyCTCInfer(Typing):
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
+
+
+@dataclass
+class GreedyCTCInferConfig:
+    preserve_alignments: bool = False
+    compute_timestamps: bool = False
