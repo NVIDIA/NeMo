@@ -188,7 +188,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
         self._async_grad_allreduce = async_grad_allreduce
-        self._grad_divisor = 1 / float(get_data_parallel_world_size())
+        self._grad_divisor = 1 / get_data_parallel_world_size()
 
         if self._async_grad_allreduce:
             # use @no_sync to disable backward grad sync during gradient accumulation
