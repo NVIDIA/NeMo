@@ -212,7 +212,7 @@ def main(args):
         else:
             decoding_cfg.strategy = "greedy_batch"
 
-        decoding_cfg.preserve_alignments = True  # required to compute the middle token for transducers.
+        decoding_cfg.compute_timestamps = True  # required to compute the middle token for transducers.
         decoding_cfg.fused_batch_size = -1  # temporarily stop fused batch during inference.
 
     asr_model.change_decoding_strategy(decoding_cfg)
