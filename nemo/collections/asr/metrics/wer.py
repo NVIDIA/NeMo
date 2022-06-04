@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Union, Dict
+from typing import List, Optional, Union, Dict, Callable
 
 import editdistance
 import torch
@@ -315,20 +315,29 @@ class AbstractCTCDecoding(ABC):
 
                 # CTC decoding procedure
                 decoded_prediction = []
+                token_repetitions = []
+
                 previous = self.blank_id
-                for p in prediction:
+                last_repetition = 0
+
+                for pidx, p in enumerate(prediction):
                     if (p != previous or previous == self.blank_id) and p != self.blank_id:
                         decoded_prediction.append(p)
+
+                        token_repetitions.append(pidx - last_repetition)
+                        last_repetition = pidx
+
                     previous = p
 
             else:
                 if predictions_len is not None:
                     prediction = prediction[:predictions_len]
                 decoded_prediction = prediction[prediction != self.blank_id].tolist()
+                token_repetitions = [1] * len(decoded_prediction)
 
             # De-tokenize the integer tokens; if not also computing timestamps
             if self.compute_timestamps is True:
-                hypothesis = decoded_prediction
+                hypothesis = (decoded_prediction, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
 
@@ -363,14 +372,16 @@ class AbstractCTCDecoding(ABC):
         """
         raise NotImplementedError()
 
-    def compute_ctc_timestamps(
-        self, hypothesis: Hypothesis, timestamp_type: str = "all"
-    ):
+    def compute_ctc_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
         assert timestamp_type in ['char', 'word', 'all']
+
+        # Unpack the temporary storage, and set the decoded predictions
+        decoded_prediction, token_repetitions = hypothesis.text
+        hypothesis.text = decoded_prediction
 
         # retrieve offsets
         char_offsets = word_offsets = None
-        char_offsets = self._compute_offsets(hypothesis, self.blank_id)
+        char_offsets = self._compute_offsets(hypothesis, token_repetitions, self.blank_id)
 
         if len(char_offsets) != len(hypothesis.text):
             raise ValueError(
@@ -382,12 +393,27 @@ class AbstractCTCDecoding(ABC):
 
         # set tokens to correct processed token
         for i, char in enumerate(hypothesis.text):
-            char_offsets[i]["char"] = char
+            char_offsets[i]["char"] = self.decode_tokens_to_str([char])
+
+        # detect char vs subword models
+        lens = [len(list(v["char"])) > 1 for v in char_offsets]
+        if any(lens):
+            text_type = 'subword'
+        else:
+            text_type = 'char'
 
         # retrieve word offsets from character offsets
         word_offsets = None
         if timestamp_type in ['word', 'all']:
-            word_offsets = self._get_word_offsets(char_offsets, word_delimiter_char=" ")
+            if text_type == 'char':
+                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=" ")
+            else:
+                word_offsets = self._get_word_offsets_subwords_sentencepiece(
+                    char_offsets,
+                    hypothesis,
+                    decode_ids_to_tokens=self.decode_ids_to_tokens,
+                    decode_tokens_to_str=self.decode_tokens_to_str,
+                )
 
         # attach results
         if len(hypothesis.timestep) > 0:
@@ -410,8 +436,10 @@ class AbstractCTCDecoding(ABC):
         return hypothesis
 
     @staticmethod
-    def _compute_offsets(hypothesis: Hypothesis, ctc_token: int) -> List[Dict[str, Union[str, int]]]:
-        end_indices = np.asarray(hypothesis.y_sequence).cumsum()
+    def _compute_offsets(
+        hypothesis: Hypothesis, token_repetitions: List[int], ctc_token: int
+    ) -> List[Dict[str, Union[str, int]]]:
+        end_indices = np.asarray(token_repetitions).cumsum()
         start_indices = np.concatenate(([0], end_indices[:-1]))
 
         offsets = [
@@ -424,7 +452,7 @@ class AbstractCTCDecoding(ABC):
         return offsets
 
     @staticmethod
-    def _get_word_offsets(
+    def _get_word_offsets_chars(
         offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
     ) -> Dict[str, Union[str, float]]:
         word_offsets = []
@@ -455,6 +483,54 @@ class AbstractCTCDecoding(ABC):
             last_state = state
         if last_state == "WORD":
             word_offsets.append({"word": word, "start_offset": start_offset, "end_offset": end_offset})
+
+        return word_offsets
+
+    @staticmethod
+    def _get_word_offsets_subwords_sentencepiece(
+        offsets: Dict[str, Union[str, float]],
+        hypothesis: Hypothesis,
+        decode_ids_to_tokens: Callable,
+        decode_tokens_to_str: Callable,
+    ) -> Dict[str, Union[str, float]]:
+        word_offsets = []
+        built_token = []
+        for i, char in enumerate(hypothesis.text):
+            if i == 0:
+                built_token.append(char)
+
+            token = decode_ids_to_tokens([char])[0]
+            token_text = decode_tokens_to_str([char])
+
+            # it is a subword token, or contains a identifier at the beginning such as _ or ##
+            if token[0] != token_text[0]:
+                word_offsets.append(
+                    {
+                        "word": decode_tokens_to_str(built_token),
+                        "start_offset": offsets[i]["start_offset"],
+                        "end_offset": offsets[i]["end_offset"],
+                    }
+                )
+
+                built_token.clear()
+                built_token.append(char)
+            else:
+                built_token.append(char)
+
+        start_time = -1
+        for idx, val in enumerate(offsets):
+            if isinstance(val['char'], int) and start_time == -1:
+                start_time = val['start_offset']
+                continue
+
+            if not isinstance(val['char'], int) and start_time > -1:
+                word_offsets[idx]['start_offset'] = start_time
+                start_time = -1
+
+        word_offsets = list(filter(lambda v: not isinstance(v['word'], int), word_offsets))
+
+        word_offsets[-1]["word"] = decode_tokens_to_str(built_token)
+        built_token.clear()
 
         return word_offsets
 
