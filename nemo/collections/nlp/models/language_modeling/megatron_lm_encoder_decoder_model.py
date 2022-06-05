@@ -922,7 +922,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get output tensor
         if parallel_state.is_pipeline_last_stage():
-            output_tensor = output_tensor[0]
+            output_tensor = output_tensor[0]['logits']
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
         return output_tensor
