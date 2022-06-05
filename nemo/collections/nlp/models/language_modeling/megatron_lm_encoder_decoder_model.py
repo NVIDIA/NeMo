@@ -504,7 +504,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             return output, id_func
 
         return fwd_output_only_func
-        return fwd_output_only_func
 
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_global_batch(batch)
@@ -839,7 +838,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def encode(self, tokens_enc, enc_mask, encoder_input=None):
+    def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
         """
         tokens_enc - encoder input tokens 
         enc_mask - corresponding mask
@@ -856,13 +855,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.trainer.strategy.setup_environment()
 
             # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
-            _reconfigure_microbatch_calculator(
-                rank=0,  # This doesn't matter since it is only used for logging
-                rampup_batch_size=None,
-                global_batch_size=1,
-                micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
-                data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
-            )
+            if reconfigure_microbatch:
+                _reconfigure_microbatch_calculator(
+                    rank=0,  # This doesn't matter since it is only used for logging
+                    rampup_batch_size=None,
+                    global_batch_size=1,
+                    micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+                    data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
+                )
 
         # If classes that inherit from this class are using a different tokenizer,
         app_state = AppState()
@@ -925,6 +925,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             output_tensor = output_tensor[0]['logits']
             output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
 
+        # Reset microbatch calculator to what it was before decoding.
+        if reconfigure_microbatch:
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
         return output_tensor
 
     def decode(
@@ -980,7 +990,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get encoder hiddens (output)
         if enc_output is None:
-            enc_output = self.encode(tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input)
+            enc_output = self.encode(tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False)
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
