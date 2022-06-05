@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,15 +57,14 @@ class QAModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        with autocast():
-            hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-            )
+        hidden_states = self.bert_model(
+            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
 
-            if isinstance(hidden_states, tuple):
-                hidden_states = hidden_states[0]
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
 
-            logits = self.classifier(hidden_states=hidden_states)
+        logits = self.classifier(hidden_states=hidden_states)
         return logits
 
     def training_step(self, batch, batch_idx):
@@ -291,7 +290,7 @@ class QAModel(NLPModel):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
-            keep_doc_spans=self._cfg.dataset.keep_doc_spans,
+            keep_doc_spans='all',  # self._cfg.dataset.keep_doc_spans,
             doc_stride=self._cfg.dataset.doc_stride,
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,
