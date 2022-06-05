@@ -346,7 +346,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """
 
         virtual_prompt_params = {'params': []}
-        frozen_model_params = {'params': [], 'lr': 0.0, 'sched': {'min_lr': 0.0}}
+        frozen_model_params = {'params': [], 'lr': 0.0, 'weight_decay': 0.0, 'betas': (0.0, 0.0)}
 
         frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
 
