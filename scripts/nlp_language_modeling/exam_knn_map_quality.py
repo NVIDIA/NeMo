@@ -113,7 +113,7 @@ if __name__ == "__main__":
         print_num_neighbors = args.neighbors
 
     for chunk_id in args.chunk_ids:
-        token_ids = data_ds.get_chunk(chunk_id, force_no_padding=True)
+        token_ids = data_ds.get_chunk(chunk_id, force_no_cont_ids=True)
         assert token_ids.shape[0] == data_ds._index.chunk_size
         query_text = tokenizer.ids_to_text(token_ids)
         neighbor_chunk_ids = knn_index.get_KNN_chunk_ids(chunk_id)
