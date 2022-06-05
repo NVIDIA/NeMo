@@ -319,7 +319,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
-        if enc_input is None:
+        if (enc_input is None) and (enc_input_ids is not None):
             if self.pre_process and self.add_encoder:
                 # encoder embeddings
                 enc_position_ids = build_position_ids(enc_input_ids)
