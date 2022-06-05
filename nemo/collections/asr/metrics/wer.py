@@ -439,8 +439,12 @@ class AbstractCTCDecoding(ABC):
     def _compute_offsets(
         hypothesis: Hypothesis, token_repetitions: List[int], ctc_token: int
     ) -> List[Dict[str, Union[str, int]]]:
+        start_index = 0
+        if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
+            start_index = max(0, hypothesis.timestep[0] - 1)
+
         end_indices = np.asarray(token_repetitions).cumsum()
-        start_indices = np.concatenate(([0], end_indices[:-1]))
+        start_indices = np.concatenate(([start_index], end_indices[:-1]))
 
         offsets = [
             {"char": t, "start_offset": s, "end_offset": e}
@@ -496,21 +500,22 @@ class AbstractCTCDecoding(ABC):
         word_offsets = []
         built_token = []
         for i, char in enumerate(hypothesis.text):
-            if i == 0:
-                built_token.append(char)
+            # if i == 0:
+            #     built_token.append(char)
 
             token = decode_ids_to_tokens([char])[0]
             token_text = decode_tokens_to_str([char])
 
             # it is a subword token, or contains a identifier at the beginning such as _ or ##
-            if token[0] != token_text[0]:
-                word_offsets.append(
-                    {
-                        "word": decode_tokens_to_str(built_token),
-                        "start_offset": offsets[i]["start_offset"],
-                        "end_offset": offsets[i]["end_offset"],
-                    }
-                )
+            if token != token_text:
+                if len(built_token) > 0:
+                    word_offsets.append(
+                        {
+                            "word": decode_tokens_to_str(built_token),
+                            "start_offset": offsets[i]["start_offset"],
+                            "end_offset": offsets[i]["end_offset"],
+                        }
+                    )
 
                 built_token.clear()
                 built_token.append(char)
@@ -518,18 +523,34 @@ class AbstractCTCDecoding(ABC):
                 built_token.append(char)
 
         start_time = -1
-        for idx, val in enumerate(offsets):
-            if isinstance(val['char'], int) and start_time == -1:
-                start_time = val['start_offset']
-                continue
+        # for idx, val in enumerate(offsets):
+        #     if isinstance(val['char'], int) and start_time == -1:
+        #         start_time = val['start_offset']
+        #         print("new start time", start_time)
+        #         continue
+        #
+        #     if not isinstance(val['char'], int{
+        #                             "word": decode_tokens_to_str(built_token),
+        #                             "start_offset": offsets[i]["start_offset"],
+        #                             "end_offset": offsets[i]["end_offset"],
+        #                         }) and start_time > -1:
+        #         word_offsets[idx]['start_offset'] = start_time
+        #         print("final start time :", start_time)
+        #         start_time = -1
 
-            if not isinstance(val['char'], int) and start_time > -1:
-                word_offsets[idx]['start_offset'] = start_time
-                start_time = -1
+        # word_offsets = list(filter(lambda v: not isinstance(v['word'], int), word_offsets))
 
-        word_offsets = list(filter(lambda v: not isinstance(v['word'], int), word_offsets))
+        # inject the start offset of the first token to word offsets
+        word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
-        word_offsets[-1]["word"] = decode_tokens_to_str(built_token)
+        if len(built_token) > 0:
+            word_offsets.append(
+                {
+                    "word": decode_tokens_to_str(built_token),
+                    "start_offset": offsets[-(len(built_token))]["start_offset"],
+                    "end_offset": offsets[-1]["end_offset"],
+                }
+            )
         built_token.clear()
 
         return word_offsets

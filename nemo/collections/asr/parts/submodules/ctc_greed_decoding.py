@@ -150,7 +150,7 @@ class GreedyCTCInfer(Typing):
             hypothesis.alignments = prediction.clone()
 
         if self.compute_timestamps:
-            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False).numpy().tolist()
+            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
 
         return hypothesis
 
