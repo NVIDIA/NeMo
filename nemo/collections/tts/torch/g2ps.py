@@ -25,6 +25,7 @@ import torch
 
 from nemo.collections.tts.torch.en_utils import english_word_tokenize
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
 
 
@@ -239,6 +240,7 @@ class EnglishG2p(BaseG2p):
         return prons
 
 
+@experimental
 class IPAG2P(BaseG2p):
     # fmt: off
     STRESS_SYMBOLS = ["ˈ", "ˌ"]

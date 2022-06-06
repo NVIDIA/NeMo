@@ -21,6 +21,7 @@ from typing import List
 from nemo.collections.tts.torch.de_utils import german_text_preprocessing
 from nemo.collections.tts.torch.en_utils import english_text_preprocessing
 from nemo.utils import logging
+from nemo.utils.decorators import experimental
 
 
 class BaseTokenizer(abc.ABC):
@@ -372,6 +373,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 self.g2p.phoneme_probability = self.phoneme_probability
 
 
+@experimental
 class IPATokenizer(BaseTokenizer):
     # fmt: off
     PUNCT_LIST = (  # Derived from LJSpeech and "/" additionally
