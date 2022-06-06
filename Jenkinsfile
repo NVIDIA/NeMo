@@ -14,6 +14,7 @@ pipeline {
 
     stage('Add git safe directory'){
       steps{
+        sh 'printenv'
         sh 'git config --global --add safe.directory $GIT_CHECKOUT_DIR'
         sh 'cat ~/.gitconfig'
       }
