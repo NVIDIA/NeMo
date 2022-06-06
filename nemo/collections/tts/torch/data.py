@@ -37,7 +37,6 @@ from nemo.collections.tts.torch.helpers import (
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
-    VALID_SUPPLEMENTARY_DATA_TYPES,
     AlignPriorMatrix,
     Durations,
     Energy,
@@ -51,6 +50,16 @@ from nemo.collections.tts.torch.tts_data_types import (
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+
+
+EPSILON = 1e-9
+WINDOW_FN_SUPPORTED = {
+    'hann': torch.hann_window,
+    'hamming': torch.hamming_window,
+    'blackman': torch.blackman_window,
+    'bartlett': torch.bartlett_window,
+    'none': None,
+}
 
 
 class TTSDataset(Dataset):
@@ -231,13 +240,13 @@ class TTSDataset(Dataset):
             dtype=torch.float,
         ).unsqueeze(0)
 
-        window_fn = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'none': None,
-        }.get(self.window, None)
+        try:
+            window_fn = WINDOW_FN_SUPPORTED[self.window]
+        except KeyError:
+            raise NotImplementedError(
+                f"Current implementation doesn't support {self.window} window. "
+                f"Please choose one from {list(WINDOW_FN_SUPPORTED.keys())}."
+            )
 
         self.stft = lambda x: torch.stft(
             input=x,
@@ -253,15 +262,19 @@ class TTSDataset(Dataset):
             Path(sup_data_path).mkdir(parents=True, exist_ok=True)
             self.sup_data_path = sup_data_path
 
-        self.sup_data_types = (
-            [DATA_STR2DATA_CLASS[d_as_str] for d_as_str in sup_data_types] if sup_data_types is not None else []
-        )
+        self.sup_data_types = []
+        if sup_data_types is not None:
+            for d_as_str in sup_data_types:
+                try:
+                    sup_data_type = DATA_STR2DATA_CLASS[d_as_str]
+                except KeyError:
+                    raise NotImplementedError(f"Current implementation doesn't support {d_as_str} type.")
+
+                self.sup_data_types.append(sup_data_type)
+
         self.sup_data_types_set = set(self.sup_data_types)
 
         for data_type in self.sup_data_types:
-            if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
-                raise NotImplementedError(f"Current implementation doesn't support {data_type} type.")
-
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
     @staticmethod
@@ -377,7 +390,7 @@ class TTSDataset(Dataset):
             spec = self.stft(audio)
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
-            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
+            spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
         return spec
 
     def get_log_mel(self, audio):
@@ -433,7 +446,6 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
-            align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
@@ -469,7 +481,7 @@ class TTSDataset(Dataset):
 
             if self.pitch_mean is not None and self.pitch_std is not None and self.pitch_norm:
                 pitch -= self.pitch_mean
-                pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were perviously zero
+                pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were previously zero
                 pitch /= self.pitch_std
 
             pitch_length = torch.tensor(len(pitch)).long()
