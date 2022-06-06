@@ -12,6 +12,12 @@ pipeline {
 
   stages {
 
+    stage('Add git safe directory'){
+      steps{
+        sh 'git config --global --add safe.directory /var/lib/jenkins/workspace'
+      }
+    }
+
     stage('nvidia-smi'){
       steps{
         sh 'nvidia-smi'
