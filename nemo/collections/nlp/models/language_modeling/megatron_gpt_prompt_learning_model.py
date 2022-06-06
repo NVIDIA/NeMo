@@ -105,6 +105,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
+        self.frozen_model.freeze()
         self.tokenizer = self.frozen_model.tokenizer
         self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -342,11 +343,18 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         rate for the frozen model's params will always be zero effectively
         freezing the model's params but still allowing for the needed gradients
         to be passed around in pipeline parallel models. The prompt-encoder 
-        and/or prompt table will use the learning rate set be the user. 
+        and/or prompt table will use the learning rate set by the user. 
         """
 
         virtual_prompt_params = {'params': []}
-        frozen_model_params = {'params': [], 'lr': 0.0, 'weight_decay': 0.0, 'betas': (0.0, 0.0)}
+        frozen_model_params = {'params': [], 'lr': 0.0}
+
+        # Every pp stage needs to have at least one layer with requires_grad=True
+        # for PP and DDP to work togther. The lr for these layers will be 0.0
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            for layer in self.frozen_model.model.language_model.encoder.layers:
+                for param in layer.mlp.dense_h_to_4h.parameters():
+                    param.requires_grad = True
 
         frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
 
@@ -512,7 +520,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.init_global_step = self.trainer.global_step
         return super().on_pretrain_routine_start()
 
-    def step(self, batch, batch_idx, forward_only):
+    def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
             Our dataloaders produce a micro-batch and then we fetch
             a number of microbatches depending on the global batch size and model parallel size
@@ -524,7 +532,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-
             losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
                 forward_step_func=self.get_forward_output_and_loss_func(),
                 batch=batch,
@@ -566,15 +573,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             Microbatches are then moved to GPU during the pipeline.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
-        # input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-        # output = self.forward(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
-        # output_tensor, encoder_hidden_states = output
-        # loss = self.frozen_model.loss_func(loss_mask, output_tensor)
-        # self.log('train_loss', loss)
-
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-        loss_mean = self.step(batch, batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
 
         # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
         # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
@@ -599,6 +600,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.log('lr', lr, rank_zero_only=True)
         self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
+        # Need to make sure the frozen model param learning rate stays 0.0
+        # so forceing lr to be 0.0 for gpt layers before param update
+        self._optimizer.param_groups[1]['lr'] = 0.0
+
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -615,7 +620,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return
 
     def validation_step(self, batch, batch_idx):
-        loss_mean = self.step(batch, batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
         if loss_mean.item == 0.0:
             loss_mean = []
 
@@ -641,30 +646,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
     def test_epoch_end(self, outputs):
         averaged_loss = average_losses_across_data_parallel_group(outputs)
         logging.info(f'test_loss: {averaged_loss[0]}')
-
-    def allreduce_gradients(self):
-        """Reduce gradients across data parallel ranks.
-           Modified from megatron-lm: https://github.com/NVIDIA/Megatron-LM/blob/d41696840ed0a7edb7e0499eb82a48ae112d9bb3/megatron/model/distributed.py#L188
-        """
-        # Bucketize and all-reduce
-        buckets = {}
-        for param in self.parameters():
-            if param.requires_grad and param.grad is not None:
-                tp = param.data.type()
-                if tp not in buckets:
-                    buckets[tp] = []
-                buckets[tp].append(param)
-                # param.main_grad = param.grad
-
-        # For each bucket, all-reduce and copy all-reduced grads.
-        for tp in buckets:
-            bucket = buckets[tp]
-            grads = [param.grad.data for param in bucket]
-            coalesced = torch._utils._flatten_dense_tensors(grads)
-            coalesced /= parallel_state.get_data_parallel_world_size()
-            torch.distributed.all_reduce(coalesced, group=parallel_state.get_data_parallel_group())
-            for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
-                buf.copy_(synced)
 
     def on_train_end(self):
         # Save p-tuned prompts to prompt table for inference or future task training
