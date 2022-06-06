@@ -14,7 +14,8 @@ pipeline {
 
     stage('Add git safe directory'){
       steps{
-        sh 'git config --global --add safe.directory /var/lib/jenkins/workspace'
+        sh 'git config --global --add safe.directory $GIT_CHECKOUT_DIR'
+        sh 'cat ~/.gitconfig'
       }
     }
 
