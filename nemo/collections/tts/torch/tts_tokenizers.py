@@ -428,7 +428,7 @@ class IPATokenizer(BaseTokenizer):
             self.phoneme_probability = g2p.phoneme_probability
 
         # Build tokens list
-        tokens = list(g2p.symbols)
+        tokens = sorted(list(g2p.symbols))  # Sort to ensure that vocab is in the same order every time
 
         if chars or self.phoneme_probability is not None:
             if not chars:
@@ -436,7 +436,12 @@ class IPATokenizer(BaseTokenizer):
                     "phoneme_probability was not None, characters will be enabled even though "
                     "chars was set to False."
                 )
-            tokens.extend(string.ascii_lowercase)
+            
+            # Add uppercase chars if G2P class uses them, otherwise use lowercase ones
+            if g2p.set_graphemes_upper:
+                tokens.extend(string.ascii_uppercase)
+            else:
+                tokens.extend(string.ascii_lowercase)
 
         if space in g2p.symbols:
             self.space = tokens.index(space)

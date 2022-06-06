@@ -76,8 +76,10 @@ model:
       _target_: nemo.collections.tts.torch.g2ps.IPAG2P
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
-      phoneme_probability: 0.5
-
+      phoneme_probability: 0.8
+      # Relies on the heteronyms list for anything that needs to be disambiguated
+      ignore_ambiguous_words: false
+      use_stresses: true
   train_ds:
     dataset:
       _target_: nemo.collections.tts.torch.data.TTSDataset

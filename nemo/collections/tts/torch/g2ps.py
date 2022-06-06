@@ -240,6 +240,9 @@ class EnglishG2p(BaseG2p):
 
 
 class IPAG2P(BaseG2p):
+    # fmt: off
+    STRESS_SYMBOLS = ["ˈ", "ˌ"]
+
     def __init__(
         self,
         phoneme_dict,
@@ -247,7 +250,9 @@ class IPAG2P(BaseG2p):
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
-        phoneme_probability: Optional[float] = None,
+        phoneme_probability: Optional[float]=None,
+        use_stresses: Optional[bool]=True,
+        set_graphemes_upper: Optional[bool]=True
     ):
         """Generic IPA G2P module. This module converts words from grapheme to International Phonetic Alphabet representations.
         Optionally, it can ignore heteronyms, ambiguous words, or words marked as unchangeable by word_tokenize_func (see code for details).
@@ -270,16 +275,51 @@ class IPAG2P(BaseG2p):
             phoneme_probability (Optional[float]): The probability (0.<var<1.) that each word is phonemized. Defaults to None which is the same as 1.
                 Note that this code path is only run if the word can be phonemized. For example: If the word does not have a entry in the g2p dict, it will be returned
                 as characters. If the word has multiple entries and ignore_ambiguous_words is True, it will be returned as characters.
+            use_stresses (Optional[bool]): Whether or not to include the stress symbols (ˈ and ˌ).
+            set_graphemes_upper (Optional[bool]): Whether or not to convert all graphemes to uppercase (if not converted to phonemes).
+                You may want to set this if there is an overlap between grapheme/IPA symbols.
+                Defaults to True.
         """
+        self.use_stresses = use_stresses
+        self.set_graphemes_upper = set_graphemes_upper
+
         if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path):
-            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(phoneme_dict)
+            # Load phoneme_dict from file path
+            self.phoneme_dict, self.symbols = self._parse_as_cmu_dict(
+                phoneme_dict,
+                use_stresses,
+                self.STRESS_SYMBOLS,
+                upper=set_graphemes_upper,
+            )
         else:
+            # Load phoneme_dict as dictionary object
             logging.info("Loading phoneme_dict as a Dict object. Extracting valid symbols from values.")
             self.phoneme_dict = phoneme_dict
+
             self.symbols = set()
             for entries in phoneme_dict.values():
                 for phonemes in entries:
                     self.symbols.update(phonemes)
+
+            # Update dict to remove stresses if use_stresses=False
+            if not use_stresses:
+                for stress_symbol in self.STRESS_SYMBOLS:
+                    self.symbols.remove(stress_symbol)
+
+                updated_phoneme_dict = {}
+                for k,vs in self.phoneme_dict.items():
+                    new_vs = []
+                    for pron in vs:
+                        new_vs.append([symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS])
+                    updated_phoneme_dict[k] = new_vs
+                self.phoneme_dict = updated_phoneme_dict
+
+            # Update dict keys if graphemes should be set to uppercase
+            if set_graphemes_upper:
+                updated_phoneme_dict = {}
+                for k,vs, in self.phoneme_dict.items():
+                    updated_phoneme_dict[k.upper()] = vs
+                self.phoneme_dict = updated_phoneme_dict
 
         if apply_to_oov_word is None:
             logging.warning(
@@ -303,7 +343,7 @@ class IPAG2P(BaseG2p):
         self._rng = random.Random()
 
     @staticmethod
-    def _parse_as_cmu_dict(phoneme_dict_path):
+    def _parse_as_cmu_dict(phoneme_dict_path, use_stresses=False, stress_symbols=[], upper=True):
         """Loads IPA CMUdict, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
         symbols = set()
@@ -314,9 +354,15 @@ class IPAG2P(BaseG2p):
                 if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
                     parts = line.split('  ')
                     word = re.sub(_alt_re, '', parts[0])
-                    word = word.lower()
+                    if upper:
+                        word = word.upper()
+                    else:
+                        word = word.lower()
 
                     pronunciation = parts[1].strip()
+                    if not use_stresses:
+                        for stress_symbol in stress_symbols:
+                            pronunciation = pronunciation.replace(stress_symbol, '')
                     symbols.update(pronunciation)  # This will insert each char individually
                     g2p_dict[word].append(list(pronunciation))
 
@@ -333,6 +379,9 @@ class IPAG2P(BaseG2p):
     def parse_one_word(self, word: str):
         """Returns parsed `word` and `status` (bool: False if word wasn't handled, True otherwise).
         """
+        if self.set_graphemes_upper:
+            word = word.upper()
+
         if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
             return word, True
 
