@@ -990,7 +990,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get encoder hiddens (output)
         if enc_output is None:
-            enc_output = self.encode(tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False)
+            enc_output = self.encode(
+                tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
+            )
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
