@@ -131,7 +131,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                 assert self.encoder_hidden_state is not None
                 enc_output = self.encoder_hidden_state
         else:
-            enc_output = enc_output.to(enc_input.dtype)
+            # enc_output = enc_output.to(enc_input.dtype)
             enc_attn_mask = enc_output_attn_mask.to(enc_attn_mask)
 
         if self.decoder is None or output_enc_hidden_only:
