@@ -262,7 +262,7 @@ class IPAG2P(BaseG2p):
         
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
-                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/cmudict-0.7b_nv22.06-ipa.)
+                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt.)
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word
                 representation and flag whether to leave unchanged or not.
@@ -403,7 +403,14 @@ class IPAG2P(BaseG2p):
             and (word[:-2] in self.phoneme_dict)
             and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-2]))
         ):
-            return self.phoneme_dict[word[:-2]][0] + ["z"], True
+            if word[-3] == 'T':
+                # Case like "airport's"
+                return self.phoneme_dict[word[:-2]][0] + ["t", "s"], True
+            elif word[-3] == 'S':
+                # Case like "jones's"
+                return self.phoneme_dict[word[:-2]][0] + ["ɪ", "z"], True
+            else:
+                return self.phoneme_dict[word[:-2]][0] + ["z"], True
 
         # `s` suffix (without apostrophe) - not in phoneme dict
         if (
@@ -413,7 +420,14 @@ class IPAG2P(BaseG2p):
             and (word[:-1] in self.phoneme_dict)
             and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-1]))
         ):
-            return self.phoneme_dict[word[:-1]][0] + ["z"], True
+            if word[-3] == 'T':
+                # Case like "airport's"
+                return self.phoneme_dict[word[:-2]][0] + ["t", "s"], True
+            elif word[-3] == 'S':
+                # Case like "jones's"
+                return self.phoneme_dict[word[:-2]][0] + ["ɪ", "z"], True
+            else:
+                return self.phoneme_dict[word[:-2]][0] + ["z"], True
 
         # Phoneme dict lookup for unique words (or default pron if ignore_ambiguous_words=False)
         if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
