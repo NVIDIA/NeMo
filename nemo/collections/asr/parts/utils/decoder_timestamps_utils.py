@@ -171,7 +171,7 @@ class WER_TS(WER):
         start and end of each word.
         """
         token_list, timestamp_list = self.decode_ids_to_tokens_with_ts(tokens, timestamps)
-        hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
+        hypothesis = ''.join(self.decoding.decode_ids_to_tokens(tokens))
         return hypothesis, timestamp_list
 
     def decode_ids_to_tokens_with_ts(self, tokens: List[int], timestamps: List[int]) -> List[str]:
