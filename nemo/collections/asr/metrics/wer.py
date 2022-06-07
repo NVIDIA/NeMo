@@ -14,11 +14,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, is_dataclass
-from typing import List, Optional, Union, Dict, Callable
+from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
-import torch
 import numpy as np
+import torch
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
@@ -94,7 +94,8 @@ class AbstractCTCDecoding(ABC):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
-            batch_dim_index: An int, defaulting to 0. Refers to Batch dimension index.
+            batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
+                ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -168,7 +169,7 @@ class AbstractCTCDecoding(ABC):
         Decodes a sequence of labels to words
 
         Args:
-            decoder_outputs: An integer torch.Tensor of shape [Batch, Time, Vocabulary] (if ``batch_index_dim == 0``) or [Time, Batch]
+            decoder_outputs: An integer torch.Tensor of shape [Batch, Time, {Vocabulary}] (if ``batch_index_dim == 0``) or [Time, Batch]
                 (if ``batch_index_dim == 1``) of integer indices that correspond to the index of some character in the
                 label set.
             decoder_lengths: Optional tensor of length `Batch` which contains the integer lengths
@@ -618,7 +619,8 @@ class CTCCharDecoding(AbstractCTCDecoding):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
-            batch_dim_index: An int, defaulting to 0. Refers to Batch dimension index.
+            batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
+                ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -689,11 +691,8 @@ class WER(Metric):
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        vocabulary: List of strings that describes the vocabulary of the dataset.
-        batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of ``__call__``,
-            ``forward``, ``update``, ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
+        decoding: An instance of CTCCharDecoding.
         use_cer: Whether to use Character Error Rate instead of Word Error Rate.
-        ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
         log_prediction: Whether to log a single decoded sample per call.
         fold_consecutive: Whether repeated consecutive characters should be folded into one when decoding.
 
@@ -732,7 +731,7 @@ class WER(Metric):
         """
         Updates metric state.
         Args:
-            predictions: an integer torch.Tensor of shape ``[Batch, Time, Vocabulary]`` (if ``batch_dim_index == 0``) or
+            predictions: an integer torch.Tensor of shape ``[Batch, Time, {Vocabulary}]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
             targets: an integer torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)

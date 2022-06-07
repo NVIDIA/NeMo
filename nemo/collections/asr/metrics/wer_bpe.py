@@ -19,13 +19,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.metrics.wer import (
-    AbstractCTCDecoding,
-    CTCCharDecoding,
-    CTCCharDecodingConfig,
-    move_dimension_to_the_front,
-)
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.metrics.wer import AbstractCTCDecoding, CTCCharDecodingConfig
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -54,14 +48,15 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
-            batch_dim_index: An int, defaulting to 0. Refers to Batch dimension index.
+            batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
+                ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
 
-        blank_id: The id of the RNNT blank token.
+        tokenizer: NeMo tokenizer object, which inherits from TokenizerSpec.
     """
 
     def __init__(self, decoding_cfg, tokenizer: TokenizerSpec):
@@ -122,11 +117,8 @@ class WERBPE(Metric):
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        vocabulary: NeMo tokenizer object, which inherits from TokenizerSpec.
-        batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of ``__call__``,
-            ``forward``, ``update``, ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
+        decoding: An instance of CTCBPEDecoding.
         use_cer: Whether to compute word-error-rate or character-error-rate.
-        ctc_decode: Whether to perform CTC decode.
         log_prediction: Whether to log a single decoded sample per call.
         fold_consecutive: Whether repeated consecutive tokens should be folded into one when decoding.
 
@@ -134,6 +126,7 @@ class WERBPE(Metric):
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
+
     full_state_update: bool = True
 
     def __init__(
@@ -165,7 +158,7 @@ class WERBPE(Metric):
         """
         Updates metric state.
         Args:
-            predictions: an integer torch.Tensor of shape ``[Batch, Time, Vocabulary]`` (if ``batch_dim_index == 0``) or
+            predictions: an integer torch.Tensor of shape ``[Batch, Time, {Vocabulary}]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
             targets: an integer torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)

@@ -13,15 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Optional, Union
+from typing import List
 
-import numpy as np
 import torch
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import ElementType, HypothesisType, LengthsType, LogprobsType, NeuralType
-from nemo.utils import logging
+from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 
 
 def pack_hypotheses(hypotheses: List[rnnt_utils.Hypothesis], logitlen: torch.Tensor,) -> List[rnnt_utils.Hypothesis]:
@@ -118,9 +116,16 @@ class GreedyCTCInfer(Typing):
             hypotheses = []
             # Process each sequence independently
             prediction_cpu_tensor = decoder_output.long().cpu()
+
+            # determine type of input - logprobs or labels
+            if prediction_cpu_tensor.ndim == 2:  # labels
+                greedy_decode = self._greedy_decode_labels
+            else:
+                greedy_decode = self._greedy_decode_logprobs
+
             for ind in range(prediction_cpu_tensor.shape[0]):
                 out_len = decoder_lengths[ind] if decoder_lengths is not None else None
-                hypothesis = self._greedy_decode(prediction_cpu_tensor[ind], out_len)
+                hypothesis = greedy_decode(prediction_cpu_tensor[ind], out_len)
                 hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
@@ -129,8 +134,8 @@ class GreedyCTCInfer(Typing):
         return (packed_result,)
 
     @torch.no_grad()
-    def _greedy_decode(self, x: torch.Tensor, out_len: torch.Tensor):
-        # x: [T, 1, D]
+    def _greedy_decode_logprobs(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [T, D]
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
@@ -148,6 +153,30 @@ class GreedyCTCInfer(Typing):
 
         if self.preserve_alignments:
             hypothesis.alignments = prediction.clone()
+
+        if self.compute_timestamps:
+            hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
+
+        return hypothesis
+
+    @torch.no_grad()
+    def _greedy_decode_labels(self, x: torch.Tensor, out_len: torch.Tensor):
+        # x: [T]
+        # out_len: [seq_len]
+
+        # Initialize blank state and empty label set in Hypothesis
+        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+        prediction_labels = x.detach().cpu()
+
+        if out_len is not None:
+            prediction_labels = prediction_labels[:out_len]
+
+        non_blank_ids = prediction_labels != self.blank_id
+        hypothesis.y_sequence = prediction_labels.numpy().tolist()
+        hypothesis.score = -1.0
+
+        if self.preserve_alignments:
+            raise ValueError("Requested for alignments, but predictions provided were labels, not log probabilities.")
 
         if self.compute_timestamps:
             hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
