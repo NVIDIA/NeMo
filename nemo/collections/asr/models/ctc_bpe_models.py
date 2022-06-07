@@ -192,7 +192,12 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def change_vocabulary(self, new_tokenizer_dir: Union[str, DictConfig], new_tokenizer_type: str):
+    def change_vocabulary(
+        self,
+        new_tokenizer_dir: Union[str, DictConfig],
+        new_tokenizer_type: str,
+        decoding_cfg: Optional[DictConfig] = None,
+    ):
         """
         Changes vocabulary of the tokenizer used during CTC decoding process.
         Use this method when fine-tuning on from pre-trained model.

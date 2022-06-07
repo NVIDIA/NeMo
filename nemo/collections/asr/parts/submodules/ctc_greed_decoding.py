@@ -115,7 +115,7 @@ class GreedyCTCInfer(Typing):
         with torch.inference_mode():
             hypotheses = []
             # Process each sequence independently
-            prediction_cpu_tensor = decoder_output.long().cpu()
+            prediction_cpu_tensor = decoder_output.cpu()
 
             # determine type of input - logprobs or labels
             if prediction_cpu_tensor.ndim == 2:  # labels
@@ -145,11 +145,11 @@ class GreedyCTCInfer(Typing):
         if out_len is not None:
             prediction = prediction[:out_len]
 
-        prediction_logprobs, prediction_labels = prediction.max(-1)
+        prediction_logprobs, prediction_labels = prediction.max(dim=-1)
 
         non_blank_ids = prediction_labels != self.blank_id
         hypothesis.y_sequence = prediction_labels.numpy().tolist()
-        hypothesis.score = sum(prediction_logprobs[non_blank_ids])
+        hypothesis.score = (prediction_logprobs[non_blank_ids]).sum()
 
         if self.preserve_alignments:
             hypothesis.alignments = prediction.clone()

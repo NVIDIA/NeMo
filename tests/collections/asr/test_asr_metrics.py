@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import dataclasses
 import io
 import random
 import string
@@ -24,10 +24,11 @@ import torch
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
-from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, word_error_rate
-from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding
+from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, CTCCharDecodingConfig, word_error_rate
+from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
+from nemo.utils.config_utils import assert_dataclass_signature_match
 
 
 def build_char_tokenizer_with_vocabulary(vocabulary: List[str]) -> CharTokenizer:
@@ -173,11 +174,11 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
-        print(hyp.y_sequence)
+        sample = tensor[0] if batch_dim_index == 0 else tensor[:, 0, :]
         assert (hyp.y_sequence - torch.tensor([3, 1, 20])).sum() == 0
         assert hyp.score == 3  # sum of number of tokens in one hot representation
         assert hyp.text == 'cat'
-        assert hyp.alignments == [3, 1, 20]
+        assert (hyp.alignments == sample).all()
         assert hyp.length == 0
 
         length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
@@ -205,10 +206,11 @@ class TestWordErrorRate:
         hyp = hyp[0]
         assert isinstance(hyp, Hypothesis)
 
+        sample = tensor[0] if batch_dim_index == 0 else tensor[:, 0, :]
         assert (hyp.y_sequence - torch.tensor([3, 1, 20])).sum() == 0
         assert hyp.score == 3  # sum of number of tokens in one hot representation
         assert hyp.text == 'cat'
-        assert hyp.alignments == [3, 1, 20]
+        assert (hyp.alignments == sample).all()
         assert hyp.length == 0
 
         length = torch.tensor([tensor.shape[1 - batch_dim_index]], dtype=torch.long)
@@ -318,3 +320,65 @@ class TestWordErrorRate:
                     )
                     < 1e-6
                 )
+
+    @pytest.mark.unit
+    def test_char_decoding_logprobs(self):
+        B, T, V = 1, 8, len(self.vocabulary)
+        torch.manual_seed(0)
+        decoder_outputs = torch.randn(B, T, V, dtype=torch.float32)
+        decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
+        decoder_lens[torch.randint(0, B, [1])[0]] = T
+
+        decoding_cfg = CTCCharDecodingConfig()
+        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 0
+        assert hyp.alignments is None
+
+        # Preserve timestamps and alignments
+        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 3
+        assert hyp.alignments is not None
+
+    @pytest.mark.unit
+    def test_subword_decoding_logprobs(self):
+        B, T, V = 1, 8, self.char_tokenizer.vocab_size
+        torch.manual_seed(0)
+        decoder_outputs = torch.randn(B, T, V, dtype=torch.float32)
+        decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
+        decoder_lens[torch.randint(0, B, [1])[0]] = T
+
+        decoding_cfg = CTCBPEDecodingConfig()
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 0
+        assert hyp.alignments is None
+
+        # Preserve timestamps and alignments
+        decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 3
+        assert hyp.alignments is not None
