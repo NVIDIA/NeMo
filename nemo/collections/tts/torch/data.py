@@ -665,7 +665,7 @@ class TTSDataset(Dataset):
                 energy_length,
                 speaker_id,
                 voiced_mask,
-                p_voiced,
+                p_voiceds,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -773,6 +773,8 @@ class MixerTTSXDataset(TTSDataset):
             energy,
             energy_length,
             speaker_id,
+            voiced_mask,
+            p_voiced,
         ) = super().__getitem__(index)
 
         lm_tokens = None
@@ -793,6 +795,8 @@ class MixerTTSXDataset(TTSDataset):
             energy,
             energy_length,
             speaker_id,
+            voiced_mask,
+            p_voiced,
             lm_tokens,
         )
 
