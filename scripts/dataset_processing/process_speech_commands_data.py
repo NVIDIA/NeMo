@@ -32,10 +32,10 @@ import os
 import re
 import tarfile
 import urllib.request
-from typing import Dict, List, Set, Tuple
 from collections import defaultdict
 from functools import partial
 from multiprocessing import Pool
+from typing import Dict, List, Set, Tuple
 
 import librosa
 import numpy as np
@@ -89,7 +89,7 @@ def __construct_filepaths(
     testset_uids: Set[str],
     class_split: str,
     class_subset: List[str],
-    pattern: str
+    pattern: str,
 ) -> Tuple[Dict[str, int], Dict[str, List[tuple]], List[tuple], List[tuple], List[tuple], List[tuple], List[tuple]]:
 
     label_count = defaultdict(int)
@@ -132,11 +132,7 @@ def __construct_filepaths(
 
 
 def __construct_silence_set(
-    rng: np.random.RandomState,
-    sampling_rate: int,
-    silence_stride: int,
-    data_folder: str,
-    background_noise_folder: str
+    rng: np.random.RandomState, sampling_rate: int, silence_stride: int, data_folder: str, background_noise_folder: str
 ) -> List[str]:
     silence_files = []
     for file in os.listdir(background_noise_folder):
@@ -173,11 +169,13 @@ def __rebalance_files(max_count: int, label_filepath: str) -> Tuple[str, List[st
 
 def __prepare_metadata(skip_duration, sample: Tuple[str, str]) -> dict:
     label, audio_path = sample
-    return json.dumps({
-        'audio_filepath': audio_path,
-        'duration': 0.0 if skip_duration else librosa.core.get_duration(filename=audio_path),
-        'command': label,
-    })
+    return json.dumps(
+        {
+            'audio_filepath': audio_path,
+            'duration': 0.0 if skip_duration else librosa.core.get_duration(filename=audio_path),
+            'command': label,
+        }
+    )
 
 
 def __process_data(
@@ -186,7 +184,7 @@ def __process_data(
     num_processes: int = 1,
     rebalance: bool = False,
     class_split: str = 'all',
-    skip_duration: bool = False
+    skip_duration: bool = False,
 ):
     """
     Processes the data and generates the manifests.
@@ -354,9 +352,7 @@ def __process_data(
             desc='Rebalancing dataset',
         ):
             if num_samples < max_count:
-                logging.info(
-                    f'Extended class label {command} from {num_samples} samples to {len(filepaths)} samples'
-                )
+                logging.info(f'Extended class label {command} from {num_samples} samples to {len(filepaths)} samples')
                 label_filepaths[command] = [(command, filepath) for filepath in filepaths]
 
         del train
@@ -377,7 +373,8 @@ def __process_data(
         logging.info(f'Preparing manifest : {manifest_filename} with #{num_files} files')
 
         manifest = [
-            metadata for metadata in tqdm(
+            metadata
+            for metadata in tqdm(
                 pool.imap(metadata_fn, dataset, len(dataset) // num_processes),
                 total=num_files,
                 desc=f'Preparing {manifest_filename}',
@@ -393,11 +390,11 @@ def __process_data(
     pool.close()
 
     if skip_duration:
-            logging.info(
-                f'\n<<NOTE>> Duration computation was skipped for demonstration purposes on Colaboratory.\n'
-                f'In order to replicate paper results and properly perform data augmentation, \n'
-                f'please recompute the manifest file without the `--skip_duration` flag !\n'
-            )
+        logging.info(
+            f'\n<<NOTE>> Duration computation was skipped for demonstration purposes on Colaboratory.\n'
+            f'In order to replicate paper results and properly perform data augmentation, \n'
+            f'please recompute the manifest file without the `--skip_duration` flag !\n'
+        )
 
 
 def main():
@@ -409,13 +406,10 @@ def main():
         default=1,
         type=int,
         choices=[1, 2],
-        help='Version of the speech commands dataset to download'
+        help='Version of the speech commands dataset to download',
     )
     parser.add_argument(
-        '--class_split',
-        default='all',
-        choices=['all', 'sub'],
-        help='Whether to consider all classes or only a subset'
+        '--class_split', default='all', choices=['all', 'sub'], help='Whether to consider all classes or only a subset'
     )
     parser.add_argument('--num_processes', default=1, type=int, help='Number of processes')
     parser.add_argument('--rebalance', action='store_true', help='Rebalance the number of samples in each class')
