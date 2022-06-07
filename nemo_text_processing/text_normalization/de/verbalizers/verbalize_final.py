@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pynini
 import os
 
+import pynini
 from nemo_text_processing.text_normalization.de.verbalizers.verbalize import VerbalizeFst
 from nemo_text_processing.text_normalization.en.graph_utils import (
     GraphFst,
@@ -24,6 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst
 from pynini.lib import pynutil
+
 from nemo.utils import logging
 
 

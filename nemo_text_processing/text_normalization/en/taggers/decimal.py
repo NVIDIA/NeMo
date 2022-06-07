@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, TO_UPPER, GraphFst, get_abs_path
-
 import pynini
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_SIGMA, TO_UPPER, GraphFst, get_abs_path
 from pynini.lib import pynutil
 
 delete_space = pynutil.delete(" ")
 quantities = pynini.string_file(get_abs_path("data/number/thousand.tsv"))
 quantities_abbr = pynini.string_file(get_abs_path("data/number/quantity_abbr.tsv"))
 quantities_abbr |= TO_UPPER @ quantities_abbr
+
 
 def get_quantity(
     decimal: 'pynini.FstLike', cardinal_up_to_hundred: 'pynini.FstLike', include_abbr: bool

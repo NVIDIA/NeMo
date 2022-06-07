@@ -31,8 +31,8 @@ class TestCardinal:
         pred = self.inverse_normalizer_en.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True)
+    normalizer_en = Normalizer(
+        input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True
     )
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)

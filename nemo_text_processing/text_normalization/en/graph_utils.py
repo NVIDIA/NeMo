@@ -20,10 +20,9 @@ from typing import Dict
 
 import pynini
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-
 from pynini import Far
-from pynini.export import export
 from pynini.examples import plurals
+from pynini.export import export
 from pynini.lib import byte, pynutil, utf8
 
 NEMO_CHAR = utf8.VALID_UTF8_CHAR
@@ -73,6 +72,7 @@ TO_LOWER = pynini.union(*[pynini.cross(x, y) for x, y in zip(string.ascii_upperc
 TO_UPPER = pynini.invert(TO_LOWER)
 MIN_NEG_WEIGHT = -0.0001
 MIN_POS_WEIGHT = 0.0001
+
 
 def generator_main(file_name: str, graphs: Dict[str, 'pynini.FstLike']):
     """

@@ -21,8 +21,8 @@ from ..utils import CACHE_DIR, parse_test_case_file
 
 
 class TestPunctuation:
-    normalizer_en = (
-        Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True,)
+    normalizer_en = Normalizer(
+        input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True,
     )
 
     # address is tagged by the measure class

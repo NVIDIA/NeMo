@@ -21,7 +21,9 @@ from ..utils import CACHE_DIR, RUN_AUDIO_BASED_TESTS, parse_test_case_file
 
 
 class TestAddress:
-    normalizer_en = Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True)
+    normalizer_en = Normalizer(
+        input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True
+    )
 
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
