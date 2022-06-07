@@ -26,14 +26,25 @@ LATEST_RELEASE=$(git -c 'versionsort.suffix=-' \
 # expected TORCHAUDIO_BUILD_VERSION=*.**.*
 TORCHAUDIO_BUILD_VERSION=${LATEST_RELEASE:8:1}${PYTORCH_VERSION:1:5}
 
+echo "Latest torchaudio release: ${LATEST_RELEASE:8:4}"
+echo "Pytorch version: ${PYTORCH_VERSION:0:6}"
+echo "Torchaudio build version: ${TORCHAUDIO_BUILD_VERSION}"
+
+# we need parameterized to run torchaudio tests
+# suppose that we do not have parameterized installed yet
+pip install parameterized
+
+# Build torchaudio and run MFCC test
 git clone --depth 1 --branch ${LATEST_RELEASE} https://github.com/pytorch/audio.git && \
 cd audio && \
 git submodule update --init --recursive && \
-BUILD_SOX=1 BUILD_VERSION=${TORCHAUDIO_BUILD_VERSION} python setup.py install || \
-(echo "Failed to install torchaudio!"; exit 1);
-# RNNT loss is built with CUDA, so checking it will suffice
+BUILD_SOX=1 BUILD_VERSION=${TORCHAUDIO_BUILD_VERSION} python setup.py install && \
 cd .. && \
-pytest audio/test/torchaudio_unittest/functional/torchscript_consistency_cuda_test.py -k 'test_rnnt_loss' || \
-(echo "Failed to install torchaudio with CUDA support!"; exit 1);
+pytest -rs audio/test/torchaudio_unittest/transforms/torchscript_consistency_cpu_test.py -k 'test_MFCC' || \
+(echo "ERROR: Failed to install torchaudio!"; exit 1);
+# RNNT loss is built with CUDA, so checking it will suffice
+# This test will be skipped if CUDA is not available (e.g. when building from docker)
+pytest -rs audio/test/torchaudio_unittest/functional/torchscript_consistency_cuda_test.py -k 'test_rnnt_loss' || \
+echo "WARNING: Failed to install torchaudio with CUDA support!";
 rm -rf audio && \
 echo "Torchaudio installed successfully!"

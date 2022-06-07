@@ -38,7 +38,7 @@ RUN pip uninstall -y sacrebleu torchtext
 # build torchaudio
 WORKDIR /tmp/torchaudio_build
 COPY scripts/installers /tmp/torchaudio_build/scripts/installers/
-RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio.sh
+RUN /bin/bash /tmp/torchaudio_build/scripts/installers/install_torchaudio_latest.sh
 
 #install TRT tools: PT quantization support and ONNX graph optimizer
 WORKDIR /tmp/trt_build
