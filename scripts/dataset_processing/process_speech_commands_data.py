@@ -440,7 +440,7 @@ def main():
         logging.info(f'Getting {data_set}')
         __maybe_download_file(file_path, URL)
         logging.info(f'Extracting {data_set}')
-        __extract_all_files(file_path, data_root, data_folder)
+        __extract_all_files(file_path, data_folder)
 
     logging.info(f'Processing {data_set}')
     __process_data(
