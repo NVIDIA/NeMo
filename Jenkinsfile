@@ -15,7 +15,6 @@ pipeline {
     stage('Add git safe directory'){
       steps{
         sh 'git config --global --add safe.directory /var/lib/jenkins/workspace/NeMo_$GIT_BRANCH'
-        sh 'git config --global --add safe.directory /raid/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
       }
     }
 
@@ -1590,20 +1589,22 @@ pipeline {
       }
       failFast true
       stages {
-        stage('Punctuation & Capitalization, Using model.common_datasest_parameters.label_vocab_dir') {
+        stage('Punctuation & Capitalization, Using model.common_dataset_parameters.label_vocab_dir') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            label_vocab_dir=label_vocab_dir && \
-            mkdir -p ${label_vocab_dir} && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            label_vocab_dir="$(mktemp -d -p "$(pwd)")" && \
             punct_label_vocab="${label_vocab_dir}/punct_label_vocab.csv" && \
             capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
             printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
             printf "O\nU\n" > "${capit_label_vocab}" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               model.common_dataset_parameters.label_vocab_dir="${label_vocab_dir}" \
               model.class_labels.punct_labels_file="$(basename "${punct_label_vocab}")" \
@@ -1614,15 +1615,15 @@ pipeline {
               trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1630,27 +1631,29 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r "${label_vocab_dir}" && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
+            rm -rf "${label_vocab_dir}" "${data_dir}" "${output_dir}"'
           }
         }
-        stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
+        stage('Punctuation & Capitalization, Using model.common_dataset_parameters.{punct,capit}_label_ids') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            conf_path=/home/TestData/nlp/token_classification_punctuation && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            conf_path="$(mktemp -d -p "$(pwd)")" && \
             conf_name=punctuation_capitalization_config_with_ids && \
             cp conf/punctuation_capitalization_config.yaml "${conf_path}/${conf_name}.yaml" && \
             sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
               "${conf_path}/${conf_name}.yaml" && \
             sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
               "${conf_path}/${conf_name}.yaml" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               --config-path "${conf_path}" \
               --config-name "${conf_name}" \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1658,15 +1661,15 @@ pipeline {
               trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1674,8 +1677,7 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/* && \
-            rm "${conf_path}/${conf_name}.yaml"'
+            rm -rf "${output_dir}" "${data_dir}" "${conf_path}"'
           }
         }
       }
@@ -2775,6 +2777,35 @@ pipeline {
         }
       }
     }
+   
+    // TODO: Add this test back. Test was failing on CI machines due to HW error
+    // stage('L2: Megatron GPT Convert from Megatron-LM checkpoing and Eval') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh "python -m torch.distributed.launch --nproc_per_node=2 \
+    //     examples/nlp/language_modeling/megatron_lm_ckpt_to_nemo.py \
+    //     --checkpoint_folder=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700 \
+    //     --checkpoint_name=model_optim_rng.pt \
+    //     --hparams_file=/home/TestData/nlp/megatron_gpt/data/gpt/iter_0008700/hparams.yaml \
+    //     --nemo_file_path=examples/nlp/language_modeling/small_gpt.nemo \
+    //     --model_type=gpt \
+    //     --pipeline_model_parallel_size=1 \
+    //     --gpus_per_node=2 \
+    //     --tensor_model_parallel_size=2"
+    //     sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+    //     --gpt_model_file=examples/nlp/language_modeling/small_gpt.nemo \
+    //     --tokens_to_generate=32 \
+    //     --tensor_model_parallel_size=2 \
+    //     --prompt='This is a test.'"
+    //     sh "rm examples/nlp/language_modeling/small_gpt.nemo"
+    //   }
+    // }
     stage('L2: Megatron Change Partitions') {
       when {
         anyOf {
