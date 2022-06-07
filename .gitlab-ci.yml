@@ -324,6 +324,18 @@ convert.t5.220m_tp1_pp1:
   needs:
     - train.t5.220m_tp1_pp1_1node_100steps
 
+finetune.t5.220m_tp1_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: finetune
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps_mnli
+  rules:
+    - when: always
+  needs:
+    - convert.t5.220m_tp1_pp1
+
 data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
