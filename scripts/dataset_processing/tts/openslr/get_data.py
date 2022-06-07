@@ -14,17 +14,13 @@
 
 import argparse
 import json
-import multiprocessing
 import os
 import random
 import subprocess
-import tarfile
-import urllib.request
 from pathlib import Path
 
 import numpy as np
 from nemo_text_processing.text_normalization.normalize import Normalizer
-from tqdm import tqdm
 
 
 def get_args():
