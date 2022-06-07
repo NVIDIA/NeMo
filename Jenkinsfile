@@ -2715,10 +2715,10 @@ pipeline {
     }
     stage('L2: Megatron GPT Prompt Learning and Inference') {
       when {
-	anyOf {
-	  branch 'main'
-	  changeRequest target: 'main'
-	}
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
       }
       failFast true
       parallel{
@@ -2932,9 +2932,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
           }
         }
-        
-      }
-      
+      } 
     }
 
 
