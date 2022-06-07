@@ -18,6 +18,7 @@ import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
 
+
 class PartialConv1d(torch.nn.Conv1d):
     """
     Zero padding creates a unique identifier for where the edge of the data is, such that the model can almost always identify
@@ -70,7 +71,7 @@ class PartialConv1d(torch.nn.Conv1d):
         else:
             mask_ratio = self.mask_ratio
             update_mask = self.update_mask
-        
+
         raw_out = super(PartialConv1d, self).forward(torch.mul(input, mask) if mask_in is not None else input)
         if self.bias is not None:
             bias_view = self.bias.view(1, self.out_channels, 1)
@@ -84,6 +85,7 @@ class PartialConv1d(torch.nn.Conv1d):
         else:
             return output
 
+
 class LinearNorm(torch.nn.Module):
     def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
         super().__init__()
@@ -93,6 +95,7 @@ class LinearNorm(torch.nn.Module):
 
     def forward(self, x):
         return self.linear_layer(x)
+
 
 class ConvNorm(torch.nn.Module):
     def __init__(
@@ -138,6 +141,7 @@ class ConvNorm(torch.nn.Module):
         else:
             conv_signal = self.conv(signal)
         return conv_signal
+
 
 class LocationLayer(torch.nn.Module):
     def __init__(self, attention_n_filters, attention_kernel_size, attention_dim):

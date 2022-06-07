@@ -18,6 +18,7 @@ from torch import nn
 from nemo.collections.tts.helpers.helpers import binarize_attention_parallel
 from nemo.collections.tts.modules.submodules import ConvNorm
 
+
 class AlignmentEncoder(torch.nn.Module):
     """Module for alignment text and mel spectrogram. """
 
