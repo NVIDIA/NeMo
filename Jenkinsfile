@@ -2790,7 +2790,6 @@ pipeline {
           sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_base.nemo"
         }
       } 
-    }
 
 
     // TODO: Add this test back. Test was failing on CI machines due to HW error
