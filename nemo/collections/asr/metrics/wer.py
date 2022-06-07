@@ -78,85 +78,36 @@ class AbstractCTCDecoding(ABC):
         decoding_cfg: A dict-like object which contains the following key-value pairs.
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
-                -   greedy, greedy_batch (for greedy decoding).
-                -   beam, tsd, alsd (for beam search decoding).
+                -   greedy (for greedy decoding).
 
-            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
-                tokens as well as the decoded string. Default is False in order to avoid double decoding
-                unless required.
+            compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+
+            ctc_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
+                Can take the following values - "char" for character/subword time stamps, "word" for word level
+                time stamps and "all" (default), for both character level and word level time stamps.
+
+            word_seperator: Str token representing the seperator between words.
 
             preserve_alignments: Bool flag which preserves the history of logprobs generated during
                 decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+                the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
-                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
-                with the `return_hypotheses` flag set to True.
-
-                The length of the list corresponds to the Acoustic Length (T).
-                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-                U is the number of target tokens for the current timestep Ti.
+            batch_dim_index: An int, defaulting to 0. Refers to Batch dimension index.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
+                preserve_alignments: Same as above, overrides above value.
+                compute_timestamps: Same as above, overrides above value.
 
-            "beam":
-                beam_size: int, defining the beam size for beam search. Must be >= 1.
-                    If beam_size == 1, will perform cached greedy search. This might be slightly different
-                    results compared to the greedy search above.
-
-                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
-                    Set to True by default.
-
-                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
-                    hypotheses after beam search has concluded. This flag is set by default.
-
-                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
-                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
-                    at increased cost to execution time.
-
-                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                    If an integer is provided, it can decode sequences of that particular maximum length.
-                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
-                    where seq_len is the length of the acoustic model output (T).
-
-                    NOTE:
-                        If a float is provided, it can be greater than 1!
-                        By default, a float of 2.0 is used so that a target sequence can be at most twice
-                        as long as the acoustic model output length T.
-
-                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
-                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
-
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
-
-                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
-                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
-
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
-
-                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
-
-        decoder: The Decoder/Prediction network module.
-        joint: The Joint network module.
         blank_id: The id of the RNNT blank token.
     """
 
     def __init__(self, decoding_cfg, blank_id: int):
         super().__init__()
 
+        # Convert dataclas to config
         if is_dataclass(decoding_cfg):
             decoding_cfg = OmegaConf.structured(decoding_cfg)
 
@@ -165,7 +116,7 @@ class AbstractCTCDecoding(ABC):
 
         OmegaConf.set_struct(decoding_cfg, False)
 
-        # add minimal config
+        # update minimal config
         minimal_cfg = ['greedy']
         for item in minimal_cfg:
             if item not in decoding_cfg:
@@ -176,6 +127,7 @@ class AbstractCTCDecoding(ABC):
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
+        self.word_seperator = self.cfg.get('word_seperator', ' ')
 
         possible_strategies = ['greedy']
         if self.cfg.strategy not in possible_strategies:
@@ -295,7 +247,7 @@ class AbstractCTCDecoding(ABC):
 
         Args:
             hypotheses_list: List of Hypothesis.
-            fold_consecutive:
+            fold_consecutive: Whether to collapse the ctc blank tokens or not.
 
         Returns:
             A list of strings.
@@ -315,7 +267,7 @@ class AbstractCTCDecoding(ABC):
 
                 # CTC decoding procedure
                 decoded_prediction = []
-                token_repetitions = []
+                token_repetitions = []  # preserve number of repetitions per token
 
                 previous = self.blank_id
                 last_repetition = 0
@@ -333,14 +285,18 @@ class AbstractCTCDecoding(ABC):
                 if predictions_len is not None:
                     prediction = prediction[:predictions_len]
                 decoded_prediction = prediction[prediction != self.blank_id].tolist()
-                token_repetitions = [1] * len(decoded_prediction)
+                token_repetitions = [1] * len(decoded_prediction)  # preserve number of repetitions per token
 
-            # De-tokenize the integer tokens; if not also computing timestamps
+            # De-tokenize the integer tokens; if not computing timestamps
             if self.compute_timestamps is True:
+                # keep the original predictions, wrap with the number of repetitions per token
+                # this is done so that `ctc_decoder_predictions_tensor()` can process this hypothesis
+                # in order to compute exact time stamps.
                 hypothesis = (decoded_prediction, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
 
+            # Preserve this wrapped hypothesis or decoded text tokens.
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
@@ -373,16 +329,34 @@ class AbstractCTCDecoding(ABC):
         raise NotImplementedError()
 
     def compute_ctc_timestamps(self, hypothesis: Hypothesis, timestamp_type: str = "all"):
+        """
+        Method to compute time stamps at char/subword, and word level given some hypothesis.
+        Requires the input hypothesis to contain a `text` field that is the tuple. The tuple contains -
+        the ctc collapsed integer ids, and the number of repetitions of each token.
+
+        Args:
+            hypothesis: A Hypothesis object, with a wrapped `text` field.
+                The `text` field must contain a tuple with two values -
+                The ctc collapsed integer ids
+                A list of integers that represents the number of repetitions per token.
+            timestamp_type: A str value that represents the type of time stamp calculated.
+                Can be one of "char", "word" or "all"
+
+        Returns:
+            A Hypothesis object with a modified `timestep` value, which is now a dictionary containing
+            the time stamp information.
+        """
         assert timestamp_type in ['char', 'word', 'all']
 
         # Unpack the temporary storage, and set the decoded predictions
         decoded_prediction, token_repetitions = hypothesis.text
         hypothesis.text = decoded_prediction
 
-        # retrieve offsets
+        # Retrieve offsets
         char_offsets = word_offsets = None
         char_offsets = self._compute_offsets(hypothesis, token_repetitions, self.blank_id)
 
+        # Assert number of offsets and hypothesis tokens are 1:1 match.
         if len(char_offsets) != len(hypothesis.text):
             raise ValueError(
                 f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
@@ -391,7 +365,7 @@ class AbstractCTCDecoding(ABC):
                 f" {len(hypothesis.text)}"
             )
 
-        # set tokens to correct processed token
+        # Correctly process the token ids to chars/subwords.
         for i, char in enumerate(hypothesis.text):
             char_offsets[i]["char"] = self.decode_tokens_to_str([char])
 
@@ -406,7 +380,7 @@ class AbstractCTCDecoding(ABC):
         word_offsets = None
         if timestamp_type in ['word', 'all']:
             if text_type == 'char':
-                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=" ")
+                word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
             else:
                 word_offsets = self._get_word_offsets_subwords_sentencepiece(
                     char_offsets,
@@ -424,13 +398,15 @@ class AbstractCTCDecoding(ABC):
         # Setup defaults
         hypothesis.timestep = {"timestep": timestep_info}
 
+        # Add char / subword time stamps
         if char_offsets is not None and timestamp_type in ['char', 'all']:
             hypothesis.timestep['char'] = char_offsets
 
+        # Add word time stamps
         if word_offsets is not None and timestamp_type in ['word', 'all']:
             hypothesis.timestep['word'] = word_offsets
 
-        # Convert the temporary indices to text
+        # Convert the token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
 
         return hypothesis
@@ -439,19 +415,36 @@ class AbstractCTCDecoding(ABC):
     def _compute_offsets(
         hypothesis: Hypothesis, token_repetitions: List[int], ctc_token: int
     ) -> List[Dict[str, Union[str, int]]]:
+        """
+        Utility method that calculates the indidual time indices where a token starts and ends.
+
+        Args:
+            hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
+                emitted at every time step after ctc collapse.
+            token_repetitions: A list of ints representing the number of repetitions of each emitted token.
+            ctc_token: The integer of the ctc blank token used during ctc collapse.
+
+        Returns:
+
+        """
         start_index = 0
+
+        # If the exact timestep information is available, utilize the 1st non-ctc blank token timestep
+        # as the start index.
         if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
             start_index = max(0, hypothesis.timestep[0] - 1)
 
+        # Construct the start and end indices brackets
         end_indices = np.asarray(token_repetitions).cumsum()
         start_indices = np.concatenate(([start_index], end_indices[:-1]))
 
+        # Merge the results per token into a list of dictionaries
         offsets = [
             {"char": t, "start_offset": s, "end_offset": e}
             for t, s, e in zip(hypothesis.text, start_indices, end_indices)
         ]
 
-        # filter out CTC token
+        # Filter out CTC token
         offsets = list(filter(lambda offsets: offsets["char"] != ctc_token, offsets))
         return offsets
 
@@ -459,6 +452,20 @@ class AbstractCTCDecoding(ABC):
     def _get_word_offsets_chars(
         offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
     ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs word time stamps out of character time stamps.
+
+        References:
+            This code is a port of the Hugging Face code for word time stamp construction.
+
+        Args:
+            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
+            word_delimiter_char: Character token that represents the word delimiter. By default, " ".
+
+        Returns:
+            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
+            "end_offset".
+        """
         word_offsets = []
 
         last_state = "SPACE"
@@ -494,20 +501,38 @@ class AbstractCTCDecoding(ABC):
     def _get_word_offsets_subwords_sentencepiece(
         offsets: Dict[str, Union[str, float]],
         hypothesis: Hypothesis,
-        decode_ids_to_tokens: Callable,
-        decode_tokens_to_str: Callable,
+        decode_ids_to_tokens: Callable[[List[int]], str],
+        decode_tokens_to_str: Callable[[List[int]], str],
     ) -> Dict[str, Union[str, float]]:
+        """
+        Utility method which constructs word time stamps out of sub-word time stamps.
+
+        **Note**: Only supports Sentencepiece based tokenizers !
+
+        Args:
+            offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
+            hypothesis: Hypothesis object that contains `text` field, where each token is a sub-word id
+                after ctc collapse.
+            decode_ids_to_tokens: A Callable function that accepts a list of integers and maps it to a sub-word.
+            decode_tokens_to_str: A Callable function that accepts a list of integers and maps it to text / str.
+
+        Returns:
+            A list of dictionaries containing the word offsets. Each item contains "word", "start_offset" and
+            "end_offset".
+        """
         word_offsets = []
         built_token = []
+        # For every collapsed sub-word token
         for i, char in enumerate(hypothesis.text):
-            # if i == 0:
-            #     built_token.append(char)
-
+            # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
             token = decode_ids_to_tokens([char])[0]
             token_text = decode_tokens_to_str([char])
 
-            # it is a subword token, or contains a identifier at the beginning such as _ or ##
+            # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
+            # after forcing partial text conversion of the token.
             if token != token_text:
+                # If there are any partially or fully built sub-word token ids, construct to text.
+                # Note: This is "old" subword, that occurs *after* current sub-word has started.
                 if len(built_token) > 0:
                     word_offsets.append(
                         {
@@ -517,32 +542,23 @@ class AbstractCTCDecoding(ABC):
                         }
                     )
 
+                # Prepare list of new sub-word ids
                 built_token.clear()
                 built_token.append(char)
             else:
+                # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
+                # Append to current sub-word list.
                 built_token.append(char)
 
-        start_time = -1
-        # for idx, val in enumerate(offsets):
-        #     if isinstance(val['char'], int) and start_time == -1:
-        #         start_time = val['start_offset']
-        #         print("new start time", start_time)
-        #         continue
-        #
-        #     if not isinstance(val['char'], int{
-        #                             "word": decode_tokens_to_str(built_token),
-        #                             "start_offset": offsets[i]["start_offset"],
-        #                             "end_offset": offsets[i]["end_offset"],
-        #                         }) and start_time > -1:
-        #         word_offsets[idx]['start_offset'] = start_time
-        #         print("final start time :", start_time)
-        #         start_time = -1
-
-        # word_offsets = list(filter(lambda v: not isinstance(v['word'], int), word_offsets))
-
-        # inject the start offset of the first token to word offsets
+        # Inject the start offset of the first token to word offsets
+        # This is because we always skip the delay the injection of the first sub-word due to the loop
+        # condition and check whether built token is ready or not.
+        # Therefore without this forced injection, the start_offset appears as off by 1.
         word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
+        # If there are any remaining tokens left, inject them all into the final word offset.
+        # Note: The start offset of this token is the start time of the first token inside build_token.
+        # Note: The end offset of this token is the end time of the last token inside build_token
         if len(built_token) > 0:
             word_offsets.append(
                 {
@@ -586,80 +602,30 @@ class CTCCharDecoding(AbstractCTCDecoding):
         decoding_cfg: A dict-like object which contains the following key-value pairs.
             strategy: str value which represents the type of decoding that can occur.
                 Possible values are :
-                -   greedy, greedy_batch (for greedy decoding).
-                -   beam, tsd, alsd (for beam search decoding).
+                -   greedy (for greedy decoding).
 
-            compute_hypothesis_token_set: A bool flag, which determines whether to compute a list of decoded
-                tokens as well as the decoded string. Default is False in order to avoid double decoding
-                unless required.
+            compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+
+            ctc_timestamp_type: A str value, which represents the types of timestamps that should be calculated.
+                Can take the following values - "char" for character/subword time stamps, "word" for word level
+                time stamps and "all" (default), for both character level and word level time stamps.
+
+            word_seperator: Str token representing the seperator between words.
 
             preserve_alignments: Bool flag which preserves the history of logprobs generated during
                 decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+                the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
-                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
-                with the `return_hypotheses` flag set to True.
-
-                The length of the list corresponds to the Acoustic Length (T).
-                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-                U is the number of target tokens for the current timestep Ti.
+            batch_dim_index: An int, defaulting to 0. Refers to Batch dimension index.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
-                max_symbols: int, describing the maximum number of target tokens to decode per
-                    timestep during greedy decoding. Setting to larger values allows longer sentences
-                    to be decoded, at the cost of increased execution time.
+                preserve_alignments: Same as above, overrides above value.
+                compute_timestamps: Same as above, overrides above value.
 
-            "beam":
-                beam_size: int, defining the beam size for beam search. Must be >= 1.
-                    If beam_size == 1, will perform cached greedy search. This might be slightly different
-                    results compared to the greedy search above.
-
-                score_norm: optional bool, whether to normalize the returned beam score in the hypotheses.
-                    Set to True by default.
-
-                return_best_hypothesis: optional bool, whether to return just the best hypothesis or all of the
-                    hypotheses after beam search has concluded. This flag is set by default.
-
-                tsd_max_sym_exp: optional int, determines number of symmetric expansions of the target symbols
-                    per timestep of the acoustic model. Larger values will allow longer sentences to be decoded,
-                    at increased cost to execution time.
-
-                alsd_max_target_len: optional int or float, determines the potential maximum target sequence length.
-                    If an integer is provided, it can decode sequences of that particular maximum length.
-                    If a float is provided, it can decode sequences of int(alsd_max_target_len * seq_len),
-                    where seq_len is the length of the acoustic model output (T).
-
-                    NOTE:
-                        If a float is provided, it can be greater than 1!
-                        By default, a float of 2.0 is used so that a target sequence can be at most twice
-                        as long as the acoustic model output length T.
-
-                                maes_num_steps: Number of adaptive steps to take. From the paper, 2 steps is generally sufficient,
-                    and can be reduced to 1 to improve decoding speed while sacrificing some accuracy. int > 0.
-
-                maes_prefix_alpha: Maximum prefix length in prefix search. Must be an integer, and is advised to keep this as 1
-                    in order to reduce expensive beam search cost later. int >= 0.
-
-                maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
-                    Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
-                    and affects the speed of inference since large values will perform large beam search in the next step.
-
-                maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
-                    The default (2.3) is selected from the paper. It performs a comparison (max_log_prob - gamma <= log_prob[v])
-                    where v is all vocabulary indices in the Vocab set and max_log_prob is the "most" likely token to be
-                    predicted. Gamma therefore provides a margin of additional tokens which can be potential candidates for
-                    expansion apart from the "most likely" candidate.
-                    Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
-                    but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
-                    thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
-                    tuned on a validation set.
-
-                softmax_temperature: Scales the logits of the joint prior to computing log_softmax.
-
-        decoder: The Decoder/Prediction network module.
-        joint: The Joint network module.
-        vocabulary: The vocabulary (excluding the RNNT blank token) which will be used for decoding.
+        blank_id: The id of the RNNT blank token.
     """
 
     def __init__(
@@ -827,6 +793,9 @@ class CTCCharDecodingConfig:
 
     # compute ctc time stamps
     compute_timestamps: Optional[bool] = None
+
+    # token representing word seperator
+    word_seperator: str = " "
 
     # type of timestamps to calculate
     ctc_timestamp_type: str = "all"  # can be char, word or all for both
