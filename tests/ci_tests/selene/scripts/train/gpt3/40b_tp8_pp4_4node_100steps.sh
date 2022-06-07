@@ -17,6 +17,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     training.run.name=${RUN_NAME} \
     training.run.time_limit="3:00:00" \
+    training.exp_manager.create_checkpoint_callback=False \
     training.trainer.num_nodes=4 \
     training.trainer.max_steps=100 \
     training.trainer.log_every_n_steps=1 \
