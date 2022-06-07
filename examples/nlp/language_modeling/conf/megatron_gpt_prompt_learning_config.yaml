@@ -11,7 +11,7 @@ trainer:
   max_epochs: 3
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 200
+  val_check_interval: 1.0
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
@@ -39,7 +39,7 @@ exp_manager:
 
 model:
   seed: 1234
-  nemo_path: ${name}.nemo # .nemo filename and absolute path to where the model will be saved
+  nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   encoder_seq_length: 2048 
   tensor_model_parallel_size: 1 # intra-layer model parallelism

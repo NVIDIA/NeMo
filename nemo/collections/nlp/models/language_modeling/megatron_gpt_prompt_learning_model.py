@@ -106,7 +106,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
         self.tokenizer = self.frozen_model.tokenizer
-        # self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
@@ -533,9 +532,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
     def fwd_bwd_step(self, batch, batch_idx, forward_only):
         """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
+            Dataloader produces a global batch which is turned into a list of microbatches.
             The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
         """
         # Get seq length of batch
@@ -576,14 +573,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         return loss_mean
 
     def training_step(self, batch, batch_idx):
-        """
-            Our dataloaders produce a micro-batch and then we fetch
-            a number of microbatches depending on the global batch size and model parallel size
-            from the dataloader to produce a list of microbatches.
-            Batch should be a list of microbatches and those microbatches should on CPU.
-            Microbatches are then moved to GPU during the pipeline.
-            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
-        """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
