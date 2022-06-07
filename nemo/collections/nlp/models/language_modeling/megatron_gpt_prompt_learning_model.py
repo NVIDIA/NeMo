@@ -111,6 +111,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
@@ -135,7 +136,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
         self.pseudo_token_ids_start = self.pseudo_token_ids[0]
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
@@ -279,7 +279,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                     params.requires_grad = False
 
         # Make sure word embeddings are frozen
-        # if parallel_state.is_pipeline_first_stage():
         for params in self.word_embeddings.parameters():
             params.requires_grad = False
 
@@ -488,7 +487,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
         discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
-        discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
+        discrete_token_embeds = self.frozen_model.model.language_model.embedding.word_embeddings(
+            discrete_token_ids
+        ).clone()
 
         # Find the indicies where virtual tokens should be inserted
         virtual_token_locations = input_ids >= self.pseudo_token_ids_start
@@ -667,7 +668,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         logging.info(f"The final model was saved to {self.cfg.nemo_path}")
 
     def setup(self, stage=None):
-        if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:
+        if (
+            stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE
+        ) and self.frozen_model.model.pre_process:
             self.freeze_existing_virtual_prompt_params()
             return
 

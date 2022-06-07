@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.utils import logging
 
 try:
-    import apex
+    from apex.transformer import parallel_state
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
