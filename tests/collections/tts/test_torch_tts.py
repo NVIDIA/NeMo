@@ -23,7 +23,7 @@ from nemo.collections.tts.torch.tts_tokenizers import EnglishPhonemesTokenizer
 
 
 class TestTTSDataset:
-    @pytest.mark.run_only_on('CPU')
+    # @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.torch_tts
     def test_dataset(self, test_data_dir):
@@ -49,7 +49,7 @@ class TestTTSDataset:
         dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
         data, _, _, _, _, _ = next(iter(dataloader))
 
-    @pytest.mark.run_only_on('CPU')
+    # @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.torch_tts
     def test_raise_exception_on_not_supported_sup_data_types(self, test_data_dir):
@@ -72,7 +72,7 @@ class TestTTSDataset:
                 ),
             )
 
-    @pytest.mark.run_only_on('CPU')
+    # @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     @pytest.mark.torch_tts
     def test_raise_exception_on_not_supported_window(self, test_data_dir):
