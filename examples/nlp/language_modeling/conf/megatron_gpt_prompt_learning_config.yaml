@@ -15,6 +15,7 @@ trainer:
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  benchmark: False
 
 
 exp_manager:
@@ -89,7 +90,7 @@ model:
     validation_ds: [data/rte_val.jsonl,]
     add_eos: True
     shuffle: True
-    num_workers: 1
+    num_workers: 8
     pin_memory: True
 
 
