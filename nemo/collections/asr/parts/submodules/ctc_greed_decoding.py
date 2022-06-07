@@ -77,8 +77,11 @@ class GreedyCTCInfer(Typing):
     def input_types(self):
         """Returns definitions of module input ports.
         """
+        # Input can be of dimention -
+        # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
+
         return {
-            "decoder_output": NeuralType(('B', 'T', 'D'), LogprobsType()),
+            "decoder_output": NeuralType(None, LogprobsType()),
             "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
         }
 
@@ -116,6 +119,12 @@ class GreedyCTCInfer(Typing):
             hypotheses = []
             # Process each sequence independently
             prediction_cpu_tensor = decoder_output.cpu()
+
+            if prediction_cpu_tensor.ndim < 2 or prediction_cpu_tensor.ndim > 3:
+                raise ValueError(
+                    f"`decoder_output` must be a tensor of shape [B, T] (labels, int) or "
+                    f"[B, T, V] (log probs, float). Provided shape = {prediction_cpu_tensor.shape}"
+                )
 
             # determine type of input - logprobs or labels
             if prediction_cpu_tensor.ndim == 2:  # labels

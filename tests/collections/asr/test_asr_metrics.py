@@ -382,3 +382,112 @@ class TestWordErrorRate:
         assert hyp.text != ''
         assert len(hyp.timestep) == 3
         assert hyp.alignments is not None
+
+    @pytest.mark.unit
+    def test_char_decoding_labels(self):
+        B, T, V = 1, 8, len(self.vocabulary)
+        torch.manual_seed(0)
+        decoder_outputs = torch.randint(0, V + 1, size=[B, T], dtype=torch.float32)
+        decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
+        decoder_lens[torch.randint(0, B, [1])[0]] = T
+
+        decoding_cfg = CTCCharDecodingConfig()
+        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 0
+        assert hyp.alignments is None
+
+        # Preserve timestamps and alignments
+        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+
+        # Cannot compute alignments from labels
+        with pytest.raises(ValueError):
+            hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+
+        # Preserve timestamps
+        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=False, compute_timestamps=True)
+        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 3
+        assert hyp.alignments is None
+
+    @pytest.mark.unit
+    def test_subword_decoding_logprobs(self):
+        B, T, V = 1, 8, self.char_tokenizer.vocab_size
+        torch.manual_seed(0)
+        decoder_outputs = torch.randn(B, T, V, dtype=torch.float32)
+        decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
+        decoder_lens[torch.randint(0, B, [1])[0]] = T
+
+        decoding_cfg = CTCBPEDecodingConfig()
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 0
+        assert hyp.alignments is None
+
+        # Preserve timestamps and alignments
+        decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 3
+        assert hyp.alignments is not None
+
+    @pytest.mark.unit
+    def test_subword_decoding_labels(self):
+        B, T, V = 1, 8, self.char_tokenizer.vocab_size
+        torch.manual_seed(0)
+        decoder_outputs = torch.randint(0, V + 1, size=[B, T], dtype=torch.float32)
+        decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
+        decoder_lens[torch.randint(0, B, [1])[0]] = T
+
+        decoding_cfg = CTCBPEDecodingConfig()
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 0
+        assert hyp.alignments is None
+
+        # Preserve timestamps and alignments
+        decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        # Cannot compute alignments from labels
+        with pytest.raises(ValueError):
+            hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+
+        # Preserve timestamps
+        decoding_cfg = CTCBPEDecodingConfig(preserve_alignments=False, compute_timestamps=True)
+        decoding = CTCBPEDecoding(decoding_cfg, tokenizer=self.char_tokenizer)
+
+        hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
+        hyp = hyp[0]  # type: Hypothesis
+        assert isinstance(hyp.y_sequence, torch.Tensor)
+        assert hyp.length == torch.tensor(T, dtype=torch.int32)
+        assert hyp.text != ''
+        assert len(hyp.timestep) == 3
+        assert hyp.alignments is None
