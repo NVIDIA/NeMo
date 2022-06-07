@@ -19,10 +19,8 @@ from typing import Any, List, Optional, Union
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
-from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
-from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -43,7 +41,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import AppState, logging
+from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
@@ -105,25 +103,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 override_config_path=frozen_model_cfg,
             )
 
-        # Freeze all GPT model weights for prompt-tuning/p-tuning
-        self.frozen_model.freeze()
-
-        # Every pp stage needs to have at least one layer with requires_grad=True
-        # for PP and DDP to work togther. The lr for these layers will be 0.0
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            for layer in self.frozen_model.model.language_model.encoder.layers:
-                for param in layer.input_layernorm.parameters():
-                    param.requires_grad = True
-
-        self.tokenizer = self.frozen_model.tokenizer
-        self.hidden_size = self.frozen_model.cfg.hidden_size
-        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
-        self.new_tasks = list(self.cfg.get('new_tasks', []))
-        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-        self.megatron_amp_o2 = self.frozen_model.cfg.get('megatron_amp_O2', False)
-
         self.float_type = torch.float
 
+        # Make prompt learning model able to load gpt models trained with amp_o2
         if self.frozen_model.megatron_amp_o2:
             self.frozen_model.model = self.frozen_model.model.module
 
@@ -134,6 +116,24 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             else:
                 raise ValueError(f'Precision {self.frozen_model.precision} Not supported with O2')
 
+        # Freeze all GPT model weights for prompt-tuning/p-tuning
+        self.frozen_model.freeze()
+
+        # TODO: See if DDP requires grad check can be disabled
+        # When pp > 1, every pp stage needs to have at least one layer with requires_grad=True
+        # for PP and DDP to work togther. The lr for these layers will be set to 0.0
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            for layer in self.frozen_model.model.language_model.encoder.layers:
+                for param in layer.input_layernorm.parameters():
+                    param.requires_grad = True
+
+        self.megatron_amp_o2 = self.frozen_model.cfg.get('megatron_amp_O2', False)
+        self.tokenizer = self.frozen_model.tokenizer
+        self.hidden_size = self.frozen_model.cfg.hidden_size
+        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
+        self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+    
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
