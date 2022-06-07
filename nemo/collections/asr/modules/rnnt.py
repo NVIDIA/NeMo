@@ -845,8 +845,6 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 )
 
             losses = []
-            wer_numer_list = []
-            wer_denom_list = []
             batch_size = int(encoder_outputs.size(0))  # actual batch size
 
             # Iterate over batch using fused_batch_size steps
