@@ -39,6 +39,7 @@ from typing import Dict, List, Set, Tuple
 
 import librosa
 import numpy as np
+import soundfile
 from tqdm import tqdm
 
 URL_v1 = 'http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz'
@@ -83,6 +84,21 @@ def extract_file(filepath: str, data_dir: str):
         logging.info('Not extracting. Maybe already there?')
 
 
+def __get_mp_chunksize(dataset_size: int, num_processes: int) -> int:
+    """
+    Returns the number of chunks to split the dataset into for multiprocessing.
+
+    Args:
+        dataset_size: size of the dataset
+        num_processes: number of processes to use for multiprocessing
+
+        Returns:
+            Number of chunks to split the dataset into for multiprocessing
+    """
+    chunksize = dataset_size // num_processes
+    return chunksize if chunksize > 0 else 1
+
+
 def __construct_filepaths(
     all_files: List[str],
     valset_uids: Set[str],
@@ -91,6 +107,18 @@ def __construct_filepaths(
     class_subset: List[str],
     pattern: str,
 ) -> Tuple[Dict[str, int], Dict[str, List[tuple]], List[tuple], List[tuple], List[tuple], List[tuple], List[tuple]]:
+    """
+    Prepares the filepaths for the dataset.
+
+    Args:
+        all_files: list of all files in the dataset
+        valset_uids: set of uids of files in the validation set
+        testset_uids: set of uids of files in the test set
+        class_split: whether to use all classes as distinct labels, or to use
+            10 classes subset and rest of the classes as noise or background
+        class_subset: list of classes to consider if `class_split` is set to `sub`
+        pattern: regex pattern to match the file names in the dataset
+    """
 
     label_count = defaultdict(int)
     label_filepaths = defaultdict(list)
@@ -132,21 +160,32 @@ def __construct_filepaths(
 
 
 def __construct_silence_set(
-    rng: np.random.RandomState, sampling_rate: int, silence_stride: int, data_folder: str, background_noise_folder: str
+    rng: np.random.RandomState, sampling_rate: int, silence_stride: int, data_folder: str, background_noise: str
 ) -> List[str]:
+    """
+    Creates silence files given a background noise.
+
+    Args:
+        rng: Random state for random number generator
+        sampling_rate: sampling rate of the audio
+        silence_stride: stride for creating silence files
+        data_folder: folder containing the silence directory
+        background_noise: filepath of the background noise
+
+    Returns:
+        List of filepaths of silence files
+    """
     silence_files = []
-    for file in os.listdir(background_noise_folder):
-        if '.wav' in file:
-            load_path = os.path.join(background_noise_folder, file)
-            y, sr = librosa.load(load_path, sr=sampling_rate)
+    if '.wav' in background_noise:
+        y, sr = librosa.load(background_noise, sr=sampling_rate)
 
-            for i in range(0, len(y) - sampling_rate, silence_stride):
-                file_path = f'silence/{file[:-4]}_{i}.wav'
-                y_slice = y[i : i + sampling_rate] * rng.uniform(0.0, 1.0)
-                out_file_path = os.path.join(data_folder, file_path)
-                librosa.output.write_wav(out_file_path, y_slice, sr)
+        for i in range(0, len(y) - sampling_rate, silence_stride):
+            file_path = f'silence/{os.path.basename(background_noise)[:-4]}_{i}.wav'
+            y_slice = y[i : i + sampling_rate] * rng.uniform(0.0, 1.0)
+            out_file_path = os.path.join(data_folder, file_path)
+            soundfile.write(out_file_path, y_slice, sr)
 
-                silence_files.append(('silence', out_file_path))
+            silence_files.append(('silence', out_file_path))
 
     return silence_files
 
@@ -254,10 +293,12 @@ def __process_data(
         silence_files = []
         rng = np.random.RandomState(0)
 
-        background_noise_files = os.listdir(folder)
+        background_noise_files = [os.path.join(folder, x) for x in os.listdir(folder)]
         silence_set_fn = partial(__construct_silence_set, rng, sampling_rate, silence_stride, data_folder)
         for silence_flist in tqdm(
-            pool.imap(silence_set_fn, background_noise_files, len(background_noise_files) // num_processes),
+            pool.imap(
+                silence_set_fn, background_noise_files, __get_mp_chunksize(len(background_noise_files), num_processes)
+            ),
             total=len(background_noise_files),
             desc='Constructing silence set',
         ):
@@ -347,7 +388,7 @@ def __process_data(
 
         rebalance_fn = partial(__rebalance_files, max_count)
         for command, filepaths, num_samples in tqdm(
-            pool.imap(rebalance_fn, label_filepaths.items(), len(label_filepaths) // num_processes),
+            pool.imap(rebalance_fn, label_filepaths.items(), __get_mp_chunksize(len(label_filepaths), num_processes)),
             total=len(label_filepaths),
             desc='Rebalancing dataset',
         ):
@@ -375,7 +416,7 @@ def __process_data(
         manifest = [
             metadata
             for metadata in tqdm(
-                pool.imap(metadata_fn, dataset, len(dataset) // num_processes),
+                pool.imap(metadata_fn, dataset, __get_mp_chunksize(len(dataset), num_processes)),
                 total=num_files,
                 desc=f'Preparing {manifest_filename}',
             )
