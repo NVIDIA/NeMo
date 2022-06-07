@@ -360,8 +360,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Every pp stage needs to have at least one layer with requires_grad=True
         # for PP and DDP to work togther. The lr for these layers will be 0.0
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            print("PIPLINE PARALLEL > 1")
             for layer in self.frozen_model.model.language_model.encoder.layers:
                 for param in layer.input_layernorm.parameters():
+                    print("PARAMS REQUIRES GRAD WAS SET TO TRUE")
                     param.requires_grad = True
 
         frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
