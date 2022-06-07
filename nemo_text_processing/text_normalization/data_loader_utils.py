@@ -41,7 +41,7 @@ known_types = [
 ]
 
 
-def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
+def _load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
     """
     https://www.kaggle.com/richardwilliamsproat/text-normalization-for-english-russian-and-polish
     Loads text file in the Kaggle Google text normalization file format: <semiotic class>\t<unnormalized text>\t<`self` if trivial class or normalized text>
@@ -81,7 +81,7 @@ def load_kaggle_text_norm_file(file_path: str) -> List[Instance]:
     return res
 
 
-def load_files(file_paths: List[str], load_func=load_kaggle_text_norm_file) -> List[Instance]:
+def load_files(file_paths: List[str], load_func=_load_kaggle_text_norm_file) -> List[Instance]:
     """
     Load given list of text files using the `load_func` function.
 
@@ -224,7 +224,7 @@ def post_process_punctuation(text: str) -> str:
 
 def pre_process(text: str) -> str:
     """
-    Adds space around punctuation marks
+    Optional text preprocessing before normalization (part of TTS TN pipeline)
 
     Args:
         text: string that may include semiotic classes
@@ -238,3 +238,33 @@ def pre_process(text: str) -> str:
     # remove extra space
     text = re.sub(r' +', ' ', text)
     return text
+
+
+def load_file(file_path: str) -> List[str]:
+    """
+    Loads given text file with separate lines into list of string.
+
+    Args: 
+        file_path: file path
+
+    Returns: flat list of string
+    """
+    res = []
+    with open(file_path, 'r') as fp:
+        for line in fp:
+            res.append(line)
+    return res
+
+
+def write_file(file_path: str, data: List[str]):
+    """
+    Writes out list of string to file.
+
+    Args:
+        file_path: file path
+        data: list of string
+        
+    """
+    with open(file_path, 'w') as fp:
+        for line in data:
+            fp.write(line + '\n')

@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -190,6 +189,19 @@ class MeasureFst(GraphFst):
             + delimiter
             + (cardinal_graph | NEMO_ALPHA)
         )
+
+        math |= (
+            (cardinal_graph | NEMO_ALPHA)
+            + delimiter
+            + pynini.cross("=", "equals")
+            + delimiter
+            + (cardinal_graph | NEMO_ALPHA)
+            + delimiter
+            + math_operations
+            + delimiter
+            + cardinal_graph
+        )
+
         math = (
             pynutil.insert("units: \"math\" cardinal { integer: \"")
             + math

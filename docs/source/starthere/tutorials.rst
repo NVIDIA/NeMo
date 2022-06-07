@@ -31,6 +31,12 @@ To run a tutorial:
    * - General
      - Exploring NeMo Model Construction
      - `NeMo Models <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/01_NeMo_Models.ipynb>`_
+   * - General
+     - Exploring NeMo Adapters
+     - `NeMo Adapters <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/02_NeMo_Adapters.ipynb>`_
+   * - General
+     - Publishing NeMo models on Hugging Face Hub
+     - `NeMo Models on HF Hub <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/Publish_NeMo_Model_On_Hugging_Face_Hub.ipynb>`_
    * - ASR
      - ASR with NeMo
      - `ASR with NeMo <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_NeMo.ipynb>`_
@@ -52,6 +58,9 @@ To run a tutorial:
    * - ASR
      - ASR with Transducers
      - `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`_
+   * - ASR
+     - ASR with Adapters
+     - `ASR with Adapters <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/asr_adapters/ASR_with_Adapters.ipynb>`_
    * - ASR
      - Speech Commands
      - `Speech Commands <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Speech_Commands.ipynb>`_
@@ -146,11 +155,11 @@ To run a tutorial:
      - CTC Segmentation
      - `CTC Segmentation <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/tools/CTC_Segmentation_Tutorial.ipynb>`_
    * - Text Processing
-     - Text Normalization for TTS
-     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_Normalization.ipynb>`_
+     - Text Normalization and Inverse Normalization for ASR and TTS
+     - `Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb>`_
    * - Text Processing
-     - Inverse Text Normalization for ASR
-     - `Inverse Text Normalization <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Inverse_Text_Normalization.ipynb>`_
+     - Inverse Text Normalization for ASR - Thutmose Tagger
+     - `Inverse Text Normalization with Thutmose Tagger <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/ITN_with_Thutmose_Tagger.ipynb>`_
    * - Text Processing
      - Constructing Normalization Grammars with WFSTs
-     - `WFST Tutorial <https://github.com/NVIDIA/NeMo/blob/main/tutorials/text_processing/WFST_Tutorial.ipynb>`_
+     - `WFST Tutorial <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb>`_

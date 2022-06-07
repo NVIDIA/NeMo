@@ -18,14 +18,14 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, parse_test_case_file
+from ..utils import CACHE_DIR, parse_test_case_file, RUN_AUDIO_BASED_TESTS
 
 
 class TestFraction:
     normalizer_en = Normalizer(input_case="cased", cache_dir=CACHE_DIR, overwrite_cache=False)
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if CACHE_DIR
+        if RUN_AUDIO_BASED_TESTS
         else None
     )
 

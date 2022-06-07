@@ -14,3 +14,7 @@ pangu
 jieba
 ftfy
 flask_restful
+einops
+ijson
+faiss-cpu
+sentence_transformers

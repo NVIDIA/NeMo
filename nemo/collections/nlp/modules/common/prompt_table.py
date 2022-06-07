@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import math
 
 import torch
@@ -27,7 +28,23 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['PromptTable']
+__all__ = ['PromptTable', 'VirtualPromptSource', 'VirtualPromptStyle', 'VirtualPromptPlaceholderToken']
+
+
+class VirtualPromptStyle(enum.Enum):
+    P_TUNING = 'p-tuning'
+    PROMPT_TUNING = 'prompt-tuning'
+    INFERENCE = 'inference'
+
+
+class VirtualPromptSource(enum.Enum):
+    PROMPT_TABLE = 'prompt_table'
+    PROMPT_ENCODER = 'prompt_encoder'
+
+
+class VirtualPromptPlaceholderToken(enum.Enum):
+    BASE = '<prompt_'
+    END = '>'
 
 
 class PromptTable(NeuralModule, Exportable):

@@ -1,11 +1,13 @@
 # Text Normalization
 
-NeMo Text Normalization converts text from written form into its verbalized form. It is used as a preprocessing step before Text to Speech (TTS). It could also be used for preprocessing Automatic Speech Recognition (ASR) training transcripts.
+Text Normalization is part of NeMo's `nemo_text_processing` - a Python package that is installed with the `nemo_toolkit`. 
+It converts text from written form into its verbalized form, e.g. "123" -> "one hundred twenty three".
 
-For example, `123 kg` -> `one hundred twenty three kilograms`
+See [NeMo documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/text_normalization/wfst/wfst_text_normalization.html) for details.
 
-# Documentation
+Tutorial with overview of the package capabilities: [Text_(Inverse)_Normalization.ipynb](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb)
 
+<<<<<<< HEAD
 [TN documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/text_normalization/wfst/wfst_text_normalization.html).
 
 [TN/INT tutorials: NeMo/tutorials/text_processing](https://github.com/NVIDIA/NeMo/tree/stable/tutorials/text_processing).
@@ -48,3 +50,6 @@ Evaluation on text normalization data, e.g. [Google text normalization dataset](
 # Audio-based normalization
 
 See [documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/text_normalization/wfst/wfst_text_normalization.html#audio-based-text-normalization) for more details.
+=======
+Tutorial on how to customize the underlying gramamrs: [WFST_Tutorial.ipynb](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb)
+>>>>>>> origin/main

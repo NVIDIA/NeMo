@@ -19,7 +19,7 @@ from nemo_text_processing.text_normalization.normalize import Normalizer
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, parse_test_case_file
+from ..utils import CACHE_DIR, parse_test_case_file, RUN_AUDIO_BASED_TESTS
 
 
 class TestWord:
@@ -32,10 +32,10 @@ class TestWord:
         pred = self.inverse_normalizer_en.inverse_normalize(test_input, verbose=False)
         assert pred == expected
 
-    normalizer_en = Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
+    normalizer_en = Normalizer(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False, post_process=True)
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', cache_dir=CACHE_DIR, overwrite_cache=False)
-        if CACHE_DIR
+        if RUN_AUDIO_BASED_TESTS
         else None
     )
 
@@ -44,10 +44,10 @@ class TestWord:
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
         pred = self.normalizer_en.normalize(test_input, verbose=False)
-        assert pred == expected, f"input: {test_input}"
+        assert pred == expected, f"input: {test_input} != {expected}"
 
         if self.normalizer_with_audio_en:
             pred_non_deterministic = self.normalizer_with_audio_en.normalize(
-                test_input, n_tagged=200, punct_post_process=False
+                test_input, n_tagged=3, punct_post_process=False
             )
             assert expected in pred_non_deterministic, f"input: {test_input}"

@@ -158,8 +158,8 @@ class FastPitchModule(NeuralModule):
         else:
             self.speaker_emb = None
 
-        self.register_buffer('max_token_duration', torch.tensor(max_token_duration))
-        self.register_buffer('min_token_duration', torch.tensor(0.0))
+        self.max_token_duration = max_token_duration
+        self.min_token_duration = 0
 
         self.pitch_emb = torch.nn.Conv1d(
             1,
@@ -171,7 +171,6 @@ class FastPitchModule(NeuralModule):
         # Store values precomputed from training data for convenience
         self.register_buffer('pitch_mean', torch.zeros(1))
         self.register_buffer('pitch_std', torch.zeros(1))
-        self.register_buffer('zero_emb', torch.zeros(1))
 
         self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
 
@@ -225,7 +224,7 @@ class FastPitchModule(NeuralModule):
 
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
-            spk_emb = self.zero_emb
+            spk_emb = 0
         else:
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
 
@@ -278,7 +277,7 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, pace=1.0):
+    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -299,8 +298,19 @@ class FastPitchModule(NeuralModule):
 
         # Expand to decoder time dimension
         len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+        volume_extended = None
+        if volume is not None:
+            volume_extended, _ = regulate_len(durs_predicted, volume.unsqueeze(-1), pace)
+            volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out).transpose(1, 2)
-        return spect.to(torch.float), dec_lens, durs_predicted, log_durs_predicted, pitch_predicted
+        return (
+            spect.to(torch.float),
+            dec_lens,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            volume_extended,
+        )

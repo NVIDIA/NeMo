@@ -19,6 +19,8 @@ import pytest
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import get_pseudo_tokens
+from nemo.collections.nlp.modules.common import VirtualPromptPlaceholderToken, VirtualPromptSource
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.core import Dataset
 
@@ -64,13 +66,19 @@ def get_task_templates():
         "prompt_template_fields": ['text', 'answer'],
         "total_virtual_tokens": 5,
         "virtual_token_splits": [5],
+        "truncate_field": None,
+        "answer_only_loss": True,
+        "answer_field": "answer",
         "task_id_num": 0,
     }
     task_templates['task name B'] = {
         "prompt_template": "<|VIRTUAL_PROMPT_0|>{question}<|VIRTUAL_PROMPT_1|>{answer}{extra}",
-        "prompt_template_fields": ['question', 'answer'],
+        "prompt_template_fields": ['question', 'answer', 'extra'],
         "total_virtual_tokens": 10,
         "virtual_token_splits": [7, 3],
+        "truncate_field": None,
+        "answer_only_loss": False,
+        "answer_field": None,
         "task_id_num": 1,
     }
     return task_templates
@@ -85,14 +93,17 @@ class TestMegatronGPTPromptLearningDataset:
         dataset_path = create_temp_dataset()
 
         # Setup virtual token place holders
-        pseudo_token_base = 'PROMPT_'
-        max_virtual_tokens = 10
-        pseudo_tokens = [pseudo_token_base + str(i) for i in range(max_virtual_tokens)]
+        total_virtual_tokens = 10
+        pseudo_tokens = get_pseudo_tokens(total_virtual_tokens)
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,)
+        dataset = get_prompt_tuning_dataset(
+            dataset_path, tokenizer, VirtualPromptSource.PROMPT_TABLE, task_templates, pseudo_tokens,
+        )
 
-        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,)
+        dataset = get_prompt_tuning_dataset(
+            dataset_path, tokenizer, VirtualPromptSource.PROMPT_ENCODER, task_templates, pseudo_tokens,
+        )
 
         print(type(dataset))
 
@@ -108,12 +119,13 @@ class TestMegatronGPTPromptLearningDataset:
         dataset_path = create_temp_dataset()
 
         # Setup virtual token place holders
-        pseudo_token_base = 'PROMPT_'
         total_virtual_tokens = 10
-        pseudo_tokens = [pseudo_token_base + str(i) for i in range(total_virtual_tokens)]
+        pseudo_tokens = get_pseudo_tokens(total_virtual_tokens)
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-table', task_templates, pseudo_tokens,)
+        dataset = get_prompt_tuning_dataset(
+            dataset_path, tokenizer, VirtualPromptSource.PROMPT_TABLE, task_templates, pseudo_tokens,
+        )
 
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)
@@ -140,12 +152,13 @@ class TestMegatronGPTPromptLearningDataset:
         dataset_path = create_temp_dataset()
 
         # Setup virtual token place holders
-        pseudo_token_base = 'PROMPT_'
         total_virtual_tokens = 10
-        pseudo_tokens = [pseudo_token_base + str(i) for i in range(total_virtual_tokens)]
+        pseudo_tokens = get_pseudo_tokens(total_virtual_tokens)
         tokenizer.add_special_tokens({'additional_special_tokens': pseudo_tokens})
 
-        dataset = get_prompt_tuning_dataset(dataset_path, tokenizer, 'prompt-encoder', task_templates, pseudo_tokens,)
+        dataset = get_prompt_tuning_dataset(
+            dataset_path, tokenizer, VirtualPromptSource.PROMPT_ENCODER, task_templates, pseudo_tokens,
+        )
 
         batch = [dataset[i] for i in range(8)]
         batch = dataset.collate_fn(batch)
