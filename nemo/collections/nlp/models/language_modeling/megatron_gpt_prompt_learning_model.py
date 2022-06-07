@@ -19,8 +19,10 @@ from typing import Any, List, Optional, Union
 import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
+from pytorch_lightning.overrides import LightningDistributedModule
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import Tensor
+from torch.nn.parallel import DistributedDataParallel
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
@@ -41,7 +43,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import logging
+from nemo.utils import AppState, logging
 
 try:
     from apex.transformer import parallel_state
@@ -105,6 +107,14 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
+
+        # Every pp stage needs to have at least one layer with requires_grad=True
+        # for PP and DDP to work togther. The lr for these layers will be 0.0
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            for layer in self.frozen_model.model.language_model.encoder.layers:
+                for param in layer.input_layernorm.parameters():
+                    param.requires_grad = True
+
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
@@ -353,19 +363,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-
         virtual_prompt_params = {'params': []}
         frozen_model_params = {'params': [], 'lr': 0.0}
-
-        # Every pp stage needs to have at least one layer with requires_grad=True
-        # for PP and DDP to work togther. The lr for these layers will be 0.0
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            print("PIPLINE PARALLEL > 1")
-            for layer in self.frozen_model.model.language_model.encoder.layers:
-                for param in layer.input_layernorm.parameters():
-                    print("PARAMS REQUIRES GRAD WAS SET TO TRUE")
-                    param.requires_grad = True
-
         frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
 
         if self.frozen_model.model.pre_process:
