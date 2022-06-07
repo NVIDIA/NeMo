@@ -90,7 +90,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
-            frozen_model_cfg.megatron_amp_O2 = False
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
@@ -107,11 +106,24 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Freeze all GPT model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
         self.tokenizer = self.frozen_model.tokenizer
-        self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
+        # self.float_type = self.frozen_model.model.language_model.encoder.layers[0].dtype
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
+        self.megatron_amp_o2 = self.frozen_model.cfg.get('megatron_amp_O2', False)
+
+        self.float_type = torch.float
+
+        if self.frozen_model.megatron_amp_o2:
+            self.frozen_model.model = self.frozen_model.model.module
+
+            if self.frozen_model.cfg.precision == 16:
+                self.float_type = torch.float16
+            elif self.frozen_model.cfg.precision == 'bf16':
+                self.float_type = torch.bfloat16
+            else:
+                raise ValueError(f'Precision {self.frozen_model.precision} Not supported with O2')
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
@@ -162,8 +174,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             raise ValueError('precision must be in [32, 16, "bf16"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
-        # no support of amp o2
-        self.megatron_amp_o2 = False
 
     def load_task_templates(self, task_templates):
         """
@@ -578,13 +588,21 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
 
-        # TODO: if we're not using pipeline, then we should do async allreduce (better perf)
-        # in order to do this with O2, we need the async handler to be added to apex fwd/bwd function
         if self.megatron_amp_o2:
-            # main grads are stored in the MainParamsOptimizer wrapper
-            self._optimizer.allreduce_main_grads()  # @sangkug we think this is fine
+            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
         else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # so we allreduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            torch.cuda.synchronize()
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
