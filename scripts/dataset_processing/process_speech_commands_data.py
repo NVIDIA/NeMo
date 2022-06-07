@@ -32,7 +32,7 @@ import os
 import re
 import tarfile
 import urllib.request
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from functools import partial
 from multiprocessing import Pool
 from typing import Dict, List, Set, Tuple
@@ -156,7 +156,15 @@ def __construct_filepaths(
         else:
             train.append((label, entry))
 
-    return label_count, label_filepaths, unknown_val_filepaths, unknown_test_filepaths, train, val, test
+    return {
+        'label_count': label_count,
+        'label_filepaths': label_filepaths,
+        'unknown_val_filepaths': unknown_val_filepaths,
+        'unknown_test_filepaths': unknown_test_filepaths,
+        'train': train,
+        'val': val,
+        'test': test,
+    }
 
 
 def __construct_silence_set(
@@ -191,6 +199,16 @@ def __construct_silence_set(
 
 
 def __rebalance_files(max_count: int, label_filepath: str) -> Tuple[str, List[str], int]:
+    """
+    Rebalance the number of samples for a class.
+
+    Args:
+        max_count: maximum number of samples for a class
+        label_filepath: list of filepaths for a class
+
+    Returns:
+        Rebalanced list of filepaths along with the label name and the number of samples
+    """
     command, samples = label_filepath
     filepaths = [sample[1] for sample in samples]
 
@@ -207,6 +225,16 @@ def __rebalance_files(max_count: int, label_filepath: str) -> Tuple[str, List[st
 
 
 def __prepare_metadata(skip_duration, sample: Tuple[str, str]) -> dict:
+    """
+    Creates the manifest entry for a file.
+
+    Args:
+        skip_duration: Whether to skip the computation of duration
+        sample: Tuple of label and filepath
+
+    Returns:
+        Manifest entry of the file
+    """
     label, audio_path = sample
     return json.dumps(
         {
@@ -265,15 +293,14 @@ def __process_data(
 
     logging.info('Validation and test set lists extracted')
 
-    (
-        label_count,
-        label_filepaths,
-        unknown_val_filepaths,
-        unknown_test_filepaths,
-        train,
-        val,
-        test,
-    ) = __construct_filepaths(all_files, valset_uids, testset_uids, class_split, class_subset, pattern)
+    filepath_info = __construct_filepaths(all_files, valset_uids, testset_uids, class_split, class_subset, pattern)
+    label_count = filepath_info['label_count']
+    label_filepaths = filepath_info['label_filepaths']
+    unknown_val_filepaths = filepath_info['unknown_val_filepaths']
+    unknown_test_filepaths = filepath_info['unknown_test_filepaths']
+    train = filepath_info['train']
+    val = filepath_info['val']
+    test = filepath_info['test']
 
     logging.info('Prepared filepaths for dataset')
 
