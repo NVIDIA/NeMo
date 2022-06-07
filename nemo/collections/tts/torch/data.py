@@ -52,6 +52,16 @@ from nemo.core.classes import Dataset
 from nemo.utils import logging
 
 
+EPSILON = 1e-9
+WINDOW_FN_SUPPORTED = {
+    'hann': torch.hann_window,
+    'hamming': torch.hamming_window,
+    'blackman': torch.blackman_window,
+    'bartlett': torch.bartlett_window,
+    'none': None,
+}
+
+
 class TTSDataset(Dataset):
     def __init__(
         self,
@@ -90,7 +100,8 @@ class TTSDataset(Dataset):
                     "text": <THE_TRANSCRIPT>,
                     "normalized_text": <NORMALIZED_TRANSCRIPT> (Optional),
                     "mel_filepath": <PATH_TO_LOG_MEL_PT> (Optional),
-                    "duration": <Duration of audio clip in seconds> (Optional)
+                    "duration": <Duration of audio clip in seconds> (Optional),
+                    "is_phoneme": <0: default, 1: if normalized_text is phonemes> (Optional)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
             text_tokenizer (Optional[Union[BaseTokenizer, Callable[[str], List[int]]]]): BaseTokenizer or callable which represents text tokenizer.
             tokens (Optional[List[str]]): Tokens from text_tokenizer. Should be specified if text_tokenizer is not BaseTokenizer.
@@ -179,6 +190,7 @@ class TTSDataset(Dataset):
                         "mel_filepath": item["mel_filepath"] if "mel_filepath" in item else None,
                         "duration": item["duration"] if "duration" in item else None,
                         "speaker_id": item["speaker"] if "speaker" in item else None,
+                        "is_phoneme": item["is_phoneme"] if "is_phoneme" in item else None,
                     }
 
                     if "normalized_text" not in item:
@@ -230,13 +242,13 @@ class TTSDataset(Dataset):
             dtype=torch.float,
         ).unsqueeze(0)
 
-        window_fn = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'none': None,
-        }.get(self.window, None)
+        try:
+            window_fn = WINDOW_FN_SUPPORTED[self.window]
+        except KeyError:
+            raise NotImplementedError(
+                f"Current implementation doesn't support {self.window} window. "
+                f"Please choose one from {list(WINDOW_FN_SUPPORTED.keys())}."
+            )
 
         self.stft = lambda x: torch.stft(
             input=x,
@@ -380,7 +392,7 @@ class TTSDataset(Dataset):
             spec = self.stft(audio)
             if spec.dtype in [torch.cfloat, torch.cdouble]:
                 spec = torch.view_as_real(spec)
-            spec = torch.sqrt(spec.pow(2).sum(-1) + 1e-9)
+            spec = torch.sqrt(spec.pow(2).sum(-1) + EPSILON)
         return spec
 
     def get_log_mel(self, audio):
@@ -396,6 +408,8 @@ class TTSDataset(Dataset):
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+        if sample["is_phoneme"] == 1:
+            rel_audio_path_as_text_id += "_phoneme"
 
         # Load audio
         features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
@@ -436,7 +450,6 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
-            align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
@@ -472,7 +485,7 @@ class TTSDataset(Dataset):
 
             if self.pitch_mean is not None and self.pitch_std is not None and self.pitch_norm:
                 pitch -= self.pitch_mean
-                pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were perviously zero
+                pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were previously zero
                 pitch /= self.pitch_std
 
             pitch_length = torch.tensor(len(pitch)).long()
