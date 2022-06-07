@@ -23,19 +23,17 @@ from typing import Dict, List, Union
 
 import pynini
 from joblib import Parallel, delayed
-from nemo_text_processing.text_normalization.data_loader_utils import load_file, pre_process, write_file
+from nemo_text_processing.text_normalization.data_loader_utils import (
+    load_file,
+    post_process_punct,
+    pre_process,
+    write_file,
+)
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
 from pynini.lib.rewrite import top_rewrite
 from tqdm import tqdm
 
-try:
-    from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
-
-    NLP_AVAILABLE = True
-except (ModuleNotFoundError, ImportError) as e:
-    NLP_AVAILABLE = False
-
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 
 SPACE_DUP = re.compile(' {2,}')
 
@@ -113,11 +111,7 @@ class Normalizer:
         self.parser = TokenParser()
         self.lang = lang
 
-        if NLP_AVAILABLE:
-            self.processor = MosesProcessor(lang_id=lang)
-        else:
-            self.processor = None
-            print("NeMo NLP is not available. Punctuation post-processing will be skipped")
+        self.processor = MosesProcessor(lang_id=lang)
 
     def normalize_list(
         self,

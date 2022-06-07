@@ -60,9 +60,10 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f"Creating ClassifyFst grammars.")
 
-            word_graph = WordFst(deterministic=deterministic).fst
+            punctuation = PunctuationFst(deterministic=deterministic)
+            punct_graph = punctuation.fst
+            word_graph = WordFst(deterministic=deterministic, punctuation=punctuation).fst
             electonic_graph = ElectronicFst(deterministic=deterministic).fst
-            punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = pynutil.add_weight(electonic_graph, 1.1) | pynutil.add_weight(word_graph, 100)
 

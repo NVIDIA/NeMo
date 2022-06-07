@@ -21,6 +21,7 @@ from typing import List, Tuple
 
 import pynini
 from joblib import Parallel, delayed
+from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct, pre_process
 from nemo_text_processing.text_normalization.normalize import Normalizer
 from pynini.lib import rewrite
 from tqdm import tqdm
@@ -33,14 +34,6 @@ try:
 except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
-
-try:
-    from nemo.collections.nlp.data.text_normalization.utils import post_process_punct
-    from nemo_text_processing.text_normalization.data_loader_utils import pre_process
-
-    NLP_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    NLP_AVAILABLE = False
 
 """
 The script provides multiple normalization options and chooses the best one that minimizes CER of the ASR output
