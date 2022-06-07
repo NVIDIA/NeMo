@@ -16,6 +16,8 @@ model:
     trim_silence: True
     max_duration: 16.7
     shuffle: True
+    num_workers: 8
+    pin_memory: true
     # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
@@ -30,6 +32,8 @@ model:
     labels: *labels
     batch_size: 32
     shuffle: False
+    num_workers: 8
+    pin_memory: true
 
   test_ds:
     manifest_filepath: null
@@ -37,6 +41,8 @@ model:
     labels: *labels
     batch_size: 32
     shuffle: False
+    num_workers: 8
+    pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -264,6 +270,7 @@ trainer:
   logger: False  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  benchmark: false # needs to be false for models with variable-length speech input as it slows down training
 
 exp_manager:
   exp_dir: null
@@ -278,9 +285,3 @@ exp_manager:
     name: null
     project: null
 
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

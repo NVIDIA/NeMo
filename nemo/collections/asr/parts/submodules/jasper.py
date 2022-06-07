@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,7 +22,9 @@ from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
-from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.collections.common.parts.utils import activation_registry
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 
 try:
@@ -35,14 +37,7 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {
-    "hardtanh": nn.Hardtanh,
-    "relu": nn.ReLU,
-    "selu": nn.SELU,
-    "swish": Swish,
-    "silu": nn.SiLU,
-    "gelu": nn.GELU,
-}
+jasper_activations = activation_registry
 
 
 def tds_uniform_(tensor, mode='fan_in'):
@@ -563,7 +558,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = context_window
 
 
-class JasperBlock(nn.Module):
+class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -713,16 +708,18 @@ class JasperBlock(nn.Module):
             raise ValueError("currently only 'same' padding is supported")
 
         kernel_size_factor = float(kernel_size_factor)
-        if type(kernel_size) in (list, tuple):
+        if isinstance(kernel_size, Iterable):
             kernel_size = [compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size]
         else:
-            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
+            kernel_size = [compute_new_kernel_size(kernel_size, kernel_size_factor)]
 
         if future_context < 0:
             padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
         else:
             padding_val = get_asymtric_padding(kernel_size[0], stride[0], dilation[0], future_context)
 
+        self.inplanes = inplanes
+        self.planes = planes
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
@@ -1031,6 +1028,23 @@ class JasperBlock(nn.Module):
 
         # compute the output
         out = self.mout(out)
+
+        # Support ASR Adapters
+        if self.is_adapter_available():
+            # Check for all available and enabled adapters
+            adapter_names = self.get_enabled_adapters()
+
+            if len(adapter_names) > 0:
+                out = out.transpose(1, 2)  # (B, T, C)
+
+                # Call the adapters
+                out = self.forward_enabled_adapters(out)
+
+                out = out.transpose(1, 2)  # (B, C, T)
+
+        if self.is_access_enabled():
+            self.register_accessible_tensor(tensor=out)
+
         if self.res is not None and self.dense_residual:
             return xs + [out], lens
 

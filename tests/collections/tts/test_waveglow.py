@@ -73,7 +73,6 @@ def forward_wrapper(self, spec, z=None):
 
 
 class TestWaveGlow:
-    @pytest.mark.pleasefixme
     @pytest.mark.run_only_on('GPU')
     @pytest.mark.unit
     def test_export_to_onnx(self):
@@ -93,12 +92,7 @@ class TestWaveGlow:
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
             WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
-                tmp_file_name,
-                verbose=False,
-                input_example=inp,
-                try_script=False,
-                check_trace=False,
-                do_constant_folding=True,
+                tmp_file_name, input_example=inp, verbose=False, check_trace=False, do_constant_folding=True,
             )
 
 

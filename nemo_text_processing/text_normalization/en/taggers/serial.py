@@ -62,7 +62,7 @@ class SerialFst(GraphFst):
             pynini.accep("0") + pynini.closure(NEMO_DIGIT), cardinal.single_digits_graph
         ).optimize()
         # TODO: "#" doesn't work from the file
-        symbols_graph = pynini.string_file(get_abs_path("data/whitelist_symbols.tsv")).optimize() | pynini.cross(
+        symbols_graph = pynini.string_file(get_abs_path("data/whitelist/symbol.tsv")).optimize() | pynini.cross(
             "#", "hash"
         )
         num_graph |= symbols_graph
@@ -75,7 +75,7 @@ class SerialFst(GraphFst):
             )
 
         # add space between letter and digit/symbol
-        symbols = [x[0] for x in load_labels(get_abs_path("data/whitelist_symbols.tsv"))]
+        symbols = [x[0] for x in load_labels(get_abs_path("data/whitelist/symbol.tsv"))]
         symbols = pynini.union(*symbols)
         digit_symbol = NEMO_DIGIT | symbols
 
@@ -86,6 +86,9 @@ class SerialFst(GraphFst):
 
         # serial graph with delimiter
         delimiter = pynini.accep("-") | pynini.accep("/") | pynini.accep(" ")
+        if not deterministic:
+            delimiter |= pynini.cross("-", " dash ") | pynini.cross("/", " slash")
+
         alphas = pynini.closure(NEMO_ALPHA, 1)
         letter_num = alphas + delimiter + num_graph
         num_letter = pynini.closure(num_graph + delimiter, 1) + alphas

@@ -13,18 +13,12 @@
 # limitations under the License.
 
 """Transformer based language model."""
-import math
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.nn.init as init
-
 from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
+    MegatronRetrievalTransformerDecoderModule,
+)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
-    get_linear_layer,
     init_method_normal,
     scaled_init_method_normal,
 )
@@ -62,20 +56,31 @@ def get_decoder_model(
     use_cpu_initialization=False,
     hidden_dropout=0.1,
     attention_dropout=0.1,
+    position_embedding_type='learned_absolute',
+    relative_attention_num_buckets=32,
+    relative_attention_max_distance=128,
     precision=16,
     fp32_residual_connection=False,
     activations_checkpoint_method=None,
     activations_checkpoint_num_layers=1,
     layernorm_epsilon=1e-5,
-    bias_gelu_fusion=True,
+    bias_activation_fusion=True,
+    bias_dropout_add_fusion=True,
     masked_softmax_fusion=True,
     persist_layer_norm=False,
     openai_gelu=False,
     activation="gelu",
     onnx_safe=False,
+    bias=True,
+    normalization="layernorm",
+    headscale=False,
+    transformer_block_type="pre_ln",
     hidden_steps=-1,
     hidden_blocks=1,
     parent_model_type=ModelType.encoder_or_decoder,
+    layer_type=None,
+    chunk_size=64,
+    layer_number_offset=0,  # this is use only for attention norm_factor scaling
 ):
     """Build language model and return along with the key to save."""
 
@@ -108,18 +113,61 @@ def get_decoder_model(
             use_cpu_initialization=use_cpu_initialization,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
+            position_embedding_type=position_embedding_type,
+            relative_attention_num_buckets=relative_attention_num_buckets,
+            relative_attention_max_distance=relative_attention_max_distance,
             precision=precision,
             fp32_residual_connection=fp32_residual_connection,
             activations_checkpoint_method=activations_checkpoint_method,
             activations_checkpoint_num_layers=activations_checkpoint_num_layers,
             layernorm_epsilon=layernorm_epsilon,
-            bias_gelu_fusion=bias_gelu_fusion,
+            bias_activation_fusion=bias_activation_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             activation=activation,
+            bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
+            headscale=headscale,
             parent_model_type=parent_model_type,
+        )
+    elif arch == "retro":
+        decoder = MegatronRetrievalTransformerDecoderModule(
+            init_method=init_method,
+            output_layer_init_method=scaled_init_method,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            num_attention_heads=num_attention_heads,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            layer_type=layer_type,
+            ffn_hidden_size=ffn_hidden_size,
+            pre_process=pre_process,
+            post_process=post_process,
+            use_cpu_initialization=use_cpu_initialization,
+            hidden_dropout=hidden_dropout,
+            attention_dropout=attention_dropout,
+            precision=precision,
+            fp32_residual_connection=fp32_residual_connection,
+            activations_checkpoint_method=activations_checkpoint_method,
+            activations_checkpoint_num_layers=activations_checkpoint_num_layers,
+            layernorm_epsilon=layernorm_epsilon,
+            bias_activation_fusion=bias_activation_fusion,
+            bias_dropout_add_fusion=bias_dropout_add_fusion,
+            masked_softmax_fusion=masked_softmax_fusion,
+            persist_layer_norm=persist_layer_norm,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
+            activation=activation,
+            bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
+            parent_model_type=parent_model_type,
+            chunk_size=chunk_size,
+            layer_number_offset=layer_number_offset,
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")

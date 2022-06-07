@@ -92,19 +92,27 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         use_cpu_initialization=False,
         hidden_dropout=0.1,
         attention_dropout=0.1,
+        position_embedding_type='learned_absolute',
+        relative_attention_num_buckets=32,
+        relative_attention_max_distance=128,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
+        bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         openai_gelu=False,
         activation='gelu',
         onnx_safe=False,
+        bias=True,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
         hidden_steps=-1,
         hidden_blocks=1,
+        headscale=False,
         add_encoder=True,
         add_decoder=True,
     ):
@@ -117,6 +125,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.normalization = normalization
+        self.position_embedding_type = position_embedding_type
+        self.relative_attention_num_buckets = relative_attention_num_buckets
+        self.relative_attention_max_distance = relative_attention_max_distance
+
+        if self.position_embedding_type == 'learned_absolute':
+            add_position_embedding = True
+        elif self.position_embedding_type == 'relative':
+            add_position_embedding = False
+        else:
+            raise ValueError('Unknown position embeeding type. Options: ' '[learned_absolute | relative]')
 
         if kv_channels is None:
             assert (
@@ -135,6 +154,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     num_tokentypes=num_tokentypes,
                     use_cpu_initialization=use_cpu_initialization,
                     embedding_dropout_prob=hidden_dropout,
+                    add_position_embedding=add_position_embedding,
                 )
                 self._encoder_embedding_key = "encoder_embedding"
 
@@ -155,12 +175,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
+                position_embedding_type=position_embedding_type,
+                relative_attention_num_buckets=relative_attention_num_buckets,
+                relative_attention_max_distance=relative_attention_max_distance,
                 precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
                 layernorm_epsilon=layernorm_epsilon,
-                bias_gelu_fusion=bias_gelu_fusion,
+                bias_activation_fusion=bias_activation_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
@@ -168,6 +192,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                bias=bias,
+                normalization=normalization,
+                transformer_block_type=transformer_block_type,
+                headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -189,6 +217,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         num_tokentypes=num_tokentypes,
                         use_cpu_initialization=use_cpu_initialization,
                         embedding_dropout_prob=hidden_dropout,
+                        add_position_embedding=add_position_embedding,
                     )
                     self.decoder_embedding.zero_parameters()
 
@@ -211,12 +240,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
+                position_embedding_type=position_embedding_type,
+                relative_attention_num_buckets=relative_attention_num_buckets,
+                relative_attention_max_distance=relative_attention_max_distance,
                 precision=precision,
                 fp32_residual_connection=fp32_residual_connection,
                 activations_checkpoint_method=activations_checkpoint_method,
                 activations_checkpoint_num_layers=activations_checkpoint_num_layers,
                 layernorm_epsilon=layernorm_epsilon,
-                bias_gelu_fusion=bias_gelu_fusion,
+                bias_activation_fusion=bias_activation_fusion,
+                bias_dropout_add_fusion=bias_dropout_add_fusion,
                 masked_softmax_fusion=masked_softmax_fusion,
                 persist_layer_norm=persist_layer_norm,
                 openai_gelu=openai_gelu,
@@ -224,6 +257,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 hidden_steps=hidden_steps,
                 hidden_blocks=hidden_blocks,
                 activation=activation,
+                bias=bias,
+                normalization=normalization,
+                transformer_block_type=transformer_block_type,
+                headscale=headscale,
                 parent_model_type=ModelType.encoder_and_decoder,
             )
 
@@ -282,12 +319,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
-        if self.pre_process and self.add_encoder:
-            # encoder embeddings
-            enc_position_ids = build_position_ids(enc_input_ids)
-            enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
-        else:
-            enc_input = None
+        if enc_input is None:
+            if self.pre_process and self.add_encoder:
+                # encoder embeddings
+                enc_position_ids = build_position_ids(enc_input_ids)
+                enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
+            else:
+                enc_input = None
 
         if output_enc_hidden_only:
             enc_output = self.enc_dec_model.encode(

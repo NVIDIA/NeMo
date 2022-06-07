@@ -159,6 +159,7 @@ class FastPitchModule(NeuralModule):
             self.speaker_emb = None
 
         self.max_token_duration = max_token_duration
+        self.min_token_duration = 0
 
         self.pitch_emb = torch.nn.Conv1d(
             1,
@@ -276,7 +277,7 @@ class FastPitchModule(NeuralModule):
             pitch,
         )
 
-    def infer(self, *, text, pitch=None, speaker=None, pace=1.0):
+    def infer(self, *, text, pitch=None, speaker=None, pace=1.0, volume=None):
         # Calculate speaker embedding
         if self.speaker_emb is None or speaker is None:
             spk_emb = 0
@@ -288,15 +289,28 @@ class FastPitchModule(NeuralModule):
 
         # Predict duration and pitch
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
-        durs_predicted = torch.clamp(torch.exp(log_durs_predicted) - 1, 0, self.max_token_duration)
+        durs_predicted = torch.clamp(
+            torch.exp(log_durs_predicted) - 1.0, self.min_token_duration, self.max_token_duration
+        )
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask) + pitch
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         # Expand to decoder time dimension
         len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
+        volume_extended = None
+        if volume is not None:
+            volume_extended, _ = regulate_len(durs_predicted, volume.unsqueeze(-1), pace)
+            volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
         dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens)
         spect = self.proj(dec_out).transpose(1, 2)
-        return spect.to(torch.float), dec_lens, durs_predicted, log_durs_predicted, pitch_predicted
+        return (
+            spect.to(torch.float),
+            dec_lens,
+            durs_predicted,
+            log_durs_predicted,
+            pitch_predicted,
+            volume_extended,
+        )

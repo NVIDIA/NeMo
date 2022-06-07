@@ -32,7 +32,7 @@ class TrainerConfig:
         Picked just few params of the PTL trainer for now. This needs to be discussed.
     ..note:
         For the details on the function/meanings of the arguments, please refer to:
-        https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#
+        https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html
     """
 
     logger: Any = True
@@ -42,7 +42,6 @@ class TrainerConfig:
     gradient_clip_val: float = 0
     process_position: int = 0
     num_nodes: int = 1
-    num_processes: int = 1
     gpus: Optional[Any] = None
     auto_select_gpus: bool = False
     tpu_cores: Optional[Any] = None

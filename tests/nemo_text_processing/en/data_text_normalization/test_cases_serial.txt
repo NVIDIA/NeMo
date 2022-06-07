@@ -8,11 +8,10 @@ W2s~W two s
 b-c-1-5-b-s-b~b-c-one-five-b-s-b
 MIG-25/235212-asdg~MIG-twenty five/two three five two one two-asdg
 1/f-4s~one/f-four s
-1/f~one per degree Fahrenheit
-4s~four seconds
+1/f~one per F
+4s~four S
 7-eleven~seven-eleven
 2x~two x
-11:30EST~eleven : thirty EST
 31/31/100~thirty one/thirty one/one hundred
 1-8090~one - eight thousand and ninety
 f++~f plus plus
@@ -27,3 +26,7 @@ test$~test dollar
 covid-19~covid-nineteen
 55-millimeters long~fifty five-millimeters long
 a 4-kilogram bag~a four-kilogram bag
+100-car~one hundred-car
+123/261788/2021~one hundred twenty three/two six one seven eight eight/two thousand twenty one
+2*8~two asterisk eight
+and/or~and slash or
