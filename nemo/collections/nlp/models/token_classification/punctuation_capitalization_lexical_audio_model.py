@@ -48,7 +48,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         if cfg.use_adapters:
             with open_dict(cfg):
                 cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
-            self.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
+            self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
             self.audio_encoder.set_enabled_adapters(enabled=True)
             self.audio_encoder.freeze()
             self.audio_encoder.unfreeze_enabled_adapters()
