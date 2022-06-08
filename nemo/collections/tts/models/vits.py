@@ -68,7 +68,7 @@ class VitsModel(TextToWaveform):
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
 
-        self.scaler = GradScaler()
+        # self.scaler = GradScaler()
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -165,18 +165,18 @@ class VitsModel(TextToWaveform):
         pass
 
     def configure_optimizers(self):
-        optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
-        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps)
+        optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
+        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
         
         max_steps=400000
         min_lr = 1e-5
         wu_ratio = 0.02
         
-        # scheduler_g = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr, warmup_steps=max_steps * wu_ratio,)
-        # scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr,)
+        scheduler_g = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
+        scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
 
-        scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
-        scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
+        # scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
+        # scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
         scheduler_g_dict = {
             'scheduler': scheduler_g,
             'interval': 'step',
@@ -245,7 +245,6 @@ class VitsModel(TextToWaveform):
 
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-        
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         with autocast(enabled=False):
@@ -256,16 +255,11 @@ class VitsModel(TextToWaveform):
 
         # train discriminator
         optim_d.zero_grad()
-        self.manual_backward(self.scaler.scale(loss_disc_all))
+        self.manual_backward(loss_disc_all)
 
-        # self.scaler.scale(loss_disc_all).backward()
-        self.scaler.unscale_(optim_d)
-        norm_d = clip_grad_value_(self.net_d.parameters(), None)
-        self.scaler.step(optim_d)
-        self.scaler.update()
         # TODO: maybe change it to PTL-based function
-        # norm_d = clip_grad_value_(self.net_d.parameters(), None)
-        # optim_d.step()
+        norm_d = clip_grad_value_(self.net_d.parameters(), None)
+        optim_d.step()
         
         with autocast(enabled=True):
             # Generator
@@ -280,15 +274,11 @@ class VitsModel(TextToWaveform):
 
         # train generator
         optim_g.zero_grad()
-        self.manual_backward(self.scaler.scale(loss_gen_all))
+        self.manual_backward(loss_gen_all)
         # TODO: maybe change it to PTL-based function
-        # norm_g = clip_grad_value_(self.net_g.parameters(), None)
-        # optim_g.step()
-        # self.scaler.scale(loss_gen_all).backward()
-        self.scaler.unscale_(optim_g)
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
-        self.scaler.step(optim_g)
-        self.scaler.update()
+        optim_g.step()
+
 
         schedulers = self.lr_schedulers()
         if schedulers is not None and self.trainer.is_last_batch:
