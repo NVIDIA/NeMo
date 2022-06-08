@@ -24,12 +24,12 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="vits")
 def main(cfg):
-    plugins = []
-    if cfg.trainer.precision in [16, 'bf16']:
-        scaler = GradScaler(enabled=True)
-        plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
+    # plugins = []
+    # if cfg.trainer.precision in [16, 'bf16']:
+    #     scaler = GradScaler(enabled=True)
+    #     plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
-    trainer = pl.Trainer(resume_from_checkpoint=cfg.checkpoint_path, plugins=plugins, replace_sampler_ddp=False, **cfg.trainer)
+    trainer = pl.Trainer(resume_from_checkpoint=cfg.checkpoint_path, replace_sampler_ddp=False, **cfg.trainer)
     # trainer = pl.Trainer(plugins=plugins, **cfg.trainer) 
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)

@@ -200,6 +200,9 @@ trainer:
   accelerator: gpu
   strategy: ddp
   precision: 16
+  amp_backend: 'apex'
+  amp_level: 'O2'
+  benchmark: true
   max_epochs: 1000000
   accumulate_grad_batches: 1
   # gradient_clip_val: 1000.0

@@ -23,7 +23,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from torch.cuda.amp import autocast
+from torch.cuda.amp import autocast, GradScaler
 from torch.nn import functional as F
 
 from nemo.collections.tts.helpers.helpers import plot_spectrogram_to_numpy, DistributedBucketSampler
@@ -67,6 +67,8 @@ class VitsModel(TextToWaveform):
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
+
+        self.scaler = GradScaler()
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -243,8 +245,9 @@ class VitsModel(TextToWaveform):
 
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-
-        y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+        
+        with autocast(enabled=True):
+            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         with autocast(enabled=False):
             loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
             disc_generated_outputs=y_d_hat_g)
@@ -253,10 +256,16 @@ class VitsModel(TextToWaveform):
 
         # train discriminator
         optim_d.zero_grad()
-        self.manual_backward(loss_disc_all)
-        # TODO: maybe change it to PTL-based function
+        self.manual_backward(self.scaler.scale(loss_disc_all))
+
+        # self.scaler.scale(loss_disc_all).backward()
+        self.scaler.unscale_(optim_d)
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
-        optim_d.step()
+        self.scaler.step(optim_d)
+        self.scaler.update()
+        # TODO: maybe change it to PTL-based function
+        # norm_d = clip_grad_value_(self.net_d.parameters(), None)
+        # optim_d.step()
         
         with autocast(enabled=True):
             # Generator
@@ -271,10 +280,15 @@ class VitsModel(TextToWaveform):
 
         # train generator
         optim_g.zero_grad()
-        self.manual_backward(loss_gen_all)
+        self.manual_backward(self.scaler.scale(loss_gen_all))
         # TODO: maybe change it to PTL-based function
+        # norm_g = clip_grad_value_(self.net_g.parameters(), None)
+        # optim_g.step()
+        # self.scaler.scale(loss_gen_all).backward()
+        self.scaler.unscale_(optim_g)
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
-        optim_g.step()
+        self.scaler.step(optim_g)
+        self.scaler.update()
 
         schedulers = self.lr_schedulers()
         if schedulers is not None and self.trainer.is_last_batch:
