@@ -23,6 +23,7 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.classification_models import EncDecClassificationModel
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, NeuralType
 
@@ -366,6 +367,8 @@ class AudioFeatureIterator(IterableDataset):
         if last <= self._features_len[0]:
             frame = self._features[:, self._start : last].cpu()
             self._start = last
+            if self._start == self._features_len[0]-1:
+                self.output = False
         else:
             frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
             samp_len = self._features_len[0] - self._start
@@ -440,11 +443,18 @@ class AudioBuffersDataLayer(IterableDataset):
         return 1
 
 
-def get_samples(audio_file, target_sr=16000):
+def get_samples(audio_file, offset=0, duration=None, target_sr=16000):
+    if offset < 0:
+        offset = 0 
     with sf.SoundFile(audio_file, 'r') as f:
         dtype = 'int16'
         sample_rate = f.samplerate
-        samples = f.read(dtype=dtype)
+        if offset > 0:
+            f.seek(int(offset * sample_rate))
+        if duration and duration > 0:
+            samples = f.read(int(duration * sample_rate), dtype=dtype)
+        else:
+            samples = f.read(dtype=dtype)
         if sample_rate != target_sr:
             samples = librosa.core.resample(samples, sample_rate, target_sr)
         samples = samples.astype('float32') / 32768
@@ -458,13 +468,14 @@ class FeatureFrameBufferer:
     an array of buffers.
     """
 
-    def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0):
+    def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0, normalize_feature=True):
         '''
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
         '''
+        self.normalize_feature = normalize_feature 
         self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
         self.asr_model = asr_model
         self.sr = asr_model._cfg.sample_rate
@@ -554,10 +565,11 @@ class FeatureFrameBufferer:
         while len(batch_frames) > 0:
 
             frame_buffers = self.get_frame_buffers(batch_frames)
-            norm_consts = self.get_norm_consts_per_frame(batch_frames)
             if len(frame_buffers) == 0:
                 continue
-            self.normalize_frame_buffers(frame_buffers, norm_consts)
+            if self.normalize_feature:
+                norm_consts = self.get_norm_consts_per_frame(batch_frames)
+                self.normalize_frame_buffers(frame_buffers, norm_consts)
             return frame_buffers
         return []
 
@@ -626,8 +638,14 @@ class FrameBatchASR:
         self.frame_buffers = []
         self.frame_bufferer.reset()
 
-    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
-        samples = get_samples(audio_filepath)
+    def read_audio_file(
+        self, 
+        audio_filepath: str, 
+        offset: float, 
+        duration: float, 
+        delay: float, 
+        model_stride_in_secs: float):
+        samples = get_samples(audio_filepath, offset, duration)
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
         frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
         self.set_frame_reader(frame_reader)
@@ -682,6 +700,157 @@ class FrameBatchASR:
         hypothesis = self.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
 
+# class for streaming frame-based VAD
+# 1) use reset() method to reset FrameASR's state
+# 2) call transcribe(frame) to do VAD on
+#    contiguous signal's frames
+class FrameBatchVAD:
+    """
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
+    """
+
+    def __init__(
+        self, vad_model, frame_len=0.16, total_buffer=0.63, batch_size=4, patience=25
+    ):
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
+        '''
+        self.frame_bufferer = FeatureFrameBufferer(
+            asr_model=vad_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer, 
+            normalize_feature=False
+        )
+
+        self.vad_model = vad_model
+        self.patience = patience
+        self.batch_size = batch_size
+        self.all_vad_preds = []
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.vad_decision_buffer_filtered = [0] * (self.patience+1)
+        self.speech_segment = set()
+        self.start = 0
+        self.end=0
+        self.is_speech = False
+
+        self.frame_buffers = []
+        self.reset()
+        cfg = copy.deepcopy(vad_model._cfg)
+        self.frame_len = frame_len
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        # some changes for streaming scenario
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+        self.raw_preprocessor = EncDecClassificationModel.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor.to(vad_model.device)
+
+    def reset(self):
+        """
+        Reset frame_history and decoder's state
+        """
+        self.data_layer = AudioBuffersDataLayer()
+        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
+
+        self.all_vad_preds = []
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.vad_decision_buffer_filtered = [0] * (self.patience+1)
+        self.speech_segment = set()
+        self.start = 0
+        self.end=0
+        self.is_speech = False
+        self.frame_bufferer.reset()
+
+    def read_audio_file(self, 
+                        audio_filepath: str, 
+                        offset: float,
+                        duration: float,
+                        delay: float, 
+                        model_stride_in_secs: float):
+        samples = get_samples(audio_filepath, offset, duration)
+        self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
+        samples = np.pad(samples, (0, self.pad_end_len))
+
+        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
+        self.set_frame_reader(frame_reader)
+
+    def set_frame_reader(self, frame_reader):
+        self.frame_bufferer.set_frame_reader(frame_reader)
+
+    def online_decision(self, current_pred, current_frame, end_of_seq=False, threshold=0.4):
+        
+         # binarization
+        if current_pred >= threshold:
+            current_decision = 1
+        else:
+            current_decision = 0
+        
+        # change happens
+        if not self.is_speech and self.vad_decision_buffer.count(1) > 2:
+            self.is_speech = True
+            self.start = current_frame  
+            
+        if self.is_speech and self.vad_decision_buffer.count(1) == 0:
+            self.is_speech = False
+            self.end = current_frame
+            self.speech_segment.add((round(self.start,2) , round(self.end, 2)))
+            
+        if self.is_speech and end_of_seq:
+            self.end = current_frame 
+            self.speech_segment.add((self.start, self.end))
+
+        self.vad_decision_buffer = self.vad_decision_buffer[1:]
+        self.vad_decision_buffer.append(current_decision)
+      
+    @torch.no_grad()
+    def infer_logits(self):
+        frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+        while len(frame_buffers) > 0:
+            self.frame_buffers += frame_buffers[:]
+            self.data_layer.set_signal(frame_buffers[:])
+            self._get_batch_preds()
+            frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+    @torch.no_grad()
+    def _get_batch_preds(self):
+        device = self.vad_model.device
+        for batch in iter(self.data_loader):
+
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            logits = self.vad_model(
+                processed_signal=feat_signal, 
+                processed_signal_length=feat_signal_len)
+                
+
+            vad_probs = torch.softmax(logits, dim=-1)
+            vad_pred = vad_probs[:, 1]
+            vad_pred = vad_pred.cpu().numpy()
+            self.all_vad_preds.extend(vad_pred)
+
+            del logits
+
+    def decode(self, threshold=0.4):
+        self.infer_logits()
+        end_of_seq = False
+        for i in range(len(self.all_vad_preds)):
+            current_pred = self.all_vad_preds[i]
+            current_frame = i * self.frame_len
+            
+            if i == len(self.all_vad_preds)-1 :
+                end_of_seq = True
+
+            self.online_decision(current_pred, current_frame, end_of_seq, threshold)
+
+            if end_of_seq:
+                break
+            
+        return self.all_vad_preds, self.speech_segment
 
 class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     """
@@ -713,451 +882,610 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         self.reset()
         del self.buffered_len
         del self.buffered_features_size
-
-    def reset(self):
-        '''
-        Reset frame_history and decoder's state
-        '''
-        super().reset()
-        self.feature_buffer = (
-            np.ones([self.batch_size, self.n_feat, self.feature_buffer_len], dtype=np.float32)
-            * self.ZERO_LEVEL_SPEC_DB_VAL
-        )
-        self.all_frame_reader = [None for _ in range(self.batch_size)]
-        self.signal_end = [False for _ in range(self.batch_size)]
-        self.signal_end_index = [None for _ in range(self.batch_size)]
-        self.buffer_number = 0
-
-    def get_batch_frames(self):
-        # Exit if all buffers of all samples have been processed
-        if all(self.signal_end):
-            return []
-
-        # Otherwise sequentially process frames of each sample one by one.
-        batch_frames = []
-        for idx, frame_reader in enumerate(self.all_frame_reader):
-            try:
-                frame = next(frame_reader)
-                frame = np.copy(frame)
-
-                batch_frames.append(frame)
-            except StopIteration:
-                # If this sample has finished all of its buffers
-                # Set its signal_end flag, and assign it the id of which buffer index
-                # did it finish the sample (if not previously set)
-                # This will let the alignment module know which sample in the batch finished
-                # at which index.
-                batch_frames.append(None)
-                self.signal_end[idx] = True
-
-                if self.signal_end_index[idx] is None:
-                    self.signal_end_index[idx] = self.buffer_number
-
-        self.buffer_number += 1
-        return batch_frames
-
-    def get_frame_buffers(self, frames):
-        # Build buffers for each frame
-        self.frame_buffers = []
-        # Loop over all buffers of all samples
-        for idx in range(self.batch_size):
-            frame = frames[idx]
-            # If the sample has a buffer, then process it as usual
-            if frame is not None:
-                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len :]
-                self.buffer[idx, :, -self.n_frame_len :] = frame
-                # self.buffered_len += frame.shape[1]
-                # WRAP the buffer at index idx into a outer list
-                self.frame_buffers.append([np.copy(self.buffer[idx])])
-            else:
-                # If the buffer does not exist, the sample has finished processing
-                # set the entire buffer for that sample to 0
-                self.buffer[idx, :, :] *= 0.0
-                self.frame_buffers.append([np.copy(self.buffer[idx])])
-
-        return self.frame_buffers
-
-    def set_frame_reader(self, frame_reader, idx):
-        self.all_frame_reader[idx] = frame_reader
-        self.signal_end[idx] = False
-        self.signal_end_index[idx] = None
-
-    def _update_feature_buffer(self, feat_frame, idx):
-        # Update the feature buffer for given sample, or reset if the sample has finished processing
-        if feat_frame is not None:
-            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1] :]
-            self.feature_buffer[idx, :, -feat_frame.shape[1] :] = feat_frame
-            # self.buffered_features_size += feat_frame.shape[1]
-        else:
-            self.feature_buffer[idx, :, :] *= 0.0
-
-    def get_norm_consts_per_frame(self, batch_frames):
-        for idx, frame in enumerate(batch_frames):
-            self._update_feature_buffer(frame, idx)
-
-        mean_from_buffer = np.mean(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
-        stdev_from_buffer = np.std(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
-
-        return (mean_from_buffer, stdev_from_buffer)
-
-    def normalize_frame_buffers(self, frame_buffers, norm_consts):
-        CONSTANT = 1e-8
-        for i in range(len(frame_buffers)):
-            frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (norm_consts[1][i] + CONSTANT)
-
-    def get_buffers_batch(self):
-        batch_frames = self.get_batch_frames()
-
-        while len(batch_frames) > 0:
-            # while there exists at least one sample that has not been processed yet
-            frame_buffers = self.get_frame_buffers(batch_frames)
-            norm_consts = self.get_norm_consts_per_frame(batch_frames)
-
-            self.normalize_frame_buffers(frame_buffers, norm_consts)
-            return frame_buffers
-        return []
-
-
-class BatchedFrameASRRNNT(FrameBatchASR):
+from nemo.collections.asr.parts.utils.streaming_utils import get_samples, AudioFeatureIterator
+class FrameBatchVAD:
     """
-    Batched implementation of FrameBatchASR for RNNT models, where the batch dimension is independent audio samples.
+    class for streaming frame-based ASR use reset() method to reset FrameASR's
+    state call transcribe(frame) to do ASR on contiguous signal's frames
     """
 
     def __init__(
-        self,
-        asr_model,
-        frame_len=1.6,
-        total_buffer=4.0,
-        batch_size=32,
-        max_steps_per_timestep: int = 5,
-        stateful_decoding: bool = False,
+        self, vad_model, frame_len=0.16, total_buffer=0.63, batch_size=4, patience=25, total_asr_buffer=4,
     ):
         '''
         Args:
-            asr_model: An RNNT model.
-            frame_len: frame's duration, seconds.
-            total_buffer: duration of total audio chunk size, in seconds.
-            batch_size: Number of independent audio samples to process at each step.
-            max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
-            stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+          offset: number of symbols to drop for smooth streaming
         '''
-        super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
-
-        # OVERRIDES OF THE BASE CLASS
-        self.max_steps_per_timestep = max_steps_per_timestep
-        self.stateful_decoding = stateful_decoding
-
-        self.all_alignments = [[] for _ in range(self.batch_size)]
-        self.all_preds = [[] for _ in range(self.batch_size)]
-        self.previous_hypotheses = None
-        self.batch_index_map = {
-            idx: idx for idx in range(self.batch_size)
-        }  # pointer from global batch id : local sub-batch id
-
-        try:
-            self.eos_id = self.asr_model.tokenizer.eos_id
-        except Exception:
-            self.eos_id = -1
-
-        print("Performing Stateful decoding :", self.stateful_decoding)
-
-        # OVERRIDES
-        self.frame_bufferer = BatchedFeatureFrameBufferer(
-            asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
+        # Note the feature sent into VAD is none normalized
+        self.frame_bufferer = FeatureFrameBufferer(
+            asr_model=vad_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer, 
+            normalize_feature=False 
         )
+        self.patience=patience
+        self.vad_model = vad_model
 
+        self.batch_size = batch_size
+        self.all_vad_preds = []
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.speech_segment = set()
+        self.start = 0
+        self.end=0
+        self.is_speech = False
+       
+        # new
+        self.mask_len = int(total_asr_buffer/frame_len)
+        self.mask = [0] * self.mask_len
+
+        self.frame_buffers = []
         self.reset()
+        cfg = copy.deepcopy(vad_model._cfg)
+        self.frame_len = frame_len
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        # some changes for streaming scenario
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+        self.raw_preprocessor = EncDecClassificationModel.from_config_dict(cfg.preprocessor)
+        self.raw_preprocessor.to(vad_model.device)
 
     def reset(self):
         """
         Reset frame_history and decoder's state
         """
-        super().reset()
+        self.data_layer = AudioBuffersDataLayer()
+        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
 
-        self.all_alignments = [[] for _ in range(self.batch_size)]
-        self.all_preds = [[] for _ in range(self.batch_size)]
-        self.previous_hypotheses = None
-        self.batch_index_map = {idx: idx for idx in range(self.batch_size)}
+        self.all_vad_preds = []
+        self.vad_decision_buffer = [0] * (self.patience+1)
+        self.speech_segment = set()
+        self.start = 0
+        self.end=0
+        self.is_speech = False
+        self.frame_bufferer.reset()
+        
+        #new 
+        self.mask = [0] * self.mask_len
 
-        self.data_layer = [AudioBuffersDataLayer() for _ in range(self.batch_size)]
-        self.data_loader = [
-            DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
-            for idx in range(self.batch_size)
-        ]
+    def read_audio_file(self, 
+                        audio_filepath: str, 
+                        offset: float,
+                        duration: float,
+                        delay: float, 
+                        model_stride_in_secs: float):
+        samples = get_samples(audio_filepath, offset, duration)
+        self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
+        samples = np.pad(samples, (0, self.pad_end_len))
+        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
+        self.set_frame_reader(frame_reader)
 
-    def read_audio_file(self, audio_filepath: list, delay, model_stride_in_secs):
-        assert len(audio_filepath) == self.batch_size
+    def set_frame_reader(self, frame_reader):
+        self.frame_bufferer.set_frame_reader(frame_reader)
 
-        # Read in a batch of audio files, one by one
-        for idx in range(self.batch_size):
-            samples = get_samples(audio_filepath[idx])
-            samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
-            frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
-            self.set_frame_reader(frame_reader, idx)
+    def online_decision(self, current_pred, current_frame, end_of_seq=False, threshold=0.4):
+         # binarization
+        if current_pred >= threshold:
+            current_decision = 1
+        else:
+            current_decision = 0
+        
+        # change happens
+        if not self.is_speech and self.vad_decision_buffer.count(1) > 2:
+            self.is_speech = True
+            self.start = current_frame  
+            
+        if self.is_speech and self.vad_decision_buffer.count(1) == 0:
+            self.is_speech = False
+            self.end = current_frame
+            self.speech_segment.add((round(self.start,2) , round(self.end, 2)))
+            
+        if self.is_speech and end_of_seq:
+            self.end = current_frame 
+            self.speech_segment.add((self.start, self.end))
 
-    def set_frame_reader(self, frame_reader, idx):
-        self.frame_bufferer.set_frame_reader(frame_reader, idx)
-
+        self.vad_decision_buffer = self.vad_decision_buffer[1:]
+        self.vad_decision_buffer.append(current_decision)
+        print("decision buffer:", self.vad_decision_buffer)
+        
+        # new
+        self.mask = self.mask[1:]
+        self.mask.append(current_decision)
+        print("mask buffer:", self.mask)
+        
+      
     @torch.no_grad()
     def infer_logits(self):
         frame_buffers = self.frame_bufferer.get_buffers_batch()
 
         while len(frame_buffers) > 0:
-            # While at least 1 sample has a buffer left to process
             self.frame_buffers += frame_buffers[:]
-
-            for idx, buffer in enumerate(frame_buffers):
-                self.data_layer[idx].set_signal(buffer[:])
-
+            self.data_layer.set_signal(frame_buffers[:])
             self._get_batch_preds()
             frame_buffers = self.frame_bufferer.get_buffers_batch()
 
     @torch.no_grad()
     def _get_batch_preds(self):
-        """
-        Perform dynamic batch size decoding of frame buffers of all samples.
+        device = self.vad_model.device
+        for batch in iter(self.data_loader):
 
-        Steps:
-            -   Load all data loaders of every sample
-            -   For all samples, determine if signal has finished.
-                -   If so, skip calculation of mel-specs.
-                -   If not, compute mel spec and length
-            -   Perform Encoder forward over this sub-batch of samples. Maintain the indices of samples that were processed.
-            -   If performing stateful decoding, prior to decoder forward, remove the states of samples that were not processed.
-            -   Perform Decoder + Joint forward for samples that were processed.
-            -   For all output RNNT alignment matrix of the joint do:
-                -   If signal has ended previously (this was last buffer of padding), skip alignment
-                -   Otherwise, recalculate global index of this sample from the sub-batch index, and preserve alignment.
-            -   Same for preds
-            -   Update indices of sub-batch with global index map.
-            - Redo steps until all samples were processed (sub-batch size == 0).
-        """
-        device = self.asr_model.device
-
-        data_iters = [iter(data_loader) for data_loader in self.data_loader]
-
-        feat_signals = []
-        feat_signal_lens = []
-
-        new_batch_keys = []
-        # while not all(self.frame_bufferer.signal_end):
-        for idx in range(self.batch_size):
-            if self.frame_bufferer.signal_end[idx]:
-                continue
-
-            batch = next(data_iters[idx])
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
-            feat_signals.append(feat_signal)
-            feat_signal_lens.append(feat_signal_len)
-
-            # preserve batch indeices
-            new_batch_keys.append(idx)
-
-        if len(feat_signals) == 0:
-            return
-
-        feat_signal = torch.cat(feat_signals, 0)
-        feat_signal_len = torch.cat(feat_signal_lens, 0)
-
-        del feat_signals, feat_signal_lens
-
-        encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
-
-        # filter out partial hypotheses from older batch subset
-        if self.stateful_decoding and self.previous_hypotheses is not None:
-            new_prev_hypothesis = []
-            for new_batch_idx, global_index_key in enumerate(new_batch_keys):
-                old_pos = self.batch_index_map[global_index_key]
-                new_prev_hypothesis.append(self.previous_hypotheses[old_pos])
-            self.previous_hypotheses = new_prev_hypothesis
-
-        best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-            encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
-        )
-
-        if self.stateful_decoding:
-            # preserve last state from hypothesis of new batch indices
-            self.previous_hypotheses = best_hyp
-
-        for idx, hyp in enumerate(best_hyp):
-            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
-
-            has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
-            if not has_signal_ended:
-                self.all_alignments[global_index_key].append(hyp.alignments)
-
-        preds = [hyp.y_sequence for hyp in best_hyp]
-        for idx, pred in enumerate(preds):
-            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
-
-            has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
-            if not has_signal_ended:
-                self.all_preds[global_index_key].append(pred.cpu().numpy())
-
-        if self.stateful_decoding:
-            # State resetting is being done on sub-batch only, global index information is not being updated
-            reset_states = self.asr_model.decoder.initialize_state(encoded)
-
-            for idx, pred in enumerate(preds):
-                if len(pred) > 0 and pred[-1] == self.eos_id:
-                    # reset states :
-                    self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
-                    self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
-                        reset_states, idx
-                    )
-
-        # Position map update
-        if len(new_batch_keys) != len(self.batch_index_map):
-            for new_batch_idx, global_index_key in enumerate(new_batch_keys):
-                self.batch_index_map[global_index_key] = new_batch_idx  # let index point from global pos -> local pos
-
-        del encoded, encoded_len
-        del best_hyp, pred
-
-    def transcribe(
-        self, tokens_per_chunk: int, delay: int,
-    ):
-        """
-        Performs "middle token" alignment prediction using the buffered audio chunk.
-        """
-        self.infer_logits()
-
-        self.unmerged = [[] for _ in range(self.batch_size)]
-        for idx, alignments in enumerate(self.all_alignments):
-
-            signal_end_idx = self.frame_bufferer.signal_end_index[idx]
-            if signal_end_idx is None:
-                raise ValueError("Signal did not end")
-
-            for a_idx, alignment in enumerate(alignments):
-                alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
-
-                ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-
-                if len(ids) > 0 and a_idx < signal_end_idx:
-                    self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,)
-
-        output = []
-        for idx in range(self.batch_size):
-            output.append(self.greedy_merge(self.unmerged[idx]))
-        return output
-
-    def _alignment_decoder(self, alignments, tokenizer, blank_id):
-        s = []
-        ids = []
-
-        for t in range(len(alignments)):
-            for u in range(len(alignments[t])):
-                token_id = int(alignments[t][u])
-                if token_id != blank_id:
-                    token = tokenizer.ids_to_tokens([token_id])[0]
-                    s.append(token)
-                    ids.append(token_id)
-
-                else:
-                    # blank token
-                    pass
-
-        return ids, s
-
-    def greedy_merge(self, preds):
-        decoded_prediction = [p for p in preds]
-        hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
-        return hypothesis
-
-
-class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
-    """
-    Implements a token alignment algorithm for text alignment instead of middle token alignment.
-
-    For more detail, read the docstring of longest_common_subsequence_merge().
-    """
-
-    def __init__(
-        self,
-        asr_model,
-        frame_len=1.6,
-        total_buffer=4.0,
-        batch_size=4,
-        max_steps_per_timestep: int = 5,
-        stateful_decoding: bool = False,
-        alignment_basepath: str = None,
-    ):
-        '''
-        Args:
-            asr_model: An RNNT model.
-            frame_len: frame's duration, seconds.
-            total_buffer: duration of total audio chunk size, in seconds.
-            batch_size: Number of independent audio samples to process at each step.
-            max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
-            stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
-            alignment_basepath: Str path to a directory where alignments from LCS will be preserved for later analysis.
-        '''
-        super().__init__(asr_model, frame_len, total_buffer, batch_size, max_steps_per_timestep, stateful_decoding)
-        self.sample_offset = 0
-        self.lcs_delay = -1
-
-        self.alignment_basepath = alignment_basepath
-
-    def transcribe(
-        self, tokens_per_chunk: int, delay: int,
-    ):
-        if self.lcs_delay < 0:
-            raise ValueError(
-                "Please set LCS Delay valus as `(buffer_duration - chunk_duration) / model_stride_in_secs`"
+            logits = self.vad_model(
+                processed_signal=feat_signal, 
+                processed_signal_length=feat_signal_len
             )
+                
+            vad_probs = torch.softmax(logits, dim=-1)
+            vad_pred = vad_probs[:, 1]
+            vad_pred = vad_pred.cpu().numpy()
+            self.all_vad_preds.extend(vad_pred)
 
+            del logits
+
+    def decode(self, threshold=0.4):
         self.infer_logits()
+        end_of_seq = False
+        for i in range(len(self.all_vad_preds)):
+            current_pred = self.all_vad_preds[i]
+            current_frame = i * self.frame_len
+            
+            if i == len(self.all_vad_preds)-1 :
+                end_of_seq = True
 
-        self.unmerged = [[] for _ in range(self.batch_size)]
-        for idx, alignments in enumerate(self.all_alignments):
+#             print(current_pred, current_frame)
+            self.online_decision(current_pred, current_frame, end_of_seq, threshold)
 
-            signal_end_idx = self.frame_bufferer.signal_end_index[idx]
-            if signal_end_idx is None:
-                raise ValueError("Signal did not end")
+            if end_of_seq:
+                break
+            
+        return self.all_vad_preds, self.speech_segment
+    # def reset(self):
+        # '''
+        # Reset frame_history and decoder's state
+        # '''
+        # super().reset()
+        # self.feature_buffer = (
+            # np.ones([self.batch_size, self.n_feat, self.feature_buffer_len], dtype=np.float32)
+            # * self.ZERO_LEVEL_SPEC_DB_VAL
+        # )
+        # self.all_frame_reader = [None for _ in range(self.batch_size)]
+        # self.signal_end = [False for _ in range(self.batch_size)]
+        # self.signal_end_index = [None for _ in range(self.batch_size)]
+        # self.buffer_number = 0
 
-            for a_idx, alignment in enumerate(alignments):
+    # def get_batch_frames(self):
+        # # Exit if all buffers of all samples have been processed
+        # if all(self.signal_end):
+            # return []
 
-                # Middle token first chunk
-                if a_idx == 0:
-                    # len(alignment) - 1 - delay + tokens_per_chunk
-                    alignment = alignment[len(alignment) - 1 - delay :]
-                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+        # # Otherwise sequentially process frames of each sample one by one.
+        # batch_frames = []
+        # for idx, frame_reader in enumerate(self.all_frame_reader):
+            # try:
+                # frame = next(frame_reader)
+                # frame = np.copy(frame)
 
-                    if len(ids) > 0:
-                        self.unmerged[idx] = inplace_buffer_merge(
-                            self.unmerged[idx], ids, delay, model=self.asr_model,
-                        )
+                # batch_frames.append(frame)
+            # except StopIteration:
+                # # If this sample has finished all of its buffers
+                # # Set its signal_end flag, and assign it the id of which buffer index
+                # # did it finish the sample (if not previously set)
+                # # This will let the alignment module know which sample in the batch finished
+                # # at which index.
+                # batch_frames.append(None)
+                # self.signal_end[idx] = True
 
-                else:
-                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-                    if len(ids) > 0 and a_idx < signal_end_idx:
+                # if self.signal_end_index[idx] is None:
+                    # self.signal_end_index[idx] = self.buffer_number
 
-                        if self.alignment_basepath is not None:
-                            basepath = self.alignment_basepath
-                            sample_offset = self.sample_offset + idx
-                            alignment_offset = a_idx
-                            path = os.path.join(basepath, str(sample_offset))
+        # self.buffer_number += 1
+        # return batch_frames
 
-                            os.makedirs(path, exist_ok=True)
-                            path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
+    # def get_frame_buffers(self, frames):
+        # # Build buffers for each frame
+        # self.frame_buffers = []
+        # # Loop over all buffers of all samples
+        # for idx in range(self.batch_size):
+            # frame = frames[idx]
+            # # If the sample has a buffer, then process it as usual
+            # if frame is not None:
+                # self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len :]
+                # self.buffer[idx, :, -self.n_frame_len :] = frame
+                # # self.buffered_len += frame.shape[1]
+                # # WRAP the buffer at index idx into a outer list
+                # self.frame_buffers.append([np.copy(self.buffer[idx])])
+            # else:
+                # # If the buffer does not exist, the sample has finished processing
+                # # set the entire buffer for that sample to 0
+                # self.buffer[idx, :, :] *= 0.0
+                # self.frame_buffers.append([np.copy(self.buffer[idx])])
 
-                            filepath = path
-                        else:
-                            filepath = None
+        # return self.frame_buffers
 
-                        self.unmerged[idx] = lcs_alignment_merge_buffer(
-                            self.unmerged[idx],
-                            ids,
-                            self.lcs_delay,
-                            model=self.asr_model,
-                            max_steps_per_timestep=self.max_steps_per_timestep,
-                            filepath=filepath,
-                        )
+    # def set_frame_reader(self, frame_reader, idx):
+        # self.all_frame_reader[idx] = frame_reader
+        # self.signal_end[idx] = False
+        # self.signal_end_index[idx] = None
 
-        output = []
-        for idx in range(self.batch_size):
-            output.append(self.greedy_merge(self.unmerged[idx]))
-        return output
+    # def _update_feature_buffer(self, feat_frame, idx):
+        # # Update the feature buffer for given sample, or reset if the sample has finished processing
+        # if feat_frame is not None:
+            # self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1] :]
+            # self.feature_buffer[idx, :, -feat_frame.shape[1] :] = feat_frame
+            # # self.buffered_features_size += feat_frame.shape[1]
+        # else:
+            # self.feature_buffer[idx, :, :] *= 0.0
+
+    # def get_norm_consts_per_frame(self, batch_frames):
+        # for idx, frame in enumerate(batch_frames):
+            # self._update_feature_buffer(frame, idx)
+
+        # mean_from_buffer = np.mean(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
+        # stdev_from_buffer = np.std(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
+
+        # return (mean_from_buffer, stdev_from_buffer)
+
+    # def normalize_frame_buffers(self, frame_buffers, norm_consts):
+        # CONSTANT = 1e-8
+        # for i in range(len(frame_buffers)):
+            # frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (norm_consts[1][i] + CONSTANT)
+
+    # def get_buffers_batch(self):
+        # batch_frames = self.get_batch_frames()
+
+        # while len(batch_frames) > 0:
+            # # while there exists at least one sample that has not been processed yet
+            # frame_buffers = self.get_frame_buffers(batch_frames)
+            # norm_consts = self.get_norm_consts_per_frame(batch_frames)
+
+            # self.normalize_frame_buffers(frame_buffers, norm_consts)
+            # return frame_buffers
+        # return []
+
+
+# class BatchedFrameASRRNNT(FrameBatchASR):
+    # """
+    # Batched implementation of FrameBatchASR for RNNT models, where the batch dimension is independent audio samples.
+    # """
+
+    # def __init__(
+        # self,
+        # asr_model,
+        # frame_len=1.6,
+        # total_buffer=4.0,
+        # batch_size=32,
+        # max_steps_per_timestep: int = 5,
+        # stateful_decoding: bool = False,
+    # ):
+        # '''
+        # Args:
+            # asr_model: An RNNT model.
+            # frame_len: frame's duration, seconds.
+            # total_buffer: duration of total audio chunk size, in seconds.
+            # batch_size: Number of independent audio samples to process at each step.
+            # max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
+            # stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+        # '''
+        # super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
+
+        # # OVERRIDES OF THE BASE CLASS
+        # self.max_steps_per_timestep = max_steps_per_timestep
+        # self.stateful_decoding = stateful_decoding
+
+        # self.all_alignments = [[] for _ in range(self.batch_size)]
+        # self.all_preds = [[] for _ in range(self.batch_size)]
+        # self.previous_hypotheses = None
+        # self.batch_index_map = {
+            # idx: idx for idx in range(self.batch_size)
+        # }  # pointer from global batch id : local sub-batch id
+
+        # try:
+            # self.eos_id = self.asr_model.tokenizer.eos_id
+        # except Exception:
+            # self.eos_id = -1
+
+        # print("Performing Stateful decoding :", self.stateful_decoding)
+
+        # # OVERRIDES
+        # self.frame_bufferer = BatchedFeatureFrameBufferer(
+            # asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
+        # )
+
+        # self.reset()
+
+    # def reset(self):
+        # """
+        # Reset frame_history and decoder's state
+        # """
+        # super().reset()
+
+        # self.all_alignments = [[] for _ in range(self.batch_size)]
+        # self.all_preds = [[] for _ in range(self.batch_size)]
+        # self.previous_hypotheses = None
+        # self.batch_index_map = {idx: idx for idx in range(self.batch_size)}
+
+        # self.data_layer = [AudioBuffersDataLayer() for _ in range(self.batch_size)]
+        # self.data_loader = [
+            # DataLoader(self.data_layer[idx], batch_size=1, collate_fn=speech_collate_fn)
+            # for idx in range(self.batch_size)
+        # ]
+
+    # def read_audio_file(self, audio_filepath: list, delay, model_stride_in_secs):
+        # assert len(audio_filepath) == self.batch_size
+
+        # # Read in a batch of audio files, one by one
+        # for idx in range(self.batch_size):
+            # samples = get_samples(audio_filepath[idx])
+            # samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+            # frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+            # self.set_frame_reader(frame_reader, idx)
+
+    # def set_frame_reader(self, frame_reader, idx):
+        # self.frame_bufferer.set_frame_reader(frame_reader, idx)
+
+    # @torch.no_grad()
+    # def infer_logits(self):
+        # frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+        # while len(frame_buffers) > 0:
+            # # While at least 1 sample has a buffer left to process
+            # self.frame_buffers += frame_buffers[:]
+
+            # for idx, buffer in enumerate(frame_buffers):
+                # self.data_layer[idx].set_signal(buffer[:])
+
+            # self._get_batch_preds()
+            # frame_buffers = self.frame_bufferer.get_buffers_batch()
+
+    # @torch.no_grad()
+    # def _get_batch_preds(self):
+        # """
+        # Perform dynamic batch size decoding of frame buffers of all samples.
+
+        # Steps:
+            # -   Load all data loaders of every sample
+            # -   For all samples, determine if signal has finished.
+                # -   If so, skip calculation of mel-specs.
+                # -   If not, compute mel spec and length
+            # -   Perform Encoder forward over this sub-batch of samples. Maintain the indices of samples that were processed.
+            # -   If performing stateful decoding, prior to decoder forward, remove the states of samples that were not processed.
+            # -   Perform Decoder + Joint forward for samples that were processed.
+            # -   For all output RNNT alignment matrix of the joint do:
+                # -   If signal has ended previously (this was last buffer of padding), skip alignment
+                # -   Otherwise, recalculate global index of this sample from the sub-batch index, and preserve alignment.
+            # -   Same for preds
+            # -   Update indices of sub-batch with global index map.
+            # - Redo steps until all samples were processed (sub-batch size == 0).
+        # """
+        # device = self.asr_model.device
+
+        # data_iters = [iter(data_loader) for data_loader in self.data_loader]
+
+        # feat_signals = []
+        # feat_signal_lens = []
+
+        # new_batch_keys = []
+        # # while not all(self.frame_bufferer.signal_end):
+        # for idx in range(self.batch_size):
+            # if self.frame_bufferer.signal_end[idx]:
+                # continue
+
+            # batch = next(data_iters[idx])
+            # feat_signal, feat_signal_len = batch
+            # feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+
+            # feat_signals.append(feat_signal)
+            # feat_signal_lens.append(feat_signal_len)
+
+            # # preserve batch indeices
+            # new_batch_keys.append(idx)
+
+        # if len(feat_signals) == 0:
+            # return
+
+        # feat_signal = torch.cat(feat_signals, 0)
+        # feat_signal_len = torch.cat(feat_signal_lens, 0)
+
+        # del feat_signals, feat_signal_lens
+
+        # encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+
+        # # filter out partial hypotheses from older batch subset
+        # if self.stateful_decoding and self.previous_hypotheses is not None:
+            # new_prev_hypothesis = []
+            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                # old_pos = self.batch_index_map[global_index_key]
+                # new_prev_hypothesis.append(self.previous_hypotheses[old_pos])
+            # self.previous_hypotheses = new_prev_hypothesis
+
+        # best_hyp, _ = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+            # encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+        # )
+
+        # if self.stateful_decoding:
+            # # preserve last state from hypothesis of new batch indices
+            # self.previous_hypotheses = best_hyp
+
+        # for idx, hyp in enumerate(best_hyp):
+            # global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+
+            # has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
+            # if not has_signal_ended:
+                # self.all_alignments[global_index_key].append(hyp.alignments)
+
+        # preds = [hyp.y_sequence for hyp in best_hyp]
+        # for idx, pred in enumerate(preds):
+            # global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+
+            # has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
+            # if not has_signal_ended:
+                # self.all_preds[global_index_key].append(pred.cpu().numpy())
+
+        # if self.stateful_decoding:
+            # # State resetting is being done on sub-batch only, global index information is not being updated
+            # reset_states = self.asr_model.decoder.initialize_state(encoded)
+
+            # for idx, pred in enumerate(preds):
+                # if len(pred) > 0 and pred[-1] == self.eos_id:
+                    # # reset states :
+                    # self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
+                    # self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
+                        # reset_states, idx
+                    # )
+
+        # # Position map update
+        # if len(new_batch_keys) != len(self.batch_index_map):
+            # for new_batch_idx, global_index_key in enumerate(new_batch_keys):
+                # self.batch_index_map[global_index_key] = new_batch_idx  # let index point from global pos -> local pos
+
+        # del encoded, encoded_len
+        # del best_hyp, pred
+
+    # def transcribe(
+        # self, tokens_per_chunk: int, delay: int,
+    # ):
+        # """
+        # Performs "middle token" alignment prediction using the buffered audio chunk.
+        # """
+        # self.infer_logits()
+
+        # self.unmerged = [[] for _ in range(self.batch_size)]
+        # for idx, alignments in enumerate(self.all_alignments):
+
+            # signal_end_idx = self.frame_bufferer.signal_end_index[idx]
+            # if signal_end_idx is None:
+                # raise ValueError("Signal did not end")
+
+            # for a_idx, alignment in enumerate(alignments):
+                # alignment = alignment[len(alignment) - 1 - delay : len(alignment) - 1 - delay + tokens_per_chunk]
+
+                # ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+
+                # if len(ids) > 0 and a_idx < signal_end_idx:
+                    # self.unmerged[idx] = inplace_buffer_merge(self.unmerged[idx], ids, delay, model=self.asr_model,)
+
+        # output = []
+        # for idx in range(self.batch_size):
+            # output.append(self.greedy_merge(self.unmerged[idx]))
+        # return output
+
+    # def _alignment_decoder(self, alignments, tokenizer, blank_id):
+        # s = []
+        # ids = []
+
+        # for t in range(len(alignments)):
+            # for u in range(len(alignments[t])):
+                # token_id = int(alignments[t][u])
+                # if token_id != blank_id:
+                    # token = tokenizer.ids_to_tokens([token_id])[0]
+                    # s.append(token)
+                    # ids.append(token_id)
+
+                # else:
+                    # # blank token
+                    # pass
+
+        # return ids, s
+
+    # def greedy_merge(self, preds):
+        # decoded_prediction = [p for p in preds]
+        # hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
+        # return hypothesis
+
+
+# class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
+    # """
+    # Implements a token alignment algorithm for text alignment instead of middle token alignment.
+
+    # For more detail, read the docstring of longest_common_subsequence_merge().
+    # """
+
+    # def __init__(
+        # self,
+        # asr_model,
+        # frame_len=1.6,
+        # total_buffer=4.0,
+        # batch_size=4,
+        # max_steps_per_timestep: int = 5,
+        # stateful_decoding: bool = False,
+        # alignment_basepath: str = None,
+    # ):
+        # '''
+        # Args:
+            # asr_model: An RNNT model.
+            # frame_len: frame's duration, seconds.
+            # total_buffer: duration of total audio chunk size, in seconds.
+            # batch_size: Number of independent audio samples to process at each step.
+            # max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
+            # stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+            # alignment_basepath: Str path to a directory where alignments from LCS will be preserved for later analysis.
+        # '''
+        # super().__init__(asr_model, frame_len, total_buffer, batch_size, max_steps_per_timestep, stateful_decoding)
+        # self.sample_offset = 0
+        # self.lcs_delay = -1
+
+        # self.alignment_basepath = alignment_basepath
+
+    # def transcribe(
+        # self, tokens_per_chunk: int, delay: int,
+    # ):
+        # if self.lcs_delay < 0:
+            # raise ValueError(
+                # "Please set LCS Delay valus as `(buffer_duration - chunk_duration) / model_stride_in_secs`"
+            # )
+
+        # self.infer_logits()
+
+        # self.unmerged = [[] for _ in range(self.batch_size)]
+        # for idx, alignments in enumerate(self.all_alignments):
+
+            # signal_end_idx = self.frame_bufferer.signal_end_index[idx]
+            # if signal_end_idx is None:
+                # raise ValueError("Signal did not end")
+
+            # for a_idx, alignment in enumerate(alignments):
+
+                # # Middle token first chunk
+                # if a_idx == 0:
+                    # # len(alignment) - 1 - delay + tokens_per_chunk
+                    # alignment = alignment[len(alignment) - 1 - delay :]
+                    # ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+
+                    # if len(ids) > 0:
+                        # self.unmerged[idx] = inplace_buffer_merge(
+                            # self.unmerged[idx], ids, delay, model=self.asr_model,
+                        # )
+
+                # else:
+                    # ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                    # if len(ids) > 0 and a_idx < signal_end_idx:
+
+                        # if self.alignment_basepath is not None:
+                            # basepath = self.alignment_basepath
+                            # sample_offset = self.sample_offset + idx
+                            # alignment_offset = a_idx
+                            # path = os.path.join(basepath, str(sample_offset))
+
+                            # os.makedirs(path, exist_ok=True)
+                            # path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
+
+                            # filepath = path
+                        # else:
+                            # filepath = None
+
+                        # self.unmerged[idx] = lcs_alignment_merge_buffer(
+                            # self.unmerged[idx],
+                            # ids,
+                            # self.lcs_delay,
+                            # model=self.asr_model,
+                            # max_steps_per_timestep=self.max_steps_per_timestep,
+                            # filepath=filepath,
+                        # )
+
+        # output = []
+        # for idx in range(self.batch_size):
+            # output.append(self.greedy_merge(self.unmerged[idx]))
+        # return output

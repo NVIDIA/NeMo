@@ -30,7 +30,6 @@ from tqdm import tqdm
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
 
-
 """
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
 """
@@ -216,7 +215,10 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
             embs_and_timestamps[uniq_id]['multiscale_weights'] = (
                 torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
             )
-            assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            try:
+                assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            except:
+                import ipdb; ipdb.set_trace()
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
                 'embeddings': embeddings[uniq_id],
                 'time_stamps': time_stamps[uniq_id],
@@ -684,7 +686,7 @@ def int2fl(x, deci=3):
     return round(float(x / pow(10, deci)), int(deci))
 
 
-def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> List:
+def getMergedRanges(label_list_A: List, label_list_B: List, int_comp: int = 0, deci: int = 3) -> List:
     """
     Calculate the merged ranges between label_list_A and label_list_B.
 
@@ -703,10 +705,10 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
     elif label_list_A != [] and label_list_B == []:
         return label_list_A
     else:
-        label_list_A = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_A]
-        label_list_B = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_B]
+        label_list_A = [[fl2int(x[0] + int_comp, deci), fl2int(x[1], deci)] for x in label_list_A]
+        label_list_B = [[fl2int(x[0] + int_comp, deci), fl2int(x[1], deci)] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
-        return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
+        return [[int2fl(x[0] - int_comp, deci), int2fl(x[1], deci)] for x in combined]
 
 
 def getMinMaxOfRangeList(ranges):
