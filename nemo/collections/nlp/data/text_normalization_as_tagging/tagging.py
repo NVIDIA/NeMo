@@ -200,17 +200,9 @@ class EditingTask(object):
         # detokenize
         output_tokens_str = " ".join(out_tokens_with_swap).replace("<", "").replace(">", "")
         output_tags_with_swap_str = " ".join(out_tags_with_swap)
-        frags = re.split(r"(_[^ ][^_]+[^ ]_)", output_tokens_str)
-        output_tokens = []
-        for frag in frags:
-            if frag.startswith("_") and frag.endswith("_"):
-                output_tokens.append(frag.replace(" ", "").replace("_", ""))
-            else:
-                output_tokens.append(frag.strip().replace("_", ""))
-        output_str = " ".join(output_tokens)
-        output_str = re.sub(r" +", " ", output_str)
+        output_tokens = utils.detokenize_by_underscore(output_tokens_str)
         return (
-            output_str,
+            " ".join(output_tokens),
             " ".join(self.source_tokens),
             " ".join(out_tags_without_swap),
             output_tags_with_swap_str,

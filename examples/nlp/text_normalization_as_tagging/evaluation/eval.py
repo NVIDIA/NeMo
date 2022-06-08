@@ -45,7 +45,6 @@ The script outputs the following metrics:
           this sentence is regarded as containing Other Error.
 """
 
-
 import re
 from argparse import ArgumentParser
 
@@ -106,7 +105,7 @@ if __name__ == "__main__":
                     multi_references_updated = []
                     input_position = end
                 for i in range(len(multi_references)):  # copy needed words from the input end
-                    multi_references[i] += " " + " ".join(inputs[-1][input_position : len(inputs[-1])])
+                    multi_references[i] += " " + " ".join(inputs[-1][input_position: len(inputs[-1])])
             # the last reference added is the actual one
             multi_references.append(parts[1])
             references.append(multi_references)
@@ -114,18 +113,26 @@ if __name__ == "__main__":
     predictions = []
     predicted_tags = []
     predicted_semiotic = []
+    inputs = []  # copy inputs from inference file, as for tn inputs in reference are alpha-tokenized (not "properly")
     # load predictions
     with open(args.inference_file, "r", encoding="utf-8") as f:
         for line in f:
-            parts = line.strip().split("\t")
+            parts = line.rstrip().split("\t")
             if len(parts) == 1:
+                print("WARNING: len(parts) == 1 ; line=" + line)
                 predictions.append(parts[0].casefold())
                 predicted_tags.append([])
+                predicted_semiotic.append([])
                 continue
             if len(parts) != 5:
-                raise ValueError("Bad format: " + line)
+                print("WARNING: Bad format, expect 5 parts, got " + str(len(parts)) + ": " + line)
+                predictions.append("")
+                predicted_tags.append([])
+                predicted_semiotic.append([])
+                continue
             prediction, inp_str, tag_str, tags_with_swap_str, semiotic = parts
             predictions.append(prediction.casefold())
+            inputs.append(inp_str)
             tags = tag_str.split(" ")
             predicted_tags.append(tags)
             predicted_semiotic.append(semiotic)
@@ -161,7 +168,7 @@ if __name__ == "__main__":
                 ok_all = True
         if not ok_digit:
             print("digit error:")
-            print("\tinput=", " ".join(inputs[i]))
+            print("\tinput=", inputs[i])
             print("\ttags=", " ".join(predicted_tags[i]))
             print("\tpred=", predictions[i])
             print("\tsemiotic=", predicted_semiotic[i])
@@ -171,7 +178,7 @@ if __name__ == "__main__":
             correct_sentences_disregarding_space += 1
         elif args.print_other_errors:
             print("other error:")
-            print("\tinput=", " ".join(inputs[i]))
+            print("\tinput=", inputs[i])
             print("\ttags=", " ".join(predicted_tags[i]))
             print("\tpred=", predictions[i])
             print("\tsemiotic=", predicted_semiotic[i])

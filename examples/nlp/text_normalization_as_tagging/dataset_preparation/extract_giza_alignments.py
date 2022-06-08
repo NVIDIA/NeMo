@@ -653,8 +653,8 @@ def main() -> None:
                         leftside_align = re.sub(r"^<DELETE> ([^ ])$", r"\g<1> <DELETE>", leftside_align)
 
                     # "_1 1:3 3_" => "_11: 3 3_"
-                    rightside_align = re.sub(r"_(\d) (\d:)(\d)", r"\g<1>\g<2> \g<3>", rightside_align)
-                    leftside_align = re.sub(r"_(\d) (\d:)(\d)", r"\g<1>\g<2> \g<3>", leftside_align)
+                    rightside_align = re.sub(r"(_\d) (\d:)(\d)", r"\g<1>\g<2> \g<3>", rightside_align)
+                    leftside_align = re.sub(r"(_\d) (\d:)(\d)", r"\g<1>\g<2> \g<3>", leftside_align)
 
                 ban = False
                 if args.giza_dir.endswith("ordinal"):

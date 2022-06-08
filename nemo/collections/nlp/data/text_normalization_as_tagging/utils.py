@@ -83,9 +83,43 @@ def read_semiotic_classes(path: str) -> Dict[str, int]:
 
 
 def split_text_by_isalpha(s: str):
-    """Split string into segments, so that alphabetic sequence is one segment"""
+    """Split string into alphabetic and non-alphabetic segments"""
     for k, g in groupby(s, str.isalpha):
         yield ''.join(g)
+
+
+def alpha_tokenize(s: str) -> List[str]:
+    """Split string into segments, so that
+        alphabetic sequence is one segment,
+        non-alphabetic sequence is split to single characters.
+
+    >>> alpha_tokenize("18 february 2008")
+    ["1", "8", "february", "2", "0", "0", "8"]
+    """
+    alpha_tokens = []
+    for t in s.split(" "):
+        frags = list(split_text_by_isalpha(t))
+        for frag in frags:
+            if frag.isalpha():
+                alpha_tokens.append(frag)
+            else:
+                alpha_tokens.extend(list(frag))
+    return alpha_tokens
+
+
+def detokenize_by_underscore(s: str) -> List[str]:
+    """Detokenize tokenized fragments, in which beginning and end are marked by underscores.
+       >>> detokenize_by_underscore("_s h o w b u z z d a i l y's_ top _1 00_ thursday cable originals")
+       ["showbuzzdaily's", "top", "100", "thursday", "cable", "originals"]
+    """
+    output_tokens = []
+    frags = re.split(r"(_[^ ][^_]+[^ ]_)", s)
+    for frag in frags:
+        if frag.startswith("_") and frag.endswith("_"):
+            output_tokens.append(frag.replace(" ", "").replace("_", ""))
+        else:
+            output_tokens.append(frag.strip().replace("_", ""))
+    return output_tokens
 
 
 def spoken_preprocessing(spoken: str) -> str:
