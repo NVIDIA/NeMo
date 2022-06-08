@@ -481,8 +481,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return forward_args
 
-    # FIXME: create one for encoder with hiddens instead logits
-    def get_forward_output_only_func(self, arg_names, **kwargs):
+    def get_forward_output_only_func_encode(self, arg_names, **kwargs):
+        """
+        args_idx - maps batch into index of args (with None filling gaps)
+        arg_names - corresponding names for a friendly error message
+        kwargs - shared arguments (non tensors)
+        """
+
+        def fwd_output_only_func(batch, model):
+            batch = [x.cuda(non_blocking=True) for x in batch]
+
+            # map batch and shared args into forward args
+            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
+
+            # print(f"args = {args}")
+
+            output = model(*args)
+
+            def id_func(output_tensor):
+                return output_tensor, {'hiddens': output_tensor}
+
+            return output, id_func
+
+        return fwd_output_only_func
+
+    def get_forward_output_only_func_decode(self, arg_names, **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
@@ -906,7 +929,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
-        forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_enc_hidden_only=True)
+        forward_step_func = self.get_forward_output_only_func_encode(arg_names=arg_names, output_enc_hidden_only=True)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
                 forward_step_func=forward_step_func,
@@ -930,7 +953,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get output tensor of encoder [batch, seq_len, hidden]
         if parallel_state.is_pipeline_last_stage():
-            output_tensor = output_tensor[0]['logits']
+            output_tensor = output_tensor[0]['hiddens']
             # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
         else:
             output_tensor = torch.zeros(
@@ -1029,7 +1052,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names)
+            forward_step_func = self.get_forward_output_only_func_decode(arg_names=arg_names)
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=forward_step_func,
