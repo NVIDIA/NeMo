@@ -24,6 +24,8 @@ model:
     max_duration: 16.7
     shuffle: true
     use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
     # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
@@ -39,6 +41,8 @@ model:
     batch_size: 32
     shuffle: false
     use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
 
   test_ds:
     manifest_filepath: null
@@ -46,6 +50,8 @@ model:
     batch_size: 32
     shuffle: false
     use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
 
   model_defaults:
     repeat: 5
@@ -409,7 +415,7 @@ trainer:
   check_val_every_n_epoch: 1
   precision: 32
   sync_batchnorm: false
-  benchmark: false
+  benchmark: false # needs to be false for models with variable-length speech input as it slows down training
 
 exp_manager:
   exp_dir: null
@@ -427,10 +433,3 @@ exp_manager:
     entity: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null
