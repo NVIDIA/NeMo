@@ -55,7 +55,7 @@ model:
 
   adapter_config:
     dim: 32
-
+    in_features: -1
 
   class_labels:
     punct_labels_file: punct_label_ids.txt
