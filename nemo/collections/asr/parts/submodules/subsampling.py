@@ -225,6 +225,61 @@ def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):
 
 class TimeReductionModule(nn.Module):
 
-    def __init__(self):
-        pass
+    def __init__(self, d_model: int, out_dim: int, kernel_size: int = 5, stride: int = 2):
+        super().__init__()
+
+        self.d_model = d_model
+        self.out_dim = out_dim
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = max(0, self.kernel_size - self.stride)
+
+        self.dw_conv = nn.Conv1d(
+            in_channels=d_model,
+            out_channels=d_model,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=self.padding,
+            groups=d_model,
+        )
+
+        self.pw_conv = nn.Conv1d(
+            in_channels=d_model,
+            out_channels=out_dim,
+            kernel_size=1,
+            stride=1,
+            padding=0,
+            groups=d_model,
+        )
+
+        self.reset_parameters()
+
+    def forward(self, x, att_mask=None, pad_mask=None):
+        x = x.transpose(1, 2)  # [B, C, T]
+        if pad_mask is not None:
+            x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)
+
+        x = self.dw_conv(x)
+        x = self.pw_conv(x)
+
+        x = x.transpose(1, 2)  # [B, T, C]
+
+        B, T, D = x.size()
+        if att_mask is not None and pad_mask is not None:
+            att_mask = att_mask[:, ::self.stride, ::self.stride]
+            pad_mask = pad_mask[:, ::self.stride]
+            L = pad_mask.size(-1)
+            x = torch.nn.functional.pad(x, (0, 0, 0, L - T))
+
+        return x, att_mask, pad_mask
+
+    def reset_parameters(self):
+        dw_max = self.kernel_size ** -0.5
+        pw_max = self.d_model ** -0.5
+
+        with torch.no_grad():
+            torch.nn.init.uniform_(self.dw_conv.weight, -dw_max, dw_max)
+            torch.nn.init.uniform_(self.dw_conv.bias, -dw_max, dw_max)
+            torch.nn.init.uniform_(self.pw_conv.weight, -pw_max, pw_max)
+            torch.nn.init.uniform_(self.pw_conv.bias, -pw_max, pw_max)
 

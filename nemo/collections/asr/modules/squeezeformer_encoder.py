@@ -22,12 +22,13 @@ import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
+from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling, TimeReductionModule
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
+from nemo.utils import logging
 
 __all__ = ['SqueezeformerEncoder']
 
@@ -231,9 +232,17 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             )
             self.layers.append(layer)
 
-            # Add time reduction layer
-            if self.time_reduce_idx is not None and i == self.time_reduce_idx:
-                pass
+        self.time_reduce_layer = None
+        self.time_recovery_layer = None
+        self.time_reduce_pos_enc = None
+        # Add time reduction layer
+        if self.time_reduce_idx is not None:
+            self.time_reduce_layer = TimeReductionModule(d_model, d_model, kernel_size=5, stride=2)
+            self.time_recovery_layer = nn.Linear(d_model, d_model)
+
+            self.time_reduce_pos_enc = PositionalEncoding(
+                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
+            )
 
         self.pre_ln = nn.LayerNorm(d_model)
 
@@ -258,6 +267,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         else:
             self.register_buffer('seq_range', seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device)
+
+        if self.time_reduce_pos_enc is not None:
+            self.time_reduce_pos_enc.extend_pe(max_audio_length, device)
 
     @typecheck()
     def forward(self, audio_signal, length=None):
@@ -302,9 +314,31 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         else:
             pad_mask = None
 
+        recovery_activation_cache = []
+
         audio_signal = self.pre_ln(audio_signal)
         for lth, layer in enumerate(self.layers):
+            # Perform time reduction
+            if self.time_reduce_layer is not None and lth == self.time_reduce_idx:
+                # Perform time reduction
+                recovery_activation_cache.append((audio_signal, att_mask, pad_mask, pos_emb))
+                audio_signal, att_mask, pad_mask = self.time_reduce_layer(
+                    x=audio_signal, att_mask=att_mask, pad_mask=pad_mask
+                )
+                audio_signal, pos_emb = self.time_reduce_pos_enc(audio_signal)
+
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
+
+            # Perform time recovery
+            if self.time_recovery_layer is not None and lth == self.time_recovery_idx:
+                recovery_audio_signal, att_mask, pad_mask, pos_emb = recovery_activation_cache.pop(0)
+                # repeat interleaved values for 2x seq length
+                audio_signal = torch.repeat_interleave(audio_signal, repeats=2, dim=1)
+
+                B, T, D = recovery_audio_signal.size()
+                audio_signal = audio_signal[:, :T, :]  # Slice off the exact T timesteps as original cache value
+                audio_signal = self.time_recovery_layer(audio_signal)  # learn non linear mapping
+                audio_signal = recovery_audio_signal + audio_signal  # learn just the residual
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
