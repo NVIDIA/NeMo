@@ -1,6 +1,6 @@
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
-    training=gpt3/40b \
+    training=gpt3/20b \
     run_data_preparation=False \
     run_training=True \
     run_conversion=False \
@@ -22,7 +22,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.trainer.max_steps=100 \
     training.trainer.log_every_n_steps=1 \
     training.trainer.val_check_interval=20 \
-    training.trainer.limit_val_batches=5 \
+    training.trainer.limit_val_batches=2 \
     training.model.tensor_model_parallel_size=8 \
-    training.model.pipeline_model_parallel_size=4 \
+    training.model.pipeline_model_parallel_size=2 \
     training.model.data.data_prefix=[1.0,/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-gpt3_00_text_document]

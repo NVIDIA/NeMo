@@ -36,7 +36,7 @@ class TestCIGPT126m:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.97303, 10.53661, 9.64785, 9.3502, 8.90369, 8.96251, 8.70788, 8.78277, 8.38711, 8.22158, 7.99938, 7.9085, 7.79335, 7.57561, 7.37079, 7.10037, 7.16389, 6.97836, 6.87647, 6.79842]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.40292, 7.87163, 7.22711, 6.64085, 6.27052]}, "train_step_timing_avg": 0.642}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [11.02026, 14.71491, 10.85034, 8.91562, 8.34309, 7.92956, 7.65443, 7.51424, 7.32972, 7.2815]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [10.24744, 7.90577, 7.20069, 6.90081, 7.01338]}, "train_step_timing_avg": 186.77}
     """
     expected = json.loads(expected_json)
 
