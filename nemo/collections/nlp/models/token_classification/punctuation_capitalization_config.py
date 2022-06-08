@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from omegaconf.omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
@@ -247,6 +248,11 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
 
     restore_lexical_encoder_from: Optional[str] = None
     """"Path to .nemo checkpoint to load weights from"""
+
+    use_adapters: Optional[bool] = False
+    """use adapters for audio encoder"""
+
+    adapter_config: Optional[LinearAdapterConfig] = None
 
 
 @dataclass

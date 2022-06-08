@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Optional, Union, Dict, Any, Tuple, List
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from nemo.core.classes.mixins import adapter_mixins
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torch.nn import Linear, LSTM
@@ -24,14 +25,33 @@ from nemo.utils import logging
 __all__ = ['PunctuationCapitalizationLexicalAudioModel']
 
 
+def update_model_config_to_support_adapter(model_cfg):
+    with open_dict(model_cfg):
+        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        if adapter_metadata is not None:
+            model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
+
+    print("Updated encoder _target_ model :", model_cfg.encoder._target_)
+    return model_cfg
+
+
 class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
-        self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder)  # Only CTC models?
+        audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder, return_config=True)
 
-        del self.audio_encoder.decoder
-        del self.audio_encoder._wer
-        del self.audio_encoder.loss
+        if cfg.use_adapters:
+            audio_cfg = update_model_config_to_support_adapter(audio_cfg)
+
+        self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder,
+                                                                      override_config_path=audio_cfg)
+        if self.use_adapters:
+            with open_dict(cfg):
+                cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
+            self.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
+            self.audio_encoder.set_enabled_adapters(enabled=True)
+            self.audio_encoder.freeze()
+            self.audio_encoder.unfreeze_enabled_adapters()
 
         self.fusion = TransformerDecoder(num_layers=cfg.fusion_num_layers,
                                          hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1],
@@ -39,6 +59,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                                          num_attention_heads=cfg.fusion_num_attention_heads)
         self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
                                  self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
+
         if cfg.freeze_audio_encoder:
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
@@ -51,6 +72,10 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)
             self.bert_model.load_state_dict(model.bert_model.state_dict())
             del model
+
+        del self.audio_encoder.decoder
+        del self.audio_encoder._wer
+        del self.audio_encoder.loss
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(

@@ -48,7 +48,15 @@ exp_manager:
 
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_medium
+
   freeze_audio_encoder: false
+
+  use_adapters: true
+
+  adapter_config:
+    dim: 32
+
+
   class_labels:
     punct_labels_file: punct_label_ids.txt
     capit_labels_file: capit_label_ids.txt
