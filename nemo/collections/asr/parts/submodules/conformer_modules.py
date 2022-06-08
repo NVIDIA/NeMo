@@ -21,6 +21,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.collections.common.parts.utils import activation_registry
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
@@ -139,16 +140,26 @@ class ConformerConvolution(nn.Module):
         kernel_size (int): kernel size for depthwise convolution
     """
 
-    def __init__(self, d_model, kernel_size, norm_type='batch_norm'):
+    def __init__(self, d_model, kernel_size, norm_type='batch_norm', pointwise_activation='glu_'):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
+
+        if pointwise_activation in activation_registry:
+            self.pointwise_activation = activation_registry[pointwise_activation]()
+            dw_conv_input_dim = d_model * 2
+
+            if hasattr(self.pointwise_activation, 'inplace'):
+                self.pointwise_activation.inplace = True
+        else:
+            self.pointwise_activation = pointwise_activation
+            dw_conv_input_dim = d_model
 
         self.pointwise_conv1 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
         self.depthwise_conv = nn.Conv1d(
-            in_channels=d_model,
+            in_channels=dw_conv_input_dim,
             out_channels=d_model,
             kernel_size=kernel_size,
             stride=1,
@@ -171,7 +182,11 @@ class ConformerConvolution(nn.Module):
     def forward(self, x, pad_mask=None):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
-        x = nn.functional.glu(x, dim=1)
+
+        if self.pointwise_activation == 'glu_':
+            x = nn.functional.glu(x, dim=1)
+        else:
+            x = self.pointwise_activation(x)
 
         if pad_mask is not None:
             x = x.float().masked_fill(pad_mask.unsqueeze(1), 0.0)

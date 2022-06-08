@@ -95,6 +95,65 @@ class ConvSubsampling(torch.nn.Module):
                     )
                 )
                 in_channels = conv_channels
+
+        elif subsampling == 'dw_striding':
+            self._padding = 1
+            self._stride = 2
+            self._kernel_size = 3
+            self._ceil_mode = False
+
+            dw_max = (self._kernel_size ** 2) ** -0.5
+            pw_max = conv_channels ** -0.5
+
+            # Layer 1
+            layers.append(
+                torch.nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=conv_channels,
+                    kernel_size=self._kernel_size,
+                    stride=self._stride,
+                    padding=self._padding,
+                )
+            )
+            in_channels = conv_channels
+            layers.append(activation)
+
+            # initialize weights
+            with torch.no_grad():
+                scale = 1. / self._kernel_size
+                torch.nn.init.uniform_(layers[0].weight, -scale, scale)
+                torch.nn.init.uniform_(layers[0].bias, -scale, scale)
+
+            for i in range(self._sampling_num - 1):
+                layers.extend([
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=in_channels,
+                        kernel_size=self._kernel_size,
+                        stride=self._stride,
+                        padding=self._padding,
+                        groups=in_channels,
+                    ),
+                    torch.nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=conv_channels,
+                        kernel_size=1,
+                        stride=1,
+                        padding=0,
+                        groups=in_channels,
+                    ),
+                ])
+                layers.append(activation)
+                in_channels = conv_channels
+
+                # initialize weights
+                idx = len(layers) - 3
+                with torch.no_grad():
+                    torch.nn.init.uniform_(layers[idx].weight, -dw_max, dw_max)
+                    torch.nn.init.uniform_(layers[idx].bias, -dw_max, dw_max)
+                    torch.nn.init.uniform_(layers[idx + 1].weight, -pw_max, pw_max)
+                    torch.nn.init.uniform_(layers[idx + 1].bias, -pw_max, pw_max)
+
         elif subsampling == 'striding':
             self._padding = 1
             self._stride = 2
@@ -138,7 +197,7 @@ class ConvSubsampling(torch.nn.Module):
             repeat_num=self._sampling_num,
         )
         x = x.unsqueeze(1)
-        if self._subsampling == 'striding':
+        if self._subsampling in ['striding', 'dw_striding']:
             # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
             # to be removed once the above is fixed in cudnn
             with torch.cuda.amp.autocast(dtype=torch.float32):
