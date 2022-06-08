@@ -108,6 +108,7 @@ model:
       shuffle: true
       batch_size: 32
       num_workers: 12
+      pin_memory: true
 
 
   validation_ds:
@@ -140,6 +141,7 @@ model:
       shuffle: false
       batch_size: 32
       num_workers: 8
+      pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -211,7 +213,7 @@ model:
 
   optim:
     name: adamw
-    lr: 1e-1
+    lr: 1e-3
     betas: [0.9, 0.999]
     weight_decay: 1e-6
 
