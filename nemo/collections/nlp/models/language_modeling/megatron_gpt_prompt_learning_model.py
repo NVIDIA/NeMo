@@ -353,8 +353,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         and/or prompt table will use the learning rate set by the user. 
         """
         virtual_prompt_params = {'params': []}
-        frozen_model_params = {'params': [], 'lr': 0.0}
-        frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
+        frozen_model_params = {'params': [param for param in self.frozen_model.parameters()], 'lr': 0.0}
 
         if self.frozen_model.model.pre_process:
             virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
