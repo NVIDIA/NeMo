@@ -221,3 +221,10 @@ def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):
         else:
             lengths = torch.floor(lengths)
     return lengths.to(dtype=torch.int)
+
+
+class TimeReductionModule(nn.Module):
+
+    def __init__(self):
+        pass
+

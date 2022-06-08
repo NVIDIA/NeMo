@@ -132,6 +132,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         dropout_emb=0.1,
         dropout_att=0.0,
         adaptive_scale: bool = True,
+        time_reduce_idx: Optional[int] = None,
+        time_recovery_idx: Optional[int] = None,
     ):
         super().__init__()
 
@@ -149,6 +151,19 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             self.xscale = math.sqrt(d_model)
         else:
             self.xscale = None
+
+        self.time_reduce_idx = time_reduce_idx
+        if time_reduce_idx is not None:
+            if time_recovery_idx is None:
+                self.time_recovery_idx = n_layers - 1  # recover at last layer
+            else:
+                self.time_recovery_idx = time_recovery_idx  # recover at given layer
+
+        if self.time_reduce_idx is not None:
+            if self.time_reduce_idx < 0 or self.time_recovery_idx >= n_layers:
+                raise ValueError(f"Time reduce index must lie between [0, {n_layers})")
+            if self.time_recovery_idx < 0 or self.time_recovery_idx >= n_layers:
+                raise ValueError(f"Time recovery index must lie between [0, {n_layers})")
 
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
@@ -216,6 +231,12 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             )
             self.layers.append(layer)
 
+            # Add time reduction layer
+            if self.time_reduce_idx is not None and i == self.time_reduce_idx:
+                pass
+
+        self.pre_ln = nn.LayerNorm(d_model)
+
         if feat_out > 0 and feat_out != self._feat_out:
             self.out_proj = nn.Linear(self._feat_out, feat_out)
             self._feat_out = feat_out
@@ -281,6 +302,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         else:
             pad_mask = None
 
+        audio_signal = self.pre_ln(audio_signal)
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
