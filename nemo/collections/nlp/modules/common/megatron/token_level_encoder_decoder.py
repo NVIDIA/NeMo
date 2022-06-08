@@ -326,10 +326,18 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
 
         if output_enc_hidden_only:
-            if enc_output is None:
+            # When pipeline parallel > 1 we need to make sure encoder exist (will be missing in decoder)
+            if enc_output is None and self.enc_dec_model.encoder is not None:
                 enc_output = self.enc_dec_model.encode(
                     enc_input=enc_input, enc_attn_mask=enc_attn_mask, enc_layer_past=None, enc_get_key_value=False,
                 )
+            else:
+                # # if pipeline parallel > 1 during encode decoder will return None which will create an error (so return 0 on correct device instead)
+                # t = enc_input if enc_input is not None else enc_output
+                # enc_output = torch.tensor([0.0]).cuda()
+                # enc_output = None
+                # enc_output = self.enc_dec_model.decoder.input_tensor
+                enc_output = self.enc_dec_model.encoder_hidden_state
             return enc_output
         else:
             if enc_output_attn_mask is None:

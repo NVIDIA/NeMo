@@ -481,6 +481,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return forward_args
 
+    # FIXME: create one for encoder with hiddens instead logits
     def get_forward_output_only_func(self, arg_names, **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
@@ -499,6 +500,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             output = model(*args)
 
             def id_func(output_tensor):
+                # FIXME: if pipeline parallel > 1 during encode decoder will return None which will create an error (so return 0 on correct device instead)
+                # if output_tensor is None:
+                #     output_tensor = torch.tensor([0.0]).cuda()
                 return output_tensor, {'logits': output_tensor}
 
             return output, id_func
@@ -883,6 +887,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+        # tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
 
         # build input arguments description
@@ -908,6 +913,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
+                decoder_sequence_length=1,
                 dtype=self.autocast_dtype,
             )
         else:
@@ -917,13 +923,26 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model=self.enc_dec_model,
                 forward_only=True,
                 tensor_shape=tensor_shape,
+                decoder_sequence_length=1,
                 dtype=self.autocast_dtype,
             )
 
-        # get output tensor
+        # get output tensor of encoder [batch, seq_len, hidden]
         if parallel_state.is_pipeline_last_stage():
             output_tensor = output_tensor[0]['logits']
-            output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+            # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+        else:
+            output_tensor = torch.zeros(
+                tensor_shape, dtype=self.autocast_dtype
+            ).cuda().transpose(0, 1).contiguous()
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # Broadcast from the last pipeline stage to all other model-parallel ranks.
+            torch.distributed.broadcast(
+                output_tensor,
+                parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_model_parallel_group(),
+            )
 
         # Reset microbatch calculator to what it was before decoding.
         if reconfigure_microbatch:
@@ -1032,7 +1051,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
-                output_tensor = output_tensor[0]
+                output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
