@@ -281,9 +281,6 @@ class TTSDataset(Dataset):
         self.sup_data_types_set = set(self.sup_data_types)
 
         for data_type in self.sup_data_types:
-            if data_type not in VALID_SUPPLEMENTARY_DATA_TYPES:
-                raise NotImplementedError(f"Current implementation doesn't support {data_type} type.")
-
             getattr(self, f"add_{data_type.name}")(**kwargs)
 
     @staticmethod
