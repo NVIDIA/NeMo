@@ -144,6 +144,7 @@ class ConformerConvolution(nn.Module):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
+        self.kernel_size = kernel_size
 
         if pointwise_activation in activation_registry:
             self.pointwise_activation = activation_registry[pointwise_activation]()
@@ -205,6 +206,19 @@ class ConformerConvolution(nn.Module):
         x = x.transpose(1, 2)
         return x
 
+    def reset_parameters_conv(self):
+        pw1_max = self.d_model ** -0.5
+        pw2_max = self.d_model ** -0.5
+        dw_max = self.kernel_size ** -0.5
+
+        with torch.no_grad():
+            nn.init.uniform_(self.pointwise_conv1.weight, -pw1_max, pw1_max)
+            nn.init.uniform_(self.pointwise_conv1.bias, -pw1_max, pw1_max)
+            nn.init.uniform_(self.pointwise_conv2.weight, -pw2_max, pw2_max)
+            nn.init.uniform_(self.pointwise_conv2.bias, -pw2_max, pw2_max)
+            nn.init.uniform_(self.depthwise_conv.weight, -dw_max, dw_max)
+            nn.init.uniform_(self.depthwise_conv.bias, -dw_max, dw_max)
+
 
 class ConformerFeedForward(nn.Module):
     """
@@ -213,6 +227,8 @@ class ConformerFeedForward(nn.Module):
 
     def __init__(self, d_model, d_ff, dropout, activation=Swish()):
         super(ConformerFeedForward, self).__init__()
+        self.d_model = d_model
+        self.d_ff = d_ff
         self.linear1 = nn.Linear(d_model, d_ff)
         self.activation = activation
         self.dropout = nn.Dropout(p=dropout)
@@ -224,3 +240,12 @@ class ConformerFeedForward(nn.Module):
         x = self.dropout(x)
         x = self.linear2(x)
         return x
+
+    def reset_parameters_ff(self):
+        ffn1_max = self.d_model ** -0.5
+        ffn2_max = self.d_ff ** -0.5
+        with torch.no_grad():
+            nn.init.uniform_(self.linear1.weight, -ffn1_max, ffn1_max)
+            nn.init.uniform_(self.linear1.bias, -ffn1_max, ffn1_max)
+            nn.init.uniform_(self.linear2.weight, -ffn2_max, ffn2_max)
+            nn.init.uniform_(self.linear2.bias, -ffn2_max, ffn2_max)

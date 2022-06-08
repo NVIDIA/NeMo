@@ -58,6 +58,8 @@ class ConvSubsampling(torch.nn.Module):
     def __init__(self, subsampling, subsampling_factor, feat_in, feat_out, conv_channels, activation=nn.ReLU()):
         super(ConvSubsampling, self).__init__()
         self._subsampling = subsampling
+        self._conv_channels = conv_channels
+        self._feat_in = feat_in
 
         if subsampling_factor % 2 != 0:
             raise ValueError("Sampling factor should be a multiply of 2!")
@@ -102,9 +104,6 @@ class ConvSubsampling(torch.nn.Module):
             self._kernel_size = 3
             self._ceil_mode = False
 
-            dw_max = (self._kernel_size ** 2) ** -0.5
-            pw_max = conv_channels ** -0.5
-
             # Layer 1
             layers.append(
                 torch.nn.Conv2d(
@@ -117,12 +116,6 @@ class ConvSubsampling(torch.nn.Module):
             )
             in_channels = conv_channels
             layers.append(activation)
-
-            # initialize weights
-            with torch.no_grad():
-                scale = 1. / self._kernel_size
-                torch.nn.init.uniform_(layers[0].weight, -scale, scale)
-                torch.nn.init.uniform_(layers[0].bias, -scale, scale)
 
             for i in range(self._sampling_num - 1):
                 layers.extend([
@@ -145,14 +138,6 @@ class ConvSubsampling(torch.nn.Module):
                 ])
                 layers.append(activation)
                 in_channels = conv_channels
-
-                # initialize weights
-                idx = len(layers) - 3
-                with torch.no_grad():
-                    torch.nn.init.uniform_(layers[idx].weight, -dw_max, dw_max)
-                    torch.nn.init.uniform_(layers[idx].bias, -dw_max, dw_max)
-                    torch.nn.init.uniform_(layers[idx + 1].weight, -pw_max, pw_max)
-                    torch.nn.init.uniform_(layers[idx + 1].bias, -pw_max, pw_max)
 
         elif subsampling == 'striding':
             self._padding = 1
@@ -208,6 +193,29 @@ class ConvSubsampling(torch.nn.Module):
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
         return x, lengths
+
+    def reset_parameters(self):
+        # initialize weights
+        if self._subsampling == 'dw_striding':
+            with torch.no_grad():
+                # init conv
+                scale = 1. / self._kernel_size
+                dw_max = (self._kernel_size ** 2) ** -0.5
+                pw_max = self._conv_channels ** -0.5
+
+                torch.nn.init.uniform_(self.conv[0].weight, -scale, scale)
+                torch.nn.init.uniform_(self.conv[0].bias, -scale, scale)
+
+                for idx in range(2, len(self.conv), 3):
+                    torch.nn.init.uniform_(self.conv[idx].weight, -dw_max, dw_max)
+                    torch.nn.init.uniform_(self.conv[idx].bias, -dw_max, dw_max)
+                    torch.nn.init.uniform_(self.conv[idx + 1].weight, -pw_max, pw_max)
+                    torch.nn.init.uniform_(self.conv[idx + 1].bias, -pw_max, pw_max)
+
+                # init fc
+                fc_scale = (self._conv_channels * self._feat_in) ** -0.5
+                torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
+                torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 
 
 def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):

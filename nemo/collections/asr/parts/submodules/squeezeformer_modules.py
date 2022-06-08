@@ -114,6 +114,9 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.dropout = nn.Dropout(dropout)
         self.norm_out = LayerNorm(d_model)
 
+        # initialize parameters properly
+        self.reset_parameters()
+
     def forward(self, x, att_mask=None, pos_emb=None, pad_mask=None):
         """
         Args:
@@ -165,3 +168,9 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
             self.register_accessible_tensor(tensor=x)
 
         return x
+
+    def reset_parameters(self):
+        self.feed_forward1.reset_parameters_ff()
+        self.feed_forward2.reset_parameters_ff()
+        self.conv.reset_parameters_conv()
+

@@ -182,6 +182,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                     conv_channels=subsampling_conv_channels,
                     activation=nn.ReLU(),
                 )
+                self.pre_encode.reset_parameters()
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
 
