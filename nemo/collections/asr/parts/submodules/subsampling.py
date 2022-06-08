@@ -140,7 +140,7 @@ class ConvSubsampling(torch.nn.Module):
                         kernel_size=1,
                         stride=1,
                         padding=0,
-                        groups=in_channels,
+                        groups=1,
                     ),
                 ])
                 layers.append(activation)
@@ -249,7 +249,7 @@ class TimeReductionModule(nn.Module):
             kernel_size=1,
             stride=1,
             padding=0,
-            groups=d_model,
+            groups=1,
         )
 
         self.reset_parameters()

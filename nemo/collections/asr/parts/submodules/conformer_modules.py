@@ -160,23 +160,23 @@ class ConformerConvolution(nn.Module):
         )
         self.depthwise_conv = nn.Conv1d(
             in_channels=dw_conv_input_dim,
-            out_channels=d_model,
+            out_channels=dw_conv_input_dim,
             kernel_size=kernel_size,
             stride=1,
             padding=(kernel_size - 1) // 2,
-            groups=d_model,
+            groups=dw_conv_input_dim,
             bias=True,
         )
         if norm_type == 'batch_norm':
-            self.batch_norm = nn.BatchNorm1d(d_model)
+            self.batch_norm = nn.BatchNorm1d(dw_conv_input_dim)
         elif norm_type == 'layer_norm':
-            self.batch_norm = nn.LayerNorm(d_model)
+            self.batch_norm = nn.LayerNorm(dw_conv_input_dim)
         else:
             raise ValueError(f"conv_norm_type={norm_type} is not valid!")
 
         self.activation = Swish()
         self.pointwise_conv2 = nn.Conv1d(
-            in_channels=d_model, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
+            in_channels=dw_conv_input_dim, out_channels=d_model, kernel_size=1, stride=1, padding=0, bias=True
         )
 
     def forward(self, x, pad_mask=None):
