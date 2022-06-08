@@ -41,6 +41,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam, TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import logging
 
 try:
@@ -111,6 +112,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
             if self.frozen_model.cfg.precision == 16:
                 self.float_type = torch.float16
+                raise ValueError(
+                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
+                )
             elif self.frozen_model.cfg.precision == 'bf16':
                 self.float_type = torch.bfloat16
             else:
@@ -891,6 +895,49 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return output_tensor, id_func
 
         return fwd_output_only_func
+
+    def configure_optimizers(self):
+        self.setup_optimization()
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
+                raise ValueError(
+                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
+                )
+
+            # if using tensor parallel only, we can use async grad all-reduce
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+                async_grad_allreduce = True
+            else:
+                async_grad_allreduce = False
+
+            self._optimizer = MainParamsOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+                grad_div_ar_fusion=self.frozen_model.cfg.get('grad_div_ar_fusion', True),
+                grad_allreduce_chunk_size_mb=self.frozen_model.cfg.get('grad_allreduce_chunk_size_mb', 125),
+            )
+
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            sched_config = self._cfg.optim.sched
+            sched_config['max_steps'] = self._trainer.max_steps
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]
 
     @classmethod
     def list_available_models(cls):
