@@ -116,17 +116,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             else:
                 raise ValueError(f'Precision {self.frozen_model.precision} Not supported with O2')
 
-        # Freeze all GPT model weights for prompt-tuning/p-tuning
-        self.frozen_model.freeze()
-
-        # TODO: See if DDP requires grad check can be disabled
-        # When pp > 1, every pp stage needs to have at least one layer with requires_grad=True
-        # for PP and DDP to work togther. The lr for these layers will be set to 0.0
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            for layer in self.frozen_model.model.language_model.encoder.layers:
-                for param in layer.input_layernorm.parameters():
-                    param.requires_grad = True
-
         self.megatron_amp_o2 = self.frozen_model.cfg.get('megatron_amp_O2', False)
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
