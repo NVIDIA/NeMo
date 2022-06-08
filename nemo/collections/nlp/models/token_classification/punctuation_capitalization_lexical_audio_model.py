@@ -45,7 +45,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
         self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder,
                                                                       override_config_path=audio_cfg)
-        if self.use_adapters:
+        if cfg.use_adapters:
             with open_dict(cfg):
                 cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
             self.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
