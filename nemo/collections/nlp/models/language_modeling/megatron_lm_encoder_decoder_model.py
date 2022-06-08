@@ -138,13 +138,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             use_cpu_initialization=self.cfg.get('use_cpu_initialization', False),
             hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
             attention_dropout=self.cfg.get('attention_dropout', 0.1),
+            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
+            relative_attention_num_buckets=self.cfg.get('relative_attention_num_buckets', 32),
+            relative_attention_max_distance=self.cfg.get('relative_attention_max_distance', 128),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_gelu_fusion=self.cfg.get('bias_gelu_fusion', True),
+            bias_activation_fusion=(
+                (self.cfg.get('bias_gelu_fusion', True) and self.cfg.get('activation', 'gelu') == 'gelu')
+                or (self.cfg.get('bias_activation_fusion', True) and self.cfg.get('activation', 'gelu') == 'geglu')
+            ),
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             onnx_safe=self.cfg.get('onnx_safe', False),
@@ -388,12 +394,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     and parallel_state.get_pipeline_model_parallel_world_size() > 1
                     and parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 ):
-                    position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
-                    if self.megatron_amp_o2:
-                        grad = position_embeddings_weight.main_grad
-                    else:
-                        grad = position_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+                    if self.enc_dec_model.position_embedding_type != 'relative':
+                        position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                        if self.megatron_amp_o2:
+                            grad = position_embeddings_weight.main_grad
+                        else:
+                            grad = position_embeddings_weight.grad
+                        torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
@@ -503,6 +510,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
             rank_zero_only=True,
         )
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
         return averaged_loss
 
@@ -699,7 +707,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
-            self.enc_dec_model.sync_initial_position_embeddings()
+            if self.enc_dec_model.position_embedding_type != 'relative':
+                self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
@@ -746,6 +755,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 fp32_grad_accum=fp32_grad_accum,
                 contiguous_grad_bucket=contiguous_grad_bucket,
                 async_grad_allreduce=async_grad_allreduce,
+                grad_div_ar_fusion=self.cfg.get('grad_div_ar_fusion', True),
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
@@ -777,6 +787,25 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return response
 
     def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, encoder_input=None, tokenizer=None):
+        # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
+        if parallel_state.is_unitialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+            # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
+            _reconfigure_microbatch_calculator(
+                rank=0,  # This doesn't matter since it is only used for logging
+                rampup_batch_size=None,
+                global_batch_size=1,
+                micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+                data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
+            )
+
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         app_state = AppState()
