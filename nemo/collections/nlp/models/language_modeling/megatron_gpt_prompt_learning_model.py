@@ -91,6 +91,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
+            frozen_model_cfg.megatron_amp_O2 = False
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
@@ -104,23 +105,18 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 override_config_path=frozen_model_cfg,
             )
 
-        self.float_type = torch.float
+        if self.frozen_model.cfg.precision == 16:
+            self.float_type = torch.float16
+        elif self.frozen_model.cfg.precision == 'bf16':
+            self.float_type = torch.bfloat16
+        else:
+            self.float_type = torch.float
 
         # Make prompt learning model able to load gpt models trained with amp_o2
-        if self.frozen_model.megatron_amp_o2:
-            self.frozen_model.model = self.frozen_model.model.module
+        # if self.frozen_model.megatron_amp_o2:
+        #     self.frozen_model.model = self.frozen_model.model.module
 
-            if self.frozen_model.cfg.precision == 16:
-                self.float_type = torch.float16
-                raise ValueError(
-                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
-                )
-            elif self.frozen_model.cfg.precision == 'bf16':
-                self.float_type = torch.bfloat16
-            else:
-                raise ValueError(f'Precision {self.frozen_model.precision} Not supported with O2')
-
-        self.megatron_amp_o2 = self.frozen_model.cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_o2 = False
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
