@@ -37,7 +37,6 @@ from nemo.collections.tts.torch.helpers import (
 from nemo.collections.tts.torch.tts_data_types import (
     DATA_STR2DATA_CLASS,
     MAIN_DATA_TYPES,
-    VALID_SUPPLEMENTARY_DATA_TYPES,
     AlignPriorMatrix,
     Durations,
     Energy,
@@ -424,6 +423,23 @@ class TTSDataset(Dataset):
         return log_mel
 
     def __getitem__(self, index):
+        def load_from_dir(folder):
+            voiced_path = folder / f"{rel_audio_path_as_text_id}.pt"
+            if voiced_path.exists():
+                voiced = torch.load(voiced_path).float()
+            else:
+                _, voiced, _ = librosa.pyin(
+                    audio.numpy(),
+                    fmin=self.pitch_fmin,
+                    fmax=self.pitch_fmax,
+                    frame_length=self.win_length,
+                    sr=self.sample_rate,
+                    fill_na=0.0,
+                )
+                voiced = torch.from_numpy(voiced).float()
+                torch.save(voiced, voiced_path)
+            return voiced
+
         sample = self.data[index]
 
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
@@ -471,7 +487,6 @@ class TTSDataset(Dataset):
         # Load alignment prior matrix if needed
         align_prior_matrix = None
         if AlignPriorMatrix in self.sup_data_types_set:
-            align_prior_matrix = None
             if self.use_beta_binomial_interpolator:
                 mel_len = self.get_log_mel(audio).shape[2]
                 align_prior_matrix = torch.from_numpy(self.beta_binomial_interpolator(mel_len, text_length.item()))
@@ -489,22 +504,7 @@ class TTSDataset(Dataset):
         # Load pitch if needed
         pitch, pitch_length = None, None
         if Pitch in self.sup_data_types_set:
-            pitch_path = self.pitch_folder / f"{rel_audio_path_as_text_id}.pt"
-
-            if pitch_path.exists():
-                pitch = torch.load(pitch_path).float()
-            else:
-                pitch, _, _ = librosa.pyin(
-                    audio.numpy(),
-                    fmin=self.pitch_fmin,
-                    fmax=self.pitch_fmax,
-                    frame_length=self.win_length,
-                    sr=self.sample_rate,
-                    fill_na=0.0,
-                )
-                pitch = torch.from_numpy(pitch).float()
-                torch.save(pitch, pitch_path)
-
+            pitch = load_from_dir(self.pitch_folder)
             if self.pitch_mean is not None and self.pitch_std is not None and self.pitch_norm:
                 pitch -= self.pitch_mean
                 pitch[pitch == -self.pitch_mean] = 0.0  # Zero out values that were previously zero
@@ -513,42 +513,9 @@ class TTSDataset(Dataset):
             pitch_length = torch.tensor(len(pitch)).long()
 
         # Load voiced_mask if needed
-        voiced_mask = None
-        if Voiced_mask in self.sup_data_types_set:
-            voiced_mask_path = self.voiced_mask_folder / f"{rel_audio_path_as_text_id}.pt"
-
-            if voiced_mask_path.exists():
-                voiced_mask = torch.load(voiced_mask_path).float()
-            else:
-                _, voiced_mask, _ = librosa.pyin(
-                    audio.numpy(),
-                    fmin=self.pitch_fmin,
-                    fmax=self.pitch_fmax,
-                    frame_length=self.win_length,
-                    sr=self.sample_rate,
-                    fill_na=0.0,
-                )
-                voiced_mask = torch.from_numpy(voiced_mask).float()
-                torch.save(voiced_mask, voiced_mask_path)
-
+        voiced_mask = load_from_dir(self.voiced_mask_folder) if Voiced_mask in self.sup_data_types_set else None
         # Load p_voiced if needed
-        p_voiced = None
-        if P_voiced in self.sup_data_types_set:
-            p_voiced_path = self.p_voiced_folder / f"{rel_audio_path_as_text_id}.pt"
-
-            if p_voiced_path.exists():
-                p_voiced = torch.load(p_voiced_path).float()
-            else:
-                _, _, p_voiced = librosa.pyin(
-                    audio.numpy(),
-                    fmin=self.pitch_fmin,
-                    fmax=self.pitch_fmax,
-                    frame_length=self.win_length,
-                    sr=self.sample_rate,
-                    fill_na=0.0,
-                )
-                p_voiced = torch.from_numpy(p_voiced).float()
-                torch.save(p_voiced, p_voiced_path)
+        p_voiced = load_from_dir(self.p_voiced_folder) if P_voiced in self.sup_data_types_set else None
 
         # Load energy if needed
         energy, energy_length = None, None
