@@ -458,8 +458,8 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         segment_indexes_mat = np.array(self.segment_indexes[self.uniq_id][0]).astype(int)
         curr_clustered_segments =  np.where(segment_indexes_mat >= self.history_buffer_seg_end)[0]
         if emb_in[curr_clustered_segments].shape[0] < self.current_n:
-            d_e = self.current_n - emb_in[curr_clustered_segments].shape[0]
-            fill_in_emb = np.tile(emb_in[curr_clustered_segments][-1], (d_e,1))
+            delta_count = self.current_n - emb_in[curr_clustered_segments].shape[0]
+            fill_in_emb = np.tile(emb_in[curr_clustered_segments][-1], (delta_count,1))
             emb_curr = np.vstack((emb_in[curr_clustered_segments], fill_in_emb))
         else:
             emb_curr = emb_in[curr_clustered_segments]
@@ -759,7 +759,6 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
         uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
         _emb = uniq_scale_dict[max(uniq_scale_dict.keys())]['embeddings']
-        
       
         _mat = getCosAffinityMatrix(_emb)
         org_mat = copy.deepcopy(_mat)
@@ -877,7 +876,6 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
         the embedding memory. If self.diar.history_buffer_seg_end is not None, that indicates streaming diarization system
         is starting to save embeddings to its memory. Thus, the new incoming clustering label should be separated.
         """
-        # history_n, current_n = self.history_n, self.current_n
         keep_range = self.history_n  + self.current_n + self.memory_margin
         new_cluster_labels = new_cluster_labels.tolist() 
         if not self.isOnline:
@@ -894,6 +892,8 @@ class OnlineDiarizer(ClusteringDiarizer, ASR_DIAR_OFFLINE):
             self.memory_segment_indexes[update_idx:] = copy.deepcopy(segment_indexes[mp_idx:])
             self.memory_cluster_labels[update_idx:] = copy.deepcopy(new_cluster_labels[update_idx:])
             assert len(self.memory_cluster_labels) == len(self.memory_segment_ranges)
+
+            # Remove unnecessary values
             embs_array = embs_array[-keep_range:]
             audio_signal_list = audio_signal_list[-keep_range:]
             new_segment_ranges = new_segment_ranges[-keep_range:]
@@ -1561,7 +1561,7 @@ class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE):
         string_out += f'\n{color}[Session: {uniq_id}, DER:{DER:.2f}%, FA:{FA:.2f}% MISS:{MISS:.2f}% CER:{CER:.2f}%]'
         string_out += f'\n{color}[Num of Speakers (Est/Ref): {der_stat_dict["est_n_spk"]}/{der_stat_dict["ref_n_spk"]}]'
         self.diar.DER_csv_list.append(f"{self.frame_index}, {DER}, {FA}, {MISS}, {CER}\n")
-        write_txt(f"{asr_diar.diar._out_dir}/{uniq_id}.csv", ''.join(self.diar.DER_csv_list))
+        write_txt(f"{self.diar._out_dir}/{uniq_id}.csv", ''.join(self.diar.DER_csv_list))
         return string_out
     
     def update_frame_to_buffer(self, frame): 
