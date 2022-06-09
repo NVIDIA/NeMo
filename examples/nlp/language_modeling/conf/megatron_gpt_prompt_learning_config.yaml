@@ -54,28 +54,28 @@ model:
   new_tasks: ['rte'] # List of new tasknames to be prompt-tuned
 
   task_templates: # Add more/replace tasks as needed, these are just examples
-  - taskname: 'boolq' # The task name
-    prompt_template: '<|VIRTUAL_PROMPT_0|> Passage: {passage} <|VIRTUAL_PROMPT_1|> \nQuestion: {question} \nAnswer: {answer}' # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
+  - taskname: "boolq" # The task name
+    prompt_template: "<|VIRTUAL_PROMPT_0|> Passage: {passage} <|VIRTUAL_PROMPT_1|> \nQuestion: {question} \nAnswer: {answer}" # Prompt template for task, specify virtual prompt positions with <|VIRTUAL_PROMPT_#|>
     total_virtual_tokens: 30 # Sum of tokens in virtual_token_splits must add to this number. Can differ between new and existing tasks, but must match across all new tasks being tuned at the same time.
     virtual_token_splits: [20, 10] # number of virtual tokens to be inserted at each VIRTUAL PROMPT location, must add to total_virtual_tokens
-    truncate_field: 'passage' # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
+    truncate_field: "passage" # The {field} in the prompt template whose text will be truncated if the input is too long, if null, inputs that are too long will just be skipped.
     answer_only_loss: True 
-    answer_field: 'answer'
+    answer_field: "answer"
 
-  - taskname: 'intent_and_slot'
-    prompt_template: '<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}' 
+  - taskname: "intent_and_slot"
+    prompt_template: "<|VIRTUAL_PROMPT_0|> intent options: {intent_options} <|VIRTUAL_PROMPT_1|> slot options: {slot_options} <|VIRTUAL_PROMPT_2|> {utterance} \nintent: {intent} \nslot: {slot}"
     total_virtual_tokens: 30
     answer_only_loss: False 
     virtual_token_splits: [15, 10, 5]
     truncate_field: null
 
-  - taskname: 'rte'
-    prompt_template: '<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\n{answer}'
+  - taskname: "rte" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\nAnswer: {answer}" 
     total_virtual_tokens: 9 
-    virtual_token_splits: [9]
+    virtual_token_splits: [9] 
     truncate_field: null
     answer_only_loss: True
-    answer_field: 'answer'
+    answer_field: "answer"
 
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks

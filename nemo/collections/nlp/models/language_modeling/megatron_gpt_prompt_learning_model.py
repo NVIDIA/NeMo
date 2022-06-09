@@ -112,10 +112,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         else:
             self.float_type = torch.float
 
-        # Make prompt learning model able to load gpt models trained with amp_o2
-        # if self.frozen_model.megatron_amp_o2:
-        #     self.frozen_model.model = self.frozen_model.model.module
-
+        # TODO: Enable amp_o2 training
         self.megatron_amp_o2 = False
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
@@ -565,22 +562,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
         loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
-
-        if self.megatron_amp_o2:
-            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-                # main grads are stored in the MainParamsOptimizer wrapper
-                self._optimizer.allreduce_main_grads()
-        else:
-            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
-            # so we allreduce gradients after the pipeline
-            self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
-
-        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
-        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
-        # we cannot start weight update until all async grad AR works are done.
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-            torch.cuda.synchronize()
+        self.allreduce_gradients()  
 
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
@@ -891,49 +873,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return output_tensor, id_func
 
         return fwd_output_only_func
-
-    def configure_optimizers(self):
-        self.setup_optimization()
-
-        # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and self._optimizer is not None:
-            if self.cfg.precision == 'bf16':
-                fp32_grad_accum = True
-                contiguous_grad_bucket = True
-            elif self.cfg.precision == 16:
-                fp32_grad_accum = False
-                # TODO: contiguous grad bucket for fp16 is also planned to be supported
-                contiguous_grad_bucket = False
-                raise ValueError(
-                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
-                )
-
-            # if using tensor parallel only, we can use async grad all-reduce
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-                async_grad_allreduce = True
-            else:
-                async_grad_allreduce = False
-
-            self._optimizer = MainParamsOptimizerWrapper(
-                self._optimizer,
-                fp32_grad_accum=fp32_grad_accum,
-                contiguous_grad_bucket=contiguous_grad_bucket,
-                async_grad_allreduce=async_grad_allreduce,
-                grad_div_ar_fusion=self.frozen_model.cfg.get('grad_div_ar_fusion', True),
-                grad_allreduce_chunk_size_mb=self.frozen_model.cfg.get('grad_allreduce_chunk_size_mb', 125),
-            )
-
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
-            sched_config = self._cfg.optim.sched
-            sched_config['max_steps'] = self._trainer.max_steps
-            self._scheduler = prepare_lr_scheduler(
-                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
-            )
-
-        if self._scheduler is None:
-            return self._optimizer
-        else:
-            return [self._optimizer], [self._scheduler]
 
     @classmethod
     def list_available_models(cls):
