@@ -366,7 +366,7 @@ def _noam_hold_annealing(initial_lr, step, warmup_steps, hold_steps, decay_rate,
     T_warmup_decay = max(1, warmup_steps ** decay_rate)
     T_hold_decay = max(1, (step - hold_steps) ** decay_rate)
     lr = (initial_lr * T_warmup_decay) / T_hold_decay
-    lr = max(lr, float(min_lr))
+    lr = max(lr, min_lr)
     return lr
 
 
