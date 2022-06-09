@@ -242,7 +242,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             self.time_recovery_layer = nn.Linear(d_model, d_model)
 
             self.time_reduce_pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
+                d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0
             )
 
         self.pre_ln = nn.LayerNorm(d_model)
@@ -326,7 +326,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                 audio_signal, att_mask, pad_mask = self.time_reduce_layer(
                     x=audio_signal, att_mask=att_mask, pad_mask=pad_mask
                 )
-                audio_signal, pos_emb = self.time_reduce_pos_enc(audio_signal)
+                # Only update PE, not the original audio_signal
+                unused_audio_signal_, pos_emb = self.time_reduce_pos_enc(audio_signal)
+                del unused_audio_signal_
 
             # Perform time recovery
             if self.time_recovery_layer is not None and lth == self.time_recovery_idx:
