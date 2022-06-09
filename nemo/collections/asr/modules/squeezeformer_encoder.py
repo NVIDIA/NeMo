@@ -328,8 +328,6 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                 )
                 audio_signal, pos_emb = self.time_reduce_pos_enc(audio_signal)
 
-            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
-
             # Perform time recovery
             if self.time_recovery_layer is not None and lth == self.time_recovery_idx:
                 recovery_audio_signal, att_mask, pad_mask, pos_emb = recovery_activation_cache.pop(0)
@@ -340,6 +338,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                 audio_signal = audio_signal[:, :T, :]  # Slice off the exact T timesteps as original cache value
                 audio_signal = self.time_recovery_layer(audio_signal)  # learn non linear mapping
                 audio_signal = recovery_audio_signal + audio_signal  # learn just the residual
+
+            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
