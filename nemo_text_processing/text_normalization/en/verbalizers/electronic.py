@@ -14,9 +14,9 @@
 
 import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    MIN_POS_WEIGHT,
     NEMO_NOT_QUOTE,
     NEMO_SIGMA,
-    TO_UPPER,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -61,17 +61,12 @@ class ElectronicFst(GraphFst):
         )
 
         domain_common = pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
-
-        domain = (
-            default_chars_symbols
-            + insert_space
-            + plurals._priority_union(
-                domain_common, pynutil.add_weight(pynini.cross(".", "dot"), weight=0.0001), NEMO_SIGMA
-            )
-            + pynini.closure(
-                insert_space + (pynini.cdrewrite(TO_UPPER, "", "", NEMO_SIGMA) @ default_chars_symbols), 0, 1
-            )
+        domain_any = pynutil.add_weight(
+            pynini.cross(".", "dot") + insert_space + default_chars_symbols, MIN_POS_WEIGHT
         )
+
+        domain = default_chars_symbols + insert_space + plurals._priority_union(domain_common, domain_any, NEMO_SIGMA)
+
         domain = (
             pynutil.delete("domain:")
             + delete_space
