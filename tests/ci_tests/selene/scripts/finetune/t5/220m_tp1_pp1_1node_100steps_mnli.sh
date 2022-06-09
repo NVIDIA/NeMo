@@ -1,6 +1,6 @@
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
-    training=t5/220m \
+    finetuning=t5/mnli \
     run_data_preparation=False \
     run_training=False \
     run_conversion=False \
