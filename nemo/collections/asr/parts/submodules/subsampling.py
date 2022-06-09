@@ -212,8 +212,8 @@ class ConvSubsampling(torch.nn.Module):
                     torch.nn.init.uniform_(self.conv[idx + 1].weight, -pw_max, pw_max)
                     torch.nn.init.uniform_(self.conv[idx + 1].bias, -pw_max, pw_max)
 
-                # init fc
-                fc_scale = (self._conv_channels * self._feat_in) ** -0.5
+                # init fc (80 * 64 = 5120 from https://github.com/kssteven418/Squeezeformer/blob/13c97d6cf92f2844d2cb3142b4c5bfa9ad1a8951/src/models/conformer_encoder.py#L487
+                fc_scale = (64 * self._feat_in) ** -0.5
                 torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
                 torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 

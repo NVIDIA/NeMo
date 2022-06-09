@@ -112,7 +112,7 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         self.feed_forward2_scale = ScaleBiasLayer(d_model=d_model, adaptive_scale=adaptive_scale)
 
         self.dropout = nn.Dropout(dropout)
-        self.norm_out = LayerNorm(d_model)
+        # self.norm_out = LayerNorm(d_model)
 
         # initialize parameters properly
         self.reset_parameters()
@@ -156,9 +156,9 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         x = self.feed_forward2(x)
         x = residual + self.dropout(x) * self.fc_factor
         x = self.norm_feed_forward2(x)
-        residual = x
+        # residual = x
 
-        x = self.norm_out(residual)
+        # x = self.norm_out(residual)
 
         if self.is_adapter_available():
             # Call the adapters
