@@ -491,7 +491,6 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
 
         return item
 
-
 class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
@@ -527,7 +526,7 @@ class DiarizationLabel(_Collection):
                 List of offsets or None.
             target_spks (tuple):
                 List of tuples containing the two indices of targeted speakers for evaluation.
-                Example: [(0, 1), (1, 2), (0, 2)]
+                Example: [[(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)], [(0, 1), (1, 2), (0, 2)], ...]
             sess_spk_dict (Dict):
                 List of Mapping dictionaries between RTTM speakers and speaker labels in the clustering result.
             clus_spk_digits (tuple):
@@ -722,3 +721,4 @@ class DiarizationSpeechLabel(DiarizationLabel):
             offset=item.get('offset', None),
         )
         return item
+

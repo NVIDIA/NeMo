@@ -21,8 +21,14 @@ import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
+from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
+from nemo.core.neural_types import (
+    AudioSignal,
+    EncodedRepresentation,
+    LengthsType,
+    NeuralType,
+)
 
 
 def get_scale_mapping_list(uniq_timestamps):
@@ -59,43 +65,10 @@ def get_scale_mapping_list(uniq_timestamps):
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
-
-def string_to_float(x, round_digits):
-    """
-    Convert string to float then round the number.
-    """
-    return round(float(x), round_digits)
-
-
-def convert_rttm_line(rttm_line, round_digits=2):
-    """
-    Convert a line in RTTM file to speaker label, start and end timestamps.
-
-    Args:
-        rttm_line (str):
-            A line in RTTM formatted file containing offset and duration of each segment.
-        round_digits (int):
-            Number of digits to be rounded.
-
-    Returns:
-        start (float)
-            Start timestamp in floating point number.
-        end (float):
-            End timestamp in floating point number.
-        speaker (str):
-            speaker string in RTTM lines.
-    """
-    rttm = rttm_line.strip().split()
-    start = string_to_float(rttm[3], round_digits)
-    end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
-    speaker = rttm[7]
-    return start, end, speaker
-
-
-def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
+def _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=None):
     """
     Get RTTM lines containing speaker labels, start time and end time. target_spks contains two targeted
-    speaker indices for creating the groundtruth label file. Only speakers in target_spks variable will be
+    speaker indices for creating groundtruth label files. Only speakers in target_spks variable will be
     included in the output lists.
 
     Args:
@@ -109,19 +82,19 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
             Tuple containing lists of start time, end time and speaker labels.
 
     """
-    stt_list, end_list, speaker_list, bi_ch_infer_spks = [], [], [], []
+    stt_list, end_list, speaker_list, pairwise_infer_spks = [], [], [], []
     if target_spks:
-        label_scale_idx = max(self.emb_dict.keys())
-        mapping_dict = self.emb_dict[label_scale_idx][uniq_id]['mapping']
+        label_scale_idx = max(emb_dict.keys())
+        mapping_dict = emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
         for spk_idx in target_spks:
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
-                bi_ch_infer_spks.append(inv_map[spk_str])
-
+                pairwise_infer_spks.append(inv_map[spk_str])
+    
     for rttm_line in rttm_lines:
-        start, end, speaker = convert_rttm_line(rttm_line, self.round_digits)
-        if target_spks is None or speaker in bi_ch_infer_spks:
+        start, end, speaker = convert_rttm_line(rttm_line)
+        if target_spks is None or speaker in pairwise_infer_spks:
             end_list.append(end)
             stt_list.append(start)
             speaker_list.append(speaker)
@@ -168,7 +141,7 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
         for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
             stt, end = round(stt, self.round_digits), round(end, self.round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
-            stt_fr, end_fr = int(round(stt, 2) * self.fr_per_sec), int(round(end, self.round_digits) * self.fr_per_sec)
+            stt_fr, end_fr = int(round(stt, 2) * self.frame_per_sec), int(round(end, self.round_digits) * self.frame_per_sec)
             if target_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
@@ -179,7 +152,7 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
         return fr_level_target
 
 
-def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
+def _get_diar_target_labels(self, uniq_id, fr_level_target, multiscale_timestamp_dict):
     """
     Generate a hard-label (0 or 1) for each base-scale segment. soft_label_thres is a threshold for determining
     how much overlap we require for labeling a segment-level label. Note that label_vec variable is not a one-hot encoded vector.
@@ -190,8 +163,8 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
             Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
         fr_level_target (torch.tensor):
             Tensor containing label for each feature-level frame.
-        ms_ts_dict (Dict):
-            Dictionary containing timestamps and speaker embedding sequence for each scale.
+        multiscale_timestamp_dict (dict):
+            Dictionary containing multiscale segment mapping and corresponding timestamps.
 
     Returns:
         seg_target (torch.tensor):
@@ -200,11 +173,11 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
             Representative label for each segment in terms of each speaker's time in the segment.
     """
     seg_target_list, base_clus_label = [], []
-    subseg_time_stamp_list = ms_ts_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
+    subseg_time_stamp_list = multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
     for line in subseg_time_stamp_list:
         line_split = line.split()
         seg_stt, seg_end = float(line_split[0]), float(line_split[1])
-        seg_stt_fr, seg_end_fr = int(seg_stt * self.fr_per_sec), int(seg_end * self.fr_per_sec)
+        seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
         soft_label_vec = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
         label_int = torch.argmax(soft_label_vec)
         label_vec = (soft_label_vec > self.soft_label_thres).float()
@@ -214,8 +187,7 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, ms_ts_dict):
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
 
-
-class _AudioDiarTrainDataset(Dataset):
+class _AudioMSDDTrainDataset(Dataset):
     """
     Dataset class that loads a json file containing paths to audio files,
     RTTM files and number of speakers. This Dataset class is designed for
@@ -223,10 +195,10 @@ class _AudioDiarTrainDataset(Dataset):
     at the same time.
 
     Example:
-    {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_0.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_0.rttm}
     ...
-    {"audio_filepath": "/path/to/audio_wav_n.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_n.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_n.rttm}
 
     Args:
@@ -234,10 +206,8 @@ class _AudioDiarTrainDataset(Dataset):
             Path to input manifest json files.
         multiscale_args_dict (dict):
             Dictionary containing the parameters for multiscale segmentation and clustering.
-        ms_ts_dict (dict):
-            Dictionary containing multiscale segment mapping, speaker embeddings and corresponding timestamps.
-        clus_label_dict (Dict):
-            Segment-level speaker labels from Clustering results.
+        multiscale_timestamp_dict (dict):
+            Dictionary containing multiscale segment mapping and corresponding timestamps.
         soft_label_thres (float):
             Threshold that determines the label of each segment based on RTTM file information.
         featurizer:
@@ -248,6 +218,8 @@ class _AudioDiarTrainDataset(Dataset):
             Number of embedding vectors that are trained with attached computational graphs.
         pairwise_infer (bool):
             This variable should be True if dataloader is created for an inference task.
+        random_flip (bool):
+            If True, the two labels and input signals are randomly flipped per every epoch while training.
     """
 
     @property
@@ -271,7 +243,7 @@ class _AudioDiarTrainDataset(Dataset):
         *,
         manifest_filepath: str,
         multiscale_args_dict: str,
-        ms_ts_dict: Dict,
+        multiscale_timestamp_dict: Dict,
         soft_label_thres: float,
         featurizer,
         window_stride,
@@ -288,14 +260,13 @@ class _AudioDiarTrainDataset(Dataset):
         )
         self.featurizer = featurizer
         self.multiscale_args_dict = multiscale_args_dict
-        self.ms_ts_dict = ms_ts_dict
+        self.multiscale_timestamp_dict = multiscale_timestamp_dict
         self.round_digits = 2
         self.decim = 10 ** self.round_digits
-        self.fr_per_sec = 100
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
         self.max_spks = 2
-        self.feat_per_sec = int(1 / window_stride)
+        self.frame_per_sec = int(1 / window_stride)
         self.emb_batch_size = emb_batch_size
         self.random_flip = random_flip
 
@@ -324,8 +295,8 @@ class _AudioDiarTrainDataset(Dataset):
                 multiscale embeddings to form an input matrix for the MSDD model.
         """
         per_scale_clus_label = []
-        self.scale_n = len(self.ms_ts_dict[uniq_id]['scale_dict'])
-        uniq_scale_mapping = get_scale_mapping_list(self.ms_ts_dict[uniq_id])
+        self.scale_n = len(self.multiscale_timestamp_dict[uniq_id]['scale_dict'])
+        uniq_scale_mapping = get_scale_mapping_list(self.multiscale_timestamp_dict[uniq_id])
         for scale_index in range(self.scale_n):
             new_clus_label = []
             max_index = max(uniq_scale_mapping[scale_index])
@@ -359,12 +330,12 @@ class _AudioDiarTrainDataset(Dataset):
 
         """
         seg_target_list, base_clus_label = [], []
-        self.scale_n = len(self.ms_ts_dict[uniq_id]['scale_dict'])
-        subseg_time_stamp_list = self.ms_ts_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
+        self.scale_n = len(self.multiscale_timestamp_dict[uniq_id]['scale_dict'])
+        subseg_time_stamp_list = self.multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
         for line in subseg_time_stamp_list:
             line_split = line.split()
             seg_stt, seg_end = float(line_split[0]), float(line_split[1])
-            seg_stt_fr, seg_end_fr = int(seg_stt * self.fr_per_sec), int(seg_end * self.fr_per_sec)
+            seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
             soft_label_vec = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
             label_int = torch.argmax(soft_label_vec)
             label_vec = (soft_label_vec > self.soft_label_thres).float()
@@ -446,19 +417,19 @@ class _AudioDiarTrainDataset(Dataset):
         """
         uniq_id = self.get_uniq_id_with_range(sample)
         ms_seg_timestamps_list = []
-        max_seq_len = len(self.ms_ts_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"])
+        max_seq_len = len(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"])
         ms_seg_counts = [0 for _ in range(self.scale_n)]
         for scale_idx in range(self.scale_n):
             scale_ts_list = []
-            for k, line in enumerate(self.ms_ts_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]):
+            for k, line in enumerate(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]):
                 line_split = line.split()
                 seg_stt, seg_end = float(line_split[0]), float(line_split[1])
                 stt, end = (
-                    int((seg_stt - sample.offset) * self.feat_per_sec),
-                    int((seg_end - sample.offset) * self.feat_per_sec),
+                    int((seg_stt - sample.offset) * self.frame_per_sec),
+                    int((seg_end - sample.offset) * self.frame_per_sec),
                 )
                 scale_ts_list.append(torch.tensor([stt, end]).detach())
-            ms_seg_counts[scale_idx] = len(self.ms_ts_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"])
+            ms_seg_counts[scale_idx] = len(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"])
             scale_ts = torch.stack(scale_ts_list)
             scale_ts_padded = torch.cat([scale_ts, torch.zeros(max_seq_len - len(scale_ts_list), 2)], dim=0)
             ms_seg_timestamps_list.append(scale_ts_padded.detach())
@@ -481,7 +452,7 @@ class _AudioDiarTrainDataset(Dataset):
         return features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets
 
 
-class _AudioMSDDDataset(Dataset):
+class _AudioMSDDInferDataset(Dataset):
     """
     Dataset class that loads a json file containing paths to audio files,
     rttm files and number of speakers. This Dataset class is built for diarization inference and
@@ -489,10 +460,10 @@ class _AudioMSDDDataset(Dataset):
     are loaded from memory and fed into the dataloader.
 
     Example:
-    {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_0.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_0.rttm}
     ...
-    {"audio_filepath": "/path/to/audio_wav_n.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_n.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_n.rttm}
 
     Args:
@@ -508,14 +479,14 @@ class _AudioMSDDDataset(Dataset):
             A threshold that determines the label of each segment based on RTTM file information.
         featurizer:
             Featurizer instance for generating features from raw waveform.
-        pairwise_infer (bool):
-            This variable should be True if dataloader is created for an inference task.
+        seq_eval_mode (bool):
+            If True, F1 score will be calculated for each speaker pair during inference mode.
+        window_stride (float):
+            Window stride for acoustic feature. This value is used for calculating the numbers of feature-level frames.
         use_single_scale_clus (bool):
             Use only one scale for clustering instead of using multiple scales of embeddings for clustering.
-        seq_eval_mode (bool):
-            If True, F1 score will be calculated for each speaker pair as in the validation accuracy in training mode.
         pairwise_infer (bool):
-            If True, this Dataset class stays in inference mode.
+            This variable should be True if dataloader is created for an inference task.
     """
 
     @property
@@ -541,6 +512,7 @@ class _AudioMSDDDataset(Dataset):
         clus_label_dict: Dict,
         soft_label_thres: float,
         seq_eval_mode: bool,
+        window_stride: float,
         use_single_scale_clus: bool,
         pairwise_infer: bool,
     ):
@@ -557,7 +529,7 @@ class _AudioMSDDDataset(Dataset):
         self.clus_label_dict = clus_label_dict
         self.round_digits = 2
         self.decim = 10 ** self.round_digits
-        self.fr_per_sec = 100
+        self.frame_per_sec = int(1 / window_stride)
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
         self.max_spks = 2
@@ -587,7 +559,7 @@ class _AudioMSDDDataset(Dataset):
             raise ValueError(f"RTTM file is not provided for this sample {sample}")
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = os.path.splitext(os.path.basename(sample.rttm_file))[0]
-        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, target_spks)
+        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, self.emb_dict, target_spks)
         fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, target_spks)
         seg_target = self.get_diar_target_labels_from_fr_target(uniq_id, fr_level_target)
         return seg_target
@@ -619,7 +591,7 @@ class _AudioMSDDDataset(Dataset):
         else:
             seg_target_list = []
             for (seg_stt, seg_end, label_int) in self.clus_label_dict[uniq_id]:
-                seg_stt_fr, seg_end_fr = int(seg_stt * self.fr_per_sec), int(seg_end * self.fr_per_sec)
+                seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
                 soft_label_vec = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                     seg_end_fr - seg_stt_fr
                 )
@@ -662,7 +634,7 @@ class _AudioMSDDDataset(Dataset):
         return feats_out, feats_len, targets, avg_embs
 
 
-def _diar_train_collate_fn(self, batch):
+def _msdd_train_collate_fn(self, batch):
     """
     Collate batch of variables that are needed for raw waveform to diarization label training.
     The following variables are included in training/validation batch:
@@ -736,7 +708,7 @@ def _diar_train_collate_fn(self, batch):
     return features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets
 
 
-def _msdd_collate_fn(self, batch):
+def _msdd_infer_collate_fn(self, batch):
     """
     Collate batch of feats (speaker embeddings), feature lengths, target label sequences and cluster-average embeddings.
 
@@ -781,7 +753,7 @@ def _msdd_collate_fn(self, batch):
     return feats, feats_len, targets, ms_avg_embs
 
 
-class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
+class AudioToSpeechMSDDTrainDataset(_AudioMSDDTrainDataset):
     """
     Dataset class that loads a json file containing paths to audio files,
     rttm files and number of speakers. This Dataset class is designed for
@@ -789,17 +761,19 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
     at the same time.
 
     Example:
-    {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_0.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_0.rttm}
     ...
-    {"audio_filepath": "/path/to/audio_wav_n.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_n.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_n.rttm}
 
     Args:
         manifest_filepath (str):
             Path to input manifest json files.
-        clus_label_dict (Dict):
-            Segment-level speaker labels from Clustering results.
+        multiscale_args_dict (dict):
+            Dictionary containing the parameters for multiscale segmentation and clustering.
+        multiscale_timestamp_dict (dict):
+            Dictionary containing timestamps and speaker embedding sequence for each scale.
         soft_label_thres (float):
             A threshold that determines the label of each segment based on RTTM file information.
         featurizer:
@@ -808,8 +782,6 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
             Window stride for acoustic feature. This value is used for calculating the numbers of feature-level frames.
         emb_batch_size (int):
             Number of embedding vectors that are trained with attached computational graphs.
-        max_spks (int):
-            Integer value that limits the number of speakers for the model that is being trained.
         pairwise_infer (bool):
             This variable should be True if dataloader is created for an inference task.
     """
@@ -819,7 +791,7 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
         *,
         manifest_filepath: str,
         multiscale_args_dict: Dict,
-        ms_ts_dict: Dict,
+        multiscale_timestamp_dict: Dict,
         soft_label_thres: float,
         featurizer,
         window_stride,
@@ -829,7 +801,7 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
         super().__init__(
             manifest_filepath=manifest_filepath,
             multiscale_args_dict=multiscale_args_dict,
-            ms_ts_dict=ms_ts_dict,
+            multiscale_timestamp_dict=multiscale_timestamp_dict,
             soft_label_thres=soft_label_thres,
             featurizer=featurizer,
             window_stride=window_stride,
@@ -837,26 +809,26 @@ class AudioToSpeechDiarTrainDataset(_AudioDiarTrainDataset):
             pairwise_infer=pairwise_infer,
         )
 
-    def diar_train_collate_fn(self, batch):
-        return _diar_train_collate_fn(self, batch)
+    def msdd_train_collate_fn(self, batch):
+        return _msdd_train_collate_fn(self, batch)
 
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
-        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks)
+    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines):
+        return _extract_seg_info_from_rttm(uniq_id, rttm_lines)
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
 
 
-class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
+class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
     """
     Dataset class that loads a json file containing paths to audio files,
     rttm files and number of speakers. The created labels are used for diarization inference.
 
     Example:
-    {"audio_filepath": "/path/to/audio_wav_0.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_0.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_0.rttm}
     ...
-    {"audio_filepath": "/path/to/audio_wav_n.wav", "num_speakers": 2,
+    {"audio_filepath": "/path/to/audio_n.wav", "num_speakers": 2,
     "rttm_filepath": "/path/to/diar_label_n.rttm}
 
     Args:
@@ -875,7 +847,9 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
         use_single_scale_clus (bool):
             Use only one scale for clustering instead of using multiple scales of embeddings for clustering.
         seq_eval_mode (bool):
-            If True, F1 score will be calculated for each speaker pair in validation data during training or inference.
+            If True, F1 score will be calculated for each speaker pair during inference mode.
+        window_stride (float):
+            Window stride for acoustic feature. This value is used for calculating the numbers of feature-level frames.
         pairwise_infer (bool):
             If True, this Dataset class operates in inference mode. In inference mode, a set of speakers in the input audio
             is split into multiple pairs of speakers and speaker tuples (e.g. 3 speakers: [(0,1), (1,2), (0,2)]) and then
@@ -892,6 +866,7 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
         soft_label_thres: float,
         use_single_scale_clus: bool,
         seq_eval_mode: bool,
+        window_stride: float,
         pairwise_infer: bool,
     ):
         super().__init__(
@@ -901,15 +876,17 @@ class AudioToSpeechMSDDDataset(_AudioMSDDDataset):
             clus_label_dict=clus_label_dict,
             soft_label_thres=soft_label_thres,
             use_single_scale_clus=use_single_scale_clus,
+            window_stride=window_stride,
             seq_eval_mode=seq_eval_mode,
             pairwise_infer=pairwise_infer,
         )
 
-    def msdd_collate_fn(self, batch):
-        return _msdd_collate_fn(self, batch)
+    def msdd_infer_collate_fn(self, batch):
+        return _msdd_infer_collate_fn(self, batch)
 
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks):
-        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks)
+    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, emb_dict, target_spks):
+        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, emb_dict, target_spks)
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
+
