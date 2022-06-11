@@ -975,6 +975,7 @@ class ParallelTransformerLayer_(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
+        residual_gain=1.0, # this is used for deepnet
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -989,6 +990,7 @@ class ParallelTransformerLayer_(MegatronModule):
         self.bias = bias
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
+        self.residual_gain = residual_gain
 
         if not bias and bias_dropout_fusion:
             raise ValueError(
@@ -1048,15 +1050,24 @@ class ParallelTransformerLayer_(MegatronModule):
                 else:
                     self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
+            if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
+                # Layernorm on the attention output
+                if normalization == 'layernorm':
+                    self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+                else:
+                    self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
+        if self.layer_type == LayerType.decoder_pre_mlp:
+            # skip MLP and cross attention
+            return
+
+        # need post_attention_layernorm
+        if self.layer_type == LayerType.retrieval_decoder_after_self_attn and self.transformer_block_type == 'post_ln':
             # Layernorm on the attention output
             if normalization == 'layernorm':
                 self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-
-        if self.layer_type == LayerType.decoder_pre_mlp:
-            # skip MLP and cross attention
-            return
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
@@ -1215,7 +1226,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 else:
                     raise IndexError('Hidden_states needs to be tuple containing 2 or 3 elements.')
 
-            residual = hidden_states
+            residual = hidden_states.clone()
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
                 hidden_states = self.input_layernorm(hidden_states)
@@ -1253,6 +1264,8 @@ class ParallelTransformerLayer_(MegatronModule):
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
+            if self.transformer_block_type == 'post_ln':
+                residual *= self.residual_gain
 
             if attention_bias is not None:
                 attention_bias = attention_bias.expand_as(residual)
@@ -1309,7 +1322,9 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_output = self.post_inter_attention_normformer_norm(attention_output)
                 attention_bias = None
 
-            residual = layernorm_input
+            residual = layernorm_input.clone()
+            if self.transformer_block_type == 'post_ln':
+                residual *= self.residual_gain
 
             if attention_bias is not None:
                 attention_bias = attention_bias.expand_as(residual)
@@ -1326,7 +1341,10 @@ class ParallelTransformerLayer_(MegatronModule):
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
 
-        residual = layernorm_input
+        residual = layernorm_input.clone()
+
+        if self.transformer_block_type == 'post_ln':
+            residual *= self.residual_gain
 
         if mlp_bias is not None:
             mlp_bias = mlp_bias.expand_as(residual)
@@ -1452,6 +1470,7 @@ class ParallelTransformer(MegatronModule):
         transformer_block_type='pre_ln',
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
+        residual_gain=1.0,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1522,6 +1541,7 @@ class ParallelTransformer(MegatronModule):
                 normalization=normalization,
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
+                residual_gain=residual_gain, # this is used for deepnet
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

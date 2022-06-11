@@ -73,6 +73,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
+        residual_gain=1.0,
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -128,6 +129,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
+            residual_gain=residual_gain,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         self.rotary_pos_emb = RotaryEmbedding(rot_dim)
@@ -269,6 +271,8 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
             rotary_pos_emb=attn_pos_emb,
         )
+
+        enc_output = enc_output.transpose(0, 1).contiguous()
         # revert back to original retrieved shape
         enc_output = rearrange(enc_output, '(b k r) n d -> b k r n d', b=b, k=k)
 
@@ -336,6 +340,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
+        residual_gain=1.0,
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 
@@ -391,6 +396,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
+            residual_gain=residual_gain,
         )
         rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
         self.rotary_pos_emb = RotaryEmbedding(rot_dim)
