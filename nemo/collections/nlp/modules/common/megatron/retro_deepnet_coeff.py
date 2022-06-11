@@ -16,15 +16,10 @@ from omegaconf.dictconfig import DictConfig
 
 
 def get_coeff_from_cfg(cfg: DictConfig):
-    enc_num_layers = cfg.get('enc_num_layers',
-                             4),  # total number of encoder layers
-    dec_num_layers = cfg.get('dec_num_layers',
-                             6),  # total number of decoder layers
-    enc_cross_attention = cfg.get('enc_cross_attention',
-                                  [3]),  # layer numbers for cross attention
-    dec_cross_attention = cfg.get(
-        'dec_cross_attention',
-        [3, 5]),  # layer numbers for chunked cross attention
+    enc_num_layers = (cfg.get('enc_num_layers', 4),)  # total number of encoder layers
+    dec_num_layers = (cfg.get('dec_num_layers', 6),)  # total number of decoder layers
+    enc_cross_attention = (cfg.get('enc_cross_attention', [3]),)  # layer numbers for cross attention
+    dec_cross_attention = (cfg.get('dec_cross_attention', [3, 5]),)  # layer numbers for chunked cross attention
     return get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
 
 
@@ -35,16 +30,12 @@ def get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_att
     Q = len(enc_cross_attention)
     c = min(dec_cross_attention) + 1
 
-    c0 = (2*M+P)
-    c1 = P*(2*N+Q)
-    c2 = P*Q*(2*(c-1)+1)
-    c3 = c2**4 * c0**(-5) * c1**(-2)
+    c0 = 2 * M + P
+    c1 = P * (2 * N + Q)
+    c2 = P * Q * (2 * (c - 1) + 1)
+    c3 = c2 ** 4 * c0 ** (-5) * c1 ** (-2)
 
-    beta = (8*c3**(-1)) ** (1/6)
-    a_d = 2**(1/2)*(c0**(1/2))*beta
-    a_e = (16*c1**2*c3**-1*c0**-1)**(1/4)
-    return {
-        "beta": beta,
-        "a_d": a_d,
-        "a_e": a_e
-    }
+    beta = (8 * c3 ** (-1)) ** (1 / 6)
+    a_d = 2 ** (1 / 2) * (c0 ** (1 / 2)) * beta
+    a_e = (16 * c1 ** 2 * c3 ** -1 * c0 ** -1) ** (1 / 4)
+    return {"beta": beta, "a_d": a_d, "a_e": a_e}

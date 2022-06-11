@@ -19,6 +19,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.retro_deepnet_coeff import get_coeff
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -26,7 +27,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     init_method_normal,
     scaled_init_method_normal,
 )
-from nemo.collections.nlp.modules.common.megatron.retro_deepnet_coeff import get_coeff
 
 try:
     from apex.transformer import tensor_parallel
@@ -48,6 +48,7 @@ def init_deepnet_method(gain):
 
     def init_(tensor):
         return torch.nn.init.xavier_normal_(tensor, gain)
+
     return init_
 
 
