@@ -20,15 +20,10 @@ from typing import Dict, Optional
 import torch
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
-from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line
+from nemo.collections.common.parts.preprocessing.collections import DiarizationSpeechLabel
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import (
-    AudioSignal,
-    EncodedRepresentation,
-    LengthsType,
-    NeuralType,
-)
+from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
 
 
 def get_scale_mapping_list(uniq_timestamps):
@@ -65,6 +60,7 @@ def get_scale_mapping_list(uniq_timestamps):
     scale_mapping_argmat = torch.stack(scale_mapping_argmat)
     return scale_mapping_argmat
 
+
 def _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=None):
     """
     Get RTTM lines containing speaker labels, start time and end time. target_spks contains two targeted
@@ -91,7 +87,7 @@ def _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
                 pairwise_infer_spks.append(inv_map[spk_str])
-    
+
     for rttm_line in rttm_lines:
         start, end, speaker = convert_rttm_line(rttm_line)
         if target_spks is None or speaker in pairwise_infer_spks:
@@ -141,7 +137,10 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
         for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
             stt, end = round(stt, self.round_digits), round(end, self.round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
-            stt_fr, end_fr = int(round(stt, 2) * self.frame_per_sec), int(round(end, self.round_digits) * self.frame_per_sec)
+            stt_fr, end_fr = (
+                int(round(stt, 2) * self.frame_per_sec),
+                int(round(end, self.round_digits) * self.frame_per_sec),
+            )
             if target_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
@@ -186,6 +185,7 @@ def _get_diar_target_labels(self, uniq_id, fr_level_target, multiscale_timestamp
     seg_target = torch.stack(seg_target_list)
     base_clus_label = torch.stack(base_clus_label)
     return seg_target, base_clus_label
+
 
 class _AudioMSDDTrainDataset(Dataset):
     """
@@ -429,7 +429,9 @@ class _AudioMSDDTrainDataset(Dataset):
                     int((seg_end - sample.offset) * self.frame_per_sec),
                 )
                 scale_ts_list.append(torch.tensor([stt, end]).detach())
-            ms_seg_counts[scale_idx] = len(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"])
+            ms_seg_counts[scale_idx] = len(
+                self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]
+            )
             scale_ts = torch.stack(scale_ts_list)
             scale_ts_padded = torch.cat([scale_ts, torch.zeros(max_seq_len - len(scale_ts_list), 2)], dim=0)
             ms_seg_timestamps_list.append(scale_ts_padded.detach())
@@ -885,8 +887,7 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
         return _msdd_infer_collate_fn(self, batch)
 
     def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, emb_dict, target_spks):
-        return _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, emb_dict, target_spks)
+        return _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict, target_spks)
 
     def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
         return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
-

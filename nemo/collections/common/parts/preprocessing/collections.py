@@ -491,6 +491,7 @@ class ASRFeatureSequenceLabel(FeatureSequenceLabel):
 
         return item
 
+
 class DiarizationLabel(_Collection):
     """List of diarization audio-label correspondence with preprocessing."""
 
@@ -721,4 +722,3 @@ class DiarizationSpeechLabel(DiarizationLabel):
             offset=item.get('offset', None),
         )
         return item
-

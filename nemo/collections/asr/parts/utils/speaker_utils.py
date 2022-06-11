@@ -312,11 +312,13 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
 
     return filename
 
+
 def string_to_float(x, round_digits):
     """
     Convert string to float then round the number.
     """
     return round(float(x), round_digits)
+
 
 def convert_rttm_line(rttm_line, round_digits=3):
     """
@@ -336,11 +338,12 @@ def convert_rttm_line(rttm_line, round_digits=3):
         speaker (str):
             speaker string in RTTM lines.
     """
-    rttm  = rttm_line.strip().split()
+    rttm = rttm_line.strip().split()
     start = string_to_float(rttm[3], round_digits)
     end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
     speaker = rttm[7]
     return start, end, speaker
+
 
 def rttm_to_labels(rttm_filename):
     """

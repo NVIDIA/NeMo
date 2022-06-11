@@ -58,24 +58,6 @@ def dump_json_to_file(file_path, riva_dict):
         json.dump(riva_dict, outfile, indent=4)
 
 
-def string_to_float(self, x, round_digits):
-    """
-    Convert string to float then round the number.
-    """
-    return round(float(x), round_digits)
-
-
-def convert_rttm_line(rttm_line, round_digits=2):
-    """
-    Convert a line in RTTM file to speaker label, start and end timestamps.
-    """
-    rttm = rttm_line.strip().split()
-    start = string_to_float(rttm[3], round_digits)
-    end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
-    speaker = rttm[7]
-    return start, end, speaker
-
-
 def write_txt(w_path, val):
     """
     Write a text file from the string input.
