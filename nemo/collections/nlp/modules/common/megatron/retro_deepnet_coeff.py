@@ -33,9 +33,16 @@ def get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_att
     c0 = 2 * M + P
     c1 = P * (2 * N + Q)
     c2 = P * Q * (2 * (c - 1) + 1)
-    c3 = c2 ** 4 * c0 ** (-5) * c1 ** (-2)
+    # c3 = c2 ** 4 * c0 ** (-5) * c1 ** (-2)
+    c4 = 2 ** (-1 / 2) * c2 * c0 ** (-7 / 4)
+    c5 = 2 ** (1 / 2) * c1 * c0 ** (-3 / 4)
+    print(f'c4: {c4} c5: {c5}')
 
-    beta = (8 * c3 ** (-1)) ** (1 / 6)
-    a_d = 2 ** (1 / 2) * (c0 ** (1 / 2)) * beta
-    a_e = (16 * c1 ** 2 * c3 ** -1 * c0 ** -1) ** (1 / 4)
-    return {"beta": beta, "a_d": a_d, "a_e": a_e}
+    a_d = 2 ** (1 / 2) * c0 ** (1 / 4)
+    b_d = c0 ** (-1 / 4)
+    a_e = c5 / c4
+    b_e = c5 ** (1 / 2) / c4
+    # beta = (8 * c3 ** (-1)) ** (1 / 6)
+    # a_d = 2 ** (1 / 2) * (c0 ** (1 / 2)) * beta
+    # a_e = (16 * c1 ** 2 * c3 ** -1 * c0 ** -1) ** (1 / 4)
+    return {"b_d": b_d, "b_e": b_e, "a_d": a_d, "a_e": a_e}
