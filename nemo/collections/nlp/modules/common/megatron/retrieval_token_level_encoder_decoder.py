@@ -113,6 +113,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.add_abs_position_embedding = add_position_embedding  # whether use absolute position embedding
         self.tokenizer = tokenizer
         self.eod_id = tokenizer.eos_id
+        self.transformer_block_type = transformer_block_type
+
         coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
 
         if kv_channels is None:
@@ -134,6 +136,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             self._embedding_key = "embedding"
 
+        transpose = True  # whether to add the extra layernorm and transpose
+        if transformer_block_type == 'post_ln':
+            transpose = False
+
         if add_encoder:
             enc_layer_types = []
             for i in range(enc_num_layers):
@@ -141,6 +147,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_layer_types.append(LayerType.retrieval_encoder)
                 else:
                     enc_layer_types.append(LayerType.encoder)
+
             self.encoder = get_encoder_model(
                 arch="retro",
                 hidden_size=hidden_size,
@@ -152,7 +159,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=init_deepnet_method(coeff['b_e']),
                 scaled_init_method=init_deepnet_method(coeff['b_e']),
                 pre_process=pre_process,
-                post_process=False,
+                post_process=transpose,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -256,7 +263,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=init_deepnet_method(coeff['b_d']),
                 scaled_init_method=init_deepnet_method(coeff['b_d']),
                 pre_process=False,  # directly take the pre_decoder output, skip preprocess
-                post_process=False,
+                post_process=transpose,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -372,7 +379,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
             )
-            dec_output = dec_output.transpose(0, 1).contiguous()
+            # only transpose it for post_ln
+            if self.transformer_block_type == 'post_ln':
+                dec_output = dec_output.transpose(0, 1).contiguous()
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:
