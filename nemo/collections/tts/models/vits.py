@@ -172,8 +172,8 @@ class VitsModel(TextToWaveform):
         min_lr = 1e-5
         wu_ratio = 0.02
         
-        scheduler_g = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
-        scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr)#, warmup_steps=1000,)
+        scheduler_g = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr, warmup_steps=1000,)
+        scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=min_lr, warmup_steps=1000,)
 
         # scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=self._cfg.lr_decay)
         # scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=self._cfg.lr_decay)
@@ -256,8 +256,6 @@ class VitsModel(TextToWaveform):
         # train discriminator
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
-
-        # TODO: maybe change it to PTL-based function
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
         optim_d.step()
         
@@ -275,13 +273,12 @@ class VitsModel(TextToWaveform):
         # train generator
         optim_g.zero_grad()
         self.manual_backward(loss_gen_all)
-        # TODO: maybe change it to PTL-based function
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
         optim_g.step()
 
 
         schedulers = self.lr_schedulers()
-        if schedulers is not None and self.trainer.is_last_batch:
+        if schedulers is not None:# and self.trainer.is_last_batch:
             sch1, sch2 = schedulers
             sch1.step()
             sch2.step()
