@@ -790,6 +790,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         megatron_legacy=False,
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
+        headscale=False,
     ):
         super(ParallelChunkedCrossAttention, self).__init__()
         self.cross_attention = ParallelAttention(
@@ -811,6 +812,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             relative_attention_max_distance=relative_attention_max_distance,
             megatron_legacy=megatron_legacy,
             bias=bias,
+            headscale=headscale,
         )
         self.chunk_size = chunk_size
 
@@ -1131,6 +1133,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 chunk_size=chunk_size,
                 bias=bias,
+                headscale=headscale,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
