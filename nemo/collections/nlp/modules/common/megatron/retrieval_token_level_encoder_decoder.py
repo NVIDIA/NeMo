@@ -115,8 +115,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.eod_id = tokenizer.eos_id
         self.transformer_block_type = transformer_block_type
 
-        coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
-
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -137,8 +135,22 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             self._embedding_key = "embedding"
 
         transpose = True  # whether to add the extra layernorm and transpose
+        coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
         if transformer_block_type == 'post_ln':
             transpose = False
+            encoder_init = init_deepnet_method(coeff['b_e'])
+            encoder_scaled_init = init_deepnet_method(coeff['b_e'])
+            pre_decoder_init = (init_deepnet_method(coeff['b_d']),)
+            pre_decoder_scaled_init = (init_deepnet_method(coeff['b_d']),)
+            post_decoder_init = (init_deepnet_method(coeff['b_d']),)
+            post_decoder_scaled_init = (init_deepnet_method(coeff['b_d']),)
+        else:
+            encoder_init = init_method_normal(init_method_std)
+            encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+            pre_decoder_init = init_method_normal(init_method_std)
+            pre_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+            post_decoder_init = init_method_normal(init_method_std)
+            post_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
 
         if add_encoder:
             enc_layer_types = []
@@ -156,8 +168,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_deepnet_method(coeff['b_e']),
-                scaled_init_method=init_deepnet_method(coeff['b_e']),
+                init_method=encoder_init,
+                scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
                 post_process=transpose,
                 init_method_std=init_method_std,
@@ -218,8 +230,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_deepnet_method(coeff['b_d']),
-                scaled_init_method=init_deepnet_method(coeff['b_d']),
+                init_method=pre_decoder_init,
+                scaled_init_method=pre_decoder_scaled_init,
                 pre_process=pre_process,
                 post_process=False,  # no need for post process
                 init_method_std=init_method_std,
@@ -260,8 +272,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_deepnet_method(coeff['b_d']),
-                scaled_init_method=init_deepnet_method(coeff['b_d']),
+                init_method=post_decoder_init,
+                scaled_init_method=post_decoder_scaled_init,
                 pre_process=False,  # directly take the pre_decoder output, skip preprocess
                 post_process=transpose,
                 init_method_std=init_method_std,
