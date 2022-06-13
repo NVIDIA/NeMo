@@ -134,17 +134,16 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             self._embedding_key = "embedding"
 
-        transpose = True  # whether to add the extra layernorm and transpose
-        coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
         if transformer_block_type == 'post_ln':
-            transpose = False
+            coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
             encoder_init = init_deepnet_method(coeff['b_e'])
             encoder_scaled_init = init_deepnet_method(coeff['b_e'])
-            pre_decoder_init = (init_deepnet_method(coeff['b_d']),)
-            pre_decoder_scaled_init = (init_deepnet_method(coeff['b_d']),)
-            post_decoder_init = (init_deepnet_method(coeff['b_d']),)
-            post_decoder_scaled_init = (init_deepnet_method(coeff['b_d']),)
+            pre_decoder_init = init_deepnet_method(coeff['b_d'])
+            pre_decoder_scaled_init = init_deepnet_method(coeff['b_d'])
+            post_decoder_init = init_deepnet_method(coeff['b_d'])
+            post_decoder_scaled_init = init_deepnet_method(coeff['b_d'])
         else:
+            coeff = {'a_e': 1.0, 'a_d': 1.0}
             encoder_init = init_method_normal(init_method_std)
             encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
             pre_decoder_init = init_method_normal(init_method_std)
@@ -171,7 +170,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=transpose,
+                post_process=post_process,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -275,7 +274,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=post_decoder_init,
                 scaled_init_method=post_decoder_scaled_init,
                 pre_process=False,  # directly take the pre_decoder output, skip preprocess
-                post_process=transpose,
+                post_process=post_process,
                 init_method_std=init_method_std,
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=hidden_dropout,
@@ -366,7 +365,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
-            encoder_input = hidden[1].transpose(0, 1).contiguous()
+            # stop passing through the gradients
+            encoder_output = hidden[1].transpose(0, 1).contiguous()
 
         if self.add_encoder:
             if retrieved_emb is not None and neighbors is None:
@@ -375,7 +375,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 retrieved_emb,
                 retrieved_attn_mask,
                 context_attn_mask=input_attn_mask,
-                encoder_output=encoder_input,
+                encoder_output=encoder_output,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 neighbors=neighbors,
@@ -392,8 +392,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
             # only transpose it for post_ln
-            if self.transformer_block_type == 'post_ln':
-                dec_output = dec_output.transpose(0, 1).contiguous()
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:

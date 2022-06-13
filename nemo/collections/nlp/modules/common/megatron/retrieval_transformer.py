@@ -272,10 +272,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask_3d,
             rotary_pos_emb=attn_pos_emb,
         )
-
-        # only transpose it for post_ln
-        if self.transformer_block_type == 'post_ln':
-            enc_output = enc_output.transpose(0, 1).contiguous()
         # revert back to original retrieved shape
         enc_output = rearrange(enc_output, '(b k r) n d -> b k r n d', b=b, k=k)
 

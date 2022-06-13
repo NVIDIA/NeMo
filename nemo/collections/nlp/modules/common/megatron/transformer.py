@@ -1585,7 +1585,7 @@ class ParallelTransformer(MegatronModule):
 
         self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
 
-        if self.post_process:
+        if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
             if normalization == 'layernorm':
                 self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
@@ -1815,8 +1815,10 @@ class ParallelTransformer(MegatronModule):
         # Final layer norm.
         if self.post_process:
             # Reverting data format change [s b h] --> [b s h].
-            hidden_states = hidden_states.transpose(0, 1).contiguous()
-            output = self.final_layernorm(hidden_states)
+            output = hidden_states.transpose(0, 1).contiguous()
+            # only apply the final_layernorm for pre-ln
+            if self.transformer_block_type != 'post_ln':
+                output = self.final_layernorm(output)
         else:
             output = hidden_states
         if get_key_value:
