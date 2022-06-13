@@ -71,7 +71,9 @@ def get_args():
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
     parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
     parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert", "nmt", "bart"])
+    parser.add_argument(
+        "--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert", "nmt", "bart"]
+    )
     parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
