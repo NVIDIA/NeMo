@@ -76,6 +76,7 @@ class MegatronRetrievalModel(MegatronBaseModel):
         self.model.model_type = ModelType.encoder_and_decoder
         # not using amp o2
         self.megatron_amp_o2 = False
+        self.grad_clip_pl_default = True
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
