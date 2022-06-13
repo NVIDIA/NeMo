@@ -77,8 +77,7 @@ def prepare_manifest(config: dict) -> str:
         'window_length_in_sec': config['window_length_in_sec'],
     }
 
-    num_workers = config['num_workers']
-    if num_workers > 1:
+    if config.get('num_workers') is not None and config['num_workers'] > 1:
         p = multiprocessing.Pool(processes=config['num_workers'])
         results = p.starmap(write_vad_infer_manifest, zip(input_list, repeat(args_func)))
         p.close()
