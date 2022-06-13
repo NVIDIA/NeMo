@@ -653,7 +653,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
         for item in manifest.item_iter(manifests_files, parse_func=self.__parse_item_rttm):
             if self.pairwise_infer:
                 clus_speaker_digits = sorted(list(set([x[2] for x in clus_label_dict[item['uniq_id']]])))
-                if item['rttm_filepath']:
+                if item['rttm_file']:
                     base_scale_index = max(self.emb_dict.keys())
                     _sess_spk_dict = self.emb_dict[base_scale_index][item['uniq_id']]['mapping']
                     sess_spk_dict = {int(v.split('_')[-1]): k for k, v in _sess_spk_dict.items()}
@@ -679,7 +679,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             for target_spks in spk_comb_list:
                 audio_files.append(item['audio_file'])
                 durations.append(item['duration'])
-                rttm_files.append(item['rttm_filepath'])
+                rttm_files.append(item['rttm_file'])
                 offsets.append(item['offset'])
                 target_spks_list.append(target_spks)
                 sess_spk_dicts.append(sess_spk_dict)
@@ -718,7 +718,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
             audio_file=item['audio_file'],
             uniq_id=item['uniq_id'],
             duration=item['duration'],
-            rttm_filepath=item['rttm_filepath'],
+            rttm_file=item['rttm_filepath'],
             offset=item.get('offset', None),
         )
         return item

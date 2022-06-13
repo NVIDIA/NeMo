@@ -61,7 +61,7 @@ def get_scale_mapping_list(uniq_timestamps):
     return scale_mapping_argmat
 
 
-def _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=None):
+def extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=None):
     """
     Get RTTM lines containing speaker labels, start time and end time. target_spks contains two targeted
     speaker indices for creating groundtruth label files. Only speakers in target_spks variable will be
@@ -98,18 +98,21 @@ def _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict=None, target_spks=
     return rttm_tup
 
 
-def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, min_spks=2):
+def assign_frame_level_spk_vector(rttm_timestamps, max_spks, round_digits, frame_per_sec, target_spks, min_spks=2):
     """
     Create a multi-dimensional vector sequence containing speaker timestamp information in RTTM.
     The unit-length is the frame shift length of the acoustic feature. The feature-level annotations
     fr_level_target will later be converted to base-segment level diarization label.
 
     Args:
-        uniq_id (str):
-            Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
         rttm_timestamps (list):
             List containing start and end time for each speaker segment label.
             stt_list, end_list and speaker_list are contained.
+        max_spks(int):
+            The maximum number of speakers that the diariziation model can handle. max_spks limits the number of speakers in the
+            ground-truth label.
+        frame_per_sec (int):
+            Number of feature frames per second. This quantity is determined by window_stride variable in preprocessing module.
         target_spks (tuple):
             Speaker indices that are generated from combinations. If there are only one or two speakers,
             only a single target_spks variable is generated.
@@ -123,11 +126,11 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
         return None
     else:
         sorted_speakers = sorted(list(set(speaker_list)))
-        total_fr_len = int(max(end_list) * self.decim)
+        total_fr_len = int(max(end_list) * (10 ** round_digits))
         spk_num = max(len(sorted_speakers), min_spks)
-        if spk_num > self.max_spks:
+        if spk_num > max_spks:
             raise ValueError(
-                f"Number of speaker {spk_num} should be less than or equal to self.max_num_speakers {self.max_num_speakers}"
+                f"Number of speaker {spk_num} should be less than or equal to maximum number of speakers: {max_spks}"
             )
         speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
         fr_level_target = torch.zeros(total_fr_len, spk_num)
@@ -135,12 +138,9 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
         # If RTTM is not provided, then there is no speaker mapping dict in target_spks.
         # Thus, return a zero-filled tensor as a placeholder.
         for count, (stt, end, spk_rttm_key) in enumerate(zip(stt_list, end_list, speaker_list)):
-            stt, end = round(stt, self.round_digits), round(end, self.round_digits)
+            stt, end = round(stt, round_digits), round(end, round_digits)
             spk = speaker_mapping_dict[spk_rttm_key]
-            stt_fr, end_fr = (
-                int(round(stt, 2) * self.frame_per_sec),
-                int(round(end, self.round_digits) * self.frame_per_sec),
-            )
+            stt_fr, end_fr = int(round(stt, 2) * frame_per_sec), int(round(end, round_digits) * frame_per_sec)
             if target_spks is None:
                 fr_level_target[stt_fr:end_fr, spk] = 1
             else:
@@ -149,42 +149,6 @@ def _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks, 
                     fr_level_target[stt_fr:end_fr, idx] = 1
 
         return fr_level_target
-
-
-def _get_diar_target_labels(self, uniq_id, fr_level_target, multiscale_timestamp_dict):
-    """
-    Generate a hard-label (0 or 1) for each base-scale segment. soft_label_thres is a threshold for determining
-    how much overlap we require for labeling a segment-level label. Note that label_vec variable is not a one-hot encoded vector.
-    label_vec is a multidimensional hard-label that can contain annotations for indicating an overlap of two speech segments.
-
-    Args:
-        uniq_id (str):
-            Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
-        fr_level_target (torch.tensor):
-            Tensor containing label for each feature-level frame.
-        multiscale_timestamp_dict (dict):
-            Dictionary containing multiscale segment mapping and corresponding timestamps.
-
-    Returns:
-        seg_target (torch.tensor):
-            Tensor containing binary speaker labels for base-scale segments.
-        base_clus_label (torch.tensor):
-            Representative label for each segment in terms of each speaker's time in the segment.
-    """
-    seg_target_list, base_clus_label = [], []
-    subseg_time_stamp_list = multiscale_timestamp_dict[uniq_id]["scale_dict"][self.scale_n - 1]["time_stamps"]
-    for line in subseg_time_stamp_list:
-        line_split = line.split()
-        seg_stt, seg_end = float(line_split[0]), float(line_split[1])
-        seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
-        soft_label_vec = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (seg_end_fr - seg_stt_fr)
-        label_int = torch.argmax(soft_label_vec)
-        label_vec = (soft_label_vec > self.soft_label_thres).float()
-        seg_target_list.append(label_vec.detach())
-        base_clus_label.append(label_int.detach())
-    seg_target = torch.stack(seg_target_list)
-    base_clus_label = torch.stack(base_clus_label)
-    return seg_target, base_clus_label
 
 
 class _AudioMSDDTrainDataset(Dataset):
@@ -356,7 +320,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                DiarizationSpeechLabel instance containing the following variables.
+                DiarizationSpeechLabel instance containing sample information such as audio filepath and RTTM filepath.
             target_spks (tuple):
                 Speaker indices that are generated from combinations. If there are only one or two speakers,
                 only a single target_spks tuple is generated.
@@ -373,8 +337,10 @@ class _AudioMSDDTrainDataset(Dataset):
         """
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = self.get_uniq_id_with_range(sample)
-        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines)
-        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, target_spks=None)
+        rttm_timestamps = extract_seg_info_from_rttm(uniq_id, rttm_lines)
+        fr_level_target = assign_frame_level_spk_vector(
+            rttm_timestamps, self.max_spks, self.round_digits, self.frame_per_sec, target_spks=None
+        )
         seg_target, base_clus_label = self.get_diar_target_labels(uniq_id, fr_level_target)
         clus_label_index, scale_mapping = self.assign_labels_to_longer_segs(uniq_id, base_clus_label)
         return clus_label_index, seg_target, scale_mapping
@@ -549,7 +515,7 @@ class _AudioMSDDInferDataset(Dataset):
 
         Args:
             sample:
-                DiarizationSpeechLabel instance containing the following variables.
+                DiarizationSpeechLabel instance containing sample information such as audio filepath and RTTM filepath.
             target_spks (tuple):
                 Two Indices of targeted speakers for evaluation.
                 Example of target_spks: (2, 3)
@@ -561,8 +527,10 @@ class _AudioMSDDInferDataset(Dataset):
             raise ValueError(f"RTTM file is not provided for this sample {sample}")
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = os.path.splitext(os.path.basename(sample.rttm_file))[0]
-        rttm_timestamps = self.extract_seg_info_from_rttm(uniq_id, rttm_lines, self.emb_dict, target_spks)
-        fr_level_target = self.assign_frame_level_spk_vector(uniq_id, rttm_timestamps, target_spks)
+        rttm_timestamps = extract_seg_info_from_rttm(uniq_id, rttm_lines, self.emb_dict, target_spks)
+        fr_level_target = assign_frame_level_spk_vector(
+            rttm_timestamps, self.max_spks, self.round_digits, self.frame_per_sec, target_spks
+        )
         seg_target = self.get_diar_target_labels_from_fr_target(uniq_id, fr_level_target)
         return seg_target
 
@@ -814,12 +782,6 @@ class AudioToSpeechMSDDTrainDataset(_AudioMSDDTrainDataset):
     def msdd_train_collate_fn(self, batch):
         return _msdd_train_collate_fn(self, batch)
 
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines):
-        return _extract_seg_info_from_rttm(uniq_id, rttm_lines)
-
-    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
-        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
-
 
 class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
     """
@@ -885,9 +847,3 @@ class AudioToSpeechMSDDInferDataset(_AudioMSDDInferDataset):
 
     def msdd_infer_collate_fn(self, batch):
         return _msdd_infer_collate_fn(self, batch)
-
-    def extract_seg_info_from_rttm(self, uniq_id, rttm_lines, emb_dict, target_spks):
-        return _extract_seg_info_from_rttm(uniq_id, rttm_lines, emb_dict, target_spks)
-
-    def assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks):
-        return _assign_frame_level_spk_vector(self, uniq_id, rttm_timestamps, target_spks)
