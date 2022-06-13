@@ -475,10 +475,14 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 f"trainer.val_check_interval {self.trainer.val_check_interval} is > number of global batches {sampler.num_samples // global_batch_size}"
             )
 
+        if isinstance(dataset, ConcatDataset):
+            collate_fn = dataset.datasets[0].collate_fn
+        else:
+            collate_fn = dataset.collate_fn
         # Data loader. Note that batch size is the per GPU batch size.
         return torch.utils.data.DataLoader(
             dataset,
-            collate_fn=dataset.collate_fn,
+            collate_fn=collate_fn,
             sampler=sampler,
             batch_size=micro_batch_size,
             num_workers=num_workers,
