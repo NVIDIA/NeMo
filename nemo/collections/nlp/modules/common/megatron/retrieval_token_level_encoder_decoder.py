@@ -366,7 +366,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
             # stop passing through the gradients
-            encoder_output = hidden[1].transpose(0, 1).contiguous()
+            encoder_output = hidden[1].transpose(0, 1).contiguous().detach()
 
         if self.add_encoder:
             if retrieved_emb is not None and neighbors is None:
