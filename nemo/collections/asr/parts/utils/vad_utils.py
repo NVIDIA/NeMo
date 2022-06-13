@@ -255,7 +255,7 @@ def generate_overlap_vad_seq(
         "out_dir": overlap_out_dir,
         "smoothing_method": smoothing_method,
     }
-    if num_workers > 1:
+    if num_workers is not None and num_workers > 1:
         p = multiprocessing.Pool(processes=num_workers)
         p.starmap(generate_overlap_vad_seq_per_file, zip(frame_filepathlist, repeat(per_args)))
         p.close()
@@ -690,7 +690,7 @@ def generate_vad_segment_table(
     }
     per_args = {**per_args, **postprocessing_params}
 
-    if num_workers > 1:
+    if num_workers is not None and num_workers > 1:
         p = multiprocessing.Pool(processes=num_workers)
         p.starmap(generate_vad_segment_table_per_file, zip(vad_pred_filepath_list, repeat(per_args)))
         p.close()
