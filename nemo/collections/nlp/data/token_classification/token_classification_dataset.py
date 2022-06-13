@@ -270,7 +270,7 @@ class BertTokenClassificationDataset(Dataset):
             logging.info(f'features saved to {features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
+        if features is None and not os.path.exists(features_pkl):
             torch.distributed.barrier()
 
         if features is None:

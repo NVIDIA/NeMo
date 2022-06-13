@@ -31,7 +31,6 @@ import itertools
 import multiprocessing as mp
 import os
 import pickle
-import random
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -980,7 +979,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
+        if features is None and not os.path.exists(self.features_pkl):
             torch.distributed.barrier()
 
         if features is None:
