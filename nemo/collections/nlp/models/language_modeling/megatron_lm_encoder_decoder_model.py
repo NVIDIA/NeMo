@@ -426,7 +426,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             def loss_func(output_tensor):
                 loss = self.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
+                return loss, {'avg': reduced_loss, 'logits': output_tensor}
 
             return output, loss_func
 
@@ -532,10 +532,32 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-    def validation_step(self, batch, batch_idx):
+    # FIXME: define a new method def get_validation_outputs()
+    def validation_step(self, batch, batch_idx, return_logits=False):
+        """
+        return_values - if given, returns a dictionary with given keys and corresponding values
+        """
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
+
+        # # FIXME: finish this
+        # micro_batch_size = batch_for_pipeline[0].shape[0]
+        # if get_micro_batch_size() != micro_batch_size:
+        #     prev_micro_batch_size = get_micro_batch_size()
+        #     _reconfigure_microbatch_calculator(
+        #         rank=app_state.global_rank,
+        #         rampup_batch_size=None,
+        #         global_batch_size=micro_batch_size
+        #         * parallel_state.get_data_parallel_world_size()
+        #         * get_num_microbatches(), # get_valid_num_microbatches
+        #         micro_batch_size=micro_batch_size,
+        #         data_parallel_size=parallel_state.get_data_parallel_world_size(),
+        #     )
+        # # FIXME: pad batch_for_pipeline on the fly
+        # # FIXME: restore prev_micro_batch_size
+        # # FIXME: add warning
+
 
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
@@ -567,11 +589,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
+            
+            logits_tensors_list = [loss_reduced['logits'] for loss_reduced in losses_reduced_per_micro_batch]
+            logits_tensor = torch.concat(logits_tensors_list)
         else:
             # we're not on the last pipeline stage so no losses
             loss_mean = []
+            logits_tensor = []
 
-        return loss_mean
+        # FIXME: return loss_mean, token_logits
+        if return_logits:
+            return loss_mean, logits_tensor
+        else:
+            return loss_mean
 
     def validation_epoch_end(self, outputs):
         if not outputs:
