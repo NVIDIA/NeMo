@@ -53,7 +53,7 @@ class ElectronicFst(GraphFst):
             pynutil.insert(" ") + (graph_symbols | graph_digit) + pynutil.insert(" "), "", "", NEMO_SIGMA
         )
         default_chars_symbols = pynini.compose(
-            pynini.closure(pynini.closure(NEMO_NOT_SPACE)), default_chars_symbols.optimize()
+            pynini.closure(NEMO_NOT_SPACE), default_chars_symbols.optimize()
         ).optimize()
 
         user_name = (
