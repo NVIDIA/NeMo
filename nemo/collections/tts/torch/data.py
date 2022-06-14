@@ -132,8 +132,8 @@ class TTSDataset(Dataset):
             log_mel_folder (Optional[Union[Path, str]]): The folder that contains or will contain log mel spectrograms.
             align_prior_matrix_folder (Optional[Union[Path, str]]): The folder that contains or will contain align prior matrices.
             pitch_folder (Optional[Union[Path, str]]): The folder that contains or will contain pitch.
-            voiced_mask_folder (Optional[Union[Path, str]]): The folder that contains or will contain voiced mask of the pitch 
-            p_voiced_folder (Optional[Union[Path, str]]): The folder that contains or will contain p_voiced(probability) of the pitch 
+            voiced_mask_folder (Optional[Union[Path, str]]): The folder that contains or will contain voiced mask of the pitch
+            p_voiced_folder (Optional[Union[Path, str]]): The folder that contains or will contain p_voiced(probability) of the pitch
             energy_folder (Optional[Union[Path, str]]): The folder that contains or will contain energy.
             durs_file (Optional[str]): String path to pickled durations location.
             durs_type (Optional[str]): Type of durations. Currently supported only "aligner-based".
@@ -445,7 +445,8 @@ class TTSDataset(Dataset):
         # Let's keep audio name and all internal directories in rel_audio_path_as_text_id to avoid any collisions
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
         rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
-        if sample["is_phoneme"] == 1:
+        # is_phoneme may not exist in JSON files if only considering chars as inputs.
+        if "is_phoneme" in sample and sample["is_phoneme"] == 1:
             rel_audio_path_as_text_id += "_phoneme"
 
         # Load audio
