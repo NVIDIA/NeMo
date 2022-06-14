@@ -209,6 +209,55 @@ train.t5.220m_tp2_pp2_2node_100steps:
   needs:
     - build-BigNLP
 
+
+train.mt5.170m_tp1_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp1_1node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
+train.mt5.170m_tp2_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp1_1node_100steps
+  rules:
+    - when: never
+  needs:
+    - build-BigNLP
+
+train.mt5.170m_tp1_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp2_2node_100steps
+  rules:
+    - when: never
+  needs:
+    - build-BigNLP
+
+train.mt5.170m_tp2_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
+
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -383,6 +432,78 @@ eval.t5.220m_tp2_pp2:
     - when: always
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
+
+convert.mt5.170m_tp1_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp1
+  rules:
+    - when: always
+  needs:
+    - train.mt5.170m_tp1_pp1_1node_100steps
+
+convert.mt5.170m_tp2_pp2:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: convert
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp2
+  rules:
+    - when: always
+  needs:
+    - train.mt5.170m_tp2_pp2_2node_100steps
+
+finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: finetune
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp1_1node_100steps_xnli
+  rules:
+    - when: always
+  needs:
+    - convert.mt5.170m_tp1_pp1
+
+finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: finetune
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps_xnli
+  rules:
+    - when: always
+  needs:
+    - convert.mt5.170m_tp2_pp2
+
+eval.mt5.170m_tp1_pp1:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: eval
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp1_xnli
+  rules:
+    - when: always
+  needs:
+    - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
+
+eval.mt5.170m_tp2_pp2:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: eval
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp2_xnli
+  rules:
+    - when: always
+  needs:
+    - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
 
 data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER

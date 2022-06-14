@@ -41,7 +41,7 @@ class BigNLPCITest:
 
     expected = json.loads(expected_json)
 
-    def test_ci_t5_220m_train_loss_deterministic(self):
+    def test_ci_mt5_170m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
@@ -52,7 +52,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_t5_220m_train_loss_approx(self):
+    def test_ci_mt5_170m_train_loss_approx(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
@@ -63,7 +63,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_t5_220m_val_loss_deterministic(self):
+    def test_ci_mt5_170m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
@@ -74,7 +74,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_t5_220m_val_loss_approx(self):
+    def test_ci_mt5_170m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
@@ -85,7 +85,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_t5_220m_train_step_timing_1node(self):
+    def test_ci_mt5_170m_train_step_timing_1node(self):
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")

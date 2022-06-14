@@ -42,7 +42,7 @@ class BigNLPCITest:
 
     expected = json.loads(expected_json)
 
-    def test_ci_t5_220m_val_loss_deterministic(self):
+    def test_ci_mt5_170m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
@@ -53,7 +53,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_t5_220m_val_loss_approx(self):
+    def test_ci_mt5_170m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]

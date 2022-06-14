@@ -31,7 +31,7 @@ def _read_tb_logs_as_list(path, summary_name):
     raise FileNotFoundError(f"File not found matching: {path}/events*")
 
 
-class TestCIT5_220m:
+class BigNLPCITest:
 
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \

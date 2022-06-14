@@ -9,7 +9,7 @@ from tensorboard.backend.event_processing import event_accumulator
 CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
 
 def _read_tb_logs_as_list(path, summary_name):
-    """Reads a TensorBoard Events file from the input path, and returns the
+    """Reads a TensorBoard Events file from the input path, and returns the 
     summary specified as input as a list.
 
     Arguments:
@@ -19,6 +19,7 @@ def _read_tb_logs_as_list(path, summary_name):
         summary_list: list, the values in the read summary list, formatted as a list.
     """
     files = os.listdir(path)
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
     for f in files:
         if f[:6] == "events":
             event_file = os.path.join(path, f)
@@ -36,12 +37,12 @@ class BigNLPCITest:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36366, 9.19061, 8.72432, 8.32044, 7.99822, 7.69761, 7.47358, 7.2796, 7.14501, 7.03318, 6.95538, 6.89329, 6.86695, 6.81218, 6.76359, 6.73873, 6.71541, 6.70661, 6.6932, 6.65311]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.0456, 7.21521, 6.93393, 6.79707, 6.71332]}, "train_step_timing_avg": 1.1121}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36845, 9.24566, 8.75846, 8.36097, 8.03214, 7.71757, 7.52091, 7.32731, 7.17058, 7.0614, 6.953, 6.86574, 6.85068, 6.79981, 6.76557, 6.74009, 6.73121, 6.71234, 6.70114, 6.65549]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.07252, 7.2434, 6.90797, 6.81748, 6.74248]}, "train_step_timing_avg": 1.2255}
     """
 
     expected = json.loads(expected_json)
 
-    def test_ci_t5_220m_train_loss_deterministic(self):
+    def test_ci_mt5_170m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
@@ -52,7 +53,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_t5_220m_train_loss_approx(self):
+    def test_ci_mt5_170m_train_loss_approx(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
@@ -63,7 +64,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_t5_220m_val_loss_deterministic(self):
+    def test_ci_mt5_170m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
@@ -74,7 +75,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_t5_220m_val_loss_approx(self):
+    def test_ci_mt5_170m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
@@ -85,7 +86,7 @@ class BigNLPCITest:
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_t5_220m_train_step_timing_1node(self):
+    def test_ci_mt5_170m_train_step_timing_1node(self):
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
