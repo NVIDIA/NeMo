@@ -143,8 +143,7 @@ def get_tasks(task_names):
 
 
 def download_glue(data_dir="glue_data", tasks="all", path_to_mrpc=None):
-    if not os.path.isdir(data_dir):
-        os.mkdir(data_dir)
+    os.makedirs(data_dir, exist_ok=True)
     tasks = get_tasks(tasks)
 
     for task in tasks:
