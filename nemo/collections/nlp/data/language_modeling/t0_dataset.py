@@ -25,6 +25,7 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
 
     def __init__(
         self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
+        max_src_seq_length=512, max_tgt_seq_length=512
     ):
         super().__init__(
             dataset_paths=dataset_paths,
@@ -37,21 +38,30 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
         if tokenizer is None:
             raise ValueError("Tokenizer must be provided to use T0JSONLMemMapDataset, got None")
         self.tokenizer = tokenizer
+        self.max_src_seq_length = max_src_seq_length
+        self.max_tgt_seq_length = max_tgt_seq_length
 
     def _build_data_from_text(self, text):
         """Return a CSV field from text"""
         example = json.loads(text)
-        text_enc = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(example['input']) + [self.tokenizer.eos_id]
-        target = [self.tokenizer.bos_id] + self.tokenizer.text_to_ids(example['output']) + [self.tokenizer.eos_id]
+        tokenized_input = self.tokenizer.text_to_ids(example['input'])
+        tokenized_output = self.tokenizer.text_to_ids(example['output'])
+        if len(tokenized_input) > self.max_src_seq_length - 2:
+            tokenized_input = tokenized_input[:self.max_src_seq_length - 2]
+        if len(tokenized_output) > self.max_tgt_seq_length - 2:
+            tokenized_output = tokenized_output[:self.max_tgt_seq_length - 2]
+        text_enc = [self.tokenizer.bos_id] + tokenized_input  + [self.tokenizer.eos_id]
+        target = [self.tokenizer.bos_id] + tokenized_output + [self.tokenizer.eos_id]
         original = ""
         template = ""
-        for idx in example['chunked_idx']:
-            if idx[0] == "original_text":
-                original += example['input'][idx[1][0]:idx[1][1]]
-            elif idx[0] == "template":
-                template += example['input'][idx[1][0]:idx[1][1]]
+        for item in example['chunked_idx'].split(', '):
+            item = item.split('-')
+            if item[0] == "original_text":
+                original += example['input'][int(item[1]):int(item[2])]
+            elif item[0] == "template":
+                template += example['input'][int(item[1]):int(item[2])]
             else:
-                raise ValueError(f"Unknown chunk type: {idx[0]}")
+                raise ValueError(f"Unknown chunk type: {item[0]}")
 
         return {
             'text_enc': text_enc,
@@ -90,12 +100,12 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
         max_prompt_length = max([len(item) for item in prompt]) if prompt else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        enc_query = [item + [self.src_tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
-        dec_input = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
-        labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
-        original = [item + [self.tgt_tokenizer.pad_id] * (max_original_length - len(item)) for item in original]
-        template = [item + [self.tgt_tokenizer.pad_id] * (max_template_length - len(item)) for item in template]
-        prompt = [item + [self.tgt_tokenizer.pad_id] * (max_prompt_length - len(item)) for item in prompt]
+        enc_query = [item + [self.tokenizer.pad_id] * (max_enc_query_length - len(item)) for item in enc_query]
+        dec_input = [item + [self.tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in dec_input]
+        labels = [item + [self.tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+        original = [item + [self.tokenizer.pad_id] * (max_original_length - len(item)) for item in original]
+        template = [item + [self.tokenizer.pad_id] * (max_template_length - len(item)) for item in template]
+        prompt = [item + [self.tokenizer.pad_id] * (max_prompt_length - len(item)) for item in prompt]
 
         enc_query = torch.LongTensor(enc_query)
         dec_input = torch.LongTensor(dec_input)
@@ -105,8 +115,8 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
         template = torch.LongTensor(template)
         prompt = torch.LongTensor(prompt)
 
-        enc_mask = (enc_query != self.src_tokenizer.pad_id).long()
-        dec_mask = (dec_input != self.tgt_tokenizer.pad_id).long()
+        enc_mask = (enc_query != self.tokenizer.pad_id).long()
+        dec_mask = (dec_input != self.tokenizer.pad_id).long()
 
         return {
             'text_enc': enc_query,
