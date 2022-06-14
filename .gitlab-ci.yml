@@ -346,7 +346,7 @@ eval.t5.220m_tp1_pp1:
   rules:
     - when: always
   needs:
-    - finetune.t5.220m_tp1_pp1
+    - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
 data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
