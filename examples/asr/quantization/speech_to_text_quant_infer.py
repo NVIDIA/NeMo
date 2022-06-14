@@ -23,7 +23,7 @@ from pprint import pprint
 import torch
 from omegaconf import open_dict
 
-from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, CTCCharDecodingConfig, word_error_rate
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
 from nemo.utils import logging
 
@@ -113,8 +113,8 @@ def main():
                         module.disable()
 
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
-    decoding_cfg = CTCCharDecodingConfig()
-    char_decoding = CTCCharDecoding(decoding_cfg, vocabulary=labels_map)
+    decoding_cfg = CTCDecodingConfig()
+    char_decoding = CTCDecoding(decoding_cfg, vocabulary=labels_map)
     wer = WER(char_decoding, use_cer=args.use_cer)
     wer_quant = evaluate(asr_model, labels_map, wer)
     logging.info(f'Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}')

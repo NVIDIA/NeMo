@@ -25,7 +25,7 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
-from nemo.collections.asr.metrics.wer import CTCCharDecodingConfig
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
@@ -94,7 +94,7 @@ class TranscriptionConfig:
     overwrite_transcripts: bool = True
 
     # Decoding strategy for CTC models
-    ctc_decoding: CTCCharDecodingConfig = CTCCharDecodingConfig()
+    ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)

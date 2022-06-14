@@ -24,7 +24,7 @@ import torch
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTWER
 from nemo.collections.asr.metrics.rnnt_wer_bpe import RNNTBPEWER
-from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, CTCCharDecodingConfig, word_error_rate
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig, word_error_rate
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
@@ -145,7 +145,7 @@ class TestWordErrorRate:
             decoding = CTCBPEDecoding(decoding_config, self.char_tokenizer)
             wer = WERBPE(decoding, use_cer=False)
         else:
-            decoding = CTCCharDecoding(decoding_config, self.vocabulary.copy())
+            decoding = CTCDecoding(decoding_config, self.vocabulary.copy())
             wer = WER(decoding, use_cer=False)
 
         tokens = self.__string_to_ctc_tensor('cat', use_tokenizer=test_wer_bpe)[0].int().numpy().tolist()
@@ -162,7 +162,7 @@ class TestWordErrorRate:
     @pytest.mark.parametrize("test_wer_bpe", [False, True])
     def test_wer_metric_return_hypothesis(self, batch_dim_index, test_wer_bpe):
         decoding_config = {'strategy': 'greedy', 'batch_dim_index': batch_dim_index}
-        wer = WER(CTCCharDecoding(decoding_config, self.vocabulary), use_cer=False)
+        wer = WER(CTCDecoding(decoding_config, self.vocabulary), use_cer=False)
 
         tensor = self.__string_to_ctc_tensor('cat', test_wer_bpe, as_logprobs=True).int()
         if batch_dim_index > 0:
@@ -329,8 +329,8 @@ class TestWordErrorRate:
         decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
         decoder_lens[torch.randint(0, B, [1])[0]] = T
 
-        decoding_cfg = CTCCharDecodingConfig()
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+        decoding_cfg = CTCDecodingConfig()
+        decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
         hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
@@ -341,8 +341,8 @@ class TestWordErrorRate:
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
-        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=True, compute_timestamps=True)
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+        decoding_cfg = CTCDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
         hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
@@ -391,8 +391,8 @@ class TestWordErrorRate:
         decoder_lens = torch.randint(0, T, size=[B], dtype=torch.int32)
         decoder_lens[torch.randint(0, B, [1])[0]] = T
 
-        decoding_cfg = CTCCharDecodingConfig()
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+        decoding_cfg = CTCDecodingConfig()
+        decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
         hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis
@@ -403,16 +403,16 @@ class TestWordErrorRate:
         assert hyp.alignments is None
 
         # Preserve timestamps and alignments
-        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=True, compute_timestamps=True)
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+        decoding_cfg = CTCDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
         # Cannot compute alignments from labels
         with pytest.raises(ValueError):
             hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
 
         # Preserve timestamps
-        decoding_cfg = CTCCharDecodingConfig(preserve_alignments=False, compute_timestamps=True)
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=self.vocabulary)
+        decoding_cfg = CTCDecodingConfig(preserve_alignments=False, compute_timestamps=True)
+        decoding = CTCDecoding(decoding_cfg, vocabulary=self.vocabulary)
 
         hyp, _ = decoding.ctc_decoder_predictions_tensor(decoder_outputs, decoder_lens, return_hypotheses=True)
         hyp = hyp[0]  # type: Hypothesis

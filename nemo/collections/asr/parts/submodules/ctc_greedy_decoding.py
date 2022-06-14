@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,24 +53,19 @@ def _states_to_device(dec_state, device='cpu'):
 
 
 class GreedyCTCInfer(Typing):
-    """A greedy transducer decoder.
+    """A greedy CTC decoder.
 
     Provides a common abstraction for sample level and batch level greedy decoding.
 
     Args:
-        decoder_model: rnnt_utils.AbstractRNNTDecoder implementation.
-        joint_model: rnnt_utils.AbstractRNNTJoint implementation.
         blank_index: int index of the blank token. Can be 0 or len(vocabulary).
-        max_symbols_per_step: Optional int. The maximum number of symbols that can be added
-            to a sequence in a single time step; if set to None then there is
-            no limit.
-        preserve_alignments: Bool flag which preserves the history of alignments generated during
-            greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
+        preserve_alignments: Bool flag which preserves the history of logprobs generated during
+            decoding (sample / batched). When set to true, the Hypothesis will contain
+            the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
+        compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
+                word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
+                The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
 
-            The length of the list corresponds to the Acoustic Length (T).
-            Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
-            U is the number of target tokens for the current timestep Ti.
     """
 
     @property
@@ -108,7 +103,7 @@ class GreedyCTCInfer(Typing):
         Output token is generated auto-repressively.
 
         Args:
-            decoder_output: A tensor of size (batch, timesteps, features).
+            decoder_output: A tensor of size (batch, timesteps, features) or (batch, timesteps) (each timestep is a label).
             decoder_lengths: list of int representing the length of each sequence
                 output sequence.
 

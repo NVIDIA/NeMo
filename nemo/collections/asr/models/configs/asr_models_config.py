@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from omegaconf import MISSING
 
 import nemo.core.classes.dataset
-from nemo.collections.asr.metrics.wer import CTCCharDecodingConfig
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     SpectrogramAugmentationConfig,
@@ -84,7 +84,7 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     encoder: ConvASREncoderConfig = ConvASREncoderConfig()
     decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
-    decoding: CTCCharDecodingConfig = CTCCharDecodingConfig()
+    decoding: CTCDecodingConfig = CTCDecodingConfig()
 
 
 @dataclass

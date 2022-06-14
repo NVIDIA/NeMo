@@ -19,7 +19,7 @@ import editdistance
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.metrics.wer import AbstractCTCDecoding, CTCCharDecodingConfig
+from nemo.collections.asr.metrics.wer import AbstractCTCDecoding, CTCDecodingConfig
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -169,7 +169,6 @@ class WERBPE(Metric):
         scores = 0.0
         references = []
         with torch.no_grad():
-            # prediction_cpu_tensor = tensors[0].long().cpu()
             targets_cpu_tensor = targets.long().cpu()
             tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
@@ -211,5 +210,5 @@ class WERBPE(Metric):
 
 
 @dataclass
-class CTCBPEDecodingConfig(CTCCharDecodingConfig):
+class CTCBPEDecodingConfig(CTCDecodingConfig):
     pass

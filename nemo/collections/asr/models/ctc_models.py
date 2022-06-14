@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, CTCCharDecodingConfig
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -85,11 +85,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         # In case decoding config not found, use default config
         if decoding_cfg is None:
-            decoding_cfg = OmegaConf.structured(CTCCharDecodingConfig)
+            decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
             with open_dict(self.cfg):
                 self.cfg.decoding = decoding_cfg
 
-        self.decoding = CTCCharDecoding(self.cfg.decoding, vocabulary=self.decoder.vocabulary)
+        self.decoding = CTCDecoding(self.cfg.decoding, vocabulary=self.decoder.vocabulary)
 
         # Setup metric with decoding strategy
         self._wer = WER(
@@ -263,11 +263,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 decoding_cfg = self.cfg.decoding
 
             # Assert the decoding config with all hyper parameters
-            decoding_cls = OmegaConf.structured(CTCCharDecodingConfig)
+            decoding_cls = OmegaConf.structured(CTCDecodingConfig)
             decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
             decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-            self.decoding = CTCCharDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
+            self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
 
             self._wer = WER(
                 decoding=self.decoding,
@@ -305,11 +305,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             decoding_cfg = self.cfg.decoding
 
         # Assert the decoding config with all hyper parameters
-        decoding_cls = OmegaConf.structured(CTCCharDecodingConfig)
+        decoding_cls = OmegaConf.structured(CTCDecodingConfig)
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCCharDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
+        self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
 
         self._wer = WER(
             decoding=self.decoding,

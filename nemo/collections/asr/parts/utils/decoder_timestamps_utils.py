@@ -23,7 +23,7 @@ import torch
 from omegaconf import OmegaConf
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import WER, CTCCharDecoding, CTCCharDecodingConfig
+from nemo.collections.asr.metrics.wer import WER, CTCDecoding, CTCDecodingConfig
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import EncDecCTCModel, EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
@@ -161,8 +161,8 @@ class WER_TS(WER):
         if ctc_decode is not None:
             logging.warning(f'`ctc_decode` was set to {ctc_decode}. Note that this is ignored.')
 
-        decoding_cfg = CTCCharDecodingConfig(batch_dim_index=batch_dim_index)
-        decoding = CTCCharDecoding(decoding_cfg, vocabulary=vocabulary)
+        decoding_cfg = CTCDecodingConfig(batch_dim_index=batch_dim_index)
+        decoding = CTCDecoding(decoding_cfg, vocabulary=vocabulary)
         super().__init__(decoding, use_cer, log_prediction, dist_sync_on_step)
 
     def decode_tokens_to_str_with_ts(self, tokens: List[int], timestamps: List[int]) -> str:

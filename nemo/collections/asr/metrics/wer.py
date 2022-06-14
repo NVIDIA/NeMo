@@ -22,7 +22,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.submodules import ctc_greed_decoding
+from nemo.collections.asr.parts.submodules import ctc_greedy_decoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
@@ -595,7 +595,7 @@ class AbstractCTCDecoding(ABC):
             self.decoding.compute_timestamps = value
 
 
-class CTCCharDecoding(AbstractCTCDecoding):
+class CTCDecoding(AbstractCTCDecoding):
     """
     Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs.
 
@@ -691,7 +691,7 @@ class WER(Metric):
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        decoding: An instance of CTCCharDecoding.
+        decoding: An instance of CTCDecoding.
         use_cer: Whether to use Character Error Rate instead of Word Error Rate.
         log_prediction: Whether to log a single decoded sample per call.
         fold_consecutive: Whether repeated consecutive characters should be folded into one when decoding.
@@ -705,7 +705,7 @@ class WER(Metric):
 
     def __init__(
         self,
-        decoding: CTCCharDecoding,
+        decoding: CTCDecoding,
         use_cer=False,
         log_prediction=True,
         fold_consecutive=True,
@@ -784,7 +784,7 @@ class WER(Metric):
 
 
 @dataclass
-class CTCCharDecodingConfig:
+class CTCDecodingConfig:
     strategy: str = "greedy"
 
     # preserve decoding alignments
