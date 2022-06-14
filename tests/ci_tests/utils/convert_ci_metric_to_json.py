@@ -19,6 +19,7 @@ def _read_tb_logs_as_list(path, summary_name):
         summary_list: list, the values in the read summary list, formatted as a list.
     """
     files = os.listdir(path)
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
     for f in files:
         if f[:6] == "events":
             event_file = os.path.join(path, f)
@@ -67,6 +68,6 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     pytest_file = args[0]
 
-    if RUN_TASK == "train":
+    if RUN_TASK == "train" or RUN_TASK == "finetune":
         collect_train_test_metrics(pytest_file)
 
