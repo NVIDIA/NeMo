@@ -59,7 +59,4 @@ def get_layer_norm(hidden_size, eps=1e-5, persist_layer_norm=False, sequence_par
     if persist_layer_norm:
         return FastLayerNorm(hidden_size, eps, sequence_parallel_enabled=sequence_parallel)
     else:
-        # TODO: Update when MixedFusedLayerNorm has sequence parallel
-        if sequence_parallel:
-            raise ValueError(f'MixedFusedLayerNorm does not support sequence parallel yet.')
-        return MixedFusedLayerNorm(hidden_size, eps)
+        return MixedFusedLayerNorm(hidden_size, eps, sequence_parallel_enbaled=sequence_parallel)
