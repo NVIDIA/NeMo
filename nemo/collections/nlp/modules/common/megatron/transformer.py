@@ -571,14 +571,7 @@ class ParallelAttention(MegatronModule):
         self.inference_current_sequence_len = 0
 
     def _checkpointed_attention_forward(
-        self,
-        query_layer,
-        key_layer,
-        value_layer,
-        attention_mask,
-        layer_past=None,
-        get_key_value=False,
-        rotary_pos_emb=None,
+        self, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=None,
     ):
         """Forward method with activation checkpointing."""
 
@@ -587,24 +580,14 @@ class ParallelAttention(MegatronModule):
             key_layer = inputs[1]
             value_layer = inputs[2]
             attention_mask = inputs[3]
-            layer_past = inputs[4]
-            get_key_value = inputs[5]
-            rotary_pos_emb = inputs[6]
+            rotary_pos_emb = inputs[4]
             output_ = self.core_attention(
-                query_layer, key_layer, value_layer, attention_mask, layer_past, get_key_value, rotary_pos_emb
+                query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=rotary_pos_emb
             )
             return output_
 
         hidden_states = tensor_parallel.checkpoint(
-            custom_forward,
-            False,
-            query_layer,
-            key_layer,
-            value_layer,
-            attention_mask,
-            layer_past,
-            get_key_value,
-            rotary_pos_emb,
+            custom_forward, False, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb,
         )
 
         return hidden_states
@@ -1440,7 +1423,7 @@ class ParallelTransformer(MegatronModule):
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
-        activations_checkpoint_num_layers=1,
+        activations_checkpoint_num_layers=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         attention_dropout=0.1,
@@ -1483,6 +1466,16 @@ class ParallelTransformer(MegatronModule):
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
         self.activations_checkpoint_granularity = activations_checkpoint_granularity
+
+        if self.activations_checkpoint_granularity == 'selective':
+            if self.activations_checkpoint_num_layers:
+                raise ValueError(
+                    f'When using selective activation checkpointing, activations_checkpoint_num_layers should be None, got: {activations_checkpoint_num_layers}.'
+                )
+            if self.activations_checkpoint_method:
+                raise ValueError(
+                    f'When using selective activation checkpointing, activations_checkpoint_method should be None, got: {activations_checkpoint_method}.'
+                )
 
         self.sequence_parallel = sequence_parallel
 
