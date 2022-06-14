@@ -17,5 +17,5 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     evaluation.run.time_limit="01:00:00" \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME}
-    evaluation.trainer.num_nodes=2 \
+    evaluation.trainer.num_nodes=1 \
     evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/finetune_mt5_170m_tp2_pp2_2node_100steps_xnli//checkpoints/megatron_mt5_glue.nemo
