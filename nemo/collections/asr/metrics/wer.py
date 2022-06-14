@@ -146,7 +146,7 @@ class AbstractCTCDecoding(ABC):
 
         if self.cfg.strategy == 'greedy':
 
-            self.decoding = ctc_greed_decoding.GreedyCTCInfer(
+            self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
@@ -803,4 +803,4 @@ class CTCDecodingConfig:
     batch_dim_index: int = 0
 
     # greedy decoding config
-    greedy: ctc_greed_decoding.GreedyCTCInferConfig = ctc_greed_decoding.GreedyCTCInferConfig()
+    greedy: ctc_greedy_decoding.GreedyCTCInferConfig = ctc_greedy_decoding.GreedyCTCInferConfig()
