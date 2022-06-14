@@ -36,7 +36,7 @@ class TestCIGPT126m:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.91023, 10.49807, 9.62441, 9.34874, 8.89447, 8.95262, 8.70716, 8.77551, 8.38192, 8.22377, 7.99192, 7.90317, 7.78476, 7.56464, 7.35754, 7.09516, 7.15859, 6.97351, 6.87657, 6.79425]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.39118, 7.86789, 7.2175, 6.63938, 6.27206]}, "train_step_timing_avg": 1.123}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.97474, 10.97966, 8.78325, 8.48606, 8.13862, 7.85989, 7.49757, 7.34197, 7.26638, 7.09987, 7.08806, 7.01522, 6.89119, 6.79677, 6.73926, 6.67618, 6.5939, 6.59451, 6.44101, 6.49338]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [7.71267, 6.89292, 6.75304, 6.32423, 6.15601]}, "train_step_timing_avg": 86.197}
     """
     expected = json.loads(expected_json)
 
@@ -88,7 +88,7 @@ class TestCIGPT126m:
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
-        train_time_list = train_time_list[len(train_time_list)//2:] # Discard the first half.
+        train_time_list = train_time_list[len(train_time_list)//2:] # Discard the first half..
         train_time_avg = sum(train_time_list) / len(train_time_list)
 
         assert train_time_list is not None, f"No TensorBoard events file was found in the logs."

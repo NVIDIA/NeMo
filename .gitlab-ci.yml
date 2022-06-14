@@ -161,6 +161,78 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
   needs:
     - build-BigNLP
 
+train.gpt3.126m_tp4_pp4_4node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp4_pp4_4node_100steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+train.gpt3.5b_tp2_pp1_1node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 5b_tp2_pp1_1node_100steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+train.gpt3.5b_tp2_pp2_2node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 5b_tp2_pp2_2node_100steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+train.gpt3.20b_tp8_pp2_4node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 20b_tp8_pp2_4node_100steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+train.gpt3.40b_tp8_pp4_8node_100steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 40b_tp8_pp4_8node_100steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
+train.gpt3.175b_tp8_pp16_16node_50steps:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 175b_tp8_pp16_16node_50steps
+  rules:
+    - when: manual
+  needs:
+    - build-BigNLP
+
 train.t5.220m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:

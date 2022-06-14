@@ -36,9 +36,10 @@ class TestCIGPT126m:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.91023, 10.49807, 9.62441, 9.34874, 8.89447, 8.95262, 8.70716, 8.77551, 8.38192, 8.22377, 7.99192, 7.90317, 7.78476, 7.56464, 7.35754, 7.09516, 7.15859, 6.97351, 6.87657, 6.79425]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.39118, 7.86789, 7.2175, 6.63938, 6.27206]}, "train_step_timing_avg": 1.123}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [11.00856, 9.56375, 8.85229, 8.35385, 8.09578, 7.8573, 7.48822, 7.28558, 7.17166, 6.95299, 6.91875, 6.76102, 6.55948, 6.47021, 6.3746, 6.35505, 6.24371, 6.20861, 6.06297, 5.98884]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [7.60505, 6.77434, 6.35565, 6.01441, 5.70634]}, "train_step_timing_avg": 39.689}
     """
     expected = json.loads(expected_json)
+
 
     def test_ci_gpt3_126m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.

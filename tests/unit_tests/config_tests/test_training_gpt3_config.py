@@ -450,10 +450,10 @@ class TestTrainingGPT3Config:
 
         model:
           # model parallelism
-          micro_batch_size: 2
+          micro_batch_size: 4
           global_batch_size: 1440
           tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 1
+          pipeline_model_parallel_size: 2
           resume_from_checkpoint: null # manually set the checkpoint file to load from
 
           # model architecture

@@ -36,7 +36,7 @@ class TestCIGPT126m:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.91023, 10.49807, 9.62441, 9.34874, 8.89447, 8.95262, 8.70716, 8.77551, 8.38192, 8.22377, 7.99192, 7.90317, 7.78476, 7.56464, 7.35754, 7.09516, 7.15859, 6.97351, 6.87657, 6.79425]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.39118, 7.86789, 7.2175, 6.63938, 6.27206]}, "train_step_timing_avg": 1.123}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [11.01242, 9.50525, 8.83931, 8.48559, 8.11373, 7.88382, 7.55047, 7.32658, 7.17961, 6.95088, 6.92157, 6.81414, 6.60584, 6.50031, 6.39601, 6.32255, 6.26703, 6.2137, 6.11517, 6.03452]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [7.65106, 6.79359, 6.39777, 6.05745, 5.69842]}, "train_step_timing_avg": 74.37}
     """
     expected = json.loads(expected_json)
 
@@ -93,3 +93,4 @@ class TestCIGPT126m:
 
         assert train_time_list is not None, f"No TensorBoard events file was found in the logs."
         assert train_time_avg == pytest.approx(expected=expected_avg, rel=self.margin_time), f"The time per global step must be approximately {expected_avg} but it is {train_time_avg}."
+
