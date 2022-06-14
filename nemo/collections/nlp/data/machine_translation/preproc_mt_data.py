@@ -454,7 +454,7 @@ class MTDataPreproc:
                 assert num_src_lines == num_tgt_lines, 'Number of source lines should equal number of target lines.'
 
                 single_fragment = False
-                if retrieval_indices_fname[0] is not None:
+                if retrieval_indices_fname is not None:
                     single_fragment = True
 
                 # create a partition of lines that we can parallelize over
