@@ -24,15 +24,20 @@ from nemo.utils.app_state import AppState
 
 
 class BlendableDataset(torch.utils.data.Dataset):
-    def __init__(self, datasets, weights):
+    def __init__(self, datasets, weights, size):
 
         self.datasets = datasets
         num_datasets = len(datasets)
         assert num_datasets == len(weights)
 
-        self.size = 0
-        for dataset in self.datasets:
-            self.size += len(dataset)
+        self.size = size
+        total_dataset_size = sum([len(dataset) for dataset in self.datasets])
+        if self.size < total_dataset_size:
+            raise ValueError(
+                "Dataset size is smaller than the sum of all dataset sizes. "
+                "This is not allowed. Please make sure that the dataset sizes "
+                f"are equal or smaller than the total dataset size. Dataset size: {total_dataset_size}"
+            )
 
         # Normalize weights.
         weights = np.array(weights, dtype=np.float64)

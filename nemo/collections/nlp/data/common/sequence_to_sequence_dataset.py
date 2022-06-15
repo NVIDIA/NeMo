@@ -20,6 +20,7 @@ import torch
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_indexed_dataset_
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -126,8 +127,8 @@ class SequenceToSequenceDataset(Dataset):
         }
 
 
-class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
-    """Sequence to Sequence Dataset in memory."""
+class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
+    """Abstract class for TextMemmapSequenceToSequenceDataset and BinarizedMemmapSequenceToSequenceDataset."""
 
     def __init__(
         self,
@@ -137,6 +138,9 @@ class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
         tgt_tokenizer: TokenizerSpec,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
+        seed: int = 1234,
+        max_num_samples=None
+
     ):
         super().__init__(
             src_file_name=src_file_name,
@@ -146,60 +150,110 @@ class TextMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
             max_src_seq_length=max_src_seq_length,
             max_tgt_seq_length=max_tgt_seq_length,
         )
+        self.seed = seed
+        self.max_num_samples = max_num_samples
 
     def __len__(self):
-        return len(self.src_dataset)
-
+        if self.max_num_samples is None:
+            return len(self.src_indexed_dataset)
+        else:
+            return self.max_num_samples
+        
     def __getitem__(self, idx):
-        src = self.src_dataset[idx]
+        if isinstance(idx, np.int64):
+            idx = idx.item()
+
+        if self.samples_mapping is not None:
+            assert idx < len(self.samples_mapping)
+            idx, _, _ = self.samples_mapping[idx]
+
+        assert idx < len(self.src_indexed_dataset)
+        src = self.src_indexed_dataset[idx]
         if len(src) > self.max_src_seq_length - 2:
             src = src[: self.max_src_seq_length - 2]
+        text_enc = np.concatenate([[self.src_tokenizer.bos_id], src, [self.src_tokenizer.eos_id]])
 
-        src = [self.src_tokenizer.bos_id] + src + [self.src_tokenizer.eos_id]
-        tgt = self.tgt_dataset[idx]
+        tgt = self.tgt_indexed_dataset[idx]
+        if len(tgt) > self.max_tgt_seq_length - 2:
+            tgt = tgt[: self.max_tgt_seq_length - 2]
 
-        if len(tgt) > self.max_tgt_seq_length - 1:
-            tgt = tgt[: self.max_tgt_seq_length - 1]
+        text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
+        labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
 
-        text_enc = src
-        text_dec = [self.tgt_tokenizer.bos_id] + tgt
-        labels = tgt + [self.tgt_tokenizer.eos_id]
         return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        
+    def _build_samples_mapping(self):
+        if self.max_num_samples is not None:
+            # TODO: This means max src and max tgt sequence length need to be the same
+            if self.max_src_seq_length != self.max_tgt_seq_length:
+                raise ValueError(f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now.")
+            self.samples_mapping = get_samples_mapping(
+                indexed_dataset=self.src_indexed_dataset,
+                data_prefix=self.src_file_name,
+                num_epochs=None,
+                max_num_samples=self.max_num_samples,
+                max_seq_length=self.max_src_seq_length - 2,
+                short_seq_prob=0,
+                seed=self.seed,
+                name=self.src_file_name.split('/')[-1],
+                binary_head=False
+            )
+        else:
+            self.samples_mapping = None
 
-    def _get_examples(self):
-        self.src_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
-        self.tgt_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
-        assert len(self.src_dataset) == len(self.tgt_dataset), "src and tgt has different number of lines"
 
-
-class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
-    """Sequence to Sequence Dataset based on Megatron Dataset Utils."""
+class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
+    """Memory-mapped text sequence to sequence dataset. Operates on raw text files and tokenizes the text on-the-fly."""
 
     def __init__(
         self,
-        src_dataset_prefix,
-        tgt_dataset_prefix,
-        src_tokenizer,
-        tgt_tokenizer,
-        max_src_seq_length,
-        max_tgt_seq_length,
-        start_index=0,
-        end_index=None,
-        data_impl='mmap',
-        skip_warmup=True,
-        seed=1337,
+        src_file_name: str,
+        tgt_file_name: str,
+        src_tokenizer: TokenizerSpec,
+        tgt_tokenizer: TokenizerSpec,
+        max_src_seq_length: int,
+        max_tgt_seq_length: int,
+        seed: int = 1234,
+        max_num_samples: int = None
+    ):
+        self.seed = seed
+        self.max_num_samples = max_num_samples
+        super().__init__(
+            src_file_name=src_file_name,
+            tgt_file_name=tgt_file_name,
+            src_tokenizer=src_tokenizer,
+            tgt_tokenizer=tgt_tokenizer,
+            max_src_seq_length=max_src_seq_length,
+            max_tgt_seq_length=max_tgt_seq_length,
+            seed=seed,
+            max_num_samples=max_num_samples,
+        )
+
+    def _get_examples(self):
+        self.src_indexed_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
+        self.tgt_indexed_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
+        assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset), "src and tgt has different number of lines"
+        self._build_samples_mapping()
+
+
+class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
+    """Memory-mapped text sequence to sequence dataset. Operates pre-tokenized binarized data files."""
+
+    def __init__(
+        self,
+        src_dataset_prefix: str,
+        tgt_dataset_prefix: str,
+        src_tokenizer: TokenizerSpec,
+        tgt_tokenizer: TokenizerSpec,
+        max_src_seq_length: int,
+        max_tgt_seq_length: int,
+        seed: int = 1234,
+        max_num_samples: int = None
     ):
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
-        self.src_tokenizer = src_tokenizer
-        self.tgt_tokenizer = tgt_tokenizer
-        self.data_impl = data_impl
-        self.skip_warmup = skip_warmup
-        self.start_index = start_index
-        self.end_index = end_index
-        self.max_src_seq_length = max_src_seq_length
-        self.max_tgt_seq_length = max_tgt_seq_length
         self.seed = seed
+        self.max_num_samples = max_num_samples
         super().__init__(
             src_file_name=src_dataset_prefix,
             tgt_file_name=tgt_dataset_prefix,
@@ -207,15 +261,12 @@ class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
             tgt_tokenizer=tgt_tokenizer,
             max_src_seq_length=max_src_seq_length,
             max_tgt_seq_length=max_tgt_seq_length,
+            seed=seed,
+            max_num_samples=max_num_samples,
         )
-        self._dataset_length = lambda dataset: dataset.sizes.shape[0]
-        if not end_index:
-            self.end_index = self._dataset_length(self.src_indexed_dataset) - 1
-        self._print_stats('Source Dataset', self.start_index, self.end_index)
-        self._print_stats('Target Dataset', self.start_index, self.end_index)
-
-    def __len__(self):
-        self.end_index - self.start_index
+        logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
+        logging.info(f'Target Dataset Length : {len(self.tgt_indexed_dataset)}')
+        logging.info(f'Desired number of samples : {self.max_num_samples}')
 
     def _check_files_exist(self):
         if not os.path.exists(self.src_dataset_prefix + ".bin") or not os.path.exists(
@@ -228,38 +279,11 @@ class BinarizedMemmapSequenceToSequenceDataset(SequenceToSequenceDataset):
             raise FileNotFoundError(f"{self.tgt_dataset_prefix}.bin or {self.tgt_dataset_prefix}.idx not found")
 
     def _get_examples(self):
-        self.src_indexed_dataset = self._get_indexed_dataset(self.src_dataset_prefix, self.data_impl, self.skip_warmup)
-        self.tgt_indexed_dataset = self._get_indexed_dataset(self.tgt_dataset_prefix, self.data_impl, self.skip_warmup)
+        self.src_indexed_dataset = self._get_indexed_dataset(self.src_dataset_prefix, data_impl='mmap', skip_warmup=True)
+        self.tgt_indexed_dataset = self._get_indexed_dataset(self.tgt_dataset_prefix, data_impl='mmap', skip_warmup=True)
         assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset)
+        self._build_samples_mapping()
 
     def _get_indexed_dataset(self, data_prefix, data_impl, skip_warmup):
         indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
         return indexed_dataset
-
-    def _print_stats(self, name, start, end):
-        logging.info('    {}:'.format(name))
-        logging.info('     sentence indices in [{}, {}) total of {} ' 'sentences'.format(start, end, end - start))
-
-    def __len__(self):
-        return self.end_index - self.start_index
-
-    def __getitem__(self, idx):
-        if isinstance(idx, np.int64):
-            idx = idx.item()
-
-        local_idx = idx + self.start_index
-        assert local_idx < self.end_index
-
-        src = self.src_indexed_dataset[local_idx]
-        if len(src) > self.max_src_seq_length - 2:
-            src = src[: self.max_src_seq_length - 2]
-        text_enc = np.concatenate([[self.src_tokenizer.bos_id], src, [self.src_tokenizer.eos_id]])
-
-        tgt = self.tgt_indexed_dataset[local_idx]
-        if len(tgt) > self.max_tgt_seq_length - 2:
-            tgt = tgt[: self.max_tgt_seq_length - 2]
-
-        text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
-        labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
-
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
