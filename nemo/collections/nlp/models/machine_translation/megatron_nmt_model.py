@@ -28,10 +28,7 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     TextMemmapSequenceToSequenceDataset,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
@@ -162,8 +159,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             ) = MTEncDecModel.setup_multilingual_ids_and_processors(
                 src_language=self.src_language,
                 tgt_language=self.tgt_language,
-                tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
-                tokenizer_library=self.encoder_tokenizer_library,
+                encoder_tokenizer=self.encoder_tokenizer,  # Multilingual training requires shared tokenizers.
+                encoder_tokenizer_library=self.encoder_tokenizer_library,
+                decoder_tokenizer_library=self.decoder_tokenizer_library,
             )
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
