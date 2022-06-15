@@ -285,12 +285,6 @@ class CoreAttention(MegatronModule):
         kv_channels=None,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        position_embedding_type='learned_absolute',
-        relative_attention_num_buckets=32,
-        relative_attention_max_distance=128,
-        layer_type=None,
-        megatron_legacy=False,
-        bias=True,
         headscale=False,
         sequence_parallel=False,
     ):
@@ -492,6 +486,10 @@ class ParallelAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        position_embedding_type='learned_absolute',
+        relative_attention_num_buckets=32,
+        relative_attention_max_distance=128,
+        layer_type=None,
         megatron_legacy=False,
         bias=True,
         headscale=False,
@@ -943,10 +941,6 @@ class ParallelAttention(MegatronModule):
         # zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
         # attention_probs = attention_probs * zero_attention_mask
 
-        # This is actually dropping out entire tokens to attend to, which might
-        # seem a bit unusual, but is taken from the original Transformer paper.
-        with tensor_parallel.random.get_cuda_rng_tracker().fork():
-            attention_probs = self.attention_dropout(attention_probs)
         # # This is actually dropping out entire tokens to attend to, which might
         # # seem a bit unusual, but is taken from the original Transformer paper.
         # with tensor_parallel.random.get_cuda_rng_tracker().fork():
@@ -1317,7 +1311,7 @@ class ParallelTransformerLayer_(MegatronModule):
         if self.layer_type == LayerType.retrieval_decoder_after_self_attn and self.transformer_block_type == 'post_ln':
             # Layernorm on the attention output
             if normalization == 'layernorm':
-                self.post_attention_normformer_norm = get_layer_norm(
+                self.post_attention_layernorm = get_layer_norm(
                     hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
                 )
             else:
