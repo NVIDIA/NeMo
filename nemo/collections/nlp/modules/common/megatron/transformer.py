@@ -1462,7 +1462,6 @@ class ParallelTransformer(MegatronModule):
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
 
-        # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
         self.activations_checkpoint_granularity = activations_checkpoint_granularity
@@ -1485,6 +1484,10 @@ class ParallelTransformer(MegatronModule):
                             f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
                         )
                     )
+            else:
+                raise ValueError(
+                    f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
+                )
         else:
             raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
