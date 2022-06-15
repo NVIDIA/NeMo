@@ -1466,30 +1466,31 @@ class ParallelTransformer(MegatronModule):
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
         self.activations_checkpoint_granularity = activations_checkpoint_granularity
 
-        if self.activations_checkpoint_granularity == 'selective':
-            if self.activations_checkpoint_num_layers:
-                raise ValueError(
-                    f'When using selective activation checkpointing, activations_checkpoint_num_layers should be None, got: {activations_checkpoint_num_layers}.'
-                )
-            if self.activations_checkpoint_method:
-                raise ValueError(
-                    f'When using selective activation checkpointing, activations_checkpoint_method should be None, got: {activations_checkpoint_method}.'
-                )
-        elif self.activations_checkpoint_method == 'full':
-            if self.activations_checkpoint_method in ['uniform', 'block']:
-                if not self.activations_checkpoint_num_layers:
-                    logging.info(
-                        (
-                            f'Using uniform or block activation checkpointing requires activations_checkpoint_num_layers to be set.'
-                            f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+        if self.activations_checkpoint_granularity:
+            if self.activations_checkpoint_granularity == 'selective':
+                if self.activations_checkpoint_num_layers:
+                    raise ValueError(
+                        f'When using selective activation checkpointing, activations_checkpoint_num_layers should be None, got: {activations_checkpoint_num_layers}.'
+                    )
+                if self.activations_checkpoint_method:
+                    raise ValueError(
+                        f'When using selective activation checkpointing, activations_checkpoint_method should be None, got: {activations_checkpoint_method}.'
+                    )
+            elif self.activations_checkpoint_granularity == 'full':
+                if self.activations_checkpoint_method in ['uniform', 'block']:
+                    if not self.activations_checkpoint_num_layers:
+                        logging.info(
+                            (
+                                f'Using uniform or block activation checkpointing requires activations_checkpoint_num_layers to be set.'
+                                f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+                            )
                         )
+                else:
+                    raise ValueError(
+                        f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
                     )
             else:
-                raise ValueError(
-                    f'activations_checkpoint_method should be "uniform" or "block" when using granularity full.'
-                )
-        else:
-            raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
+                raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
         self.sequence_parallel = sequence_parallel
 
