@@ -533,6 +533,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return fwd_output_only_func
 
 
+    # FIXME: remove me if not needed
     def get_forward_logits_func(self):
         def fwd_output_only_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
@@ -567,9 +568,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
+        encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
+        batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
+        arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+
+        forward_step_func = self.get_forward_output_only_func_decode(arg_names=arg_names)
+
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_logits_func(),
+                # forward_step_func=self.get_forward_logits_func(),
+                forward_step_func=forward_step_func,
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
                 forward_only=True,
@@ -580,7 +588,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
         else:
             output_tensor = forward_backward_no_pipelining(
-                forward_step_func=self.get_forward_logits_func(),
+                # forward_step_func=self.get_forward_logits_func(),
+                forward_step_func=forward_step_func,
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
                 forward_only=True,
