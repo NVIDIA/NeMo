@@ -250,6 +250,8 @@ class RegExTokenizer(TokenizerSpec):
         else:
             raise RuntimeError(f"Missing regex_file = {regex_file}")
 
+        self._update_cache()
+
         return self
 
     def build_vocab_from_csv(self, data_csv_file, col="smiles"):
