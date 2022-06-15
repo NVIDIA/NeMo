@@ -898,7 +898,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         # filter invalid tokens from the predicted tokens
-        predicted_tokens_dec[predicted_tokens_dec >= tokenizer.original_vocab_size] = tokenizer.unk_id
+        predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
 
         return predicted_tokens_dec, log_probs
 
