@@ -1254,8 +1254,8 @@ class ParallelTransformerLayer_(MegatronModule):
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
 
-            if attention_bias is not None:
-                attention_bias = attention_bias.expand_as(residual)
+            #if attention_bias is not None:
+            #    attention_bias = attention_bias.expand_as(residual)
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
@@ -1311,8 +1311,8 @@ class ParallelTransformerLayer_(MegatronModule):
 
             residual = layernorm_input
 
-            if attention_bias is not None:
-                attention_bias = attention_bias.expand_as(residual)
+            #if attention_bias is not None:
+            #    attention_bias = attention_bias.expand_as(residual)
 
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
@@ -1328,8 +1328,8 @@ class ParallelTransformerLayer_(MegatronModule):
 
         residual = layernorm_input
 
-        if mlp_bias is not None:
-            mlp_bias = mlp_bias.expand_as(residual)
+        #if mlp_bias is not None:
+        #    mlp_bias = mlp_bias.expand_as(residual)
 
         bias_dropout_add_func = self._get_bias_droput_add_func(
             transformer_block_type=self.transformer_block_type, position_after='mlp'
