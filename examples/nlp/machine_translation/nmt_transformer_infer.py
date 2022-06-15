@@ -269,7 +269,7 @@ def main():
         # if args.use_add_index:
         #     ret_src += open(args.ret_src_add, 'r').readlines()
         #     ret_tgt += open(args.ret_tgt_add, 'r').readlines()
-
+    add_special = True
     with open(args.srctext, 'r') as src_f:
         for i, line in enumerate(src_f):
             src_text.append(line.strip())
@@ -277,7 +277,11 @@ def main():
                 # add the retrieval context which is a list of tuples
                 to_add = []
                 for nn_id in nn_list[i].tolist():
+                    if add_special:
+                        to_add.extend([models[0].encoder_tokenizer.token_to_id('[NN_SRC]')])
                     to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                    if add_special:
+                        to_add.extend([models[0].encoder_tokenizer.token_to_id('[NN_TGT]')])
                     to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
                 retrieval_context_ids.append(to_add)
             if len(src_text) == args.batch_size:

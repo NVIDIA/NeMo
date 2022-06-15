@@ -357,8 +357,8 @@ class RetrievalTranslationDataset(TranslationDataset):
             self.retrieval_db_tgt = retrieval_db_tgt
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
-
         compute_ids = False
+        add_special = True
         if compute_ids:
             src_retrieval_ids = dataset_to_ids(
                 self.retrieval_db_src,
@@ -415,14 +415,18 @@ class RetrievalTranslationDataset(TranslationDataset):
                 for nn_id in self.nn_list[i].tolist():
                     # Add the src and tgt of nearest neighbor
                     if np.random.uniform(0,1) > copy_prob:
-                        to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+                        if add_special:
+                            to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
                         to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
-                        to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+                        if add_special:
+                            to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
                         to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
                     else:
-                        to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+                        if add_special:
+                            to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
                         to_add.extend(src_ids[i])
-                        to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+                        if add_special:
+                            to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
                         to_add.extend(tgt_ids[i])
             src_ids_extended.append(to_add)
         src_ids = src_ids_extended
