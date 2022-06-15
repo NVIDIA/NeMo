@@ -22,6 +22,6 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     finetuning.trainer.log_every_n_steps=1 \
     finetuning.trainer.val_check_interval=20 \
     finetuning.trainer.limit_val_batches=5 \
-    finetuning.model.restore_from_path=${BASE_RESULTS_DIR}/convert_t5_220m_tp2_pp2/megatron_t5.nemo
+    finetuning.model.restore_from_path=${BASE_RESULTS_DIR}/convert_t5_220m_tp2_pp2/megatron_t5.nemo \
     finetuning.model.tensor_model_parallel_size=2 \
     finetuning.model.pipeline_model_parallel_size=2
