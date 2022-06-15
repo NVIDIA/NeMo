@@ -596,6 +596,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
                         max_num_samples=num_samples,
+                        seed=self._cfg.seed
                     )
                 elif cfg.dataset_type == 'text_memmap':
                     dataset = TextMemmapSequenceToSequenceDataset(
@@ -606,6 +607,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
                         max_num_samples=num_samples,
+                        seed=self._cfg.seed
                     )
                 datasets.append(dataset)
             dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities, size=sum(num_samples_per_dataset))
@@ -618,6 +620,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
+                    seed=self._cfg.seed
                 )
             elif cfg.dataset_type == 'text_memmap':
                 dataset = TextMemmapSequenceToSequenceDataset(
@@ -627,6 +630,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
+                    seed=self._cfg.seed
                 )
         return dataset
 

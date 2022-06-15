@@ -189,6 +189,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
             # TODO: This means max src and max tgt sequence length need to be the same
             if self.max_src_seq_length != self.max_tgt_seq_length:
                 raise ValueError(f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now.")
+
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.src_indexed_dataset,
                 data_prefix=self.src_file_name,
