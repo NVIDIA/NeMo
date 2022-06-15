@@ -668,6 +668,7 @@ def configure_loggers(
 
         # Update the wandb save_dir
         wandb_kwargs['save_dir'] = wandb_kwargs.get('save_dir') or exp_dir
+        os.makedirs(wandb_kwargs['save_dir'], exist_ok=True)
         wandb_logger = WandbLogger(version=version, **wandb_kwargs)
 
         logger_list.append(wandb_logger)
