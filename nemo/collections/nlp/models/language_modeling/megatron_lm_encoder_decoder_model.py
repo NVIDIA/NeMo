@@ -532,32 +532,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_only_func
 
-
-    # FIXME: remove me if not needed
-    def get_forward_logits_func(self):
-        def fwd_output_only_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
-
-            # args = self._build_forward_args_from_kwargs(
-            #     args_name=('enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'labels'),
-            #     args=(encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask, lm_labels)
-            #     )
-            # output = model(*args)
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-            )
-
-            def loss_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
-
-            return output, loss_func
-
-        return fwd_output_only_func
-
     def validation_step_logits(self, batch, batch_idx):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
@@ -576,7 +550,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
-                # forward_step_func=self.get_forward_logits_func(),
                 forward_step_func=forward_step_func,
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
@@ -588,7 +561,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             )
         else:
             output_tensor = forward_backward_no_pipelining(
-                # forward_step_func=self.get_forward_logits_func(),
                 forward_step_func=forward_step_func,
                 batch=batch_for_pipeline,
                 model=self.enc_dec_model,
