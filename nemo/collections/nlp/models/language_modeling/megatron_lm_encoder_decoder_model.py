@@ -523,9 +523,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             output = model(*args)
 
             def id_func(output_tensor):
-                # FIXME: if pipeline parallel > 1 during encode decoder will return None which will create an error (so return 0 on correct device instead)
-                # if output_tensor is None:
-                #     output_tensor = torch.tensor([0.0]).cuda()
                 return output_tensor, {'logits': output_tensor}
 
             return output, id_func
@@ -582,7 +579,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         return logits_tensor
 
 
-    # FIXME: define a new method def get_validation_outputs()
     def validation_step(self, batch, batch_idx):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
@@ -643,7 +639,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # we're not on the last pipeline stage so no losses
             loss_mean = []
 
-        # FIXME: return loss_mean, token_logits
         return loss_mean
 
     def validation_epoch_end(self, outputs):
@@ -1117,11 +1112,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
 
-            # if encoder_input is not None:
-            #     batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask, encoder_input]
-            # else:
-            #     batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
-
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
@@ -1150,6 +1140,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                # make sure it won't sample outside the vocab_size range
+                output_tensor[:, :, self.tokenizer.vocab_size:] = -float('Inf')
+
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
                     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
