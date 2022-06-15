@@ -14,13 +14,13 @@
 # limitations under the License.
 
 """Transformer."""
-from contextlib import nullcontext
 import math
-from regex import W
+from contextlib import nullcontext
 
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
+from regex import W
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
