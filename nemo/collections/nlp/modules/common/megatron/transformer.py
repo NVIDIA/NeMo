@@ -1643,6 +1643,7 @@ class ParallelTransformer(MegatronModule):
             while l < self.num_layers:
                 hidden_states = tensor_parallel.checkpoint(
                     custom(l, l + self.activations_checkpoint_num_layers),
+                    False,
                     hidden_states,
                     attention_mask,
                     encoder_output,
@@ -1658,6 +1659,7 @@ class ParallelTransformer(MegatronModule):
                 if l < self.activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(
                         custom(l, l + 1),
+                        False,
                         hidden_states,
                         attention_mask,
                         encoder_output,
@@ -1723,7 +1725,7 @@ class ParallelTransformer(MegatronModule):
             rng_context = nullcontext()
 
         with rng_context:
-            if self.activations_checkpoint_method == 'full':
+            if self.activations_checkpoint_granularity == 'full':
                 hidden_states = self._checkpointed_forward(
                     hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, rotary_pos_emb
                 )
