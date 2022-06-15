@@ -555,7 +555,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             return output, loss_func
 
-        return output_tensor
+        return fwd_output_only_func
 
     def validation_step_logits(self, batch, batch_idx):
         """
