@@ -1476,6 +1476,17 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(
                     f'When using selective activation checkpointing, activations_checkpoint_method should be None, got: {activations_checkpoint_method}.'
                 )
+        elif self.activations_checkpoint_method == 'full':
+            if self.activations_checkpoint_method in ['uniform', 'block']:
+                if not self.activations_checkpoint_num_layers:
+                    logging.info(
+                        (
+                            f'Using uniform or block activation checkpointing requires activations_checkpoint_num_layers to be set.'
+                            f'Got: {self.activations_checkpoint_num_layers}. Setting to 1 by default.'
+                        )
+                    )
+        else:
+            raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
         self.sequence_parallel = sequence_parallel
 
