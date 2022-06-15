@@ -38,6 +38,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.nlp.data.language_modeling.megatron .base_dataset_utils import get_datasets_weights_and_num_samples
 from nemo.utils import AppState, logging, timers
 
 try:
@@ -573,8 +574,19 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}"
                 )
 
+            data_prefix = []
+            for fname, weight in zip(cfg.src_file_name, cfg.concat_sampling_probabilities):
+                data_prefix.append(weight)
+                data_prefix.append(fname)
+
+            total_training_examples = self.trainer.max_steps * self._cfg.train_ds.global_batch_size
+            output = get_datasets_weights_and_num_samples(
+                data_prefix, [total_training_examples] # Typically expects a list of size 3 for train, valid test num samples, but we want train only.
+            )
+            num_samples_per_dataset = output[2]
+            num_samples_per_dataset = [x[0] for x in num_samples_per_dataset] # Again, this is because we want training size only.
             datasets = []
-            for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
+            for src_file, tgt_fille, num_samples in zip(cfg.src_file_name, cfg.tgt_file_name, num_samples_per_dataset):
                 if cfg.dataset_type == 'bin_memmap':
                     dataset = BinarizedMemmapSequenceToSequenceDataset(
                         src_dataset_prefix=src_file,
@@ -583,10 +595,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         tgt_tokenizer=self.decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
-                        start_index=0,
-                        end_index=None,
-                        data_impl="mmap",
-                        skip_warmup=True,
+                        max_num_samples=num_samples,
                     )
                 elif cfg.dataset_type == 'text_memmap':
                     dataset = TextMemmapSequenceToSequenceDataset(
@@ -596,9 +605,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         tgt_tokenizer=self.decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
+                        max_num_samples=num_samples,
                     )
                 datasets.append(dataset)
-            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
+            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities, size=sum(num_samples_per_dataset))
         else:
             if cfg.dataset_type == 'bin_memmap':
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -608,10 +618,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
-                    start_index=0,
-                    end_index=None,
-                    data_impl="mmap",
-                    skip_warmup=True,
                 )
             elif cfg.dataset_type == 'text_memmap':
                 dataset = TextMemmapSequenceToSequenceDataset(
