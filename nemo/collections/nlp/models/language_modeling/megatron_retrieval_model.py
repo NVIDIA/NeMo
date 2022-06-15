@@ -19,6 +19,7 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
+from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
@@ -40,6 +41,8 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
+from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+
 
 try:
     from apex.transformer.enums import ModelType
@@ -64,6 +67,17 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
         # TODO does not support PP yet
         self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
+
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+
+        if self.megatron_amp_o2:
+
+            # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
+            self.model.cuda(torch.cuda.current_device())
+
+            # Model wrapper to convert both model and inputs to half precision
+            self.model = Float16Module(module=self.model, precision=self.cfg.precision)
+
         # self.setup_optimizer_param_groups()
         if self.cfg.precision == 32:
             self.autocast_dtype = torch.float
@@ -74,8 +88,6 @@ class MegatronRetrievalModel(MegatronBaseModel):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
-        # not using amp o2
-        self.megatron_amp_o2 = False
         # self.grad_clip_pl_default = True
 
     def _build_tokenizer(self):
@@ -185,6 +197,23 @@ class MegatronRetrievalModel(MegatronBaseModel):
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
         self._reduced_loss_buffer.append(reduced_loss[0])
+
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            torch.cuda.synchronize()
+
+        if self.megatron_amp_o2:
+            # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
+            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+                # main grads are stored in the MainParamsOptimizer wrapper
+                self._optimizer.allreduce_main_grads()
+        else:
+            # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
+            # no pipeline, so use the default pytorch lightning way of doing all_reduce
+            # self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
+            pass
 
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
@@ -409,3 +438,46 @@ class MegatronRetrievalModel(MegatronBaseModel):
 
     def list_available_models(self):
         pass
+
+    def configure_optimizers(self):
+        self.setup_optimization()
+
+        # Wrap the baseline optimizer with the optimizer class with master parameters
+        if self.megatron_amp_o2 and self._optimizer is not None:
+            if self.cfg.precision == 'bf16':
+                fp32_grad_accum = True
+                contiguous_grad_bucket = True
+            elif self.cfg.precision == 16:
+                fp32_grad_accum = False
+                # TODO: contiguous grad bucket for fp16 is also planned to be supported
+                contiguous_grad_bucket = False
+                raise ValueError(
+                    "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
+                )
+
+            # if using tensor parallel only, we can use async grad all-reduce
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+                async_grad_allreduce = True
+            else:
+                async_grad_allreduce = False
+
+            self._optimizer = MainParamsOptimizerWrapper(
+                self._optimizer,
+                fp32_grad_accum=fp32_grad_accum,
+                contiguous_grad_bucket=contiguous_grad_bucket,
+                async_grad_allreduce=async_grad_allreduce,
+                grad_div_ar_fusion=self.cfg.get('grad_div_ar_fusion', True),
+                grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
+            )
+
+            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
+            sched_config = self._cfg.optim.sched
+            sched_config['max_steps'] = self._trainer.max_steps
+            self._scheduler = prepare_lr_scheduler(
+                optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+        if self._scheduler is None:
+            return self._optimizer
+        else:
+            return [self._optimizer], [self._scheduler]

@@ -81,6 +81,9 @@ model:
   post_process: True # add pooler
   bert_binary_head: True # BERT binary head
 
+  megatron_amp_O2: False # use AMP with O2 style mixed precision instead of native amp on-the-fly weight autocasting.
+  grad_allreduce_chunk_size_mb: 125
+
   tokenizer:
     library: 'megatron'
     type: 'GPT2BPETokenizer'
