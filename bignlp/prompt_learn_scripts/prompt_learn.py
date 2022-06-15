@@ -76,12 +76,16 @@ def run_prompt_learning(cfg, hydra_args="", dependency=None):
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
-        flags = (
-            f"--container-image {container} "
-            f"--container-mounts {mounts_str} "
-            f"-o {results_dir}/{name}-%j.log "
-            f"-e {results_dir}/{name}-%j.error "
-        )
+        if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+            flags = (
+                f"--container-image {container} --container-mounts {mounts_str} "
+                f"-o {results_dir}/slurm_%j.log "
+            )
+        else:
+            flags = (
+                f"--container-image {container} --container-mounts {mounts_str} "
+                f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
+            )
 
         create_slurm_file(
             new_script_path=new_script_path,
@@ -98,7 +102,10 @@ def run_prompt_learning(cfg, hydra_args="", dependency=None):
             partition=partition,
             account=account,
         )
-        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+        if cfg.get("ci_test"):
+            job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{results_dir}/launcher.log" '], shell=True)
+        else:
+            job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
         dependency = job_id = job_id.decode("utf-8")
         print(f"Submitted Finetuning script with job id: {dependency}")
         return dependency
