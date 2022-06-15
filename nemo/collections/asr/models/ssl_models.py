@@ -50,7 +50,23 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         Returns:
             List of available pre-trained models.
         """
-        return []
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="ssl_en_conformer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ssl_en_conformer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ssl_en_conformer_large/versions/1.10.1/files/ssl_en_conformer_large.nemo",
+        )
+        results.append(model)
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="ssl_en_conformer_xlarge",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:ssl_en_conformer_xlarge",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ssl_en_conformer_xlarge/versions/1.10.0/files/ssl_en_conformer_xlarge.nemo",
+        )
+        results.append(model)
+
+        return results
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -453,7 +469,10 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             spectrograms, spec_masks, encoded, encoded_len, targets, target_lengths
         )
 
-        tensorboard_logs = {'learning_rate': self._optimizer.param_groups[0]['lr']}
+        tensorboard_logs = {
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+            'global_step': self.trainer.global_step,
+        }
 
         for loss_name, loss_val in loss_val_dict.items():
             tensorboard_logs['train_' + loss_name] = loss_val

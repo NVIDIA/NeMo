@@ -14,6 +14,7 @@
 
 import os
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_CHAR,
     NEMO_DIGIT,
@@ -53,17 +54,10 @@ from nemo_text_processing.text_normalization.en.verbalizers.roman import RomanFs
 from nemo_text_processing.text_normalization.en.verbalizers.telephone import TelephoneFst as vTelephone
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTime
 from nemo_text_processing.text_normalization.en.verbalizers.word import WordFst as vWord
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-    from pynini.examples import plurals
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):
@@ -122,14 +116,15 @@ class ClassifyFst(GraphFst):
             measure_graph = measure.fst
             date = DateFst(cardinal=cardinal, deterministic=True, lm=True)
             date_graph = date.fst
-            word_graph = WordFst(deterministic=deterministic).graph
+            punctuation = PunctuationFst(deterministic=True)
+            punct_graph = punctuation.graph
+            word_graph = WordFst(punctuation=punctuation, deterministic=deterministic).graph
             time_graph = TimeFst(cardinal=cardinal, deterministic=True).fst
             telephone_graph = TelephoneFst(deterministic=True).fst
             electronic_graph = ElectronicFst(deterministic=True).fst
             money_graph = MoneyFst(cardinal=cardinal, decimal=decimal, deterministic=False).fst
             whitelist = WhiteListFst(input_case=input_case, deterministic=False, input_file=whitelist)
             whitelist_graph = whitelist.graph
-            punct_graph = PunctuationFst(deterministic=True).graph
             serial_graph = SerialFst(cardinal=cardinal, ordinal=ordinal, deterministic=deterministic, lm=True).fst
 
             # VERBALIZERS
@@ -149,12 +144,13 @@ class ClassifyFst(GraphFst):
             v_date_graph = vDate(ordinal=ordinal, deterministic=deterministic, lm=True).fst
             v_money_graph = vMoney(decimal=decimal, deterministic=deterministic).fst
             v_roman_graph = vRoman(deterministic=deterministic).fst
-
-            time_final = pynini.compose(time_graph, v_time_graph)
+            v_word_graph = vWord(deterministic=deterministic).fst
 
             cardinal_or_date_final = plurals._priority_union(date_graph, cardinal_graph, NEMO_SIGMA)
             cardinal_or_date_final = pynini.compose(cardinal_or_date_final, (v_cardinal_graph | v_date_graph))
 
+            time_final = pynini.compose(time_graph, v_time_graph)
+            ordinal_final = pynini.compose(ordinal_graph, v_ordinal_graph)
             sem_w = 1
             word_w = 100
             punct_w = 2
@@ -162,7 +158,7 @@ class ClassifyFst(GraphFst):
                 pynutil.add_weight(time_final, sem_w)
                 | pynutil.add_weight(pynini.compose(decimal_graph, v_decimal_graph), sem_w)
                 | pynutil.add_weight(pynini.compose(measure_graph, v_measure_graph), sem_w)
-                | pynutil.add_weight(pynini.compose(ordinal_graph, v_ordinal_graph), sem_w)
+                | pynutil.add_weight(ordinal_final, sem_w)
                 | pynutil.add_weight(pynini.compose(telephone_graph, v_telephone_graph), sem_w)
                 | pynutil.add_weight(pynini.compose(electronic_graph, v_electronic_graph), sem_w)
                 | pynutil.add_weight(pynini.compose(fraction_graph, v_fraction_graph), sem_w)
@@ -170,7 +166,7 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(cardinal_or_date_final, sem_w)
                 | pynutil.add_weight(whitelist_graph, sem_w)
                 | pynutil.add_weight(
-                    pynini.compose(serial_graph, v_cardinal_graph), 1.1001
+                    pynini.compose(serial_graph, v_word_graph), 1.1001
                 )  # should be higher than the rest of the classes
             ).optimize()
 
@@ -182,7 +178,6 @@ class ClassifyFst(GraphFst):
             range_graph = RangeFst(
                 time=time_final, cardinal=cardinal_tagger, date=date_final, deterministic=deterministic
             ).fst
-            v_word_graph = vWord(deterministic=deterministic).fst
             classify_and_verbalize |= pynutil.add_weight(pynini.compose(range_graph, v_word_graph), sem_w)
             classify_and_verbalize = pynutil.insert("< ") + classify_and_verbalize + pynutil.insert(" >")
             classify_and_verbalize |= pynutil.add_weight(word_graph, word_w)
