@@ -79,6 +79,7 @@ def run_prompt_learning(cfg, hydra_args="", dependency=None):
         flags = (
             f"--container-image {container} "
             f"--container-mounts {mounts_str} "
+            f"--no-container-mount-home "
             f"-o {results_dir}/{name}-%j.log "
             f"-e {results_dir}/{name}-%j.error "
         )
