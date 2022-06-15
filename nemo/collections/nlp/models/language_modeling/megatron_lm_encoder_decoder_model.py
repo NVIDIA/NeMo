@@ -896,6 +896,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+        
+        # filter invalid tokens from the predicted tokens
+        predicted_tokens_dec[predicted_tokens_dec >= tokenizer.original_vocab_size] = tokenizer.unk_id
+
         return predicted_tokens_dec, log_probs
 
     def complete(self, request: Dict):
