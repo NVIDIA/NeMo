@@ -1939,6 +1939,7 @@ class ParallelTransformer(MegatronModule):
             while l < self.num_layers:
                 hidden_states = tensor_parallel.checkpoint(
                     custom(l, l + self.activations_checkpoint_num_layers),
+                    False,
                     hidden_states,
                     attention_mask,
                     encoder_output,
@@ -1956,6 +1957,7 @@ class ParallelTransformer(MegatronModule):
                 if l < self.activations_checkpoint_num_layers:
                     hidden_states = tensor_parallel.checkpoint(
                         custom(l, l + 1),
+                        False,
                         hidden_states,
                         attention_mask,
                         encoder_output,
