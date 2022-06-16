@@ -1,6 +1,6 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:22.05-py3-base-amd64@sha256:12829df214c6c7641c10ba6301910423a30c4927dde2dde456d36e2d920fa14a"
+  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:azure-support-py3-base-amd64@sha256:7ddf05bc55de6c1471cdee4ea382a82831d6ae81ff73efa618abdb7e349d879a"
   BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
 
 stages:
