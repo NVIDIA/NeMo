@@ -71,7 +71,7 @@ def get_intent_queries(infold, intent_names, mode):
 
 def get_slots(infold, modes):
     """
-    Find a slot of unique slot types in training and testing data.
+    Find a list of unique slot types in training and testing data.
     We use a single slot type name both for starting and continuation tokens (not using B-, I- notation).
     """
     slots = set()
