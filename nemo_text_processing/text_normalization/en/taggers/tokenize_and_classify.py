@@ -15,6 +15,7 @@
 import os
 import time
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_WHITE_SPACE,
     GraphFst,
@@ -42,18 +43,9 @@ from nemo_text_processing.text_normalization.en.taggers.word import WordFst
 from nemo_text_processing.text_normalization.en.verbalizers.date import DateFst as vDateFst
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as vOrdinalFst
 from nemo_text_processing.text_normalization.en.verbalizers.time import TimeFst as vTimeFst
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
-
-logging.setLevel("INFO")
 
 
 class ClassifyFst(GraphFst):
@@ -151,7 +143,7 @@ class ClassifyFst(GraphFst):
             logging.debug(f"punct: {time.time() - start_time: .2f}s -- {punct_graph.num_states()} nodes")
 
             start_time = time.time()
-            word_graph = WordFst(deterministic=deterministic).fst
+            word_graph = WordFst(punctuation=punctuation, deterministic=deterministic).fst
             logging.debug(f"word: {time.time() - start_time: .2f}s -- {word_graph.num_states()} nodes")
 
             start_time = time.time()
@@ -185,8 +177,8 @@ class ClassifyFst(GraphFst):
                 | pynutil.add_weight(serial_graph, 1.1001)  # should be higher than the rest of the classes
             )
 
-            # roman_graph = RomanFst(deterministic=deterministic).fst
-            # classify |= pynutil.add_weight(roman_graph, 1.1)
+            roman_graph = RomanFst(deterministic=deterministic).fst
+            classify |= pynutil.add_weight(roman_graph, 1.1)
 
             if not deterministic:
                 abbreviation_graph = AbbreviationFst(deterministic=deterministic).fst

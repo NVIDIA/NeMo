@@ -1,7 +1,7 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:22.04-py3'
+      image 'nvcr.io/nvidia/pytorch:22.05-py3'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
@@ -11,6 +11,13 @@ pipeline {
   }
 
   stages {
+
+    stage('Add git safe directory'){
+      steps{
+        sh 'git config --global --add safe.directory /var/lib/jenkins/workspace/NeMo_$GIT_BRANCH'
+        sh 'git config --global --add safe.directory /raid/JenkinsWorkDir/workspace/NeMo_$GIT_BRANCH'
+      }
+    }
 
     stage('nvidia-smi'){
       steps{
@@ -101,7 +108,6 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
-
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
@@ -131,18 +137,18 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8'
           }
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8'
           }
         }
       }
@@ -159,7 +165,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python normalize.py --input_file=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output_file=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_05-25.txt || exit 1'
@@ -169,7 +175,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python inverse_normalize.py --input_file=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output_file=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -178,7 +184,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25 --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
             cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -186,7 +192,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
             cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -194,7 +200,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/5-25'
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-8'
           }
         }
       }
@@ -728,34 +734,40 @@ pipeline {
             exp_manager=null'
           }
         }
-       stage('Test Restore with AlBERT') {
+        stage('Test Restore with AlBERT') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-            +do_training=false \
-            +do_testing=true \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
-            +model.test_ds.use_cache=false \
-            ~model.train_ds \
-            ~model.validation_ds \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
+            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_albert.nemo \
+              +model.test_ds.use_cache=false \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item="${data_dir}" \
+              trainer.devices=[1] \
+              trainer.accelerator="gpu" \
+              exp_manager=null && \
+            rm -rf "${data_dir}"'
           }
         }
         stage('Test Restore with RoBERTa') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-            +do_training=false \
-            +do_testing=true \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
-            +model.test_ds.use_cache=false \
-            ~model.train_ds \
-            ~model.validation_ds \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
+            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_and_Capitalization_roberta.nemo \
+              +model.test_ds.use_cache=false \
+              ~model.train_ds \
+              ~model.validation_ds \
+              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              trainer.devices=[1] \
+              trainer.accelerator="gpu" \
+              exp_manager=null && \
+            rm -rf "${data_dir}"'
           }
         }
       }
@@ -1412,18 +1424,21 @@ pipeline {
         stage ('Punctuation and capitalization finetuning from pretrained test') {
           steps {
             sh 'cd examples/nlp/token_classification && \
+            data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
             python punctuation_capitalization_train_evaluate.py \
-            pretrained_model=punctuation_en_bert \
-            model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            +model.train_ds.use_cache=false \
-            +model.validation_ds.use_cache=false \
-            +model.test_ds.use_cache=false \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            +trainer.fast_dev_run=true \
-            exp_manager.exp_dir=null'
+              pretrained_model=punctuation_en_bert \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
+              +model.train_ds.use_cache=false \
+              +model.validation_ds.use_cache=false \
+              +model.test_ds.use_cache=false \
+              trainer.devices=[1] \
+              trainer.accelerator="gpu" \
+              +trainer.fast_dev_run=true \
+              exp_manager.exp_dir=null && \
+            rm -rf "${data_dir}"'
           }
         }
         stage ('NER with TurkuNLP/bert-base-finnish-cased-v1') {
@@ -1449,26 +1464,30 @@ pipeline {
         }
         stage('Evaluation script for Punctuation') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-            +do_training=false \
-            +do_testing=true \
-            model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-            ~model.train_ds \
-            ~model.validation_ds \
-            +model.test_ds.use_cache=false \
-            pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo'
+            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
+            python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
+              +do_training=false \
+              +do_testing=true \
+              model.test_ds.ds_item="${data_dir}" \
+              ~model.train_ds \
+              ~model.validation_ds \
+              +model.test_ds.use_cache=false \
+              pretrained_model=/home/TestData/nlp/pretrained_models/Punctuation_Capitalization_with_DistilBERT_base_uncased.nemo && \
+            rm -rf "${data_dir}"'
           }
         }
         stage('L2: Punctuation & Capitalization, 2GPUs with DistilBERT, Fine-tuning on different data') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            mkdir -p tmp_data && \
-            cp /home/TestData/nlp/token_classification_punctuation/*.txt tmp_data/ && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            tmp_data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${tmp_data_dir}"/ && \
             python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=tmp_data \
-              model.validation_ds.ds_item=tmp_data \
-              model.test_ds.ds_item=tmp_data \
+              model.train_ds.ds_item="${tmp_data_dir}" \
+              model.validation_ds.ds_item="${tmp_data_dir}" \
+              model.test_ds.ds_item="${tmp_data_dir}" \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1477,15 +1496,17 @@ pipeline {
               trainer.accelerator="gpu" \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=true && \
-            mv tmp_data tmp_data2 && \
+            tmp_data_dir_2="$(mktemp -d -p "$(pwd)")" && \
+            mv "${tmp_data_dir}"/* "${tmp_data_dir_2}" && \
+            rm -rf "${tmp_data_dir}" && \
             python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=tmp_data2 \
-              model.validation_ds.ds_item=tmp_data2 \
-              model.test_ds.ds_item=tmp_data2 \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.train_ds.ds_item="${tmp_data_dir_2}" \
+              model.validation_ds.ds_item="${tmp_data_dir_2}" \
+              model.test_ds.ds_item="${tmp_data_dir_2}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1494,14 +1515,10 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r tmp_data2 && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
+            rm -rf /workspace/NeMo/examples/nlp/token_classification/nemo_experiments \
+              "${tmp_data_dir_2}" \
+              "${output_dir}"'
           }
-        }
-      }
-      post {
-        always {
-          sh 'pwd && ls nemo_* && rm -rf nemo_experiments && ls nemo_*'
         }
       }
     }
@@ -1516,11 +1533,13 @@ pipeline {
       stages {
         stage('create and use tarred dataset') {
           steps {
-            sh 'data_dir=/home/TestData/nlp/token_classification_punctuation && \
+            sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
+            cp -r /home/TestData/nlp/token_classification_punctuation/*.txt \
+              /home/TestData/nlp/token_classification_punctuation/wmt_wiki_10000 \
+              "${data_dir}"/ && \
             usual_data=${data_dir}/wmt_wiki_10000 && \
-            tarred_data=${data_dir}/train_tarred && \
-            TIME=`date +"%Y-%m-%d-%T"` \
-            output=${data_dir}/output_${TIME} && \
+            output_dir="$(mktemp -d -p "$(pwd)")" && \
+            tarred_data=${output_dir}/train_tarred && \
             tokens_in_batch=2000 && \
             max_seq_length=512 && \
             lm_model=distilbert-base-uncased && \
@@ -1543,8 +1562,8 @@ pipeline {
             ls ${tarred_data}/*.csv && \
             metadata_file=${tarred_data}/metadata.punctuation_capitalization.tokens${tokens_in_batch}.max_seq_length${max_seq_length}.${lm_model}.json && \
             python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
               model.train_ds.ds_item=${tarred_data} \
               model.language_model.pretrained_model_name=${lm_model} \
               model.train_ds.use_tarred_dataset=true \
@@ -1556,8 +1575,8 @@ pipeline {
               trainer.accelerator="gpu" \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=${output} && \
-            rm -rf ${output}/* ${tarred_data}'
+              +exp_manager.explicit_log_dir=${output_dir}/output && \
+            rm -rf "${output_dir}" "${data_dir}"'
           }
         }
       }
@@ -1672,15 +1691,16 @@ pipeline {
       stages {
         stage('Restore punctuation and capitalization in long text') {
           steps {
-            sh 'python examples/nlp/token_classification/punctuate_capitalize_infer.py \
-            --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
-            --output_text iwslt_inference_result.txt \
-            --max_seq_length 92 \
-            --step 8 \
-            --margin 16 \
-            --pretrained_name punctuation_en_bert \
-            --batch_size 32 && \
-            rm iwslt_inference_result.txt'
+            sh 'output_dir="$(mktemp -d -p "$(pwd)")" && \
+            python examples/nlp/token_classification/punctuate_capitalize_infer.py \
+              --input_manifest /home/TestData/nlp/token_classification_punctuation/iwslt_tst2019.manifest \
+              --output_text "${output_dir}/iwslt_inference_result.txt" \
+              --max_seq_length 92 \
+              --step 8 \
+              --margin 16 \
+              --pretrained_name punctuation_en_bert \
+              --batch_size 32 && \
+            rm -rf "${output_dir}"'
           }
         }
       }
@@ -2440,9 +2460,11 @@ pipeline {
         trainer.max_steps=10 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
-        trainer.val_check_interval=20 \
+        trainer.val_check_interval=10 \
         exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
         model.data.data_prefix='' \
+        model.data.knn_index='' \
+        model.data.retrieval_prefix='' \
         model.tensor_model_parallel_size=2 \
         model.micro_batch_size=4 \
         model.optim.name=fused_adam \
@@ -2457,7 +2479,7 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True"
+        +model.data.mock=True"
         sh "python examples/nlp/language_modeling/megatron_retro_pretraining.py \
         trainer.devices=2 \
         trainer.num_nodes=1 \
@@ -2465,12 +2487,14 @@ pipeline {
         trainer.accumulate_grad_batches=1 \
         trainer.limit_val_batches=2 \
         exp_manager.resume_if_exists=True \
-        trainer.max_steps=30 \
+        trainer.max_steps=20 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
-        trainer.val_check_interval=20 \
+        trainer.val_check_interval=10 \
         exp_manager.exp_dir=examples/nlp/language_modeling/retro_results \
         model.data.data_prefix='' \
+        model.data.knn_index='' \
+        model.data.retrieval_prefix='' \
         model.tensor_model_parallel_size=2 \
         model.micro_batch_size=4 \
         model.optim.name=fused_adam \
@@ -2485,7 +2509,7 @@ pipeline {
         model.dec_num_layers=2 \
         model.enc_cross_attention=[1] \
         model.dec_cross_attention=[1] \
-        model.data.mock=True"
+        +model.data.mock=True"
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }
@@ -2686,75 +2710,69 @@ pipeline {
             trainer.num_nodes=1"
       }
     }
-    stage('L2: Megatron GPT Prompt Learning and Inference') {
+    stage('L2: Megatron GPT Prompt Learning') {
       when {
-	anyOf {
-	  branch 'main'
-	  changeRequest target: 'main'
-	}
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
       }
       failFast true
-      steps {
-        sh "echo 'TESTING P-TUNING TRAINING -------'"
-        sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
-            --config-name=megatron_gpt_prompt_learning_config \
-            name='/home/TestData/nlp/prompt_learning/p_tuning_test' \
-            trainer.max_steps=6 \
-            trainer.max_epochs=null \
-            trainer.val_check_interval=2 \
-            model.language_model_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            model.existing_tasks=[] \
-            model.new_tasks=['rte'] \
-            model.virtual_prompt_style='p-tuning' \
-            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test_train.jsonl'] \
-            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test_val.jsonl']"
-
-        sh "echo 'TESTING P-TUNING INFERENCE --------'"
-        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test.nemo' \
-            gpt_model_file='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test_test.jsonl']"
-
-        sh "echo TESTING PROMPT-TUNING TRAINING ------"
-        sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
-            --config-name=megatron_gpt_prompt_learning_config \
-            name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
-            trainer.max_steps=6 \
-            trainer.max_epochs=null \
-            trainer.val_check_interval=2 \
-            model.restore_path='/home/TestData/nlp/prompt_learning/p_tuning_test.nemo' \
-            model.language_model_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            model.existing_tasks=['rte'] \
-            model.new_tasks=['boolq, intent_and_slot'] \
-            model.virtual_prompt_style='prompt-tuning' \
-            model.prompt_tuning.new_prompt_init_methods=['text, random'] \
-            model.prompt_tuning.new_prompt_init_text=['some init text goes here, None'] \
-            model.data.train_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_train.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_train.jsonl'] \
-            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_val.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_val.jsonl']"
-
-        sh "echo TESTING PROMPT-TUNING INFERENCE --------"
-        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo' \
-            gpt_model_file='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test_test.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_test.jsonl, /home/TestData/nlp/prompt_learning/boolq_CI_test_test.jsonl']"
-
-        sh "rm -rf nemo_experiments"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test.nemo"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test"
+      parallel{
+        stage('GPT Prompt Learning TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/p_tuning_test_tp' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp"
+            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo"
+          }
+        }
+        stage('GPT Prompt Learning TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/p_tuning_test_pp' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['boolq'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp"
+            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                pipeline_model_parallel_size=2 \
+                prompts=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
+          }
+        }
       }
     }
 
