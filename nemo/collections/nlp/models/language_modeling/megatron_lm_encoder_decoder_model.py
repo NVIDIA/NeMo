@@ -407,13 +407,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
             output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                lm_labels,  # labels
-                None,  # enc_hidden_states
+                enc_input_ids=encoder_input_ids,  # enc_input_ids
+                enc_attn_mask=encoder_attn_mask,  # enc_attn_mask
+                dec_input_ids=decoder_input_ids,  # dec_input_ids
+                dec_attn_mask=decoder_attn_mask,  # dec_attn_mask
+                token_type_ids=None,  # token_type_ids
+                labels=lm_labels,  # labels
+                enc_input=None,  # enc_input_embeddings
             )
 
             def loss_func(output_tensor):
@@ -436,13 +436,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             else:
                 raise ValueError("wrong number of items in the batch")
             output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                None,  # labels
-                enc_input,  # enc_hidden_states
+                enc_input_ids=encoder_input_ids,  # enc_input_ids
+                enc_attn_mask=encoder_attn_mask,  # enc_attn_mask
+                dec_input_ids=decoder_input_ids,  # dec_input_ids
+                dec_attn_mask=decoder_attn_mask,  # dec_attn_mask
+                token_type_ids=None,  # token_type_ids
+                labels=None,  # labels
+                enc_input=enc_input,  # enc_input_embeddings
             )
 
             def id_func(output_tensor):

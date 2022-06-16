@@ -311,7 +311,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         dec_attn_mask,
         token_type_ids=None,
         labels=None,
-        enc_hidden_states=None,
         enc_output_mask=None,
         output_enc_hidden_only=False,
         enc_input=None,
