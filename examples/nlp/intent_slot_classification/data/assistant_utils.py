@@ -90,7 +90,6 @@ def get_slots(infold, modes):
     slots = sorted(slots)
     slots.append("O")
     logging.info(f'Found {len(slots)} slot types')
-    
     return slots
 
 
