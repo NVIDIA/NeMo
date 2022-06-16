@@ -28,7 +28,7 @@ def _read_tb_logs_as_list(path, summary_name):
             summary = ea.Scalars(summary_name)
             summary_list = [round(x.value, 5) for x in summary]
             return summary_list
-    raise FileNotFoundError(f"File not found matching: {path}/events*")
+    raise FileNotFoundError(f"File not found matching: {path}/events* \nFiles: {files}")
 
 def collect_train_test_metrics(pytest_file):
     # TODO: Fetch current baseline
