@@ -155,7 +155,12 @@ def main():
         partitions = []
         for i in range(tp_size):
             app_state.tensor_model_parallel_rank = i
-            model = cls.restore_from(restore_path=args.model_file, trainer=trainer, map_location=torch.device("cpu"))
+            model = cls.restore_from(
+                restore_path=args.model_file,
+                trainer=trainer,
+                map_location=torch.device("cpu"),
+                save_restore_connector=NLPSaveRestoreConnector()
+            )
             params = [p for _, p in model.named_parameters()]
             partitions.append(params)
             # app_state is being updated incorrectly during restore
