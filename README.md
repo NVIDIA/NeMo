@@ -131,30 +131,38 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [5.7.3. Longer Text Generation](#573-longer-text-generation)
     + [5.7.4. Dialogue Text Generation](#574-dialogue-text-generation)
     + [5.7.5. Inference Parameters](#575-inference-parameters)
-- [6. Performance](#6-performance)
-  * [6.1. GPT-3 Results](#61-gpt-3-results)
-    + [6.1.1. Training Accuracy Results](#611-training-accuracy-results)
-    + [6.1.2. Training Performance Results](#612-training-performance-results)
-    + [6.1.3. Inference Performance](#613-inference-performance)
-      - [6.1.3.1. 5B Model](#6131-5b-model)
-      - [6.1.3.2. 5B Chatbot for Question Answering](#6132-5b-chatbot-for-question-answering)
-      - [6.1.3.3. 5B: Translation and Style Transfer](#6133-5b--translation-and-style-transfer)
-      - [6.1.3.4. Summary for 5B Results](#6134-summary-for-5b-results)
-      - [6.1.3.5. 20B Model](#6135-20b-model)
-      - [6.1.3.6. 20B: Chatbot for Question Answering](#6136-20b--chatbot-for-question-answering)
-      - [6.1.3.7. 20B: Translation and Style Transfer](#6137-20b--translation-and-style-transfer)
-      - [6.1.3.8. Summary for 20B Results](#6138-summary-for-20b-results)
-      - [6.1.3.9. Model Size and Performance](#6139-model-size-and-performance)
-        * [6.1.3.9.1. Online Scenario](#61391-online-scenario)
-        * [6.1.3.9.2. Offline Scenario](#61392-offline-scenario)
-  * [6.2. T5 Results](#62-t5-results)
-    + [6.2.1. Training Accuracy Results](#621-training-accuracy-results)
-    + [6.2.2. Training Performance Results](#622-training-performance-results)
-  * [6.3. mT5 Results](#63-mt5-results)
-    + [6.3.1. Training Accuracy Results](#631-training-accuracy-results)
-    + [6.3.2. Training Performance Results](#632-training-performance-results)
-- [7. Changelog](#7-changelog)
-- [8. Known Issues](#8-known-issues)
+- [6. Cloud Service Providers](#6-cloud-service-providers)
+  * [6.1. Azure](#61-azure)
+    + [6.1.1 Cluster Bring-Up](#611-cluster-bring-up)
+    + [6.1.2 Cluster Validation](#612-cluster-validation)
+      - [6.1.2.1 Validation Script Usage](#6121-validation-script-usage)
+    + [6.1.3 Config Modifications](#613-config-modifications)
+      - [6.1.3.1 Generate NCCL Topology](#6131-generate-nccl-topology)
+      - [6.1.3.2 Environment Variables](#6132-environment-variables)
+- [7. Performance](#7-performance)
+  * [7.1. GPT-3 Results](#71-gpt-3-results)
+    + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
+    + [7.1.2. Training Performance Results](#712-training-performance-results)
+    + [7.1.3. Inference Performance](#713-inference-performance)
+      - [7.1.3.1. 5B Model](#7131-5b-model)
+      - [7.1.3.2. 5B Chatbot for Question Answering](#7132-5b-chatbot-for-question-answering)
+      - [7.1.3.3. 5B: Translation and Style Transfer](#7133-5b--translation-and-style-transfer)
+      - [7.1.3.4. Summary for 5B Results](#7134-summary-for-5b-results)
+      - [7.1.3.5. 20B Model](#7135-20b-model)
+      - [7.1.3.6. 20B: Chatbot for Question Answering](#7136-20b--chatbot-for-question-answering)
+      - [7.1.3.7. 20B: Translation and Style Transfer](#7137-20b--translation-and-style-transfer)
+      - [7.1.3.8. Summary for 20B Results](#7138-summary-for-20b-results)
+      - [7.1.3.9. Model Size and Performance](#7139-model-size-and-performance)
+        * [7.1.3.9.1. Online Scenario](#71391-online-scenario)
+        * [7.1.3.9.2. Offline Scenario](#71392-offline-scenario)
+  * [7.2. T5 Results](#72-t5-results)
+    + [7.2.1. Training Accuracy Results](#721-training-accuracy-results)
+    + [7.2.2. Training Performance Results](#722-training-performance-results)
+  * [7.3. mT5 Results](#73-mt5-results)
+    + [7.3.1. Training Accuracy Results](#731-training-accuracy-results)
+    + [7.3.2. Training Performance Results](#732-training-performance-results)
+- [8. Changelog](#8-changelog)
+- [9. Known Issues](#9-known-issues)
 
 
 <!-- /TOC -->
@@ -3949,13 +3957,109 @@ Triton parameters table
 
 </details>
 
-## 6. Performance
+## 6. Cloud Service Providers
+<a id="markdown-cloud-service-providers" name="cloud-service-providers"></a>
+
+### 6.1 Azure
+<a id="markdown-azure" name="azure"></a>
+
+#### 6.1.1 Cluster Bring-Up
+<a id="markdown-cluster-bring-up" name="cluster-bring-up"></a>
+To set up a Slurm cluster for bignlp, we recommend using Azure CycleCloud with the following steps:
+
+1. Follow the [cc-slurm-ngc](https://github.com/JonShelley/cc-slurm-ngc/blob/master/README.md) README to create the CycleCloud VM in the Azure portal. Complete all steps until "Download and setup the project", including creating a new storage account.
+2. Create an Azure AD application using [this document](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal):
+    1. Check both your AD and subscription [permissions](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#permissions-required-for-registering-an-app) to ensure you can register an application and assign a role to it, or talk to your subscription administrator.
+    2. Create the [app registration](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#register-an-application-with-azure-ad-and-create-a-service-principal).
+    3. [Assign](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#assign-a-role-to-the-application) the contributor role to the application.
+    4. Create and record an [application secret](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#option-2-create-a-new-application-secret) along with your application ID.
+3. Go to \<cyclecloud vm ip\>/subscriptions. Name your subscription and enter your Tenant ID, Application ID, and Application Secret. Then choose a default location and the resource group and storage account you created in step 1 (leave the storage container field as is).
+4. Continue with the [cc-slurm-ngc](https://github.com/JonShelley/cc-slurm-ngc#download-and-setup-the-project) README to add the cc-slurm-ngc cluster type and deploy your cluster.
+
+Once your cluster is up and running, continue with the cluster validation steps.
+
+#### 6.1.2 Cluster Validation
+<a id="markdown-cluster-validation" name="cluster-validation"></a>
+
+Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
+Also make sure to download this benchmarking repo to `/shared/data`:
+```
+cd /shared/data
+git clone https://github.com/JonShelley/azure.git
+```
+**NOTE:** If you choose to download this repo to another path, please change the `AZURE_NCCL_PATH` variable at the top of `cluster_validation.sh`.
+
+The cluster validation script at `csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
+The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
+These nodes should be replaced or restarted through the CycleCloud UI.
+
+##### 6.1.2.1 Validation Script Usage
+<a id="markdown-validation-script-usage" name="validation-script-usage"></a>
+
+The script has 3 required parameters:
+- `--nodes`: the number of nodes
+- `--nodelist`: the list of node names
+- `--partition`: the Slurm partition the nodes are assigned to
+
+The values for these parameters should be in the same format that is found in `sinfo`.
+With the following example:
+```
+PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
+hpc          up   infinite      8   idle hpc-pg0-[1-8]
+```
+To test all 8 idle nodes, the script would be run as:
+```
+bash cluster_validation.sh --nodes=8 --nodelist=hpc-pg0-[1-8] --partition=hpc
+```
+
+By default, the script will run both the GPU diagnostics and the NCCL test. You can choose to run only one or the other by specifying:
+- `--dcgm`: run GPU diagnostics only
+- `--nccl`: run NCCL test only
+
+See `bash cluster_validation.sh -h` for more information.
+
+#### 6.1.3 Config Modifications
+<a id="markdown-config-modifications" name="config-modifications"></a>
+Before launching jobs, the NCCL topology file needs to be created, and some changes to the config files must be made.
+
+##### 6.1.3.1 Generate NCCL Topology
+<a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
+
+To generate the NCCL topology file, run the following (use path for wherever `JonShelley/azure` was downloaded):
+```
+sbatch -N 1 -o ndv4-topo.xml /shared/data/azure/benchmarking/NDv4/cc-slurm-ngc/nccl/scripts/gentopo.sh
+mv ndv4-topo.xml /opt/microsoft/ndv4-topo.xml
+```
+
+In `conf/config.yaml`, mount the directory containing the topology file, and set where the topology file will be located:
+```
+container_mounts:
+  - /opt/microsoft:/opt/microsoft
+
+env_vars:
+    NCCL_TOPO_FILE: /opt/microsoft/ndv4-topo.xml
+```
+
+##### 6.1.3.2 Environment Variables
+<a id="markdown-environment-variables" name="environment-variables"></a>
+Set these environment variables in `config.yaml` (in addition to `NCCL_TOPO_FILE` as defined above):
+```
+env_vars:
+  UCX_IB_PCI_RELAXED_ORDERING: auto
+  NCCL_IB_PCI_RELAXED_ORDERING: 2
+  NCCL_IB_TIMEOUT: 22
+  NCCL_DEBUG: INFO
+```
+
+Once all these steps have been completed, BigNLP jobs can be launched on your Azure cluster.
+
+## 7. Performance
 <a id="markdown-performance" name="performance"></a>
 
-### 6.1. GPT-3 Results
+### 7.1. GPT-3 Results
 <a id="markdown-gpt-3-results" name="gpt-3-results"></a>
 
-#### 6.1.1. Training Accuracy Results
+#### 7.1.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (8 x 8 x A100 80GB for 126M GPT-3 Model; 20 x 8 x A100 80GB for 5B GPT-3 Model)
 
 We evaluated the 126M parameter and 5B parameter models on 8 different language
@@ -3995,7 +4099,7 @@ given Global Batch Size (GBS).
 | 160    | 1440 | 2048       | 300B     | 1.685 | 726,384                 | 4.8                  |
 
 
-#### 6.1.2. Training Performance Results
+#### 7.1.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
 Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
 
@@ -4013,7 +4117,7 @@ speedup. The table and chart below show the performance results.
 
 <img src="img/5B_GPT_3_throughput.svg"/>
 
-#### 6.1.3. Inference Performance
+#### 7.1.3. Inference Performance
 <a id="markdown-inference-performance" name="inference-performance"></a>
 
 The most important factor for NLP model performance is the size of a model. You
@@ -4051,7 +4155,7 @@ The table below contains a summary of used configurations.
 | 8    | 4    | 32        | 4            | 2560                             |
 
 
-##### 6.1.3.1. 5B Model
+##### 7.1.3.1. 5B Model
 <a id="markdown-b-model" name="b-model"></a>
 
 The 5B model can fit into a single A100 80GB GPU. Still FasterTransformer can
@@ -4063,7 +4167,7 @@ SuperPOD as one instance of the FasterTransformer model. You should also
 consider an inference task for your application. Some inference tasks require
 longer token sequence lengths for input and output.
 
-##### 6.1.3.2. 5B Chatbot for Question Answering
+##### 7.1.3.2. 5B Chatbot for Question Answering
 <a id="markdown-b-chatbot-for-question-answering" name="b-chatbot-for-question-answering"></a>
 
 Let us consider a scenario with a chatbot for question answering. It can be
@@ -4087,7 +4191,7 @@ A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
 GPU used for computation.
 
 
-##### 6.1.3.3. 5B: Translation and Style Transfer
+##### 7.1.3.3. 5B: Translation and Style Transfer
 <a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 A translation or style transfer inference task requires input length 200 and
@@ -4106,7 +4210,7 @@ The graph clearly shows that the translation or style transfer inference task
 with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
 size = 16.
 
-##### 6.1.3.4. Summary for 5B Results
+##### 7.1.3.4. Summary for 5B Results
 <a id="markdown-summary-for-5b-results" name="summary-for-5b-results"></a>
 
 The table below contains performance measurements from all graphs for the 5B
@@ -4132,26 +4236,26 @@ model running in FasterTransformer at DGX A100 80 GB system.
 
 </details>
 
-##### 6.1.3.5. 20B Model
+##### 7.1.3.5. 20B Model
 <a id="markdown-b-model" name="b-model"></a>
 
 To improve accuracy a larger model can be used.
 
-##### 6.1.3.6. 20B: Chatbot for Question Answering
+##### 7.1.3.6. 20B: Chatbot for Question Answering
 <a id="markdown-b%3A-chatbot-for-question-answering" name="b%3A-chatbot-for-question-answering"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
 <img src="img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
 
-##### 6.1.3.7. 20B: Translation and Style Transfer
+##### 7.1.3.7. 20B: Translation and Style Transfer
 <a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
 
 <img src="img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
 <img src="img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg"/>
 
-##### 6.1.3.8. Summary for 20B Results
+##### 7.1.3.8. Summary for 20B Results
 <a id="markdown-summary-for-20b-results" name="summary-for-20b-results"></a>
 
 The table below contains performance measurements from all graphs for the 20B
@@ -4177,10 +4281,10 @@ model running in FasterTransformer at DGX A100 80GB.
 
 </details>
 
-##### 6.1.3.9. Model Size and Performance
+##### 7.1.3.9. Model Size and Performance
 <a id="markdown-model-size-and-performance" name="model-size-and-performance"></a>
 
-###### 6.1.3.9.1. Online Scenario
+###### 7.1.3.9.1. Online Scenario
 <a id="markdown-online-scenario" name="online-scenario"></a>
 
 An online scenario focuses on the minimization of latency. Large checkpoints
@@ -4211,7 +4315,7 @@ Performance for different model sizes in online scenario
 
 </details>
 
-###### 6.1.3.9.2. Offline Scenario
+###### 7.1.3.9.2. Offline Scenario
 <a id="markdown-offline-scenario" name="offline-scenario"></a>
 
 The offline scenario focuses on maximum throughput. The two graphs below show
@@ -4246,10 +4350,10 @@ Performance for different model sizes in offline scenario
 </details>
 
 
-### 6.2. T5 Results
+### 7.2. T5 Results
 <a id="markdown-t5-results" name="t5-results"></a>
 
-#### 6.2.1. Training Accuracy Results
+#### 7.2.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 220M T5 Model; 20 x 8 x A100 80GB for 3B T5 Model)
 
 We evaluated the 220M parameter and 3B parameter T5 models on 2 GLUE
@@ -4290,7 +4394,7 @@ given Global Batch Size (GBS).
 
 
 
-#### 6.2.2. Training Performance Results
+#### 7.2.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
@@ -4310,10 +4414,10 @@ speedup. We are actively working on improving the scaling performance for T5 mod
 
 
 
-### 6.3. mT5 Results
+### 7.3. mT5 Results
 <a id="markdown-t5-results" name="t5-results"></a>
 
-#### 6.3.1. Training Accuracy Results
+#### 7.3.1. Training Accuracy Results
 Training Accuracy: NVIDIA DGX SuperPOD (4 x 8 x A100 80GB for 170M mT5 Model; 8 x 8 x A100 80GB for 390M mT5 Model; 20 x 8 x A100 80GB for 3B mT5 Model)
 
 We evaluated the 170M parameter, 390M parameter, and 3B parameter mT5 models on XNLI
@@ -4370,7 +4474,7 @@ given Global Batch Size (GBS).
 | 160        | 1920 | 512                | 1T             | 1.134  | 911,065                 | 14                   |
 
 
-#### 6.3.2. Training Performance Results
+#### 7.3.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
 Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
@@ -4390,7 +4494,7 @@ The table and chart below show the performance results.
 <img src="img/3B_mT5_throughput_2205.svg"/>
 
 
-## 7. Changelog
+## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
 **NeMo Megatron 22.05**
@@ -4424,7 +4528,7 @@ The table and chart below show the performance results.
 * Chatbot sample application using your trained GPT-3 model
 * Training metric monitoring and visualization with Weights & Biases
 
-## 8. Known Issues
+## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
