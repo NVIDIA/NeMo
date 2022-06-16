@@ -34,7 +34,7 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [
         NLPDDPPlugin(
-            no_ddp_communication_hook=True,
+            no_ddp_communication_hook=True if megatron_amp_o2 else False,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
         )

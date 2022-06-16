@@ -29,6 +29,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
     build_train_valid_test_datasets,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.debug_utils import register_hooks
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
@@ -88,6 +89,11 @@ class MegatronRetrievalModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
         self.model.model_type = ModelType.encoder_and_decoder
         # self.grad_clip_pl_default = True
+
+    def on_fit_start(self) -> None:
+        if self.cfg.dump_debug_info:
+            register_hooks(self.model, self.trainer)
+        return super().on_fit_start()
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(

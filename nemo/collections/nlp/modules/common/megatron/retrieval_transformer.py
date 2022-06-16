@@ -33,7 +33,7 @@ except (ImportError, ModuleNotFoundError):
     ModelType = ApexGuardDefaults()
     HAVE_APEX = False
 
-MIN_DIM_HEAD = 0
+MIN_DIM_HEAD = 32
 
 
 class MegatronRetrievalTransformerEncoderModule(MegatronModule):
