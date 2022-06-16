@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Optional, Union, Dict, Any, Tuple, List
 
 import torch
+from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
+
 from nemo.core.classes.mixins import adapter_mixins
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
@@ -31,7 +33,6 @@ def update_model_config_to_support_adapter(model_cfg):
         if adapter_metadata is not None:
             model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
 
-    print("Updated encoder _target_ model :", model_cfg.encoder._target_)
     return model_cfg
 
 
@@ -40,12 +41,12 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         super().__init__(cfg, trainer)
         audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder, return_config=True)
 
-        if cfg.use_adapters:
+        if cfg.get('use_adapters', False):
             audio_cfg = update_model_config_to_support_adapter(audio_cfg)
 
         self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder,
                                                                       override_config_path=audio_cfg)
-        if cfg.use_adapters:
+        if cfg.get('use_adapters', False):
             with open_dict(cfg):
                 cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
             self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
@@ -60,7 +61,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
                                  self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
 
-        if cfg.freeze_audio_encoder:
+        if cfg.get('freeze_audio_encoder', False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
             self.audio_encoder.add_module('lstm_encoder',
@@ -68,7 +69,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                                                hidden_size=cfg.lstm_hidden_size,
                                                num_layers=cfg.lstm_num_layers))
 
-        if cfg.restore_lexical_encoder_from:
+        if cfg.get('restore_lexical_encoder_from', None):
             model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)
             self.bert_model.load_state_dict(model.bert_model.state_dict())
             del model
@@ -77,14 +78,29 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         del self.audio_encoder._wer
         del self.audio_encoder.loss
 
+        if cfg.get('use_weighted_loss', False):
+            punct_freq = torch.tensor(list(self.train_dataloader().dataset.punct_label_frequencies.values()),
+                                      dtype=torch.float)
+            punct_weight = 1 - (punct_freq - punct_freq.min()) / punct_freq.max()
+
+            capit_freq = torch.tensor(list(self.train_dataloader().dataset.capit_label_frequencies.values()),
+                                      dtype=torch.float)
+            capit_weight = 1 - (capit_freq - capit_freq.min()) / capit_freq.max()
+
+            self.loss_punct = CrossEntropyLoss(logits_ndim=3, weight=punct_weight)
+            self.loss_capit = CrossEntropyLoss(logits_ndim=3, weight=capit_weight)
+        else:
+            self.loss_punct = self.loss
+            self.loss_capit = self.loss
+
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
             input_ids=batch['input_ids'], token_type_ids=batch['segment_ids'], attention_mask=batch['input_mask'],
             features=batch['features'], features_length=batch['features_length']
         )
 
-        punct_loss = self.loss(logits=punct_logits, labels=batch['punct_labels'], loss_mask=batch['loss_mask'])
-        capit_loss = self.loss(logits=capit_logits, labels=batch['capit_labels'], loss_mask=batch['loss_mask'])
+        punct_loss = self.loss_punct(logits=punct_logits, labels=batch['punct_labels'], loss_mask=batch['loss_mask'])
+        capit_loss = self.loss_capit(logits=capit_logits, labels=batch['capit_labels'], loss_mask=batch['loss_mask'])
         loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
         return loss, punct_logits, capit_logits
 

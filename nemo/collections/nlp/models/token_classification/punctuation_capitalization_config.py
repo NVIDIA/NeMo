@@ -254,6 +254,8 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
 
     adapter_config: Optional[LinearAdapterConfig] = None
 
+    use_weighted_loss: Optional[bool] = False
+
 
 @dataclass
 class PunctuationCapitalizationConfig(NemoConfig):

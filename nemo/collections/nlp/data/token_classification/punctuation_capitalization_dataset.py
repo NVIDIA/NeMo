@@ -1019,15 +1019,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
         self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
+        if get_label_frequencies:
+            self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
+            self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
         if not self.use_features:
             return
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
 
-        if get_label_frequencies:
-            self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
-            self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
 
     def _get_path_to_pkl_features(
         self, text_file: Path, cache_dir: Optional[Union[str, os.PathLike]], max_seq_length: int, num_samples: int
