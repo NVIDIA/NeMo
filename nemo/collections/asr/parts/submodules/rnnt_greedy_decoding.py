@@ -495,6 +495,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             # Get max sequence length
             max_out_len = out_len.max()
             for time_idx in range(max_out_len):
+#                print()
+#                print("time is", time_idx)
                 f = x.narrow(dim=1, start=time_idx, length=1)  # [B, 1, D]
 
                 # Prepare t timestamp batch variables
@@ -515,10 +517,20 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # If very first prediction step, submit SOS tag (blank) to pred_step.
                     # This feeds a zero tensor as input to AbstractRNNTDecoder to prime the state
                     if time_idx == 0 and symbols_added == 0 and hidden is None:
+#                        print("passing label")
+#                        print(self._SOS)
                         g, hidden_prime = self._pred_step(self._SOS, hidden, batch_size=batchsize)
                     else:
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
+#                        print("passing label")
+#                        print(last_label)
                         g, hidden_prime = self._pred_step(last_label, hidden, batch_size=batchsize)
+
+
+#                    print("hidden is")
+#                    print(hidden)
+#                    print("hidden prime is")
+#                    print(hidden_prime)
 
                     # Batched joint step - Output = [B, V + 1]
                     logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
@@ -528,6 +540,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                     # Get index k, of max prob for batch
                     v, k = logp.max(1)
+#                    print("max is")
+#                    print(k)
                     del g
 
                     # Update blank mask with current predicted blanks
@@ -583,12 +597,15 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
+
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
 
                         # Update new label and hidden state for next iteration
                         last_label = k.clone().view(-1, 1)
                         hidden = hidden_prime
+#                        print("new hidden is")
+#                        print(hidden_prime)
 
                         # Update predicted labels, accounting for time mask
                         # If blank was predicted even once, now or in the past,
