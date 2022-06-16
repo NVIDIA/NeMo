@@ -898,13 +898,17 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         )
 
         # filter invalid tokens from the predicted tokens -> first <unk>, else <pad>
-        if hasattr(tokenizer, 'unk_id') and tokenizer.unk_id >= 0:
-            predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
-        elif hasattr(tokenizer, 'pad_id') and tokenizer.pad_id >= 0:
-            predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.pad_id
-        else:
-            # throw an error
-            raise ValueError('Tokenizer must have either <unk> or <pad> token id!')
+        if (predicted_tokens_dec >= tokenizer.vocab_size).sum() > 0:
+            # filter invalid tokens from the predicted tokens -> first <unk>, else <pad>
+            if hasattr(tokenizer, 'unk_id') and tokenizer.unk_id >= 0:
+                predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
+            elif hasattr(tokenizer, 'pad_id') and tokenizer.pad_id >= 0:
+                predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.pad_id
+            else:
+                # throw an error
+                raise ValueError(
+                    "Found a predicted token > tokenizer's vocab size. Tried replacing with <unk> or <pad>, but tokenizer had neither."
+                )
 
         return predicted_tokens_dec, log_probs
 
