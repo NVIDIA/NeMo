@@ -231,7 +231,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
         # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
         # we cannot start weight update until all async grad AR works are done.
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+        if (
+            self.megatron_amp_o2
+            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+            and not self.cfg.get('sequence_parallel', False)
+        ):
             torch.cuda.synchronize()
 
         ## logging
