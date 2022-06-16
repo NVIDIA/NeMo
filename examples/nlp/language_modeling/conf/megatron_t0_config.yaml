@@ -49,8 +49,8 @@ model:
   data:
     train_ds:
       file_names: # Path to a list of JSONL files corresponding to the source data.
-      - /raid/Data/T0/from_jons_draco/train_flattened/train_race_high.jsonl
-      - /raid/Data/T0/from_jons_draco/train_flattened/train_rotten_tomatoes_.jsonl
+      - /raid/Data/T0/train_flattened/train_race_high.jsonl
+      - /raid/Data/T0/train_flattened/train_rotten_tomatoes_.jsonl
       global_batch_size: 128
       micro_batch_size: 64
       shuffle: True
@@ -65,8 +65,8 @@ model:
 
     validation_ds:
       file_names: # Path to a list of JSONL files corresponding to the source data.
-      - /raid/Data/T0/from_jons_draco/train_flattened/train_common_gen_.jsonl
-      - /raid/Data/T0/from_jons_draco/train_flattened/train_commonsense_qa_.jsonl
+      - /raid/Data/T0/train_flattened/train_common_gen_.jsonl
+      - /raid/Data/T0/train_flattened/train_commonsense_qa_.jsonl
       names: null # Names of the corresponding datasets used to log metrics.
       global_batch_size: 64
       micro_batch_size: 64
