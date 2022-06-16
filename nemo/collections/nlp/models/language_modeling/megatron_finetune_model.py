@@ -399,9 +399,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                                     deduplicated_outputs['labels'].append(label)
                                     deduplicated_outputs['categories'].append(category)
                                     deduplicated_outputs['inputs'].append(input)
-                self.write_predictions_to_file(
-                    deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
-                )
+                    self.write_predictions_to_file(
+                        deduplicated_outputs, f"{data_cfg.output_file_path_prefix}_{filename_log_key}"
+                    )
                 torch.distributed.barrier()
 
         # Logging of the averaged metrics:
