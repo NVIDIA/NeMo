@@ -897,8 +897,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
-        # filter invalid tokens from the predicted tokens
-        predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
+        # filter invalid tokens from the predicted tokens -> first <unk>, else <pad>
+        if hasattr(tokenizer, 'unk_id') and tokenizer.unk_id >= 0:
+            predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
+        elif hasattr(tokenizer, 'pad_id') and tokenizer.pad_id >= 0:
+            predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.pad_id
+        else:
+            # throw an error
+            raise ValueError('Tokenizer must have either <unk> or <pad> token id!')
 
         return predicted_tokens_dec, log_probs
 
