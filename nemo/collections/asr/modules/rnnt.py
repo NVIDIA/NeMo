@@ -88,14 +88,16 @@ class StatelessNet(torch.nn.Module):
         # hidden activations of the network. 
         # state is always a list of 1 tensor (to be consistent with the stateful
         # decoder interface, and the element is a tensor of shape [batch, context-length].
+        # out dimension is B x U x D
         outs = []
 
         [B, U] = y.shape
         appended_y = y
         if state != None:
             state = state[0]
-            assert(y.shape[1] == 1)  # might not be the case for batched inference? TODO(hainanx)
+#            assert(y.shape[1] == 1)  # might not be the case for batched inference? TODO(hainanx)
             appended_y = torch.concat([state, y], axis=1)
+#            print(appended_y)
             context_size = appended_y.shape[1]
 
             if context_size < self.context_size:
@@ -108,7 +110,8 @@ class StatelessNet(torch.nn.Module):
                 padded_state = appended_y
 
             for i in range(self.context_size):
-                out = self.embeds[i](padded_state[:,self.context_size - 1 -i])
+#                out = self.embeds[i](padded_state[:,i:i+1])
+                out = self.embeds[i](padded_state[:,self.context_size - 1 - i:self.context_size - i])
                 outs.append(out)
         else:
             for i in range(self.context_size):
@@ -121,6 +124,25 @@ class StatelessNet(torch.nn.Module):
 
         out = self.dropout(torch.concat(outs, axis=-1))
         out = self.norm(out)
+
+#        if True:
+#            outs2 = []
+#            for i in range(self.context_size):
+#                out2 = self.embeds[i](y)
+#
+#                if i != 0:
+#                    out2[:,i:,:] = out2[:,:-i,:].clone()  # needs clone() here or the following copy might complain about src and dst mem location have overlaps. 
+#                    out2[:,:i,:] *= 0.0
+#                outs2.append(out2)
+#            out2 = self.dropout(torch.concat(outs2, axis=-1))
+#            out2 = self.norm(out2)
+#
+#        if state != None:
+#            print("no context")
+#            print(out2)
+#            print("w context")
+#            print(out)
+
         state = None
         if y is not None:  # and self.context_size > 1:
             state = [appended_y[:,appended_y.shape[1] - self.context_size + 1:]]
@@ -399,33 +421,61 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return state
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
-#        assert(False)
-        new_states = [[] for _ in range(len(decoder_states[0]))]
-        for state_id in range(len(decoder_states[0])):
-            # batch_states[state_id][layer] = torch.stack([s[state_id][layer] for s in decoder_states])
-            new_state_for_layer = torch.stack([s[state_id] for s in decoder_states])
-            new_states[state_id].append(new_state_for_layer)
+        """
+        Create batch of decoder states.
 
-        for state_id in range(len(decoder_states[0])):
-            new_states[state_id] = torch.stack([state for state in new_states[state_id]])
+       Args:
+           batch_states (list): batch of decoder states
+              ([L x (B, H)], [L x (B, H)])
 
-        return new_states
+           decoder_states (list of list): list of decoder states
+               [B x ([L x (1, H)], [L x (1, H)])]
+
+       Returns:
+           batch_states (tuple): batch of decoder states
+               ([L x (B, H)], [L x (B, H)])
+       """
+        assert(0)
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
-#        assert(False)
-        if batch_states is not None:
-            state_list = []
-            for state_id in range(len(batch_states)):
-                states = [batch_states[state_id][idx]]
-                state_list.append(states)
+        """Get decoder state from batch of states, for given id.
 
-            return state_list
+        Args:
+            batch_states (list): batch of decoder states
+                [(B, U)]
+
+            idx (int): index to extract state from batch of states
+
+        Returns:
+            (tuple): decoder states for given id
+                [(U)]
+        """
+        if batch_states is not None:
+            states = batch_states[0][idx]
+            ret = states
+            return ret
         else:
             return None
 
+
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
-#        assert(False)
-        return
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                [1 x [B x (U)]]
+
+        Returns:
+            (single element tuple): decoder states
+                (B x U)
+        """
+
+        assert(False)
+        hs = []
+        for t in batch_states[0]:
+            hs.append(t)
+
+        return torch.concat(hs, dim=0)
 
     def batch_copy_states(
         self,
@@ -434,12 +484,26 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         ids: List[int],
         value: Optional[float] = None,
     ) -> List[torch.Tensor]:
-        for state_id in range(len(old_states)):
-            if value is None:
-                old_states[state_id][ids, :] = new_states[state_id][ids, :]
-            else:
-                old_states[state_id][ids, :] *= 0.0
-                old_states[state_id][ids, :] += value
+        """Copy states from new state to old state at certain indices.
+
+        Args:
+            old_states: packed decoder states
+                single element list of (B x U)
+
+            new_states: packed decoder states
+                single element list of (B x U)
+
+            ids (list): List of indices to copy states at.
+
+            value (optional float): If a value should be copied instead of a state slice, a float should be provided
+
+        Returns:
+            batch of decoder states with partial copy at ids (or a specific value).
+                (B x U)
+        """
+
+        if value is None:
+            old_states[0][ids, :] = new_states[0][ids, :]
 
         return old_states
 
@@ -464,7 +528,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
-
+        assert(0)
         if final_batch == 0:
             raise ValueError("No hypotheses was provided for the batch!")
 
