@@ -667,7 +667,8 @@ def configure_loggers(
             raise ValueError("name and project are required for wandb_logger")
 
         # Update the wandb save_dir
-        wandb_kwargs['save_dir'] = wandb_kwargs.get('save_dir') or exp_dir
+        if wandb_kwargs.get('save_dir', None) is None:
+            wandb_kwargs['save_dir'] = exp_dir
         os.makedirs(wandb_kwargs['save_dir'], exist_ok=True)
         wandb_logger = WandbLogger(version=version, **wandb_kwargs)
 
