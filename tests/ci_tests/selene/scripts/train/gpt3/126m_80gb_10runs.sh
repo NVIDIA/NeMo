@@ -1,0 +1,17 @@
+HYDRA_FULL_ERROR=1 python3 main.py \
+    +ci_test=True \
+    search_config=gpt3/0.126b \
+    run_training_hp_search=True \
+    run_inference_hp_search=False \
+    bignlp_hp_tool_path=${GIT_CLONE_PATH} \
+    data_dir=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train \
+    base_results_dir=${BASE_RESULTS_DIR} \
+    "training_container='${BUILD_IMAGE_NAME_SRUN}'" \
+    "inference_container='${BUILD_IMAGE_NAME_SRUN}'" \
+    cluster.cluster.partition=${SLURM_PARTITION} \
+    cluster.cluster.account=${SLURM_ACCOUNT} \
+    cluster.cluster.support_gpus_allocation=False \
+    cluster.env.jobn_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:"
+    cluster.gpus_per_task=null \
+    cluster.gpus_per_node=null \
+    search_config.train_settings.limit_search_runs=10

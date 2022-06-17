@@ -113,13 +113,13 @@ build-hp-tool:
     - echo "Finished pytest job"
   allow_failure: false
 
-train.gpt3.126m_tp1_pp1_1node_100steps:
+train.gpt3.126m_80gb_10runs:
   <<: *hp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1_1node_100steps
+    RUN_JOB_NAME: 126m_80gb_10runs
   rules:
     - when: always
   needs:
@@ -133,7 +133,7 @@ cleanup.selene:
     <<: [*VARS, *LUNA_VARS]
   script:
     - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/hp_tool_ci/*
-    - echo "Finished cleaning everything in Selene"
+    - echo "Finished cleaning everything on Selene"
   allow_failure: true
   rules:
     - when: manual
