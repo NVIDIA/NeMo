@@ -1,10 +1,8 @@
 variables: &VARS
   HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
-  HP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:azure-support-py3-base-amd64@sha256:7ddf05bc55de6c1471cdee4ea382a82831d6ae81ff73efa618abdb7e349d879a"
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
 
 stages:
-  - build
   - test
   - cleanup
 
@@ -27,30 +25,8 @@ test:unit_tests:
 
 before_script:
   - umask 0007
-  - export DOCKERFILE=./Dockerfile
-  - export FROM_IMAGE_NAME=$HP_BASE_IMAGE
-  - export IMAGE_NAME=hp_tool_ci
-  - export BUILD_IMAGE_NAME=${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
-  - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
   - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
   - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
-
-.build: &build_template
-  stage: build
-  script:
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${CI_REGISTRY}"
-    - export DOCKER_REGISTRY="${CI_REGISTRY/:5005/}"
-    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${DOCKER_REGISTRY}"
-    # Define bignlp build image
-    - set -x
-    - ls
-    - env
-    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${FROM_IMAGE_NAME}"
-    - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
-    - docker push ${BUILD_IMAGE_NAME}
-  allow_failure: false
-  tags:
-    - vm-builder
 
 .LUNA: &LUNA
   variables: &LUNA_VARS
@@ -65,10 +41,6 @@ before_script:
     GPU_ARCH:      "A100"
   tags: &LUNA_TAGS
     - selene_ssh
-
-build-hp-tool:
-  <<: *build_template
-
 
 .hp-tool-LUNA-test-LAUNCHER: &hp-tool-LUNA-test-LAUNCHER
   tags: *LUNA_TAGS
@@ -122,9 +94,6 @@ train.gpt3.126m_80gb_10runs:
     RUN_JOB_NAME: 126m_80gb_10runs
   rules:
     - when: always
-  needs:
-    - build-hp-tool
-
 
 cleanup.selene:
   tags: *LUNA_TAGS
