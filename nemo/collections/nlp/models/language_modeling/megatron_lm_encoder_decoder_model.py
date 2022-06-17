@@ -1080,7 +1080,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         app_state = AppState()
-        global_batch_per_gpu = tokens_enc.size(0)
+        if tokens_enc is not None:
+            global_batch_per_gpu = tokens_enc.size(0)
+        else:
+            global_batch_per_gpu = enc_mask.size(0)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
