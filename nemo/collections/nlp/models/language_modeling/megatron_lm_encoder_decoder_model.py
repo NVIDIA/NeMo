@@ -262,12 +262,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # when using pipeline parallelism, we need keep the word and position embeddings in sync
             self.allreduce_word_and_position_embeddings()
 
-        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
-        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
-        # we cannot start weight update until all async grad AR works are done.
-        if self.megatron_amp_o2 and self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-            torch.cuda.synchronize()
-
         ## logging
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks

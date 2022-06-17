@@ -408,6 +408,12 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self, **kwargs):
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self._async_grad_allreduce:
+            torch.cuda.synchronize()
+
         # Step the optimizer.
         self.optimizer.step(closure=None, **kwargs)
 
