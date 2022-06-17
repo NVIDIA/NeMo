@@ -1060,7 +1060,7 @@ def COSclustering(
         est_num_of_spk = oracle_num_speakers
     elif est_num_of_spk_enhanced:
         est_num_of_spk = est_num_of_spk_enhanced
-    
+
     spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
     Y = spectral_model.predict(affinity_mat)
 
