@@ -76,7 +76,7 @@ class BaseMegatronBatchSampler:
         if total_samples <= 0:
             raise RuntimeError("no sample to consume: {}".format(total_samples))
         if consumed_samples >= total_samples:
-            raise RuntimeError("no samples left to consume: {}, {}".format(self.consumed_samples, total_samples))
+            raise RuntimeError("no samples left to consume: {}, {}".format(consumed_samples, total_samples))
         if micro_batch_size <= 0:
             raise RuntimeError(f"micro_batch_size size must be greater than 0, but {micro_batch_size}")
         if data_parallel_size <= 0:
