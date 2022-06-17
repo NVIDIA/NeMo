@@ -828,7 +828,7 @@ class NMESC:
                 it skips the NME analysis part.
 
             maj_vote_spk_count: (bool)
-                If True, take a majority vote on all  p-values in the given range to estimate the number of speakers.
+                If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
                 The majority voting may contribute to surpress overcounting of the speakers and improve speaker
                 counting accuracy.
 
@@ -1011,7 +1011,7 @@ def COSclustering(
             Default is 0.15.
 
         maj_vote_spk_count: (bool)
-            If True, take a majority vote on all  p-values in the given range to estimate the number of speakers.
+            If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
             The majority voting may contribute to surpress overcounting of the speakers and improve speaker
             counting accuracy.
 
