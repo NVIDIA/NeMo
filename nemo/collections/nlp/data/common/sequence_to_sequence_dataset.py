@@ -18,9 +18,11 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_indexed_dataset_
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
+    get_indexed_dataset_,
+    get_samples_mapping,
+)
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -139,8 +141,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         seed: int = 1234,
-        max_num_samples=None
-
+        max_num_samples=None,
     ):
         super().__init__(
             src_file_name=src_file_name,
@@ -158,7 +159,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
             return len(self.src_indexed_dataset)
         else:
             return self.max_num_samples
-        
+
     def __getitem__(self, idx):
         if isinstance(idx, np.int64):
             idx = idx.item()
@@ -183,12 +184,14 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
 
         return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
-        
+
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
             # TODO: This means max src and max tgt sequence length need to be the same
             if self.max_src_seq_length != self.max_tgt_seq_length:
-                raise ValueError(f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now.")
+                raise ValueError(
+                    f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now."
+                )
 
             self.samples_mapping = get_samples_mapping(
                 indexed_dataset=self.src_indexed_dataset,
@@ -199,7 +202,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
                 short_seq_prob=0,
                 seed=self.seed,
                 name=self.src_file_name.split('/')[-1],
-                binary_head=False
+                binary_head=False,
             )
         else:
             self.samples_mapping = None
@@ -217,7 +220,7 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         seed: int = 1234,
-        max_num_samples: int = None
+        max_num_samples: int = None,
     ):
         self.seed = seed
         self.max_num_samples = max_num_samples
@@ -235,7 +238,9 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     def _get_examples(self):
         self.src_indexed_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
         self.tgt_indexed_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
-        assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset), "src and tgt has different number of lines"
+        assert len(self.src_indexed_dataset) == len(
+            self.tgt_indexed_dataset
+        ), "src and tgt has different number of lines"
         self._build_samples_mapping()
 
 
@@ -251,7 +256,7 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         seed: int = 1234,
-        max_num_samples: int = None
+        max_num_samples: int = None,
     ):
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
@@ -282,8 +287,12 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
             raise FileNotFoundError(f"{self.tgt_dataset_prefix}.bin or {self.tgt_dataset_prefix}.idx not found")
 
     def _get_examples(self):
-        self.src_indexed_dataset = self._get_indexed_dataset(self.src_dataset_prefix, data_impl='mmap', skip_warmup=True)
-        self.tgt_indexed_dataset = self._get_indexed_dataset(self.tgt_dataset_prefix, data_impl='mmap', skip_warmup=True)
+        self.src_indexed_dataset = self._get_indexed_dataset(
+            self.src_dataset_prefix, data_impl='mmap', skip_warmup=True
+        )
+        self.tgt_indexed_dataset = self._get_indexed_dataset(
+            self.tgt_dataset_prefix, data_impl='mmap', skip_warmup=True
+        )
         assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset)
         self._build_samples_mapping()
 
