@@ -651,6 +651,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_validation_epoch_start(self):
         app_state = AppState()
+        import ipdb
+
+        ipdb.set_trace()
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
