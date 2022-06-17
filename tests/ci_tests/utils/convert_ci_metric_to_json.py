@@ -30,6 +30,26 @@ def _read_tb_logs_as_list(path, summary_name):
             return summary_list
     raise FileNotFoundError(f"File not found matching: {path}/events* \nFiles: {files}")
 
+def collect_val_test_metrics(pytest_file):
+    # TODO: Fetch current baseline
+
+    # val loss
+    val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
+
+    val_metrics = {
+        "val_loss": {
+            "start_step": 0,
+            "end_step": 1,
+            "step_interval": 1,
+            "values": val_loss_list[:1]
+        }
+    }
+
+    val_metrics_file = os.path.join(CI_JOB_RESULTS, "ci_val_metrics.json")
+    with open(val_metrics_file, "w") as out_file:
+        json.dump(val_metrics, out_file)
+    print(f" ****** CI val metrics logged in {val_metrics_file}", flush=True)
+
 def collect_train_test_metrics(pytest_file):
     # TODO: Fetch current baseline
 
@@ -68,6 +88,10 @@ if __name__ == '__main__':
     args = sys.argv[1:]
     pytest_file = args[0]
 
-    if RUN_TASK == "train" or RUN_TASK == "finetune":
+    if RUN_TASK in ["train", "finetune", "prompt_learn"]:
         collect_train_test_metrics(pytest_file)
+
+    if RUN_TASK in ["eval"] and RUN_MODEL in ["t5", "mt5"]:
+        collect_val_test_metrics(pytest_file)
+
 
