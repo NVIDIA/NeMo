@@ -791,7 +791,7 @@ class NMESC:
         NME_mat_size: int = 512,
         use_subsampling_for_NME: bool = True,
         fixed_thres: float = 0.0,
-        maj_vote_spk_count: bool = True,
+        maj_vote_spk_count: bool = False,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
@@ -973,7 +973,7 @@ def COSclustering(
     enhanced_count_thres: int = 80,
     max_rp_threshold: float = 0.15,
     sparse_search_volume: int = 30,
-    maj_vote_spk_count: bool = True,
+    maj_vote_spk_count: bool = False,
     fixed_thres: float = 0.0,
     cuda=False,
 ):
