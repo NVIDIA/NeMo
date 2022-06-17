@@ -1290,7 +1290,9 @@ class ParallelTransformerLayer_(MegatronModule):
                 #  the post_attention_layernorm is used for layermorm after mlp
                 # don't need it for decoder_pre_mlp and post_ln
                 if normalization == 'layernorm':
-                    self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+                    self.post_attention_layernorm = get_layer_norm(
+                        hidden_size, layernorm_epsilon, persist_layer_norm, sequence_parallel
+                    )
                 else:
                     self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
