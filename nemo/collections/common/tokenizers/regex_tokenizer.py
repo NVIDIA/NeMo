@@ -141,18 +141,28 @@ class RegExTokenizer(TokenizerSpec):
             ids_list.append(ids)
         return ids_list
 
-    def ids_to_tokens(self, ids):
+    def ids_to_tokens(self, ids_list):
+        if len(ids_list) and not isinstance(ids_list[0], list):
+            ids_list = [ids_list]
+            added_list = True
+        else:
+            added_list = False
+
         tokens_list = []
-        for ids in ids:
+        for ids in ids_list:
+            tokens = []
             for token_id in ids:
                 token = self._decode_vocab.get(token_id)
                 if token is None:
                     raise ValueError(f"Token id {token_id} is not recognised")
+                tokens.append(token)
 
-            tokens = [self._decode_vocab.get(token_id) for token_id in ids]
             tokens_list.append(tokens)
 
-        return tokens_list
+        if added_list:
+            return tokens_list[0]
+        else:
+            return tokens_list
 
     def text_to_ids(self, text):
         tokens = self.text_to_tokens(text)
@@ -251,6 +261,7 @@ class RegExTokenizer(TokenizerSpec):
             raise RuntimeError(f"Missing regex_file = {regex_file}")
 
         self._update_cache()
+        self._compile_regex()
 
         return self
 

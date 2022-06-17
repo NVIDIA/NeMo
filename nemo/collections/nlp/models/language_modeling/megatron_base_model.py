@@ -134,6 +134,8 @@ class MegatronBaseModel(NLPModel):
             model_name=self._cfg.tokenizer.type,
             tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
             vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
+            # tokenizer_model="/workspace/nemo_chem/nemo_chem/vocab/megamolbart.model",
+            # vocab_file="/workspace/nemo_chem/nemo_chem/vocab/megamolbart.vocab",
             merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
             delimiter=self.cfg.tokenizer.get('delimiter', None),
             legacy=True if self._cfg.tokenizer.library == 'sentencepiece' else False,
