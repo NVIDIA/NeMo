@@ -1082,8 +1082,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         app_state = AppState()
         if tokens_enc is not None:
             global_batch_per_gpu = tokens_enc.size(0)
+            device = tokens_enc.device
+            encoder_seq_length = tokens_enc.size(1)
         else:
-            global_batch_per_gpu = enc_mask.size(0)
+            global_batch_per_gpu = enc_output.size(0)
+            device = enc_output.device
+            encoder_seq_length = enc_output.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
@@ -1096,9 +1100,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         predicted_tokens_dec = (
-            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(tokens_enc.device)
+            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         )
-        encoder_seq_length = tokens_enc.size(1)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
