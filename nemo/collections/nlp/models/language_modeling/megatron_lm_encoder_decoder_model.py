@@ -442,7 +442,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 None,  # labels
-                enc_input,  # enc_hidden_states
+                None,  # enc_hidden_states
+                None,  # enc_output_mask
+                False,  # output_enc_hidden_only
+                enc_input,  # enc_input
             )
 
             def id_func(output_tensor):

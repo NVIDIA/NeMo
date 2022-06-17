@@ -1,0 +1,97 @@
+name: p_tuning_sent_t5
+
+trainer:
+  devices: 1
+  accelerator: gpu
+  num_nodes: 1
+  precision: 16
+  logger: False 
+  enable_checkpointing: False
+  replace_sampler_ddp: False
+  max_epochs: 10
+  max_steps: null 
+  log_every_n_steps: 10
+  val_check_interval: 100
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  resume_from_checkpoint: null 
+
+exp_manager:
+  explicit_log_dir: null
+  exp_dir: null
+  name: ${name}
+  create_wandb_logger: True
+  wandb_logger_kwargs:
+    project: PromptLearning-T5
+    name: ${name}
+  resume_if_exists: True
+  resume_ignore_no_checkpoint: True
+  create_checkpoint_callback: True
+  checkpoint_callback_params:
+    monitor: val_loss
+    save_top_k: 2
+    mode: min
+    save_nemo_on_train_end: False
+    filename: "megatron_t5_prompt_tune--{val_loss:.3f}-{step}"
+    model_parallel_size: ${model.tensor_model_parallel_size}
+    save_best_model: True
+
+model:
+  seed: 1234
+  nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  lm_finetune: False 
+  pseudo_token_base: "PROMPT_" 
+  virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
+  tensor_model_parallel_size: 1
+  pipeline_model_parallel_size: 1 
+  encoder_seq_length: 2048
+  global_batch_size: 8
+  micro_batch_size: 4
+  
+  restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
+  language_model_path:  models/megatron_t5_220m_f16.nemo # Path to the GPT language model .nemo file, always required
+  existing_tasks: []
+  new_tasks: ["sentiment"] 
+
+  task_templates: 
+  - taskname: "sentiment" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
+    total_virtual_tokens: 10
+    virtual_token_splits: [10] 
+    truncate_field: null
+    answer_field: label
+
+
+  p_tuning:
+    dropout: 0.0
+    num_layers: 2
+
+  prompt_tuning: 
+    new_prompt_init_methods: ["text"] 
+    new_prompt_init_text: ["financial sentiment analysis postive neutral negative"] 
+
+  data:
+    train_ds: ["data/financial_phrase_bank_train.jsonl"]
+    validation_ds: ["data/financial_phrase_bank_val.jsonl"]
+    add_eos: True
+    shuffle: True
+    num_workers: 1
+    pin_memory: True
+
+
+  optim:
+    name: fused_adam
+    lr: 1e-4
+    weight_decay: 0.01 
+    betas: 
+    - 0.9
+    - 0.98
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 50
+      constant_steps: 0
+      min_lr: 0.0
+      monitor: val_loss
+      reduce_on_plateau: false
+  
+
