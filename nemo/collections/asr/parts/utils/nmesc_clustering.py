@@ -827,6 +827,11 @@ class NMESC:
                 threshold with NME analysis. If fixed_thres is float,
                 it skips the NME analysis part.
 
+            maj_vote_spk_count: (bool)
+                If True, take a majority vote on all  p-values in the given range to estimate the number of speakers.
+                The majority voting may contribute to surpress overcounting of the speakers and improve speaker
+                counting accuracy.
+
             cuda (bool)
                 Use cuda for Eigen decomposition if cuda=True.
 
@@ -1004,6 +1009,11 @@ def COSclustering(
             Limits the range of parameter search.
             Clustering performance can vary depending on this range.
             Default is 0.15.
+
+        maj_vote_spk_count: (bool)
+            If True, take a majority vote on all  p-values in the given range to estimate the number of speakers.
+            The majority voting may contribute to surpress overcounting of the speakers and improve speaker
+            counting accuracy.
 
         sparse_search_volume: (int)
             Number of p_values we search during NME analysis.
