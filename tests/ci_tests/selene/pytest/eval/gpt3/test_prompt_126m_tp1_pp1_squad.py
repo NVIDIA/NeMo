@@ -12,8 +12,8 @@ class TestCIGPT126m:
     margin = 0.05
     expected = {
         "prompt": {
-            "ppl": 896469,
-            "ppl_stderr": 66318,
+            "ppl": 7.688669232317914e+16,
+            "ppl_stderr": 3.247515554589659e+16,
             "acc": 0.0,
             "acc_stderr": 0.0,
         },

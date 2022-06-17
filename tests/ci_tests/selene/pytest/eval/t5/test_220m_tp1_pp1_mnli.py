@@ -37,7 +37,7 @@ class TestBignlpCI:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"val_loss": {"start_step": 0, "end_step": 1, "step_interval": 1, "values": [8.07252]}}
+    {"val_loss": {"start_step": 0, "end_step": 1, "step_interval": 1, "values": [1.04057]}}
     """
 
     expected = json.loads(expected_json)
