@@ -835,7 +835,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 init_consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
                 )
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, IndexError):
                 logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
                 init_consumed_samples = 0
         else:
