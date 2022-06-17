@@ -114,7 +114,7 @@ build-hp-tool:
   allow_failure: false
 
 train.gpt3.126m_80gb_10runs:
-  <<: *hp-LUNA-test-LAUNCHER
+  <<: *hp-tool-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
