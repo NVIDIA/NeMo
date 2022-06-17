@@ -78,6 +78,7 @@ class StatelessNet(torch.nn.Module):
 
         self.embeds = torch.nn.ModuleList(embeds)
         self.blank_idx = blank_idx
+        self.ones_cache = {}
 
     def forward(self,
                 y: Optional[torch.Tensor] = None,
@@ -95,14 +96,15 @@ class StatelessNet(torch.nn.Module):
         appended_y = y
         if state != None:
             state = state[0]
-#            assert(y.shape[1] == 1)  # might not be the case for batched inference? TODO(hainanx)
             appended_y = torch.concat([state, y], axis=1)
-#            print(appended_y)
             context_size = appended_y.shape[1]
 
             if context_size < self.context_size:
-                padded_state = torch.ones([B, self.context_size], dtype=torch.long) * self.blank_idx
-                padded_state = padded_state.to(y.device)
+                if B in self.ones_cache:
+                    padded_state = self.ones_cache[B]
+                else:
+                    padded_state = torch.ones([B, self.context_size], dtype=torch.long) * self.blank_idx
+                    padded_state = padded_state.to(y.device)
                 padded_state[:,self.context_size - context_size:] = appended_y
             elif context_size == self.context_size + 1:
                 padded_state = appended_y[:,1:,:]
@@ -110,7 +112,6 @@ class StatelessNet(torch.nn.Module):
                 padded_state = appended_y
 
             for i in range(self.context_size):
-#                out = self.embeds[i](padded_state[:,i:i+1])
                 out = self.embeds[i](padded_state[:,self.context_size - 1 - i:self.context_size - i])
                 outs.append(out)
         else:
@@ -124,24 +125,6 @@ class StatelessNet(torch.nn.Module):
 
         out = self.dropout(torch.concat(outs, axis=-1))
         out = self.norm(out)
-
-#        if True:
-#            outs2 = []
-#            for i in range(self.context_size):
-#                out2 = self.embeds[i](y)
-#
-#                if i != 0:
-#                    out2[:,i:,:] = out2[:,:-i,:].clone()  # needs clone() here or the following copy might complain about src and dst mem location have overlaps. 
-#                    out2[:,:i,:] *= 0.0
-#                outs2.append(out2)
-#            out2 = self.dropout(torch.concat(outs2, axis=-1))
-#            out2 = self.norm(out2)
-#
-#        if state != None:
-#            print("no context")
-#            print(out2)
-#            print("w context")
-#            print(out)
 
         state = None
         if y is not None:  # and self.context_size > 1:
