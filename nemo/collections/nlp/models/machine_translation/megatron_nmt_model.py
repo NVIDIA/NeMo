@@ -23,6 +23,7 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_datasets_weights_and_num_samples
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
@@ -574,28 +575,44 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     f"concat_sampling_probabilities must be of the same size as src_file_name and tgt_file_name. Provided size {len(cfg.concat_sampling_probabilities)}, number of datasets {len(cfg.src_file_name)}"
                 )
 
+            # Construct the data prefix list for `get_datasets_weights_and_num_samples()` that is of the format [weight1,file_name1,weight2,file_name2,...]
+            data_prefix = []
+            for weight, prefix in zip(cfg.concat_sampling_probabilities, cfg.src_file_name):
+                data_prefix.append(weight)
+                data_prefix.append(prefix)
+
+            if self.trainer.max_steps is None:
+                raise ValueError(f"trainer.max_steps must be set to use blendable memmap datasets. Found {self.trainer.max_steps}.")
+            num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
+            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
+
             datasets = []
-            for src_file, tgt_fille in zip(cfg.src_file_name, cfg.tgt_file_name):
+            for src_file, tgt_file, num_samples in zip(cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset):
                 if cfg.dataset_type == 'bin_memmap':
                     dataset = BinarizedMemmapSequenceToSequenceDataset(
                         src_dataset_prefix=src_file,
-                        tgt_dataset_prefix=tgt_fille,
+                        tgt_dataset_prefix=tgt_file,
                         src_tokenizer=self.encoder_tokenizer,
                         tgt_tokenizer=self.decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
+                        max_num_samples=num_samples[0],
+                        seed=self._cfg.seed,
                     )
                 elif cfg.dataset_type == 'text_memmap':
                     dataset = TextMemmapSequenceToSequenceDataset(
                         src_file_name=src_file,
-                        tgt_file_name=tgt_fille,
+                        tgt_file_name=tgt_file,
                         src_tokenizer=self.encoder_tokenizer,
                         tgt_tokenizer=self.decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
+                        max_num_samples=num_samples[0],
+                        seed=self._cfg.seed,
                     )
                 datasets.append(dataset)
-            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities)
+            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend)
         else:
             if cfg.dataset_type == 'bin_memmap':
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
@@ -605,10 +622,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
-                    start_index=0,
-                    end_index=None,
-                    data_impl="mmap",
-                    skip_warmup=True,
+                    max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size,
+                    seed=self._cfg.seed,
                 )
             elif cfg.dataset_type == 'text_memmap':
                 dataset = TextMemmapSequenceToSequenceDataset(
@@ -618,6 +633,8 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                     tgt_tokenizer=self.decoder_tokenizer,
                     max_src_seq_length=cfg.max_seq_length,
                     max_tgt_seq_length=cfg.max_seq_length,
+                    seed=self._cfg.seed,
+                    # max_num_samples=self.trainer.max_steps * self._cfg.global_batch_size (sandeep: commenting this out till we figure out samples mapping for text memmap)
                 )
         return dataset
 
