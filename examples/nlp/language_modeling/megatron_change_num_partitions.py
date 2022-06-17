@@ -174,6 +174,7 @@ def main():
         model.cfg.tensor_model_parallel_size = 1
         app_state.model_parallel_size = 1
         trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
+        model.cfg.tokenizer.model = '/raid/Data/NMT/mt5_tokenizer.model'
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
@@ -183,7 +184,11 @@ def main():
             merge_partition(model, partitions, args.target_file)
     else:
         app_state.model_parallel_size = 1
-        model = cls.restore_from(restore_path=args.model_file, trainer=trainer)
+        model = cls.restore_from(
+            restore_path=args.model_file,
+            trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector()
+        )
 
     if tgt_tp_size > 1:
         partitions = []
@@ -193,6 +198,7 @@ def main():
         model.cfg.tensor_model_parallel_size = tgt_tp_size
         app_state.model_parallel_size = tgt_tp_size
         trainer = Trainer(devices=1, plugins=NLPDDPPlugin(), accelerator="cpu", precision=precision)
+        model.cfg.tokenizer.model = '/raid/Data/NMT/mt5_tokenizer.model'
         model = cls(model.cfg, trainer).to('cpu')
         model._save_restore_connector = NLPSaveRestoreConnector()
 
