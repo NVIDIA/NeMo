@@ -102,10 +102,11 @@ class RegExTokenizer(TokenizerSpec):
 
     def text_to_tokens(self, text):
         # Begin token
-        tokens = [self.bos_token]
-        tokens.extend(self._compiled_regex.findall(text))
+        # tokens = [self.bos_token]
+        # tokens.extend(self._compiled_regex.findall(text))
         # End token
-        tokens.append(self.eos_token)
+        # tokens.append(self.eos_token)
+        tokens = self._compiled_regex.findall(text)
 
         return tokens
 
