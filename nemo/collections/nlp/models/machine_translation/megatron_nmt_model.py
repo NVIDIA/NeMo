@@ -584,10 +584,6 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         tgt_tokenizer=self.decoder_tokenizer,
                         max_src_seq_length=cfg.max_seq_length,
                         max_tgt_seq_length=cfg.max_seq_length,
-                        start_index=0,
-                        end_index=None,
-                        data_impl="mmap",
-                        skip_warmup=True,
                     )
                 elif cfg.dataset_type == 'text_memmap':
                     dataset = TextMemmapSequenceToSequenceDataset(
