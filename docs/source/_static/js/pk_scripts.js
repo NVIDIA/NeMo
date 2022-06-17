@@ -16,4 +16,13 @@ document.addEventListener("DOMContentLoaded", function () {
         var input = form.querySelector("[name=" + name + "]");
         input.value = params[name];
     }
+
+    // Hide righr nav sidebar 
+    var sideNavContent = document.getElementById("bd-toc-nav");
+    if(sideNavContent != null) {
+        var sideBar = sideNavContent.parentElement;
+        if(sideBar != null) {
+            sideBar.classList.remove('show');
+        }
+    }
 });

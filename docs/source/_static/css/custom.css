@@ -216,6 +216,12 @@ thead td
     background-color: #ffffff;
 }
 
+/* Hide right side bar */
+.bd-toc.show nav {
+	opacity: 0;
+	max-height: 0;
+}
+
 /* ---------------------------------------------- Media Queries --------------------------------------- */
 @media (min-width: 1200px) {
 	.container-xl {
