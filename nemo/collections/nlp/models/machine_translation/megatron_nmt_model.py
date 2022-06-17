@@ -29,10 +29,7 @@ from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     TextMemmapSequenceToSequenceDataset,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-    MegatronPretrainingRandomBatchSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
