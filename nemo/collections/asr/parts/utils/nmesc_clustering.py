@@ -788,10 +788,11 @@ class NMESC:
         max_rp_threshold: float = 0.15,
         sparse_search: bool = True,
         sparse_search_volume: int = 30,
+        NME_mat_size: int = 512,
         use_subsampling_for_NME: bool = True,
         fixed_thres: float = 0.0,
+        maj_vote_spk_count: bool = True,
         cuda: bool = False,
-        NME_mat_size: int = 512,
         device: torch.device = torch.device('cpu'),
     ):
         """
@@ -847,6 +848,7 @@ class NMESC:
         self.mat = mat
         self.p_value_list: torch.Tensor = torch.tensor(0)
         self.device = device
+        self.maj_vote_spk_count = maj_vote_spk_count
 
     def NMEanalysis(self):
         """
@@ -859,13 +861,14 @@ class NMESC:
 
         # Scans p_values and find a p_value that generates
         # the smallest g_p value.
-        eig_ratio_list = []
+        eig_ratio_list, est_num_of_spk_list = [], []
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
         for p_value in self.p_value_list:
             est_num_of_spk, g_p = self.getEigRatio(p_value)
             est_spk_n_dict[p_value.item()] = est_num_of_spk
             eig_ratio_list.append(g_p)
+            est_num_of_spk_list.append(est_num_of_spk)
         index_nn = torch.argmin(torch.tensor(eig_ratio_list))
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
@@ -879,6 +882,10 @@ class NMESC:
 
         p_hat_value = (subsample_ratio * rp_p_value).type(torch.int)
         est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
+        if self.maj_vote_spk_count:
+            est_num_of_spk = torch.mode(torch.tensor(est_num_of_spk_list))[0]
+        else:
+            est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
         return est_num_of_spk, p_hat_value
 
     def subsampleAffinityMat(self, NME_mat_size: int):
@@ -961,6 +968,7 @@ def COSclustering(
     enhanced_count_thres: int = 80,
     max_rp_threshold: float = 0.15,
     sparse_search_volume: int = 30,
+    maj_vote_spk_count: bool = True,
     fixed_thres: float = 0.0,
     cuda=False,
 ):
@@ -1037,6 +1045,7 @@ def COSclustering(
         sparse_search_volume=sparse_search_volume,
         fixed_thres=fixed_thres,
         NME_mat_size=300,
+        maj_vote_spk_count=maj_vote_spk_count,
         cuda=cuda,
         device=device,
     )
@@ -1051,7 +1060,7 @@ def COSclustering(
         est_num_of_spk = oracle_num_speakers
     elif est_num_of_spk_enhanced:
         est_num_of_spk = est_num_of_spk_enhanced
-
+    
     spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
     Y = spectral_model.predict(affinity_mat)
 
