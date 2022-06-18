@@ -1605,7 +1605,7 @@ pipeline {
             capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
             printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
             printf "O\nU\n" > "${capit_label_vocab}" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
               model.train_ds.ds_item="${data_dir}" \
               model.validation_ds.ds_item="${data_dir}" \
@@ -1622,13 +1622,13 @@ pipeline {
               trainer.max_epochs=1 \
               +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
               model.test_ds.ds_item="${data_dir}" \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1643,6 +1643,8 @@ pipeline {
           steps {
             sh 'cd examples/nlp/token_classification && \
             work_dir="$(mktemp -d -p "$(pwd)")" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
             data_dir="${work_dir}/data" && \
             mkdir -p "${data_dir}" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
@@ -1666,7 +1668,7 @@ pipeline {
               trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir="${work_dir}/output" \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
             python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
@@ -1674,7 +1676,7 @@ pipeline {
               ~model.train_ds \
               ~model.validation_ds \
               model.test_ds.ds_item="${data_dir}" \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
