@@ -290,6 +290,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
     hp_cfg = cfg.get("search_config")
+    base_results_dir = cfg.get("base_results_dir")
 
     # CLUSTER parameters
     cluster_cfg = cfg.get("cluster")
@@ -324,9 +325,15 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     flags = (
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
-        f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.log "
-        f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.error "
     )
+    if cfg.get("ci_test"):  # Whether this job is running in CI or not.
+        flags += f"-o {base_results_dir}/slurm_%j.log "
+    else:
+        flags += (
+            f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.log "
+            f"-e {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.error "
+        )
+
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
     train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
@@ -346,8 +353,10 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         partition=partition,
         account=account,
     )
-
-    job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+    if cfg.get("ci_test"):
+        job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{base_results_dir}/launcher.log" '], shell=True)
+    else:
+        job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     dependency = job_id.decode("utf-8")
     print(f"Submitted job to select optimal throughput with job id: {dependency}")
     return dependency

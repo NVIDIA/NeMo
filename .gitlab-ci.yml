@@ -51,14 +51,13 @@ before_script:
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
-    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${BASE_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    - export SLURM_OUTPUT=${BASE_RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 777 ./* -R
