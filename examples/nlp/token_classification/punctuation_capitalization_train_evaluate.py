@@ -120,7 +120,7 @@ def main(cfg: DictConfig) -> None:
             model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         else:
             raise ValueError(
-                f'In config parameter `pretrained_model` provide path to the pre-trained .nemo file or choose model '
+                f'Config parameter `pretrained_model` should contain a path to the pre-trained .nemo file or a model '
                 f'name from '
                 f'{[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()]}. '
                 f'Provided `pretrained_model="{cfg.pretrained_model}"` is neither a valid path, nor a valid model '
