@@ -442,6 +442,83 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch
     fused_sim_d = torch.matmul(repp.permute(2, 1, 0), multiscale_weights.t()).squeeze(2).t()
     return fused_sim_d, base_scale_emb
 
+def get_argmin_mat_dist(uniq_scale_dict: dict):
+    """
+    Calculate the mapping between the base scale and other scales. A segment from a longer scale is
+    repeatedly mapped to a segment from a shorter scale or the base scale.
+
+    Args:
+        uniq_scale_dict (dict) :
+            Dictionary of embeddings and timestamps for each scale.
+
+    Returns:
+        session_scale_mapping_dict (dict) :
+            Dictionary containing argmin arrays indexed by scale index.
+    """
+    scale_list = sorted(list(uniq_scale_dict.keys()))
+    segment_anchor_dict = {}
+    for scale_idx in scale_list:
+        time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
+        time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
+        segment_anchor_dict[scale_idx] = torch.mean(time_stamps_float, dim=1)
+
+    base_scale_idx = max(scale_list)
+    base_scale_anchor = segment_anchor_dict[base_scale_idx]
+    session_scale_mapping_dict = {}
+    session_scale_dist_mat = {}
+    for scale_idx in scale_list:
+        curr_scale_anchor = segment_anchor_dict[scale_idx]
+        curr_mat = torch.tile(curr_scale_anchor, (base_scale_anchor.shape[0], 1))
+        base_mat = torch.tile(base_scale_anchor, (curr_scale_anchor.shape[0], 1)).t()
+        argmin_mat = torch.argmin(torch.abs(curr_mat - base_mat), dim=1)
+        abs_dist_mat = torch.abs(curr_mat - base_mat)
+        session_scale_mapping_dict[scale_idx] = argmin_mat
+        session_scale_dist_mat[scale_idx] = abs_dist_mat
+    return session_scale_mapping_dict, session_scale_dist_mat
+
+
+def getTempInterpolMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch.device = torch.device('cpu')):
+    """
+    Calculate cosine similarity values among speaker embeddings for each scale then
+    apply multiscale weights to calculate the fused similarity matrix.
+
+    Take the embedding from the scale (scale_interpolation_index-1)-th scale and find the indexes that are
+    in the range of [-half_scale, half_scale]. The distance to the center of the base-scale is used for
+    calculating the interpolation weight. The distance is squared then normalized to create an interpolation
+    weight vector interpol_w. Using the interpolation weight interpol_w and target embedding indexes target_bool,
+    interpolated embedding is calculated.
+
+    Args:
+        uniq_embs_and_timestamps: (dict)
+            The dictionary containing embeddings, timestamps and multiscale weights.
+            If uniq_embs_and_timestamps contains only one scale, single scale diarization
+            is performed.
+
+    Returns:
+        fused_sim_d (torch.tensor):
+            This function generates an affinity matrix that is obtained by calculating
+            the weighted sum of the affinity matrices from the different scales.
+
+        base_scale_emb (torch.tensor):
+            The base scale embedding (the embeddings from the finest scale)
+    """
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+    base_scale_idx = max(uniq_scale_dict.keys())
+    base_scale_emb = uniq_scale_dict[base_scale_idx]['embeddings']
+    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float().to(device)
+    score_mat_list, repeated_tensor_list = [], []
+    session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
+    rep_mat_list = []
+    for scale_idx in sorted(uniq_scale_dict.keys()):
+        mapping_argmat = session_scale_mapping_dict[scale_idx]
+        emb_t = uniq_scale_dict[scale_idx]['embeddings'].half().to(device)
+        repeat_list = getRepeatedList(mapping_argmat, torch.tensor(emb_t.shape[0])).to(device)
+        rep_emb_t = torch.repeat_interleave(emb_t, repeats=repeat_list, dim=0)
+        rep_mat_list.append(rep_emb_t)
+    stacked_scale_embs = torch.stack(rep_mat_list)
+    context_emb = torch.matmul(stacked_scale_embs.permute(2, 1, 0), multiscale_weights.t().half()).squeeze().t()
+    fused_sim_d = getCosAffinityMatrix(context_emb)
+    return fused_sim_d, context_emb, session_scale_mapping_dict
 
 @torch.jit.script
 def getCosAffinityMatrix(_emb: torch.Tensor):
@@ -881,7 +958,7 @@ class NMESC:
             est_spk_n_dict[p_value.item()] = est_num_of_spk
             eig_ratio_list.append(g_p)
             est_num_of_spk_list.append(est_num_of_spk)
-            print(f"Scanning p_value: {p_value}, est_num_of_spk: {est_num_of_spk} g_p {g_p}")
+            # print(f"Scanning p_value: {p_value}, est_num_of_spk: {est_num_of_spk} g_p {g_p}")
             
         try:
             index_nn = torch.argmin(torch.tensor(eig_ratio_list))

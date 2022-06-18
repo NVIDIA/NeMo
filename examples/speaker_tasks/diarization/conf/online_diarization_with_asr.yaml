@@ -6,6 +6,7 @@ batch_size: 64
 
 diarizer:
   manifest_filepath: "/home/taejinp/projects/data/diar_manifest_input/ch109.json"
+  simulation_uniq_id: null
   out_dir: "/home/taejinp/projects/run_time/streaming_diar_output_univ"
   oracle_vad: False # If True, uses RTTM files provided in the manifest file to get speech activity (VAD) timestamps
   collar: 0.25 # Collar value for scoring
@@ -32,9 +33,12 @@ diarizer:
   speaker_embeddings:
     model_path: "/home/taejinp/Downloads/titanet-m.nemo" # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
     parameters:
-      window_length_in_sec: 1.0 # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
-      shift_length_in_sec: 0.5 # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
-      multiscale_weights: null # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
+      window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: [0.75,0.625,0.5,0.5,0.25] # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
+      multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
+      #window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). Either a number or a list. Ex) 1.5 or [1.5,1.0,0.5]
+      #shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # Shift length(s) in sec (floating-point number). Either a number or a list. Ex) 0.75 or [0.75,0.5,0.25]
+      #multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. Ex) [0.33,0.33,0.33]
       save_embeddings: False # Save speaker embeddings in pickle format.
   
   clustering:
@@ -44,33 +48,45 @@ diarizer:
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.25 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
+
+      # Online clustering parameters
       history_buffer_size: 100
-      current_buffer_size: 100
+      current_buffer_size: 150
     
   asr:
     model_path: "/home/taejinp/gdrive/model/ASR_models/Conformer-CTC-BPE_large_Riva_ASR_set_3.0_ep60.nemo" # Provide NGC cloud ASR model name. stt_en_conformer_ctc_* models are recommended for diarization purposes.
     parameters:
       asr_based_vad: False # if True, speech segmentation for diarization is based on word-timestamps from ASR inference.
-      asr_based_vad_threshold: 1.0  # Threshold (in sec) that caps the gap between two words when generating VAD timestamps using ASR based VAD.
+      asr_based_vad_threshold: 0.5  # Threshold (in sec) that caps the gap between two words when generating VAD timestamps using ASR based VAD.
       asr_batch_size: null # Batch size can be dependent on each ASR model. Default batch sizes are applied if set to null.
       lenient_overlap_WDER: True # If true, when a word falls into  speaker-overlappedregions, consider the word as a correctly diarized word.
       decoder_delay_in_sec: null # Native decoder delay. null is recommended to use the default values for each ASR model.
-      word_ts_anchor_offset: null # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
       word_ts_anchor_pos: "start" # Select which part of the word timestamp we want to use. The options are: 'start', 'end', 'mid'.
+      #word_ts_anchor_offset: 0.035  # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
+      word_ts_anchor_offset: 0.035  # Offset to set a reference point from the start of the word. Recommended range of values is [-0.05  0.2]. 
+      max_word_ts_length_in_sec: 0.6
       fix_word_ts_with_VAD: False # Fix the word timestamp using VAD output. You must provide a VAD model to use this feature.
       colored_text: True  # If True, use colored text to distinguish speakers in the output transcript.
       print_time: True # If True, the start and end time of each speaker turn is printed in the output transcript.
       break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
-      punctuation_model: "punctuation_en_distilbert"
+
+      # Streaming ASR parameters
+      streaming_simulation: True
+      #streaming_simulation: False
+      punctuation_model: "/home/taejinp/gdrive/model/language_model/punctuation_en_distilbert.nemo"
       #punctuation_model: null
+      #enforce_real_time: True
+      enforce_real_time: False
+      #punctuation_model: "punctuation_en_distilbert"
       frame_len: 1.0
+      #frame_len: 0.4\c 
       frame_overlap: 2.0
     
     ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)
-      pretrained_language_model: null # KenLM model file: .arpa model file or .bin binary file.
-      beam_width: 32
-      alpha: 0.5
-      beta: 2.5
+      pretrained_language_model:  null
+      beam_width: 128
+      alpha: 3.0
+      beta: 1.0
 
     realigning_lm_parameters: # Experimental feature
       arpa_language_model: null # Provide a KenLM language model in .arpa format.

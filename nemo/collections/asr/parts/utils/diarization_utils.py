@@ -12,10 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import copy
 import csv
 import json
 import os
+import math
+import copy
 from collections import OrderedDict as od
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -33,6 +36,25 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 )
 from nemo.utils import logging
 
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import FrameBatchASR_Logits, WERBPE_TS, ASR_TIMESTAMPS, WER_TS
+from nemo.collections.asr.parts.utils.speaker_utils import get_contiguous_stamps, merge_stamps, labels_to_pyannote_object, rttm_to_labels, labels_to_rttmfile, get_uniqname_from_filepath, get_embs_and_timestamps, get_subsegments, isOverlap, getOverlapRange, getMergedRanges, getSubRangeList, fl2int, int2fl, combine_int_overlaps
+import torch
+from nemo.collections.asr.parts.utils.vad_utils import (
+    generate_overlap_vad_seq,
+    generate_vad_segment_table,
+    get_vad_stream_status,
+    prepare_manifest,
+)
+from nemo.collections import nlp as nemo_nlp
+import nemo.collections.asr as nemo_asr
+from typing import Dict, List, Tuple, Type, Union
+from nemo.collections.asr.models import ClusteringDiarizer
+from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from sklearn.preprocessing import OneHotEncoder
+from nemo.collections.asr.parts.utils.streaming_utils import AudioFeatureIterator, FrameBatchASR, FrameBatchVAD
+from omegaconf import OmegaConf
+
 try:
     import arpa
 
@@ -47,7 +69,7 @@ try:
 except ImportError:
     DIFF_MATCH_PATCH = False
 
-__all__ = ['ASR_DIAR_OFFLINE']
+__all__ = ['ASR_DIAR_OFFLINE', 'ASR_DIAR_ONLINE']
 
 
 def dump_json_to_file(file_path, riva_dict):
@@ -262,7 +284,7 @@ class ASR_DIAR_OFFLINE(object):
                     frame_vad_float_list.append(float(line.strip()))
             self.frame_VAD[uniq_id] = frame_vad_float_list
 
-    def gather_eval_results(self, metric, mapping_dict, total_riva_dict):
+    def gather_eval_results(self, metric, mapping_dict, total_riva_dict, pred_labels=None):
         """
         Gather diarization evaluation results from pyannote DiarizationErrorRate metric object.
 
@@ -278,8 +300,9 @@ class ASR_DIAR_OFFLINE(object):
         count_correct_spk_counting = 0
         for result in results:
             key, score = result
-            pred_rttm = os.path.join(self.root_path, 'pred_rttms', key + '.rttm')
-            pred_labels = rttm_to_labels(pred_rttm)
+            if pred_labels is None:
+                pred_rttm = os.path.join(self.root_path, 'pred_rttms', key + '.rttm')
+                pred_labels = rttm_to_labels(pred_rttm)
 
             est_n_spk = self.get_num_of_spk_from_labels(pred_labels)
             ref_rttm = self.AUDIO_RTTM_MAP[key]['rttm_filepath']
@@ -307,19 +330,25 @@ class ASR_DIAR_OFFLINE(object):
                 "is_spk_count_correct": (est_n_spk == ref_n_spk),
             }
             count_correct_spk_counting += int(est_n_spk == ref_n_spk)
+        
+        if metric['total'] > 0.01: 
+            DER, CER, FA, MISS = (
+                abs(metric),
+                metric['confusion'] / metric['total'],
+                metric['false alarm'] / metric['total'],
+                metric['missed detection'] / metric['total'],
+            )
+            speaker_counting_acc = count_correct_spk_counting / len(metric.results_)
+        else:
+            DER, CER, FA, MISS = 100, 100, 100, 100
+            speaker_counting_acc = 0.0
 
-        DER, CER, FA, MISS = (
-            abs(metric),
-            metric['confusion'] / metric['total'],
-            metric['false alarm'] / metric['total'],
-            metric['missed detection'] / metric['total'],
-        )
         DER_result_dict["total"] = {
             "DER": DER,
             "CER": CER,
             "FA": FA,
             "MISS": MISS,
-            "spk_counting_acc": count_correct_spk_counting / len(metric.results_),
+            "spk_counting_acc": speaker_counting_acc,
         }
 
         return DER_result_dict
@@ -397,7 +426,7 @@ class ASR_DIAR_OFFLINE(object):
             enhanced_word_ts_dict[uniq_id] = enhanced_word_ts_buffer
         return enhanced_word_ts_dict
 
-    def get_transcript_with_speaker_labels(self, diar_hyp, word_hyp, word_ts_hyp):
+    def get_transcript_with_speaker_labels(self, diar_hyp, word_hyp, word_ts_hyp, write_files=True):
         """
         Match the diarization result with the ASR output.
         The words and the timestamps for the corresponding words are matched
@@ -439,7 +468,7 @@ class ASR_DIAR_OFFLINE(object):
             word_dict_seq_list = self.get_word_dict_seq_list(uniq_id, diar_hyp, word_hyp, word_ts_hyp, word_ts_refined)
             if self.realigning_lm:
                 word_dict_seq_list = self.realign_words_with_lm(word_dict_seq_list)
-            self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict)
+            self.make_json_output(uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict, write_files)
         logging.info(f"Diarization with ASR output files are saved in: {self.root_path}/pred_rttms")
         return total_riva_dict
 
@@ -464,7 +493,7 @@ class ASR_DIAR_OFFLINE(object):
             )
         return word_dict_seq_list
 
-    def make_json_output(self, uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict):
+    def make_json_output(self, uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict, write_files):
         """
         Generate json output files and transcripts from the ASR and diarization results.
 
@@ -544,7 +573,8 @@ class ASR_DIAR_OFFLINE(object):
         gecko_dict['monologues'].append({'speaker': {'name': None, 'id': speaker}, 'terms': terms_list})
 
         riva_dict['transcription'] = ' '.join(word_seq_list)
-        self.write_and_log(uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences)
+        if write_files:
+            self.write_and_log(uniq_id, riva_dict, audacity_label_words, gecko_dict, sentences)
         return total_riva_dict
 
     def get_realignment_ranges(self, k, word_seq_len):
@@ -1110,3 +1140,725 @@ class ASR_DIAR_OFFLINE(object):
             riva_dict['sentences'].append(
                 {'sentence': text, 'start_time': start_point, 'end_time': end_point, 'speaker_label': speaker}
             )
+
+def timeit(method):
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        if 'log_time' in kw:
+            name = kw.get('log_name', method.__name__.upper())
+            kw['log_time'][name] = int((te - ts) * 1000)
+        else:
+            # logging.info('%2.2fms %r'%((te - ts) * 1000, method.__name__))
+            pass
+        return result
+    return timed
+
+def process_audio_file(file):
+    TARGET_SR = 16000
+    data, sr = librosa.load(file, sr=TARGET_SR)
+    os.remove(file)
+    data = librosa.to_mono(data)
+    return data
+
+def get_partial_ref_labels(pred_labels, ref_labels):
+    last_pred_time = float(pred_labels[-1].split()[1])
+    ref_labels_out = []
+    for label in ref_labels:
+        start, end, speaker = label.split()
+        start, end = float(start), float(end)
+        if last_pred_time <= start:
+            pass
+        elif start < last_pred_time <= end:
+            label = f"{start} {last_pred_time} {speaker}"
+            ref_labels_out.append(label) 
+        elif end < last_pred_time:
+            ref_labels_out.append(label) 
+    return ref_labels_out 
+
+def get_wer_feat_logit_single(samples, frame_asr, frame_len, tokens_per_chunk, delay, model_stride_in_secs, frame_mask):
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+    hyps, tokens_list = [], []
+    frame_asr.reset()
+    feature_frame_shape = frame_asr.read_audio_file_and_return_samples(samples, delay, model_stride_in_secs, frame_mask)
+    if frame_mask is not None:
+        hyp, tokens, log_prob  = frame_asr.transcribe_with_ts(tokens_per_chunk, delay)
+    else:
+        hyp, tokens, log_prob = None, None, None
+    hyps.append(hyp)
+    tokens_list.append(tokens)
+    return hyps, tokens_list, feature_frame_shape, log_prob
+
+def get_vad_feat_logit_single(samples, frame_vad, frame_len, tokens_per_chunk, vad_delay, model_stride_in_secs, threshold):
+    """
+    Create a preprocessor to convert audio samples into raw features,
+    Normalization will be done per buffer in frame_bufferer.
+    """
+    hyps, tokens_list = [], []
+    frame_vad.reset()
+    feature_frame_shape = frame_vad.read_audio_file_and_return_samples(samples, delay=vad_delay, model_stride_in_secs=model_stride_in_secs)
+    streaming_vad_logits, speech_segments = frame_vad.decode(threshold=threshold)
+    return streaming_vad_logits, speech_segments, feature_frame_shape
+
+class MaskedFeatureIterator(AudioFeatureIterator):
+    def __init__(self, samples, frame_len, preprocessor, device, frame_mask=None):
+        super().__init__(samples, frame_len, preprocessor, device)
+        if frame_mask is not None:
+            self._features = torch.log(torch.mul(np.exp(1) ** self._features, frame_mask.to(device)))
+
+class FrameBatchASR_Logits_Sample(FrameBatchASR_Logits):
+    """
+    A class for streaming frame-based ASR.
+    Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    Please refer to FrameBatchASR for more detailed information.
+    """
+
+    def __init__(self, asr_model, frame_len=1.0, total_buffer=4.0, batch_size=4):
+        super().__init__(asr_model, frame_len, total_buffer, batch_size)
+    
+    @timeit
+    def read_audio_file_and_return_samples(self, _samples, delay: float, model_stride_in_secs: float, frame_mask):
+        self.device = self.asr_model.device
+        samples = np.pad(_samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        frame_reader = MaskedFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.device, frame_mask)
+        self.set_frame_reader(frame_reader)
+        return frame_reader._features.shape
+
+class FrameBatchVAD_sample(FrameBatchVAD):
+    """
+    A class for streaming frame-based ASR.
+    Inherits from FrameBatchASR and adds new capability of returning the logit output.
+    Please refer to FrameBatchASR for more detailed information.
+    """
+
+    def __init__(self, vad_model, frame_len, total_buffer, batch_size, patience):
+        super().__init__(vad_model, frame_len, total_buffer, batch_size, patience) 
+    
+    @timeit
+    def read_audio_file_and_return_samples(self, samples, delay: float, model_stride_in_secs: float):
+        self.device = self.vad_model.device
+        self.pad_end_len = int(delay * model_stride_in_secs * self.vad_model._cfg.sample_rate)
+        samples = np.pad(samples, (0, self.pad_end_len))
+        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.vad_model.device)
+        self.set_frame_reader(frame_reader)
+        return frame_reader._features.shape
+
+class ASR_DIAR_ONLINE(ASR_DIAR_OFFLINE, ASR_TIMESTAMPS):
+    def __init__(self, 
+                 diar, 
+                 cfg):
+        super().__init__(**cfg)
+        '''
+        Args:
+          frame_len: frame's duration, seconds
+          frame_overlap: duration of overlaps before and after current frame, seconds
+        '''
+        self._cfg_diarizer = cfg
+        self.audio_queue_buffer = np.array([])
+        self.ASR_model_name = self._cfg_diarizer['asr']['model_path']
+        self.params = dict(self._cfg_diarizer['asr']['parameters'])
+        self.params['round_float'] = 2
+        self.params['use_cuda'] = True
+        self.params['color'] = True
+        self.params['offset'] = 0.0
+        self.params['time_stride'] = 0.04
+        self.use_cuda = self.params['use_cuda']
+        self.rttm_file_path = None
+        self.sample_rate = diar.sample_rate
+        if self.use_cuda:
+            self.device = torch.device("cuda:0")
+            self.cuda = True
+        else: 
+            self.device = torch.device("cpu")
+            self.cuda = False
+
+        self.frame_len = float(self._cfg_diarizer.asr.parameters.frame_len)
+        self.frame_overlap = float(self._cfg_diarizer.asr.parameters.frame_overlap)
+        
+        self.metric = None
+        self.string_out = ""
+        self.frame_index = 0
+        self.eval_frequency = 20
+        self.asr_batch_size = 16
+        self.ROUND = 2
+        self.audio_off_count = 0
+        self.asr_model_path = self._cfg_diarizer.asr.model_path
+        self._load_VAD_model(self.params)
+        self.asr_model = self.set_asr_model()
+        self._init_FrameBatchASR()
+        self._init_FrameBatchVAD()
+        self._load_punctuation_model()
+
+        # For diarization
+        self.diar = diar
+        self.n_embed_seg_len = int(self.sample_rate * self.diar.embed_seg_len)
+        self.word_ts_anchor_offset = float(self._cfg_diarizer.asr.parameters.word_ts_anchor_offset)
+        self.fine_embs_array = None
+        self.Y_fullhist = []
+        
+        # Minimun width to consider non-speech activity 
+        self.max_word_ts_length_in_sec = self._cfg_diarizer.asr.parameters.max_word_ts_length_in_sec
+        self.asr_based_vad_threshold = self._cfg_diarizer.asr.parameters.asr_based_vad_threshold
+        self.CHUNK_SIZE = int(self.frame_len*self.sample_rate)
+        self.n_frame_len = int(self.frame_len * self.sample_rate)
+        self.n_frame_overlap = int(self.frame_overlap * self.sample_rate)
+        self.buffer = np.zeros(shape=2*self.n_frame_overlap + self.n_frame_len,
+                               dtype=np.float32)
+        self.buffer_length = self.buffer.shape[0]
+        self.overlap_frames_count = int(self.n_frame_overlap/self.sample_rate)
+        self.cumulative_speech_labels = []
+
+        self.buffer_start = None
+        self.max_lm_realigning_words = 3
+        self.frame_start = 0
+        self.word_seq = []
+        self.word_ts_seq = []
+        self.merged_cluster_labels = []
+        self.offline_logits = None
+        self.debug_mode = False
+        self.streaming_buffer_list = []
+        self.reset()
+        self.segment_ranges = []
+        self.cluster_labels = []
+
+        # Text display
+        self.capitalize_first_word = True
+        self.color_palette = {
+                              'speaker_0': '\033[1;30m',
+                              'speaker_1': '\033[1;34m',
+                              'speaker_2': '\033[1;32m',
+                              'speaker_3': '\033[1;35m',
+                              'speaker_4': '\033[1;31m',
+                              'speaker_5': '\033[1;36m',
+                              'speaker_6': '\033[1;37m',
+                              'speaker_7': '\033[1;30m',
+                              'speaker_8': '\033[1;33m',
+                              'speaker_9': '\033[0;34m',
+                              'white': '\033[0;37m'}
+   
+    
+    def get_audio_rttm_map(self, uniq_id):
+        self.uniq_id = uniq_id
+        self.AUDIO_RTTM_MAP = {self.uniq_id: self.AUDIO_RTTM_MAP[uniq_id]}
+        self.audio_file_list = [value['audio_filepath'] for _, value in self.AUDIO_RTTM_MAP.items()]
+
+    def _load_VAD_model(self, params):
+        if self._cfg_diarizer.vad.model_path is not None:
+            self.vad_model = nemo_asr.models.EncDecClassificationModel.restore_from(self._cfg_diarizer.vad.model_path)
+            self.vad_model = self.vad_model.to(self.device)
+            self.vad_model.eval()
+    
+    def _load_ASR_model(self, params):
+        if 'citrinet' in  self.asr_model_path.lower():
+            self.asr_stride = 8
+            self.asr_delay_sec = 0.12
+            encdec_class = nemo_asr.models.EncDecCTCModelBPE
+        elif 'conformer' in self.asr_model_path.lower():
+            self.asr_stride = 4
+            self.asr_delay_sec = 0.06
+            encdec_class = nemo_asr.models.EncDecCTCModelBPE
+        else:
+            raise ValueError(f"{self.asr_model_path} is not compatible with the streaming launcher.")
+        
+        if '.nemo' in self.asr_model_path.lower():
+            self.asr_model = encdec_class.restore_from(restore_path=self.asr_model_path, map_location=self.device)
+        else:
+            self.asr_model = encdec_class.from_pretrained(self.asr_model_path, map_location=self.device)
+
+        self.asr_model = self.asr_model.to(self.device)
+        self.asr_model = self.asr_model.eval()
+        self.params['offset'] = 0
+        self.params['time_stride'] = self.asr_stride
+        self.buffer_list = []
+
+    def _load_punctuation_model(self):
+        self.punctuation_model_path= self._cfg_diarizer.asr.parameters.punctuation_model
+        if self.punctuation_model_path is not None:
+            if '.nemo' in self.punctuation_model_path.lower():
+                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.restore_from(self._cfg_diarizer.asr.parameters.punctuation_model)
+            else:
+                self.punctuation_model = nemo_nlp.models.PunctuationCapitalizationModel.from_pretrained(self._cfg_diarizer.asr.parameters.punctuation_model)
+        else:
+            self.punctuation_model = None
+
+    def _convert_to_torch_var(self, audio_signal):
+        audio_signal = torch.stack(audio_signal).float().to(self.asr_model.device)
+        audio_signal_lens = torch.from_numpy(np.array([self.n_embed_seg_len for k in range(audio_signal.shape[0])])).to(self.asr_model.device)
+        return audio_signal, audio_signal_lens
+    
+    def _update_word_and_word_ts(self, words, word_timetamps):
+        """
+        Stitch the existing word sequence in the buffer with the new word sequence.
+        """
+        update_margin =  -1* float(self.frame_len * 0.25)
+        if len(self.word_seq) == 0:
+            if self.punctuation_model:
+                words = self.punctuate_words(words)
+            self.word_seq.extend(words)
+            self.word_ts_seq.extend(word_timetamps)
+
+        elif len(words) > 0:
+            # Find the first word that starts after frame_start point in state buffer self.word_seq
+            before_frame_start_old = torch.tensor(self.word_ts_seq)[:,0] < self.frame_start + update_margin
+            if all(before_frame_start_old):
+                old_end = len(self.word_seq)
+            else:
+                old_end = torch.where(before_frame_start_old == False)[0][0].item()
+            
+            # Find the first word that starts after frame_start point in incoming words
+            before_frame_start_new = torch.tensor(word_timetamps)[:,0] < self.frame_start + update_margin
+            if all(before_frame_start_new):
+                new_stt = len(word_timetamps)
+            else:
+                new_stt = torch.where(before_frame_start_new == False)[0][0].item()
+            
+            del self.word_seq[old_end:]
+            del self.word_ts_seq[old_end:]
+            if self.punctuation_model_path:
+                punc_margin = len(words[:new_stt])
+                cas = max(new_stt-punc_margin, 0)
+                _words = self.punctuate_words(words[cas:])[punc_margin:]
+                self.word_seq.extend(_words)
+            else:
+                self.word_seq.extend(words[new_stt:])
+            self.word_ts_seq.extend(word_timetamps[new_stt:])
+    
+    @torch.no_grad()
+    def _run_embedding_extractor(self, audio_signal):
+        torch_audio_signal, torch_audio_signal_lens = self._convert_to_torch_var(audio_signal)
+        _, torch_embs = self.diar._speaker_model.forward(input_signal=torch_audio_signal, 
+                                                         input_signal_length=torch_audio_signal_lens)
+        return torch_embs
+    
+    @timeit 
+    def punctuate_words(self, words):
+        """
+        This is 
+
+        """
+        input_length = len(words)
+        if len(words) == 0:
+            return []
+        elif self.punctuation_model is not None:
+            try:
+                words = self.punctuation_model.add_punctuation_capitalization([' '.join(words)])[0].split()
+                words[-1] = words[-1].replace(".", "")
+                output_length = len(words)
+            except:
+                raise ValueError("Punctuation Failed.")
+
+        
+            for idx in range(1, len(words)):
+                if any([ x in words[idx-1] for x in [".", "?"] ]):
+                    words[idx] = words[idx].capitalize()
+            return words
+
+    @timeit
+    def _extract_speaker_embeddings(self, hop, embs_array, audio_signal, segment_ranges, online_extraction=True):
+        """
+        Extract speaker embeddings based on audio_signal and segment_ranges varialbes. Unlike offline speaker diarization,
+        speaker embedding and subsegment ranges are not saved on the disk.
+
+
+        """
+        if embs_array is None:
+            target_segment_count = len(segment_ranges)
+            stt, end = 0, len(segment_ranges)
+        else:
+            target_segment_count = int(min(np.ceil((2*self.frame_overlap + self.frame_len)/hop), len(segment_ranges)))
+            stt, end = len(segment_ranges)-target_segment_count, len(segment_ranges)
+         
+        if end > stt:
+            torch_embs = self._run_embedding_extractor(audio_signal[stt:end])
+            if embs_array is None:
+                embs_array = torch_embs
+            else:
+                embs_array = torch.vstack((embs_array[:stt,:], torch_embs))
+        assert len(segment_ranges) == embs_array.shape[0], "Segment ranges and embs_array shapes do not match."
+        return embs_array
+    
+    def print_time_colored(self, string_out, speaker, start_point, end_point, params, replace_time=False, space=' '):
+        params['color'] == False
+        if params['color']:
+            color = self.color_palette[speaker]
+        else:
+            color = ''
+
+        datetime_offset = 16 * 3600
+        if float(start_point) > 3600:
+            time_str = "%H:%M:%S.%f"
+        else:
+            time_str = "%M:%S.%f"
+        start_point_str = datetime.fromtimestamp(float(start_point) - datetime_offset).strftime(time_str)[:-4]
+        end_point_str = datetime.fromtimestamp(float(end_point) - datetime_offset).strftime(time_str)[:-4]
+        
+        if replace_time:
+            old_start_point_str = string_out.split('\n')[-1].split(' - ')[0].split('[')[-1]
+            word_sequence = string_out.split('\n')[-1].split(' - ')[-1].split(':')[-1].strip() + space
+            string_out = '\n'.join(string_out.split('\n')[:-1])
+            time_str = "[{} - {}]".format(old_start_point_str, end_point_str)
+        else:
+            time_str = "[{} - {}]".format(start_point_str, end_point_str)
+            word_sequence = ''
+        
+        if not params['print_time']:
+            time_str = ''
+        strd = "\n{}{} {}: {}".format(color, time_str, speaker, word_sequence)
+        return string_out + strd
+    
+    def print_word_colored(self, string_out, word, params, first_word=False):
+        word = word.replace("thevaluation", "the valuation")
+        word = word.replace(",", "")
+        word = word.strip()
+        if first_word:
+            space = ""
+            word = word.capitalize() if self.capitalize_first_word else word
+        else:
+            space = " "
+
+        return string_out + space +  word
+    
+    def get_speaker_label_per_word(self, words, word_ts_list, pred_diar_labels):
+        params = self.params
+        start_point, end_point, speaker = pred_diar_labels[0].split()
+        old_speaker = speaker
+        idx, string_out = 0, ''
+        string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params)
+        for j, word_ts_stt_end in enumerate(word_ts_list):
+            word_pos = self.get_word_timestamp_anchor(word_ts_stt_end)
+            if word_pos < float(end_point):
+                first_word = True if j == 0 else False
+                string_out = self.print_word_colored(string_out, words[j], params, first_word=first_word)
+            else:
+                idx += 1
+                idx = min(idx, len(pred_diar_labels)-1)
+                old_speaker = speaker
+                start_point, end_point, speaker = pred_diar_labels[idx].split()
+                if speaker != old_speaker:
+                    string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params, replace_time=False, space='')
+                    string_out = self.print_word_colored(string_out, words[j], params, first_word=True)
+                else:
+                    string_out = self.print_time_colored(string_out, speaker, start_point, end_point, params, replace_time=True, space='')
+                    string_out = self.print_word_colored(string_out, words[j], params, first_word=False)
+
+        if self.rttm_file_path and len(words) > 0:
+            string_out = self.print_online_DER_info(self.diar.uniq_id, string_out, pred_diar_labels, params)
+        logging.info(
+            "Streaming Diar [{}][frame-  {}th  ]:".format(
+                self.diar.uniq_id, self.frame_index
+            )
+        )
+        return string_out 
+    
+    @timeit  
+    def print_online_DER_info(self, uniq_id, string_out, pred_diar_labels, params):
+        if params['color']:
+            color = self.color_palette['white']
+        else:
+            color = ''
+        if self.metric is None  or self.frame_index % self.eval_frequency== 0:
+            self.der_dict, self.der_stat_dict, self.metric, self.mapping_dict = self.diar.online_eval_diarization(pred_diar_labels, self.rttm_file_path)
+
+        if len(self.metric.results_) > 0:
+            diar_hyp = {uniq_id: pred_diar_labels}
+            word_hyp = {uniq_id: self.word_seq}
+            word_ts_hyp = {uniq_id: self.word_ts_seq}
+            total_riva_dict = self.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp, write_files=False)
+            self.metric.results_ = [(uniq_id, self.metric.results_[0][1])]
+            DER_result_dict = self.gather_eval_results(self.metric, self.mapping_dict, total_riva_dict, pred_labels=pred_diar_labels)
+            WDER_dict = self.get_WDER(total_riva_dict, DER_result_dict)
+            wder = WDER_dict['session_level'][uniq_id]['ref_based_wder']
+
+        DER, FA, MISS, CER = self.der_dict['DER'], self.der_dict['FA'], self.der_dict['MISS'], self.der_dict['CER']
+        string_out += f'\n{color}============================================================================='
+        string_out += f'\n{color}[Session: {uniq_id}, DER:{DER:.2f}%, FA:{FA:.2f}% MISS:{MISS:.2f}% CER:{CER:.2f}%]'
+        string_out += f'\n{color}[Num of Speakers (Est/Ref): {self.der_stat_dict["est_n_spk"]}/{self.der_stat_dict["ref_n_spk"]}]'
+        string_out += f'\n{color}[DER stat dict: {self.der_stat_dict}]'
+        string_out += f'\n{color}[WDER : {wder}]'
+        self.diar.DER_csv_list.append(f"{self.frame_index}, {DER}, {FA}, {MISS}, {CER}\n")
+        write_txt(f"{self.diar._out_dir}/{uniq_id}.csv", ''.join(self.diar.DER_csv_list))
+        return string_out
+    
+    def update_frame_to_buffer(self, frame): 
+        if frame is None:
+            frame = np.zeros(shape=self.n_frame_len, dtype=np.float32)
+        if len(frame) < self.n_frame_len:
+            frame = np.pad(frame, [0, self.n_frame_len - len(frame)], 'constant')
+        assert len(frame)==self.n_frame_len
+        # self.buffer_start = round(float(self.frame_index - 2*self.overlap_frames_count), 2)
+        self.buffer_start = round(float((self.frame_index+1)*self.frame_len - (2*self.overlap_frames_count+self.frame_len)), 2)
+        self.buffer[:-self.n_frame_len] = copy.deepcopy(self.buffer[self.n_frame_len:])
+        self.buffer[-self.n_frame_len:] = copy.deepcopy(frame)
+
+
+    def fix_word_ts(self, word_ts_seq_list):
+        """
+        [This function should be merged into diarization_utils.py  compensate_word_ts_list()]
+
+        """
+        N = len(word_ts_seq_list)
+        enhanced_word_ts_buffer = []
+        for k, word_ts in enumerate(word_ts_seq_list):
+            if k < N - 1:
+                word_len = round(word_ts[1] - word_ts[0], self.ROUND)
+                len_to_next_word = round(word_ts_seq_list[k + 1][0] - word_ts[0] - 0.01, self.ROUND)
+                vad_est_len = len_to_next_word
+                min_candidate = min(vad_est_len, len_to_next_word)
+                fixed_word_len = max(min(self.max_word_ts_length_in_sec, min_candidate), word_len)
+                enhanced_word_ts_buffer.append([word_ts[0], round(word_ts[0] + fixed_word_len, self.ROUND)])
+            else:
+                enhanced_word_ts_buffer.append([word_ts[0], word_ts[1]])
+        return enhanced_word_ts_buffer
+        
+    @timeit
+    def get_VAD_from_ASR(self, input_word_ts):
+        speech_labels = []
+        word_ts = copy.deepcopy(input_word_ts)
+        if word_ts == []:
+            return speech_labels
+        else:
+            count = len(word_ts)-1
+            while count > 0:
+                if len(word_ts) > 1: 
+                    if word_ts[count][0] - word_ts[count-1][1] <= self.asr_based_vad_threshold:
+                        trangeB = word_ts.pop(count)
+                        trangeA = word_ts.pop(count-1)
+                        word_ts.insert(count-1, [trangeA[0], trangeB[1]])
+                count -= 1
+
+        word_ts = self.fix_word_ts(word_ts)
+        return word_ts 
+    
+    def set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE], frame_asr) -> Tuple[float, float, float]:
+        """
+        Prepare the parameters for the buffered inference.
+        """
+        cfg = copy.deepcopy(asr_model._cfg)
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        # some changes for streaming scenario
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+
+        preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        preprocessor.to(asr_model.device)
+        frame_asr.raw_preprocessor = preprocessor
+
+        # Disable config overwriting
+        OmegaConf.set_struct(cfg.preprocessor, True)
+        self.offset_to_mid_window = (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2
+        self.onset_delay = (
+            math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
+        )
+        self.mid_delay = math.ceil(
+            (self.chunk_len_in_sec + (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2)
+            / self.model_stride_in_secs
+        )
+        self.tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
+        return self.onset_delay, self.mid_delay, self.tokens_per_chunk
+    
+    def _init_FrameBatchVAD(self):
+        torch.manual_seed(0)
+        torch.set_grad_enabled(False)
+
+        self.chunk_len_in_sec = self.frame_len
+        context_len_in_secs = self.frame_overlap
+        self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
+        self.model_stride_in_secs = 0.04
+
+        self.frame_vad = FrameBatchVAD_sample(
+                    vad_model=self.vad_model, 
+                    frame_len=self.chunk_len_in_sec, 
+                    total_buffer=self.total_buffer_in_secs,
+                    batch_size=self.asr_batch_size, 
+                    patience=1,
+                    )
+        self.frame_vad.reset()
+
+    def _init_FrameBatchASR(self):
+        torch.manual_seed(0)
+        torch.set_grad_enabled(False)
+
+        self.chunk_len_in_sec = self.frame_len
+        context_len_in_secs = self.frame_overlap
+        self.total_buffer_in_secs = 2*context_len_in_secs + self.chunk_len_in_sec
+        self.model_stride_in_secs = 0.04
+
+        self.werbpe_ts = WERBPE_TS(
+            tokenizer=self.asr_model.tokenizer,
+            batch_dim_index=0,
+            use_cer=self.asr_model._cfg.get('use_cer', False),
+            ctc_decode=True,
+            dist_sync_on_step=True,
+            log_prediction=self.asr_model._cfg.get("log_prediction", False),
+        )
+            
+        self.frame_asr = FrameBatchASR_Logits_Sample(
+            asr_model=self.asr_model,
+            frame_len=self.chunk_len_in_sec,
+            total_buffer=self.total_buffer_in_secs,
+            batch_size=self.asr_batch_size,
+        )
+        self.frame_asr.reset()
+
+        self.set_buffered_infer_params(self.asr_model, self.frame_asr)
+        self.onset_delay_in_sec = round(self.onset_delay * self.model_stride_in_secs, 2)
+    
+    @timeit
+    def _run_VAD_decoder(self, buffer):
+        """
+        Place holder for VAD integration. This function returns vad_mask that is identical for ASR feature matrix for
+        the current buffer.
+        """
+        # vad_logits, speech_segments, feats_shape = get_vad_feat_logit_single(buffer,
+                                                    # self.frame_vad,
+                                                    # self.chunk_len_in_sec,
+                                                    # self.tokens_per_chunk,
+                                                    # self.mid_delay,
+                                                    # self.model_stride_in_secs,
+                                                    # threshold=0.05,
+                                                # )
+        # A Placeholder which should be replaced with streaming VAD instance
+        hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
+                                                    self.frame_asr,
+                                                    self.chunk_len_in_sec,
+                                                    self.tokens_per_chunk,
+                                                    self.mid_delay,
+                                                    self.model_stride_in_secs,
+                                                    frame_mask=None,
+                                                )
+        vad_mask = torch.ones(feats_shape)
+        vad_timestamps = None
+        return vad_mask, vad_timestamps
+    
+    @timeit
+    def run_ASR_decoder(self, buffer, frame_mask):
+        hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
+                                                    self.frame_asr,
+                                                    self.chunk_len_in_sec,
+                                                    self.tokens_per_chunk,
+                                                    self.mid_delay,
+                                                    self.model_stride_in_secs,
+                                                    frame_mask,
+                                                )
+        greedy_predictions_list = tokens_list[0]
+        logits_len = torch.from_numpy(np.array([len(greedy_predictions_list)]))
+        greedy_predictions = torch.from_numpy(np.array(greedy_predictions_list)).unsqueeze(0)
+        text, char_ts, _word_ts = self.werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
+            self.model_stride_in_secs, greedy_predictions, predictions_len=logits_len
+        )
+        words, word_ts = text[0].split(), _word_ts[0]
+        assert len(words) == len(word_ts)
+        self.asr_offset = self.buffer_start - self.onset_delay_in_sec
+        words_adj, word_ts_adj = [], []
+        for w, x in zip(words, word_ts):
+            word_range = [round(x[0] + self.asr_offset,2), round(x[1] + self.asr_offset,2)] 
+            if word_range[1] >  0.0:
+                word_ts_adj.append(word_range)
+                words_adj.append(w)
+
+        return words_adj, word_ts_adj
+
+    @timeit
+    def _run_ASR_decoder(self, buffer, frame_mask):
+        hyps, tokens_list, feats_shape, log_prob = get_wer_feat_logit_single(buffer,
+                                                    self.frame_asr,
+                                                    self.chunk_len_in_sec,
+                                                    self.tokens_per_chunk,
+                                                    self.mid_delay,
+                                                    self.model_stride_in_secs,
+                                                    frame_mask,
+                                                )
+        if self.beam_search_decoder:
+            logging.info(
+                f"Running beam-search decoder with LM {self.ctc_decoder_params['pretrained_language_model']}"
+            )
+            log_prob = log_prob.unsqueeze(0).cpu().numpy()[0]
+            hyp_words, hyp_word_ts = self.run_pyctcdecode(log_prob, onset_delay_in_sec=self.onset_delay_in_sec)
+            words, word_ts = hyp_words, hyp_word_ts
+        else:
+            greedy_predictions_list = tokens_list[0]
+            logits_len = torch.from_numpy(np.array([len(greedy_predictions_list)]))
+            greedy_predictions = torch.from_numpy(np.array(greedy_predictions_list)).unsqueeze(0)
+            text, char_ts, _word_ts = self.werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
+                self.model_stride_in_secs, greedy_predictions, predictions_len=logits_len
+            )
+            words, word_ts = text[0].split(), _word_ts[0]
+        assert len(words) == len(word_ts)
+        self.asr_offset = self.buffer_start - self.onset_delay_in_sec
+        words_adj, word_ts_adj = [], []
+        for w, x in zip(words, word_ts):
+            word_range = [round(x[0] + self.asr_offset,2), round(x[1] + self.asr_offset,2)] 
+            if word_range[1] >  0.0:
+                word_ts_adj.append(word_range)
+                words_adj.append(w)
+
+        return words_adj, word_ts_adj
+
+    def _get_update_abs_time(self):
+        new_bufflen_sec = self.n_frame_len / self.sample_rate
+        n_buffer_samples = int(len(self.buffer)/self.sample_rate)
+        total_buffer_len_sec = n_buffer_samples/self.frame_len
+        self.buffer_end = self.buffer_start + total_buffer_len_sec
+        self.frame_start = round(self.buffer_start + int(self.n_frame_overlap/self.sample_rate), self.ROUND)
+
+    def callback_sim(self, sample_audio):
+        loop_start_time = time.time()
+        assert len(sample_audio) == int(self.sample_rate * self.frame_len)
+        words, timestamps, pred_diar_labels = self.transcribe(sample_audio)
+        if pred_diar_labels != []:
+            assert len(words) == len(timestamps)
+            self._update_word_and_word_ts(words, timestamps)
+            self.string_out = self.get_speaker_label_per_word(self.word_seq, self.word_ts_seq, pred_diar_labels)
+            write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out.strip())
+        self.simulate_delay(loop_start_time) 
+    
+    def simulate_delay(self, loop_start_time):
+        ETA = time.time()-loop_start_time 
+        if self._cfg_diarizer.asr.parameters.enforce_real_time and ETA < self.frame_len:
+            time.sleep(self.frame_len - ETA)
+        comp_ETA = time.time()-loop_start_time 
+        logging.info(f"Total ASR and Diarization ETA: {ETA:.3f} comp ETA {comp_ETA:.3f}")
+
+    def audio_queue_launcher(self, Audio, state=""):
+        try:
+            audio_queue = process_audio_file(Audio)
+            self.audio_queue_buffer = np.append(self.audio_queue_buffer, audio_queue)
+            while len(self.audio_queue_buffer) > self.CHUNK_SIZE:
+                sample_audio, self.audio_queue_buffer = self.audio_queue_buffer[:self.CHUNK_SIZE], self.audio_queue_buffer[self.CHUNK_SIZE:]
+                self.callback_sim(sample_audio)
+        except:
+            logging.info("Audio stream is off.")
+            time.sleep(0.5)
+        return f"Audio Queue Length {len(self.audio_queue_buffer)/self.sample_rate:.2f}s", ""
+    
+    @torch.no_grad()
+    def transcribe(self, frame=None, merge=True):
+        self.update_frame_to_buffer(frame)
+
+        vad_mask, vad_ts = self._run_VAD_decoder(self.buffer) 
+        text, word_ts = self._run_ASR_decoder(self.buffer, frame_mask=vad_mask)
+
+        if vad_ts is None:
+            vad_ts = self.get_VAD_from_ASR(word_ts)
+        
+        self.diar.frame_index = self.frame_index
+        self._get_update_abs_time()
+        
+        self.pred_diar_labels = self.diar.online_diarization(self, vad_ts)
+
+        self.frame_index += 1
+        return text, word_ts, self.pred_diar_labels
+    
+    def reset(self):
+        '''
+        Reset frame_history and decoder's state
+        '''
+        self.buffer=np.zeros(shape=self.buffer.shape, dtype=np.float32)
+        self.prev_char = ''
+
