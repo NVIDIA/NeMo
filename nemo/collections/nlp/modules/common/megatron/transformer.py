@@ -286,7 +286,7 @@ class ParallelAttention(MegatronModule):
         layer_type=None,
         megatron_legacy=False,
         bias=True,
-        headscale=True,
+        headscale=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -1254,14 +1254,12 @@ class ParallelTransformerLayer_(MegatronModule):
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
 
-            if attention_bias is not None:
-                attention_bias = attention_bias.expand_as(residual)
-
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
                 normalization_output = self.input_layernorm(layernorm_input)
+                layernorm_input = normalization_output
             elif self.transformer_block_type in ['pre_ln', 'normformer']:
                 # Layer norm post the self attention.
                 normalization_output = self.post_attention_layernorm(layernorm_input)
@@ -1310,23 +1308,19 @@ class ParallelTransformerLayer_(MegatronModule):
 
             residual = layernorm_input
 
-            if attention_bias is not None:
-                attention_bias = attention_bias.expand_as(residual)
-
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             normalization_output = self.post_inter_attention_layernorm(layernorm_input)
-
+            # Post-LN normalization after residual
+            if self.transformer_block_type == 'post_ln':
+                layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
 
         residual = layernorm_input
-
-        if mlp_bias is not None:
-            mlp_bias = mlp_bias.expand_as(residual)
 
         bias_dropout_add_func = self._get_bias_droput_add_func(
             transformer_block_type=self.transformer_block_type, position_after='mlp'

@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_NOT_QUOTE,
+    NEMO_NOT_SPACE,
     NEMO_SIGMA,
     TO_UPPER,
     GraphFst,
@@ -22,15 +24,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     insert_space,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-    from pynini.examples import plurals
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 
 class ElectronicFst(GraphFst):
@@ -57,6 +52,9 @@ class ElectronicFst(GraphFst):
         default_chars_symbols = pynini.cdrewrite(
             pynutil.insert(" ") + (graph_symbols | graph_digit) + pynutil.insert(" "), "", "", NEMO_SIGMA
         )
+        default_chars_symbols = pynini.compose(
+            pynini.closure(NEMO_NOT_SPACE), default_chars_symbols.optimize()
+        ).optimize()
 
         user_name = (
             pynutil.delete("username:")
