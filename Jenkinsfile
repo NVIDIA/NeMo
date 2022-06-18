@@ -734,7 +734,7 @@ pipeline {
             exp_manager=null'
           }
         }
-        stage('Test Restore with AlBERT') {
+        stage('Test Restore Punctuation & Capitalization with AlBERT') {
           steps {
             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -752,7 +752,7 @@ pipeline {
             rm -rf "${data_dir}"'
           }
         }
-        stage('Test Restore P&C with RoBERTa') {
+        stage('Test Restore Punctuation & Capitalization with RoBERTa') {
           steps {
             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -1636,7 +1636,7 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r "${work_dir}"'
+            rm -rf "${work_dir}"'
           }
         }
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
