@@ -1057,6 +1057,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         tokenizer=None,
         enc_output=None,
         enc_output_attn_mask=None,
+        ignore_ids=[],
     ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1148,6 +1149,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
                 output_tensor[:, :, self.tokenizer.vocab_size:] = -float('Inf')
+                # ignore selected indices
+                output_tensor.index_select(dim=-1, index=torch.tensor(ignore_ids, device=device))
 
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
