@@ -49,7 +49,7 @@ from nemo.collections.tts.torch.tts_data_types import (
     TTSDataType,
     WithLens,
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer, IPAPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -77,6 +77,7 @@ class TTSDataset(Dataset):
         n_mels: int = 80,
         lowfreq: int = 0,
         highfreq: Optional[int] = None,
+        add_blank=True,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -138,7 +139,7 @@ class TTSDataset(Dataset):
         self.text_tokenizer = text_tokenizer
 
         self.phoneme_probability = None
-        if isinstance(self.text_tokenizer, BaseTokenizer):
+        if isinstance(self.text_tokenizer, IPAPhonemesTokenizer):
             self.text_tokenizer_pad_id = text_tokenizer.pad
             self.tokens = text_tokenizer.tokens
             self.phoneme_probability = getattr(self.text_tokenizer, "phoneme_probability", None)
@@ -216,6 +217,7 @@ class TTSDataset(Dataset):
         self.data = TTSDataset.filter_files(data, ignore_file, min_duration, max_duration, total_duration)
         self.base_data_dir = get_base_dir([item["audio_filepath"] for item in self.data])
 
+        self.add_blank = add_blank
         # Initialize audio and mel related parameters
         self.sample_rate = sample_rate
         self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
@@ -391,7 +393,10 @@ class TTSDataset(Dataset):
             mel = torch.matmul(self.fb.to(spec.dtype), spec)
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
-
+    def intersperse(lst, item):
+        result = [item] * (len(lst) * 2 + 1)
+        result[1::2] = lst
+        return result
     def __getitem__(self, index):
         sample = self.data[index]
         audio_path_as_text_id = sample["audio_filepath"].replace("/", "-").split(".")[0]
@@ -405,10 +410,15 @@ class TTSDataset(Dataset):
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
-            text = torch.tensor(sample["text_tokens"]).long()
-            text_length = torch.tensor(len(sample["text_tokens"])).long()
+            text = sample["text_tokens"]
+            if self.add_blank:
+                text = intersperse(text, 0)
+            text = torch.tensor(text).long()
+            text_length = torch.tensor(len(text)).long()
         else:
             tokenized = self.text_tokenizer(sample["normalized_text"])
+            if self.add_blank:
+                tokenized = intersperse(tokenized, 0)
             text = torch.tensor(tokenized).long()
             text_length = torch.tensor(len(tokenized)).long()
 

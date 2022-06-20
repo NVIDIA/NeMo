@@ -42,7 +42,7 @@ class BaseTokenizer(abc.ABC):
         super().__init__()
 
         tokens = list(tokens)
-        self.pad, tokens = len(tokens), tokens + [pad]  # Padding
+        self.pad, tokens = 0, [pad] + tokens  # Padding
 
         if add_blank_at is not None:
             self.blank, tokens = len(tokens), tokens + [blank]  # Reserved for blank from asr-model
@@ -422,16 +422,16 @@ class IPAPhonemesTokenizer(BaseTokenizer):
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
         tokens = []
+        
+        if punct:
+            tokens.extend(self.PUNCT_LIST)
+        
         self.space, tokens = len(tokens), tokens + [space]  # Space
 
         if silence is not None:
             self.silence, tokens = len(tokens), tokens + [silence]  # Silence
-
-        tokens.extend([l for l in self._letters_ipa])
         tokens.extend([l for l in self._letters])
-
-        if punct:
-            tokens.extend(self.PUNCT_LIST)
+        tokens.extend([l for l in self._letters_ipa])
 
         super().__init__(tokens, oov=oov, pad=self.PAD, sep=sep, add_blank_at=add_blank_at)
 
