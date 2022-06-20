@@ -943,7 +943,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         master_device = is_global_rank_zero()
         self.features_pkl = self._get_path_to_pkl_features(self.text_file, cache_dir, max_seq_length, num_samples)
         features = None
+        from nemo.utils.env_var_parsing import get_envint
+        print(f'\n\nIN DATASET -- local rank: {get_envint("LOCAL_RANK", 0)} -- torch.distributed.is_initialized(): {torch.distributed.is_initialized()}')
         if master_device and not (self.features_pkl.is_file() and use_cache):
+            from nemo.utils.env_var_parsing import get_envint
+            print(f'\n\nIN MASTER -- local rank: {get_envint("LOCAL_RANK", 0)} -- torch.distributed.is_initialized(): {torch.distributed.is_initialized()}')
+
             if verbose:
                 logging.info(f'Processing {self.text_file}')
             res = self._read_dataset(self.text_file, self.labels_file, num_samples)
