@@ -819,8 +819,6 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                 logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
             else:
                 min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
-                if max_vad > round(offset + duration, deci) or min_vad < offset:
-                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
