@@ -827,6 +827,11 @@ class NMESC:
                 threshold with NME analysis. If fixed_thres is float,
                 it skips the NME analysis part.
 
+            maj_vote_spk_count: (bool)
+                If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
+                The majority voting may contribute to surpress overcounting of the speakers and improve speaker
+                counting accuracy.
+
             cuda (bool)
                 Use cuda for Eigen decomposition if cuda=True.
 
@@ -881,7 +886,6 @@ class NMESC:
             )
 
         p_hat_value = (subsample_ratio * rp_p_value).type(torch.int)
-        est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
         if self.maj_vote_spk_count:
             est_num_of_spk = torch.mode(torch.tensor(est_num_of_spk_list))[0]
         else:
@@ -1005,6 +1009,11 @@ def COSclustering(
             Clustering performance can vary depending on this range.
             Default is 0.15.
 
+        maj_vote_spk_count: (bool)
+            If True, take a majority vote on all p-values in the given range to estimate the number of speakers.
+            The majority voting may contribute to surpress overcounting of the speakers and improve speaker
+            counting accuracy.
+
         sparse_search_volume: (int)
             Number of p_values we search during NME analysis.
             Default is 30. The lower the value, the faster NME-analysis becomes.
@@ -1060,7 +1069,7 @@ def COSclustering(
         est_num_of_spk = oracle_num_speakers
     elif est_num_of_spk_enhanced:
         est_num_of_spk = est_num_of_spk_enhanced
-    
+
     spectral_model = SpectralClustering(n_clusters=est_num_of_spk, cuda=cuda, device=device)
     Y = spectral_model.predict(affinity_mat)
 
