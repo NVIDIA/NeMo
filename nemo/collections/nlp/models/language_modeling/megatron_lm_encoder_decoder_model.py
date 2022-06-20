@@ -1150,7 +1150,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 # make sure it won't sample outside the vocab_size range
                 output_tensor[:, :, self.tokenizer.vocab_size:] = -float('Inf')
                 # ignore selected indices
-                output_tensor = output_tensor.index_fill(dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf'))
+                if ignore_ids:
+                    output_tensor = output_tensor.index_fill(dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf'))
 
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
