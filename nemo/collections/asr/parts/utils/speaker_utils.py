@@ -741,15 +741,6 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
         return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
 
 
-def getMinMaxOfRangeList(ranges):
-    """
-    Get the min and max of a given range list.
-    """
-    _max = max([x[1] for x in ranges])
-    _min = min([x[0] for x in ranges])
-    return _min, _max
-
-
 def getSubRangeList(target_range, source_range_list) -> List:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
