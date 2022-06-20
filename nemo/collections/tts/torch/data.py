@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Union
 
 import librosa
+from nemo.collections.tts.modules.vits_modules import intersperse
 import numpy as np
 import torch
 from nemo_text_processing.text_normalization.normalize import Normalizer
