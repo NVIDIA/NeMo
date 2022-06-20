@@ -478,6 +478,8 @@ class StochasticDurationPredictor(nn.Module):
         x = self.convs(x, x_mask)
         x = self.proj(x) * x_mask
 
+        # torch.manual_seed(1)
+        # torch.cuda.manual_seed(1)
         if not reverse:
             flows = self.flows
             assert w is not None
@@ -659,6 +661,8 @@ class PosteriorEncoder(nn.Module):
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
+        # torch.manual_seed(1)
+        # torch.cuda.manual_seed(1)
         m, logs = torch.split(stats, self.out_channels, dim=1)
         z = (m + torch.randn_like(m) * torch.exp(logs)) * x_mask
         return z, m, logs, x_mask
@@ -914,8 +918,8 @@ class SynthesizerTrn(nn.Module):
             l_length = torch.sum((logw - logw_)**2, [1,2]) / torch.sum(x_mask) # for averaging
 
         # expand prior
-        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2)
-        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(1, 2)
+        m_p = torch.matmul(attn.squeeze(1), m_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+        logs_p = torch.matmul(attn.squeeze(1), logs_p.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
 
         z_slice, ids_slice = rand_slice_segments(z, y_lengths, self.segment_size)
         o = self.dec(z_slice, g=g)
@@ -1060,6 +1064,8 @@ def rand_slice_segments(x, x_lengths=None, segment_size=4):
         x_lengths = t
     ids_str_max = x_lengths - segment_size + 1
     ids_str_max = ids_str_max.to(device=x.device)
+    # torch.manual_seed(1)
+    # torch.cuda.manual_seed(1)
     ids_str = (torch.rand([b]).to(device=x.device) * ids_str_max).to(dtype=torch.long)
     ret = slice_segments(x, ids_str, segment_size)
     return ret, ids_str

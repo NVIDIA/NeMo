@@ -79,7 +79,7 @@ model:
     stresses: true
     chars: true
     apostrophe: true
-    pad_with_space: true
+    pad_with_space: false
     g2p:
       _target_: nemo.collections.tts.torch.g2ps.IPAG2p
       strip: true
@@ -115,6 +115,7 @@ model:
       trim: False
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
+      add_blank: true
 
     
     dataloader_params:
@@ -151,6 +152,7 @@ model:
       trim: False
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
+      add_blank: true
 
     dataloader_params:
       drop_last: false
