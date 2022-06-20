@@ -36,8 +36,8 @@ python -- scripts/nlp_language_modeling/build_regex_tokenizer.py \
 """
 import argparse
 
-from nemo.utils import logging
 from nemo.collections.common.tokenizers.regex_tokenizer import RegExTokenizer
+from nemo.utils import logging
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             raise ValueError(f"Unknown input_type = {args.input_type}")
 
     # save model
-    if not args.output_file.endswith(".model"): 
+    if not args.output_file.endswith(".model"):
         args.output_file += ".model"
         logging.info("Adding .model to output file")
 

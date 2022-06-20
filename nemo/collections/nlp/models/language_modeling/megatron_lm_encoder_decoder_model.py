@@ -539,7 +539,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
-        encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch_for_pipeline
+        (
+            encoder_input_ids,
+            decoder_input_ids,
+            loss_mask,
+            lm_labels,
+            encoder_attn_mask,
+            decoder_attn_mask,
+        ) = batch_for_pipeline
         batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
         arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
@@ -578,7 +585,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return logits_tensor
 
-
     def validation_step(self, batch, batch_idx):
         """
         return_values - if given, returns a dictionary with given keys and corresponding values
@@ -603,7 +609,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # # FIXME: pad batch_for_pipeline on the fly
         # # FIXME: restore prev_micro_batch_size
         # # FIXME: add warning
-
 
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
@@ -1024,9 +1029,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             output_tensor = output_tensor[0]['hiddens']
             # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
         else:
-            output_tensor = torch.zeros(
-                tensor_shape, dtype=self.autocast_dtype
-            ).cuda().transpose(0, 1).contiguous()
+            output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda().transpose(0, 1).contiguous()
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # Broadcast from the last pipeline stage to all other model-parallel ranks.
@@ -1100,9 +1103,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        predicted_tokens_dec = (
-            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
-        )
+        predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
 
@@ -1148,10 +1149,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
-                output_tensor[:, :, self.tokenizer.vocab_size:] = -float('Inf')
+                output_tensor[:, :, self.tokenizer.vocab_size :] = -float('Inf')
                 # ignore selected indices
                 if ignore_ids:
-                    output_tensor = output_tensor.index_fill(dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf'))
+                    output_tensor = output_tensor.index_fill(
+                        dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                    )
 
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(

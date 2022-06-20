@@ -22,7 +22,6 @@ try:
     from apex.transformer.tensor_parallel import scatter_to_tensor_model_parallel_region
     from apex.transformer import parallel_state
 
-
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
@@ -138,7 +137,6 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             enc_attn_mask = enc_output_attn_mask.to(enc_attn_mask)
             # if parallel_state.get_tensor_model_parallel_world_size() > 1:
             #     enc_output = scatter_to_tensor_model_parallel_region(enc_output)
-
 
         if self.decoder is None or output_enc_hidden_only:
             return enc_output

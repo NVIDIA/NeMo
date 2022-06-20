@@ -206,7 +206,7 @@ class RegExTokenizer(TokenizerSpec):
         # try to infer vocab_file from regex_file
         if not vocab_file:
             vocab_file = os.path.splitext(regex_file)[0] + '.vocab'
-        
+
         self.regex_file = regex_file
         self.vocab_file = vocab_file
 
