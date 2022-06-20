@@ -166,7 +166,7 @@ class VitsModel(TextToWaveform):
 
     def configure_optimizers(self):
         optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
-        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
+        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr / 2, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
         
         max_steps=400000
         min_lr = 1e-5
@@ -210,26 +210,25 @@ class VitsModel(TextToWaveform):
         # get optimizers
         optim_g, optim_d = self.optimizers()
 
-        # TODO: support accum gradient or don't allow to use accum gradient in init
         (y, y_lengths, x, x_lengths) = batch
 
         spec = self.get_spec(y)
         spec_lengths = self.audio_to_melspec_precessor.get_seq_len(y_lengths)
 
-        with autocast(enabled=True):
-            y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
-                x, x_lengths, spec, spec_lengths
-            )
+        # with autocast(enabled=True):
+        y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
+            x, x_lengths, spec, spec_lengths
+        )
 
-            mel = spec_to_mel_torch(
-                spec,
-                self._cfg.n_window_size,
-                self._cfg.n_mel_channels,
-                self._cfg.sample_rate,
-                self._cfg.mel_fmin,
-                self._cfg.mel_fmax,
-            )
-            y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
+        mel = spec_to_mel_torch(
+            spec,
+            self._cfg.n_window_size,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax,
+        )
+        y_mel = slice_segments(mel, ids_slice, self._cfg.segment_size // self.cfg.n_window_stride)
 
         y_hat = y_hat.float()
         y_hat_mel = audio_to_mel_torch(
@@ -245,12 +244,12 @@ class VitsModel(TextToWaveform):
 
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-        with autocast(enabled=True):
-            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
-        with autocast(enabled=False):
-            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
-            disc_generated_outputs=y_d_hat_g)
-            loss_disc_all = loss_disc
+        # with autocast(enabled=True):
+        y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
+        # with autocast(enabled=False):
+        loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+        disc_generated_outputs=y_d_hat_g)
+        loss_disc_all = loss_disc
 
 
         # train discriminator
@@ -259,16 +258,16 @@ class VitsModel(TextToWaveform):
         norm_d = clip_grad_value_(self.net_d.parameters(), None)
         optim_d.step()
         
-        with autocast(enabled=True):
+        # with autocast(enabled=True):
             # Generator
-            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
-        with autocast(enabled=False):
-            loss_dur = torch.sum(l_length.float())
-            loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
-            loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
-            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
-            loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
-            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
+        y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(y, y_hat)
+        # with autocast(enabled=False):
+        loss_dur = torch.sum(l_length.float())
+        loss_mel = F.l1_loss(y_mel, y_hat_mel) * self._cfg.c_mel
+        loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
+        loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
+        loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
+        loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
 
         # train generator
         optim_g.zero_grad()

@@ -126,7 +126,7 @@ model:
       pin_memory: false
 
     batch_sampler:
-      batch_size: 64
+      batch_size: 32
       boundaries: [32,300,400,500,600,700,800,900,1000]
       num_replicas: ${trainer.devices}
       shuffle: true
@@ -201,10 +201,10 @@ trainer:
   devices: 2
   accelerator: gpu
   strategy: ddp
-  precision: 16
-  amp_backend: 'apex'
-  amp_level: 'O2'
-  benchmark: true
+  precision: 32
+  # amp_backend: 'apex'
+  # amp_level: 'O2'
+  # benchmark: true
   max_epochs: 1000000
   accumulate_grad_batches: 1
   # gradient_clip_val: 1000.0
