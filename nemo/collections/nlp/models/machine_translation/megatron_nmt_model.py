@@ -471,6 +471,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 drop_last=cfg.drop_last,
             )
         elif cfg.get("sampler", "distributed") == 'megatron':
+            logging.info(f'Building megatron dataloader with consumed samples: {consumed_samples}')
             batch_sampler = MegatronPretrainingBatchSampler(
                 total_samples=len(dataset),
                 consumed_samples=consumed_samples,
