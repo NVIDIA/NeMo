@@ -979,7 +979,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if features is None and not os.path.exists(self.features_pkl):
+        if not master_device:
             torch.distributed.barrier()
 
         if features is None:
