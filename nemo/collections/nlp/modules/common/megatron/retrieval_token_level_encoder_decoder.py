@@ -19,7 +19,6 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.retro_deepnet_coeff import get_coeff
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -41,15 +40,6 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ["MegatronRetrievalTokenLevelEncoderDecoderModule"]
-
-
-def init_deepnet_method(gain):
-    """Init method based on N(0, sigma)."""
-
-    def init_(tensor):
-        return torch.nn.init.xavier_normal_(tensor, gain)
-
-    return init_
 
 
 class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
@@ -134,22 +124,12 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             self._embedding_key = "embedding"
 
-        if transformer_block_type == 'post_ln':
-            coeff = get_coeff(enc_num_layers, dec_num_layers, enc_cross_attention, dec_cross_attention)
-            encoder_init = init_deepnet_method(coeff['b_e'])
-            encoder_scaled_init = init_deepnet_method(coeff['b_e'])
-            pre_decoder_init = init_deepnet_method(coeff['b_d'])
-            pre_decoder_scaled_init = init_deepnet_method(coeff['b_d'])
-            post_decoder_init = init_deepnet_method(coeff['b_d'])
-            post_decoder_scaled_init = init_deepnet_method(coeff['b_d'])
-        else:
-            coeff = {'a_e': 1.0, 'a_d': 1.0}
-            encoder_init = init_method_normal(init_method_std)
-            encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
-            pre_decoder_init = init_method_normal(init_method_std)
-            pre_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
-            post_decoder_init = init_method_normal(init_method_std)
-            post_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        encoder_init = init_method_normal(init_method_std)
+        encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        pre_decoder_init = init_method_normal(init_method_std)
+        pre_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        post_decoder_init = init_method_normal(init_method_std)
+        post_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
 
         if add_encoder:
             enc_layer_types = []
@@ -197,7 +177,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_type=enc_layer_types,
                 chunk_size=chunk_size,
                 layer_number_offset=0,
-                residual_gain=coeff['a_e'],
             )
             self._encoder_key = "encoder"
 
@@ -259,7 +238,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_type=pre_decoder_layer_types,
                 chunk_size=chunk_size,
                 layer_number_offset=0,
-                residual_gain=coeff['a_d'],
             )
 
             # it is where the chunked cross attention happens
@@ -301,7 +279,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 layer_type=post_decoder_layer_types,
                 chunk_size=chunk_size,
                 layer_number_offset=pre_decoder_num_layers + 1,
-                residual_gain=coeff['a_d'],
             )
             self._pre_decoder_key = "pre_decoder"
             self._post_decoder_key = "post_decoder"
