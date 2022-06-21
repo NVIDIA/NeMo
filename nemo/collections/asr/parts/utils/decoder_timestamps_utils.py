@@ -450,7 +450,7 @@ class ASR_TIMESTAMPS:
                     log_prob = torch.from_numpy(logit_np)
                     logits_len = torch.from_numpy(np.array([log_prob.shape[0]]))
                     greedy_predictions = log_prob.argmax(dim=-1, keepdim=False).unsqueeze(0)
-                    text, char_ts = wer_ts.ctc_decoder_predictions_tensor_with_ts(
+                    text, char_ts = wer_ts.decoding.ctc_decoder_predictions_tensor_with_ts(
                         greedy_predictions, predictions_len=logits_len
                     )
                     trans, char_ts_in_feature_frame_idx = self.clean_trans_and_TS(text[0], char_ts[0])
@@ -573,7 +573,7 @@ class ASR_TIMESTAMPS:
                     log_prob = torch.from_numpy(logit_np)
                     greedy_predictions = log_prob.argmax(dim=-1, keepdim=False).unsqueeze(0)
                     logits_len = torch.from_numpy(np.array([log_prob.shape[0]]))
-                    text, char_ts, word_ts = werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
+                    text, char_ts, word_ts = werbpe_ts.decoding.ctc_decoder_predictions_tensor_with_ts(
                         self.model_stride_in_secs, greedy_predictions, predictions_len=logits_len
                     )
                     hyp_words, word_ts = text[0].split(), word_ts[0]
@@ -676,7 +676,7 @@ class ASR_TIMESTAMPS:
                     logits_len = torch.from_numpy(np.array([len(greedy_predictions_list)]))
                     greedy_predictions_list = greedy_predictions_list[onset_delay:]
                     greedy_predictions = torch.from_numpy(np.array(greedy_predictions_list)).unsqueeze(0)
-                    text, char_ts, word_ts = werbpe_ts.ctc_decoder_predictions_tensor_with_ts(
+                    text, char_ts, word_ts = werbpe_ts.decoding.ctc_decoder_predictions_tensor_with_ts(
                         self.model_stride_in_secs, greedy_predictions, predictions_len=logits_len
                     )
                     hyp_words, word_ts = text[0].split(), word_ts[0]
