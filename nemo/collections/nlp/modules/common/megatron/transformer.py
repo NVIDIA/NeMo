@@ -159,19 +159,20 @@ class ParallelMLP(MegatronModule):
                 bias=bias,
             )
 
-        glu_activation_family = activation in ['reglu', 'swiglu']
+        self.glu_activation_family = activation in ['geglu', 'reglu', 'swiglu']
+        bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
 
-        if glu_activation_family and bias_activation_fusion:
+        if bias_activation_fusion_unavailable and bias_activation_fusion:
             raise ValueError(
                 f"Cannot use bias_activation_fusion with {activation} activation. Please turn bias gelu fusion off."
             )
 
-        if glu_activation_family and openai_gelu:
+        if self.glu_activation_family and openai_gelu:
             raise ValueError(
                 f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off."
             )
 
-        if glu_activation_family and onnx_safe:
+        if self.glu_activation_family and onnx_safe:
             raise ValueError(
                 f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
             )
@@ -180,8 +181,6 @@ class ParallelMLP(MegatronModule):
             raise ValueError(
                 f"Cannot use bias_activation_fusion without bias terms. Please set bias=True or bias_activation_fusion=False."
             )
-        else:
-            glu_activation_family = False
 
         self.bias_activation_fusion = bias_activation_fusion
 
@@ -224,18 +223,18 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.activation in ['geglu', 'reglu', 'swiglu']:
+        if self.glu_activation_family:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
         if self.bias_activation_fusion:
             if self.activation == 'gelu':
                 intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
-            else:
+            elif self.activation == 'geglu':
                 intermediate_parallel = fused_bias_geglu(
                     intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
                 )
 
-        elif self.activation in ['geglu', 'reglu', 'swiglu']:
+        elif self.activation in ['reglu', 'swiglu']:
             if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
                     intermediate_parallel_2 + bias_parallel_2
@@ -286,7 +285,7 @@ class ParallelAttention(MegatronModule):
         layer_type=None,
         megatron_legacy=False,
         bias=True,
-        headscale=True,
+        headscale=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -1262,6 +1261,7 @@ class ParallelTransformerLayer_(MegatronModule):
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
                 normalization_output = self.input_layernorm(layernorm_input)
+                layernorm_input = normalization_output
             elif self.transformer_block_type in ['pre_ln', 'normformer']:
                 # Layer norm post the self attention.
                 normalization_output = self.post_attention_layernorm(layernorm_input)
@@ -1319,7 +1319,9 @@ class ParallelTransformerLayer_(MegatronModule):
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
             normalization_output = self.post_inter_attention_layernorm(layernorm_input)
-
+            # Post-LN normalization after residual
+            if self.transformer_block_type == 'post_ln':
+                layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
 

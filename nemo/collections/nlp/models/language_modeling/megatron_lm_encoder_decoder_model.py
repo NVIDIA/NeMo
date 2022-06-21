@@ -119,6 +119,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder_arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
+        if hasattr(self.cfg, 'bias_gelu_fusion'):
+            logging.warning('bias_gelu_fusion is deprecated. Please use bias_activation_fusion instead.')
+            activation_fusion = self.cfg.bias_gelu_fusion
+        else:
+            activation_fusion = self.cfg.get('bias_activation_fusion', True)
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,
@@ -148,10 +153,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_activation_fusion=(
-                (self.cfg.get('bias_gelu_fusion', True) and self.cfg.get('activation', 'gelu') == 'gelu')
-                or (self.cfg.get('bias_activation_fusion', True) and self.cfg.get('activation', 'gelu') == 'geglu')
-            ),
+            bias_activation_fusion=activation_fusion,
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             onnx_safe=self.cfg.get('onnx_safe', False),
