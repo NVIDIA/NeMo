@@ -4499,7 +4499,7 @@ The table and chart below show the performance results.
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance is in line with internal SuperPODs and has been validated up to 36 `Standard_ND96amsr_A100_v4` instances)
 * Cluster validation tools (DGMI, NCCL)
-* 20B GPT-3 training configuration improved for higher throughput
+* 20B GPT-3 training configuration improved by 2.7% for higher throughput
 
 **NeMo Megatron 22.05**
 * Asynchronous gradient all-reduce for GPT-3, T5, mT5 models with pipeline parallel size equal to 1
