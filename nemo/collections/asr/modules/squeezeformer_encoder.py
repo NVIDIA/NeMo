@@ -241,9 +241,18 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             self.time_reduce_layer = TimeReductionModule(d_model, d_model, kernel_size=5, stride=2)
             self.time_recovery_layer = nn.Linear(d_model, d_model)
 
-            self.time_reduce_pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0
-            )
+            if self_attention_model == "rel_pos":
+                self.time_reduce_pos_enc = RelPositionalEncoding(
+                    d_model=d_model,
+                    dropout_rate=0.0,
+                    max_len=pos_emb_max_len,
+                    xscale=None,
+                    dropout_rate_emb=0.0,
+                )
+            else:
+                self.time_reduce_pos_enc = PositionalEncoding(
+                    d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0
+                )
 
         self.pre_ln = nn.LayerNorm(d_model)
 
