@@ -1149,7 +1149,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
                 # make sure it won't sample outside the vocab_size range
-                output_tensor[:, :, self.tokenizer.vocab_size :] = -float('Inf')
+                output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
                 # ignore selected indices
                 if ignore_ids:
                     output_tensor = output_tensor.index_fill(
