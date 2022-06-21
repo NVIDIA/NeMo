@@ -15,7 +15,6 @@ import glob
 import json
 import math
 import multiprocessing
-from tqdm import tqdm
 import os
 import shutil
 from itertools import repeat
@@ -30,6 +29,7 @@ import torch
 from pyannote.core import Annotation, Segment
 from pyannote.metrics import detection
 from sklearn.model_selection import ParameterGrid
+from tqdm import tqdm
 
 from nemo.collections.asr.models import EncDecClassificationModel
 from nemo.utils import logging
