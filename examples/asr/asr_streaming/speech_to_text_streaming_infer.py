@@ -224,11 +224,12 @@ def main():
         def autocast():
             yield
 
-    if hasattr(asr_model, "decoding"):
-        decoding_cfg = asr_model.cfg.decoding
-        with open_dict(decoding_cfg):
-            decoding_cfg.strategy = "greedy"
-            decoding_cfg.preserve_alignments = True
+    # configure the decoding config
+    decoding_cfg = asr_model.cfg.decoding
+    with open_dict(decoding_cfg):
+        decoding_cfg.strategy = "greedy"
+        decoding_cfg.preserve_alignments = False
+        if hasattr(asr_model, 'joint'):  # if an RNNT model
             decoding_cfg.greedy.max_symbols = 10
             decoding_cfg.fused_batch_size = -1
         asr_model.change_decoding_strategy(decoding_cfg)
@@ -237,7 +238,7 @@ def main():
     asr_model.eval()
 
     # In streaming, offline normalization is not possible for all cases as we don't have access to the whole audio at the beginning
-    # When online_normalization is enabled, the normalization of the input features (mel-spectograms) are done per step
+    # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
     # It is suggested to train the streaming models without any normalization in the input features.
     if args.online_normalization:
         if asr_model.cfg.normalize in ["per_feature", "all_feature"]:
