@@ -23,13 +23,17 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import get_datasets_weights_and_num_samples
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
 )
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+    get_datasets_weights_and_num_samples,
+)
 from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import MegatronPretrainingBatchSampler
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+    MegatronPretrainingBatchSampler,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
@@ -588,13 +592,17 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                 data_prefix.append(prefix)
 
             if self.trainer.max_steps is None:
-                raise ValueError(f"trainer.max_steps must be set to use blendable memmap datasets. Found {self.trainer.max_steps}.")
+                raise ValueError(
+                    f"trainer.max_steps must be set to use blendable memmap datasets. Found {self.trainer.max_steps}."
+                )
             num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
             _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
             num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
 
             datasets = []
-            for src_file, tgt_file, num_samples in zip(cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset):
+            for src_file, tgt_file, num_samples in zip(
+                cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset
+            ):
                 if cfg.dataset_type == 'bin_memmap':
                     dataset = BinarizedMemmapSequenceToSequenceDataset(
                         src_dataset_prefix=src_file,
@@ -618,7 +626,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
                         seed=self._cfg.seed,
                     )
                 datasets.append(dataset)
-            dataset = BlendableDataset(datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend)
+            dataset = BlendableDataset(
+                datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
+            )
         else:
             if cfg.dataset_type == 'bin_memmap':
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
