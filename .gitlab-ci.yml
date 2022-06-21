@@ -1,5 +1,7 @@
 variables: &VARS
   HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
+  HP_BASE_TRAINING_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.05-py3"
+  HP_BASE_INFERENCE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
 
 stages:
@@ -43,9 +45,6 @@ test:unit_tests:
 before_script:
   - umask 0007
   - export DOCKERFILE=./Dockerfile
-  - export BUILD_IMAGE_NAME=${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
-  - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
-  - export NVCR_IMAGE_NAME=${CONTAINER_NVCR_BASE}.pipe.${CI_PIPELINE_ID}
   - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
   - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
 
@@ -111,14 +110,20 @@ build-BigNLP-training:
   variables:
     <<: [*VARS]
     IMAGE_NAME: bignlp_training_hp_tool
-    HP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.05-py3"
+    HP_BASE_IMAGE: ${HP_BASE_TRAINING_IMAGE}
+    BUILD_IMAGE_TRAINING_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+    BUILD_IMAGE_NAME: ${BUILD_IMAGE_TRAINING_NAME}
+    BUILD_IMAGE_NAME_TRAINING: "${BUILD_IMAGE_NAME/:5005\//#}"
 
 build-BigNLP-inference:
   <<: *build_template
   variables:
     <<: [*VARS]
     IMAGE_NAME: bignlp_inference_hp_tool
-    HP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
+    HP_BASE_IMAGE: ${HP_BASE_INFERENCE_IMAGE}
+    BUILD_IMAGE_INFERENCE_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+    BUILD_IMAGE_NAME: ${BUILD_IMAGE_INFERENCE_NAME}
+    BUILD_IMAGE_NAME_INFERENCE: "${BUILD_IMAGE_NAME/:5005\//#}"
 
 train.gpt3.126m_80gb_10runs:
   <<: *hp-tool-LUNA-test-LAUNCHER
