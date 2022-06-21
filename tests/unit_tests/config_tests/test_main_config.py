@@ -24,7 +24,7 @@ class TestConfig:
         data_dir: ${bignlp_scripts_path}/data
         base_results_dir: ${bignlp_hp_tool_path}/results
 
-        training_container: nvcr.io/ea-bignlp/bignlp-training:22.05.01-py3
+        training_container: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
         inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
         container_mounts:
           - null

@@ -13,7 +13,7 @@ class TestClusterConfig:
           support_gpus_allocation: True
         env:
           job_name_prefix: "bignlp_hp_tool:"
-          training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05.01-py3
+          training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
           inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
         
         exclusive: True
