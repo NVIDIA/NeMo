@@ -60,6 +60,7 @@ class ConvSubsampling(torch.nn.Module):
         self._subsampling = subsampling
         self._conv_channels = conv_channels
         self._feat_in = feat_in
+        self._feat_out = feat_out
 
         if subsampling_factor % 2 != 0:
             raise ValueError("Sampling factor should be a multiply of 2!")
@@ -213,7 +214,7 @@ class ConvSubsampling(torch.nn.Module):
                     torch.nn.init.uniform_(self.conv[idx + 1].bias, -pw_max, pw_max)
 
                 # init fc (80 * 64 = 5120 from https://github.com/kssteven418/Squeezeformer/blob/13c97d6cf92f2844d2cb3142b4c5bfa9ad1a8951/src/models/conformer_encoder.py#L487
-                fc_scale = (64 * self._feat_in) ** -0.5
+                fc_scale = (self._feat_out * self._feat_in / self._sampling_num) ** -0.5
                 torch.nn.init.uniform_(self.out.weight, -fc_scale, fc_scale)
                 torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 
