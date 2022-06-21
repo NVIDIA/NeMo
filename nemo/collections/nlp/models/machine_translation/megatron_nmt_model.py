@@ -311,6 +311,13 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if isinstance(outputs[0], dict):
             outputs = [outputs]
 
+        self.log(
+            'consumed_samples',
+            self.compute_consumed_samples(self.trainer.global_step - self.init_global_step),
+            rank_zero_only=True,
+        )
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
+
         loss_list = []
         bleu_score_list = []
         for dataloader_idx, output in enumerate(outputs):
@@ -383,10 +390,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
             loss_list.append(averaged_loss.cpu().numpy())
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
-                self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
-                self.log(f'{mode}_loss', averaged_loss, prog_bar=True)
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
+                else:
+                    self.log(f'{mode}_sacreBLEU', bleu_score, sync_dist=True)
+                    self.log(f'{mode}_loss', averaged_loss, prog_bar=True)
             else:
                 if self.multilingual:
                     self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
