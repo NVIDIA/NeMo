@@ -1267,11 +1267,8 @@ class ParallelTransformerLayer_(MegatronModule):
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
-<<<<<<< HEAD
             if attention_bias is not None:
                 attention_bias = attention_bias.expand_as(residual)
-=======
->>>>>>> main
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
