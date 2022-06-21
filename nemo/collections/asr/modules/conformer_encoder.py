@@ -19,8 +19,7 @@ from typing import List, Optional, Union
 import torch
 import torch.distributed
 import torch.nn as nn
-from omegaconf import ListConfig
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
@@ -466,8 +465,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         return mask
 
     def setup_streaming_params(
-        self,
-        max_context: int = 10000,
+        self, max_context: int = 10000,
     ):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
@@ -509,15 +507,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
         if isinstance(sampling_frames, list):
             streaming_cfg.shift_size = [
-                sampling_frames[0]
-                + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
-                sampling_frames[1]
-                + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[0] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[1] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
             ]
         else:
-            streaming_cfg.shift_size = sampling_frames * (
-                1 + lookahead_steps - streaming_cfg.cache_drop_size
-            )
+            streaming_cfg.shift_size = sampling_frames * (1 + lookahead_steps - streaming_cfg.cache_drop_size)
 
         if isinstance(streaming_cfg.shift_size, list):
             streaming_cfg.valid_out_len = (

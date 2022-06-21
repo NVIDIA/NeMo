@@ -21,8 +21,7 @@ import torch
 class StreamingEncoder(ABC):
     @abstractmethod
     def setup_streaming_params(
-        self,
-        max_look_ahead: int = 10000,
+        self, max_look_ahead: int = 10000,
     ):
         """
         This function sets the needed values and parameters to perform streaming. The configuration (FramewiseStreamingConfig) need to be stored in self.streaming_cfg.
