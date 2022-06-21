@@ -59,7 +59,7 @@ class StatelessNet(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
         self.norm = torch.nn.Identity()
         if normalization_mode == 'layer':
-            self.norm = torch.nn.LayerNorm(emb_dim)
+            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
 
         assert(blank_as_pad)
         embeds = []
@@ -78,7 +78,6 @@ class StatelessNet(torch.nn.Module):
 
         self.embeds = torch.nn.ModuleList(embeds)
         self.blank_idx = blank_idx
-        self.ones_cache = {}
 
     def forward(self,
                 y: Optional[torch.Tensor] = None,
@@ -95,16 +94,11 @@ class StatelessNet(torch.nn.Module):
         [B, U] = y.shape
         appended_y = y
         if state != None:
-            state = state[0]
-            appended_y = torch.concat([state, y], axis=1)
+            appended_y = torch.concat([state[0], y], axis=1)
             context_size = appended_y.shape[1]
 
             if context_size < self.context_size:
-                if B in self.ones_cache:
-                    padded_state = self.ones_cache[B]
-                else:
-                    padded_state = torch.ones([B, self.context_size], dtype=torch.long) * self.blank_idx
-                    padded_state = padded_state.to(y.device)
+                padded_state = torch.ones([B, self.context_size], dtype=torch.long, device=y.device) * self.blank_idx
                 padded_state[:,self.context_size - context_size:] = appended_y
             elif context_size == self.context_size + 1:
                 padded_state = appended_y[:,1:,:]
@@ -119,6 +113,7 @@ class StatelessNet(torch.nn.Module):
                 out = self.embeds[i](y)
 
                 if i != 0:
+#                    out = torch.concat([out[:,:i,:] * 0.0, out[:,:-i,:]], dim=1)
                     out[:,i:,:] = out[:,:-i,:].clone()  # needs clone() here or the following copy might complain about src and dst mem location have overlaps. 
                     out[:,:i,:] *= 0.0
                 outs.append(out)
@@ -127,7 +122,7 @@ class StatelessNet(torch.nn.Module):
         out = self.norm(out)
 
         state = None
-        if y is not None:  # and self.context_size > 1:
+        if y is not None:
             state = [appended_y[:,appended_y.shape[1] - self.context_size + 1:]]
         return out, state
 
@@ -436,7 +431,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         if batch_states is not None:
             states = batch_states[0][idx]
             ret = states
-            return ret
+            return [ret]
         else:
             return None
 
@@ -455,7 +450,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         assert(False)
         hs = []
-        for t in batch_states[0]:
+        for t in batch_states:
             hs.append(t)
 
         return torch.concat(hs, dim=0)
