@@ -466,43 +466,37 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
     def setup_streaming_params(
         self,
-        chunk_size: Optional[Union[List, int]] = None,
-        shift_size: Optional[Union[List, int]] = None,
-        cache_drop_size: Optional[int] = None,
-        pre_encode_cache_size: Optional[int] = None,
-        valid_out_len: Optional[int] = None,
-        drop_extra_pre_encoded: Optional[int] = None,
-        max_look_ahead: int = 10000,
+        max_context: int = 10000,
     ):
         """
-            This function set the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+            This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
         """
         streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
-            streaming_cfg.lookahead_steps = self.att_context_size[1]
+            lookahead_steps = self.att_context_size[1]
             if cache_drop_size is None:
                 streaming_cfg.cache_drop_size = 0
             else:
                 streaming_cfg.cache_drop_size = cache_drop_size
         elif self.att_context_style == "regular":
             lookahead_steps_att = (
-                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else max_look_ahead
+                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else max_context
             )
             lookahead_steps_conv = (
-                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_look_ahead
+                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_context
             )
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
             if cache_drop_size is None:
-                streaming_cfg.cache_drop_size = streaming_cfg.lookahead_steps
+                streaming_cfg.cache_drop_size = lookahead_steps
             else:
                 streaming_cfg.cache_drop_size = cache_drop_size
         else:
             streaming_cfg.cache_drop_size = cache_drop_size
-            streaming_cfg.lookahead_steps = None
+            lookahead_steps = None
 
         streaming_cfg.last_channel_cache_size = (
-            self.att_context_size[0] if self.att_context_size[0] >= 0 else max_look_ahead
+            self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
         )
 
         if hasattr(self.pre_encode, "get_sampling_frames"):
@@ -512,24 +506,24 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         if chunk_size is None:
             if isinstance(sampling_frames, list):
                 streaming_cfg.chunk_size = [
-                    sampling_frames[0] + self.subsampling_factor * streaming_cfg.lookahead_steps,
-                    sampling_frames[1] + self.subsampling_factor * streaming_cfg.lookahead_steps,
+                    sampling_frames[0] + self.subsampling_factor * lookahead_steps,
+                    sampling_frames[1] + self.subsampling_factor * lookahead_steps,
                 ]
             else:
-                streaming_cfg.chunk_size = sampling_frames * (1 + streaming_cfg.lookahead_steps)
+                streaming_cfg.chunk_size = sampling_frames * (1 + lookahead_steps)
         else:
             streaming_cfg.chunk_size = chunk_size
         if shift_size is None:
             if isinstance(sampling_frames, list):
                 streaming_cfg.shift_size = [
                     sampling_frames[0]
-                    + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
                     sampling_frames[1]
-                    + sampling_frames[1] * (streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size),
+                    + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
                 ]
             else:
                 streaming_cfg.shift_size = sampling_frames * (
-                    1 + streaming_cfg.lookahead_steps - streaming_cfg.cache_drop_size
+                    1 + lookahead_steps - streaming_cfg.cache_drop_size
                 )
         else:
             streaming_cfg.shift_size = shift_size

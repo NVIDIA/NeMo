@@ -22,14 +22,12 @@ class StreamingEncoder(ABC):
     @abstractmethod
     def setup_streaming_params(
         self,
-        chunk_size: Optional[Union[List, int]] = None,
-        shift_size: Optional[Union[List, int]] = None,
-        cache_drop_size: Optional[int] = None,
-        pre_encode_cache_size: Optional[int] = None,
-        valid_out_len: Optional[int] = None,
-        drop_extra_pre_encoded: Optional[int] = None,
         max_look_ahead: int = 10000,
     ):
+        """
+        This function sets the needed values and parameters to perform streaming. The configuration (FramewiseStreamingConfig) need to be stored in self.streaming_cfg.
+        The streaming configuration is needed to simulate streaming inference. It would set the following
+        """
         pass
 
     @abstractmethod

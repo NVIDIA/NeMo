@@ -1199,7 +1199,7 @@ class FramewiseStreamingAudioBuffer:
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
                 return
-                # raise StopIteration
+
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.chunk_size, list):
                 chunk_size = self.streaming_cfg.chunk_size[0]
             else:
@@ -1220,6 +1220,8 @@ class FramewiseStreamingAudioBuffer:
 
             audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
 
+            # Adding the cache needed for the pre-encoder part of the model to the chunk
+            # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
             zeros_pads = None
             if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
                 cache_pre_encode = torch.zeros(
