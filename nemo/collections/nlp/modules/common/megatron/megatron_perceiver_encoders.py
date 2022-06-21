@@ -67,7 +67,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         persist_layer_norm=False,
@@ -106,7 +106,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
         self.layernorm_epsilon = layernorm_epsilon
-        self.bias_gelu_fusion = bias_gelu_fusion
+        self.bias_activation_fusion = bias_activation_fusion
         self.bias_dropout_add_fusion = bias_dropout_add_fusion
         self.masked_softmax_fusion = masked_softmax_fusion
         self.persist_layer_norm = persist_layer_norm
@@ -168,7 +168,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             relative_attention_num_buckets=self.relative_attention_num_buckets,
             relative_attention_max_distance=self.relative_attention_max_distance,
             use_cpu_initialization=self.use_cpu_initialization,
-            bias_gelu_fusion=self.bias_gelu_fusion,
+            bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_fusion=self.bias_dropout_add_fusion,
             masked_softmax_fusion=self.masked_softmax_fusion,
             persist_layer_norm=self.persist_layer_norm,
@@ -207,7 +207,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             relative_attention_num_buckets=self.relative_attention_num_buckets,
             relative_attention_max_distance=self.relative_attention_max_distance,
             use_cpu_initialization=self.use_cpu_initialization,
-            bias_gelu_fusion=self.bias_gelu_fusion,
+            bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_fusion=self.bias_dropout_add_fusion,
             masked_softmax_fusion=self.masked_softmax_fusion,
             persist_layer_norm=self.persist_layer_norm,
