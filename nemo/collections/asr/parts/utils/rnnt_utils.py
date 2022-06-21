@@ -57,6 +57,12 @@ class Hypothesis:
         Outer list represents Time dimension (T), inner list represents Target dimension (U).
         The set of valid indices **includes** the CTC / RNNT blank token in order to represent alignments.
 
+    frame_confidence: (Optional) Represents the CTC / RNNT per-frame confidence scores as token probabilities
+        along an axis of time T (for CTC) or Time x Target (TxU).
+        For CTC, represented as a single list of integer indices.
+        For RNNT, represented as a dangling list of list of integer indices.
+        Outer list represents Time dimension (T), inner list represents Target dimension (U).
+
     length: Represents the length of the sequence (the original length without padding), otherwise
         defaults to 0.
 
@@ -78,6 +84,7 @@ class Hypothesis:
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
     timestep: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
+    frame_confidence: Optional[Union[List[float], List[List[float]]]] = None
     length: Union[int, torch.Tensor] = 0
     y: List[torch.tensor] = None
     lm_state: Optional[Union[Dict[str, Any], List[Any]]] = None

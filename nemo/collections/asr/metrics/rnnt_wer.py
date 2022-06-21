@@ -67,6 +67,17 @@ class AbstractRNNTDecoding(ABC):
 
             word_seperator: Str token representing the seperator between words.
 
+            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+
+                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
+                with the `preserve_frame_confidence` flag set to True.
+
+                The length of the list corresponds to the Acoustic Length (T).
+                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                U is the number of target tokens for the current timestep Ti.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
@@ -132,6 +143,7 @@ class AbstractRNNTDecoding(ABC):
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
+        self.preserve_frame_confidence = self.cfg.get('preserve_frame_confidence', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
@@ -160,6 +172,16 @@ class AbstractRNNTDecoding(ABC):
         if self.compute_timestamps is True and self.preserve_alignments is False:
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
+        # Update preserve frame confidence
+        if self.preserve_frame_confidence is None:
+            if self.cfg.strategy in ['greedy', 'greedy_batch']:
+                self.preserve_alignments = self.cfg.greedy.get('preserve_frame_confidence', False)
+
+            elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
+                # self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
+                # Not implemented
+                pass
+
         if self.cfg.strategy == 'greedy':
 
             self.decoding = greedy_decode.GreedyRNNTInfer(
@@ -170,6 +192,7 @@ class AbstractRNNTDecoding(ABC):
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
                 preserve_alignments=self.preserve_alignments,
+                preserve_frame_confidence=self.preserve_frame_confidence,
             )
 
         elif self.cfg.strategy == 'greedy_batch':
@@ -182,6 +205,7 @@ class AbstractRNNTDecoding(ABC):
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
                 preserve_alignments=self.preserve_alignments,
+                preserve_frame_confidence=self.preserve_frame_confidence,
             )
 
         elif self.cfg.strategy == 'beam':
@@ -756,6 +780,17 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
 
+            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+
+                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
+                with the `preserve_frame_confidence` flag set to True.
+
+                The length of the list corresponds to the Acoustic Length (T).
+                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                U is the number of target tokens for the current timestep Ti.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
@@ -984,6 +1019,9 @@ class RNNTDecodingConfig:
 
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
+
+    # preserve per-frame confidence
+    preserve_frame_confidence: Optional[bool] = None
 
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None

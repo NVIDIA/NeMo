@@ -70,6 +70,17 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
             word_seperator: Str token representing the seperator between words.
 
+            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+
+                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
+                with the `preserve_frame_confidence` flag set to True.
+
+                The length of the list corresponds to the Acoustic Length (T).
+                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                U is the number of target tokens for the current timestep Ti.
+
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
