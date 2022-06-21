@@ -475,10 +475,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
             lookahead_steps = self.att_context_size[1]
-            if cache_drop_size is None:
-                streaming_cfg.cache_drop_size = 0
-            else:
-                streaming_cfg.cache_drop_size = cache_drop_size
+            streaming_cfg.cache_drop_size = 0
         elif self.att_context_style == "regular":
             lookahead_steps_att = (
                 self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else max_context
@@ -487,10 +484,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
                 self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_context
             )
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
-            if cache_drop_size is None:
-                streaming_cfg.cache_drop_size = lookahead_steps
-            else:
-                streaming_cfg.cache_drop_size = cache_drop_size
+            streaming_cfg.cache_drop_size = lookahead_steps
         else:
             streaming_cfg.cache_drop_size = cache_drop_size
             lookahead_steps = None
@@ -503,62 +497,50 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             sampling_frames = self.pre_encode.get_sampling_frames()
         else:
             sampling_frames = 0
-        if chunk_size is None:
-            if isinstance(sampling_frames, list):
-                streaming_cfg.chunk_size = [
-                    sampling_frames[0] + self.subsampling_factor * lookahead_steps,
-                    sampling_frames[1] + self.subsampling_factor * lookahead_steps,
-                ]
-            else:
-                streaming_cfg.chunk_size = sampling_frames * (1 + lookahead_steps)
+
+        if isinstance(sampling_frames, list):
+            streaming_cfg.chunk_size = [
+                sampling_frames[0] + self.subsampling_factor * lookahead_steps,
+                sampling_frames[1] + self.subsampling_factor * lookahead_steps,
+            ]
         else:
-            streaming_cfg.chunk_size = chunk_size
-        if shift_size is None:
-            if isinstance(sampling_frames, list):
-                streaming_cfg.shift_size = [
-                    sampling_frames[0]
-                    + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
-                    sampling_frames[1]
-                    + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
-                ]
-            else:
-                streaming_cfg.shift_size = sampling_frames * (
-                    1 + lookahead_steps - streaming_cfg.cache_drop_size
+            streaming_cfg.chunk_size = sampling_frames * (1 + lookahead_steps)
+
+        if isinstance(sampling_frames, list):
+            streaming_cfg.shift_size = [
+                sampling_frames[0]
+                + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[1]
+                + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+            ]
+        else:
+            streaming_cfg.shift_size = sampling_frames * (
+                1 + lookahead_steps - streaming_cfg.cache_drop_size
+            )
+
+        if isinstance(streaming_cfg.shift_size, list):
+            streaming_cfg.valid_out_len = (
+                streaming_cfg.shift_size[1] - sampling_frames[1]
+            ) // self.subsampling_factor + 1
+        else:
+            streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+
+        if hasattr(self.pre_encode, "get_streaming_cache_size"):
+            streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
+        else:
+            streaming_cfg.pre_encode_cache_size = 0
+
+        if isinstance(streaming_cfg.pre_encode_cache_size, list):
+            if streaming_cfg.pre_encode_cache_size[1] >= 1:
+                streaming_cfg.drop_extra_pre_encoded = (
+                    1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
                 )
-        else:
-            streaming_cfg.shift_size = shift_size
-
-        if valid_out_len is None:
-            if isinstance(streaming_cfg.shift_size, list):
-                streaming_cfg.valid_out_len = (
-                    streaming_cfg.shift_size[1] - sampling_frames[1]
-                ) // self.subsampling_factor + 1
             else:
-                streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+                streaming_cfg.drop_extra_pre_encoded = 0
         else:
-            streaming_cfg.valid_out_len = valid_out_len
+            streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
 
-        if pre_encode_cache_size is None:
-            if hasattr(self.pre_encode, "get_streaming_cache_size"):
-                streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
-            else:
-                streaming_cfg.pre_encode_cache_size = 0
-        else:
-            streaming_cfg.pre_encode_cache_size = pre_encode_cache_size
-
-        if drop_extra_pre_encoded is not None:
-            streaming_cfg.drop_extra_pre_encoded = drop_extra_pre_encoded
-        else:
-            if isinstance(streaming_cfg.pre_encode_cache_size, list):
-                if streaming_cfg.pre_encode_cache_size[1] >= 1:
-                    streaming_cfg.drop_extra_pre_encoded = (
-                        1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
-                    )
-                else:
-                    streaming_cfg.drop_extra_pre_encoded = 0
-            else:
-                streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
-
+        # counting the number of the layers need caching
         streaming_cfg.last_channel_num = 0
         streaming_cfg.last_time_num = 0
         for m in self.layers.modules():
