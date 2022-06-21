@@ -497,7 +497,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     param_groups = property(_get_param_groups, _set_param_groups)
 
-    # Promote param_groups so it can be retrieved or set via
+    # Promote defaults so it can be retrieved or set via
     # "optimizer_instance.defaults
     def _get_defaults(self):
         if hasattr(self, 'optimizer'):
