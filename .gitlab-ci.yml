@@ -3,6 +3,7 @@ variables: &VARS
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
 
 stages:
+  - build
   - test
   - cleanup
 
@@ -22,9 +23,29 @@ test:unit_tests:
   rules:
     - when: always
 
+.build: &build_template
+  stage: build
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${CI_REGISTRY}"
+    - export DOCKER_REGISTRY="${CI_REGISTRY/:5005/}"
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${DOCKER_REGISTRY}"
+    - docker login -u "\$oauthtoken" -p $NGC_CLI_API_KEY nvcr.io
+    - set -x
+    - ls
+    - env
+    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${HP_BASE_IMAGE}"
+    - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
+    - docker push ${BUILD_IMAGE_NAME}
+  allow_failure: false
+  tags:
+    - vm-builder
 
 before_script:
   - umask 0007
+  - export DOCKERFILE=./Dockerfile
+  - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+  - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
+  - export NVCR_IMAGE_NAME=${CONTAINER_NVCR_BASE}.pipe.${CI_PIPELINE_ID}
   - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
   - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
 
@@ -83,6 +104,21 @@ before_script:
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
     - echo "Finished pytest job"
   allow_failure: false
+
+
+build-BigNLP-training:
+  <<: *build_template
+  variables:variables:
+    <<: [*VARS]
+    IMAGE_NAME: bignlp_training_hp_tool
+    HP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.05-py3"
+
+build-BigNLP-inference:
+  <<: *build_template
+  variables:variables:
+    <<: [*VARS]
+    IMAGE_NAME: bignlp_inference_hp_tool
+    HP_BASE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
 
 train.gpt3.126m_80gb_10runs:
   <<: *hp-tool-LUNA-test-LAUNCHER
