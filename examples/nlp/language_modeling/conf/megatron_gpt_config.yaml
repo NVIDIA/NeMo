@@ -17,6 +17,7 @@ trainer:
   limit_test_batches: 500
   accumulate_grad_batches: 1 # do not modify, grad acc is automatic for training megatron models
   gradient_clip_val: 1.0
+  benchmark: False
 
 exp_manager:
   explicit_log_dir: null
@@ -64,6 +65,8 @@ model:
   pre_process: True # add embedding
   post_process: True # add pooler
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
+
+  grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
 
   tokenizer:
     library: 'megatron'

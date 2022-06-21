@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -23,14 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
     plurals,
 )
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class TelephoneFst(GraphFst):
@@ -74,16 +68,25 @@ class TelephoneFst(GraphFst):
         )
 
         area_part = (
-            (area_part + pynutil.delete("-"))
-            | (pynutil.delete("(") + area_part + (pynutil.delete(") ") | pynutil.delete(")-")))
+            (area_part + (pynutil.delete("-") | pynutil.delete(".")))
+            | (
+                pynutil.delete("(")
+                + area_part
+                + ((pynutil.delete(")") + pynini.closure(pynutil.delete(" "), 0, 1)) | pynutil.delete(")-"))
+            )
         ) + add_separator
 
-        del_separator = pynini.closure(pynini.union("-", " "), 0, 1)
+        del_separator = pynini.closure(pynini.union("-", " ", "."), 0, 1)
         number_length = ((NEMO_DIGIT + del_separator) | (NEMO_ALPHA + del_separator)) ** 7
         number_words = pynini.closure(
-            (NEMO_DIGIT @ digit) + (insert_space | pynini.cross("-", ', '))
+            (NEMO_DIGIT @ digit) + (insert_space | (pynini.cross("-", ', ')))
             | NEMO_ALPHA
             | (NEMO_ALPHA + pynini.cross("-", ' '))
+        )
+        number_words |= pynini.closure(
+            (NEMO_DIGIT @ digit) + (insert_space | (pynini.cross(".", ', ')))
+            | NEMO_ALPHA
+            | (NEMO_ALPHA + pynini.cross(".", ' '))
         )
         number_words = pynini.compose(number_length, number_words)
         number_part = area_part + number_words

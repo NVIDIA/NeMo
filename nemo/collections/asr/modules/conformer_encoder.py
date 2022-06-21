@@ -20,6 +20,7 @@ import torch
 import torch.distributed
 import torch.nn as nn
 from omegaconf import ListConfig
+from omegaconf import DictConfig
 
 from nemo.collections.asr.models.configs import FramewiseStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
@@ -31,6 +32,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     RelPositionalEncoding,
 )
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling
+from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
@@ -105,8 +107,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return OrderedDict(
             {
                 "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
@@ -118,8 +119,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -312,8 +312,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.export_cache_support = False
 
     def set_max_audio_length(self, max_audio_length):
-        """ Sets maximum input length.
-            Pre-calculates internal seq_range mask.
+        """
+        Sets maximum input length.
+        Pre-calculates internal seq_range mask.
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
@@ -577,6 +578,7 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
+        cfg = self._update_adapter_cfg_input_dim(cfg)
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
             conformer_layer.add_adapter(name, cfg)
 
@@ -594,6 +596,10 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
 
         names = sorted(list(names))
         return names
+
+    def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
+        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        return cfg
 
 
 """
