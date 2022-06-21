@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+from typing import List, Optional, Union
 
 import torch
 
@@ -20,7 +21,14 @@ import torch
 class StreamingEncoder(ABC):
     @abstractmethod
     def setup_streaming_params(
-        self, init_chunk_size=None, init_shift_size=None, chunk_size=None, shift_size=None, cache_drop_size=None
+        self,
+        chunk_size: Optional[Union[List, int]] = None,
+        shift_size: Optional[Union[List, int]] = None,
+        cache_drop_size: Optional[int] = None,
+        pre_encode_cache_size: Optional[int] = None,
+        valid_out_len: Optional[int] = None,
+        drop_extra_pre_encoded: Optional[int] = None,
+        max_look_ahead: int = 10000,
     ):
         pass
 
@@ -70,7 +78,7 @@ class StreamingEncoder(ABC):
         if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
             cache_last_channel_next = cache_last_channel_next[:, :, -self.streaming_cfg.last_channel_cache_size :, :]
         if not keep_all_outputs:
-            encoded = encoded[:, :, :self.streaming_cfg.valid_out_len]
+            encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
             encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
 
         if prev_drop_extra_pre_encoded is not None:

@@ -6,6 +6,11 @@
 # Models trained with this config have limited right context which make them efficient for streaming ASR
 # You may use NeMo/examples/asr/speech_to_text_streaming_infer.py to simulate/evaluate this model in frame-wise streaming mode
 
+# if loss does not go down properly or gives NAN, you may try the followings by order:
+# + using gradient clipping of 1.0
+# + increase the warmup steps from 10K to 20K
+# + use striding instead of stacking for downsampling
+
 name: "Conformer-Transducer-BPE-Streaming"
 
 model:
@@ -88,10 +93,11 @@ model:
     d_model: 512
 
     # Sub-sampling params
+    # stacking_norm and stacking can be around 25% faster than striding during inference, while giving similar (or slightly worse) results in terms of accuracy for Transducer models
     subsampling: stacking # vggnet, striding, stacking or stacking_norm
-    subsampling_factor: 4 # must be power of 2
+    subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # -1 sets it to d_model
-    causal_downsampling: true
+    causal_downsampling: true # enables causal convolutions during downsampling
 
     # Feed forward module's params
     ff_expansion_factor: 4
@@ -128,7 +134,7 @@ model:
       pred_hidden: ${model.model_defaults.pred_hidden}
       pred_rnn_layers: 1
       t_max: null
-      dropout: 0.1
+      dropout: 0.2
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
@@ -149,18 +155,18 @@ model:
     jointnet:
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
-      dropout: 0.1
+      dropout: 0.2
 
   decoding:
     strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
 
     # greedy strategy config
     greedy:
-      max_symbols: 30
+      max_symbols: 10
 
     # beam strategy config
     beam:
-      beam_size: 2
+      beam_size: 5
       return_best_hypothesis: False
       score_norm: true
       tsd_max_sym_exp: 50  # for Time Synchronous Decoding
@@ -193,7 +199,7 @@ model:
       name: NoamAnnealing
       d_model: ${model.encoder.d_model}
       # scheduler config override
-      warmup_steps: 10000
+      warmup_steps: 10000 # you may try larger warmup like 20K is training is not stable
       warmup_ratio: null
       min_lr: 1e-6
 
@@ -227,7 +233,7 @@ exp_manager:
     # in case of multiple validation sets, first one is used
     monitor: "val_wer"
     mode: "min"
-    save_top_k: 10
+    save_top_k: 5
     always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
 
   # you need to set these two to True to continue the training

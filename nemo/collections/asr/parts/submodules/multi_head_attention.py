@@ -127,7 +127,7 @@ class MultiHeadAttention(nn.Module):
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        key, value, query, cache_next = self.do_caching(
+        key, value, query, cache_next = self.update_cache(
             key=key, value=value, query=query, cache=cache, cache_next=cache_next
         )
 
@@ -135,7 +135,7 @@ class MultiHeadAttention(nn.Module):
         scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
         return self.forward_attention(v, scores, mask)
 
-    def do_caching(self, key, value, query, cache, cache_next):
+    def update_cache(self, key, value, query, cache, cache_next):
         if cache is not None:
             cache = cache[self._cache_id]
             q_length = query.size(1)
@@ -206,7 +206,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        key, value, query, cache_next = self.do_caching(
+        key, value, query, cache_next = self.update_cache(
             key=key, value=value, query=query, cache=cache, cache_next=cache_next
         )
 

@@ -116,6 +116,22 @@ class ExportableEncDecModel(Exportable):
         return self.decoder
 
     def forward_for_export(self, input, length=None, cache_last_channel=None, cache_last_time=None):
+        """
+        This forward is used when we need to export the model to ONNX format.
+        Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+        When they are passed, it just passes the inputs through the encoder part and currently the ONNX conversion does not fully work for this case.
+        Args:
+            input: Tensor that represents a batch of raw audio signals,
+                of shape [B, T]. T here represents timesteps.
+            length: Vector of length B, that contains the individual lengths of the audio sequences.
+            cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
+            cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers
+                N is the number of such layers which need caching, B is batch size, H is the hidden size of activations,
+                and T is the length of the cache
+
+        Returns:
+            the output of the model
+        """
         if hasattr(self.input_module, 'forward_for_export'):
             if cache_last_channel is None and cache_last_time is None:
                 encoder_output = self.input_module.forward_for_export(input, length)
@@ -136,13 +152,13 @@ class ExportableEncDecModel(Exportable):
             if cache_last_channel is None and cache_last_time is None:
                 return self.output_module.forward_for_export(decoder_input)
             else:
-                # TODO: fix it for full encoder/decoder export
+                # TODO: update this part to support full encoder/decoder export
                 return encoder_output
         else:
             if cache_last_channel is None and cache_last_time is None:
                 return self.output_module(decoder_input)
             else:
-                # TODO: fix it for full encoder/decoder export
+                # TODO: update this part to support full encoder/decoder export
                 return encoder_output
 
     @property

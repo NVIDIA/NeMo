@@ -103,8 +103,8 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: striding # vggnet or striding
-    subsampling_factor: 3 # must be power of 2
+    subsampling: striding # vggnet, striding, stacking or stacking_norm
+    subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
     causal_downsampling: false
 
@@ -171,7 +171,7 @@ model:
 
     # greedy strategy config
     greedy:
-      max_symbols: 30
+      max_symbols: 10
 
     # beam strategy config
     beam:
@@ -241,7 +241,7 @@ exp_manager:
     # in case of multiple validation sets, first one is used
     monitor: "val_wer"
     mode: "min"
-    save_top_k: 10
+    save_top_k: 5
     always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
   resume_if_exists: false
   resume_ignore_no_checkpoint: false

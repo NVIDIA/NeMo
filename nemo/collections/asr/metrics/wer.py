@@ -157,7 +157,7 @@ class WER(Metric):
         # iterate over batch
         for ind in range(len(prediction_cpu_tensor)):
             if self.fold_consecutive:
-                prediction = prediction_cpu_tensor[ind].cpu().detach().numpy().tolist()
+                prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
                 if predictions_len is not None:
                     prediction = prediction[: predictions_len[ind]]
                 # CTC decoding procedure

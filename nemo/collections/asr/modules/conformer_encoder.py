@@ -14,7 +14,7 @@
 
 import math
 from collections import OrderedDict
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 import torch.distributed
@@ -40,7 +40,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, ChannelType, L
 __all__ = ['ConformerEncoder']
 
 
-class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
+class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
     """
     The encoder for ASR model of Conformer.
     Based on this paper:
@@ -85,7 +85,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             Defaults to 0.0.
     """
 
-    def input_example(self, max_batch=1, max_dim=1024):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
@@ -95,7 +95,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
         input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
         input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
 
-        if self.export_cache_support:
+        if hasattr(self, 'export_cache_support') and self.export_cache_support:
             cache_last_channel = torch.randn(self.n_layers, max_batch, self.conv_context_size[0], self.d_model).to(dev)
             cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_dim).to(dev)
             all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
@@ -204,12 +204,15 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
         self.conv_context_size = conv_context_size
 
         if att_context_style == "chunked_limited":
-            if (self.att_context_size[0]) % (self.att_context_size[1] + 1) > 0:
+            # the left context for self-attention in chunked_limited mode should be dividable by the right context
+            # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
+            if self.att_context_size[0] > 0 and self.att_context_size[0] % (self.att_context_size[1] + 1) > 0:
                 raise ValueError("att_context_size[0] % (att_context_size[0] + 1) should be zero!")
             if self.att_context_size[1] < 0:
                 raise ValueError("Right context can not be unlimited for chunked_limited style!")
             self.chunk_size = self.att_context_size[1] + 1
 
+            # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
             if self.att_context_size[0] >= 0:
                 self.left_chunks_num = ((self.att_context_size[0] + 1) / (self.att_context_size[1] + 1)) - 1
             else:
@@ -371,6 +374,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             audio_signal = self.pre_encode(x=audio_signal)
         else:
             audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
+            # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
             if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
                 audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
                 # TODO: find a better solution
@@ -396,11 +400,15 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             cache_last_channel_next = None
             audio_signal, pos_emb = self.pos_enc(x=audio_signal)
 
+        # pad_mask is the masking to be used to ignore paddings
         pad_mask = self.make_pad_mask(max_audio_length=max_audio_length, seq_lens=padding_length)
 
+        # pad_mask_for_att_mask is the mask which helps to ignore paddings
         pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
+        # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
         att_mask = self.att_mask[:, :max_audio_length, :max_audio_length]
+        # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
         att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
 
         if cache_last_channel is not None:
@@ -458,14 +466,18 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
 
     def setup_streaming_params(
         self,
-        chunk_size=None,
-        shift_size=None,
-        cache_drop_size=None,
-        pre_encode_cache_size=None,
-        valid_out_len=None,
-        drop_extra_pre_encoded=None,
+        chunk_size: Optional[Union[List, int]] = None,
+        shift_size: Optional[Union[List, int]] = None,
+        cache_drop_size: Optional[int] = None,
+        pre_encode_cache_size: Optional[int] = None,
+        valid_out_len: Optional[int] = None,
+        drop_extra_pre_encoded: Optional[int] = None,
+        max_look_ahead: int = 10000,
     ):
-        MAX_LOOK_AHEAD = 10000
+        """
+            This function set the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
+            The streaming configuration is needed to simulate streaming inference.
+        """
         streaming_cfg = FramewiseStreamingConfig()
         if self.att_context_style == "chunked_limited":
             streaming_cfg.lookahead_steps = self.att_context_size[1]
@@ -475,10 +487,10 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
                 streaming_cfg.cache_drop_size = cache_drop_size
         elif self.att_context_style == "regular":
             lookahead_steps_att = (
-                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else MAX_LOOK_AHEAD
+                self.att_context_size[1] * self.n_layers if self.att_context_size[1] >= 0 else max_look_ahead
             )
             lookahead_steps_conv = (
-                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else MAX_LOOK_AHEAD
+                self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_look_ahead
             )
             streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
             if cache_drop_size is None:
@@ -490,7 +502,7 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
             streaming_cfg.lookahead_steps = None
 
         streaming_cfg.last_channel_cache_size = (
-            self.att_context_size[0] if self.att_context_size[0] >= 0 else MAX_LOOK_AHEAD
+            self.att_context_size[0] if self.att_context_size[0] >= 0 else max_look_ahead
         )
 
         if hasattr(self.pre_encode, "get_sampling_frames"):
@@ -525,8 +537,8 @@ class ConformerEncoder(NeuralModule, Exportable, StreamingEncoder):
         if valid_out_len is None:
             if isinstance(streaming_cfg.shift_size, list):
                 streaming_cfg.valid_out_len = (
-                    (streaming_cfg.shift_size[1] - sampling_frames[1]) // self.subsampling_factor + 1,
-                )
+                    streaming_cfg.shift_size[1] - sampling_frames[1]
+                ) // self.subsampling_factor + 1
             else:
                 streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
         else:

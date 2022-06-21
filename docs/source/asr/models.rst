@@ -132,9 +132,9 @@ Streaming Conformer
 
 Streaming Conformer models are variants of Conformer which are trained with limited right context. It enables the model to be used very efficiently for frame-wise streaming.
 Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in downsampling layers.
-Streaming Conformer models use causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
+Streaming Conformer models uses causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same output and accuracy as when the whole audio is given to the model in offline mode.
-These model can use caching mechanism to store and reuse the activations during streaming inference to void any duplications in the computations as much as possible.
+These model can use caching mechanism to store and reuse the activations during streaming inference to avoid any duplications in the computations as much as possible.
 
 We support the following three right context modeling:
 *  fully causal model with zero look-ahead: tokens would not see any future tokens. convolution layers are all causal and right tokens are masked for self-attention.
@@ -143,12 +143,12 @@ To train such a model, you need to set `encoder.att_context_size=[left_context, 
 
 *  regular look-ahead: convolutions would be able to see few future frames, and self-attention would also see the same number of future tokens.
 In this approach the activations for the look-ahead part is not cached and recalculated in the next chunks. The right context in each layer should be a small number as multiple layers would increase the effective context size and then increase the look-ahead size and latency.
-For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead.
+For example for a model of 17 layers with 4x downsampling and 10ms window shift, then even 2 right context in each layer means 17*2*10*4=1360ms look-ahead. Each step after the downsampling corresponds to 4*10=40ms.
 
 *  chunk-aware look-ahead: input is split into equal chunks. Convolutions are fully causal while self-attention layers would be able to see all the tokens in their corresponding chunk.
 For example, in a model which chunk size of 20 tokens, tokens at the first position of each chunk would see all the next 19 tokens while the last token would see zero future tokens.
 This approach is more efficient than regular look-ahead in terms of computations as the activations for most of the look-ahead part would be cached and there is close to zero duplications in the calculations.
-In terms of accuracy, this approach gives similar or even better results in term of accuracy as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming.
+In terms of accuracy, this approach gives similar or even better results in term of accuracy than regular look-ahead as each token in each layer have access to more tokens on average. That is why we recommend to use this approach for streaming.
 
 
 ** Note: Latencies are based on the assumption that the forward time of the network is zero.

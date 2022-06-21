@@ -87,8 +87,8 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: striding # vggnet or striding, vggnet may give better results but needs more memory
-    subsampling_factor: 4 # must be power of 2
+    subsampling: striding # vggnet, striding, stacking or stacking_norm
+    subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # -1 sets it to d_model
 
     # Feed forward module's params

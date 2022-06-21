@@ -47,9 +47,9 @@ You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the stream
 
 import contextlib
 import json
+import os
 import time
 from argparse import ArgumentParser
-import os
 
 import torch
 from omegaconf import open_dict
@@ -62,6 +62,10 @@ from nemo.utils import logging
 
 
 def extract_transcribtions(hyps):
+    """
+        The transcribed_texts returned by CTC and RNNT models are different.
+        This method would extract and return the text section of the hypothesis.
+    """
     if isinstance(hyps[0], Hypothesis):
         transcribtions = []
         for hyp in hyps:
@@ -82,22 +86,23 @@ def calc_drop_extra_pre_encoded(asr_model, step_num):
 def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
-        # would run the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
+        # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
         # the output of the model in the offline and streaming mode should be exactly the same
-        with autocast():
-            processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
-            with torch.no_grad():
-                (
-                    pred_out_offline,
-                    transcribed_texts,
-                    cache_last_channel_next,
-                    cache_last_time_next,
-                    best_hyp,
-                ) = asr_model.stream_step(
-                    processed_signal=processed_signal,
-                    processed_signal_length=processed_signal_length,
-                    return_transcribtion=True,
-                )
+        with torch.inference_mode():
+            with autocast():
+                processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
+                with torch.no_grad():
+                    (
+                        pred_out_offline,
+                        transcribed_texts,
+                        cache_last_channel_next,
+                        cache_last_time_next,
+                        best_hyp,
+                    ) = asr_model.stream_step(
+                        processed_signal=processed_signal,
+                        processed_signal_length=processed_signal_length,
+                        return_transcription=True,
+                    )
         final_offline_tran = extract_transcribtions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
     else:
@@ -109,27 +114,28 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     streaming_buffer_iter = iter(streaming_buffer)
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-        with autocast():
-            # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
-            # otherwise the last outputs would get dropped
-            with torch.no_grad():
-                (
-                    pred_out_stream,
-                    transcribed_texts,
-                    cache_last_channel,
-                    cache_last_time,
-                    previous_hypotheses,
-                ) = asr_model.stream_step(
-                    processed_signal=chunk_audio,
-                    processed_signal_length=chunk_lengths,
-                    cache_last_channel=cache_last_channel,
-                    cache_last_time=cache_last_time,
-                    keep_all_outputs=streaming_buffer.is_buffer_empty(),
-                    previous_hypotheses=previous_hypotheses,
-                    previous_pred_out=pred_out_stream,
-                    drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
-                    return_transcribtion=True,
-                )
+        with torch.inference_mode():
+            with autocast():
+                # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
+                # otherwise the last outputs would get dropped
+                with torch.no_grad():
+                    (
+                        pred_out_stream,
+                        transcribed_texts,
+                        cache_last_channel,
+                        cache_last_time,
+                        previous_hypotheses,
+                    ) = asr_model.stream_step(
+                        processed_signal=chunk_audio,
+                        processed_signal_length=chunk_lengths,
+                        cache_last_channel=cache_last_channel,
+                        cache_last_time=cache_last_time,
+                        keep_all_outputs=streaming_buffer.is_buffer_empty(),
+                        previous_hypotheses=previous_hypotheses,
+                        previous_pred_out=pred_out_stream,
+                        drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num),
+                        return_transcription=True,
+                    )
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
@@ -138,6 +144,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
 
     if compare_vs_offline:
+        # calculates and report the differences between the predictions of the model in offline mode vs streaming mode
+        # Normally they should be exactly the same predictions for streaming models
         pred_out_stream_cat = torch.cat(pred_out_stream)
         pred_out_offline_cat = torch.cat(pred_out_offline)
         if pred_out_stream_cat.size() == pred_out_offline_cat.size():
@@ -156,7 +164,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file",
+        "--asr_model", type=str, required=True, help="Path to an ASR model .nemo file or name of a pretrained model.",
     )
     parser.add_argument(
         "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
@@ -182,6 +190,9 @@ def main():
         action='store_true',
         help="Perform normalization on the run per chunk.",
     )
+    parser.add_argument(
+        "--output_path", type=str, help="path to output file when manifest is used as input", default=None
+    )
 
     args = parser.parse_args()
     if (args.audio_file is None and args.manifest_file is None) or (
@@ -189,16 +200,12 @@ def main():
     ):
         raise ValueError("One of the audio_file and manifest_file should be non-empty!")
 
-    torch.set_grad_enabled(False)
     if args.asr_model.endswith('.nemo'):
         logging.info(f"Using local ASR model from {args.asr_model}")
         asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        try:
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name=args.asr_model)
-        except Exception:
-            asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
 
     logging.info(asr_model.encoder.streaming_cfg)
 
@@ -223,11 +230,16 @@ def main():
             decoding_cfg.strategy = "greedy"
             decoding_cfg.preserve_alignments = True
             decoding_cfg.greedy.max_symbols = 10
+            decoding_cfg.fused_batch_size = -1
         asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
+
+    # In streaming, offline normalization is not possible for all cases as we don't have access to the whole audio at the beginning
+    # When online_normalization is enabled, the normalization of the input features (mel-spectograms) are done per step
+    # It is suggested to train the streaming models without any normalization in the input features.
     if args.online_normalization:
         if asr_model.cfg.normalize in ["per_feature", "all_feature"]:
             logging.warning(
@@ -239,8 +251,10 @@ def main():
 
     else:
         online_normalization = False
+
     streaming_buffer = FramewiseStreamingAudioBuffer(model=asr_model, online_normalization=online_normalization)
     if args.audio_file is not None:
+        # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
             args.audio_file, stream_id=-1
         )
@@ -248,6 +262,7 @@ def main():
             asr_model=asr_model, streaming_buffer=streaming_buffer, compare_vs_offline=args.compare_vs_offline
         )
     else:
+        # stream audio files in a manifest file in batched mode
         samples = []
         all_streaming_tran = []
         all_offline_tran = []
@@ -263,7 +278,7 @@ def main():
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
             processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                os.path.join("/drive3/datasets/eval2", sample['audio_filepath']), stream_id=-1
+                sample['audio_filepath'], stream_id=-1
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
@@ -288,8 +303,30 @@ def main():
         if len(all_refs_text) == len(all_streaming_tran):
             streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
             logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
+
         end_time = time.time()
-        logging.info(f"The whole process took: {round(end_time - start_time, 2)}s")
+        logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
+
+        # stores the results including the transcriptions of the streaming inference in a json file
+        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
+            fname = (
+                "streaming_out_"
+                + os.path.splitext(os.path.basename(args.asr_model))[0]
+                + "_"
+                + os.path.splitext(os.path.basename(args.test_manifest))[0]
+                + ".json"
+            )
+
+            hyp_json = os.path.join(args.output_path, fname)
+            os.makedirs(args.output_path, exist_ok=True)
+            with open(hyp_json, "w") as out_f:
+                for i, hyp in enumerate(all_streaming_tran):
+                    record = {
+                        "pred_text": hyp,
+                        "text": all_refs_text[i],
+                        "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
+                    }
+                    out_f.write(json.dumps(record) + '\n')
 
 
 if __name__ == '__main__':
