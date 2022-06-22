@@ -104,6 +104,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.tokenizer = tokenizer
         self.eod_id = tokenizer.eos_id
         self.transformer_block_type = transformer_block_type
+        self.num_chunked_cross_attention = len(dec_cross_attention)
 
         if kv_channels is None:
             assert (
@@ -342,6 +343,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
+            # scale down the pre-decoder output by half
+            hidden = (hidden[0]*0.5, hidden[1]*0.5)
             # stop passing through the gradients
             encoder_output = hidden[1].transpose(0, 1).contiguous()
 
@@ -357,6 +360,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 inference_max_sequence_len=inference_max_sequence_len,
                 neighbors=neighbors,
             )
+            #  scale down the retrieved emb output
+            retrieved_emb = retrieved_emb * (1/max(1, self.num_chunked_cross_attention))
 
         if self.add_decoder:
             dec_output = self.post_decoder(
