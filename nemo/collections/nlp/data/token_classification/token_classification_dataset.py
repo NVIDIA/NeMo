@@ -269,7 +269,9 @@ class BertTokenClassificationDataset(Dataset):
 
             # save features to a temp file first to make sure that non-master processes don't start reading the file
             # until the master process is done with writing
-            ofd, tmp_features_pkl = tempfile.mkstemp(suffix='.pkl', prefix=os.path.basename(features_pkl))
+            ofd, tmp_features_pkl = tempfile.mkstemp(
+                suffix='.pkl', prefix=os.path.basename(features_pkl), dir=os.path.dirname(features_pkl)
+            )
             with os.fdopen(ofd, 'wb') as temp_f:
                 pickle.dump(features, temp_f)
 
