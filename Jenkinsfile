@@ -273,6 +273,7 @@ pipeline {
         }
       }
       failFast true
+      def built_asr_dev_run() {
       parallel {
         stage('Speech to Text') {
           steps {
@@ -335,6 +336,8 @@ pipeline {
           }
         }
       }
+      }
+      built_asr_dev_run()
     }
 
     stage('L2: Speaker dev run') {
