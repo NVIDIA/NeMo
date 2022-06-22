@@ -166,7 +166,7 @@ class VitsModel(TextToWaveform):
 
     def configure_optimizers(self):
         optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
-        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr / 2, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
+        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
         
         max_steps=400000
         min_lr = 1e-5
