@@ -16,11 +16,11 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution, ConformerFeedForward
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution, ConformerFeedForward
 from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
@@ -30,6 +30,18 @@ __all__ = ['SqueezeformerLayer', 'ConformerFeedForward', 'SqueezeformerLayer']
 
 
 class ScaleBiasLayer(torch.nn.Module):
+    """
+    Computes an affine transformation y = x * scale + bias, either learned via adaptive weights, or fixed.
+    Efficient alternative to LayerNorm where we can avoid computing the mean and variance of the input, and
+    just rescale the output of the previous layer.
+
+    Args:
+        d_model (int): input dimension of layer.
+        adaptive_scale (bool): whether to learn the affine transformation parameters or not. If set to False,
+            the scale is fixed to 1 and bias to 0, effectively performing a No-Op on the input.
+            This is done for export compatibility.
+    """
+
     def __init__(self, d_model: int, adaptive_scale: bool):
         super().__init__()
         self.adaptive_scale = adaptive_scale
@@ -47,7 +59,7 @@ class ScaleBiasLayer(torch.nn.Module):
 
 
 class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
-    """A single block of the Conformer encoder.
+    """A single block of the Squeezeformer encoder.
 
     Args:
         d_model (int): input dimension of MultiheadAttentionMechanism and PositionwiseFeedForward
@@ -56,6 +68,8 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         conv_kernel_size (int): kernel size for depthwise convolution in convolution module
         dropout (float): dropout probabilities for linear layers
         dropout_att (float): dropout probabilities for attention distributions
+        adaptive_scale (bool): Whether to scale the inputs to each component by affine `scale` and `bias` layer.
+            Or use a fixed scale=1 and bias=0.
     """
 
     def __init__(
@@ -156,9 +170,6 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         x = self.feed_forward2(x)
         x = residual + self.dropout(x) * self.fc_factor
         x = self.norm_feed_forward2(x)
-        # residual = x
-
-        # x = self.norm_out(residual)
 
         if self.is_adapter_available():
             # Call the adapters
@@ -170,7 +181,7 @@ class SqueezeformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
         return x
 
     def reset_parameters(self):
+        # Used for Squeezeformer initialization only
         self.feed_forward1.reset_parameters_ff()
         self.feed_forward2.reset_parameters_ff()
         self.conv.reset_parameters_conv()
-

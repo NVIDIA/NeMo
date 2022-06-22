@@ -20,8 +20,8 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
-from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
+from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling, TimeReductionModule
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
@@ -35,10 +35,10 @@ __all__ = ['SqueezeformerEncoder']
 
 class SqueezeformerEncoder(NeuralModule, Exportable):
     """
-    The encoder for ASR model of Conformer.
+    The encoder for ASR model of Squeezeformer.
     Based on this paper:
-    'Conformer: Convolution-augmented Transformer for Speech Recognition' by Anmol Gulati et al.
-    https://arxiv.org/abs/2005.08100
+    'Squeezeformer: An Efficient Transformer for Automatic Speech Recognition' by Sehoon Kim et al.
+    https://arxiv.org/abs/2206.00888
 
     Args:
         feat_in (int): the size of feature channels
@@ -46,8 +46,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         d_model (int): the hidden size of the model
         feat_out (int): the size of the output features
             Defaults to -1 (means feat_out is d_model)
-        subsampling (str): the method of subsampling, choices=['vggnet', 'striding']
-            Defaults to striding.
+        subsampling (str): the method of subsampling, choices=['vggnet', 'striding', 'dw_striding']
+            Defaults to dw_striding.
         subsampling_factor (int): the subsampling factor which should be power of 2
             Defaults to 4.
         subsampling_conv_channels (int): the size of the convolutions in the subsampling module
@@ -76,6 +76,13 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             Defaults to 0.1.
         dropout_att (float): the dropout rate used for the attention layer
             Defaults to 0.0.
+        adaptive_scale (bool): Whether to scale the inputs to each component by affine `scale` and `bias` layer.
+            Or use a fixed scale=1 and bias=0.
+        time_reduce_idx (int): Optional integer index of a layer where a time reduction operation will occur.
+            All operations beyond this point will only occur at the reduced resolution.
+        time_recovery_idx (int): Optional integer index of a layer where the time recovery operation will occur.
+            All operations beyond this point will occur at the original resolution (resolution after
+            primary downsampling). If no value is provided, assumed to be the last layer.
     """
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -113,25 +120,25 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
 
     def __init__(
         self,
-        feat_in,
-        n_layers,
-        d_model,
-        feat_out=-1,
-        subsampling='dw_striding',
-        subsampling_factor=4,
-        subsampling_conv_channels=-1,
-        ff_expansion_factor=4,
-        self_attention_model='rel_pos',
-        n_heads=4,
-        att_context_size=None,
-        xscaling=True,
-        untie_biases=True,
-        pos_emb_max_len=5000,
-        conv_kernel_size=31,
-        conv_norm_type='batch_norm',
-        dropout=0.1,
-        dropout_emb=0.1,
-        dropout_att=0.0,
+        feat_in: int,
+        n_layers: int,
+        d_model: int,
+        feat_out: int = -1,
+        subsampling: str = 'dw_striding',
+        subsampling_factor: int = 4,
+        subsampling_conv_channels: int = -1,
+        ff_expansion_factor: int = 4,
+        self_attention_model: str = 'rel_pos',
+        n_heads: int = 4,
+        att_context_size: Optional[List[int]] = None,
+        xscaling: bool = True,
+        untie_biases: bool = True,
+        pos_emb_max_len: int = 5000,
+        conv_kernel_size: int = 31,
+        conv_norm_type: str = 'batch_norm',
+        dropout: float = 0.1,
+        dropout_emb: float = 0.1,
+        dropout_att: float = 0.0,
         adaptive_scale: bool = True,
         time_reduce_idx: Optional[int] = None,
         time_recovery_idx: Optional[int] = None,
@@ -142,7 +149,6 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         self.d_model = d_model
         self._feat_in = feat_in
         self.scale = math.sqrt(self.d_model)
-        self.adaptive_scale = adaptive_scale
         if att_context_size:
             self.att_context_size = att_context_size
         else:
@@ -152,6 +158,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             self.xscale = math.sqrt(d_model)
         else:
             self.xscale = None
+        self.adaptive_scale = adaptive_scale
 
         self.time_reduce_idx = time_reduce_idx
         if time_reduce_idx is not None:
@@ -182,6 +189,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                     conv_channels=subsampling_conv_channels,
                     activation=nn.ReLU(),
                 )
+                # For Squeezeformer, initialize the parameters as required.
                 self.pre_encode.reset_parameters()
         else:
             self.pre_encode = nn.Linear(feat_in, d_model)
@@ -233,6 +241,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             )
             self.layers.append(layer)
 
+        # Time Reduction and Recovery layer setup
         self.time_reduce_layer = None
         self.time_recovery_layer = None
         self.time_reduce_pos_enc = None
@@ -241,13 +250,10 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
             self.time_reduce_layer = TimeReductionModule(d_model, d_model, kernel_size=5, stride=2)
             self.time_recovery_layer = nn.Linear(d_model, d_model)
 
+            # Chose same type of positional encoding as the originally determined above
             if self_attention_model == "rel_pos":
                 self.time_reduce_pos_enc = RelPositionalEncoding(
-                    d_model=d_model,
-                    dropout_rate=0.0,
-                    max_len=pos_emb_max_len,
-                    xscale=None,
-                    dropout_rate_emb=0.0,
+                    d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0,
                 )
             else:
                 self.time_reduce_pos_enc = PositionalEncoding(
@@ -324,6 +330,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
         else:
             pad_mask = None
 
+        # Create cache of activations for the time reduction step
+        # Note: NeMo codebase allows only a single time reduction step to occur
         recovery_activation_cache = []
 
         audio_signal = self.pre_ln(audio_signal)
@@ -336,8 +344,7 @@ class SqueezeformerEncoder(NeuralModule, Exportable):
                     x=audio_signal, att_mask=att_mask, pad_mask=pad_mask
                 )
                 # Only update PE, not the original audio_signal
-                unused_audio_signal_, pos_emb = self.time_reduce_pos_enc(audio_signal)
-                del unused_audio_signal_
+                _, pos_emb = self.time_reduce_pos_enc(audio_signal)
 
             # Perform time recovery
             if self.time_recovery_layer is not None and lth == self.time_recovery_idx:

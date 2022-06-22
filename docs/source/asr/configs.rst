@@ -502,6 +502,27 @@ specify the tokenizer if you want to use sub-word encoding instead of character-
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
 config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
 
+Squeezeformer-CTC
+~~~~~~~~~~~~~~~~~
+
+The config files for Squeezeformer-CTC model contain character-based encoding and sub-word encoding at
+``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_bpe.yaml``
+respectively. Some components of the configs of `Squeezeformer-CTC <./models.html#Squeezeformer-CTC>`__ include the following datasets:
+
+* ``train_ds``, ``validation_ds``, and ``test_ds``
+* opimizer (``optim``)
+* augmentation (``spec_augment``)
+* ``decoder``
+* ``trainer``
+* ``exp_manager``
+
+These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can
+specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
+
+The encoder section includes the details about the Squeezeformer-CTC encoder architecture. You may find more information in the
+config files and also :doc:`nemo.collections.asr.modules.SqueezeformerEncoder<./api.html#nemo.collections.asr.modules.SqueezeformerEncoder>`.
+
+
 ContextNet
 ~~~~~~~~~~
 

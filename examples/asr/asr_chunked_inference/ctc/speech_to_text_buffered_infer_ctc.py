@@ -35,10 +35,10 @@ import json
 import math
 import os
 from argparse import ArgumentParser
-from tqdm import tqdm
 
 import torch
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate

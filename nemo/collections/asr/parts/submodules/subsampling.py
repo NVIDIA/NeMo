@@ -119,24 +119,26 @@ class ConvSubsampling(torch.nn.Module):
             layers.append(activation)
 
             for i in range(self._sampling_num - 1):
-                layers.extend([
-                    torch.nn.Conv2d(
-                        in_channels=in_channels,
-                        out_channels=in_channels,
-                        kernel_size=self._kernel_size,
-                        stride=self._stride,
-                        padding=self._padding,
-                        groups=in_channels,
-                    ),
-                    torch.nn.Conv2d(
-                        in_channels=in_channels,
-                        out_channels=conv_channels,
-                        kernel_size=1,
-                        stride=1,
-                        padding=0,
-                        groups=1,
-                    ),
-                ])
+                layers.extend(
+                    [
+                        torch.nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=in_channels,
+                            kernel_size=self._kernel_size,
+                            stride=self._stride,
+                            padding=self._padding,
+                            groups=in_channels,
+                        ),
+                        torch.nn.Conv2d(
+                            in_channels=in_channels,
+                            out_channels=conv_channels,
+                            kernel_size=1,
+                            stride=1,
+                            padding=0,
+                            groups=1,
+                        ),
+                    ]
+                )
                 layers.append(activation)
                 in_channels = conv_channels
 
@@ -200,7 +202,7 @@ class ConvSubsampling(torch.nn.Module):
         if self._subsampling == 'dw_striding':
             with torch.no_grad():
                 # init conv
-                scale = 1. / self._kernel_size
+                scale = 1.0 / self._kernel_size
                 dw_max = (self._kernel_size ** 2) ** -0.5
                 pw_max = self._conv_channels ** -0.5
 
@@ -233,6 +235,15 @@ def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):
 
 
 class TimeReductionModule(nn.Module):
+    """
+    Squeezeformer Time Reduction procedure. Downsamples the audio by `stride` in the time dimension.
+
+    Args:
+        d_model (int): input dimension of MultiheadAttentionMechanism and PositionwiseFeedForward
+        out_dim (int): Output dimension of the module.
+        kernel_size (int): Conv kernel size for depthwise convolution in convolution module
+        stride (int): Downsampling factor in time dimension.
+    """
 
     def __init__(self, d_model: int, out_dim: int, kernel_size: int = 5, stride: int = 2):
         super().__init__()
@@ -253,12 +264,7 @@ class TimeReductionModule(nn.Module):
         )
 
         self.pw_conv = nn.Conv1d(
-            in_channels=d_model,
-            out_channels=out_dim,
-            kernel_size=1,
-            stride=1,
-            padding=0,
-            groups=1,
+            in_channels=d_model, out_channels=out_dim, kernel_size=1, stride=1, padding=0, groups=1,
         )
 
         self.reset_parameters()
@@ -275,8 +281,8 @@ class TimeReductionModule(nn.Module):
 
         B, T, D = x.size()
         if att_mask is not None and pad_mask is not None:
-            att_mask = att_mask[:, ::self.stride, ::self.stride]
-            pad_mask = pad_mask[:, ::self.stride]
+            att_mask = att_mask[:, :: self.stride, :: self.stride]
+            pad_mask = pad_mask[:, :: self.stride]
             L = pad_mask.size(-1)
             x = torch.nn.functional.pad(x, (0, 0, 0, L - T))
 
@@ -291,4 +297,3 @@ class TimeReductionModule(nn.Module):
             torch.nn.init.uniform_(self.dw_conv.bias, -dw_max, dw_max)
             torch.nn.init.uniform_(self.pw_conv.weight, -pw_max, pw_max)
             torch.nn.init.uniform_(self.pw_conv.bias, -pw_max, pw_max)
-

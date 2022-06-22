@@ -138,6 +138,9 @@ class ConformerConvolution(nn.Module):
     Args:
         d_model (int): hidden dimension
         kernel_size (int): kernel size for depthwise convolution
+        pointwise_activation (str): name of the activation function to be used for the pointwise conv.
+            Note that Conformer uses a special key `glu_` which is treated as the original default from
+            the paper.
     """
 
     def __init__(self, d_model, kernel_size, norm_type='batch_norm', pointwise_activation='glu_'):
@@ -184,6 +187,7 @@ class ConformerConvolution(nn.Module):
         x = x.transpose(1, 2)
         x = self.pointwise_conv1(x)
 
+        # Compute the activation function or use GLU for original Conformer
         if self.pointwise_activation == 'glu_':
             x = nn.functional.glu(x, dim=1)
         else:
