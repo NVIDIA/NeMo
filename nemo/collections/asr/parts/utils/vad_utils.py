@@ -266,7 +266,6 @@ def generate_overlap_vad_seq(
     if num_workers is not None and num_workers > 1:
         with multiprocessing.Pool(processes=num_workers) as p:
             inputs = zip(frame_filepathlist, repeat(per_args))
-            # p.starmap(generate_overlap_vad_seq_per_file, tqdm(inputs, total=len(frame_filepathlist)), chunksize=100)
             results = list(tqdm(p.imap(generate_overlap_vad_seq_per_file_star, inputs), total=len(frame_filepathlist)))
 
     else:
