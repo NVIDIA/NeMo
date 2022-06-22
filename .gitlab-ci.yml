@@ -3,6 +3,8 @@ variables: &VARS
   HP_REGISTRY_SRUN: "gitlab-master.nvidia.com#dl/joc/bignlp-hp-tool"
   HP_BASE_TRAINING_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.05-py3"
   HP_BASE_INFERENCE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
+  BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
+  BUILD_IMAGE_INFERENCE_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_inference_hp_tool:pipe.${CI_PIPELINE_ID}
   HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
 
 stages:
@@ -113,7 +115,6 @@ build-BigNLP-training:
     IMAGE_NAME: bignlp_training_hp_tool
     HP_BASE_IMAGE: ${HP_BASE_TRAINING_IMAGE}
     BUILD_IMAGE_TRAINING_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
-    BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
     BUILD_IMAGE_NAME: ${BUILD_IMAGE_TRAINING_NAME}
 
 build-BigNLP-inference:
@@ -123,7 +124,6 @@ build-BigNLP-inference:
     IMAGE_NAME: bignlp_inference_hp_tool
     HP_BASE_IMAGE: ${HP_BASE_INFERENCE_IMAGE}
     BUILD_IMAGE_INFERENCE_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
-    BUILD_IMAGE_INFERENCE_NAME_SRUN: ${HP_REGISTRY_SRUN}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
     BUILD_IMAGE_NAME: ${BUILD_IMAGE_INFERENCE_NAME}
 
 train.gpt3.126m_80gb_10runs:
