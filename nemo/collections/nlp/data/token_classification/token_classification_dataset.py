@@ -22,6 +22,7 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import pickle
+import tempfile
 import time
 from typing import Dict, List, Optional
 
@@ -266,7 +267,13 @@ class BertTokenClassificationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            pickle.dump(features, open(features_pkl, "wb"))
+            # save features to a temp file first to make sure that non-master processes don't start reading the file
+            # until the master process is done with writing
+            ofd, tmp_features_pkl = tempfile.mkstemp(suffix='.pkl', prefix=os.path.basename(features_pkl))
+            with os.fdopen(ofd, 'wb') as temp_f:
+                pickle.dump(features, temp_f)
+
+            os.rename(tmp_features_pkl, features_pkl)
             logging.info(f'features saved to {features_pkl}')
 
         # wait until the master process writes to the processed data files
