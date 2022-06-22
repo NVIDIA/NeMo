@@ -68,6 +68,8 @@ before_script:
 
 build-BigNLP:
   <<: *build_template
+  rules:
+    - when: always
 
 
 .bignlp-LUNA-test-LAUNCHER: &bignlp-LUNA-test-LAUNCHER
