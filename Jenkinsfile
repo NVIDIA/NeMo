@@ -273,7 +273,6 @@ pipeline {
         }
       }
       failFast true
-      def built_asr_dev_run() {
       parallel {
         stage('Speech to Text') {
           steps {
@@ -336,9 +335,80 @@ pipeline {
           }
         }
       }
-      }
-      built_asr_dev_run()
     }
+
+    stage('L2: ASR dev run 2') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Speech to Text') {
+          steps {
+            sh 'python examples/asr/asr_ctc/speech_to_text_ctc.py \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_results'
+            sh 'rm -rf examples/asr/speech_to_text_results'
+          }
+        }
+
+        stage('L2: Speech to Text WPE - CitriNet') {
+          steps {
+            sh 'python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+            --config-path="../conf/citrinet/" --config-name="config_bpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_results'
+          }
+        }
+
+        stage('L2: Speech Pre-training - CitriNet') {
+          steps {
+            sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
+            --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_pre_training_results'
+            sh 'rm -rf examples/asr/speech_pre_training_results'
+          }
+        }
+
+        stage('L2: Speech to Text WPE - Conformer') {
+          steps {
+            sh 'python examples/asr/asr_ctc/speech_to_text_ctc_bpe.py \
+            --config-path="../conf/conformer" --config-name="conformer_ctc_bpe" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            model.tokenizer.dir="/home/TestData/asr_tokenizers/an4_wpe_128/" \
+            model.tokenizer.type="wpe" \
+            model.train_ds.batch_size=4 \
+            model.validation_ds.batch_size=4 \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_to_text_wpe_conformer_results'
+            sh 'rm -rf examples/asr/speech_to_text_wpe_conformer_results'
+          }
+        }
+      }
+    }
+
 
     stage('L2: Speaker dev run') {
       when {
@@ -2844,7 +2914,7 @@ pipeline {
                 4"
             sh "rm /home/TestData/nlp/megatron_gpt/TP2/test-increase.nemo"
           }
-        }        
+        }
       }
     }
     stage('L2: Megatron T5 Pretraining and Resume Training TP=2') {
