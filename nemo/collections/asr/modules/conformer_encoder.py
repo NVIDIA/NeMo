@@ -482,7 +482,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             lookahead_steps_conv = (
                 self.conv_context_size[1] * self.n_layers if self.conv_context_size[1] >= 0 else max_context
             )
-            streaming_cfg.lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
+            lookahead_steps = max(lookahead_steps_att, lookahead_steps_conv)
             streaming_cfg.cache_drop_size = lookahead_steps
         else:
             streaming_cfg.cache_drop_size = cache_drop_size
