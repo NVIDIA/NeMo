@@ -14,7 +14,7 @@
 
 import math
 from collections import OrderedDict
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import torch
 import torch.distributed
