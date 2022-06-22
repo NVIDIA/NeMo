@@ -1,20 +1,6 @@
-# It contains the default values for training a Squeezeformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
+# It contains the default values for training a Squeezeformer-CTC ASR model, large size (~120M) with CTC loss and char encoding.
 
-# Architecture and training config:
-# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
-# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
-# Here are the recommended configs for different variants of Squeezeformer-CTC, other parameters are the same as in this config file.
-# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
-#
-# | Model        | d_model | n_layers | n_heads | time_masks | lr     | time_reduce_idx | GBS  |
-# |--------------|---------|----------|---------|------------|--------|-----------------|------|
-# | Extra-Small  | 144     | 16       | 4       | 5          | 2e-3   | 7               | 1024 |
-# | Small        | 196     | 18       | 4       | 5          | 2e-3   | 8               | 1024 |
-# | Small-Medium | 256     | 16       | 4       | 5          | 1.5e-3 | 7               | 1024 |
-# | Medium       | 324     | 20       | 4       | 7          | 1.5e-3 | 9               | 1024 |
-# | Medium-Large | 512     | 18       | 8       | 10         | 1e-3   | 8               | 2048 |
-# | Large        | 640     | 22       | 8       | 10         | 5e-4   | 10              | 2048 |
-#
+# You may find more detail on Conformer-CTC at `examples/asr/conf/conformer/conformer_ctc_bpe.yaml`
 # You may find more info about Squeezeformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#squeezeformer-ctc
 # Pre-trained models of Squeezeformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
 
@@ -22,14 +8,17 @@ name: "Squeezeformer-CTC-BPE"
 
 model:
   sample_rate: 16000
+  labels:  [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+            "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'"]
   log_prediction: true # enables logging sample predictions in the output during training
   ctc_reduction: 'mean_batch'
   skip_nan_grad: false
 
   train_ds:
     manifest_filepath: ???
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
-    batch_size: 8 # you may increase batch_size if your memory allows
+    batch_size: 16 # you may increase batch_size if your memory allows
     shuffle: true
     num_workers: 8
     pin_memory: true
@@ -47,6 +36,7 @@ model:
 
   validation_ds:
     manifest_filepath: ???
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: false
@@ -56,18 +46,13 @@ model:
 
   test_ds:
     manifest_filepath: null
+    labels: ${model.labels}
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: false
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
-
-  # recommend small vocab size of 128 or 256 when using 4x sub-sampling
-  # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
-  tokenizer:
-    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
-    type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -134,7 +119,7 @@ model:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: null
     num_classes: -1
-    vocabulary: []
+    vocabulary: ${model.labels}
 
   optim:
     name: adamw
