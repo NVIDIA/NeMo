@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.core import Dataset
@@ -118,6 +119,63 @@ class BasePromptLearningDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.examples[idx]
+
+    def _input_sanity_checks(
+        self,
+        total_virtual_tokens,
+        virtual_token_splits,
+        prompt_template,
+        prompt_template_fields,
+        truncation_field,
+        answer_field,
+        doc,
+        answer_only_loss=None,
+    ):
+        # Sanity check amount of virtual token
+        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
+        assert (
+            total_virtual_tokens < self.max_seq_length
+        ), "virtual prompt tokens should not exceed max sequence length"
+
+        # Make sure virtual token splits add up to the total number of virtual tokens
+        assert (
+            sum(virtual_token_splits) == total_virtual_tokens
+        ), "Sum of prompt token split values must equal total number of prompt tokens"
+
+        # Make sure number of virtual prompt locations match the number of virtual prompt splits
+        assert prompt_template.count('<|VIRTUAL_PROMPT_') == len(
+            virtual_token_splits
+        ), "The number of '<|VIRTUAL_PROMPT_n|>' markers and the number of prompt token splits must match"
+
+        # Check if input example has fields not present in template
+        keys_not_in_template = list(set(doc.keys()) - set(prompt_template_fields) - set(['taskname']))
+        assert (
+            len(keys_not_in_template) == 0
+        ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
+
+        # Check answer field
+        if self.for_train:
+            assert answer_field is not None, "An answer_field must be given"
+            assert answer_field in doc.keys(), f"The given answer_field '{answer_field}' is not in data json"
+            assert truncation_field != answer_field, "Answer field and truncation field should not match"
+
+            answer_placeholder = "{" + answer_field + "}"
+            answer_placeholder_len = len(answer_placeholder)
+            placeholder_start = len(prompt_template) - answer_placeholder_len
+            assert prompt_template[placeholder_start:] == answer_placeholder, "Answer field must be at prompt end"
+
+    def pad_taskname_ids(self, taskname_ids):
+        # Pad taskname_ids to be the same length for the prompt encoder
+        if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+            max_taskname_length = max(len(ids) for ids in taskname_ids)
+            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
+            taskname_ids = torch.tensor(taskname_ids)
+
+        # Task ids are just used for a look up embeddings for prompt-table
+        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+            taskname_ids = torch.tensor(taskname_ids)
+
+        return taskname_ids
 
 
 def find_subsequence_location(sequence, subsequence):

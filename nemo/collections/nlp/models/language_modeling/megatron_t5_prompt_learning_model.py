@@ -21,7 +21,10 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 
-from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import T5PromptLearningDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dataset import (
+    T5PromptLearningDataset,
+    T5Sentinel,
+)
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
     get_pseudo_tokens,
@@ -84,11 +87,16 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         )
 
         # Freeze all T5 model weights for prompt-tuning/p-tuning
-        if not cfg.lm_finetune:
-            self.frozen_model.freeze()
+        self.frozen_model.freeze()
 
         self.tokenizer = self.frozen_model.tokenizer
-        self.float_type = self.frozen_model.enc_dec_model.enc_dec_model.encoder.model.layers[0].dtype
+
+        if self.frozen_model.cfg.precision == 16:
+            self.float_type = torch.float16
+        elif self.frozen_model.cfg.precision == 'bf16':
+            self.float_type = torch.bfloat16
+        else:
+            self.float_type = torch.float
 
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
@@ -338,14 +346,14 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                     id
                     for id in pred
                     if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                    and id not in self.tokenizer.text_to_ids('<extra_id_0>')
-                ]  # delete the <extra_id_0> at the beginning of prediction
+                    and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                ]  # delete the sentinel token at the beginning of prediction
                 pred = self.tokenizer.ids_to_text(pred)
                 all_preds.append(pred)
 
                 enc_input = [
-                    id for id in enc_input if id not in self.tokenizer.text_to_ids('<extra_id_0>')
-                ]  # delete the <extra_id_0> added to the end of input
+                    id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                ]  # delete the sentinel token added to the end of input
                 input = self.tokenizer.ids_to_text(enc_input)
                 all_inputs.append(input)
 
@@ -355,8 +363,8 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                         id
                         for id in label
                         if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                        and id not in self.tokenizer.text_to_ids('<extra_id_0>')
-                    ]  # delete the <extra_id_0> at the beginning of label
+                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+                    ]  # delete the sentinel token at the beginning of label
                     label = self.tokenizer.ids_to_text(label)
                     all_labels.append(label)
 

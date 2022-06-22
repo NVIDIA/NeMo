@@ -39,8 +39,6 @@ exp_manager:
 model:
   seed: 1234
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
-  lm_finetune: False 
-  pseudo_token_base: "PROMPT_" 
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
