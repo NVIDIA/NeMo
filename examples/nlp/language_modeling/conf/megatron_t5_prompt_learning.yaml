@@ -11,7 +11,7 @@ trainer:
   max_epochs: 10
   max_steps: null 
   log_every_n_steps: 10
-  val_check_interval: 100
+  val_check_interval: 1
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null 
@@ -49,33 +49,34 @@ model:
   micro_batch_size: 4
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path:  models/megatron_t5_220m_f16.nemo # Path to the GPT language model .nemo file, always required
+  language_model_path:  models/megatron_t5_220m_f16.nemo # Path to the T5 language model .nemo file, always required
   existing_tasks: []
-  new_tasks: ["sentiment"] 
+  new_tasks: ["rte"] 
 
   task_templates: 
-  - taskname: "sentiment" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|> {sentence} sentiment: {label}" 
-    total_virtual_tokens: 10
-    virtual_token_splits: [10] 
+  - taskname: "rte" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\nAnswer: {answer}" 
+    total_virtual_tokens: 9 
+    virtual_token_splits: [9] 
     truncate_field: null
-    answer_field: label
+    answer_only_loss: True
+    answer_field: "answer"
 
 
   p_tuning:
     dropout: 0.0
     num_layers: 2
 
-  prompt_tuning: 
-    new_prompt_init_methods: ["text"] 
-    new_prompt_init_text: ["financial sentiment analysis postive neutral negative"] 
+  prompt_tuning: # Prompt tunin specific params
+    new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
+    new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["data/financial_phrase_bank_train.jsonl"]
-    validation_ds: ["data/financial_phrase_bank_val.jsonl"]
+    train_ds: ["data/rte_train.jsonl"]
+    validation_ds: ["data/rte_val.jsonl"]
     add_eos: True
     shuffle: True
-    num_workers: 1
+    num_workers: 8
     pin_memory: True
 
 
