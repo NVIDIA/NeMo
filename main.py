@@ -26,7 +26,7 @@ def convert_to_cli(cfg, root=True):
         result.append(f"search_config={cfg['search_config_value']}")
 
     for k, v in cfg.items():
-        if k in ["training_container", "inference_container", "training_container_image", "inference_container_image"]:
+        if k in ["training_container", "inference_container", "training_container_image", "inference_container_image", "ci_test"]:
             continue
         if isinstance(v, omegaconf.dictconfig.DictConfig):
             output = convert_to_cli(v, False)
