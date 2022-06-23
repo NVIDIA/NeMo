@@ -98,9 +98,6 @@ before_script:
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
 
-    # Run metrics collection
-    - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
-
     # Run Pytest
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
