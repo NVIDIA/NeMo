@@ -58,6 +58,7 @@ diarizer:
       colored_text: False # If True, use colored text to distinguish speakers in the output transcript.
       print_time: True # If True, the start and end time of each speaker turn is printed in the output transcript.
       break_lines: False # If True, the output transcript breaks the line to fix the line width (default is 90 chars)
+      punctuation_model_path: null
     
     ctc_decoder_parameters: # Optional beam search decoder (pyctcdecode)
       pretrained_language_model: null # KenLM model file: .arpa model file or .bin binary file.

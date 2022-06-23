@@ -167,20 +167,20 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
     def check_t(self, x):
         return any([ _str in x for _str in ['.', ',', '?'] ] )
     
-    
     def callback_sim(self, sample_audio):
         start_time = time.time()
         assert len(sample_audio) == int(self.sample_rate * self.frame_len)
-        words, timestamps, pred_diar_labels = self.transcribe(sample_audio)
-        if pred_diar_labels != []:
+        words, timestamps, diar_hyp = self.transcribe(sample_audio)
+        if diar_hyp != []:
             assert len(words) == len(timestamps)
+            self._update_word_and_word_ts(words, timestamps)
             if self.punctuation_model_path:
-                self._update_word_and_word_ts(words, timestamps)
-                self._fix_speaker_label_per_word(self.word_seq, self.word_ts_seq, pred_diar_labels)
-                self.string_out = self._get_speaker_label_per_word(self.word_seq, self.word_ts_seq, pred_diar_labels)
+                self._fix_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
+                self.string_out = self._get_speaker_label_per_word(self.word_seq, self.word_ts_seq, diar_hyp)
             else:
-                self._update_word_and_word_ts(words, timestamps)
-                self.string_out = self.get_speaker_label_per_word(self.word_seq, self.word_ts_seq, pred_diar_labels)
+                word_dict_seq_list = self.get_word_dict_seq_list(diar_hyp, self.word_seq, self.word_ts_seq, self.word_ts_seq)
+                sentences = self.make_json_output(self.diar.uniq_id, diar_hyp, word_dict_seq_list, total_riva_dict, write_files=False)
+                self.string_out = self.print_sentences(sentences, self.params)
             write_txt(f"{self.diar._out_dir}/print_script.sh", self.string_out.strip())
 
     def _get_speaker_label_per_word(self, words, word_ts_list, pred_diar_labels):
@@ -225,7 +225,6 @@ class ASR_DIAR_ONLINE_DEMO(ASR_DIAR_ONLINE):
 @hydra_runner(config_path="conf", config_name="online_diarization_with_asr.yaml")
 def main(cfg):
     diar = OnlineDiarizer(cfg)
-    # asr_diar = ASR_DIAR_ONLINE_DEMO(diar, cfg=cfg.diarizer)
     asr_diar = ASR_DIAR_ONLINE(diar, cfg=cfg.diarizer)
 
     if cfg.diarizer.asr.parameters.streaming_simulation:

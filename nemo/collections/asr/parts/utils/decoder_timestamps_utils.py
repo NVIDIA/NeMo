@@ -600,6 +600,35 @@ class ASR_TIMESTAMPS:
 
         preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
         preprocessor.to(asr_model.device)
+        # frame_asr.raw_preprocessor = preprocessor
+
+        # Disable config overwriting
+        OmegaConf.set_struct(cfg.preprocessor, True)
+        self.offset_to_mid_window = (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2
+        self.onset_delay = (
+            math.ceil(((self.total_buffer_in_secs - self.chunk_len_in_sec) / 2) / self.model_stride_in_secs) + 1
+        )
+        self.mid_delay = math.ceil(
+            (self.chunk_len_in_sec + (self.total_buffer_in_secs - self.chunk_len_in_sec) / 2)
+            / self.model_stride_in_secs
+        )
+        self.tokens_per_chunk = math.ceil(self.chunk_len_in_sec / self.model_stride_in_secs)
+        return self.onset_delay, self.mid_delay, self.tokens_per_chunk
+
+    def _set_buffered_infer_params(self, asr_model: Type[EncDecCTCModelBPE]) -> Tuple[float, float, float]:
+        """
+        Prepare the parameters for the buffered inference.
+        """
+        cfg = copy.deepcopy(asr_model._cfg)
+        OmegaConf.set_struct(cfg.preprocessor, False)
+
+        # some changes for streaming scenario
+        cfg.preprocessor.dither = 0.0
+        cfg.preprocessor.pad_to = 0
+        cfg.preprocessor.normalize = "None"
+
+        preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(cfg.preprocessor)
+        preprocessor.to(asr_model.device)
 
         # Disable config overwriting
         OmegaConf.set_struct(cfg.preprocessor, True)
