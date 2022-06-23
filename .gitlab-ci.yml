@@ -113,6 +113,8 @@ build-BigNLP-training:
     HP_BASE_IMAGE: ${HP_BASE_TRAINING_IMAGE}
     BUILD_IMAGE_TRAINING_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
     BUILD_IMAGE_NAME: ${BUILD_IMAGE_TRAINING_NAME}
+  rules:
+    - when: always
 
 build-BigNLP-inference:
   <<: *build_template
@@ -122,6 +124,8 @@ build-BigNLP-inference:
     HP_BASE_IMAGE: ${HP_BASE_INFERENCE_IMAGE}
     BUILD_IMAGE_INFERENCE_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
     BUILD_IMAGE_NAME: ${BUILD_IMAGE_INFERENCE_NAME}
+  rules:
+    - when: always
 
 train.gpt3.126m_80gb_10runs:
   <<: *hp-tool-LUNA-test-LAUNCHER
