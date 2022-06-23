@@ -2,6 +2,7 @@ import sys
 import math
 
 import hydra
+import omegaconf
 from omegaconf import OmegaConf
 
 from hp_tool.search_config import search_config
