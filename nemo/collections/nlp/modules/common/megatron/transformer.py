@@ -1063,7 +1063,7 @@ class ParallelTransformerLayer_(MegatronModule):
             return
 
         # the post_attention_layernorm is used for layermorm after mlp
-        # need it for git push --set-upstream origin feature_retro_deepnet and post_ln
+        # need it for post_ln
         if self.layer_type == LayerType.retrieval_decoder_after_self_attn and self.transformer_block_type == 'post_ln':
             # Layernorm on the attention output
             if normalization == 'layernorm':
