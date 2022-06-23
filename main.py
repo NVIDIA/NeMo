@@ -20,7 +20,7 @@ def main(cfg):
     search_config(cfg=cfg, hydra_args=hydra_args)
 
 
-def convert_to_cli(cfg):
+def convert_to_cli(cfg, root=True):
     result = []
     if cfg.get("search_config_value") is not None:
         result.append(f"search_config={cfg['search_config_value']}")
