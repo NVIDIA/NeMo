@@ -69,6 +69,7 @@ model:
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
 
   dump_debug_info: False # dump out the debug information
+  dump_debug_info_to_file: False # dump out the debug information to files
 
   # retro architecture
   chunk_size: 64   # the chunk size used to retrive
