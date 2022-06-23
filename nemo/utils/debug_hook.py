@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -184,12 +184,14 @@ def register_debug_hooks(module, trainer, logger, dump_to_file=False):
     2. track the module backward step input/output grad norm
     3. track the parameter weight norm and grad norm.
     """
+    # default rank 0
+    rank = 0
     if torch.distributed.is_initialized():
         rank = torch.distributed.get_rank()
-        for name, tensor in module.named_parameters():
-            if name != '':
-                tensor.register_hook(get_tensor_hook(module, name, trainer, rank, logger, dump_to_file))
-        for name, layer in module.named_modules():
-            if name != '':
-                layer.register_forward_hook(get_forward_hook(name, trainer, rank, logger, dump_to_file))
-                layer.register_full_backward_hook(get_backward_hook(name, trainer, rank, logger, dump_to_file))
+    for name, tensor in module.named_parameters():
+        if name != '':
+            tensor.register_hook(get_tensor_hook(module, name, trainer, rank, logger, dump_to_file))
+    for name, layer in module.named_modules():
+        if name != '':
+            layer.register_forward_hook(get_forward_hook(name, trainer, rank, logger, dump_to_file))
+            layer.register_full_backward_hook(get_backward_hook(name, trainer, rank, logger, dump_to_file))
