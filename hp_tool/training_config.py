@@ -287,6 +287,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     """
     # Read config
     bignlp_hp_tool_path = cfg.get("bignlp_hp_tool_path")
+    data_dir = cfg.get("data_dir")
     container_mounts = cfg.get("container_mounts")
     container = cfg.get("training_container")
     hp_cfg = cfg.get("search_config")
@@ -313,7 +314,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
-    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path}"
+    mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
     if container_mounts is not None:
         assert isinstance(
             container_mounts, omegaconf.listconfig.ListConfig
