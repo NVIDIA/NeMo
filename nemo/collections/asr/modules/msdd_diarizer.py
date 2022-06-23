@@ -67,7 +67,7 @@ class MSDD_module(NeuralModule, Exportable):
         return OrderedDict(
                 {
                 "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
-                "scale_weights": NeuralType(('B', 'T', 'C'), ProbsType())
+                "scale_weights": NeuralType(('B', 'T', 'C', 'D'), ProbsType())
                 }
             )
     
@@ -106,41 +106,64 @@ class MSDD_module(NeuralModule, Exportable):
             cnn_output_ch=16,
             emb_sizes=192,
             clamp_max=1.0,
+            conv_repeat=1,
             weighting_scheme='conv',
+            use_cos_sim_input: bool= True,
             scale_n: int=1):
         super().__init__()
         
+        self._speaker_model = None
         self.emb_sizes = emb_sizes
         self.num_spks = num_spks
         self.scale_n = scale_n
         self.cnn_output_ch = cnn_output_ch
+        self.conv_repeat = conv_repeat
         self.chan = 2
         self.eps = 1e-6
         self.num_lstm_layers = num_lstm_layers
-        self.fixed_ms_weight = torch.ones(self.scale_n)/self.scale_n
+        self.use_cos_sim_input = use_cos_sim_input
         self.softmax = torch.nn.Softmax(dim=2)
         self.cos_dist = torch.nn.CosineSimilarity(dim=3, eps=self.eps)
-        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=self.num_lstm_layers, batch_first=True, bidirectional=True, dropout=0.5)
+        self.lstm = nn.LSTM(hidden_size, hidden_size, num_layers=self.num_lstm_layers, batch_first=True, bidirectional=True, dropout=dropout_rate)
         self.weighting_scheme = weighting_scheme
-        if self.weighting_scheme == 'conv':
-            self.conv1 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.scale_n + self.scale_n*num_spks, 1), stride=(1, 1))
-            self.conv2 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.cnn_output_ch, 1), stride=(1, 1))
+        if self.weighting_scheme == 'conv_scale_weight':
+            self.conv = nn.ModuleList([ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.scale_n + self.scale_n*num_spks, 1), stride=(1, 1))])
+            for conv_idx in range(1, conv_repeat+1):
+                self.conv.append(ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.cnn_output_ch, 1), stride=(1, 1)))
+            self.conv_bn = nn.ModuleList()
+            for conv_idx in range(self.conv_repeat+1):
+                self.conv_bn.append(nn.BatchNorm2d(self.emb_sizes, affine=False))
             self.conv_to_linear = nn.Linear(emb_sizes*cnn_output_ch, hidden_size)
             self.linear_to_weights = nn.Linear(hidden_size, self.scale_n)
-        elif self.weighting_scheme == 'corr':
+        elif self.weighting_scheme == 'conv':
+            self.conv1 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(scale_n + self.scale_n*num_spks, 1), stride=(1, 1))
+            self.conv2 = ConvLayer(in_channels=1, out_channels=cnn_output_ch, kernel_size=(cnn_output_ch, 1), stride=(1, 1))
+            self.conv_to_linear = nn.Linear(emb_sizes*cnn_output_ch, hidden_size)
+            self.linear_to_weights = nn.Linear(hidden_size, self.scale_n)
+
+        elif self.weighting_scheme == 'attn_scale_weight':
             self.W_a = nn.Linear(emb_sizes, emb_sizes, bias=False)
             nn.init.eye_(self.W_a.weight)
         else:
             raise ValueError(f"No such weighting scheme as {self.weighting_scheme}")
+
         self.hidden_to_spks = nn.Linear(2*hidden_size, self.num_spks)
-        self.dist_to_emb = nn.Linear(self.scale_n * self.num_spks, hidden_size)
+        if self.use_cos_sim_input:
+            self.dist_to_emb = nn.Linear(self.scale_n * self.num_spks, hidden_size)
+            self.dist_to_emb.apply(self.init_weights)
+        else:
+            self.product_to_emb = nn.Linear(self.emb_sizes * self.num_spks, hidden_size)
+        
         self.dropout = nn.Dropout(dropout_rate)
 
+        self.bn_1 = nn.BatchNorm2d(emb_sizes, affine=False)
+        self.bn_2 = nn.BatchNorm2d(emb_sizes, affine=False)
+
+
         self.hidden_to_spks.apply(self.init_weights)
-        self.dist_to_emb.apply(self.init_weights)
         self.lstm.apply(self.init_weights)
         self.clamp_max = clamp_max
-
+    
     def core_model(self, ms_emb_seq, length, ms_avg_embs, targets):
         """
         Core model that accepts multi-scale cosine similarity values and estimates per-speaker binary label.
@@ -167,38 +190,67 @@ class MSDD_module(NeuralModule, Exportable):
         """
         batch_size = ms_emb_seq.shape[0]
         length = ms_emb_seq.shape[1]
+        self.batch_size = ms_emb_seq.shape[0]
+        self.length = ms_emb_seq.shape[1]
         self.emb_dim = ms_emb_seq.shape[-1]
         
         _ms_emb_seq = ms_emb_seq.unsqueeze(4).expand(-1, -1, -1, -1, self.num_spks)
         ms_emb_seq_single = ms_emb_seq
         ms_avg_embs = ms_avg_embs.unsqueeze(1).expand(-1, length, -1, -1, -1)
-
-        ms_avg_embs_perm = ms_avg_embs.permute(0, 1, 2, 4, 3).reshape(batch_size, length, -1, self.emb_dim)
-        cos_dist_seq = self.cos_dist(_ms_emb_seq, ms_avg_embs)
         
-        if self.weighting_scheme == "conv":
-            scale_weight = self.conv_scale_weights(ms_avg_embs_perm, ms_emb_seq_single, batch_size, length)
-        elif self.weighting_scheme == "corr":
-            scale_weight = self.corr_scale_weights(ms_avg_embs_perm, ms_emb_seq_single, batch_size, length)
+        ms_avg_embs_perm = ms_avg_embs.permute(0, 1, 2, 4, 3).reshape(batch_size, length, -1, self.emb_dim)
+        
+        if self.weighting_scheme == "conv_scale_weight":
+            scale_weights = self.conv_scale_weights(ms_avg_embs_perm, ms_emb_seq_single)# , batch_size, length)
+        elif self.weighting_scheme == "conv":
+            scale_weights = self._conv_scale_weights(ms_avg_embs_perm, ms_emb_seq_single)# , batch_size, length)
+        elif self.weighting_scheme == "attn_scale_weight":
+            scale_weights = self.attention_scale_weights(ms_avg_embs_perm, ms_emb_seq_single)
         else:
             raise ValueError(f"No such weighting scheme as {self.weighting_scheme}")
-        scale_weight = scale_weight.to(ms_emb_seq.device)
+        scale_weights = scale_weights.to(ms_emb_seq.device)
         
-        context_vector = torch.mul(scale_weight, cos_dist_seq)
-        seq_input_sum = context_vector.sum(axis=2).view(batch_size, length, -1)
-
-        context_vector = context_vector.view(batch_size, length, -1)
-        lstm_input = self.dist_to_emb(context_vector)
+        if self.use_cos_sim_input:
+            lstm_input = self.cosine_similarity(scale_weights, ms_avg_embs, _ms_emb_seq, batch_size, length)
+        else:
+            lstm_input = self.element_wise_product(scale_weights, ms_avg_embs, _ms_emb_seq)
+        
         lstm_input = self.dropout(F.relu(lstm_input))
-
         lstm_output, (hn, cn)= self.lstm(lstm_input)
         lstm_hidden_out = self.dropout(F.relu(lstm_output))
-
         spk_preds = self.hidden_to_spks(lstm_hidden_out)
         preds = nn.Sigmoid()(spk_preds)
-        return preds, scale_weight[:, :, :, 0]
+        return preds, scale_weights
 
-    def corr_scale_weights(self, ms_avg_embs_perm, ms_emb_seq_single, batch_size, length):
+    def element_wise_product(self, scale_weights, ms_avg_embs, ms_emb_seq):
+        scale_weight_flatten = scale_weights.reshape(self.batch_size * self.length, self.num_spks, self.scale_n)
+        ms_avg_embs_flatten = ms_avg_embs.reshape(self.batch_size * self.length, self.scale_n, self.emb_dim, self.num_spks)
+        ms_emb_seq_flatten = ms_emb_seq.reshape(-1, self.scale_n, self.emb_dim)
+        ms_emb_seq_flatten_rep = ms_emb_seq_flatten.unsqueeze(3).reshape(-1, self.scale_n, self.emb_sizes, self.num_spks)
+        elemwise_product = ms_avg_embs_flatten * ms_emb_seq_flatten_rep
+        context_vectors = torch.bmm(scale_weight_flatten.reshape(self.batch_size * self.num_spks * self.length, 1, self.scale_n),
+                                    elemwise_product.reshape(self.batch_size * self.num_spks * self.length, self.scale_n, self.emb_dim))
+        context_vectors = context_vectors.reshape(self.batch_size, self.length, self.emb_dim * self.num_spks)
+        lstm_input = self.product_to_emb(context_vectors)
+        return lstm_input
+    
+    def _cosine_similarity(self, scale_weights, ms_avg_embs, _ms_emb_seq):
+        cos_dist_seq = self.cos_dist(_ms_emb_seq, ms_avg_embs)
+        context_vectors = torch.mul(scale_weights, cos_dist_seq)
+        seq_input_sum = context_vectors.sum(axis=2).view(self.batch_size, self.length, -1)
+        context_vectors = context_vectors.view(self.batch_size, self.length, -1)
+        lstm_input = self.dist_to_emb(context_vectors)
+        return lstm_input
+
+    def cosine_similarity(self, scale_weights, ms_avg_embs, _ms_emb_seq, batch_size, length):
+        cos_dist_seq = self.cos_dist(_ms_emb_seq, ms_avg_embs)
+        context_vectors = torch.mul(scale_weights, cos_dist_seq)
+        seq_input_sum = context_vectors.sum(axis=2).view(batch_size, length, -1)
+        context_vectors = context_vectors.view(batch_size, length, -1)
+        lstm_input = self.dist_to_emb(context_vectors)
+        return lstm_input
+
+    def attention_scale_weights(self, ms_avg_embs_perm, ms_emb_seq):  # , batch_size, self.length):
         """
         Use weighted inner product for calculating each scale weight. W_a matrix has (emb_dim x emb_dim) learnable parameters
         and W_a matrix is initialized with an identity matrix. Compared to "conv" method, this method shows more evenly
@@ -206,49 +258,76 @@ class MSDD_module(NeuralModule, Exportable):
 
         Args:
             ms_avg_embs_perm (torch.tensor):
-            ms_emb_seq_single (torch.tensor):
+            ms_emb_seq (torch.tensor):
             batch_size (torch.int):
             length (torch.int):
 
         Returns:
             scale_weights (torch.tensor)
         """
-        self.W_a(ms_emb_seq_single.flatten(0, 1))
-        mat_a= self.W_a(ms_emb_seq_single.flatten(0, 1))
+        self.W_a(ms_emb_seq.flatten(0, 1))
+        mat_a= self.W_a(ms_emb_seq.flatten(0, 1))
         mat_b = ms_avg_embs_perm.flatten(0, 1).permute(0, 2, 1)
 
-        weighted_corr = torch.matmul(mat_a, mat_b).reshape(-1, self.scale_n, self.scale_n, self.chan)
-        scale_weight = torch.sigmoid(torch.diagonal(weighted_corr, dim1=1, dim2=2))
-        scale_weight = scale_weight.reshape(batch_size, length, self.scale_n, self.chan)
-        scale_weight = self.softmax(scale_weight)
-        return scale_weight
-
-    def conv_scale_weights(self, ms_avg_embs_perm, ms_emb_seq_single, batch_size, length):
+        weighted_corr = torch.matmul(mat_a, mat_b).reshape(-1, self.scale_n, self.scale_n, self.num_spks)
+        scale_weights = torch.sigmoid(torch.diagonal(weighted_corr, dim1=1, dim2=2))
+        scale_weights = scale_weights.reshape(self.batch_size, self.length, self.scale_n, self.num_spks)
+        scale_weights = self.softmax(scale_weights)
+        return scale_weights
+    
+    def _conv_scale_weights(self, ms_avg_embs_perm, ms_emb_seq_single): #, batch_size, length):
         """
 
         """
         ms_cnn_input_seq = torch.cat([ms_avg_embs_perm, ms_emb_seq_single], dim=2)
         ms_cnn_input_seq = ms_cnn_input_seq.unsqueeze(2).flatten(0, 1)
         
-        conv_out1 = self.conv1(ms_cnn_input_seq)
-        conv_out1 = conv_out1.reshape(batch_size, length, self.cnn_output_ch, self.emb_dim)
-        conv_out1 = conv_out1.unsqueeze(2).flatten(0, 1)
-        conv_out1 = self.dropout(F.leaky_relu(conv_out1))
-
-        conv_out2 = self.conv2(conv_out1).permute(0,2,1,3)
-        conv_out2 = conv_out2.reshape(batch_size, length, self.cnn_output_ch, self.emb_dim)
-        conv_out2 = self.dropout(F.leaky_relu(conv_out2))
+        conv_out1 = self._conv_forward(ms_cnn_input_seq, conv_module=self.conv1, bn_module=self.bn_1, first_layer=True)
+        conv_out2 = self._conv_forward(conv_out1, conv_module=self.conv2, bn_module=self.bn_2, first_layer=False)
         
-        lin_input_seq = conv_out2.view(batch_size, length, self.cnn_output_ch * self.emb_dim)
+        lin_input_seq = conv_out2.view(self.batch_size, self.length, self.cnn_output_ch * self.emb_dim)
         lin_input_seq = self.dropout(F.leaky_relu(lin_input_seq))
         hidden_seq = self.conv_to_linear(lin_input_seq)
         hidden_seq = self.dropout(F.leaky_relu(hidden_seq))
         scale_weights = self.softmax(self.linear_to_weights(hidden_seq))
-        if self.clamp_max < 1:
-            _scale_weights = torch.clamp(scale_weights, min=0, max=self.clamp_max)
-            scale_weights = self.softmax(_scale_weights)
-        scale_weight = scale_weights.unsqueeze(3).expand(-1, -1, -1, self.num_spks)
-        return scale_weight
+        scale_weights = scale_weights.unsqueeze(3).expand(-1, -1, -1, self.num_spks)
+        return scale_weights
+    
+    def _conv_forward(self, conv_input, conv_module, bn_module, first_layer=False):
+        conv_out = conv_module(conv_input)
+        conv_out = conv_out.permute(0,2,1,3) if not first_layer else conv_out
+        conv_out = conv_out.reshape(self.batch_size, self.length, self.cnn_output_ch, self.emb_dim)
+        conv_out = conv_out.unsqueeze(2).flatten(0, 1)
+        conv_out = self.dropout(F.leaky_relu(conv_out))
+        conv_out = bn_module(conv_out.permute(0,3,2,1)).permute(0,3,2,1)
+        return conv_out
+    
+    def conv_scale_weights(self, ms_avg_embs_perm, ms_emb_seq_single): #, batch_size, length):
+        """
+
+        """
+        ms_cnn_input_seq = torch.cat([ms_avg_embs_perm, ms_emb_seq_single], dim=2)
+        ms_cnn_input_seq = ms_cnn_input_seq.unsqueeze(2).flatten(0, 1)
+        
+        conv_out = self.conv_forward(ms_cnn_input_seq, conv_module=self.conv[0], bn_module=self.conv_bn[0], first_layer=True)
+        for conv_idx in range(1, self.conv_repeat+1):
+            conv_out = self.conv_forward(conv_input=conv_out, conv_module=self.conv[conv_idx], bn_module=self.conv_bn[conv_idx], first_layer=False)
+        
+        lin_input_seq = conv_out.view(self.batch_size, self.length, self.cnn_output_ch * self.emb_dim)
+        hidden_seq = self.conv_to_linear(lin_input_seq)
+        hidden_seq = self.dropout(F.leaky_relu(hidden_seq))
+        scale_weights = self.softmax(self.linear_to_weights(hidden_seq))
+        scale_weights = scale_weights.unsqueeze(3).expand(-1, -1, -1, self.num_spks)
+        return scale_weights
+
+    def conv_forward(self, conv_input, conv_module, bn_module, first_layer=False):
+        conv_out = conv_module(conv_input)
+        conv_out = conv_out.permute(0,2,1,3) if not first_layer else conv_out
+        conv_out = conv_out.reshape(self.batch_size, self.length, self.cnn_output_ch, self.emb_dim)
+        conv_out = conv_out.unsqueeze(2).flatten(0, 1)
+        conv_out = bn_module(conv_out.permute(0,3,2,1)).permute(0,3,2,1)
+        conv_out = self.dropout(F.leaky_relu(conv_out))
+        return conv_out
 
     @typecheck()
     def forward(self, ms_emb_seq, length, ms_avg_embs, targets):

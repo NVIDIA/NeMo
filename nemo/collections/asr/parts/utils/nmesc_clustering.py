@@ -102,7 +102,7 @@ def kmeans_plusplus_torch(
     X: torch.Tensor,
     n_clusters: int,
     random_state: int,
-    n_local_trials: int = 30,
+    n_local_trials: int = 100,
     device: torch.device = torch.device('cpu'),
 ):
     """
@@ -787,11 +787,12 @@ class NMESC:
         max_num_speaker: int = 10,
         max_rp_threshold: float = 0.15,
         sparse_search: bool = True,
-        sparse_search_volume: int = 30,
+        sparse_search_volume: int = 15,
         use_subsampling_for_NME: bool = True,
         fixed_thres: float = 0.0,
+        maj_vote_spk_count: bool = False,
         cuda: bool = False,
-        NME_mat_size: int = 512,
+        NME_mat_size: int = 128,
         device: torch.device = torch.device('cpu'),
     ):
         """
@@ -847,6 +848,7 @@ class NMESC:
         self.mat = mat
         self.p_value_list: torch.Tensor = torch.tensor(0)
         self.device = device
+        self.maj_vote_spk_count = maj_vote_spk_count
 
     def NMEanalysis(self):
         """
@@ -859,13 +861,15 @@ class NMESC:
 
         # Scans p_values and find a p_value that generates
         # the smallest g_p value.
-        eig_ratio_list = []
+        eig_ratio_list, est_num_of_spk_list = [], []
         est_spk_n_dict: Dict[int, torch.Tensor] = {}
         self.p_value_list = self.getPvalueList()
         for p_value in self.p_value_list:
             est_num_of_spk, g_p = self.getEigRatio(p_value)
             est_spk_n_dict[p_value.item()] = est_num_of_spk
             eig_ratio_list.append(g_p)
+            est_num_of_spk_list.append(est_num_of_spk)
+            # print(f"Scanning p_value: {p_value}, est_num_of_spk: {est_num_of_spk} g_p {g_p}")
         index_nn = torch.argmin(torch.tensor(eig_ratio_list))
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
@@ -879,6 +883,18 @@ class NMESC:
 
         p_hat_value = (subsample_ratio * rp_p_value).type(torch.int)
         est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
+        print(" >>>>>>>>>>>>>> self.maj_vote_spk_count:", self.maj_vote_spk_count)
+        if self.maj_vote_spk_count:
+            # import ipdb; ipdb.set_trace()
+            # weight = (1 / torch.tensor(eig_ratio_list))/torch.sum(1 / torch.tensor(eig_ratio_list))
+            # est_num_of_spk = torch.round(torch.sum(torch.tensor(est_num_of_spk_list) * weight)).int().item()
+            est_num_of_spk = torch.mode(torch.tensor(est_num_of_spk_list))[0]
+            print("maj weight spk:", est_num_of_spk)
+            print("p value est spk:", est_spk_n_dict[rp_p_value.item()])
+        else:
+            est_num_of_spk = est_spk_n_dict[rp_p_value.item()]
+            print("est_nun_of_spk:", est_num_of_spk)
+        # print("p value est spk:", est_spk_n_dict[rp_p_value.item()])
         return est_num_of_spk, p_hat_value
 
     def subsampleAffinityMat(self, NME_mat_size: int):
@@ -962,6 +978,7 @@ def COSclustering(
     max_rp_threshold: float = 0.15,
     sparse_search_volume: int = 30,
     fixed_thres: float = 0.0,
+    maj_vote_spk_count: bool = False,
     cuda=False,
 ):
     """
@@ -1037,6 +1054,7 @@ def COSclustering(
         sparse_search_volume=sparse_search_volume,
         fixed_thres=fixed_thres,
         NME_mat_size=300,
+        maj_vote_spk_count=maj_vote_spk_count,
         cuda=cuda,
         device=device,
     )
