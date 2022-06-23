@@ -498,7 +498,7 @@ class ParallelAttention(MegatronModule):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(self.layer_type != LayerType.decoder),  # (not self.is_decoder),
+            bidirectional=(self.layer_type == LayerType.decoder),  # (self.is_decoder),
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -1475,7 +1475,7 @@ class ParallelTransformer(MegatronModule):
 
         self.num_layers = self.get_num_layers(num_layers)
         # Transformer layers.
-        def build_layer(layer_number):
+        def build_layer(layer_number, has_relative_attention_bias=False):
             if isinstance(layer_type, list):
                 lt = layer_type[layer_number - 1]
             else:
@@ -1549,7 +1549,7 @@ class ParallelTransformer(MegatronModule):
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
-        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
+        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset, has_relative_attention_bias=(i == 0)) for i in range(self.num_layers)])
 
         if self.post_process:
             # Final layer norm before output.
