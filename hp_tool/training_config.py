@@ -8,14 +8,14 @@ from omegaconf import OmegaConf
 from hp_tool import utils, train
 
 
-def search_training_config(base_cfg, model_size, model_name, cfg):
+def search_training_config(base_cfg, model_size, model_name, hydra_args, cfg):
     # Generate candidate configs.
     base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
     #job_ids = None
     # Measure and compare throughputs for each config.
-    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, cfg)
+    launch_throughput_measure(job_ids, model_name, model_size, num_nodes, hydra_args, cfg)
 
 
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
@@ -272,7 +272,7 @@ def create_bignlp_config(model_name, cfg):
     return new_cfg
 
 
-def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, cfg):
+def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_nodes, hydra_args, cfg):
     """Launch job that measures the throughput of each run in the grid search. This
     job will get scheduled with dependencies on all the job ids in dependency_list,
     so it will only start running once all the jobs are finished.
@@ -336,7 +336,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     new_script_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput.sh")
     code_path = os.path.join(bignlp_hp_tool_path, "hp_tool/scripts/compare_throughput_results.py")
-    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} "
+    train_cmd = f"HYDRA_FULL_ERROR=1 python3 -u {code_path} search_config.train_settings.model_size_in_b={model_size_in_b} search_config={model_name}/{model_size_in_b}b search_config_value={model_name}/{model_size_in_b}b +nodes={num_nodes} {hydra_args} "
     utils.create_slurm_file(
         new_script_path=new_script_path,
         train_cmd=train_cmd,
