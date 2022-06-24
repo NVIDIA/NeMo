@@ -181,7 +181,7 @@ train.t5.220m_tp2_pp1_1node_100steps:
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp1_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -193,7 +193,7 @@ train.t5.220m_tp1_pp2_2node_100steps:
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -230,7 +230,7 @@ train.mt5.170m_tp2_pp1_1node_100steps:
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp1_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -242,7 +242,7 @@ train.mt5.170m_tp1_pp2_2node_100steps:
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp2_2node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
