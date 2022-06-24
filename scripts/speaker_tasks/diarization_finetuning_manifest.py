@@ -102,28 +102,6 @@ def get_input_manifest_dict(input_manifest_path):
             input_manifest_dict[uniq_id] = dic
     return input_manifest_dict
 
-# def write_truncated_subsegments(input_manifest_dict, _subsegment_dict, output_manifest_path, step_count, deci): 
-    # with open(output_manifest_path, 'w') as output_manifest_fp:
-        # for uniq_id, subseg_dict in _subsegment_dict.items():
-            # print(f"Writing {uniq_id}")
-            # subseg_array = np.array(subseg_dict['ts'])
-            # subseg_array_idx = np.argsort(subseg_array, axis=0)
-            # chunked_set_count = subseg_array_idx.shape[0] // step_count 
-
-            # for idx in range(chunked_set_count-1):
-                # chunk_index_stt = subseg_array_idx[:, 0][idx * step_count]
-                # chunk_index_end = subseg_array_idx[:, 1][(idx+1)* step_count]
-                # offset_sec = subseg_array[chunk_index_stt, 0]
-                # end_sec = subseg_array[chunk_index_end, 1]
-                # dur = round(end_sec - offset_sec, deci)
-                # meta = input_manifest_dict[uniq_id]
-                # import ipdb; ipdb.set_trace()
-
-                # meta['offset'] = offset_sec
-                # meta['duration'] = dur
-                # json.dump(meta, output_manifest_fp)
-                # output_manifest_fp.write("\n")
-
 def write_truncated_subsegments(input_manifest_dict, _subsegment_dict, output_manifest_path, step_count, deci): 
     with open(output_manifest_path, 'w') as output_manifest_fp:
         for uniq_id, subseg_dict in _subsegment_dict.items():
