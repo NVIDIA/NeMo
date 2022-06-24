@@ -60,12 +60,6 @@ section {
 	overflow-x: auto;
 }
 
-section table {
-	overflow-x: auto;
-	display: block;
-}
-
-
 /* ----------------------------------------------TABLES--------------------------------------- */
 section table {
 	overflow-x: auto;
