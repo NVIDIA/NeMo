@@ -59,7 +59,12 @@ a:visited
 }
 
 section {
-	overflow: auto;
+	overflow-x: auto;
+}
+
+section table {
+	overflow-x: auto;
+	display: block;
 }
 
 
