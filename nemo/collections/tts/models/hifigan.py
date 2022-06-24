@@ -24,7 +24,6 @@ from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
-from nemo.collections.tts.torch.data import VocoderDataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
@@ -40,7 +39,9 @@ except ModuleNotFoundError:
 
 
 class HifiGanModel(Vocoder, Exportable):
-    """HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram."""
+    """
+    HiFi-GAN model (https://arxiv.org/abs/2010.05646) that is used to generate audio from mel spectrogram.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         # Convert to Hydra 1.0 compatible DictConfig
@@ -81,7 +82,8 @@ class HifiGanModel(Vocoder, Exportable):
             drop_last=self._train_dl.drop_last,
         )
 
-    def _get_warmup_steps(self, max_steps, warmup_steps, warmup_ratio):
+    @staticmethod
+    def _get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
             raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
@@ -100,8 +102,14 @@ class HifiGanModel(Vocoder, Exportable):
         sched_config = optim_config.pop("sched", None)
         OmegaConf.set_struct(optim_config, True)
 
-        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
-        optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
+        optim_g = instantiate(
+            optim_config,
+            params=self.generator.parameters(),
+        )
+        optim_d = instantiate(
+            optim_config,
+            params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
+        )
 
         # Backward compatibility
         if sched_config is None and 'sched' in self._cfg:
@@ -112,21 +120,28 @@ class HifiGanModel(Vocoder, Exportable):
             if max_steps is None or max_steps < 0:
                 max_steps = self._get_max_steps()
 
-            warmup_steps = self._get_warmup_steps(
+            warmup_steps = HifiGanModel._get_warmup_steps(
                 max_steps=max_steps,
                 warmup_steps=sched_config.get("warmup_steps", None),
                 warmup_ratio=sched_config.get("warmup_ratio", None),
             )
 
             scheduler_g = CosineAnnealing(
-                optimizer=optim_g, max_steps=max_steps, min_lr=sched_config.min_lr, warmup_steps=warmup_steps,
+                optimizer=optim_g,
+                max_steps=max_steps,
+                min_lr=sched_config.min_lr,
+                warmup_steps=warmup_steps,
             )  # Use warmup to delay start
             sch1_dict = {
                 'scheduler': scheduler_g,
                 'interval': 'step',
             }
 
-            scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=sched_config.min_lr,)
+            scheduler_d = CosineAnnealing(
+                optimizer=optim_d,
+                max_steps=max_steps,
+                min_lr=sched_config.min_lr,
+            )
             sch2_dict = {
                 'scheduler': scheduler_d,
                 'interval': 'step',
@@ -286,7 +301,7 @@ class HifiGanModel(Vocoder, Exportable):
         def stft(x):
             comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
-            mags = torch.sqrt(real ** 2 + imag ** 2)
+            mags = torch.sqrt(real**2 + imag**2)
             phase = torch.atan2(imag, real)
             return mags, phase
 
@@ -344,7 +359,9 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_hifigan",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_hifigan/versions/1.0.0rc1/files/tts_hifigan.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Tacotron2, TalkNet, and FastPitch. This model has been tested on generating female English "
+            "voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
@@ -352,7 +369,8 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_hifigan_ft_mixertts",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixertts.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Mixer-TTS. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
@@ -360,7 +378,8 @@ class HifiGanModel(Vocoder, Exportable):
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_hifigan_ft_mixerttsx",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_hifigan/versions/1.6.0/files/tts_en_lj_hifigan_ft_mixerttsx.nemo",
-            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
+            description="This model is trained on LJSpeech audio sampled at 22050Hz and mel spectrograms generated from"
+            " Mixer-TTS-X. This model has been tested on generating female English voices with an American accent.",
             class_=cls,
         )
         list_of_models.append(model)
