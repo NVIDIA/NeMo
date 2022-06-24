@@ -27,10 +27,8 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_prompt_learning_dat
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_prompt_learning_model import (
     MegatronBasePromptLearningModel,
-    get_pseudo_tokens,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.modules.common import PromptTable
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
@@ -69,54 +67,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-
-        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
-        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
-        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True,)
-        OmegaConf.set_struct(t5_cfg, True)
-        with open_dict(t5_cfg):
-            t5_cfg.masked_softmax_fusion = False
-            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
-            # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
-            t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
-            t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
-
-        self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, override_config_path=t5_cfg,
-        )
-
-        # Freeze all T5 model weights for prompt-tuning/p-tuning
-        self.frozen_model.freeze()
-
-        self.tokenizer = self.frozen_model.tokenizer
-
-        if self.frozen_model.cfg.precision == 16:
-            self.float_type = torch.float16
-        elif self.frozen_model.cfg.precision == 'bf16':
-            self.float_type = torch.bfloat16
-        else:
-            self.float_type = torch.float
-
-        self.hidden_size = self.frozen_model.cfg.hidden_size
-        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
-
-        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
-        self.prompt_table = PromptTable(
-            existing_tasks=self.existing_tasks,
-            task_templates=self.task_templates,
-            task_id_num_to_name=self.task_id_num_to_name,
-            hidden_size=self.hidden_size,
-        )
-
-        # Prepare pseudo token ids for virtual/virtual prompt tokens
-        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
-        self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
-        self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-
-        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
 
     def forward(
         self, input_ids, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels=None, inference=False,
@@ -162,6 +112,27 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 )
 
         return output, encoder_input
+
+    def load_frozen_model(self, cfg, trainer):
+        self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+
+        # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
+        # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
+        t5_cfg = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        OmegaConf.set_struct(t5_cfg, True)
+        with open_dict(t5_cfg):
+            t5_cfg.masked_softmax_fusion = False
+            t5_cfg.megatron_amp_O2 = self.megatron_amp_o2
+            # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
+            t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
+            t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
+
+        self.frozen_model = MegatronT5Model.restore_from(
+            cfg.get('language_model_path'), trainer=trainer, override_config_path=t5_cfg,
+        )
+
+        # Freeze all T5 model weights for prompt-tuning/p-tuning
+        self.frozen_model.freeze()
 
     def training_step(self, batch, batch_idx):
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch

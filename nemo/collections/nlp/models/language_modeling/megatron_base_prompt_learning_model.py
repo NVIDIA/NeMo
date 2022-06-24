@@ -24,6 +24,7 @@ from torch import Tensor
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common import (
     PromptEncoder,
+    PromptTable,
     VirtualPromptPlaceholderToken,
     VirtualPromptSource,
     VirtualPromptStyle,
@@ -59,16 +60,35 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.cfg = cfg
 
+        self.load_frozen_model(cfg, trainer)
+
+        self.tokenizer = self.frozen_model.tokenizer
+
+        if self.frozen_model.cfg.precision == 16:
+            self.float_type = torch.float16
+        elif self.frozen_model.cfg.precision == 'bf16':
+            self.float_type = torch.bfloat16
+        else:
+            self.float_type = torch.float
+
+        self.hidden_size = self.frozen_model.cfg.hidden_size
+        self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
+        # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
+        self.prompt_table = PromptTable(
+            existing_tasks=self.existing_tasks,
+            task_templates=self.task_templates,
+            task_id_num_to_name=self.task_id_num_to_name,
+            hidden_size=self.hidden_size,
+        )
         self._prompt_table_key = VirtualPromptSource.PROMPT_TABLE.value
         self._prompt_encoder_key = VirtualPromptSource.PROMPT_ENCODER.value
-
-        self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
         if self.virtual_prompt_style in [VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
@@ -85,6 +105,14 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
         self._reduced_loss_buffer = []
         self._inference_config = None
 
+        # Prepare pseudo token ids for virtual/virtual prompt tokens
+        self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
+        self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+        self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
+        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
+
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
         elif self.trainer.precision == 16:
@@ -95,8 +123,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             raise ValueError('precision must be in [32, 16, "bf16"]')
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
-        # no support of amp o2
-        self.megatron_amp_o2 = False
 
     def load_task_templates(self, task_templates):
         """
@@ -448,6 +474,9 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
     @classmethod
     def list_available_models(cls):
+        pass
+
+    def load_frozen_model(self, cfg, trainer):
         pass
 
 
