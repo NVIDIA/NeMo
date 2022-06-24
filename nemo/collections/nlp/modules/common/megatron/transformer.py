@@ -500,7 +500,7 @@ class ParallelAttention(MegatronModule):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(self.attention_type != AttnMaskType.causal), # self.is_decoder and self_attention.
+            bidirectional=(self.attention_type != AttnMaskType.causal),  # self.is_decoder and self_attention.
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -1552,9 +1552,12 @@ class ParallelTransformer(MegatronModule):
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList(
-            [build_layer(i + 1 + offset,
-             has_relative_attention_bias=(i == 0) and parallel_state.is_pipeline_first_stage()) 
-             for i in range(self.num_layers)]
+            [
+                build_layer(
+                    i + 1 + offset, has_relative_attention_bias=(i == 0) and parallel_state.is_pipeline_first_stage()
+                )
+                for i in range(self.num_layers)
+            ]
         )
 
         if self.post_process:
