@@ -7,6 +7,7 @@ from tensorboard.backend.event_processing import event_accumulator
 
 CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
 RUN_TASK = os.environ.get("RUN_TASK")
+RUN_MODEL = os.environ.get("RUN_MODEL")
 
 def _read_tb_logs_as_list(path, summary_name):
     """Reads a TensorBoard Events file from the input path, and returns the
