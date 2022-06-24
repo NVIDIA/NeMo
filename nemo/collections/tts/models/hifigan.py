@@ -102,14 +102,8 @@ class HifiGanModel(Vocoder, Exportable):
         sched_config = optim_config.pop("sched", None)
         OmegaConf.set_struct(optim_config, True)
 
-        optim_g = instantiate(
-            optim_config,
-            params=self.generator.parameters(),
-        )
-        optim_d = instantiate(
-            optim_config,
-            params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),
-        )
+        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
+        optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
 
         # Backward compatibility
         if sched_config is None and 'sched' in self._cfg:
@@ -127,21 +121,14 @@ class HifiGanModel(Vocoder, Exportable):
             )
 
             scheduler_g = CosineAnnealing(
-                optimizer=optim_g,
-                max_steps=max_steps,
-                min_lr=sched_config.min_lr,
-                warmup_steps=warmup_steps,
+                optimizer=optim_g, max_steps=max_steps, min_lr=sched_config.min_lr, warmup_steps=warmup_steps,
             )  # Use warmup to delay start
             sch1_dict = {
                 'scheduler': scheduler_g,
                 'interval': 'step',
             }
 
-            scheduler_d = CosineAnnealing(
-                optimizer=optim_d,
-                max_steps=max_steps,
-                min_lr=sched_config.min_lr,
-            )
+            scheduler_d = CosineAnnealing(optimizer=optim_d, max_steps=max_steps, min_lr=sched_config.min_lr,)
             sch2_dict = {
                 'scheduler': scheduler_d,
                 'interval': 'step',
@@ -301,7 +288,7 @@ class HifiGanModel(Vocoder, Exportable):
         def stft(x):
             comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
             real, imag = comp[..., 0], comp[..., 1]
-            mags = torch.sqrt(real**2 + imag**2)
+            mags = torch.sqrt(real ** 2 + imag ** 2)
             phase = torch.atan2(imag, real)
             return mags, phase
 
