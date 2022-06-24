@@ -62,13 +62,15 @@ section {
 	overflow-x: auto;
 }
 
+/* ----------------------------------------------TABLES--------------------------------------- */
 section table {
 	overflow-x: auto;
 	display: block;
 }
 
-
-/* ----------------------------------------------TABLES--------------------------------------- */
+table {
+	font-size: small;
+}
 
 /* Table head Color */
 thead td
