@@ -1622,6 +1622,13 @@ class ParallelTransformer(MegatronModule):
                         position_bias=position_bias,
                         encoder_decoder_position_bias=encoder_decoder_position_bias,
                     )
+                    if type(x_) is tuple:
+                        if len(x_) == 2:
+                            x_, position_bias = x_
+                        elif len(x_) == 3:
+                            x_, position_bias, encoder_decoder_position_bias = x_
+                        else:
+                            raise IndexError('Hidden_states (x_) needs to be tuple containing 2 or 3 elements.')
                 return x_
 
             return custom_forward
