@@ -500,7 +500,7 @@ class ParallelAttention(MegatronModule):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(self.layer_type == LayerType.decoder),  # (self.is_decoder),
+            bidirectional=(self.attention_type != AttnMaskType.causal), # self.is_decoder and self_attention.
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -688,9 +688,9 @@ class ParallelAttention(MegatronModule):
                 if self.has_relative_attention_bias:
                     position_bias = self.compute_bias(real_seq_length, key_length)
                 elif attention_mask is not None:
-                    position_bias = torch.zeros_like(attention_mask)
+                    position_bias = torch.zeros_like(attention_mask).to(torch.cuda.current_device())
                 else:
-                    position_bias = torch.zeros(1, key_length, key_length)
+                    position_bias = torch.zeros(1, key_length, key_length).to(torch.cuda.current_device())
 
             # if key and values are already calculated
             # we want only the last query position bias
@@ -1552,7 +1552,9 @@ class ParallelTransformer(MegatronModule):
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
         self.layers = torch.nn.ModuleList(
-            [build_layer(i + 1 + offset, has_relative_attention_bias=(i == 0)) for i in range(self.num_layers)]
+            [build_layer(i + 1 + offset,
+             has_relative_attention_bias=(i == 0) and parallel_state.is_pipeline_first_stage()) 
+             for i in range(self.num_layers)]
         )
 
         if self.post_process:
