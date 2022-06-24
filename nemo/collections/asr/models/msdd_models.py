@@ -36,8 +36,6 @@ from pytorch_lightning.utilities import rank_zero_only
 from torch.utils.data import ChainDataset
 from collections import OrderedDict
 from nemo.collections.asr.models import ClusteringDiarizer
-from nemo.collections.asr.models.msdd_models_exp import ClusterEmbeddingTest as ClusterEmbedding
-# from nemo.collections.asr.models.msdd_models_exp import diar_eval
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
 from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
@@ -306,7 +304,7 @@ def make_rttm_with_overlap(manifest_file, clus_label_dict, hyp, **params):
   
     return all_reference, all_hypothesis
 
-class _ClusterEmbedding:
+class ClusterEmbedding:
     def __init__(self, cfg_base: DictConfig, cfg_msdd_model: DictConfig):
         self.cfg_base = cfg_base
         self._cfg_msdd = cfg_msdd_model
