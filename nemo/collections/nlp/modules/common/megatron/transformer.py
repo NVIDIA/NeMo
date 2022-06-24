@@ -980,7 +980,7 @@ class ParallelTransformerLayer_(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
-        has_relative_attention_bias=False
+        has_relative_attention_bias=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1514,7 +1514,7 @@ class ParallelTransformer(MegatronModule):
                 normalization=normalization,
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
-                has_relative_attention_bias=has_relative_attention_bias
+                has_relative_attention_bias=has_relative_attention_bias,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1551,7 +1551,9 @@ class ParallelTransformer(MegatronModule):
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
-        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset, has_relative_attention_bias=(i == 0)) for i in range(self.num_layers)])
+        self.layers = torch.nn.ModuleList(
+            [build_layer(i + 1 + offset, has_relative_attention_bias=(i == 0)) for i in range(self.num_layers)]
+        )
 
         if self.post_process:
             # Final layer norm before output.
