@@ -83,7 +83,7 @@ class HifiGanModel(Vocoder, Exportable):
         )
 
     @staticmethod
-    def _get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
+    def get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
             raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
@@ -120,7 +120,7 @@ class HifiGanModel(Vocoder, Exportable):
             if max_steps is None or max_steps < 0:
                 max_steps = self._get_max_steps()
 
-            warmup_steps = HifiGanModel._get_warmup_steps(
+            warmup_steps = HifiGanModel.get_warmup_steps(
                 max_steps=max_steps,
                 warmup_steps=sched_config.get("warmup_steps", None),
                 warmup_ratio=sched_config.get("warmup_ratio", None),
