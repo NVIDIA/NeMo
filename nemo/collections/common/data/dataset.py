@@ -237,7 +237,8 @@ class ConcatMapDataset(Dataset):
             if len(self.sampling_probabilities) != len(self.datasets):
                 raise ValueError(f"Length of probabilities list must be equal to the number of datasets. Found {len(sampling_probabilities)} probs and {len(self.datasets)} datasets.")
 
-            self.p = np.array(self.sampling_probabilities)
+            p = np.array(self.sampling_probabilities)
+            self.p = p / np.sum(p) # Ensure probabilities sum to 1
 
     def __len__(self):
         return self.size
