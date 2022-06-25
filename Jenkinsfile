@@ -364,7 +364,7 @@ pipeline {
         }
       }
       failFast true
-      def build_asr_dev_run() {
+      def build_asr_dev_run = { ->
           parallel {
             stage('L2: Speech to Text WPE - Squeezeformer') {
               steps {
