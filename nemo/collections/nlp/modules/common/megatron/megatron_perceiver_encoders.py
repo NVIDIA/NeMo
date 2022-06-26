@@ -129,7 +129,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         assert self.hidden_steps >= 1
 
         self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
-        self.init_cross_att = self._build_cross_attn_layer()
 
         self.cross_attn_layers = torch.nn.ModuleList([self._build_cross_attn_layer() for _ in range(self.num_layers)])
         self.self_attn_layers = torch.nn.ModuleList(
@@ -223,7 +222,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
 
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
-        # TODO: Fix this.
+        # TODO: Fix this when adding support for Pipeline Parallel.
         pass
 
     def forward(
