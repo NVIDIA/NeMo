@@ -51,6 +51,7 @@ def get_intents(infold):
     intents = [f[:-4] for f in os.listdir(infold)]
     intents.sort()
     logging.info(f'Found {len(intents)} intents')
+
     return intents
 
 
@@ -89,6 +90,7 @@ def get_slots(infold, modes):
     slots = sorted(slots)
     slots.append("O")
     logging.info(f'Found {len(slots)} slot types')
+    
     return slots
 
 
