@@ -88,8 +88,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Prepare data for punctuation and capitalization tasks')
     parser.add_argument("-s", "--source_file", required=True, type=str, help="Path to the source file")
     parser.add_argument("-o", "--output_dir", required=True, type=str, help="Path to the output directory")
-    parser.add_argument("-p", "--marks", required=False, type=str, help="Punctuation marks to consider for dataset",
-                        default=[",", ".", "?"], nargs="+")
+    parser.add_argument(
+        "-p",
+        "--marks",
+        required=False,
+        type=str,
+        help="Punctuation marks to consider for dataset",
+        default=[",", ".", "?"],
+        nargs="+",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.source_file):
