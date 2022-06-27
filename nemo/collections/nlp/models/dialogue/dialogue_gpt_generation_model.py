@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
 from typing import Dict, Optional, Union
 
@@ -28,6 +29,9 @@ from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor i
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_generation_dataset import DialogueGPTGenerationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+    MegatronGPTPromptLearningModel,
+)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -56,25 +60,13 @@ class DialogueGPTGenerationModel(NLPModel):
             if self.cfg.language_model.lm_checkpoint:
                 self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
-            self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
-            # 1 corresponds to intent slot; 0 corresponds to squad
-            self.prompt_tags = [1, 0] if 'prompt_table' in dir(self.language_model) else []
-            if hasattr(self.language_model, 'prompt_table'):
-                self.language_model.prompt_tuning_param_freeze_and_optimizer_setup()
-
-            # Init all new prompts
-            for idx, tag in enumerate(cfg.new_prompt_tags):
-                self.prompt_tags.append(tag)
-                init_method = cfg.new_prompt_init_methods[idx]
-                if init_method == "text":
-                    init_text = cfg.new_prompt_init_text[idx]
-                    self.language_model.init_prompt_from_text(tag, init_text)
-                elif init_method == 'random':
-                    self.language_model.init_prompt_from_random(tag)
-                else:
-                    raise ValueError(
-                        f'\n Soft prompt init method {init_method} is not recognized, please use text or random'
-                    )
+            self.prompt_learning = self.cfg.prompt_learning
+            if self.prompt_learning:
+                new_cfg = copy.copy(cfg)
+                del new_cfg.tokenizer
+                self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
+            else:
+                self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
     def training_step(self, batch, batch_idx):
         input_ids, attn_masks, labels, _, _ = batch
@@ -163,8 +155,6 @@ class DialogueGPTGenerationModel(NLPModel):
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
-            # 'assit_intent_and_slot' has prompt_id of 1
-            # 'assit_intent_and_slot_with_options' has prompt_id of 2
             prompt_ids = torch.tensor([1] * input_ids.size(0)) if self.prompt_tags else None
 
             # this makes a 1d tensor of values 2 rather than 1, which is the prompt_id of 'assit_intent_and_slot_with_options'
@@ -191,9 +181,17 @@ class DialogueGPTGenerationModel(NLPModel):
             )
             left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
 
-            unmasked_unreduced_loss = self.language_model(
-                input_ids, position_ids, attn_mask, left_shifted_input_ids, prompt_ids=prompt_ids
-            )
+            if self.prompt_learning:
+                unmasked_unreduced_loss = self.language_model(
+                    input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids
+                )
+            else:
+                unmasked_unreduced_loss = self.language_model(
+                    input_ids, position_ids, attn_mask, labels=left_shifted_input_ids
+                )
+
+            if isinstance(unmasked_unreduced_loss, tuple):
+                unmasked_unreduced_loss = unmasked_unreduced_loss[0]
 
             labels = torch.cat([torch.zeros_like(prompt_token_labels), labels], axis=1)
             make_up_last_column_labels = torch.ones_like(labels[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
@@ -202,8 +200,13 @@ class DialogueGPTGenerationModel(NLPModel):
             labels_mask_0 = torch.where(new_labels != -100, new_labels, filler)
             labels_mask = labels_mask_0 > 0
 
-            loss = self.language_model.loss_func(labels_mask, unmasked_unreduced_loss)
+            loss = self.mask_and_reduce_loss(labels_mask, unmasked_unreduced_loss)
+        return loss
 
+    def mask_and_reduce_loss(self, loss_mask, output_tensor):
+        losses = output_tensor.float()
+        loss_mask = loss_mask.view(-1).float()
+        loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
         return loss
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
