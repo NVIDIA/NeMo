@@ -29,7 +29,7 @@ def main(cfg):
     finetuning_config_path = os.path.join(
         bignlp_path, "conf/finetuning", cfg.finetuning_config.rsplit("/", 1)[0]
     )
-    flags = f"--config-path={finetuning_config_path} --config-name={finetuning_config} "
+    flags = f"--config-path={finetuning_config_path} --config-name={finetuning_config} --no-container-mount-home "
 
     cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
 

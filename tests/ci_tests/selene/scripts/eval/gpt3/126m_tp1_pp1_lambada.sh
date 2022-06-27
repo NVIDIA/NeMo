@@ -10,7 +10,6 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     data_dir=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train \
     base_results_dir=${BASE_RESULTS_DIR} \
     "container='${BUILD_IMAGE_NAME_SRUN}'" \
-    container_mounts=[/lustre/fsw/joc/yuya/NeMo:/opt/bignlp/NeMo] \
     cluster.partition=${SLURM_PARTITION} \
     cluster.account=${SLURM_ACCOUNT} \
     cluster.gpus_per_task=null \
