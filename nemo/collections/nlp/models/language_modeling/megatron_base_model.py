@@ -103,7 +103,10 @@ class MegatronBaseModel(NLPModel):
         # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
         if nvidia_torch_version is not None:
-            NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            try:
+                NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
+            except Exception:
+                NVIDIA_TORCH_MAJOR = 0
             try:
                 NVIDIA_TORCH_MINOR = int(nvidia_torch_version.split('.')[1])
             except Exception:

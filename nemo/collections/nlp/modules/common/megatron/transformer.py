@@ -20,7 +20,6 @@ from contextlib import nullcontext
 import torch
 import torch.nn.functional as F
 from einops import rearrange, repeat
-from regex import W
 
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
     bias_dropout_add,
@@ -53,6 +52,14 @@ except (ImportError, ModuleNotFoundError):
 
     # fake missing classes with None attributes
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
+
+try:
+    from transformer_engine.pytorch.transformer import TransformerLayer
+
+    HAVE_TE = True
+
+except:
+    HAVE_TE = False
 
 
 """ We use the following notation throughout this file:
@@ -1767,40 +1774,74 @@ class ParallelTransformer(MegatronModule):
                 lt = layer_type[layer_number - 1]
             else:
                 lt = layer_type
-            return ParallelTransformerLayer(
-                init_method=init_method,
-                output_layer_init_method=output_layer_init_method,
-                layer_number=layer_number + layer_number_offset,
-                hidden_size=hidden_size,
-                ffn_hidden_size=ffn_hidden_size,
-                num_attention_heads=num_attention_heads,
-                apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-                kv_channels=kv_channels,
-                layer_type=lt,
-                self_attn_mask_type=self_attn_mask_type,
-                precision=precision,
-                fp32_residual_connection=fp32_residual_connection,
-                layernorm_epsilon=layernorm_epsilon,
-                hidden_dropout=hidden_dropout,
-                attention_dropout=attention_dropout,
-                use_cpu_initialization=use_cpu_initialization,
-                bias_activation_fusion=bias_activation_fusion,
-                bias_dropout_fusion=bias_dropout_fusion,
-                masked_softmax_fusion=masked_softmax_fusion,
-                persist_layer_norm=persist_layer_norm,
-                openai_gelu=openai_gelu,
-                onnx_safe=onnx_safe,
-                activation=activation,
-                megatron_legacy=megatron_legacy,
-                bias=bias,
-                chunk_size=chunk_size,
-                normalization=normalization,
-                transformer_block_type=transformer_block_type,
-                headscale=headscale,
-                activations_checkpoint_granularity=activations_checkpoint_granularity,
-                sequence_parallel=sequence_parallel,
-                gradient_accumulation_fusion=gradient_accumulation_fusion,
-            )
+            # TODO: Make configurable
+            use_transformer_engine = True
+            if use_transformer_engine:
+                checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
+                return TransformerLayer(
+                    hidden_size=hidden_size,
+                    ffn_hidden_size=ffn_hidden_size,
+                    layernorm_epsilon=layernorm_epsilon,
+                    num_attention_heads=num_attention_heads,
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    hidden_dropout=hidden_dropout,
+                    attention_dropout=attention_dropout,
+                    layer_number=layer_number + layer_number_offset,
+                    kv_channels=kv_channels,
+                    self_attn_mask_type=self_attn_mask_type,
+                    dp_group=parallel_state.get_data_parallel_group(),
+                    tp_group=parallel_state.get_tensor_model_parallel_group(),
+                    params_dtype=torch.float32,
+                    get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
+                    checkpoint_core_attention=checkpoint_core_attention,
+                    num_microbatches=None,
+                    fuse_wgrad_accumulation=False,
+                    bias_dropout_fusion=bias_dropout_fusion,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    attention_softmax_in_fp32=self.attention_softmax_in_fp32,
+                    seq_length=None,
+                    micro_batch_size=None,
+                    sequence_parallel=sequence_parallel,
+                    apply_residual_connection_post_layernorm=False,
+                    layernorm_at_the_end=False,
+                )
+            else:
+                return ParallelTransformerLayer(
+                    init_method=init_method,
+                    output_layer_init_method=output_layer_init_method,
+                    layer_number=layer_number + layer_number_offset,
+                    hidden_size=hidden_size,
+                    ffn_hidden_size=ffn_hidden_size,
+                    num_attention_heads=num_attention_heads,
+                    apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+                    kv_channels=kv_channels,
+                    layer_type=lt,
+                    self_attn_mask_type=self_attn_mask_type,
+                    precision=precision,
+                    fp32_residual_connection=fp32_residual_connection,
+                    layernorm_epsilon=layernorm_epsilon,
+                    hidden_dropout=hidden_dropout,
+                    attention_dropout=attention_dropout,
+                    use_cpu_initialization=use_cpu_initialization,
+                    bias_activation_fusion=bias_activation_fusion,
+                    bias_dropout_fusion=bias_dropout_fusion,
+                    masked_softmax_fusion=masked_softmax_fusion,
+                    persist_layer_norm=persist_layer_norm,
+                    openai_gelu=openai_gelu,
+                    onnx_safe=onnx_safe,
+                    activation=activation,
+                    megatron_legacy=megatron_legacy,
+                    bias=bias,
+                    chunk_size=chunk_size,
+                    normalization=normalization,
+                    transformer_block_type=transformer_block_type,
+                    headscale=headscale,
+                    activations_checkpoint_granularity=activations_checkpoint_granularity,
+                    sequence_parallel=sequence_parallel,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
+                )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
