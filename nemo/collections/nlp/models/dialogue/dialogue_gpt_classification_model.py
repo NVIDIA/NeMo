@@ -59,6 +59,7 @@ class DialogueGPTClassificationModel(NLPModel):
         elif self.cfg.library == "megatron":
             self.prompt_learning = self.cfg.prompt_learning
             if self.prompt_learning:
+                # removing tokenizer cfg as this triggers tokenizer construction which is not helpful here as we have a separate tokenizer
                 new_cfg = copy.copy(cfg)
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
