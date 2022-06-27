@@ -33,11 +33,11 @@ import glob
 import importlib
 import os
 import sys
-from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
 
 import torch
+from pytorch_lightning.trainer.trainer import Trainer
 
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin, NLPSaveRestoreConnector
 from nemo.core import ModelPT
 from nemo.utils import logging, model_utils
 
@@ -95,7 +95,7 @@ def main():
             restore_path=model_fname,
             return_config=True,
             save_restore_connector=NLPSaveRestoreConnector(),
-            trainer=trainer
+            trainer=trainer,
         )
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)
@@ -104,7 +104,7 @@ def main():
             restore_path=model_fname,
             map_location=device,
             save_restore_connector=NLPSaveRestoreConnector(),
-            trainer=trainer
+            trainer=trainer,
         )
 
         # search for all checkpoints (ignore -last.ckpt)
@@ -122,7 +122,6 @@ def main():
 
         for ix, path in enumerate(checkpoint_paths):
             checkpoint = torch.load(path, map_location=device)
-
             if 'state_dict' in checkpoint:
                 checkpoint = checkpoint['state_dict']
 
