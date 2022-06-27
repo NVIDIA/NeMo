@@ -34,12 +34,12 @@ exp_manager:
   resume_ignore_no_checkpoint: True
   create_checkpoint_callback: True
   checkpoint_callback_params:
-    monitor: validation_acc
+    monitor: validation_${finetuning.model.data.validation_ds.metric.name}
     save_top_k: 5
     mode: max
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
-    filename: 'megatron_mt5--{validation_acc:.3f}-{step}'
+    filename: 'megatron_mt5--{finetuning.${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}'
     model_parallel_size: ${finetuning.model.model_parallel_size}
     save_best_model: True
 
@@ -78,6 +78,12 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
       pin_memory: True
       max_seq_length: 512
       drop_last: False
+      write_predictions_to_file: False
+      prediction_file_path_prefix: null # Prefix of the file to write predictions to.
+      metric:
+        name: "exact_string_match" # Name of the evaluation metric to use.
+        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+        num_classes: null
 
     test_ds:
       task_name: 'xnli'
@@ -89,10 +95,14 @@ model: # For different finetuning tasks, tuning the hyper parameters accordingly
       pin_memory: True
       max_seq_length: 512
       drop_last: False
+      write_predictions_to_file: False
+      output_file_path_prefix: null # Prefix of the file to write predictions to.
+      metric:
+        name: "exact_string_match" # Name of the evaluation metric to use.
+        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+        num_classes: null
 
   optim:
     name: fused_adam
     lr: 2.0e-5
     weight_decay: 0.1
-
-
