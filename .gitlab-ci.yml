@@ -167,6 +167,86 @@ train.gpt3.5b_40gb_3runs_2node:
   rules:
     - when: always
 
+train.t5.220m_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.220m_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.2.8b_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 2.8b_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.2.8b_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 2.8b_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.170m_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.170m_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.3.2b_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 3.2b_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.3.2b_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 3.2b_40gb_3runs_1node
+  rules:
+    - when: always
+
 cleanup.selene:
   tags: *LUNA_TAGS
   stage: cleanup
