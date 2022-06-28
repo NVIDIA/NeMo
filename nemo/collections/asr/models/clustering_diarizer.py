@@ -325,7 +325,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
             )
         if self.AUDIO_RTTM_MAP == {}:
-            raise ValueError("self.AUDIO_RTTM_MAP is empty: There are no input files containing detected speech signal. Abort.")
+            raise ValueError(
+                "self.AUDIO_RTTM_MAP is empty: There are no input files containing detected speech signal. Abort."
+            )
 
     def _extract_embeddings(self, manifest_file: str):
         """

@@ -243,7 +243,9 @@ def get_contiguous_stamps(stamps):
     try:
         start, end, speaker = lines[-1].split()
     except:
-        import ipdb; ipdb.set_trace()
+        import ipdb
+
+        ipdb.set_trace()
     contiguous_stamps.append(start + " " + end + " " + speaker)
     return contiguous_stamps
 
@@ -412,7 +414,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = None
-        
+
         cluster_labels = COSclustering(
             uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
             oracle_num_speakers=num_speakers,

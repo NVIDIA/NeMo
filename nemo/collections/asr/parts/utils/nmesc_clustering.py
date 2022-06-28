@@ -966,16 +966,20 @@ class NMESC:
                 Tensor containing the p_values to be searched.
         """
         if self.fixed_thres is not None and self.fixed_thres > 0.0:
-            self.max_N = torch.max(torch.floor(torch.tensor(self.mat.shape[0] * self.fixed_thres)).type(torch.int), self.min_p_value)
+            self.max_N = torch.max(
+                torch.floor(torch.tensor(self.mat.shape[0] * self.fixed_thres)).type(torch.int), self.min_p_value
+            )
             p_value_list = torch.tensor(self.max_N).unsqueeze(0)
         else:
-            self.max_N = torch.max(torch.floor(torch.tensor(self.mat.shape[0] * self.max_rp_threshold)).type(torch.int), self.min_p_value)
+            self.max_N = torch.max(
+                torch.floor(torch.tensor(self.mat.shape[0] * self.max_rp_threshold)).type(torch.int), self.min_p_value
+            )
             if self.sparse_search:
                 search_volume = torch.min(self.max_N, torch.tensor(self.sparse_search_volume).type(torch.int))
                 N = torch.max(search_volume, torch.tensor(2))
                 p_value_list = torch.unique(torch.linspace(start=1, end=self.max_N, steps=N).type(torch.int))
             else:
-                p_value_list = torch.arange(1, self.max_N+1)
+                p_value_list = torch.arange(1, self.max_N + 1)
         if p_value_list.shape[0] == 0:
             raise ValueError("p_value_list should not be empty.")
         return p_value_list
@@ -1066,7 +1070,7 @@ def COSclustering(
         max_num_speaker = oracle_num_speakers
 
     mat, emb = getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps, device)
-    
+
     nmesc = NMESC(
         mat,
         max_num_speaker=max_num_speaker,
@@ -1079,7 +1083,7 @@ def COSclustering(
         cuda=cuda,
         device=device,
     )
-    
+
     if emb.shape[0] > min_samples_for_NMESC:
         est_num_of_spk, p_hat_value = nmesc.NMEanalysis()
         affinity_mat = getAffinityGraphMat(mat, p_hat_value)
