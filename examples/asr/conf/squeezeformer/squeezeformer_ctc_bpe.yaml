@@ -150,10 +150,10 @@ model:
     sched:
       name: NoamHoldAnnealing
       # scheduler config override
-      warmup_steps: 10000  # paper uses ~ 6500 steps (20 epochs) out of 500 epochs.
+      warmup_steps: 5000  # paper uses ~ 6500 steps (20 epochs) out of 500 epochs.
       warmup_ratio: null
-      hold_steps: null
-      hold_ratio: 0.3  # paper uses ~ 40000 steps (160 epochs) out of 500 epochs.
+      hold_steps: 40000
+      hold_ratio: null  # paper uses ~ 40000 steps (160 epochs) out of 500 epochs.
       decay_rate: 1.0  # Noam decay = 0.5 and no hold steps. For Squeezeformer, use hold ~ 10-30% of training, then faster decay.
       min_lr: 1e-5
 
