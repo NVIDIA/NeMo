@@ -163,7 +163,7 @@ train.gpt3.5b_40gb_3runs_2node:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 5b_80gb_3runs_2node
+    RUN_JOB_NAME: 5b_40gb_3runs_2node
   rules:
     - when: always
 
