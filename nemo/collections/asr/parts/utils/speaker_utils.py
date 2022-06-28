@@ -796,7 +796,6 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
     void_uniq_ids = []
     with open(manifest_file, 'w') as outfile:
         for uniq_id in AUDIO_RTTM_MAP:
-            is_audio_empty = False
             rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
             rttm_lines = read_rttm_lines(rttm_file_path)
             offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
