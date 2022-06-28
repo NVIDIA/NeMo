@@ -1,19 +1,150 @@
-# Build only on MR or main branches
-.only-default: &only-default
-  only:
-    - main
-    - merge_requests
-  tags:
-    - V100
+variables: &VARS
+  HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
+  HP_REGISTRY_SRUN: "gitlab-master.nvidia.com#dl/joc/bignlp-hp-tool"
+  HP_BASE_TRAINING_IMAGE: "nvcr.io/ea-bignlp/bignlp-training:22.05-py3"
+  HP_BASE_INFERENCE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
+  BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
+  BUILD_IMAGE_INFERENCE_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_inference_hp_tool:pipe.${CI_PIPELINE_ID}
+  HP_CI_PATH: "/lustre/fsw/joc/big_nlp/hp_tool_ci"
 
 stages:
+  - build
   - test
+  - cleanup
 
-test:bignlp_hp_tool:
-  <<: *only-default
+################
+# JOB Templates
+################
+
+test:unit_tests:
+  tags:
+    - V100
   stage: test
   script:
     - pip install -r requirements.txt
-    - pip install 'pytest>=3'
+    - pip install pytest
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
-    - pytest tests
+    - pytest tests/unit_tests
+  rules:
+    - when: always
+
+.build: &build_template
+  stage: build
+  script:
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${CI_REGISTRY}"
+    - export DOCKER_REGISTRY="${CI_REGISTRY/:5005/}"
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${DOCKER_REGISTRY}"
+    - docker login -u "\$oauthtoken" -p $NGC_CLI_API_KEY nvcr.io
+    - set -x
+    - ls
+    - env
+    - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${HP_BASE_IMAGE}"
+    - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
+    - docker push ${BUILD_IMAGE_NAME}
+  allow_failure: false
+  tags:
+    - vm-builder
+
+before_script:
+  - umask 0007
+  - export DOCKERFILE=./Dockerfile
+  - export PIPELINE_DIR="${HP_CI_PATH}/${CI_PIPELINE_ID}"
+  - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
+
+.LUNA: &LUNA
+  variables: &LUNA_VARS
+    SLURM_PARTITION: "luna"
+    SLURM_NIGHTLY_PARTITION: "luna"
+    SLURM_ACCOUNT: "joc"
+    CLUSTER:       "selene"
+    PYXIS_LITE:    "1"
+    ENROOT_MOUNT_HOME: "n"
+    GIT_CLONE_PATH: $CI_BUILDS_DIR/$SLURM_ACCOUNT/big_nlp/hp_tool_ci/$CI_PIPELINE_ID/$CI_JOB_ID/$CI_PROJECT_NAME # THIS DOES NOT HAVE QUOTES FOR A REASON
+    EXCLUDE_NODES: ""
+    GPU_ARCH:      "A100"
+  tags: &LUNA_TAGS
+    - selene_ssh
+
+.hp-tool-LUNA-test-LAUNCHER: &hp-tool-LUNA-test-LAUNCHER
+  tags: *LUNA_TAGS
+  stage: test
+  script: &hp-tool-LUNA-test-LAUNCHER-SCRIPT
+    - chmod 774 ./* -R
+    - umask 0007
+    - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
+    - set -x
+    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
+    - env
+    - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
+    # Wait for job to launch
+    - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${BASE_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - echo $SLURM_JOBID
+    - export SLURM_OUTPUT=${BASE_RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
+    - cd tests/ci_tests/utils
+    - chmod 777 ./* -R
+    - bash jobwait.sh "${SLURM_JOBID}" & PID=$!
+    - touch "${SLURM_OUTPUT}"
+    - \[ ! -z ${SLURM_JOBID} \] && echo -e " --------------------------------------------------\n"
+                "----------WAITING FOR SLURM JOB TO BEGIN-----------\n"
+                "---------------------------------------------------\n"
+                "$(scontrol show job=${SLURM_JOBID})\n"
+                "---------------------------------------------------\n"
+    # Gitlab logs collapsible section markers
+    - echo -e "\e[0Ksection_end:`date +%s`:slurm_setup\r\e[0K"
+    # Follow output of the job
+    - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
+    - echo "Finished job with name ${RUN_NAME}"
+    - cd ${GIT_CLONE_PATH}
+
+    # Run Pytest
+    - pip3 install pytest
+    - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
+    - echo "Finished pytest job"
+  allow_failure: false
+
+
+build-BigNLP-training:
+  <<: *build_template
+  variables:
+    <<: [*VARS]
+    IMAGE_NAME: bignlp_training_hp_tool
+    HP_BASE_IMAGE: ${HP_BASE_TRAINING_IMAGE}
+    BUILD_IMAGE_TRAINING_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+    BUILD_IMAGE_NAME: ${BUILD_IMAGE_TRAINING_NAME}
+  rules:
+    - when: always
+
+build-BigNLP-inference:
+  <<: *build_template
+  variables:
+    <<: [*VARS]
+    IMAGE_NAME: bignlp_inference_hp_tool
+    HP_BASE_IMAGE: ${HP_BASE_INFERENCE_IMAGE}
+    BUILD_IMAGE_INFERENCE_NAME: ${HP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
+    BUILD_IMAGE_NAME: ${BUILD_IMAGE_INFERENCE_NAME}
+  rules:
+    - when: always
+
+train.gpt3.126m_80gb_10runs:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_80gb_10runs
+  rules:
+    - when: always
+
+cleanup.selene:
+  tags: *LUNA_TAGS
+  stage: cleanup
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/hp_tool_ci/*
+    - echo "Finished cleaning everything on Selene"
+  allow_failure: true
+  rules:
+    - when: manual
