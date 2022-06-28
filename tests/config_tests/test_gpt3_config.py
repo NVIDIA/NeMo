@@ -9,6 +9,7 @@ class TestGPT3Config:
           model_size_in_b: 0.126
           num_nodes: 8
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 2
           limit_search_runs: 100
           output_top_n: 10
@@ -49,6 +50,7 @@ class TestGPT3Config:
           model_size_in_b: 5
           num_nodes: 20
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 5
           limit_search_runs: 100
           output_top_n: 10
@@ -89,6 +91,7 @@ class TestGPT3Config:
           model_size_in_b: 20.0
           num_nodes: 80
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 7
           limit_search_runs: 100
           output_top_n: 10
@@ -129,6 +132,7 @@ class TestGPT3Config:
           model_size_in_b: 40
           num_nodes: 80
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 13
           limit_search_runs: 100
           output_top_n: 10
@@ -169,6 +173,7 @@ class TestGPT3Config:
           model_size_in_b: 175
           num_nodes: 128
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 10
           limit_search_runs: 50
           output_top_n: 10

@@ -27,6 +27,7 @@ def search_config(cfg):
     train_cfg = hp_cfg.get("train_settings")
     nodes = train_cfg.get("num_nodes")
     gpus_per_node = train_cfg.get("gpus_per_node")
+    gpu_memory_gb = train_cfg.get("gpu_memory_gb")
     max_training_days = train_cfg.get("max_training_days")
     max_minutes_per_run = train_cfg.get("max_minutes_per_run")
     model_size_in_b = train_cfg.get("model_size_in_b")
@@ -38,6 +39,7 @@ def search_config(cfg):
     assert (
         isinstance(gpu_count, int) and gpu_count > 0
     ), "nodes * gpus_per_node must be an int larger than zero."
+    assert isinstance(gpu_memory_gb, int) and gpu_memory_gb in (40, 80), "gpu_memory_gb can only be 40 or 80."
     assert (
         isinstance(max_minutes_per_run, int) and max_minutes_per_run >= 10
     ), "max_minutes_per_run must be an int and be at least 10 minutes."
@@ -66,6 +68,7 @@ def search_config(cfg):
         model_size_in_b=model_size_in_b,
         nodes=nodes,
         gpus_per_node=gpus_per_node,
+        gpu_memory_gb=gpu_memory_gb,
         max_training_days=max_training_days,
         num_tokens_in_b=num_tokens_in_b,
         vocab_size=vocab_size,

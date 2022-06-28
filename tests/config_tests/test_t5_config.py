@@ -9,6 +9,7 @@ class TestT5Config:
           model_size_in_b: 0.22
           num_nodes: 4
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 4
           limit_search_runs: 100
           output_top_n: 10
@@ -48,6 +49,7 @@ class TestT5Config:
           model_size_in_b: 2.8
           num_nodes: 20
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 16
           limit_search_runs: 100
           output_top_n: 10
@@ -87,6 +89,7 @@ class TestT5Config:
           model_size_in_b: 11
           num_nodes: 20
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 45
           limit_search_runs: 100
           output_top_n: 10
@@ -126,6 +129,7 @@ class TestT5Config:
           model_size_in_b: 23.5
           num_nodes: 40
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 48
           limit_search_runs: 100
           output_top_n: 10
@@ -165,6 +169,7 @@ class TestT5Config:
           model_size_in_b: 41.2
           num_nodes: 40
           gpus_per_node: 8
+          gpu_memory_gb: 80
           max_training_days: 85
           limit_search_runs: 100
           output_top_n: 10

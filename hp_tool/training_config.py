@@ -103,12 +103,165 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                             yaml.dump(new_cfg, f)
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs, num_nodes
+            
+def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
+    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 80GB GPUs.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 8]
+    if model_size_in_b <= 1.0:
+        tp = [1, 2]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+    elif 8.0 < model_size_in_b <= 13.0:
+        tp = [4, 8]
+    elif 13.0 < model_size_in_b <= 23.0:
+        tp = [8]
+        pp = [x for x in valid_pp if x < 6]
+    elif 23.0 < model_size_in_b <= 45.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 1 < x < 7]
+    elif 45.0 < model_size_in_b <= 95:
+        tp = [8]
+        pp = [x for x in valid_pp if 3 < x < 11]
+        mbs = [1, 2, 4]
+    elif 95.0 < model_size_in_b <= 130.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 5 < x < 21]
+        mbs = [1, 2, 4]
+    elif 130.0 < model_size_in_b <= 195.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 7 < x < 29]
+        mbs = [1, 2]
+    elif 195.0 < model_size_in_b <= 395.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 15 < x < 65]
+        mbs = [1, 2]
+    elif 395.0 < model_size_in_b <= 790.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 19 < x < 71]
+        mbs = [1, 2]
+    elif 790.0 < model_size_in_b <= 1100.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 29 < x < 131]
+        mbs = [1, 2]
+    return tp, pp, mbs
 
+def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
+    """Selects grid search space for TP, PP, MBS parameters for GPT-3 and 40GB GPUs.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 8]
+    if model_size_in_b <= 1.0:
+        tp = [1, 2, 4]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4, 8]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [4, 8]
+        pp = [1, 2]
+    elif 8.0 < model_size_in_b <= 13.0:
+        tp = [8]
+        pp = [1, 2, 4]
+    elif 13.0 < model_size_in_b <= 23.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 2 <= x <= 8]
+        mbs = [1, 2, 4]
+    elif 23.0 < model_size_in_b <= 45.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 12]
+        mbs = [1, 2, 4]
+    elif 45.0 < model_size_in_b <= 95:
+        tp = [8]
+        pp = [x for x in valid_pp if 4 <= x <= 16]
+        mbs = [1, 2, 4]
+    elif 95.0 < model_size_in_b <= 130.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 6 <= x <= 26]
+        mbs = [1, 2]
+    elif 130.0 < model_size_in_b <= 195.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 8 <= x <= 32]
+        mbs = [1, 2]
+    elif 195.0 < model_size_in_b <= 395.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 16 <= x <= 64]
+        mbs = [1, 2]
+    elif 395.0 < model_size_in_b <= 790.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 20 <= x <= 128]
+        mbs = [1, 2]
+    elif 790.0 < model_size_in_b <= 1100.0:
+        tp = [8]
+        pp = [x for x in valid_pp if 28 <= x <= 192]
+        mbs = [1, 2]
+    return tp, pp, mbs
+    
+def _tp_pp_mbs_grid_t5_80gb(model_size_in_b, valid_pp):
+    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 80GB GPUs.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 6, 8, 12, 16]
+    if model_size_in_b <= 1.0:
+        tp = [1, 2]
+        mbs = [16, 32, 64, 128]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4]
+        mbs = [4, 6, 8, 12, 16, 24, 32, 48]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+        mbs = [4, 6, 8, 12, 16, 24, 32]
+    elif 8.0 < model_size_in_b <= 14.5:
+        tp = [4, 8]
+        mbs = [2, 4, 6, 8, 12, 16, 24]
+    elif 14.5 < model_size_in_b <= 25.9:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 2]
+        mbs = [1, 2, 4, 6, 8]
+    elif 25.9 < model_size_in_b <= 43.0:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 4]
+        mbs = [1, 2, 4, 6, 8]
+    return tp, pp, mbs
+
+def _tp_pp_mbs_grid_t5_40gb(model_size_in_b, valid_pp):
+    """Selects grid search space for TP, PP, MBS parameters for T5/mT5 and 40GB GPUs.
+    """
+    tp = [1, 2, 4, 8]
+    pp = [1]
+    mbs = [1, 2, 4, 6, 8, 12, 16]
+    if model_size_in_b <= 1.0:
+        tp = [1, 2]
+        mbs = [16, 32, 64, 128]
+    elif 1.0 < model_size_in_b <= 4.0:
+        tp = [1, 2, 4]
+        mbs = [4, 8, 12, 16, 24, 32, 48]
+    elif 4.0 < model_size_in_b <= 8.0:
+        tp = [2, 4, 8]
+        mbs = [4, 6, 8, 12, 16, 24]
+    elif 8.0 < model_size_in_b <= 14.5:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 2]
+        mbs = [2, 4, 6, 8, 12, 16]
+    elif 14.5 < model_size_in_b <= 25.9:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    elif 25.9 < model_size_in_b <= 43.0:
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 8]
+        mbs = [1, 2, 4, 6, 8]
+    return tp, pp, mbs
 
 def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg):
     tp_sizes = train_cfg.get("tensor_parallel_sizes")
     pp_sizes = train_cfg.get("pipeline_parallel_sizes")
     mbs_sizes = train_cfg.get("micro_batch_sizes")
+    gpu_memory_gb = train_cfg.get("gpu_memory_gb")
 
     multiplier = 1 if model_name == "gpt3" else 2
     init_pp = [] if model_name == "gpt3" else [1]
@@ -117,72 +270,15 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
     ]  # Only divisors of num_layers are possible.
 
     if model_name == "gpt3":
-        tp = [1, 2, 4, 8]
-        pp = [1]
-        mbs = [1, 2, 4, 8]
-        if model_size_in_b <= 1.0:
-            tp = [1, 2]
-        elif 1.0 < model_size_in_b <= 4.0:
-            tp = [1, 2, 4]
-        elif 4.0 < model_size_in_b <= 8.0:
-            tp = [2, 4, 8]
-        elif 8.0 < model_size_in_b <= 13.0:
-            tp = [4, 8]
-        elif 13.0 < model_size_in_b <= 23.0:
-            tp = [8]
-            pp = [x for x in valid_pp if x < 6]
-        elif 23.0 < model_size_in_b <= 45.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 1 < x < 7]
-        elif 45.0 < model_size_in_b <= 95:
-            tp = [8]
-            pp = [x for x in valid_pp if 3 < x < 11]
-            mbs = [1, 2, 4]
-        elif 95.0 < model_size_in_b <= 130.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 5 < x < 21]
-            mbs = [1, 2, 4]
-        elif 130.0 < model_size_in_b <= 195.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 7 < x < 29]
-            mbs = [1, 2]
-        elif 195.0 < model_size_in_b <= 395.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 15 < x < 65]
-            mbs = [1, 2]
-        elif 395.0 < model_size_in_b <= 790.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 19 < x < 71]
-            mbs = [1, 2]
-        elif 790.0 < model_size_in_b <= 1100.0:
-            tp = [8]
-            pp = [x for x in valid_pp if 29 < x < 131]
-            mbs = [1, 2]
+        if gpu_memory_gb == 80:
+            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+        elif gpu_memory_gb == 40:
+            tp, pp, mbs = _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
     elif model_name in ["t5", "mt5"]:
-        tp = [1, 2, 4, 8]
-        pp = [1]
-        mbs = [1, 2, 4, 6, 8, 12, 16]
-        if model_size_in_b <= 1.0:
-            tp = [1, 2]
-            mbs = [16, 32, 64, 128]
-            # Add a check to make it work with the specified number of nodes.
-        elif 1.0 < model_size_in_b <= 4.0:
-            tp = [1, 2, 4]
-            mbs = [4, 6, 8, 12, 16, 24, 32, 48]
-        elif 4.0 < model_size_in_b <= 8.0:
-            tp = [2, 4, 8]
-            mbs = [4, 6, 8, 12, 16, 24, 32]
-        elif 8.0 < model_size_in_b <= 14.5:
-            tp = [4, 8]
-            mbs = [2, 4, 6, 8, 12, 16, 24]
-        elif 14.5 < model_size_in_b <= 25.9:
-            tp = [4, 8]
-            pp = [x for x in valid_pp if 1 <= x <= 2]
-            mbs = [1, 2, 4, 6, 8]
-        elif 25.9 < model_size_in_b <= 43.0:
-            tp = [4, 8]
-            pp = [x for x in valid_pp if 1 <= x <= 4]
-            mbs = [1, 2, 4, 6, 8]
+        if gpu_memory_gb == 80:
+            tp, pp, mbs = _tp_pp_mbs_grid_t5_80gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
+        elif gpu_memory_gb == 40:
+            tp, pp, mbs = _tp_pp_mbs_grid_t5_40gb(model_size_in_b=model_size_in_b, valid_pp=valid_pp)
     else:
         raise NotImplementedError("Model name not implemented.")
 
@@ -193,7 +289,6 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
         pp = pp_sizes
     if mbs_sizes is not None:
         mbs = mbs_sizes
-
     return tp, pp, mbs
 
 

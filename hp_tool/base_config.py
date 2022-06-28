@@ -143,7 +143,7 @@ def _estimate_training_time(
         print("Cannot divide by zero. This can happen if gpu_count or tflops_per_gpu are zero.")
 
 
-def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
+def _calculate_gbs_tp_pp(model_size_in_b, gpu_memory_gb=80, model_name="gpt3"):
     """
     Calculates Global Batch Size (GBS), Tensor Parallelism (TP), and Pipeline
     Parallelism (PP) values, given a model size and model name.
@@ -157,56 +157,121 @@ def _calculate_gbs_tp_pp(model_size_in_b, model_name="gpt3"):
         pp: int, pipeline parallelism to use for training.
     """
     if model_name == "gpt3":
-        if model_size_in_b <= 1.0:
-            gbs, tp, pp = 256, 1, 1
-        elif model_size_in_b <= 4.0:
-            gbs, tp, pp = 720, 1, 1
-        elif model_size_in_b <= 8.0:
-            gbs, tp, pp = 1440, 2, 1
-        elif model_size_in_b <= 13.0:
-            gbs, tp, pp = 1440, 4, 1
-        elif model_size_in_b <= 20.6:
-            gbs, tp, pp = 1440, 8, 1
-        elif model_size_in_b <= 45.6:
-            gbs, tp, pp = 1440, 8, 4
-        elif model_size_in_b <= 123.6:
-            gbs, tp, pp = 1440, 8, 8
-        elif model_size_in_b <= 196.6:
-            gbs, tp, pp = 1536, 8, 16
-        elif model_size_in_b <= 392.2:
-            gbs, tp, pp = 1792, 8, 32
-        elif model_size_in_b <= 735:
-            gbs, tp, pp = 1920, 8, 64
-        elif model_size_in_b <= 1100:
-            gbs, tp, pp = 2048, 8, 128
-        else:
-            print("No GPT-3 model larger than 1.1T parameters is supported.")
-            raise ValueError
+        if gpu_memory_gb == 80:
+            return _gbs_tp_pp_gpt3_80gb(model_size_in_b=model_size_in_b)
+        elif gpu_memory_gb == 40:
+            return _gbs_tp_pp_gpt3_40gb(model_size_in_b=model_size_in_b)
     elif model_name in ["t5", "mt5"]:
-        if model_size_in_b <= 1.0:
-            gbs, tp, pp = 2048, 1, 1
-        elif model_size_in_b <= 5.0:
-            gbs, tp, pp = 1920, 2, 1
-        elif model_size_in_b <= 11.5:
-            gbs, tp, pp = 1920, 4, 1
-        elif model_size_in_b <= 18.5:
-            gbs, tp, pp = 1920, 8, 1
-        elif model_size_in_b <= 25.9:
-            gbs, tp, pp = 1920, 8, 2
-        elif model_size_in_b <= 43.0:
-            gbs, tp, pp = 1920, 8, 4
-        else:
-            raise ValueError("No T5 model larger than 43B parameters is supported.")
+        if gpu_memory_gb == 80:
+            return _gbs_tp_pp_t5_80gb(model_size_in_b=model_size_in_b)
+        elif gpu_memory_gb == 40:
+            return _gbs_tp_pp_t5_40gb(model_size_in_b=model_size_in_b)
     else:
-        raise NotImplementedError
+        raise NotImplementedError("Only gpt3, t5 and mt5 are supported.")
 
+def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
+    """Provides base GBS, TP and PP values for GPT-3 models for 80GB GPUs.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 256, 1, 1
+    elif model_size_in_b <= 4.0:
+        gbs, tp, pp = 720, 1, 1
+    elif model_size_in_b <= 8.0:
+        gbs, tp, pp = 1440, 2, 1
+    elif model_size_in_b <= 13.0:
+        gbs, tp, pp = 1440, 4, 1
+    elif model_size_in_b <= 20.6:
+        gbs, tp, pp = 1440, 8, 1
+    elif model_size_in_b <= 45.6:
+        gbs, tp, pp = 1440, 8, 4
+    elif model_size_in_b <= 123.6:
+        gbs, tp, pp = 1440, 8, 8
+    elif model_size_in_b <= 196.6:
+        gbs, tp, pp = 1536, 8, 16
+    elif model_size_in_b <= 392.2:
+        gbs, tp, pp = 1792, 8, 32
+    elif model_size_in_b <= 735:
+        gbs, tp, pp = 1920, 8, 64
+    elif model_size_in_b <= 1100:
+        gbs, tp, pp = 2048, 8, 128
+    else:
+        raise ValueError("No GPT-3 model larger than 1.1T parameters is supported.")
     return gbs, tp, pp
 
+def _gbs_tp_pp_gpt3_40gb(model_size_in_b):
+    """Provides base GBS, TP and PP values for GPT-3 models for 40GB GPUs.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 256, 1, 1
+    elif model_size_in_b <= 4.0:
+        gbs, tp, pp = 720, 4, 1
+    elif model_size_in_b <= 8.0:
+        gbs, tp, pp = 1440, 8, 1
+    elif model_size_in_b <= 13.0:
+        gbs, tp, pp = 1440, 8, 2
+    elif model_size_in_b <= 20.6:
+        gbs, tp, pp = 1440, 8, 4
+    elif model_size_in_b <= 45.6:
+        gbs, tp, pp = 1440, 8, 4
+    elif model_size_in_b <= 123.6:
+        gbs, tp, pp = 1440, 8, 8
+    elif model_size_in_b <= 196.6:
+        gbs, tp, pp = 1536, 8, 16
+    elif model_size_in_b <= 392.2:
+        gbs, tp, pp = 1792, 8, 32
+    elif model_size_in_b <= 735:
+        gbs, tp, pp = 1920, 8, 64
+    elif model_size_in_b <= 1100:
+        gbs, tp, pp = 2048, 8, 128
+    else:
+        raise ValueError("No GPT-3 model larger than 1.1T parameters is supported.")
+    return gbs, tp, pp
+
+def _gbs_tp_pp_t5_80gb(model_size_in_b):
+    """Provides base GBS, TP and PP values for T5/mT5 models for 80GB GPUs.
+    """
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 2048, 1, 1
+    elif model_size_in_b <= 5.0:
+        gbs, tp, pp = 1920, 2, 1
+    elif model_size_in_b <= 11.5:
+        gbs, tp, pp = 1920, 4, 1
+    elif model_size_in_b <= 18.5:
+        gbs, tp, pp = 1920, 8, 1
+    elif model_size_in_b <= 25.9:
+        gbs, tp, pp = 1920, 8, 2
+    elif model_size_in_b <= 43.0:
+        gbs, tp, pp = 1920, 8, 4
+    else:
+        raise ValueError("No T5 model larger than 43B parameters is supported.")
+    return gbs, tp, pp
+
+def _gbs_tp_pp_t5_40gb(model_size_in_b):
+    """Provides base GBS, TP and PP values for T5/mT5 models for 40GB GPUs.
+    """
+    if model_size_in_b <= 0.5:
+        gbs, tp, pp = 2048, 1, 1
+    if model_size_in_b <= 1.0:
+        gbs, tp, pp = 2048, 2, 1
+    elif model_size_in_b <= 5.0:
+        gbs, tp, pp = 1920, 4, 1
+    elif model_size_in_b <= 11.5:
+        gbs, tp, pp = 1920, 8, 1
+    elif model_size_in_b <= 18.5:
+        gbs, tp, pp = 1920, 8, 2
+    elif model_size_in_b <= 25.9:
+        gbs, tp, pp = 1920, 8, 4
+    elif model_size_in_b <= 43.0:
+        gbs, tp, pp = 1920, 8, 8
+    else:
+        raise ValueError("No T5 model larger than 43B parameters is supported.")
+    return gbs, tp, pp
 
 def generate_base_config(
     model_size_in_b,
     nodes,
     gpus_per_node,
+    gpu_memory_gb,
     max_training_days,
     num_tokens_in_b,
     vocab_size,
@@ -227,7 +292,7 @@ def generate_base_config(
         base_cfg: dict, base config object for the
     """
     # GBS: global batch size
-    gbs, tp, pp = _calculate_gbs_tp_pp(model_size_in_b=model_size_in_b, model_name=model_name)
+    gbs, tp, pp = _calculate_gbs_tp_pp(model_size_in_b=model_size_in_b, gpu_memory_gb=gpu_memory_gb, model_name=model_name)
 
     base_cfg = utils.generic_base_config(cfg, model_name=model_name)
 
