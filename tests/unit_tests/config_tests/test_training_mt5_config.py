@@ -21,7 +21,6 @@ class TestTrainingmT5Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -91,7 +90,8 @@ class TestTrainingmT5Config:
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
           bias: True # Whether to use bias terms in all weight matrices.
@@ -182,7 +182,6 @@ class TestTrainingmT5Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -252,7 +251,8 @@ class TestTrainingmT5Config:
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
           bias: True # Whether to use bias terms in all weight matrices.
@@ -343,7 +343,6 @@ class TestTrainingmT5Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -413,7 +412,8 @@ class TestTrainingmT5Config:
           layernorm_epsilon: 1e-5
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          bias_gelu_fusion: False # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
+          bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
           bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
           bias: True # Whether to use bias terms in all weight matrices.

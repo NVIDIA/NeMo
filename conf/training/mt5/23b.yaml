@@ -1,10 +1,12 @@
 run:
-  name: t5_23b
+  name: mt5_11b
   results_dir: ${base_results_dir}/${.name}
   time_limit: "55-00:00:00"
   dependency: "singleton"
+  preprocessed_dir: ${data_dir}/mc4/preprocessed # used for auto data blending
+  blending_alpha: 0.7 # blending ratio across different languages; language sampling ratio ~L^alpha
 
-name: megatron_t5
+name: megatron_mt5
 restore_from_path: null # used when starting from a .nemo file
 
 trainer:
@@ -29,10 +31,10 @@ trainer:
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
-  name: megatron_t5
+  name: megatron_mt5
   create_wandb_logger: False
   wandb_logger_kwargs:
-    project: nemo_t5
+    project: nemo_mt5
     name: ${training.run.name}
   resume_if_exists: True
   resume_ignore_no_checkpoint: True
@@ -43,7 +45,7 @@ exp_manager:
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
     save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
-    filename: 'megatron_t5--{val_loss:.2f}-{step}-{consumed_samples}'
+    filename: 'megatron_mt5--{val_loss:.2f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
   log_step_timing: True
   step_timing_kwargs:
@@ -94,10 +96,10 @@ model:
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
 
   tokenizer:
-    library: 'megatron'
-    type: 'BertWordPieceCase'
-    model: null
-    vocab_file: ${data_dir}/bpe/vocab.txt
+    library: 'sentencepiece'
+    type: null
+    model: ${data_dir}/mc4/bpe/mt5_tokenizer.model
+    vocab_file: null
     merge_file: null
     num_sentinel_tokens: 100
 
@@ -133,11 +135,11 @@ model:
 
   data:
     data_impl: mmap
-    splits_string: "999982,9,9"
+    splits_string: "999892,99,9"
     seq_length: 512
     seq_length_dec: 128
     skip_warmup: True
-    num_workers: 4
+    num_workers: 8
     dataloader_type: single # cyclic
     masked_lm_prob: 0.15
     dataset_type: 't5'
@@ -146,67 +148,7 @@ model:
     mean_ngram_size: null
     geometric_dist: True
     permutation: False
-    whole_word_masking: True
+    whole_word_masking: False
     favor_longer_ngrams: False
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_prefix: # Should be weight path weight path... for a blended dataset
-      - .0333
-      - ${data_dir}/my-t5_00_text_document
-      - .0333
-      - ${data_dir}/my-t5_01_text_document
-      - .0333
-      - ${data_dir}/my-t5_02_text_document
-      - .0333
-      - ${data_dir}/my-t5_03_text_document
-      - .0333
-      - ${data_dir}/my-t5_04_text_document
-      - .0333
-      - ${data_dir}/my-t5_05_text_document
-      - .0333
-      - ${data_dir}/my-t5_06_text_document
-      - .0333
-      - ${data_dir}/my-t5_07_text_document
-      - .0333
-      - ${data_dir}/my-t5_08_text_document
-      - .0333
-      - ${data_dir}/my-t5_09_text_document
-      - .0333
-      - ${data_dir}/my-t5_10_text_document
-      - .0333
-      - ${data_dir}/my-t5_11_text_document
-      - .0333
-      - ${data_dir}/my-t5_12_text_document
-      - .0333
-      - ${data_dir}/my-t5_13_text_document
-      - .0333
-      - ${data_dir}/my-t5_14_text_document
-      - .0333
-      - ${data_dir}/my-t5_15_text_document
-      - .0333
-      - ${data_dir}/my-t5_16_text_document
-      - .0333
-      - ${data_dir}/my-t5_17_text_document
-      - .0333
-      - ${data_dir}/my-t5_18_text_document
-      - .0333
-      - ${data_dir}/my-t5_19_text_document
-      - .0333
-      - ${data_dir}/my-t5_20_text_document
-      - .0333
-      - ${data_dir}/my-t5_21_text_document
-      - .0333
-      - ${data_dir}/my-t5_22_text_document
-      - .0333
-      - ${data_dir}/my-t5_23_text_document
-      - .0333
-      - ${data_dir}/my-t5_24_text_document
-      - .0333
-      - ${data_dir}/my-t5_25_text_document
-      - .0333
-      - ${data_dir}/my-t5_26_text_document
-      - .0333
-      - ${data_dir}/my-t5_27_text_document
-      - .0333
-      - ${data_dir}/my-t5_28_text_document
-      - .0334
-      - ${data_dir}/my-t5_29_text_document
+    data_prefix: null # Should be weight path weight path... for a blended dataset. If null will automatically blend all language files in mC4_dir.
