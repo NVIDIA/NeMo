@@ -1,0 +1,19 @@
+run:
+  name: export_${training.run.name}
+  time_limit: "2:00:00"
+  results_dir: ${training.run.results_dir}/export
+  triton_model_dir: ${.results_dir}/model_repo/${training.run.name}
+
+conversion:
+  checkpoint_path: ${training.run.results_dir}/checkpoints
+  # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
+  tensor_model_parallel_size: 8
+  weight_data_type: fp16   # fp16|fp32
+  processes: 16
+  load_checkpoints_to_cpu: False
+
+triton_deployment:
+  max_batch_size: 1
+  pipeline_model_parallel_size: 1
+  int8_mode: False
+  enable_custom_all_reduce: False

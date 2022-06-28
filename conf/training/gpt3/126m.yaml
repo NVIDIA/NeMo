@@ -49,6 +49,7 @@ exp_manager:
     buffer_size: 5
 
 model:
+  model_type: "gpt"
   # model parallelism 
   micro_batch_size: 4
   global_batch_size: 256
