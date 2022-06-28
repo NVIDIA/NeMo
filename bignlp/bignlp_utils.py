@@ -65,6 +65,9 @@ def convert_to_cli(cfg, root=True):
                     v = [x for x in v]  # Needed because of lazy omegaconf interpolation.
             result.append(f"{k}={str(v).replace(' ', '')}")
         elif isinstance(v, str) and "{" in v:
+            v = v.replace("{", "\{")
+            v = v.replace("}", "\}")
+            result.append(f"{k}='\"{v}\"'")
             continue
         elif k in ["splits_string", "file_numbers", "languages"]:
             result.append(f"{k}=\\'{v}\\'")

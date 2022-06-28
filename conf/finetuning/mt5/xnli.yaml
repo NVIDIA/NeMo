@@ -39,7 +39,7 @@ exp_manager:
     mode: max
     always_save_nemo: False
     save_nemo_on_train_end: True # Set to true for subsequent validation runs.
-    filename: 'megatron_mt5--{finetuning.${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}'
+    filename: 'megatron_mt5--{${finetuning.exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}'
     model_parallel_size: ${finetuning.model.model_parallel_size}
     save_best_model: True
 
