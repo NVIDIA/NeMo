@@ -1,0 +1,195 @@
+# It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
+
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+# Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
+# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
+#
+#  +-------------+---------+---------+----------+------------+-----+
+#  | Model       | d_model | n_heads | n_layers | time_masks | lr  |
+#  +=============+=========+========+===========+============+=====+
+#  | Small  (13M)|   176   |    4   |    16     |     5      | 5.0 |
+#  +-------------+---------+--------+-----------+------------+-----+
+#  | Medium (30M)|   256   |    4   |    18     |     5      | 5.0 |
+#  +-------------+---------+--------+-----------+------------+-----+
+#  | Large (121M)|   512   |    8   |    18     |     10     | 2.0 |
+#  +---------------------------------------------------------------+
+#
+# If you do not want to train with AMP, you may use weight decay of 0.0 or reduce the number of time maskings to 2
+# with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
+# With weight_decay=0.0, learning rate may need to get reduced to 2.0.
+
+
+name: "Sep_Transformer"
+
+train: True
+num_sources: 2
+
+model:
+  sample_rate: 8000
+  original_sample_rate: 16000
+  skip_nan_grad: false
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    orig_sr: ${model.original_sample_rate}
+    num_sources: ${num_sources}
+    batch_size: 1 
+    shuffle: true
+    num_workers: 8
+    pin_memory: true
+    trim_silence: false
+    max_duration: 20
+    min_duration: 0.1
+    # tarred datasets
+    is_tarred: false
+    tarred_audio_filepaths: null
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    orig_sr: ${model.original_sample_rate}
+    num_sources: ${num_sources}
+    batch_size: 1 # you may increase batch_size if your memory allows
+    shuffle: false
+    num_workers: 8
+    pin_memory: true
+    use_start_end_token: false
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: ${model.sample_rate}
+    orig_sr: ${model.original_sample_rate}
+    num_sources: ${num_sources}
+    batch_size: 1 # you may increase batch_size if your memory allows
+    shuffle: false
+    num_workers: 8
+    pin_memory: true
+    use_start_end_token: false
+
+  d_model: 256
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToFeaturesConvPreprocessor
+    out_channels: ${model.d_model}
+    in_channels: 1
+    kernel_size: 16
+
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2 # set to zero to disable it
+    # you may use lower time_masks for smaller models to have a faster convergence
+    time_masks: 10 # set to zero to disable it
+    freq_width: 27
+    time_width: 0.05
+
+  encoder:
+    _target_: nemo.collections.asr.modules.DualPathModel
+    num_speakers: ${num_sources}
+    feat_in: ${model.d_model}
+    feat_out: ${model.d_model} # you may set it if you need different output size other than the default d_model
+    num_layers: 2
+    ff_expansion_factor: 4
+    chunk_len: 250
+    intra_model:
+      model_type: transformer 
+      num_layers: 2
+      d_model: ${model.d_model}
+      ff_expansion_factor: ${model.encoder.ff_expansion_factor}
+      n_heads: 8
+      pos_encoding: abs_pos
+      norm_before: True
+    inter_model:
+      model_type: transformer
+      num_layers: 2
+      d_model: ${model.d_model}
+      ff_expansion_factor: ${model.encoder.ff_expansion_factor}
+      n_heads: 8
+      pos_encoding: abs_pos
+      norm_before: True
+    linear_layer_after_inter_intra: False
+    skip_around_intra: True
+
+    # Multi-headed Attention Module's params
+    self_attention_model: abs_pos # rel_pos or abs_pos
+    n_heads: 8 # may need to be lower for smaller d_models
+    # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
+    xscaling: true # scales up the input embeddings by sqrt(d_model)
+    untie_biases: true # unties the biases of the TransformerXL layers
+    pos_emb_max_len: 5000
+
+
+    ### regularization
+    dropout: 0.1 # The dropout used in most of the Conformer Modules
+    dropout_emb: 0.0 # The dropout used for embeddings
+    dropout_att: 0.1 # The dropout for multi-headed attention modules
+
+  decoder:
+    _target_: nemo.collections.asr.modules.ConvSSDecoder
+    in_channels: ${model.preprocessor.out_channels}
+    out_channels: 1
+    kernel_size: ${model.preprocessor.kernel_size}
+    stride: 8
+    bias: False
+
+  loss:
+    base_loss:
+      _target_: nemo.collections.asr.losses.SiSNR
+    loss_wrapper: permutation_invariance
+
+  optim:
+    name: adamw
+    lr: 0.00015
+    # optimizer arguments
+    betas: [0.9, 0.98]
+    # less necessity for weight_decay as we already have large augmentations with SpecAug
+    # you may need weight_decay for large models, stable AMP training, small datasets, or when lower augmentations are used
+    weight_decay: 0
+
+
+trainer:
+  devices: -1 # number of GPUs, -1 would use all available GPUs
+  num_nodes: 1
+  max_epochs: 1
+  accelerator: auto
+  max_steps: null # computed at runtime if not set
+  val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  strategy: ddp
+  accumulate_grad_batches: 1
+  gradient_clip_val: 0.0
+  precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
+  log_every_n_steps: 10  # Interval of logging.
+  progress_bar_refresh_rate: 10
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
+  check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
+  sync_batchnorm: true
+  checkpoint_callback: false  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    # in case of multiple validation sets, first one is used
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 5
+    always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
+
+  # you need to set these two to True to continue the training
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
+
+  # You may use this section to create a W&B logger
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null

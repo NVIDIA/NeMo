@@ -18,6 +18,7 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     CropOrPadSpectrogramAugmentation,
     MaskedPatchAugmentation,
     SpectrogramAugmentation,
+    AudioToFeaturesConvPreprocessor,
 )
 from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder, ConformerEncoderAdapter
@@ -30,6 +31,12 @@ from nemo.collections.asr.modules.conv_asr import (
     ECAPAEncoder,
     ParallelConvASREncoder,
     SpeakerDecoder,
+)
+from nemo.collections.asr.modules.ss_decoder import (
+    ConvSSDecoder,
+)
+from nemo.collections.asr.modules.dual_path_model import (
+    DualPathModel,
 )
 from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
 from nemo.collections.asr.modules.lstm_decoder import LSTMDecoder
