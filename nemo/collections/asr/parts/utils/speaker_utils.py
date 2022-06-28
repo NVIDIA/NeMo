@@ -240,12 +240,7 @@ def get_contiguous_stamps(stamps):
             contiguous_stamps.append(start + " " + avg + " " + speaker)
         else:
             contiguous_stamps.append(start + " " + end + " " + speaker)
-    try:
-        start, end, speaker = lines[-1].split()
-    except:
-        import ipdb
-
-        ipdb.set_trace()
+    start, end, speaker = lines[-1].split()
     contiguous_stamps.append(start + " " + end + " " + speaker)
     return contiguous_stamps
 
@@ -812,11 +807,11 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                     vad_start_end_list_raw.append([start, start + dur])
             vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
             if len(vad_start_end_list) == 0:
-                logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
+                logging.warning(f"File ID:{uniq_id} VAD label is not containing any speech segments.")
                 void_uniq_ids.append(uniq_id)
                 continue
             elif duration <= 0:
-                logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
+                logging.warning(f"File ID:{uniq_id} audio file has zero duration.")
                 void_uniq_ids.append(uniq_id)
                 continue
             else:
@@ -825,6 +820,9 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                 )
                 write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
         for uniq_id in void_uniq_ids:
+            logging.warning(
+                f"Removing File ID:{uniq_id} from AUDIO_RTTM_MAP since File ID:{uniq_id} does not contain valid speech signal."
+            )
             del AUDIO_RTTM_MAP[uniq_id]
     return manifest_file
 
