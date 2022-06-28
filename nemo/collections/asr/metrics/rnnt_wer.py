@@ -15,6 +15,7 @@ import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Union
+from types import BuiltinFunctionType, FunctionType
 
 import editdistance
 import numpy as np
@@ -24,7 +25,7 @@ from torchmetrics import Metric
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import ConfidenceConfig, Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['RNNTDecoding', 'RNNTWER']
@@ -71,12 +72,31 @@ class AbstractRNNTDecoding(ABC):
                 generated during decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
 
-                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
-                with the `preserve_frame_confidence` flag set to True.
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `rnnt_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
 
-                The length of the list corresponds to the Acoustic Length (T).
-                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
-                U is the number of target tokens for the current timestep Ti.
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of floats.
+
+                    The length of the list corresponds to the Acoustic Length (T).
+                    Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                    U is the number of target tokens for the current timestep Ti.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -143,10 +163,25 @@ class AbstractRNNTDecoding(ABC):
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.compute_langs = decoding_cfg.get('compute_langs', False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
-        self.preserve_frame_confidence = self.cfg.get('preserve_frame_confidence', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+        self.confidence_cfg = self.cfg.get('confidence_cfg', None)
+        if self.confidence_cfg is not None:
+            self.preserve_word_confidence = self.confidence_cfg.get('preserve_word_confidence', False)
+            # set preserve_frame_confidence and preserve_token_confidence to True
+            # if preserve_word_confidence is True
+            self.preserve_token_confidence = self.confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+            # set preserve_frame_confidence to True if preserve_token_confidence is True
+            self.preserve_frame_confidence = self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+            self.exclude_blank_from_confidence = self.confidence_cfg.get('exclude_blank', True)
+            self.word_confidence_reduction = self.confidence_cfg.get('reduction', "min")
+        else:
+            self.preserve_frame_confidence = False
+            self.preserve_token_confidence = False
+            self.preserve_word_confidence = False
+            self.exclude_blank_from_confidence = True
+            self.word_confidence_reduction = "min"
 
         possible_strategies = ['greedy', 'greedy_batch', 'beam', 'tsd', 'alsd', 'maes']
         if self.cfg.strategy not in possible_strategies:
@@ -173,12 +208,11 @@ class AbstractRNNTDecoding(ABC):
             raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         # Update preserve frame confidence
-        if self.preserve_frame_confidence is None:
+        if self.preserve_frame_confidence is False:
             if self.cfg.strategy in ['greedy', 'greedy_batch']:
-                self.preserve_alignments = self.cfg.greedy.get('preserve_frame_confidence', False)
+                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
 
             elif self.cfg.strategy in ['beam', 'tsd', 'alsd', 'maes']:
-                # self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
                 # Not implemented
                 pass
 
@@ -350,6 +384,9 @@ class AbstractRNNTDecoding(ABC):
                     hypotheses[hyp_idx] = self.compute_rnnt_timestamps(hypotheses[hyp_idx], timestamp_type)
 
             if return_hypotheses:
+                # greedy decoding, can get high-level confidence scores
+                if self.preserve_frame_confidence and (self.preserve_word_confidence or self.preserve_token_confidence):
+                    hypotheses = self.compute_confidence(hypotheses)
                 return hypotheses, None
 
             best_hyp_text = [h.text for h in hypotheses]
@@ -394,6 +431,42 @@ class AbstractRNNTDecoding(ABC):
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
+
+    def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
+        """
+        Compute high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Assumes that `frame_confidence` is present in the hypotheses.
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of hypotheses with high-level confidence scores.
+        """
+        if not self.exclude_blank_from_confidence:
+            raise NotImplementedError("TBD")
+        for hyp in hypotheses_list:
+            hyp.token_confidence = hyp.non_blank_frame_confidence
+        if self.preserve_word_confidence:
+            func = (lambda x: sum(x) / len(x)) if self.word_confidence_reduction == "mean" else (min if self.word_confidence_reduction == "min" else max)
+            for hyp in hypotheses_list:
+                hyp.word_confidence = self.reduce_token_confidence(hyp.token_confidence, hyp.words, func)
+        return hypotheses_list
+
+    @abstractmethod
+    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        Args:
+            token_confidence: List of float representing the per-token confidence.
+            words: List of words (str).
+            reduction: function (e.g. mean)
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
@@ -780,16 +853,31 @@ class RNNTDecoding(AbstractRNNTDecoding):
                 Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
                 U is the number of target tokens for the current timestep Ti.
 
-            preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
-                generated during decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `rnnt_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
 
-                In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
-                with the `preserve_frame_confidence` flag set to True.
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of floats.
 
-                The length of the list corresponds to the Acoustic Length (T).
-                Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
-                U is the number of target tokens for the current timestep Ti.
+                    The length of the list corresponds to the Acoustic Length (T).
+                    Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
+                    U is the number of target tokens for the current timestep Ti.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
@@ -856,6 +944,27 @@ class RNNTDecoding(AbstractRNNTDecoding):
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
+
+    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        Args:
+            token_confidence: List of float representing the per-token confidence.
+            words: List of words (str).
+            reduction: function (e.g. mean)
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        word_confidence = []
+        i = 0
+        for word in words:
+            word_len = len(word)
+            word_confidence.append(reduction(token_confidence[i: i+word_len]))
+            # we assume that there is exactly one space token between words and exclude it from word confidence
+            i += word_len + 1
+        return word_confidence
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
@@ -1020,8 +1129,8 @@ class RNNTDecodingConfig:
     # preserve decoding alignments
     preserve_alignments: Optional[bool] = None
 
-    # preserve per-frame confidence
-    preserve_frame_confidence: Optional[bool] = None
+    #  confidence config
+    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
 
     # RNNT Joint fused batch size
     fused_batch_size: Optional[int] = None

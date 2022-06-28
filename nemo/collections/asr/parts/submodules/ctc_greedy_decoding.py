@@ -65,6 +65,9 @@ class GreedyCTCInfer(Typing):
         compute_timestamps: A bool flag, which determines whether to compute the character/subword, or
                 word based timestamp mapping the output log-probabilities to discrite intervals of timestamps.
                 The timestamps will be available in the returned Hypothesis.timestep as a dictionary.
+        preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+            generated during decoding. When set to true, the Hypothesis will contain
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
 
     """
 
@@ -87,13 +90,15 @@ class GreedyCTCInfer(Typing):
         return {"predictions": [NeuralType(elements_type=HypothesisType())]}
 
     def __init__(
-        self, blank_id: int, preserve_alignments: bool = False, compute_timestamps: bool = False,
+        self, blank_id: int, preserve_alignments: bool = False, compute_timestamps: bool = False, preserve_frame_confidence: bool = False,
     ):
         super().__init__()
 
         self.blank_id = blank_id
         self.preserve_alignments = preserve_alignments
-        self.compute_timestamps = compute_timestamps
+        # we need timestamps to extract non-blank per-frame confidence
+        self.compute_timestamps = compute_timestamps | preserve_frame_confidence
+        self.preserve_frame_confidence = preserve_frame_confidence
 
     @typecheck()
     def forward(
@@ -162,6 +167,9 @@ class GreedyCTCInfer(Typing):
         if self.compute_timestamps:
             hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
 
+        if self.preserve_frame_confidence:
+            hypothesis.frame_confidence = prediction_logprobs.exp().numpy().tolist()
+
         return hypothesis
 
     @torch.no_grad()
@@ -186,6 +194,9 @@ class GreedyCTCInfer(Typing):
         if self.compute_timestamps:
             hypothesis.timestep = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].numpy().tolist()
 
+        if self.preserve_frame_confidence:
+            raise ValueError("Requested for per-frame confidence, but predictions provided were labels, not log probabilities.")
+
         return hypothesis
 
     def __call__(self, *args, **kwargs):
@@ -196,3 +207,4 @@ class GreedyCTCInfer(Typing):
 class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
+    preserve_frame_confidence: bool = False

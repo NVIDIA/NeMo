@@ -89,7 +89,7 @@ class _GreedyRNNTInfer(Typing):
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
@@ -220,7 +220,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
@@ -424,7 +424,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             U is the number of target tokens for the current timestep Ti.
         preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores generated
             during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `frame_confidence` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of List of floats.
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
@@ -778,7 +778,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         g, hidden_prime = self._pred_step(last_label_without_blank, hidden, batch_size=batchsize)
 
                     # Batched joint step - Output = [B, V + 1]
-                    logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
+                    # If preserving per-frame confidence, log_normalize must be true
+                    logp = self._joint_step(f, g, log_normalize=True if self.preserve_frame_confidence else None)[:, 0, 0, :]
 
                     if logp.dtype != torch.float32:
                         logp = logp.float()
@@ -836,6 +837,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                 # Therefore the list of Uj alignments is empty here.
                                 if len(hypotheses[batch_idx].alignments[-1]) > 0:
                                     hypotheses[batch_idx].alignments.append([])  # blank buffer for next timestep
+
+                        # Do the same if preserving per-frame confidence
+                        if self.preserve_frame_confidence:
+
+                            for batch_idx in range(batchsize):
+                                if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
+                                    hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
                     else:
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
@@ -878,7 +886,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     del hypotheses[batch_idx].alignments[-1]
 
         # Remove trailing empty list of confidence scores at T_{am-len} x Uj
-        if self.preserve_alignments:
+        if self.preserve_frame_confidence:
             for batch_idx in range(batchsize):
                 if len(hypotheses[batch_idx].frame_confidence[-1]) == 0:
                     del hypotheses[batch_idx].frame_confidence[-1]

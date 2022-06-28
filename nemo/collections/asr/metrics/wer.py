@@ -14,6 +14,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, is_dataclass
+from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
@@ -23,7 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from torchmetrics import Metric
 
 from nemo.collections.asr.parts.submodules import ctc_greedy_decoding
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import ConfidenceConfig, Hypothesis, NBestHypotheses
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'WER', 'move_dimension_to_the_front']
@@ -94,6 +95,28 @@ class AbstractCTCDecoding(ABC):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `ctc_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding. When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`.
+
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
@@ -101,6 +124,7 @@ class AbstractCTCDecoding(ABC):
             "greedy":
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
+                preserve_frame_confidence: Same as above, overrides above value.
 
         blank_id: The id of the RNNT blank token.
     """
@@ -129,6 +153,22 @@ class AbstractCTCDecoding(ABC):
         self.compute_timestamps = self.cfg.get('compute_timestamps', None)
         self.batch_dim_index = self.cfg.get('batch_dim_index', 0)
         self.word_seperator = self.cfg.get('word_seperator', ' ')
+        self.confidence_cfg = self.cfg.get('confidence_cfg', None)
+        if self.confidence_cfg is not None:
+            self.preserve_word_confidence = self.confidence_cfg.get('preserve_word_confidence', False)
+            # set preserve_frame_confidence and preserve_token_confidence to True
+            # if preserve_word_confidence is True
+            self.preserve_token_confidence = self.confidence_cfg.get('preserve_token_confidence', False) | self.preserve_word_confidence
+            # set preserve_frame_confidence to True if preserve_token_confidence is True
+            self.preserve_frame_confidence = self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
+            self.exclude_blank_from_confidence = self.confidence_cfg.get('exclude_blank', True)
+            self.word_confidence_reduction = self.confidence_cfg.get('reduction', "min")
+        else:
+            self.preserve_frame_confidence = False
+            self.preserve_token_confidence = False
+            self.preserve_word_confidence = False
+            self.exclude_blank_from_confidence = True
+            self.word_confidence_reduction = "min"
 
         possible_strategies = ['greedy']
         if self.cfg.strategy not in possible_strategies:
@@ -144,12 +184,21 @@ class AbstractCTCDecoding(ABC):
             if self.cfg.strategy in ['greedy']:
                 self.compute_timestamps = self.cfg.greedy.get('compute_timestamps', False)
 
+        # Update preserve per-frame confidence
+        if self.preserve_frame_confidence is None:
+            if self.cfg.strategy in ['greedy']:
+                self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
+
+        # we need timestamps to extract non-blank per-frame confidence
+        self.compute_timestamps |= self.preserve_frame_confidence
+
         if self.cfg.strategy == 'greedy':
 
             self.decoding = ctc_greedy_decoding.GreedyCTCInfer(
                 blank_id=self.blank_id,
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
+                preserve_frame_confidence=self.preserve_frame_confidence,
             )
 
         else:
@@ -232,6 +281,9 @@ class AbstractCTCDecoding(ABC):
 
             # If computing timestamps
             if self.compute_timestamps is True:
+                # greedy decoding, can get high-level confidence scores
+                if return_hypotheses and (self.preserve_word_confidence or self.preserve_token_confidence):
+                    hypotheses = self.compute_confidence(hypotheses)
                 timestamp_type = self.cfg.get('ctc_timestamp_type', 'all')
                 for hyp_idx in range(len(hypotheses)):
                     hypotheses[hyp_idx] = self.compute_ctc_timestamps(hypotheses[hyp_idx], timestamp_type)
@@ -270,24 +322,35 @@ class AbstractCTCDecoding(ABC):
 
                 # CTC decoding procedure
                 decoded_prediction = []
+                token_lengths = []  # preserve token lengths
                 token_repetitions = []  # preserve number of repetitions per token
 
                 previous = self.blank_id
-                last_repetition = 0
+                last_length = 0
+                last_repetition = 1
 
                 for pidx, p in enumerate(prediction):
                     if (p != previous or previous == self.blank_id) and p != self.blank_id:
                         decoded_prediction.append(p)
 
-                        token_repetitions.append(pidx - last_repetition)
-                        last_repetition = pidx
+                        token_lengths.append(pidx - last_length)
+                        last_length = pidx
+                        token_repetitions.append(last_repetition)
+                        last_repetition = 1
+
+                    if p == previous and previous != self.blank_id:
+                        last_repetition += 1
 
                     previous = p
+
+                if len(token_repetitions) > 0:
+                    token_repetitions = token_repetitions[1:] + [last_repetition]
 
             else:
                 if predictions_len is not None:
                     prediction = prediction[:predictions_len]
                 decoded_prediction = prediction[prediction != self.blank_id].tolist()
+                token_lengths = [1] * len(decoded_prediction)  # preserve number of repetitions per token
                 token_repetitions = [1] * len(decoded_prediction)  # preserve number of repetitions per token
 
             # De-tokenize the integer tokens; if not computing timestamps
@@ -295,7 +358,7 @@ class AbstractCTCDecoding(ABC):
                 # keep the original predictions, wrap with the number of repetitions per token
                 # this is done so that `ctc_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
-                hypothesis = (decoded_prediction, token_repetitions)
+                hypothesis = (decoded_prediction, token_lengths, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str(decoded_prediction)
 
@@ -303,6 +366,57 @@ class AbstractCTCDecoding(ABC):
             hypotheses_list[ind].text = hypothesis
 
         return hypotheses_list
+
+    def compute_confidence(self, hypotheses_list: List[Hypothesis]) -> List[Hypothesis]:
+        """
+        Compute high-level (per-token and/or per-word) confidence scores for a list of hypotheses.
+        Assumes that `frame_confidence` is present in the hypotheses.
+
+        Args:
+            hypotheses_list: List of Hypothesis.
+
+        Returns:
+            A list of hypotheses with high-level confidence scores.
+        """
+        if not self.exclude_blank_from_confidence:
+            raise NotImplementedError("TBD")
+        func = (lambda x: sum(x) / len(x)) if self.word_confidence_reduction == "mean" else (min if self.word_confidence_reduction == "min" else max)
+        for hyp in hypotheses_list:
+            if not isinstance(hyp.text, tuple) or len(hyp.text) != 3:
+                # the method must have been called in the wrong place
+                raise ValueError("Wrong format of the `text` attribute of a hypothesis.\n"
+                    "Expected: (decoded_prediction, token_repetitions)\n"
+                    "The method invocation is expected between .decode_hypothesis() and .compute_ctc_timestamps()")
+            token_repetitions = hyp.text[2]
+            hyp.text = hyp.text[:2]
+            non_blank_frame_confidence = hyp.non_blank_frame_confidence
+            token_confidence = []
+            i = 0
+            for tr in token_repetitions:
+                # token repetition can be zero
+                j = i + tr
+                token_confidence.append(func(non_blank_frame_confidence[i: j]))
+                i = j
+            hyp.token_confidence = token_confidence
+        if self.preserve_word_confidence:
+            for hyp in hypotheses_list:
+                hyp.word_confidence = self.reduce_token_confidence(hyp.token_confidence, self.decode_tokens_to_str(hyp.text[0]).split(), func)
+        return hypotheses_list
+
+    @abstractmethod
+    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        Args:
+            token_confidence: List of float representing the per-token confidence.
+            words: List of words (str).
+            reduction: function (e.g. mean)
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        raise NotImplementedError()
 
     @abstractmethod
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
@@ -352,12 +466,12 @@ class AbstractCTCDecoding(ABC):
         assert timestamp_type in ['char', 'word', 'all']
 
         # Unpack the temporary storage, and set the decoded predictions
-        decoded_prediction, token_repetitions = hypothesis.text
+        decoded_prediction, token_lengths = hypothesis.text
         hypothesis.text = decoded_prediction
 
         # Retrieve offsets
         char_offsets = word_offsets = None
-        char_offsets = self._compute_offsets(hypothesis, token_repetitions, self.blank_id)
+        char_offsets = self._compute_offsets(hypothesis, token_lengths, self.blank_id)
 
         # Assert number of offsets and hypothesis tokens are 1:1 match.
         if len(char_offsets) != len(hypothesis.text):
@@ -416,7 +530,7 @@ class AbstractCTCDecoding(ABC):
 
     @staticmethod
     def _compute_offsets(
-        hypothesis: Hypothesis, token_repetitions: List[int], ctc_token: int
+        hypothesis: Hypothesis, token_lengths: List[int], ctc_token: int
     ) -> List[Dict[str, Union[str, int]]]:
         """
         Utility method that calculates the indidual time indices where a token starts and ends.
@@ -424,7 +538,7 @@ class AbstractCTCDecoding(ABC):
         Args:
             hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
                 emitted at every time step after ctc collapse.
-            token_repetitions: A list of ints representing the number of repetitions of each emitted token.
+            token_lengths: A list of ints representing the lengths of each emitted token.
             ctc_token: The integer of the ctc blank token used during ctc collapse.
 
         Returns:
@@ -438,7 +552,7 @@ class AbstractCTCDecoding(ABC):
             start_index = max(0, hypothesis.timestep[0] - 1)
 
         # Construct the start and end indices brackets
-        end_indices = np.asarray(token_repetitions).cumsum()
+        end_indices = np.asarray(token_lengths).cumsum()
         start_indices = np.concatenate(([start_index], end_indices[:-1]))
 
         # Merge the results per token into a list of dictionaries
@@ -559,20 +673,32 @@ class AbstractCTCDecoding(ABC):
         # This is because we always skip the delay the injection of the first sub-word due to the loop
         # condition and check whether built token is ready or not.
         # Therefore without this forced injection, the start_offset appears as off by 1.
-        word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
+        if len(word_offsets) == 0:
+            # alaptev: sometimes word_offsets can be empty
+            if len(built_token) > 0:
+                word_offsets.append(
+                    {
+                        "word": decode_tokens_to_str(built_token),
+                        "start_offset": offsets[0]["start_offset"],
+                        "end_offset": offsets[-1]["end_offset"],
+                    }
+                )
+                built_token.clear()
+        else:
+            word_offsets[0]["start_offset"] = offsets[0]["start_offset"]
 
-        # If there are any remaining tokens left, inject them all into the final word offset.
-        # Note: The start offset of this token is the start time of the first token inside build_token.
-        # Note: The end offset of this token is the end time of the last token inside build_token
-        if len(built_token) > 0:
-            word_offsets.append(
-                {
-                    "word": decode_tokens_to_str(built_token),
-                    "start_offset": offsets[-(len(built_token))]["start_offset"],
-                    "end_offset": offsets[-1]["end_offset"],
-                }
-            )
-        built_token.clear()
+            # If there are any remaining tokens left, inject them all into the final word offset.
+            # Note: The start offset of this token is the start time of the first token inside build_token.
+            # Note: The end offset of this token is the end time of the last token inside build_token
+            if len(built_token) > 0:
+                word_offsets.append(
+                    {
+                        "word": decode_tokens_to_str(built_token),
+                        "start_offset": offsets[-(len(built_token))]["start_offset"],
+                        "end_offset": offsets[-1]["end_offset"],
+                    }
+                )
+            built_token.clear()
 
         return word_offsets
 
@@ -597,6 +723,17 @@ class AbstractCTCDecoding(ABC):
 
         if hasattr(self, 'decoding'):
             self.decoding.compute_timestamps = value
+
+    @property
+    def preserve_frame_confidence(self):
+        return self._preserve_frame_confidence
+
+    @preserve_frame_confidence.setter
+    def preserve_frame_confidence(self, value):
+        self._preserve_frame_confidence = value
+
+        if hasattr(self, 'decoding'):
+            self.decoding.preserve_frame_confidence = value
 
 
 class CTCDecoding(AbstractCTCDecoding):
@@ -623,6 +760,28 @@ class CTCDecoding(AbstractCTCDecoding):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `ctc_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding. When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`.
+
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
@@ -630,6 +789,7 @@ class CTCDecoding(AbstractCTCDecoding):
             "greedy":
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
+                preserve_frame_confidence: Same as above, overrides above value.
 
         blank_id: The id of the RNNT blank token.
     """
@@ -642,6 +802,27 @@ class CTCDecoding(AbstractCTCDecoding):
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
+
+    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        Args:
+            token_confidence: List of float representing the per-token confidence.
+            words: List of words (str).
+            reduction: function (e.g. mean)
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        word_confidence = []
+        i = 0
+        for word in words:
+            word_len = len(word)
+            word_confidence.append(reduction(token_confidence[i: i+word_len]))
+            # we assume that there is exactly one space token between words and exclude it from word confidence
+            i += word_len + 1
+        return word_confidence
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
@@ -796,6 +977,9 @@ class CTCDecodingConfig:
 
     # compute ctc time stamps
     compute_timestamps: Optional[bool] = None
+
+    #  confidence config
+    confidence_cfg: ConfidenceConfig = ConfidenceConfig()
 
     # token representing word seperator
     word_seperator: str = " "

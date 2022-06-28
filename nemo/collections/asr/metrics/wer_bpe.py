@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List
+from types import BuiltinFunctionType, FunctionType
+from typing import List, Union
 
 import editdistance
 import torch
@@ -48,6 +49,28 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                 decoding (sample / batched). When set to true, the Hypothesis will contain
                 the non-null value for `logprobs` in it. Here, `logprobs` is a torch.Tensors.
 
+            confidence_cfg: A dict-like object which contains the following key-value pairs related to confidence
+                scores. In order to obtain hypotheses with confidence scores, please utilize
+                `ctc_decoder_predictions_tensor` function with the `preserve_frame_confidence` flag set to True.
+
+                preserve_frame_confidence: Bool flag which preserves the history of per-frame confidence scores
+                    generated during decoding. When set to true, the Hypothesis will contain
+                    the non-null value for `frame_confidence` in it. Here, `frame_confidence` is a List of floats.
+                preserve_token_confidence: Bool flag which preserves the history of per-token confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `token_confidence` in it. Here, `token_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized tokens.
+                preserve_word_confidence: Bool flag which preserves the history of per-word confidence scores
+                    generated during greedy decoding (sample / batched). When set to true, the Hypothesis will contain
+                    the non-null value for `word_confidence` in it. Here, `word_confidence` is a List of floats.
+
+                    The length of the list corresponds to the number of recognized words.
+                exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
+                    from the `token_confidence`.
+                reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
+                    Valid options are `mean`, `min`, `max`.
+
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
 
@@ -55,6 +78,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
             "greedy":
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
+                preserve_frame_confidence: Same as above, overrides above value.
 
         tokenizer: NeMo tokenizer object, which inherits from TokenizerSpec.
     """
@@ -64,6 +88,52 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         self.tokenizer = tokenizer
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
+
+    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+        """
+        Implemented by subclass in order to reduce token confidence to a word-level confidence.
+
+        Args:
+            token_confidence: List of float representing the per-token confidence.
+            words: List of words (str).
+            reduction: function (e.g. mean)
+
+        Returns:
+            A list of word-level confidence scores.
+        """
+        # It is hard to reduce token-level confidence scores to word scores because the detokenization is not bijective
+        # Unless we have something like tokenizer.detokenize_with_ranges() 
+        # from https://github.com/OpenNMT/Tokenizer/tree/master/bindings/python, we have to do the following tricks
+        word_lengths = [len(self.tokenizer.text_to_tokens(word)) for word in words]
+        token_number = sum(word_lengths) if len(word_lengths) > 0 else 0
+        token_confidence_number = len(token_confidence)
+        if token_number != token_confidence_number:
+            if token_number == token_confidence_number + 1:
+                # suppose that we lost _ or ## at the beginning
+                word_lengths[0] = word_lengths[0] - 1
+            elif token_number < token_confidence_number:
+                # suppose that we have suboptimal token sequences for some words
+                logging.warning(f"Suboptimal tokenization obtained for text `{' '.join(words)}`.\n"
+                    f"Original number of tokens: {token_confidence_number}, "
+                    f"number of tokens after detokenization and tokenization: {token_number}\n"
+                    f"Word confidence scores may not be accurate.")
+            else:
+                logging.warning(f"Unable to calculate token numbers per word for text `{' '.join(words)}`.\n"
+                    f"Original number of tokens: {token_confidence_number}, "
+                    f"number of tokens after detokenization and tokenization: {token_number}\n"
+                    f"Word confidence scores will be set to 0.5.")
+                return [0.5] * len(words)
+        word_confidence = []
+        i = 0
+        for word_len in word_lengths:
+            if word_len == 0:
+                # suppose that there was _ or ## which was collapsed into a zero-length word
+                i += 1
+                continue
+            j = i + word_len
+            word_confidence.append(reduction(token_confidence[i: j]))
+            i = j
+        return word_confidence
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
