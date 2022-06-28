@@ -16,6 +16,9 @@ G2P disambiguation using an Aligner model's input embedding distances.
 
 Does not handle OOV and leaves them as graphemes.
 
+The output will have each token's phonemes (or graphemes) bracketed, e.g.
+<\"><M AH1 L ER0><, ><M AH1 L ER0><, ><HH IY1 Z>< ><DH AH0>< ><M AE1 N><.\">
+
 Example:
 python aligner_g2p.py \
     --model=<model_path> \
@@ -27,6 +30,7 @@ python aligner_g2p.py \
 import argparse
 import json
 import os
+import re
 
 import librosa
 import soundfile as sf
@@ -110,10 +114,9 @@ def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):
 
 
 def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None):
-    """Retrieves and disambiguate all candidate sentences for disambiguation of a given text string.
+    """Retrieves and disambiguate all candidate sentences for disambiguation of a given some text.
 
-    Assumes the text has no punctuation and has been normalized.
-    Also assumes that the max number of candidates per word is a reasonable batch size.
+    Assumes that the max number of candidates per word is a reasonable batch size.
 
     Note: This could be sped up if multiple words' candidates were batched, but this is conceptually easier.
     """
@@ -121,11 +124,14 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
     aligner_g2p = aligner.tokenizer.g2p
     base_g2p = aligner_g2p(text)
 
+    # Tokenize text
+    words = [word for word, _ in aligner.tokenizer.g2p.word_tokenize_func(text)]
+
     ### Loop Through Words ###
     result_g2p = []
     word_start_idx = 0
 
-    for word in text.split():
+    for word in words:
         if log_file:
             log_file.write(f"----------------\n{word}\n")
 
@@ -195,15 +201,20 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
             if log_file:
                 log_file.write(f"best candidate: {best_candidate}\n")
 
-            result_g2p.append(' '.join(best_candidate))
+            result_g2p.append(f"<{' '.join(best_candidate)}>")
         else:
-            result_g2p.append(' '.join(aligner_g2p(word)))
+            if re.search("[a-zA-Z]", word) is None:
+                # Punctuation or space
+                result_g2p.append(f"<{word}>")
+            else:
+                # No ambiguity or OOV
+                result_g2p.append(f"<{' '.join(aligner_g2p(word))}>")
 
         # Advance to phoneme index of next word
-        word_start_idx += g2p_default_len + 1  # +1 for space
+        word_start_idx += g2p_default_len
 
     if log_file:
-        log_file.write(f"===\n{' '.join(result_g2p)}\n===\n")
+        log_file.write(f"===\n{''.join(result_g2p)}\n===\n")
 
     return result_g2p
 
@@ -222,15 +233,16 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
                 entry = json.loads(line)
                 # Set punct_post_process=True in order to preserve words with apostrophes
                 text = aligner.normalizer.normalize(entry['text'], punct_post_process=True)
-                audio_path = entry['audio_filepath']
+                text = aligner.tokenizer.text_preprocessing_func(text)
 
                 # Load and preprocess audio
+                audio_path = entry['audio_filepath']
                 spec, spec_len = load_and_prepare_audio(aligner, audio_path, sr, device)
 
                 # Get pronunciation candidates and disambiguate
                 disambiguated_text = disambiguate_candidates(aligner, text, spec, spec_len, device, log_file)
 
-                entry['disambiguated_text'] = ' '.join(disambiguated_text)
+                entry['disambiguated_text'] = ''.join(disambiguated_text)
                 f_out.write(f"{json.dumps(entry)}\n")
 
                 count += 1
@@ -238,7 +250,8 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
                     print(f"Finished {count} entries.")
 
     print(f"Finished all entries, with a total of {count}.")
-    log_file.close()
+    if log_file:
+        log_file.close()
 
 
 def main():
