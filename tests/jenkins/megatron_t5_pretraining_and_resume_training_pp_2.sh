@@ -26,18 +26,17 @@ trainer.max_steps=10 \
 trainer.precision=16 \
 trainer.gradient_clip_val=1.0 \
 exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
-model.tensor_model_parallel_size=2 \
+model.pipeline_model_parallel_size=2 \
+model.pipeline_model_parallel_split_rank=1 \
 model.seq_length=128 \
 model.num_layers=4 \
 model.hidden_size=64 \
 model.num_attention_heads=8 \
-model.activation='swiglu' \
-model.bias_gelu_fusion=False \
+model.activation='gelu' \
 model.activations_checkpoint_method='block' \
 model.activations_checkpoint_num_layers=1 \
-model.transformer_block_type='pre_ln' \
+model.transformer_block_type='post_ln' \
 model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-model.position_embedding_type=relative \
 model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
 
 python examples/nlp/language_modeling/megatron_t5_pretraining.py \
@@ -52,18 +51,17 @@ trainer.precision=16 \
 trainer.gradient_clip_val=1.0 \
 exp_manager.exp_dir=examples/nlp/language_modeling/t5_pretrain_results \
 exp_manager.resume_if_exists=True \
-model.tensor_model_parallel_size=2 \
+model.pipeline_model_parallel_size=2 \
+model.pipeline_model_parallel_split_rank=1 \
 model.seq_length=128 \
 model.num_layers=4 \
 model.hidden_size=64 \
 model.num_attention_heads=8 \
-model.activation='swiglu' \
-model.bias_gelu_fusion=False \
+model.activation='gelu' \
 model.activations_checkpoint_method='block' \
 model.activations_checkpoint_num_layers=1 \
-model.transformer_block_type='pre_ln' \
+model.transformer_block_type='post_ln' \
 model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-model.position_embedding_type=relative \
 model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings
 
 rm -rf examples/nlp/language_modeling/t5_pretrain_results
