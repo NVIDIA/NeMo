@@ -85,7 +85,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         encoder_input = input_embeds + position_embeddings
 
         # Call forward on T5 model with preprocessed embeddings
-        if self.float_type == torch.float32:
+        if self.autocast_dtype == torch.float32:
             output = self.frozen_model.enc_dec_model(
                 enc_input_ids=None,
                 enc_attn_mask=enc_mask,
@@ -98,7 +98,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 enc_input=encoder_input,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.float_type):
+            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
                 output = self.frozen_model.enc_dec_model(
                     enc_input_ids=None,
                     enc_attn_mask=enc_mask,
@@ -118,7 +118,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(cfg.get('language_model_path'), trainer=trainer, return_config=True)
+        t5_cfg = MegatronT5Model.restore_from(cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True)
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
@@ -126,9 +126,10 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             # hack to make the _GLOBAL_NUM_MICROBATCHES_CALCULATOR initialize
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
-
+            t5_cfg.precision = trainer.precision
+            
         self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('language_model_path'), trainer=trainer, override_config_path=t5_cfg,
+            cfg.get('pretrained_language_model_path'), trainer=trainer, override_config_path=t5_cfg,
         )
 
         # Freeze all T5 model weights for prompt-tuning/p-tuning
@@ -287,16 +288,15 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
         )
-
+        
         return {
             'enc_input': enc_input,
             'predicted_token_ids': predicted_token_ids,
             'log_probs': log_probs,
             'labels': labels,
         }
-
+        
     def on_predict_epoch_end(self, outputs: List[Any]) -> None:
-
         all_preds = []
         all_labels = []
         all_inputs = []

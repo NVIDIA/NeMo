@@ -64,15 +64,15 @@ def main(cfg) -> None:
             pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
         )
 
-    # Load prompt tuned model, virtual_prompt_model_file and t5_model_file must be provided in config
-    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('t5_model_file', None) is not None:
+    # Load prompt tuned model, virtual_prompt_model_file and pretrained_language_model_file must be provided in config
+    if cfg.get('virtual_prompt_model_file', None) is not None and cfg.get('pretrained_language_model_file', None) is not None:
 
         # Update frozen T5 model path in case it has changed
         prompt_learning_cfg = MegatronT5PromptLearningModel.restore_from(
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.language_model_path = cfg.t5_model_file
+            prompt_learning_cfg.language_model_path = cfg.pretrained_language_model_file
 
         # Now load prompt learning model with frozen T5 model base
         model = MegatronT5PromptLearningModel.restore_from(
@@ -80,7 +80,7 @@ def main(cfg) -> None:
         )
 
     else:
-        raise ValueError("virtual_prompt_model_file and t5_model_file must be provided in config")
+        raise ValueError("virtual_prompt_model_file and pretrained_language_model_file must be provided in config")
 
     # check whether the DDP is initialized
     if parallel_state.is_unitialized():
@@ -93,7 +93,7 @@ def main(cfg) -> None:
         model.trainer.strategy.setup_environment()
 
     model.freeze()
-
+    
     test_ds, test_dl = model.build_virtual_prompt_dataset(
         dataset_paths=cfg.data.test_ds,
         batch_size=cfg.data.batch_size,

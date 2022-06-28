@@ -2984,7 +2984,7 @@ pipeline {
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=1 \
-                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \  
+                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \  
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
@@ -2993,7 +2993,7 @@ pipeline {
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo' \
-                t5_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
+                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m-refactor.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test.nemo"
           }
@@ -3007,17 +3007,17 @@ pipeline {
                 trainer.max_steps=6 \
                 trainer.max_epochs=null \
                 model.tensor_model_parallel_size=2 \
-                model.language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \  
+                model.pretrained_language_model_path='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \  
                 model.existing_tasks=[] \
                 model.new_tasks=['rte'] \
                 model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=8 \ 
-                model/micro_batch_size=4"
+                model.micro_batch_size=4"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2"
             sh "python examples/nlp/language_modeling/megatron_t5_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
-                t5_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
+                pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 tensor_model_parallel_size=2 \ 
                 trainer.devices=2 \ 

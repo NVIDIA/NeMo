@@ -64,13 +64,6 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
 
         self.tokenizer = self.frozen_model.tokenizer
 
-        if self.frozen_model.cfg.precision == 16:
-            self.float_type = torch.float16
-        elif self.frozen_model.cfg.precision == 'bf16':
-            self.float_type = torch.bfloat16
-        else:
-            self.float_type = torch.float
-
         self.hidden_size = self.frozen_model.cfg.hidden_size
         self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
@@ -400,8 +393,8 @@ class MegatronBasePromptLearningModel(MegatronBaseModel, TextGeneration):
             self.cfg.virtual_prompt_style = VirtualPromptStyle.INFERENCE.value
 
         # Save the best nemo model
-        self.save_to(save_path=self.cfg.nemo_path)
-        logging.info(f"The final model was saved to {self.cfg.nemo_path}")
+        self.save_to(save_path=self.cfg.virtual_prompt_save_path)
+        logging.info(f"The final model was saved to {self.cfg.virtual_prompt_save_path}")
 
     def setup(self, stage=None):
         if stage == 'predict' or self.virtual_prompt_style == VirtualPromptStyle.INFERENCE:

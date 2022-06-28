@@ -32,13 +32,13 @@ exp_manager:
     save_top_k: 2
     mode: min
     save_nemo_on_train_end: False
-    filename: "megatron_t5_prompt_tune--{val_loss:.3f}-{step}"
+    filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
 
 model:
   seed: 1234
-  nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  virtual_prompt_save_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: "p-tuning" # one of 'prompt-tuning', 'p-tuning', or 'inference'
   tensor_model_parallel_size: 1
   pipeline_model_parallel_size: 1 
@@ -47,7 +47,7 @@ model:
   micro_batch_size: 4
   
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path:  models/megatron_t5_220m_f16.nemo # Path to the T5 language model .nemo file, always required
+  pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
   new_tasks: ["rte"] 
 
