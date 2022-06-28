@@ -16,4 +16,5 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.env.job_name_prefix="${SLURM_ACCOUNT}-bignlp_hp_tool:" \
     cluster.gpus_per_task=null \
     cluster.gpus_per_node=null \
-    search_config.train_settings.limit_search_runs=10
+    search_config.train_settings.gpu_memory_gb=80 \
+    search_config.train_settings.limit_search_runs=3

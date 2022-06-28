@@ -5,7 +5,7 @@ BASE_RESULTS_DIR = os.environ.get("BASE_RESULTS_DIR")
 
 class TestCIGPT126m:
 
-    def test_ci_train_gpt3_126m_80gb_10runs(self):
+    def test_ci_train_gpt3_126m_40gb_3runs(self):
         base_cfg = os.path.join(BASE_RESULTS_DIR, "gpt3/0.126b/base_cfg_0.126b.yaml")
         candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/0.126b/candidate_configs")
         training_logs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/0.126b/training_logs")
