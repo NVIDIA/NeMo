@@ -40,8 +40,11 @@ class WordFst(GraphFst):
     def __init__(self, punctuation: GraphFst, deterministic: bool = True):
         super().__init__(name="word", kind="classify", deterministic=deterministic)
 
-        symbols_to_exclude = (pynini.union("$", "€", "₩", "£", "¥", "#", "%") | NEMO_DIGIT).optimize()
-        graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, symbols_to_exclude), 1)
+        graph = pynini.closure(NEMO_NOT_SPACE)
+
+        if not deterministic:
+            symbols_to_exclude = (pynini.union("$", "€", "₩", "£", "¥", "#", "%") | NEMO_DIGIT).optimize()
+            graph = pynini.closure(pynini.difference(NEMO_NOT_SPACE, symbols_to_exclude), 1)
 
         # leave phones of format [HH AH0 L OW1] untouched
         phoneme_unit = pynini.closure(NEMO_ALPHA, 1) + pynini.closure(NEMO_DIGIT)
