@@ -52,6 +52,7 @@ exp_manager:
     buffer_size: 5
 
 model:
+  model_type: "t5"
   # model parallelism
   micro_batch_size: 12
   global_batch_size: 1920 # will use more micro batches to reach global batch size

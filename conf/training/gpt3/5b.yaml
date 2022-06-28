@@ -48,7 +48,8 @@ exp_manager:
     buffer_size: 5
 
 model:
-  # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
+  model_type: "gpt"
+  # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes.
   micro_batch_size: 2
   global_batch_size: 1440
   tensor_model_parallel_size: 2
