@@ -240,7 +240,10 @@ def get_contiguous_stamps(stamps):
             contiguous_stamps.append(start + " " + avg + " " + speaker)
         else:
             contiguous_stamps.append(start + " " + end + " " + speaker)
-    start, end, speaker = lines[-1].split()
+    try:
+        start, end, speaker = lines[-1].split()
+    except:
+        import ipdb; ipdb.set_trace()
     contiguous_stamps.append(start + " " + end + " " + speaker)
     return contiguous_stamps
 
@@ -409,7 +412,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = None
-
+        
         cluster_labels = COSclustering(
             uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
             oracle_num_speakers=num_speakers,
@@ -420,7 +423,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             maj_vote_spk_count=clustering_params.maj_vote_spk_count,
             cuda=cuda,
         )
-
         base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
         lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
         assert len(cluster_labels) == len(lines)
@@ -780,7 +782,8 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
     speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value.
+    and trimmed with the given offset and duration value. In case of empty audio clip, the corresponding uniq_ids
+    are deleted from AUDIO_RTTM_MAP to avoid errors in the following steps.
 
     Args:
         AUDIO_RTTM_MAP (dict):
@@ -793,26 +796,34 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
         manifest (str):
             The path to the output manifest file.
     """
-
+    void_uniq_ids = []
     with open(manifest_file, 'w') as outfile:
         for uniq_id in AUDIO_RTTM_MAP:
+            is_audio_empty = False
             rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
             rttm_lines = read_rttm_lines(rttm_file_path)
             offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
-                vad_start_end_list_raw.append([start, start + dur])
+                if dur > 0:
+                    vad_start_end_list_raw.append([start, start + dur])
             vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
             if len(vad_start_end_list) == 0:
                 logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
-            elif duration == 0:
+                void_uniq_ids.append(uniq_id)
+                continue
+            elif duration <= 0:
                 logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
+                void_uniq_ids.append(uniq_id)
+                continue
             else:
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
+                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
+        for uniq_id in void_uniq_ids:
+            del AUDIO_RTTM_MAP[uniq_id]
     return manifest_file
 
 
