@@ -2,7 +2,7 @@ pipeline {
   agent {
         docker {
       image 'nvcr.io/nvidia/pytorch:22.05-py3'
-      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
+      args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 -e JAVA_OPTS="-Dorg.jenkinsci.plugins.pipeline.modeldefinition.parser.RuntimeASTTransformer.SCRIPT_SPLITTING_TRANSFORMATION=true" --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
   options {
