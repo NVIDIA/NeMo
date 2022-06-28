@@ -1027,7 +1027,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # get output tensor of encoder [batch, seq_len, hidden]
         if parallel_state.is_pipeline_last_stage():
             output_tensor = output_tensor[0]['hiddens']
-            # output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
         else:
             output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda().transpose(0, 1).contiguous()
 
@@ -1036,7 +1035,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             torch.distributed.broadcast(
                 output_tensor,
                 parallel_state.get_pipeline_model_parallel_last_rank(),
-                group=parallel_state.get_model_parallel_group(),
+                group=parallel_state.get_pipeline_model_parallel_group(),
             )
 
         # Reset microbatch calculator to what it was before decoding.
