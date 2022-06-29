@@ -1860,7 +1860,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh ''
+        sh "tests/jenkins/megatron_bert_pretraining_and_resume_training.sh"
       }
     }
     stage('L2: Megatron RETRO Pretraining and Resume Training') {
