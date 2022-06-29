@@ -478,8 +478,13 @@ class AudioToBPEDataset(_AudioTextDataset):
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
-
             def __call__(self, *args):
+                if len(args) == 1 and isinstance(args[0], list):
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], jspan['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
@@ -1017,8 +1022,13 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 else:
                     self.is_aggregate = False
                 self._tokenizer = tokenizer
-
             def __call__(self, *args):
+                if len(args) == 1 and isinstance(args[0], list):
+                    t = []
+                    for span in args[0]:
+                        t.extend(self._tokenizer.text_to_ids(span['str'], jspan['lang']))
+                    return t
+
                 t = self._tokenizer.text_to_ids(*args)
                 return t
 
