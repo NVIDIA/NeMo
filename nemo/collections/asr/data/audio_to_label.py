@@ -709,6 +709,40 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
     # self.labels = labels if labels else self.collection.uniq_labels
     # self.num_commands = len(self.labels)
 
+    def __init__(
+        self,
+        *,
+        audio_tar_filepaths: Union[str, List[str]],
+        manifest_filepath: Union[str, List[str]],
+        labels: List[str],
+        featurizer,
+        shuffle_n: int = 0,
+        min_duration: Optional[float] = 0.1,
+        max_duration: Optional[float] = None,
+        trim: bool = False,
+        shard_strategy: str = "scatter",
+        global_rank: int = 0,
+        world_size: int = 0,
+        is_regression_task: bool = False,
+        pad_id: int = 0,
+    ):
+        logging.info("pad_id considered for collate func is {}".format(pad_id))
+        self.pad_id = pad_id
+
+        super().__init__(
+            audio_tar_filepaths=audio_tar_filepaths,
+            manifest_filepath=manifest_filepath,
+            labels=labels,
+            featurizer=featurizer,
+            shuffle_n=shuffle_n,
+            min_duration=min_duration,
+            max_duration=max_duration,
+            trim=trim,
+            shard_strategy=shard_strategy,
+            global_rank=global_rank,
+            world_size=world_size,
+        )
+
     def _collate_fn(self, batch):
         return _speech_collate_fn(batch, pad_id=0)
 
