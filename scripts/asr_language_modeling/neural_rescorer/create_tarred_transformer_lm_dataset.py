@@ -85,7 +85,7 @@ def __build_dataset_from_text(texts: str, lower_case: bool, chunk_size: int):
     text_dataset = []
 
     for text in texts:
-        with open(text, 'r') as in_reader:
+        with open(text, 'r', encoding='utf-8') as in_reader:
             reader = tqdm(iter(lambda: in_reader.readline(), ''), desc="Read 0 lines", unit=' lines')
 
             for i, line in enumerate(reader):
@@ -201,7 +201,7 @@ def __tokenize_text(
 def __create_chunk(data_root, chunk_path, shard_id, compute_metrics=False):
     """Creates a tarball containing the tokenized text chunks.
        """
-    tar = tarfile.open(os.path.join(data_root, f'text_{shard_id}.tar'), mode='a')
+    tar = tarfile.open(os.path.join(data_root, f'text_{shard_id}.tar'), mode='a', encoding='utf-8')
 
     # We squash the filename since we do not preserve directory structure of tokenized text in the tarball.
     base, ext = os.path.splitext(chunk_path)

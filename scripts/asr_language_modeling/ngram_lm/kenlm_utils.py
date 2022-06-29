@@ -40,7 +40,7 @@ def read_train_file(path, lowercase: bool = False):
     lines_read = 0
     text_dataset = []
 
-    with open(path, 'r') as f:
+    with open(path, 'r', encoding='utf-8') as f:
         reader = tqdm(iter(lambda: f.readline(), ''), desc="Read 0 lines", unit=' lines')
         for i, line in enumerate(reader):
             if path.endswith('.json'):

@@ -184,7 +184,7 @@ def write_manifest(
 
             try:
                 x, _sr = librosa.load(file, sr=sr)
-                duration = librosa.get_duration(x, sr=sr)
+                duration = librosa.get_duration(y=x, sr=sr)
 
             except Exception:
                 continue
@@ -312,7 +312,7 @@ def generate_variety_noise(data_dir, filename, prefix):
         files = allfile.read().splitlines()
 
     for file in files:
-        y, sr = librosa.load(file, sr=sampling_rate)
+        y, sr = librosa.load(path=file, sr=sampling_rate)
 
         for i in range(
             0, len(y) - sampling_rate, silence_stride * 100

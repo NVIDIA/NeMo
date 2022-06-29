@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -23,14 +24,7 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.ru.alphabet import RU_ALPHA, TO_CYRILLIC
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class ElectronicFst(GraphFst):
@@ -48,7 +42,7 @@ class ElectronicFst(GraphFst):
 
         # tagger
         accepted_symbols = []
-        with open(get_abs_path("data/electronic/symbols.tsv"), 'r') as f:
+        with open(get_abs_path("data/electronic/symbols.tsv"), 'r', encoding='utf-8') as f:
             for line in f:
                 symbol, _ = line.split('\t')
                 accepted_symbols.append(pynini.accep(symbol))

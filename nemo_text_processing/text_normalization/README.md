@@ -1,11 +1,10 @@
-Text Normalization system for english, e.g. `123 kg` -> `one hundred twenty three kilograms`
-Offers prediction and evaluation on text normalization data, e.g. [Google text normalization dataset](https://www.kaggle.com/richardwilliamsproat/text-normalization-for-english-russian-and-polish).
+# Text Normalization
 
+Text Normalization is part of NeMo's `nemo_text_processing` - a Python package that is installed with the `nemo_toolkit`. 
+It converts text from written form into its verbalized form, e.g. "123" -> "one hundred twenty three".
 
-Install dependencies:
-bash ../setup.sh
+See [NeMo documentation](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/nlp/text_normalization/wfst/wfst_text_normalization.html) for details.
 
-Example prediction run:
-python run_predict.py  --input=`INPUT_FILE` --output=`OUTPUT_FILE` [--verbose]
-Example evaluation run:
-python run_evaluate.py  --input=./en_with_types/output-00001-of-00100 [--cat CATEGORY]
+Tutorial with overview of the package capabilities: [Text_(Inverse)_Normalization.ipynb](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/Text_(Inverse)_Normalization.ipynb)
+
+Tutorial on how to customize the underlying gramamrs: [WFST_Tutorial.ipynb](https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/text_processing/WFST_Tutorial.ipynb)

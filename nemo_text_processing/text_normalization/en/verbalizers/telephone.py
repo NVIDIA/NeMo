@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class TelephoneFst(GraphFst):
@@ -38,14 +31,11 @@ class TelephoneFst(GraphFst):
     def __init__(self, deterministic: bool = True):
         super().__init__(name="telephone", kind="verbalize", deterministic=deterministic)
 
-        add_separator = pynutil.insert(",")  # between components
-
         optional_country_code = pynini.closure(
             pynutil.delete("country_code: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
             + pynutil.delete("\"")
             + delete_space
-            + add_separator
             + insert_space,
             0,
             1,
@@ -54,7 +44,7 @@ class TelephoneFst(GraphFst):
         number_part = (
             pynutil.delete("number_part: \"")
             + pynini.closure(NEMO_NOT_QUOTE, 1)
-            + pynini.closure(pynutil.add_weight(pynutil.delete(" "), -0.1), 0, 1)
+            + pynini.closure(pynutil.add_weight(pynutil.delete(" "), -0.0001), 0, 1)
             + pynutil.delete("\"")
         )
 

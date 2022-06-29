@@ -22,6 +22,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.metrics.wer_bpe import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.common import tokenizers
@@ -153,6 +154,29 @@ class TestEncDecCTCModel:
 
     @pytest.mark.with_downloads()
     @pytest.mark.unit
+    def test_save_restore_artifact_agg(self, asr_model, test_data_dir):
+        tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
+        tok_en = {"dir": tokenizer_dir, "type": "wpe"}
+        # the below is really an english tokenizer but we pretend it is spanish
+        tok_es = {"dir": tokenizer_dir, "type": "wpe"}
+        tcfg = DictConfig({"type": "agg", "langs": {"en": tok_en, "es": tok_es}})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            asr_model.change_vocabulary(new_tokenizer_dir=tcfg, new_tokenizer_type="agg")
+
+            save_path = os.path.join(tmpdir, "ctc_agg.nemo")
+            asr_model.train()
+            asr_model.save_to(save_path)
+
+            new_model = EncDecCTCModelBPE.restore_from(save_path)
+            assert isinstance(new_model, type(asr_model))
+            assert isinstance(new_model.tokenizer, tokenizers.AggregateTokenizer)
+
+            # should be double
+            assert new_model.tokenizer.tokenizer.vocab_size == 254
+            assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
+
+    @pytest.mark.with_downloads()
+    @pytest.mark.unit
     def test_vocab_change(self, test_data_dir, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
 
@@ -240,6 +264,20 @@ class TestEncDecCTCModel:
 
             finally:
                 os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
+
+    @pytest.mark.unit
+    def test_decoding_change(self, asr_model):
+        assert asr_model.decoding is not None
+        assert isinstance(asr_model.decoding, CTCBPEDecoding)
+        assert asr_model.decoding.cfg.strategy == "greedy"
+        assert asr_model.decoding.preserve_alignments is False
+        assert asr_model.decoding.compute_timestamps is False
+
+        cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        asr_model.change_decoding_strategy(cfg)
+
+        assert asr_model.decoding.preserve_alignments is True
+        assert asr_model.decoding.compute_timestamps is True
 
     @pytest.mark.unit
     def test_ASRDatasetConfig_for_AudioToBPEDataset(self):

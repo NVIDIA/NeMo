@@ -27,7 +27,7 @@ During inference, we perform frame-level prediction by two approaches:
 This script will also help you perform postprocessing and generate speech segments if needed
 
 Usage:
-python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
+python vad_infer.py --config-path="../conf/vad" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
 
 """
 import json
@@ -49,12 +49,12 @@ from nemo.utils import logging
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-@hydra_runner(config_path="../conf/VAD", config_name="vad_inference_postprocessing.yaml")
+@hydra_runner(config_path="../conf/vad", config_name="vad_inference_postprocessing.yaml")
 def main(cfg):
     if not cfg.dataset:
         raise ValueError("You must input the path of json file of evaluation data")
 
-    # each line of dataset should be have different audio_filepath and unique name to simplfiy edge cases or conditions
+    # each line of dataset should be have different audio_filepath and unique name to simplify edge cases or conditions
     key_meta_map = {}
     with open(cfg.dataset, 'r') as manifest:
         for line in manifest.readlines():
@@ -74,7 +74,7 @@ def main(cfg):
             'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
             'split_duration': cfg.prepare_manifest.split_duration,
             'num_workers': cfg.num_workers,
-            'prepared_manfiest_vad_input': cfg.prepared_manfiest_vad_input,
+            'prepared_manifest_vad_input': cfg.prepared_manifest_vad_input,
         }
         manifest_vad_input = prepare_manifest(config)
     else:

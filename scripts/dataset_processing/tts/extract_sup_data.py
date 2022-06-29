@@ -23,7 +23,7 @@ from nemo.core.config import hydra_runner
 def preprocess_ds_for_fastpitch_align(dataloader):
     pitch_list = []
     for batch in tqdm(dataloader, total=len(dataloader)):
-        tokens, tokens_lengths, audios, audio_lengths, align_prior_matrices, pitches, pitches_lengths = batch
+        audios, audio_lengths, tokens, tokens_lengths, align_prior_matrices, pitches, pitches_lengths = batch
 
         pitch = pitches.squeeze(0)
         pitch_list.append(pitch[pitch != 0])
@@ -36,10 +36,10 @@ def preprocess_ds_for_mixer_tts_x(dataloader):
     pitch_list = []
     for batch in tqdm(dataloader, total=len(dataloader)):
         (
-            tokens,
-            tokens_lengths,
             audios,
             audio_lengths,
+            tokens,
+            tokens_lengths,
             align_prior_matrices,
             pitches,
             pitches_lengths,

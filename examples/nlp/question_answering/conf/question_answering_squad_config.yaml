@@ -4,16 +4,17 @@ name: &name QA
 pretrained_model: null # pretrained QAModel model from list_available_models()
 do_training: true # training mode, for testing change to false
 trainer:
-  gpus: 1 # the number of gpus, 0 for CPU, or list with gpu indices
+  devices: 1 # the number of gpus, 0 for CPU, or list with gpu indices
   num_nodes: 1
   max_epochs: 2 # the number of training epochs
   max_steps: null # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   precision: 16 # 16 to use AMP
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   gradient_clip_val: 0.0
   val_check_interval: 1.0 # check once per epoch .25 for 4 times per epoch
-  checkpoint_callback: false # provided by exp_manager
+  enable_checkpointing: False # provided by exp_manager
   logger: false # provided by exp_manager
   num_sanity_val_steps: 0
   log_every_n_steps: 1  # Interval of logging.
@@ -47,6 +48,10 @@ model:
     use_cache: true
     do_lower_case: true
     # if true does lower case
+    keep_doc_spans: all
+    # if all, keep all doc spans
+    # if only_positive, keep doc spans containing answer only
+    # if limited_negative, keep 10 doc spans closest to answer per question
 
     num_workers:  2
     pin_memory: false
@@ -125,6 +130,10 @@ exp_manager:
   name: *name # name of experiment
   create_tensorboard_logger: True
   create_checkpoint_callback: True
+  create_wandb_logger: False
+  wandb_logger_kwargs:
+    name: ???
+    project: QA
 
 hydra:
   run:

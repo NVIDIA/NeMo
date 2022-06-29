@@ -27,19 +27,16 @@
 # limitations under the License.
 
 import argparse
-import logging
 import os
 import sys
-import tempfile
-import traceback
-import warnings
-from dataclasses import dataclass
-from typing import Optional
 
 import torch
+from pytorch_lightning import Trainer
 
 from nemo.core import ModelPT
 from nemo.core.classes import Exportable
+from nemo.core.config.pytorch_lightning import TrainerConfig
+from nemo.utils import logging
 
 try:
     from contextlib import nullcontext
@@ -60,6 +57,7 @@ def get_args(argv):
     parser.add_argument("--max-batch", type=int, default=None, help="Max batch size for model export")
     parser.add_argument("--max-dim", type=int, default=None, help="Max dimension(s) for model export")
     parser.add_argument("--onnx-opset", type=int, default=None, help="ONNX opset for model export")
+    parser.add_argument("--device", default="cuda", help="Device to export for")
     args = parser.parse_args(argv)
     return args
 
@@ -75,22 +73,29 @@ def nemo_export(argv):
         if not isinstance(numeric_level, int):
             raise ValueError('Invalid log level: %s' % numeric_level)
         loglevel = numeric_level
-
-    logger = logging.getLogger(__name__)
-    if logger.handlers:
-        for handler in logger.handlers:
-            logger.removeHandler(handler)
-    logging.basicConfig(level=loglevel, format='%(asctime)s [%(levelname)s] %(message)s')
+    logging.setLevel(loglevel)
     logging.info("Logging level set to {}".format(loglevel))
 
     """Convert a .nemo saved model into .riva Riva input format."""
     nemo_in = args.source
     out = args.out
 
+    # Create a PL trainer object which is required for restoring Megatron models
+    cfg_trainer = TrainerConfig(
+        gpus=1,
+        accelerator="ddp",
+        num_nodes=1,
+        # Need to set the following two to False as ExpManager will take care of them differently.
+        logger=False,
+        checkpoint_callback=False,
+    )
+    trainer = Trainer(cfg_trainer)
+
     logging.info("Restoring NeMo model from '{}'".format(nemo_in))
     try:
-        # Restore instance from .nemo file using generic model restore_from
-        model = ModelPT.restore_from(restore_path=nemo_in)
+        with torch.inference_mode():
+            # Restore instance from .nemo file using generic model restore_from
+            model = ModelPT.restore_from(restore_path=nemo_in, trainer=trainer)
     except Exception as e:
         logging.error(
             "Failed to restore model from NeMo file : {}. Please make sure you have the latest NeMo package installed with [all] dependencies.".format(
@@ -99,47 +104,38 @@ def nemo_export(argv):
         )
         raise e
 
-    logging.info("Model {} restored from '{}'".format(model.cfg.target, nemo_in))
+    logging.info("Model {} restored from '{}'".format(model.__class__.__name__, nemo_in))
 
     if not isinstance(model, Exportable):
-        logging.error("Your NeMo model class ({}) is not Exportable.".format(model.cfg.target))
+        logging.error("Your NeMo model class ({}) is not Exportable.".format(model.__class__.__name__))
         sys.exit(1)
 
+    #
+    #  Add custom export parameters here
+    #
+    in_args = {}
+    if args.max_batch is not None:
+        in_args["max_batch"] = args.max_batch
+    if args.max_dim is not None:
+        in_args["max_dim"] = args.max_dim
+
+    autocast = nullcontext
+    model.to(device=args.device).freeze()
+    if args.autocast:
+        autocast = torch.cuda.amp.autocast
     try:
-        autocast = nullcontext
-        if torch.cuda.is_available:
-            model = model.cuda()
-            if args.autocast:
-                autocast = torch.cuda.amp.autocast
-            with autocast(), torch.no_grad():
-                logging.info(f"Exporting model with autocast={args.autocast}")
-                #
-                #  Add custom export parameters here
-                #
-                in_args = {}
-                if args.max_batch is not None:
-                    in_args["max_batch"] = args.max_batch
-                if args.max_dim is not None:
-                    in_args["max_dim"] = args.max_dim
+        with autocast(), torch.inference_mode():
+            _, descriptions = model.export(
+                out, check_trace=args.runtime_check, onnx_opset_version=args.onnx_opset, verbose=args.verbose,
+            )
 
-                input_example = model._get_input_example(**in_args)
-
-                _, descriptions = model.export(
-                    out,
-                    check_trace=args.runtime_check,
-                    input_example=input_example,
-                    onnx_opset_version=args.onnx_opset,
-                    verbose=args.verbose,
-                )
     except Exception as e:
         logging.error(
             "Export failed. Please make sure your NeMo model class ({}) has working export() and that you have the latest NeMo package installed with [all] dependencies.".format(
-                model.cfg.target
+                model.__class__
             )
         )
         raise e
-
-    logging.info("Successfully exported to {}".format(out))
 
 
 if __name__ == '__main__':

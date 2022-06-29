@@ -90,6 +90,25 @@ def _assert_no_grad(tensor):
     )
 
 
+class LogSoftmaxGradModification(Function):
+    @staticmethod
+    def forward(ctx, acts, clamp):
+        if clamp < 0:
+            raise ValueError("`clamp` must be 0.0 or positive float.")
+
+        res = acts.new(acts)
+        ctx.clamp = clamp
+        return res
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        grad_output = torch.clamp(grad_output, -ctx.clamp, ctx.clamp)
+        return (
+            grad_output,
+            None,
+        )
+
+
 def forward_pass(log_probs, labels, blank):
     """
     Computes probability of the forward variable alpha.
@@ -300,7 +319,8 @@ class _RNNT(Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return ctx.grads, None, None, None, None, None
+        grad_output = grad_output.view(-1, 1, 1, 1).to(ctx.grads)
+        return ctx.grads.mul(grad_output), None, None, None, None, None
 
 
 class RNNTLoss(Module):
@@ -310,10 +330,11 @@ class RNNTLoss(Module):
         fastemit_lambda: Float scaling factor for FastEmit regularization.
     """
 
-    def __init__(self, blank: int = 0, fastemit_lambda: float = 0.0):
+    def __init__(self, blank: int = 0, fastemit_lambda: float = 0.0, clamp: float = -1.0):
         super(RNNTLoss, self).__init__()
         self.blank = blank
         self.fastemit_lambda = fastemit_lambda
+        self.clamp = float(clamp) if clamp > 0 else 0.0
         self.rnnt = _RNNT.apply
 
     def forward(self, acts, labels, act_lens, label_lens):
@@ -322,6 +343,9 @@ class RNNTLoss(Module):
         _assert_no_grad(act_lens)
         _assert_no_grad(label_lens)
         certify_inputs(acts, labels, act_lens, label_lens)
+
+        if self.clamp > 0.0:
+            acts = LogSoftmaxGradModification.apply(acts, self.clamp)
 
         acts = torch.nn.functional.log_softmax(acts, -1)
         return self.rnnt(acts, labels, act_lens, label_lens, self.blank, self.fastemit_lambda)

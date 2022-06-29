@@ -1,35 +1,35 @@
 {
     "categories": [
       {
-        "title": "## ASR",
+        "title": "## ASR \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["asr"]
       },
       {
-        "title": "## TTS",
+        "title": "## TTS \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["tts"]
       },
       {
-        "title": "## NLP / NMT",
+        "title": "## NLP / NMT \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["nlp", "nmt", "megatron"]
       },
       {
-        "title": "## Text Normalization / Inverse Text Normalization",
+        "title": "## Text Normalization / Inverse Text Normalization \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["tn", "itn"]
       },
       {
-        "title": "## NeMo Tools",
+        "title": "## NeMo Tools \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["tools"]
       },
       {
-        "title": "## Export",
+        "title": "## Export \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["export"]
       },
       {
-        "title": "## Documentation",
+        "title": "## Documentation \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["docs"]
       },
       {
-        "title": "## Bugfixes",
+        "title": "## Bugfixes \n\n<details><summary>Changelog</summary>\n\n</details>\n\n",
         "labels": ["bug"]
       }
     ],
@@ -37,117 +37,63 @@
       "ignore"
     ],
     "sort": "ASC",
-    "template": "${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
-    "pr_template": "- ${{TITLE}} :: PR: #${{NUMBER}}",
+    "template": "\n${{CHANGELOG}}\nUncategorized:\n${{UNCATEGORIZED}}\n\n",
+    "pr_template": "- ${{TITLE}} by @${{AUTHOR}} :: PR: #${{NUMBER}}",
     "empty_template": "${{OWNER}}\n${{REPO}}\n${{FROM_TAG}}\n${{TO_TAG}}",
     "label_extractor": [
       {
         "pattern": "(.*tts.*)|(.*g2p.*)",
         "target": "tts",
         "flags": "gimu",
-        "on_property": "title"
+        "on_property": ["title", "body"]
       },
       {
-        "pattern": "(.*tts.*)|(.*g2p.*)",
-        "target": "tts",
-        "flags": "gimu",
-        "on_property": "body"
-      },
-      {
-        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
+        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)|(.*k2.*)",
         "target": "asr",
         "flags": "gimu",
-        "on_property": "title"
-      },
-      {
-        "pattern": "(.*asr.*)|(.*ctc.*)|(.*rnnt.*)|(.*transducer.*)|(.*dali.*)",
-        "target": "asr",
-        "flags": "gimu",
-        "on_property": "body"
+        "on_property": ["title", "body"]
       },
       {
         "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
         "target": "nlp",
         "flags": "gimu",
-        "on_property": "title"
-      },
-      {
-        "pattern": "(.*nlp.*)|(.*punctuation.*)|(.*capitalization.*)|(.*entity.*)|(.*glue.*)|(.*entity.*)|(.*retrieval.*)|(.*entity.*)|(.*intent.*)|(.*slot.*)|(.*entity.*)|(.*language.*)|(.*qa.*)|(.*token class.*)|(.*text class.*)",
-        "target": "nlp",
-        "flags": "gimu",
-        "on_property": "body"
+        "on_property": ["title", "body"]
       },
       {
         "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
         "target": "nmt",
         "flags": "gimu",
-        "on_property": "title"
-      },
-      {
-        "pattern": "(.*nmt.*)|(.*bignlp.*)|(.*megatron.*)|(.*machine.*)|(.*translation.*)|(.*gpt.*)",
-        "target": "nmt",
-        "flags": "gimu",
-        "on_property": "body"
+        "on_property": ["title", "body"]
       },
       {
         "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
         "target": "tn",
         "flags": "gimu",
-        "on_property": "title"
-      },
-      {
-        "pattern": "(.*tn.*)|(.*itn.*)|(.*text norm.*)",
-        "target": "tn",
-        "flags": "gimu",
-        "on_property": "body"
+        "on_property": ["title", "body"]
       },
       {
         "pattern": "(.*sde.*)|(.*ctc segment.*)",
         "target": "tools",
         "flags": "gimu",
-        "on_property": "title"
+        "on_property": ["title", "body"]
       },
       {
-        "pattern": "(.*sde.*)|(.*ctc segment.*)",
-        "target": "tools",
-        "flags": "gimu",
-        "on_property": "body"
-      },
-      {
-        "pattern": "(.*trt.*)|(.*onnx.*)",
+        "pattern": "(.*trt.*)|(.*onnx.*)|(.*export.*)",
         "target": "export",
         "flags": "gimu",
-        "on_property": "title"
+        "on_property": ["title", "body"]
       },
       {
-        "pattern": "(.*trt.*)|(.*onnx.*)",
-        "target": "export",
-        "flags": "gimu",
-        "on_property": "body"
-      },
-      {
-        "pattern": "(.*doc.*)",
+        "pattern": "(.*\\[x\\] Documentation.*)",
         "target": "docs",
-        "flags": "gimu",
-        "on_property": "title"
+        "flags": "gmu",
+        "on_property": ["title", "body"]
       },
       {
-        "pattern": "(.*doc.*)",
-        "target": "docs",
-        "flags": "gimu",
-        "on_property": "body"
-      },
-      {
-        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)|(.*patch.*)",
+        "pattern": "(.*\\[x\\] Bugfix.*)|(.*patch.*)",
         "target": "bug",
-        "flags": "gimu",
-        "on_property": "title"
-      },
-      {
-        "pattern": "(.*bug.*)|(.*bugfix.*)|(.*fix.*)|(.*patch.*)",
-        "target": "bug",
-        "flags": "gimu",
-        "on_property": "body"
+        "flags": "gmu",
+        "on_property": ["title", "body"]
       }
     ],
     "duplicate_filter": {

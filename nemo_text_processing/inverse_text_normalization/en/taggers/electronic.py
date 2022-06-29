@@ -13,16 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.inverse_text_normalization.en.utils import get_abs_path
-from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, GraphFst, insert_space
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_DIGIT, GraphFst, insert_space
+from pynini.lib import pynutil
 
 
 class ElectronicFst(GraphFst):
@@ -45,12 +39,10 @@ class ElectronicFst(GraphFst):
 
         accepted_username = alpha_num | symbols
         process_dot = pynini.cross("dot", ".")
-        username = (
-            pynutil.insert("username: \"")
-            + alpha_num
-            + pynini.closure(delete_extra_space + accepted_username)
-            + pynutil.insert("\"")
+        username = (alpha_num + pynini.closure(delete_extra_space + accepted_username)) | pynutil.add_weight(
+            pynini.closure(NEMO_ALPHA, 1), weight=0.0001
         )
+        username = pynutil.insert("username: \"") + username + pynutil.insert("\"")
         single_alphanum = pynini.closure(alpha_num + delete_extra_space) + alpha_num
         server = single_alphanum | pynini.string_file(get_abs_path("data/electronic/server_name.tsv"))
         domain = single_alphanum | pynini.string_file(get_abs_path("data/electronic/domain.tsv"))
@@ -78,15 +70,20 @@ class ElectronicFst(GraphFst):
             + (domain | pynini.closure(accepted_username + delete_extra_space,) + accepted_username)
         )
 
-        protocol = (
-            pynini.closure(protocol_start, 0, 1)
-            + protocol_end
-            + delete_extra_space
-            + process_dot
-            + pynini.closure(delete_extra_space + accepted_username, 1)
+        protocol_default = (
+            (
+                (pynini.closure(delete_extra_space + accepted_username, 1) | server)
+                | pynutil.add_weight(pynini.closure(NEMO_ALPHA, 1), weight=0.0001)
+            )
             + pynini.closure(ending, 1)
-        )
-        protocol = pynutil.insert("protocol: \"") + protocol + pynutil.insert("\"")
+        ).optimize()
+        protocol = (
+            pynini.closure(protocol_start, 0, 1) + protocol_end + delete_extra_space + process_dot + protocol_default
+        ).optimize()
+
+        protocol |= pynini.closure(protocol_end + delete_extra_space + process_dot, 0, 1) + protocol_default
+
+        protocol = pynutil.insert("protocol: \"") + protocol.optimize() + pynutil.insert("\"")
         graph |= protocol
         ########
 

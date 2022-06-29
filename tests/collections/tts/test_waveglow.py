@@ -44,7 +44,7 @@ pcfg = DictConfig(
         "_target_": "nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures",
         "dither": 0.0,
         "nfilt": 80,
-        "stft_conv": True,
+        "stft_conv": False,
     }
 )
 
@@ -92,12 +92,7 @@ class TestWaveGlow:
             assert torch.allclose(res1, res2, rtol=0.01, atol=0.1)
             WaveGlowModel.forward_for_export = forward_wrapper
             model.export(
-                tmp_file_name,
-                verbose=False,
-                input_example=inp,
-                try_script=False,
-                check_trace=False,
-                do_constant_folding=True,
+                tmp_file_name, input_example=inp, verbose=False, check_trace=False, do_constant_folding=True,
             )
 
 

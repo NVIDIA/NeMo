@@ -32,6 +32,7 @@ from typing import Optional
 
 import numba
 import torch
+from torch.autograd import Function
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants
 
@@ -137,6 +138,29 @@ class CpuRNNT_metadata:
                     self.log_probs2[offset + 1] = log_probs[idx(t, u, labels[u])]
 
 
+class LogSoftmaxGradModification(Function):
+    @staticmethod
+    def forward(ctx, acts, clamp):
+        if clamp < 0:
+            raise ValueError("`clamp` must be 0.0 or positive float.")
+
+        # This is needed for correctness (inplace is problematic),
+        # but it wastes a log of memory.
+        res = acts.new(acts)
+        ctx.clamp = clamp
+        return res
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        # Clamp the gradients of loss(logsoftmax(...))
+        # CPU computes logsoftmax explicitly, so we need to override t
+        grad_output = torch.clamp(grad_output, -ctx.clamp, ctx.clamp)
+        return (
+            grad_output,
+            None,
+        )
+
+
 class CPURNNT:
     def __init__(
         self,
@@ -147,6 +171,7 @@ class CPURNNT:
         workspace: torch.Tensor,
         blank: int,
         fastemit_lambda: float,
+        clamp: float,
         num_threads: int,
         batch_first: bool,
     ):
@@ -163,6 +188,7 @@ class CPURNNT:
             blank: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
             fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
                 FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+            clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
             num_threads: Number of OMP threads to launch.
             batch_first: Bool that decides if batch dimension is first or third.
         """
@@ -173,6 +199,7 @@ class CPURNNT:
         self.workspace = workspace  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
         self.fastemit_lambda_ = fastemit_lambda
+        self.clamp_ = abs(clamp)
         self.num_threads_ = num_threads
         self.batch_first = batch_first
 

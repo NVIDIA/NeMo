@@ -13,15 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class TelephoneFst(GraphFst):
@@ -35,5 +29,13 @@ class TelephoneFst(GraphFst):
         super().__init__(name="telephone", kind="verbalize")
 
         number_part = pynutil.delete("number_part: \"") + pynini.closure(NEMO_NOT_QUOTE, 1) + pynutil.delete("\"")
-        delete_tokens = self.delete_tokens(number_part)
+        optional_country_code = pynini.closure(
+            pynutil.delete("country_code: \"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + pynini.accep(" "),
+            0,
+            1,
+        )
+        delete_tokens = self.delete_tokens(optional_country_code + number_part)
         self.fst = delete_tokens.optimize()

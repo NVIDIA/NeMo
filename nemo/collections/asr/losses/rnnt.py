@@ -161,7 +161,8 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 
     elif loss_name == 'warprnnt_numba':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
-        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda)
+        clamp = loss_kwargs.pop('clamp', -1.0)
+        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     else:

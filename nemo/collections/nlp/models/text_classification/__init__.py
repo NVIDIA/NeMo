@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.text_classification.ptune_text_classification_model import (
-    PTuneTextClassificationModel,
-)
 from nemo.collections.nlp.models.text_classification.text_classification_model import TextClassificationModel

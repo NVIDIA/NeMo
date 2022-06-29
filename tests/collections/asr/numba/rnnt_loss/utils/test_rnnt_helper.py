@@ -314,6 +314,38 @@ class TestRNNTHelper:
         for i in range(len(x_new)):
             assert x_new[i] == z[i]
 
+    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Helpers can only be run when CUDA is available")
+    @pytest.mark.parametrize('batch_size', [8, 128, 256])
+    @pytest.mark.parametrize('fastemit_lambda', [0.0, 0.001])
+    @pytest.mark.unit
+    def test_compute_costs_data(self, batch_size, fastemit_lambda):
+        numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
+
+        x = np.full([batch_size], fill_value=0.0)  # np.random.rand(8192)
+        y = np.random.randn(batch_size)  # np.random.rand(8192)
+
+        stream = cuda.stream()
+        x_c = cuda.to_device(x, stream=stream)
+        y_c = cuda.to_device(y, stream=stream)
+
+        # call kernel
+        threads_per_block = min(x.shape[0], 32)
+        blocks_per_grid = (x.shape[0] + (threads_per_block - 1)) // threads_per_block
+        # Kernel call (source, dest, extra_args_...)
+        rnnt_helper.compute_costs_data[blocks_per_grid, threads_per_block, stream](y_c, x_c, fastemit_lambda)
+
+        # sync kernel
+        stream.synchronize()
+
+        x_new = x_c.copy_to_host(stream=stream)
+        del x_c, y_c
+
+        res = -(y.copy())
+        res *= 1.0 + fastemit_lambda
+
+        for i in range(len(x_new)):
+            assert x_new[i] == res[i], f"index failed {i}"
+
 
 if __name__ == '__main__':
     pytest.main([__file__])

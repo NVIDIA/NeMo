@@ -16,7 +16,8 @@ import contextlib
 import glob
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass
+from pathlib import Path
 from typing import Optional
 
 import pytorch_lightning as pl
@@ -24,7 +25,10 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.parts.utils.transcribe_utils import transcribe_partial_audio
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 
@@ -77,7 +81,7 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    num_workers: int = min(batch_size, os.cpu_count() - 1)
+    num_workers: int = 0
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
@@ -89,13 +93,19 @@ class TranscriptionConfig:
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
+    # Decoding strategy for CTC models
+    ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
+
     # Decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
+    if is_dataclass(cfg):
+        cfg = OmegaConf.structured(cfg)
 
     if cfg.model_path is None and cfg.pretrained_name is None:
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
@@ -105,11 +115,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
-            cfg.cuda = 0  # use 0th CUDA device
+            device = [0]  # use 0th CUDA device
+            accelerator = 'gpu'
         else:
-            cfg.cuda = -1  # use CPU
+            device = 1
+            accelerator = 'cpu'
+    else:
+        device = [cfg.cuda]
+        accelerator = 'gpu'
 
-    device = torch.device(f'cuda:{cfg.cuda}' if cfg.cuda >= 0 else 'cpu')
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
 
     # setup model
     if cfg.model_path is not None:
@@ -118,31 +133,55 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
-        asr_model = imported_class.restore_from(restore_path=cfg.model_path, map_location=device)  # type: ASRModel
+        asr_model = imported_class.restore_from(
+            restore_path=cfg.model_path, map_location=map_location
+        )  # type: ASRModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
-        asr_model = ASRModel.from_pretrained(model_name=cfg.pretrained_name, map_location=device)  # type: ASRModel
+        asr_model = ASRModel.from_pretrained(
+            model_name=cfg.pretrained_name, map_location=map_location
+        )  # type: ASRModel
         model_name = cfg.pretrained_name
 
-    trainer = pl.Trainer(gpus=[cfg.cuda] if cfg.cuda >= 0 else 0)
+    trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
+    partial_audio = False
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
-        asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+        # Check if ctc or rnnt model
+        if hasattr(asr_model, 'joint'):  # RNNT model
+            asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+        else:
+            asr_model.change_decoding_strategy(cfg.ctc_decoding)
 
     # get audio filenames
     if cfg.audio_dir is not None:
-        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"*.{cfg.audio_type}")))
+        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
     else:
         # get filenames from manifest
         filepaths = []
+        if os.stat(cfg.dataset_manifest).st_size == 0:
+            logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+            return None
+
+        manifest_dir = Path(cfg.dataset_manifest).parent
         with open(cfg.dataset_manifest, 'r') as f:
+            has_two_fields = []
             for line in f:
                 item = json.loads(line)
-                filepaths.append(item['audio_filepath'])
+                if "offset" in item and "duration" in item:
+                    has_two_fields.append(True)
+                else:
+                    has_two_fields.append(False)
+                audio_file = Path(item['audio_filepath'])
+                if not audio_file.is_file() and not audio_file.is_absolute():
+                    audio_file = manifest_dir / audio_file
+                filepaths.append(str(audio_file.absolute()))
+        partial_audio = all(has_two_fields)
+
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
     # setup AMP (optional)
@@ -175,7 +214,26 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # transcribe audio
     with autocast():
         with torch.no_grad():
-            transcriptions = asr_model.transcribe(filepaths, batch_size=cfg.batch_size)
+            if partial_audio:
+                if isinstance(asr_model, EncDecCTCModel):
+                    transcriptions = transcribe_partial_audio(
+                        asr_model=asr_model,
+                        path2manifest=cfg.dataset_manifest,
+                        batch_size=cfg.batch_size,
+                        num_workers=cfg.num_workers,
+                    )
+                else:
+                    logging.warning(
+                        "RNNT models do not support transcribe partial audio for now. Transcribing full audio."
+                    )
+                    transcriptions = asr_model.transcribe(
+                        paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                    )
+            else:
+                transcriptions = asr_model.transcribe(
+                    paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                )
+
     logging.info(f"Finished transcribing {len(filepaths)} files !")
 
     logging.info(f"Writing transcriptions into file: {cfg.output_filename}")
@@ -183,7 +241,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     # if transcriptions form a tuple (from RNNT), extract just "best" hypothesis
     if type(transcriptions) == tuple and len(transcriptions) == 2:
         transcriptions = transcriptions[0]
-
     # write audio transcriptions
     with open(cfg.output_filename, 'w', encoding='utf-8') as f:
         if cfg.audio_dir is not None:

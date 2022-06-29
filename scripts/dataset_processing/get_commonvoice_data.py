@@ -53,6 +53,8 @@ parser.add_argument('--manifest_dir', default='./', type=str, help='Output direc
 parser.add_argument("--num_workers", default=multiprocessing.cpu_count(), type=int, help="Workers to process dataset.")
 parser.add_argument('--sample_rate', default=16000, type=int, help='Sample rate')
 parser.add_argument('--n_channels', default=1, type=int, help='Number of channels for output wav files')
+parser.add_argument("--log", dest="log", action="store_true", default=False)
+parser.add_argument("--cleanup", dest="cleanup", action="store_true", default=False)
 parser.add_argument(
     '--files_to_process',
     nargs='+',
@@ -86,9 +88,12 @@ def create_manifest(data: List[tuple], output_name: str, manifest_path: str):
 
     with output_file.open(mode='w') as f:
         for wav_path, duration, text in tqdm(data, total=len(data)):
-            f.write(
-                json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text}) + '\n'
-            )
+            if wav_path != '':
+                # skip invalid input files that could not be converted
+                f.write(
+                    json.dumps({'audio_filepath': os.path.abspath(wav_path), "duration": duration, 'text': text})
+                    + '\n'
+                )
 
 
 def process_files(csv_file, data_root, num_workers):
@@ -108,12 +113,18 @@ def process_files(csv_file, data_root, num_workers):
         file_name = os.path.splitext(os.path.basename(file_path))[0]
         text = text.lower().strip()
         audio_path = os.path.join(audio_clips_path, file_path)
+        if os.path.getsize(audio_path) == 0:
+            logging.warning(f'Skipping empty audio file {audio_path}')
+            return '', '', ''
+
         output_wav_path = os.path.join(wav_dir, file_name + '.wav')
 
-        tfm = Transformer()
-        tfm.rate(samplerate=args.sample_rate)
-        tfm.channels(n_channels=args.n_channels)
-        tfm.build(input_filepath=audio_path, output_filepath=output_wav_path)
+        if not os.path.exists(output_wav_path):
+            tfm = Transformer()
+            tfm.rate(samplerate=args.sample_rate)
+            tfm.channels(n_channels=args.n_channels)
+            tfm.build(input_filepath=audio_path, output_filepath=output_wav_path)
+
         duration = sox.file_info.duration(output_wav_path)
         return output_wav_path, duration, text
 
@@ -121,13 +132,22 @@ def process_files(csv_file, data_root, num_workers):
     with open(csv_file) as csvfile:
         reader = csv.DictReader(csvfile, delimiter='\t')
         next(reader, None)  # skip the headers
-        data = [(row['path'], row['sentence']) for row in reader]
+        data = []
+        for row in reader:
+            file_name = row['path']
+            # add the mp3 extension if the tsv entry does not have it
+            if not file_name.endswith('.mp3'):
+                file_name += '.mp3'
+            data.append((file_name, row['sentence']))
         with ThreadPool(num_workers) as pool:
             data = list(tqdm(pool.imap(process, data), total=len(data)))
     return data
 
 
 def main():
+    if args.log:
+        logging.basicConfig(level=logging.INFO)
+
     data_root = args.data_root
     os.makedirs(data_root, exist_ok=True)
 
@@ -138,13 +158,17 @@ def main():
     else:
         logging.info("Could not find Common Voice, Downloading corpus...")
 
+        # some dataset versions are packaged in different named files, so forcing
+        output_archive_filename = args.language + '.tar.gz'
+        output_archive_filename = os.path.join(data_root, output_archive_filename)
+
         commands = [
             'wget',
             '--user-agent',
             '"Mozilla/5.0 (Windows NT 10.0; WOW64) '
             'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"',
-            '-P',
-            data_root,
+            '-O',
+            output_archive_filename,
             f'{COMMON_VOICE_URL}',
         ]
         commands = " ".join(commands)
@@ -157,8 +181,20 @@ def main():
         tar = tarfile.open(target_file)
         tar.extractall(target_unpacked_dir)
         tar.close()
+        if args.cleanup:
+            logging.info("removing tar archive to save space")
+            os.remove(target_file)
 
     folder_path = os.path.join(target_unpacked_dir, args.version + f'/{args.language}/')
+    if not os.path.isdir(folder_path):
+        # try without language
+        folder_path = os.path.join(target_unpacked_dir, args.version)
+        if not os.path.isdir(folder_path):
+            # try without version
+            folder_path = target_unpacked_dir
+            if not os.path.isdir(folder_path):
+                logging.error(f'unable to locate unpacked files in {folder_path}')
+                sys.exit()
 
     for csv_file in args.files_to_process:
         data = process_files(

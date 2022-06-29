@@ -78,7 +78,7 @@ To train TokenClassification model from scratch with the default config file, ru
     python token_classification_train.py \
            model.dataset.data_dir=<PATH_TO_DATA_DIR>  \
            trainer.max_epochs=<NUM_EPOCHS> \
-           trainer.gpus=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
+           trainer.devices=[<CHANGE_TO_GPU(s)_YOU_WANT_TO_USE>]
 
 To use one of the pretrained versions of the model specify a `pretrained_model` arg with either 
 TokenClassification model from list_available_models() or path to a .nemo file, for example: 
@@ -102,7 +102,12 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
-    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
+    try:
+        plugin = NLPDDPPlugin()
+    except (ImportError, ModuleNotFoundError):
+        plugin = None
+
+    trainer = pl.Trainer(plugins=plugin, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.pretrained_model:

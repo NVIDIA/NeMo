@@ -27,7 +27,7 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
-from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding
+from nemo.collections.asr.metrics.rnnt_wer import RNNTWER, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
@@ -40,17 +40,6 @@ from nemo.utils import logging
 
 class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
     """Base class for encoder decoder RNNT-based models."""
-
-    @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
-        """
-        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
-
-        Returns:
-            List of available pre-trained models.
-        """
-        result = []
-        return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
@@ -110,11 +99,20 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             self.compute_eval_loss = True
 
         # Setup fused Joint step if flag is set
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
+        # Setup optimization normalization (if provided in config)
         self.setup_optim_normalization()
+
+        # Setup optional Optimization flags
+        self.setup_optimization_flags()
+
+        # Setup encoder adapters (from ASRAdapterModelMixin)
+        self.setup_adapters()
 
     def setup_optim_normalization(self):
         """
@@ -259,9 +257,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w') as fp:
+                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
+                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
                         fp.write(json.dumps(entry) + '\n')
 
                 config = {
@@ -349,6 +347,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 # Assume same decoding config as before
                 decoding_cfg = self.cfg.decoding
 
+            # Assert the decoding config with all hyper parameters
+            decoding_cls = OmegaConf.structured(RNNTDecodingConfig)
+            decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+            decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
             self.decoding = RNNTDecoding(
                 decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
             )
@@ -362,7 +365,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             )
 
             # Setup fused Joint step
-            if self.joint.fuse_loss_wer:
+            if self.joint.fuse_loss_wer or (
+                self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+            ):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
@@ -397,6 +402,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
             decoding_cfg = self.cfg.decoding
 
+        # Assert the decoding config with all hyper parameters
+        decoding_cls = OmegaConf.structured(RNNTDecodingConfig)
+        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
+        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
+
         self.decoding = RNNTDecoding(
             decoding_cfg=decoding_cfg, decoder=self.decoder, joint=self.joint, vocabulary=self.joint.vocabulary,
         )
@@ -410,7 +420,9 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         )
 
         # Setup fused Joint step
-        if self.joint.fuse_loss_wer:
+        if self.joint.fuse_loss_wer or (
+            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+        ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
 
@@ -516,10 +528,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
                     * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
@@ -670,7 +687,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': self.trainer.global_step,
+            }
 
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
@@ -836,9 +857,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         Returns:
             A pytorch DataLoader for the given audio file(s).
         """
-        batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
+            'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
             'labels': self.joint.vocabulary,
             'batch_size': batch_size,
@@ -894,15 +921,30 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                     norm = param.grad.norm()
                     param.grad.data.div_(norm)
 
-    def export(self, output: str, input_example=None, **kwargs):
-        encoder_exp, encoder_descr = self.encoder.export(
-            self._augment_output_filename(output, 'Encoder'), input_example=input_example, **kwargs,
+    # EncDecRNNTModel is exported in 2 parts
+    def list_export_subnets(self):
+        return ['encoder', 'decoder_joint']
+
+    # for export
+    @property
+    def decoder_joint(self):
+        return RNNTDecoderJoint(self.decoder, self.joint)
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="stt_zh_conformer_transducer_large",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_zh_conformer_transducer_large",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/stt_zh_conformer_transducer_large/versions/1.8.0/files/stt_zh_conformer_transducer_large.nemo",
         )
-        decoder_joint = RNNTDecoderJoint(self.decoder, self.joint)
-        decoder_exp, decoder_descr = decoder_joint.export(
-            self._augment_output_filename(output, 'Decoder-Joint'),
-            # TODO: propagate from export()
-            input_example=None,
-            **kwargs,
-        )
-        return encoder_exp + decoder_exp, encoder_descr + decoder_descr
+        results.append(model)
+
+        return results

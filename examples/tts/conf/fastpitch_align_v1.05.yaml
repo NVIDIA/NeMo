@@ -29,7 +29,7 @@ window: hann
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
-whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist_lj_speech.tsv"
+whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
 model:
   learn_alignment: true
@@ -77,6 +77,7 @@ model:
       _target_: nemo.collections.tts.torch.g2ps.EnglishG2p
       phoneme_dict: ${phoneme_dict_path}
       heteronyms: ${heteronyms_path}
+      phoneme_probability: 0.5
 
   train_ds:
     dataset:
@@ -99,14 +100,16 @@ model:
       pitch_fmin: ${model.pitch_fmin}
       pitch_fmax: ${model.pitch_fmax}
       pitch_norm: true
-      pitch_avg: ${model.pitch_mean}
+      pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
       shuffle: true
       batch_size: 32
       num_workers: 12
+      pin_memory: true
 
   validation_ds:
     dataset:
@@ -131,12 +134,14 @@ model:
       pitch_norm: true
       pitch_mean: ${model.pitch_mean}
       pitch_std: ${model.pitch_std}
+      use_beta_binomial_interpolator: true
 
     dataloader_params:
       drop_last: false
       shuffle: false
       batch_size: 32
       num_workers: 8
+      pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -207,9 +212,9 @@ model:
     n_layers: 2
 
   optim:
-    name: lamb
-    lr: 1e-1
-    betas: [0.9, 0.98]
+    name: adamw
+    lr: 1e-3
+    betas: [0.9, 0.999]
     weight_decay: 1e-6
 
     sched:
@@ -227,11 +232,11 @@ trainer:
   max_epochs: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1000.0
-  checkpoint_callback: False # Provided by exp_manager
+  enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
-  flush_logs_every_n_steps: 1000
   check_val_every_n_epoch: 5
+  benchmark: false
 
 exp_manager:
   exp_dir: null

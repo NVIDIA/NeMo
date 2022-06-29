@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import json
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
@@ -29,10 +29,8 @@ from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing impo
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['QAModel']
@@ -43,29 +41,10 @@ class QAModel(NLPModel):
     BERT encoder with QA head training.
     """
 
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.setup_tokenizer(cfg.tokenizer)
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bert_model = get_lm_model(
-            pretrained_model_name=cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(cfg.language_model.config) if cfg.language_model.config else None,
-            checkpoint_file=cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
-            if cfg.tokenizer is not None
-            else None,
-        )
-
         self.classifier = TokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
             num_layers=cfg.token_classifier.num_layers,
             activation=cfg.token_classifier.activation,
@@ -77,10 +56,14 @@ class QAModel(NLPModel):
         self.loss = SpanningLoss()
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
+
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
+
         logits = self.classifier(hidden_states=hidden_states)
         return logits
 
@@ -88,7 +71,6 @@ class QAModel(NLPModel):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
@@ -308,6 +290,7 @@ class QAModel(NLPModel):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
+            keep_doc_spans='all',  # self._cfg.dataset.keep_doc_spans,
             doc_stride=self._cfg.dataset.doc_stride,
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,

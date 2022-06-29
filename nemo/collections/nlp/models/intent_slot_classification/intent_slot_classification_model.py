@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import os
+import pathlib
 from typing import Dict, List, Optional
 
-import onnx
 import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
@@ -30,59 +30,27 @@ from nemo.collections.nlp.data.intent_slot_classification import (
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
-from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 
 class IntentSlotClassificationModel(NLPModel):
-    @property
-    def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.bert_model.input_types
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return self.classifier.output_types
-
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
         """
         self.max_seq_length = cfg.language_model.max_seq_length
-
-        # Setup tokenizer.
-        self.setup_tokenizer(cfg.tokenizer)
-
+        # init superclass
         # Check the presence of data_dir.
         if not cfg.data_dir or not os.path.exists(cfg.data_dir):
-            # Disable setup methods.
-            IntentSlotClassificationModel._set_model_restore_state(is_being_restored=True)
             # Set default values of data_desc.
             self._set_defaults_data_desc(cfg)
         else:
             self.data_dir = cfg.data_dir
             # Update configuration of data_desc.
             self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
-
-        # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
-
-        # Initialize Bert model
-        self.bert_model = get_lm_model(
-            pretrained_model_name=self.cfg.language_model.pretrained_model_name,
-            config_file=self.register_artifact('language_model.config_file', cfg.language_model.config_file),
-            config_dict=OmegaConf.to_container(self.cfg.language_model.config)
-            if self.cfg.language_model.config
-            else None,
-            checkpoint_file=self.cfg.language_model.lm_checkpoint,
-            vocab_file=self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file),
-        )
-
-        # Enable setup methods.
-        IntentSlotClassificationModel._set_model_restore_state(is_being_restored=False)
-
         # Initialize Classifier.
         self._reconfigure_classifier()
 
@@ -131,8 +99,8 @@ class IntentSlotClassificationModel(NLPModel):
                 {'intent_labels_file': 'intent_labels.csv', 'slot_labels_file': 'slot_labels.csv'}
             )
 
-        slot_labels_file = os.path.join(data_dir, cfg.class_labels.slot_labels_file)
-        intent_labels_file = os.path.join(data_dir, cfg.class_labels.intent_labels_file)
+        slot_labels_file = os.path.join(data_dir, pathlib.Path(cfg.class_labels.slot_labels_file).name)
+        intent_labels_file = os.path.join(data_dir, pathlib.Path(cfg.class_labels.intent_labels_file).name)
         self._save_label_ids(data_desc.slots_label_ids, slot_labels_file)
         self._save_label_ids(data_desc.intents_label_ids, intent_labels_file)
 
@@ -152,7 +120,7 @@ class IntentSlotClassificationModel(NLPModel):
         """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
 
         self.classifier = SequenceTokenClassifier(
-            hidden_size=self.bert_model.config.hidden_size,
+            hidden_size=self.hidden_size,
             num_intents=len(self.cfg.data_desc.intent_labels),
             num_slots=len(self.cfg.data_desc.slot_labels),
             dropout=self.cfg.head.fc_dropout,
@@ -213,7 +181,7 @@ class IntentSlotClassificationModel(NLPModel):
         self.data_dir = data_dir
 
     @typecheck()
-    def forward(self, input_ids, token_type_ids, attention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -221,8 +189,11 @@ class IntentSlotClassificationModel(NLPModel):
         hidden_states = self.bert_model(
             input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
         )
+        if isinstance(hidden_states, tuple):
+            hidden_states = hidden_states[0]
+
         intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
-        return intent_logits, slot_logits
+        return intent_logits.float(), slot_logits.float()
 
     def training_step(self, batch, batch_idx):
         """

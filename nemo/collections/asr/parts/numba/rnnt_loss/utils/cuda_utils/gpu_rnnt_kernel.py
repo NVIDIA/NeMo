@@ -33,7 +33,7 @@ from numba import cuda
 
 from nemo.collections.asr.parts.numba.rnnt_loss.utils import rnnt_helper
 
-GPU_RNNT_THREAD_SIZE = 128
+GPU_RNNT_THREAD_SIZE = 256
 
 
 @cuda.jit(device=True, inline=True)
@@ -278,6 +278,7 @@ def compute_grad_kernel(
     alphabet_size: int,
     blank_: int,
     fastemit_lambda: float,
+    clamp: float,
 ):
     """
     Compute gradients over the transduction step.
@@ -305,6 +306,7 @@ def compute_grad_kernel(
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
         fastemit_lambda: Float scaling factor for FastEmit regularization. Refer to
             FastEmit: Low-latency Streaming ASR with Sequence-level Emission Regularization.
+        clamp: Float value. When set to value >= 0.0, will clamp the gradient to [-clamp, clamp].
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -384,6 +386,13 @@ def compute_grad_kernel(
 
             # update grads[b, t, u, v] = grad
             grads[col * alphabet_size + idx] = grad
+
+            # clamp gradient (if needed)
+            if clamp > 0.0:
+                g = grads[col * alphabet_size + idx]
+                g = min(g, clamp)
+                g = max(g, -clamp)
+                grads[col * alphabet_size + idx] = g
 
             # update internal index through the thread_buffer;
             # until idx < V + 1, such that entire vocabulary has been updated.
