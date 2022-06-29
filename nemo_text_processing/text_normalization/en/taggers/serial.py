@@ -59,7 +59,8 @@ class SerialFst(GraphFst):
         symbols_graph = pynini.string_file(get_abs_path("data/whitelist/symbol.tsv")).optimize() | pynini.cross(
             "#", "hash"
         )
-        num_graph |= symbols_graph
+        symbols_graph |= pynini.string_file(get_abs_path("data/measure/unit.tsv")).optimize()
+        num_graph |= pynini.closure(symbols_graph, 1)
 
         if not self.deterministic and not lm:
             num_graph |= cardinal.single_digits_graph
@@ -70,6 +71,7 @@ class SerialFst(GraphFst):
 
         # add space between letter and digit/symbol
         symbols = [x[0] for x in load_labels(get_abs_path("data/whitelist/symbol.tsv"))]
+        symbols += [x[0] for x in load_labels(get_abs_path("data/measure/unit.tsv"))]
         symbols = pynini.union(*symbols)
         digit_symbol = NEMO_DIGIT | symbols
 
