@@ -6,12 +6,12 @@ BASE_RESULTS_DIR = os.environ.get("BASE_RESULTS_DIR")
 class TestCIGPT5b:
 
     def test_ci_train_gpt3_5b_80gb_3runs(self):
-        base_cfg = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/base_cfg_5b.yaml")
-        candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/candidate_configs")
-        training_logs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/training_logs")
-        final_result_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/final_result")
-        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/final_result/final_summary_1nodes.csv")
-        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "gpt3/5b/final_result/optimal_config_5b_1nodes.yaml")
+        base_cfg = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/base_cfg_5b.yaml")
+        candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/candidate_configs")
+        training_logs_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/training_logs")
+        final_result_dir = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/final_result")
+        final_summary_csv = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/final_result/final_summary_1nodes.csv")
+        optimal_cfg = os.path.join(BASE_RESULTS_DIR, "gpt3/5b_80gb/final_result/optimal_config_5b_1nodes.yaml")
 
         assert os.path.exists(base_cfg), f"File not found: {base_cfg}"
         assert os.path.exists(candidate_configs_dir), f"Dir not found: {candidate_configs_dir}"
