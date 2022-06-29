@@ -69,6 +69,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
+            raise ValueError(
+                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
+            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -393,7 +397,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     and parallel_state.get_pipeline_model_parallel_world_size() > 1
                     and parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 ):
-                    if self.enc_dec_model.position_embedding_type != 'relative':
+                    if self.cfg.get('position_embedding_type') != 'relative':
                         position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
                         if self.megatron_amp_o2:
                             grad = position_embeddings_weight.main_grad
@@ -706,7 +710,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.enc_dec_model.position_embedding_type != 'relative':
+            if self.cfg.get('position_embedding_type') != 'relative':
                 self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
