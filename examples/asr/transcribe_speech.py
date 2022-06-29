@@ -17,7 +17,6 @@ import glob
 import json
 import os
 from dataclasses import dataclass, is_dataclass
-from pathlib import Path
 from typing import Optional
 
 import pytorch_lightning as pl
@@ -167,7 +166,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
             return None
 
-        manifest_dir = Path(cfg.dataset_manifest).parent
         with open(cfg.dataset_manifest, 'r') as f:
             has_two_fields = []
             for line in f:
@@ -176,10 +174,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     has_two_fields.append(True)
                 else:
                     has_two_fields.append(False)
-                audio_file = Path(item['audio_filepath'])
-                if not audio_file.is_file() and not audio_file.is_absolute():
-                    audio_file = manifest_dir / audio_file
-                filepaths.append(str(audio_file.absolute()))
+                filepaths.append(item['audio_filepath'])
         partial_audio = all(has_two_fields)
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
