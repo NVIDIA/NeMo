@@ -171,7 +171,7 @@ class PunctuationCapitalizationDataConfigBase:
 @dataclass
 class PunctuationCapitalizationLexicalAudioTrainDataConfig(PunctuationCapitalizationDataConfigBase):
     ds_item: Optional[Any] = MISSING
-    audio_manifest_filepath: Optional[str] = MISSING
+    audio_manifest_filepath: Optional[Any] = MISSING
     sample_rate: int = 8000
     batch_size: int = 32
 
@@ -179,7 +179,7 @@ class PunctuationCapitalizationLexicalAudioTrainDataConfig(PunctuationCapitaliza
 @dataclass
 class PunctuationCapitalizationLexicalAudioEvalDataConfig(PunctuationCapitalizationDataConfigBase):
     ds_item: Optional[Any] = MISSING
-    audio_manifest_filepath: Optional[str] = MISSING
+    audio_manifest_filepath: Optional[Any] = MISSING
     sample_rate: int = 8000
     batch_size: int = 32
 
