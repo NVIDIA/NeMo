@@ -23,7 +23,7 @@ test:unit_tests:
     - export PATH="/home/gitlab-runner/.local/bin:$PATH"
     - pytest tests/unit_tests
   rules:
-    - when: never
+    - when: always
 
 before_script:
   - umask 0007
@@ -135,7 +135,7 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1_1node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -147,7 +147,7 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2_2node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -159,7 +159,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2_2node_100steps
   rules:
-    - when: never
+    - when: always
   needs:
     - build-BigNLP
 
@@ -340,7 +340,7 @@ eval.gpt3.126m_tp1_pp1_lambada:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1_lambada
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
@@ -353,7 +353,7 @@ eval.gpt3.126m_tp2_pp1_lambada:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1_lambada
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
@@ -366,7 +366,7 @@ eval.gpt3.126m_tp1_pp2_lambada:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2_lambada
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
@@ -379,7 +379,7 @@ eval.gpt3.126m_tp2_pp2_lambada:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2_lambada
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
@@ -405,7 +405,7 @@ convert.gpt3.126m_tp2_pp1:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
@@ -418,7 +418,7 @@ convert.gpt3.126m_tp1_pp2:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
@@ -431,7 +431,7 @@ convert.gpt3.126m_tp2_pp2:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2
   rules:
-    - when: never
+    - when: always
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
