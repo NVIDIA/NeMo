@@ -165,9 +165,14 @@ def get_tarred_dataset(
     bucket_weights = config.get('bucket_weights', None) # For upsampling buckets
     if bucket_weights:
        bucket_weights = convert_to_config_list(bucket_weights)
-       for weight in bucket_weights:
-          if not isinstance(weight, int) or weight <=0:
-            raise TypeError(f"bucket weights must be positive integers")
+       for idx, weight in enumerate(bucket_weights):
+          try:
+            bucket_weights[idx] = int(weight) 
+            if weight <=0:
+               raise ValueError(f"bucket weights must be positive")
+          except:
+            raise TypeError(f"bucket weights must be integers")
+        
 			
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
