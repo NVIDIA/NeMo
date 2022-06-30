@@ -63,6 +63,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     raise KeyError(
                         f"{data_cfg.metric.name} is not supported. List of supported metrics: {MetricStringToTorchMetric.keys()}"
                     )
+                if data_cfg.metric.name in self._metrics_require_string2category_map:
+                    if data_cfg.metric.average is None:
+                        raise ValueError(
+                            f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
+                        )
                 if data_cfg.metric.get('labels_are_strings', False) and data_cfg.metric.name in self._metrics_require_string2category_map:
                     if data_cfg.metric.num_classes is None:
                         raise ValueError(
@@ -225,6 +230,8 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
+        
+        # If labels are strings, we need to convert them to indices for some metrics.
         elif metric_name in self._metrics_require_string2category_map and labels_are_strings:
             # Cast string labels to integers before computing the metric.
             if pred not in class_labels:
