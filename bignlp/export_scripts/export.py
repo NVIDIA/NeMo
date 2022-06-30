@@ -52,6 +52,7 @@ def create_slurm_file(
         if gpus_per_node is not None:
             f.writelines(f"#SBATCH --gpus-per-node={gpus_per_node}\n")
         if dependency is not None:
+            dependency = dependency.strip()
             if dependency != "singleton":
                 dependency = f"afterany:{dependency}"
             f.writelines(f"#SBATCH --dependency={dependency}\n")
@@ -77,6 +78,8 @@ def create_bcp_file(
     cmd,
     num_nodes,
     ntasks_per_node=8,
+    gpus_per_task=None,
+    gpus_per_node=None,
     log_file,
     new_script_path,
     env_exports=None,
@@ -95,29 +98,37 @@ def run_export(cfg, dependency=None):
     model_cfg = train_cfg.model
 
     convert_cfg = cfg.export.conversion
+    deploy_cfg = cfg.export.triton_deployment
     run_cfg = cfg.export.run
 
     checkpoint_path = convert_cfg.checkpoint_path
     triton_model_dir = run_cfg.triton_model_dir
 
-    convert_cmd_fn = {"gpt": _get_gpt_conversion_cmd}[model_cfg.model_type]
+    try:
+        convert_cmd_fn = {"gpt": _get_gpt_conversion_cmd}[model_cfg.model_type]
+    except KeyError:
+        print(f"{model_cfg.model_type} model_type is not supported yet in export stage")
+        return
+
     convert_cmd = convert_cmd_fn(cfg, checkpoint_path, triton_model_dir)
 
     results_dir = pathlib.Path(run_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)  # slurm requires to have directory where logs are saved existent
 
-    name = run_cfg.name
-    new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{train_cfg.run.name}.sh"
-    cluster_type = cfg.cluster_type
+    job_base_name = run_cfg.name
+    job_name = f"{job_base_name}_convert"
+    new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
 
-    # assume that tokenizer files are in data dir and checkpoints are in base results dir
-    dirs_to_mount = [cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir]
+    cluster_type = cfg.cluster_type
     _get_submission_cmd_fn = {"bcm": _get_bcm_submission_cmd, "bcp": _get_bcp_submission_command}[cluster_type]
+
     submit_cmd = _get_submission_cmd_fn(
         cfg=cfg,
         dependency=dependency,
+        job_name=f"{job_base_name}_convert",
         cmd=convert_cmd,
-        dirs_to_mount=dirs_to_mount,
+        # assume that tokenizer files are in data dir and checkpoints are in base results dir
+        dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir],
         submission_script_path=new_script_path,
         nodes=1,
         ntasks_per_node=1,
@@ -125,14 +136,52 @@ def run_export(cfg, dependency=None):
         time_limit=run_cfg.time_limit,
     )
     job_id = subprocess.check_output([submit_cmd], shell=True)
-    dependency = job_id.decode("utf-8")
+    conversion_job_id = job_id.decode("utf-8")
     print(f"Triton model store preparation job submitted with command: \n{submit_cmd}")
-    print(f"Submitted Triton model store preparation script with job id: {dependency}")
+    print(f"Submitted Triton model store preparation script with job id: {conversion_job_id}")
+
+    accuracy_cmd_fn = {"gpt": _get_gpt_accuracy_cmd}[model_cfg.model_type]
+    accuracy_cmd = accuracy_cmd_fn(cfg)
+
+    job_name = f"{job_base_name}_accuracy"
+    new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
+
+    submit_cmd = _get_submission_cmd_fn(
+        cfg=cfg,
+        dependency=conversion_job_id,
+        job_name=f"{job_name}",
+        cmd=accuracy_cmd,
+        # assume that checkpoints are in base results dir
+        dirs_to_mount=[cfg.bignlp_path, cfg.base_results_dir],
+        submission_script_path=new_script_path,
+        nodes=deploy_cfg.pipeline_model_parallel_size,
+        ntasks_per_node=convert_cfg.tensor_model_parallel_size,
+        logs_dir=results_dir,
+        time_limit=run_cfg.time_limit,
+    )
+    job_id = subprocess.check_output([submit_cmd], shell=True)
+    accuracy_job_id = job_id.decode("utf-8")
+
+    print(f"Accuracy for FT checkpoint job submitted with command: \n{submit_cmd}")
+    print(f"Submitted accuracy for FT checkpoint script with job id: {accuracy_job_id}")
+
+    dependency = ":".join([accuracy_job_id])
+
     return dependency
 
 
 def _get_bcp_submission_command(
-    *, cfg, dependency, cmd, dirs_to_mount, submission_script_path, nodes, ntasks_per_node, logs_dir, time_limit
+    *,
+    cfg,
+    dependency,
+    job_name,
+    cmd,
+    dirs_to_mount,
+    submission_script_path,
+    nodes,
+    ntasks_per_node,
+    logs_dir,
+    time_limit,
 ):
     create_bcp_file(
         new_script_path=submission_script_path,
@@ -146,10 +195,21 @@ def _get_bcp_submission_command(
 
 
 def _get_bcm_submission_cmd(
-    *, cfg, dependency, cmd, dirs_to_mount, submission_script_path, nodes, ntasks_per_node, logs_dir, time_limit
+    *,
+    cfg,
+    dependency,
+    job_name,
+    cmd,
+    dirs_to_mount,
+    submission_script_path,
+    nodes,
+    ntasks_per_node,
+    gpus_per_task=None,
+    gpus_per_node=None,
+    logs_dir,
+    time_limit,
 ):
     run_cfg = cfg.export.run
-    name = run_cfg.name
     cluster_cfg = cfg.cluster
 
     # Process container-mounts.
@@ -161,19 +221,20 @@ def _get_bcm_submission_cmd(
         flags = (
             f"--container-image {container} --container-mounts {mounts_str} "
             f"--no-container-mount-home "
-            f"-o {logs_dir}/slurm_%j.log "
+            f"-o {logs_dir}/slurm_%j.log"
         )
     else:
         flags = (
             f"--container-image {container} --container-mounts {mounts_str} "
             f"--no-container-mount-home "
-            f"-o {logs_dir}/{name}-%j.log -e {logs_dir}/{name}-%j.error "
+            f"-o {logs_dir}/{job_name}-%j.log -e {logs_dir}/{job_name}-%j.error"
         )
-    job_name = os.path.join(cluster_cfg.job_name_prefix, name)
+    if cluster_cfg.get("srun_flags"):
+        flags += f" {cluster_cfg.get('srun_flags')}"
     create_slurm_file(
         new_script_path=submission_script_path,
         cmd=cmd,
-        job_name=job_name,
+        job_name=f"{cluster_cfg.job_name_prefix}{job_name}",
         flags=flags,
         dependency=dependency,
         exclusive=cluster_cfg.exclusive,
@@ -182,8 +243,8 @@ def _get_bcm_submission_cmd(
         time=time_limit,
         nodes=nodes,
         ntasks_per_node=ntasks_per_node,
-        gpus_per_task=cluster_cfg.gpus_per_task,
-        gpus_per_node=cluster_cfg.gpus_per_node,
+        gpus_per_task=gpus_per_task or cluster_cfg.gpus_per_task,
+        gpus_per_node=gpus_per_node or cluster_cfg.gpus_per_node,
         partition=cluster_cfg.partition,
         account=cluster_cfg.account,
         exclude=cluster_cfg.get("exclude"),
@@ -233,7 +294,51 @@ def _get_gpt_conversion_cmd(cfg, checkpoint_path, triton_model_dir):
         triton_prepare_model_config_cmd += " \\\n --enable-custom-all-reduce"
     return (
         f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
+        f"rm -rf {triton_model_dir} && \\\n"
         + convert_cmd
         + " && \\\n"
         + triton_prepare_model_config_cmd
     )
+
+
+def _get_gpt_accuracy_cmd(cfg):
+    run_cfg = cfg.export.run
+    convert_cfg = cfg.export.conversion
+    triton_cfg = cfg.export.triton_deployment
+    accuracy_cfg = cfg.export.accuracy
+
+    checkpoint_path = f"{run_cfg.triton_model_dir}/1/{convert_cfg.tensor_model_parallel_size}-gpu"
+
+    lambada_script_path = FT_PATH / "examples/pytorch/gpt/lambada_task_example.py"
+    update_config_script_path = FT_PATH / "examples/pytorch/gpt/utils/update_gpt_config.py"
+    lib_path = FT_PATH / "build/lib/libth_parallel_gpt.so"
+
+    create_config_ini_cmd = (
+        f"mkdir -p $(dirname {accuracy_cfg.runtime_config_ini_path}) && \\\n"
+        f"cp {checkpoint_path}/config.ini {accuracy_cfg.runtime_config_ini_path} && \\\n"
+        f"python -u {update_config_script_path} \\\n"
+        f" --model-dir {checkpoint_path} \\\n"
+        f" --config-ini-path {accuracy_cfg.runtime_config_ini_path} \\\n"
+        f" --pipeline-para-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        # TODO: probably this parameter could be removed
+        f" --tensor-para-size {convert_cfg.tensor_model_parallel_size} \\\n"
+        f" --max-seq-len {accuracy_cfg.runtime.max_seq_len} \\\n"
+        f" --beam-width {accuracy_cfg.runtime.beam_width} \\\n"
+        f" --sampling-top-k {accuracy_cfg.runtime.sampling_top_k} \\\n"
+        f" --sampling-top-p {accuracy_cfg.runtime.sampling_top_p} \\\n"
+        f" --data-type {accuracy_cfg.runtime.data_type}"
+    )
+
+    lambada_cmd = (
+        f"mkdir -p $(dirname {accuracy_cfg.lambada_path}) && \\\n"
+        f"wget https://github.com/cybertronai/bflm/raw/master/lambada_test.jsonl -O {accuracy_cfg.lambada_path} && \\\n"
+        f"python -u {lambada_script_path} \\\n"
+        f" --checkpoint-path {checkpoint_path} \\\n"
+        f" --lib-path {lib_path} \\\n"
+        f" --config-ini-path {accuracy_cfg.runtime_config_ini_path} \\\n"
+        f" --lambada-path {accuracy_cfg.lambada_path} \\\n"
+        f" --output-path {accuracy_cfg.output_path} \\\n"
+        f" --batch-size {accuracy_cfg.batch_size}"
+    )
+
+    return f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + create_config_ini_cmd + " && \\\n" + lambada_cmd

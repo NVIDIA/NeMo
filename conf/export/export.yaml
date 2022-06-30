@@ -17,3 +17,15 @@ triton_deployment:
   pipeline_model_parallel_size: 1
   int8_mode: False
   enable_custom_all_reduce: False
+
+accuracy:
+  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
+  lambada_path: ${export.run.results_dir}/lambada_test.jsonl
+  output_path: ${export.run.results_dir}/lambada_output.json
+  batch_size: 64
+  runtime:
+    max_seq_len: 512
+    beam_width: 1
+    sampling_top_k: 1
+    sampling_top_p: 0
+    data_type: fp16
