@@ -737,7 +737,7 @@ class SpectralClustering:
         return embedding[:n_spks].T
 
 
-# @torch.jit.script
+@torch.jit.script
 class NMESC:
     """
     Normalized Maximum Eigengap based Spectral Clustering (NME-SC)
