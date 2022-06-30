@@ -1,7 +1,9 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:azure-support-py3-base-amd64@sha256:7ddf05bc55de6c1471cdee4ea382a82831d6ae81ff73efa618abdb7e349d879a"
-  BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.03-py"
+  SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
+  NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
+  CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
 
 stages:
   - build
@@ -32,8 +34,7 @@ before_script:
   - export IMAGE_NAME=bignlp_ci
   - export BUILD_IMAGE_NAME=${BIGNLP_REGISTRY}/${IMAGE_NAME}:pipe.${CI_PIPELINE_ID}
   - export BUILD_IMAGE_NAME_SRUN="${BUILD_IMAGE_NAME/:5005\//#}"
-  - export PIPELINE_DIR="${BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
-  - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
+  - export NVCR_IMAGE_NAME=${CONTAINER_NVCR_BASE}.pipe.${CI_PIPELINE_ID}
 
 .build: &build_template
   stage: build
@@ -41,6 +42,7 @@ before_script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${CI_REGISTRY}"
     - export DOCKER_REGISTRY="${CI_REGISTRY/:5005/}"
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN "${DOCKER_REGISTRY}"
+    - docker login -u "\$oauthtoken" -p $NGC_CLI_API_KEY nvcr.io
     # Define bignlp build image
     - set -x
     - ls
@@ -48,6 +50,10 @@ before_script:
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${FROM_IMAGE_NAME}"
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
+    # Push to NGC
+    - docker tag ${BUILD_IMAGE_NAME} ${NVCR_IMAGE_NAME}
+    - docker push ${NVCR_IMAGE_NAME}
+
   allow_failure: false
   tags:
     - vm-builder
@@ -66,6 +72,39 @@ before_script:
   tags: &LUNA_TAGS
     - selene_ssh
 
+.NGC: &NGC
+  variables: &NGC_VARS
+    NGC_CLI_FORMAT_TYPE: "json"
+    NGC_CLI_ACE: "nv-eagle"
+    NGC_CLI_ORG: "nv-eagle-debug"
+    NGC_CLI_TEAM: "no-team"
+    NGC_CI_RESULT_WORKSPACE: "yuya-bignlp-ci"
+  tags: &NGC_TAGS
+    - ngc
+
+.bignlp-NGC-test-LAUNCHER: &bignlp-NGC-test-LAUNCHER
+  tags: *NGC_TAGS
+  stage: test
+  script:
+    - set -x
+    - pwd
+    - export PIPELINE_DIR="${NGC_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
+    - export NGC_PROJECT_DIR="${PIPELINE_DIR}/${CI_JOB_ID}/${CI_PROJECT_NAME}" # GIT_CLONE_PATH on NGC
+    - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
+    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
+    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
+    - env
+    - ngc workspace upload --source . --destination ${NGC_PROJECT_DIR} ${NGC_CI_RESULT_WORKSPACE}
+    - bash tests/ci_tests/ngc/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh | tee job_${CI_JOB_ID}.json
+    - NGC_ID=$(cat job_${CI_JOB_ID}.json | jq -r ".id")
+    - cd tests/ci_tests/utils
+    - chmod 777 ./* -R
+    - bash ngcjobwait.sh ${NGC_ID} 0
+    - ngc batch attach ${NGC_ID}
+    - bash ngcjobwait.sh ${NGC_ID} 1
+    - bash ngcjobcheck.sh ${NGC_ID}
+    - echo "Finished pytest job"
+
 build-BigNLP:
   <<: *build_template
   rules:
@@ -80,6 +119,8 @@ build-BigNLP:
     - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
+    - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
+    - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
@@ -105,10 +146,8 @@ build-BigNLP:
     - tail --pid="${PID}" -f "${SLURM_OUTPUT}" # Stream job output until it finishes.
     - echo "Finished job with name ${RUN_NAME}"
     - cd ${GIT_CLONE_PATH}
-
     # Run metrics collection
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json.py tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
-
     # Run Pytest
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
@@ -641,6 +680,17 @@ data_prep.mt5.mc4_prepare_lang_mt:
   needs:
     - build-BigNLP
 
+train.gpt3.ngc_126m_tp1_pp1_2node_100steps:
+  <<: *bignlp-NGC-test-LAUNCHER
+  variables:
+    <<: [*VARS, *NGC_VARS]
+    RUN_TASK: train
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1_2node_100steps
+  rules:
+    - when: always
+  needs:
+    - build-BigNLP
 
 cleanup.selene:
   tags: *LUNA_TAGS

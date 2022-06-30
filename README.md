@@ -60,11 +60,12 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.3. Running Custom Model Size Configs](#5323-running-custom-model-size-configs)
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
-  * [5.5. Training with Custom Configurations](#54-training-with-custom-configurations)
+  * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
+    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
-        * [5.5.1. Slurm](#551-slurm)
-        * [5.5.2. Base Command Platform](#552-base-command-platform)
-        * [5.5.3. Common](#553-common)
+      - [5.5.1. Slurm](#551-slurm)
+      - [5.5.2. Base Command Platform](#552-base-command-platform)
+      - [5.5.3. Common](#553-common)
   * [5.6. Model Training](#56-model-training)
     + [5.6.1. GPT-3 Training](#561-gpt-3-training)
       - [5.6.1.1. Slurm](#5611-slurm)
@@ -215,6 +216,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
+| P-Tuning and Prompt Tuning                | Yes (Tensor Parallelism only)             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
@@ -235,7 +237,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                 | Slurm DeepOps/Base Command Manager/Base Command Platform |    No     |
 | Distributed data preprocessing   | Yes (the Pile dataset for T5, mC4 dataset for mT5)       |    N/A    |
 | NVfuser                          | No                                                       |    N/A    |
-
+| Hyperparameter tool                         | Yes                                                       |    N/A    |
 
 
 ## 3. Setup
@@ -937,7 +939,7 @@ creating the job (number of replicas).
 
 To train with fewer or a different number of nodes, the relevant parameters 
 can be adjusted either in the yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
@@ -1106,7 +1108,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 To train with a different number of nodes, the relevant parameters 
 (e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **3B configuration:**
@@ -1273,7 +1275,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 To train with a different number of nodes, the relevant parameters 
 (e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 
@@ -1782,7 +1784,37 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-### 4.5. Bring Your Own Dataset
+#### 5.4.1 Example: Changing Embedding Type for T5 models
+<a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
+
+Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
+train a 220M T5 model. Instead of using default absolute learnable positional embeddings, you 
+want to use relative positional embeddings.
+
+First of all, you might want to check the training configuration file in `conf/training/(model_type)/(model_size).yaml`. 
+In this case it will be `conf/training/t5/220m.yaml`. In the configuration file, you can find all the options we support.
+You can find the parameters of your interests, in this case they will be
+```yaml
+position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+```
+
+For Slurm based systems, you can directly modify the configuration file in line. In this case, you can
+change above three lines into
+```yaml
+position_embedding_type: 'relative' # Position embedding type. Options ['learned_absolute', 'relative']
+relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+```
+and submit the training job.
+
+For BCP, you can override the default configurations by adding argument 
+`training.model.position_embedding_type='relative'` when submitting the training job. 
+
+For more details of submitting training jobs on Slurm and BCP, please check [Section 5.6](#56-model-training). 
+
+### 5.5. Bring Your Own Dataset
 <a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
 If you want to train the GPT-3, T5, or mT5 models on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
@@ -4502,6 +4534,13 @@ The table and chart below show the performance results.
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
+**NeMo Megatron 22.06.RC1**
+* Relative Position Embedding for T5 optimized for Korean language
+  - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
+* Hyperparameter tool: support for DGX A100 40GB configurations
+* P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
+* Operation fusions for higher training throughput
+
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
 * Cluster validation tools (DGMI, NCCL)
@@ -4540,6 +4579,7 @@ The table and chart below show the performance results.
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
+* We observe lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
 * For customers looking to do inference on BCP please use a previous inference container
