@@ -16,6 +16,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 import torch
+
 from nemo.core.classes.mixins import AccessMixin
 
 
@@ -112,20 +113,20 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
 
         # If l2_lambda is activated, register the loss value
         if module.training and self.l2_lambda > 0.0:
-            if not isinstance(module, AccessMixin):
-                raise ValueError(f"Module {module.__class__.__name__} does not implement AccessMixin !")
+            if not isinstance(adapter, AccessMixin):
+                raise ValueError(f"Module {adapter.__class__.__name__} does not implement AccessMixin !")
 
             # Only add auxiliary loss if adapter has trainable parameters that require gradients
             if next(adapter.parameters()).requires_grad is True:
                 # Check if globally allowed to compute aux loss
-                compute_aux_loss = module.access_cfg.get('compute_adapter_loss', True)
+                compute_aux_loss = adapter.access_cfg.get('compute_adapter_loss', True)
 
                 if compute_aux_loss:
                     # if l2 lambda is enabled, also enable AccessMixin
-                    module.set_access_enabled(access_enabled=True)
+                    adapter.set_access_enabled(access_enabled=True)
 
-                    l2_loss = self.l2_lambda * (input - result).square().view(input.size(0), -1).sum(dim=-1).mean()
-                    module.register_accessible_tensor(name='adapter_loss', tensor=l2_loss)
+                    l2_loss = self.l2_lambda * (input - result).square().reshape(input.size(0), -1).sum(dim=-1).mean()
+                    adapter.register_accessible_tensor(name='adapter_loss', tensor=l2_loss)
 
         return result
 
