@@ -5,7 +5,7 @@ BASE_RESULTS_DIR = os.environ.get("BASE_RESULTS_DIR")
 
 class TestCIT52p8b:
 
-    def test_ci_train_t5_220m_80gb_3runs(self):
+    def test_ci_train_t5_2p8b_80gb_3runs(self):
         base_cfg = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/base_cfg_2.8b.yaml")
         candidate_configs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/candidate_configs")
         training_logs_dir = os.path.join(BASE_RESULTS_DIR, "t5/2.8b_40gb/training_logs")
