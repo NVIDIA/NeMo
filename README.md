@@ -62,9 +62,9 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.5. Training with Custom Configurations](#54-training-with-custom-configurations)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
-        * [5.5.1. Slurm](#551-slurm)
-        * [5.5.2. Base Command Platform](#552-base-command-platform)
-        * [5.5.3. Common](#553-common)
+        + [5.5.1. Slurm](#551-slurm)
+        + [5.5.2. Base Command Platform](#552-base-command-platform)
+        + [5.5.3. Common](#553-common)
   * [5.6. Model Training](#56-model-training)
     + [5.6.1. GPT-3 Training](#561-gpt-3-training)
       - [5.6.1.1. Slurm](#5611-slurm)
@@ -4495,6 +4495,14 @@ The table and chart below show the performance results.
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+
+**NeMo Megatron 22.06.RC1**
+* Relative Position Embedding for T5 optimized for Korean language
+* Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Hyperparameter tool update for with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* GPT-3 with PP P-Tuning and Prompt Tuning
+* Operation fusions to speed up T5
+* DGX A100 40GB configurations for GPT-3
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
