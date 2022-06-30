@@ -18,4 +18,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     evaluation.run.time_limit="01:00:00" \
     evaluation.run.results_dir=${BASE_RESULTS_DIR}/${RUN_NAME} \
     evaluation.trainer.num_nodes=1 \
-    evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/finetune_t5_220m_tp1_pp1_1node_100steps_mnli//checkpoints/megatron_t5_glue.nemo
+    evaluation.model.restore_from_path=${BASE_RESULTS_DIR}/finetune_t5_220m_tp1_pp1_1node_100steps_mnli/checkpoints/megatron_t5_glue.nemo
