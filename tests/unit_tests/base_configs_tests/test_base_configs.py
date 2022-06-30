@@ -449,7 +449,7 @@ class TestBaseConfigs:
             index_mapping_dir: null
             data_prefix:
               - 1.0
-              - ${data_dir}/mc4/preprocessed/fr_000-008_text_document
+              - ${data_dir}/mt_000-001_text_document
         """
         expected = OmegaConf.create(s)
         assert (
