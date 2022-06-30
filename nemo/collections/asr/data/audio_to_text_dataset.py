@@ -161,12 +161,12 @@ def get_tarred_dataset(
     datasets = []
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
-	
-    bucket_weights = config.get('bucket_weights', None) # For upsampling buckets
+
+    bucket_weights = config.get('bucket_weights', None)  # For upsampling buckets
     if bucket_weights:
-       for idx, weight in enumerate(bucket_weights):
-          if not isinstance(weight, int) or weight <=0:
-            raise ValueError(f"bucket weights must be positive integers")
+        for idx, weight in enumerate(bucket_weights):
+            if not isinstance(weight, int) or weight <= 0:
+                raise ValueError(f"bucket weights must be positive integers")
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
             f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
@@ -222,9 +222,9 @@ def get_tarred_dataset(
                 return_sample_id=config.get('return_sample_id', False),
             )
         if bucket_weights:
-           [datasets.append(dataset) for _ in range(bucket_weights[dataset_idx])]
+            [datasets.append(dataset) for _ in range(bucket_weights[dataset_idx])]
         else:
-           datasets.append(dataset)
+            datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
 
