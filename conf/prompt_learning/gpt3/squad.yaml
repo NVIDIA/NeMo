@@ -21,6 +21,7 @@ trainer:
   val_check_interval: 200
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
   explicit_log_dir: ${prompt_learning.run.results_dir}
@@ -50,7 +51,8 @@ model:
   tensor_model_parallel_size: 2
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-  batch_size: 8
+  global_batch_size: 64
+  micro_batch_size: 8
 
   restore_path: null # used to restore from a prompt tuned checkpoint and add new tasks
   language_model_path: ${base_results_dir}/${prompt_learning.run.model_train_name}/${prompt_learning.run.convert_name}/megatron_gpt.nemo # Restore lanugage model from pre-trained .nemo checkpoint
