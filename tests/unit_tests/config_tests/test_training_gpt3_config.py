@@ -16,7 +16,6 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -77,7 +76,8 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True
+          persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
@@ -212,7 +212,6 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -273,7 +272,8 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True
+          persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
@@ -408,7 +408,6 @@ class TestTrainingGPT3Config:
           num_nodes: 80
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -471,7 +470,8 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True
+          persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 2
@@ -606,7 +606,6 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -668,6 +667,7 @@ class TestTrainingGPT3Config:
           pre_process: True # add embedding
           post_process: True # add pooler
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
@@ -802,7 +802,6 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False # logger provided by exp_manager
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -864,6 +863,7 @@ class TestTrainingGPT3Config:
           pre_process: True # add embedding
           post_process: True # add pooler
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
+          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 1
