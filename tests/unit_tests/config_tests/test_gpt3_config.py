@@ -18,7 +18,7 @@ class TestGPT3Config:
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
-          logs: ${base_results_dir}/${search_config_value}
+          logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
@@ -59,7 +59,7 @@ class TestGPT3Config:
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
-          logs: ${base_results_dir}/${search_config_value}
+          logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
@@ -100,7 +100,7 @@ class TestGPT3Config:
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
-          logs: ${base_results_dir}/${search_config_value}
+          logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
@@ -141,7 +141,7 @@ class TestGPT3Config:
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
-          logs: ${base_results_dir}/${search_config_value}
+          logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null
@@ -182,7 +182,7 @@ class TestGPT3Config:
           tflops_per_gpu: 140
           num_tokens_in_b: 300
           vocab_size: 51200
-          logs: ${base_results_dir}/${search_config_value}
+          logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
           override_search_num_nodes: null
           tensor_parallel_sizes: null
           pipeline_parallel_sizes: null

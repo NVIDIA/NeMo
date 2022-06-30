@@ -13,7 +13,6 @@ def search_training_config(base_cfg, model_size, model_name, hydra_args, cfg):
     base_dir, results_cfgs, num_nodes = generate_grid_search_configs(base_cfg, model_size, model_name, cfg)
     # Launch candidate configs.
     job_ids = launch_grid_search_configs(base_dir, results_cfgs, model_name, cfg)
-    #job_ids = None
     # Measure and compare throughputs for each config.
     launch_throughput_measure(job_ids, model_name, model_size, num_nodes, hydra_args, cfg)
 
@@ -405,7 +404,8 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     # Settings parameters
     train_settings = hp_cfg.get("train_settings")
-    final_log_dir = os.path.join(train_settings.get("logs"), "final_result")
+    log_dir = train_settings.get("logs")
+    final_log_dir = os.path.join(log_dir, "final_result")
     os.makedirs(final_log_dir, exist_ok=True)
 
     # Process container-mounts.
@@ -423,7 +423,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         f"--container-mounts {mounts_str} "
     )
     if cfg.get("ci_test"):  # Whether this job is running in CI or not.
-        flags += f"-o {base_results_dir}/slurm_%j.log "
+        flags += f"-o {log_dir}/slurm_%j.log "
     else:
         flags += (
             f"-o {final_log_dir}/compare_throughput_{model_size_in_b}b_{num_nodes}nodes-%j.log "
@@ -450,7 +450,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
         account=account,
     )
     if cfg.get("ci_test"):
-        job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{base_results_dir}/launcher.log" '], shell=True)
+        job_id = subprocess.check_output([f'sbatch {new_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
     else:
         job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     dependency = job_id.decode("utf-8")

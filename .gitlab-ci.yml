@@ -74,13 +74,14 @@ before_script:
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
     - set -x
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_JOB_NAME}
+    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_MODEL}/${RUN_SIZE}_${GPU_MEM}gb
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${BASE_RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
     - echo $SLURM_JOBID
-    - export SLURM_OUTPUT=${BASE_RESULTS_DIR}/slurm_${SLURM_JOBID}.log
+    - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
     - cd tests/ci_tests/utils
     - chmod 777 ./* -R
@@ -133,6 +134,8 @@ train.gpt3.126m_80gb_3runs_1node:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    GPU_MEM: 80
     RUN_JOB_NAME: 126m_80gb_3runs_1node
   rules:
     - when: always
@@ -143,6 +146,8 @@ train.gpt3.126m_40gb_3runs_1node:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
+    RUN_SIZE: 0.126b
+    GPU_MEM: 40
     RUN_JOB_NAME: 126m_40gb_3runs_1node
   rules:
     - when: always
@@ -153,6 +158,8 @@ train.gpt3.5b_80gb_3runs_1node:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    GPU_MEM: 80
     RUN_JOB_NAME: 5b_80gb_3runs_1node
   rules:
     - when: always
@@ -163,7 +170,105 @@ train.gpt3.5b_40gb_3runs_2node:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
+    RUN_SIZE: 5b
+    GPU_MEM: 40
     RUN_JOB_NAME: 5b_40gb_3runs_2node
+  rules:
+    - when: always
+
+train.t5.220m_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 0.22b
+    GPU_MEM: 80
+    RUN_JOB_NAME: 220m_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.220m_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 0.22b
+    GPU_MEM: 40
+    RUN_JOB_NAME: 220m_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.2p8b_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 2.8b
+    GPU_MEM: 80
+    RUN_JOB_NAME: 2p8b_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.t5.2p8b_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: t5
+    RUN_SIZE: 2.8b
+    GPU_MEM: 40
+    RUN_JOB_NAME: 2p8b_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.170m_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 0.17b
+    GPU_MEM: 80
+    RUN_JOB_NAME: 170m_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.170m_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 0.17b
+    GPU_MEM: 40
+    RUN_JOB_NAME: 170m_40gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.3p2b_80gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 3.2b
+    GPU_MEM: 80
+    RUN_JOB_NAME: 3p2b_80gb_3runs_1node
+  rules:
+    - when: always
+
+train.mt5.3p2b_40gb_3runs_1node:
+  <<: *hp-tool-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: train
+    RUN_MODEL: mt5
+    RUN_SIZE: 3.2b
+    GPU_MEM: 40
+    RUN_JOB_NAME: 3p2b_40gb_3runs_1node
   rules:
     - when: always
 

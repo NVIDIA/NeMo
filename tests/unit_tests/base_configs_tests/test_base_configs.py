@@ -16,7 +16,6 @@ class TestBaseConfigs:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -79,6 +78,7 @@ class TestBaseConfigs:
           pre_process: True
           post_process: True
           persist_layer_norm: True
+          grad_div_ar_fusion: True
           gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
@@ -100,6 +100,7 @@ class TestBaseConfigs:
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           # miscellaneous
           seed: 1234
@@ -157,7 +158,6 @@ class TestBaseConfigs:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
@@ -211,6 +211,7 @@ class TestBaseConfigs:
           post_process: True
 
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -221,12 +222,16 @@ class TestBaseConfigs:
           init_method_std: 0.015
           hidden_dropout: 0.1
           attention_dropout: 0.1
+          position_embedding_type: 'learned_absolute'
+          relative_attention_num_buckets: 32
+          relative_attention_max_distance: 128
           kv_channels: null
           apply_query_key_layer_scaling: True
           layernorm_epsilon: 1e-5
           persist_layer_norm: True
           gradient_as_bucket_view: True
-          bias_gelu_fusion: False
+          bias_activation_fusion: True
+          grad_div_ar_fusion: True
           masked_softmax_fusion: True
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
@@ -316,15 +321,14 @@ class TestBaseConfigs:
           devices: 8
           accelerator: gpu
           precision: bf16
-          amp_backend: native
           logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 1066667
+          max_steps: 1000000
           max_time: "06:23:30:00"
           log_every_n_steps: 1
-          val_check_interval: 2000
+          val_check_interval: 1000
           limit_val_batches: 50
           limit_test_batches: 500
           accumulate_grad_batches: 1
@@ -370,6 +374,7 @@ class TestBaseConfigs:
           post_process: True
 
           megatron_amp_O2: True
+          grad_allreduce_chunk_size_mb: 125
 
           seq_length: 512
           max_position_embeddings: ${.seq_length}
@@ -380,12 +385,16 @@ class TestBaseConfigs:
           init_method_std: 0.015
           hidden_dropout: 0.1
           attention_dropout: 0.1
+          position_embedding_type: 'learned_absolute'
+          relative_attention_num_buckets: 32
+          relative_attention_max_distance: 128
           kv_channels: 64
           apply_query_key_layer_scaling: True
           layernorm_epsilon: 1e-5
           persist_layer_norm: True
           gradient_as_bucket_view: True
-          bias_gelu_fusion: False
+          bias_activation_fusion: True
+          grad_div_ar_fusion: True
           masked_softmax_fusion: True
           encoder_arch: 'transformer'
           decoder_arch: 'transformer'
@@ -431,7 +440,7 @@ class TestBaseConfigs:
 
           data:
             data_impl: mmap
-            splits_string: "999892,99,9"
+            splits_string: "90,5,5"
             seq_length: 512
             seq_length_dec: 128
             skip_warmup: True
@@ -449,7 +458,7 @@ class TestBaseConfigs:
             index_mapping_dir: null
             data_prefix:
               - 1.0
-              - ${data_dir}/mc4/preprocessed/fr_000-008_text_document
+              - ${data_dir}/mt_000-001_text_document
         """
         expected = OmegaConf.create(s)
         assert (
