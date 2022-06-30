@@ -11,7 +11,7 @@ class TestConversionT5Config:
           time_limit: "2:00:00"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
           convert_name: convert_nemo
-          model_train_name: t5_220m
+          model_train_name: ${training.run.name}
           train_dir: ${base_results_dir}/${.model_train_name}
           results_dir: ${.train_dir}/${.convert_name}
           output_path: ${.train_dir}/${.convert_name}
@@ -44,7 +44,7 @@ class TestConversionGPT3Config:
           time_limit: "2:00:00"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
           convert_name: convert_nemo
-          model_train_name: gpt3_5b
+          model_train_name: ${training.run.name}
           train_dir: ${base_results_dir}/${.model_train_name}
           results_dir: ${.train_dir}/${.convert_name}
           output_path: ${.train_dir}/${.convert_name}

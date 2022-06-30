@@ -4,7 +4,7 @@ run:
   nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
   ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
   eval_name: eval_lambada
-  model_train_name: gpt3_5b
+  model_train_name: ${training.run.name}
   train_dir: ${base_results_dir}/${.model_train_name}
   tasks: lambada  # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
   results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
@@ -17,7 +17,7 @@ model:
   tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
   pipeline_model_parallel_size: 1
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
-  precision: bf16 # must match training precision - 32, 16 or bf16
+  precision: ${training.trainer.precision}  # must match training precision - 32, 16 or bf16
   eval_batch_size: 4
   vocab_file: ${data_dir}/bpe/vocab.json
   merge_file: ${data_dir}/bpe/merges.txt

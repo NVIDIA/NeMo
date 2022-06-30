@@ -55,6 +55,7 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
+          model_type: "gpt"
           # model parallelism 
           micro_batch_size: 4
           global_batch_size: 256
@@ -251,6 +252,7 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
+          model_type: "gpt"
           # model parallelism: MBS=2, TPS=2, AGB=9 for 80GB nodes.
           micro_batch_size: 2
           global_batch_size: 1440
@@ -449,6 +451,7 @@ class TestTrainingGPT3Config:
 
 
         model:
+          model_type: "gpt"
           # model parallelism
           micro_batch_size: 4
           global_batch_size: 1440
@@ -645,6 +648,7 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
+          model_type: "gpt"
           # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
           micro_batch_size: 2
           global_batch_size: 1440
@@ -841,6 +845,7 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
+          model_type: "gpt"
           # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
           micro_batch_size: 1
           global_batch_size: 1536

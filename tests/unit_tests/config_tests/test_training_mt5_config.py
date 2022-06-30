@@ -61,6 +61,7 @@ class TestTrainingmT5Config:
             buffer_size: 5
         
         model:
+          model_type: "mt5"
           # model parallelism
           micro_batch_size: 64
           global_batch_size: 2048 # will use more micro batches to reach global batch size
@@ -222,6 +223,7 @@ class TestTrainingmT5Config:
             buffer_size: 5
         
         model:
+          model_type: "mt5"
           # model parallelism
           micro_batch_size: 32
           global_batch_size: 2048 # will use more micro batches to reach global batch size
@@ -383,6 +385,7 @@ class TestTrainingmT5Config:
             buffer_size: 5
         
         model:
+          model_type: "mt5"
           # model parallelism
           micro_batch_size: 24
           global_batch_size: 1920 # will use more micro batches to reach global batch size

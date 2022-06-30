@@ -31,7 +31,7 @@ data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
-container: gitlab-master.nvidia.com:5005#dl/dgx/bignlp/train:infer_refactor-py3-base
+container: gitlab-master.nvidia.com#dl/dgx/bignlp/train:infer_refactor-py3-base
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 
