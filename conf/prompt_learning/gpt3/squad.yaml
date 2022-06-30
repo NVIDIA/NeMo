@@ -97,6 +97,6 @@ model:
       name: CosineAnnealing
       warmup_steps: 50
       constant_steps: 10
-      min_lr: 2.0e-5
+      min_lr: 0.0 # has to be zero
       monitor: val_loss
       reduce_on_plateau: false
