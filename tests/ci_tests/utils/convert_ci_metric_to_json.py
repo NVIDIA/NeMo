@@ -84,6 +84,8 @@ def collect_train_test_metrics(pytest_file):
     with open(train_metrics_file, "w") as out_file:
         json.dump(train_metrics, out_file)
     print(f" ****** CI train metrics logged in {train_metrics_file}", flush=True)
+    str_train_metrics = str(train_metrics).replace("'", "\"")
+    print(f" ****** CI train metrics: \n {str_train_metrics}", flush=True)
 
 if __name__ == '__main__':
     args = sys.argv[1:]
