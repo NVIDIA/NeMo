@@ -99,6 +99,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.9.2.1. Common](#5921-common)
       - [5.9.2.2. Slurm](#5922-slurm)
       - [5.9.2.3. Base Command Platform](#5923-base-command-platform)
+    + [5.9.3. Finetuning on Custom Tasks](#593-finetuning-on-custom-tasks)
   * [5.10. Model Prompt Learning](#510-model-prompt-learning)
     + [5.10.1. GPT-3 Prompt Learning](#5101-gpt-3-prompt-learning)
       - [5.10.1.1. Common](#51011-common)
@@ -2628,6 +2629,33 @@ The command above assumes you mounted the data workspace in /mount/data, and the
 The stdout and stderr outputs will also be redirected to the /results/finetune_mt5_log.txt file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
+#### 5.9.3. Finetuning on Custom Tasks
+<a id="markdown-finetuning-on-custom-tasks" name="finetuning-on-custom-tasks"></a>
+We also support fine-tuning on custom down-stream tasks in T5 and mT5. In order to benchmark on your own
+dataset, you are required to split the original dataset into two files, i.e. a txt file corresponding to the 
+source (context) data, and txt file corresponding to the target data. Each line of these two files forms a 
+fine-tuning sample.
+
+Custom fine-tuning configuration files can be found in `conf/finetuning/t5/custom_task.yaml` for T5 models
+and `conf/finetuning/mt5/custom_task.yaml` for mT5 models. The essential parameters are listed below. You need
+to specify the dataset paths and preferred benchmark metrics.
+```yaml
+  data:
+    train_ds:
+      src_file_name: ??? # Path to the txt file corresponding to the source data.
+      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
+
+    validation_ds:
+      src_file_name: ??? # Path to the txt file corresponding to the source data.
+      tgt_file_name: ??? # Path to the txt file corresponding to the target data.
+      metric:
+        name: "exact_string_match" # Name of the evaluation metric to use.
+        average: null # Average the metric over the dataset. Options: ['macro', 'micro']. Works only for 'F1', 'accuracy' etc. Refer to torchmetrics for metrics where this is supported.
+        num_classes: null
+```
+You can follow the instructions in T5 and mT5 fine-tuning sections to submit a custom task job.
+
+
 
 ### 5.10. Model Prompt Learning
 <a id="markdown-model-prompt-learning" name="model-prompt-learning"></a>
@@ -3270,7 +3298,7 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -3297,7 +3325,7 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
