@@ -61,6 +61,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
+    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-time-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
       - [5.5.1. Slurm](#551-slurm)
       - [5.5.2. Base Command Platform](#552-base-command-platform)
@@ -1777,10 +1778,35 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-### 5.4.1 Changing Embeddings
-<a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
+### 5.4.1 Example: Changing Embedding Type for T5 models
+<a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
 
-RPE vs APE
+Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
+train a 220M T5 model. Instead of using default absolute learnable positional embedding, you 
+want to use relative positional embeddings.
+
+First of all, you might want to check the training configuration file in `conf/training/(model_type)/(model_size).yaml`. 
+In this case it will be `conf/training/t5/220m.yaml`. In the configuration file, you can find all the options we support.
+We can find the parameters of our interests, in this case they will be
+```yaml
+position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
+relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+```
+
+For Slurm based systems, you can directly modify the configuration file in line. In this case, you can
+change above three lines into
+```yaml
+position_embedding_type: 'relative' # Position embedding type. Options ['learned_absolute', 'relative']
+relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
+relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+```
+and submit the training job.
+
+For BCP, you can override the default configurations by adding argument 
+`training.model.position_embedding_type='relative'` when submitting the training job. 
+
+For more details of submitting training jobs on Slurm and BCP, please check [Section 5.6](#56-model-training). 
 
 ### 5.5. Bring Your Own Dataset
 <a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
