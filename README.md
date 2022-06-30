@@ -60,11 +60,11 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.3. Running Custom Model Size Configs](#5323-running-custom-model-size-configs)
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
-  * [5.5. Training with Custom Configurations](#54-training-with-custom-configurations)
+  * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
-        + [5.5.1. Slurm](#551-slurm)
-        + [5.5.2. Base Command Platform](#552-base-command-platform)
-        + [5.5.3. Common](#553-common)
+      - [5.5.1. Slurm](#551-slurm)
+      - [5.5.2. Base Command Platform](#552-base-command-platform)
+      - [5.5.3. Common](#553-common)
   * [5.6. Model Training](#56-model-training)
     + [5.6.1. GPT-3 Training](#561-gpt-3-training)
       - [5.6.1.1. Slurm](#5611-slurm)
@@ -215,6 +215,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
+| P-Tuning and Prompt Tuning                | Yes (Tensor Parallelism only)             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
@@ -235,7 +236,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                 | Slurm DeepOps/Base Command Manager/Base Command Platform |    No     |
 | Distributed data preprocessing   | Yes (the Pile dataset for T5, mC4 dataset for mT5)       |    N/A    |
 | NVfuser                          | No                                                       |    N/A    |
-
+| Hyperparameter tool                         | Yes                                                       |    N/A    |
 
 
 ## 3. Setup
@@ -1776,7 +1777,12 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-### 4.5. Bring Your Own Dataset
+### 5.4.1 Changing Embeddings
+<a id="markdown-training-with-custom-configurations" name="training-with-custom-configurations"></a>
+
+RPE vs APE
+
+### 5.5. Bring Your Own Dataset
 <a id="markdown-bring-your-own-dataset" name="bring-your-own-dataset"></a>
 If you want to train the GPT-3, T5, or mT5 models on your own dataset (which is already
 filtered and cleaned), you must first convert the dataset files to jsonl files.
@@ -4498,11 +4504,9 @@ The table and chart below show the performance results.
 
 **NeMo Megatron 22.06.RC1**
 * Relative Position Embedding for T5 optimized for Korean language
-* Sequence Parallelism and Selective Activation Checkpointing for GPT-3
-* Hyperparameter tool update for with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Hyperparameter tool: support for DGX A100 40GB configurations
 * GPT-3 with PP P-Tuning and Prompt Tuning
 * Operation fusions to speed up T5
-* DGX A100 40GB configurations for GPT-3
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
