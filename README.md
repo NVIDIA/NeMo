@@ -61,7 +61,7 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.3.2.4. Interpreting the Results](#5324-interpreting-the-results)
       - [5.3.2.5. Logging Runs with Weights and Biases](#5325-logging-runs-with-weights-and-biases)
   * [5.4. Training with Custom Configurations](#54-training-with-custom-configurations)
-    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-time-for-t5-models)
+    + [5.4.1 Example: Changing Embedding Type for T5 models](#541-example-changing-embedding-type-for-t5-models)
   * [5.5. Bring Your Own Dataset](#55-bring-your-own-dataset)
       - [5.5.1. Slurm](#551-slurm)
       - [5.5.2. Base Command Platform](#552-base-command-platform)
