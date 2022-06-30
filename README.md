@@ -939,7 +939,7 @@ creating the job (number of replicas).
 
 To train with fewer or a different number of nodes, the relevant parameters 
 can be adjusted either in the yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
@@ -1108,7 +1108,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 To train with a different number of nodes, the relevant parameters 
 (e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **3B configuration:**
@@ -1275,7 +1275,7 @@ directories respectively. `$NGC_ARRAY_SIZE` is automatically set to the number o
 
 To train with a different number of nodes, the relevant parameters 
 (e.g. `micro_batch_size`) can be adjusted either in the appropriate yaml config file or 
-from the command line. More on this in [section 5.6](#56-resuming-training-from-fewer-nodes). 
+from the command line. More on this in [section 5.7](#57-resuming-training-from-fewer-nodes). 
 For Base Command Platform, all jobs must be launched in multi-node mode.
 
 
@@ -1778,11 +1778,11 @@ The training config files can be modified, or other files can be created to be
 used for training. They should follow the same structure and guidelines as the
 existing model configurations.
 
-### 5.4.1 Example: Changing Embedding Type for T5 models
+#### 5.4.1 Example: Changing Embedding Type for T5 models
 <a id="markdown-example-changing-embedding-time-for-t5-models" name="example-changing-embedding-time-for-t5-models"></a>
 
 Here we show an example to change the embedding type for T5 models. Let's assume a case you want to
-train a 220M T5 model. Instead of using default absolute learnable positional embedding, you 
+train a 220M T5 model. Instead of using default absolute learnable positional embeddings, you 
 want to use relative positional embeddings.
 
 First of all, you might want to check the training configuration file in `conf/training/(model_type)/(model_size).yaml`. 
