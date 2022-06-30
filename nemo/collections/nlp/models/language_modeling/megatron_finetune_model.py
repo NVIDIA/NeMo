@@ -95,7 +95,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         for _ in range(len(self.cfg.data.test_ds.src_file_name))
                     ]
                 else:
-                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
+                    metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes) if metric_name != 'exact_string_match' else metric()]
             else:
                 metric = [metric()]  # GLUE does need to specify average or num_classes.
 
