@@ -1498,7 +1498,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -1541,6 +1541,7 @@ train_settings:
   model_size_in_b: 5 # unit in billion parameters
   num_nodes: 20
   gpus_per_node: 8
+  gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
   max_training_days: 5 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 10  # The result will print the top N fastest training configs.
@@ -1549,7 +1550,7 @@ train_settings:
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
-  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/gpt3/126m
+  logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
   override_search_num_nodes: null  # null to use the minimum required number of nodes
   tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
@@ -1595,6 +1596,7 @@ train_settings:
   model_size_in_b: 5 # unit in billion parameters
   num_nodes: 20
   gpus_per_node: 8
+  gpu_memory_gb: 80  # Memory per GPU, in GB. Currently 40GB and 80GB A100s supported.
   max_training_days: 5 # unit in days
   limit_search_runs: 100 # Max number of runs to be launched in parallel for grid search.
   output_top_n: 10  # The result will print the top N fastest training configs.
@@ -1603,7 +1605,7 @@ train_settings:
   tflops_per_gpu: 140  # Estimated tflops per GPU.
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
-  logs: ${base_results_dir}/${search_config_value}  # Example base_results_dir/gpt3/126m
+  logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
   override_search_num_nodes: null  # null to use the minimum required number of nodes
   tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
@@ -1616,7 +1618,10 @@ the tool will provide a config and HPs for a model of that size. The `num_nodes`
 how many nodes will be used to train this model to full convergence, after the HP search is finished. 
 Therefore, it will be ignored by the HP search tool, and it will only be used when generating the 
 final config YAML files. The `gpus_per_node` parameter indicates how many GPUs are available in each 
-node. The `max_training_days` parameter shows how many days this model will be trained for, when 
+node. To modify the behavior of the heuristics depending on whether 40gb or 80gb A100 GPUs are 
+available, the `gpu_memory_gb` can be set to 40 or 80, respectively, and the HP tool will recommend 
+candidate configs that are more suitable to each setting. 
+The `max_training_days` parameter shows how many days this model will be trained for, when 
 training to full convergence. It will be written to the final config YAML files. This parameter can 
 also be used when `model_size_in_b` is set to `null`. The 
 `limit_search_runs` parameter can be used to limit the number of configs that will be searched 
@@ -1713,9 +1718,10 @@ config.
 
 When the tool generates the base configuration for a model, it will be saved inside the directory 
 specified in the `logs` parameter in your config files. By default, this will be 
-`.../bignlp-hp-tool/results/<model_name>/<model_size/`. As the default `search_config` value is 
-set to `gpt3/5b`, the results can be found in the `.../bignlp-hp-tool/results/gpt3/5b/` directory. 
-The base config will be available inside that directory, with the name `base_cfg_<model_size>.yaml`. 
+`.../bignlp-hp-tool/results/<model_name>/<model_size>_<gpu_mem_size>/`. As the default 
+`search_config` value is set to `gpt3/5b` and the default `gpu_memory_gb` is set to 80, the results 
+can be found in the `.../bignlp-hp-tool/results/gpt3/5b_80gb/` directory. The base config will be 
+available inside that directory, with the name `base_cfg_<model_size>.yaml`. 
 
 If the training HP search pipeline is run, the results will be in three different directories inside 
 your `logs` directory. The `candidate_configs` directory contains all the YAML files with all the 
