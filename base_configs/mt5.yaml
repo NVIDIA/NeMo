@@ -129,7 +129,7 @@ model:
 
   data:
     data_impl: mmap
-    splits_string: "98,1,1"
+    splits_string: "90,5,5"
     seq_length: 512
     seq_length_dec: 128
     skip_warmup: True
