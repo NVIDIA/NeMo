@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import re
 from typing import Any, Dict, Optional
 
@@ -109,6 +110,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
+        self.pad_fraction = []
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
@@ -455,7 +457,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:

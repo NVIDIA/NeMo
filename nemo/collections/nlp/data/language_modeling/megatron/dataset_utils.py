@@ -737,6 +737,7 @@ def _build_train_valid_test_datasets(
             elif dataset_type == DSET_TYPE_T5:
                 assert tokenizer is not None, "Tokenizer is required for T5 dataset"
                 logging.info("Instatiating T5 Dataset ...")
+                documents = np.arange(start=splits[index], stop=splits[index + 1], step=1, dtype=np.int32)
                 dataset = T5Dataset(
                     cfg=cfg,
                     trainer=trainer,
@@ -751,6 +752,7 @@ def _build_train_valid_test_datasets(
                     permutation=permutation,
                     whole_word_masking=whole_word_masking,
                     favor_long_ngrams=favor_long_ngrams,
+                    documents=documents,
                     **kwargs,
                 )
             elif dataset_type == DSET_TYPE_BERT:
