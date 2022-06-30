@@ -286,7 +286,8 @@ def _get_gpt_conversion_cmd(cfg, checkpoint_path, triton_model_dir):
         f" --ft-checkpoint {triton_model_version_dir}/{convert_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
         f" --max-batch-size {deploy_cfg.max_batch_size} \\\n"
-        f" --pipeline-model-parallel-size {deploy_cfg.pipeline_model_parallel_size}"
+        f" --pipeline-model-parallel-size {deploy_cfg.pipeline_model_parallel_size} \\\n"
+        f" --data-type {deploy_cfg.data_type}"
     )
     if deploy_cfg.int8_mode:
         triton_prepare_model_config_cmd += " \\\n --int8-mode"

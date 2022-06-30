@@ -45,6 +45,9 @@ def main():
     parser.add_argument("--ft-checkpoint", help="Path to FasterTransformer checkpoint", required=True)
     parser.add_argument("--max-batch-size", type=int, help="Max batch size of Triton batcher", required=True)
     parser.add_argument("--pipeline-model-parallel-size", type=int, help="Pipeline model parallel size", required=True)
+    parser.add_argument(
+        "--data-type", choices=["fp32", "fp16", "bf16"], help="Data type of weights in runtime", required=True
+    )
     parser.add_argument("--int8-mode", action="store_true", help="Enable int8 mode in FasterTransformer Triton backend")
     parser.add_argument(
         "--enable-custom-all-reduce",
@@ -80,9 +83,9 @@ def main():
     model_config = config_ini[section_with_model_parameters]
     parameters = {
         "model_type": model_config.get("model_type", "GPT"),  # TODO: add to nemo_ckpt_convert script
-        "model_name": model_name,
-        # "tensor_para_size": model_config["tensor_para_size"],
-        # "data_type": model_config["weight_data_type"],
+        "model_name": section_with_model_parameters,
+        "tensor_para_size": model_config["tensor_para_size"],
+        "data_type": args.data_type.lower(),
         "pipeline_para_size": args.pipeline_model_parallel_size,
         "model_checkpoint_path": ft_checkpoint_path.as_posix(),
         "int8_mode": int(args.int8_mode),
