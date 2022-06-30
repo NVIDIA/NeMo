@@ -91,7 +91,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 if isinstance(data_cfg.src_file_name, ListConfig):
                     # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes) if metric_name != 'exact_string_match' else metric()
                         for _ in range(len(self.cfg.data.test_ds.src_file_name))
                     ]
                 else:
