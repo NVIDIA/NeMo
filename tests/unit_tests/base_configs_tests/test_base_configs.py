@@ -431,7 +431,7 @@ class TestBaseConfigs:
 
           data:
             data_impl: mmap
-            splits_string: "999892,99,9"
+            splits_string: "90,5,5"
             seq_length: 512
             seq_length_dec: 128
             skip_warmup: True
