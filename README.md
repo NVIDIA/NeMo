@@ -1787,7 +1787,7 @@ want to use relative positional embeddings.
 
 First of all, you might want to check the training configuration file in `conf/training/(model_type)/(model_size).yaml`. 
 In this case it will be `conf/training/t5/220m.yaml`. In the configuration file, you can find all the options we support.
-We can find the parameters of our interests, in this case they will be
+You can find the parameters of your interests, in this case they will be
 ```yaml
 position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
 relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
@@ -4532,8 +4532,8 @@ The table and chart below show the performance results.
 * Relative Position Embedding for T5 optimized for Korean language
   - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
 * Hyperparameter tool: support for DGX A100 40GB configurations
-* GPT-3 with PP P-Tuning and Prompt Tuning
-* Operation fusions to speed up T5
+* P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
+* Operation fusions for higher training throughput
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
