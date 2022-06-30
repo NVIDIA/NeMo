@@ -2129,7 +2129,7 @@ pipeline {
         model.num_attention_heads=8 \
         model.activation='swiglu' \
         model.masked_softmax_fusion=False \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.micro_batch_size=2 \
@@ -2161,7 +2161,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.masked_softmax_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
@@ -2893,7 +2893,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='pre_ln' \
@@ -2918,7 +2918,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='pre_ln' \
@@ -3015,7 +3015,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='normformer' \
@@ -3040,7 +3040,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='normformer' \
@@ -3094,7 +3094,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3116,7 +3116,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3150,7 +3150,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='geglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3173,7 +3173,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='geglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
