@@ -138,11 +138,13 @@ def run_evaluation(cfg, dependency=None):
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
             flags = (
                 f"--container-image {container} --container-mounts {mounts_str} "
+                f"--no-container-mount-home "
                 f"-o {results_dir}/slurm_%j.log "
             )
         else:
             flags = (
                 f"--container-image {container} --container-mounts {mounts_str} "
+                f"--no-container-mount-home "
                 f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
             )
 
