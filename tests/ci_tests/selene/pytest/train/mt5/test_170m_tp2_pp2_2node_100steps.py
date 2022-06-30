@@ -36,7 +36,7 @@ class TestBignlpCI:
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [12.52534, 11.5126, 11.14242, 10.80286, 10.48749, 10.18392, 9.87736, 9.60183, 9.39078, 9.17315, 8.93388, 8.76603, 8.60377, 8.4844, 8.36818, 8.26689, 8.20325, 8.12176, 8.07713, 8.00041]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [10.43492, 9.31981, 8.56282, 8.12416, 7.92332]}, "train_step_timing_avg": 0.8252284}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [12.52534, 11.51208, 11.14157, 10.80193, 10.48576, 10.18299, 9.87536, 9.59861, 9.3877, 9.16991, 8.93182, 8.76452, 8.6008, 8.48242, 8.36595, 8.26392, 8.20092, 8.11848, 8.07129, 7.99075]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [10.43318, 9.31682, 8.55975, 8.1217, 7.91408]}, "train_step_timing_avg": 0.7901283999999998}
     """
 
     expected = json.loads(expected_json)
