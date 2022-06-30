@@ -20,7 +20,7 @@ import torch
 from nemo.core.classes import ModelPT
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
-from nemo.utils import model_utils
+from nemo.utils import model_utils, logging
 from nemo.utils.export_utils import cast_all
 
 __all__ = ['ASRModel']
@@ -79,16 +79,17 @@ class ASRModel(ModelPT, ABC):
             registry = AccessMixin.get_module_registry(self)
             log_dict = {}
 
-            for loss_key, loss_list in registry.items():
-                if 'adapter' in loss_key:
-                    # Add auxiliary loss to total loss
-                    loss_value = sum(loss_list)
-                    loss += loss_value
+            for loss_key, loss_registry in registry.items():
+                # Add auxiliary loss to total loss
+                loss_list = loss_registry['adapter_loss']
+                loss_value = sum(loss_list)
+                loss += loss_value
 
-                    # Log current loss name and value
-                    keys = loss_key.split(".")
-                    key = "/".join(keys)
-                    log_dict[key] = loss_value.detach()
+                # Log current loss name and value
+                keys = loss_key.split(".")
+                key = "/".join(keys)
+                key = "adapter_loss/" + key
+                log_dict[key] = loss_value.detach()
 
             if len(log_dict) > 0:
                 self.log_dict(log_dict)

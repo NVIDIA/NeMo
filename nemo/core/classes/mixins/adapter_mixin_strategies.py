@@ -64,6 +64,8 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
         Args:
             stochastic_depth: float, when greater than one, can optionally dropout the output of
                 the adapter's forward pass.
+            l2_lambda: L2 norm of the difference between the original input to the function, and the adapter's
+                output result. Disabled if set to 0.0.
         """
         super().__init__()
         self.stochastic_depth = stochastic_depth
@@ -113,11 +115,17 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
             if not isinstance(module, AccessMixin):
                 raise ValueError(f"Module {module.__class__.__name__} does not implement AccessMixin !")
 
-            # if l2 lambda is enabled, also enable AccessMixin
-            module.set_access_enabled(access_enabled=True)
+            # Only add auxiliary loss if adapter has trainable parameters that require gradients
+            if next(adapter.parameters()).requires_grad is True:
+                # Check if globally allowed to compute aux loss
+                compute_aux_loss = module.access_cfg.get('compute_adapter_loss', True)
 
-            l2_loss = self.l2_lambda * torch.norm(input - result, p=2)
-            module.register_accessible_tensor(l2_loss)
+                if compute_aux_loss:
+                    # if l2 lambda is enabled, also enable AccessMixin
+                    module.set_access_enabled(access_enabled=True)
+
+                    l2_loss = self.l2_lambda * (input - result).square().view(input.size(0), -1).sum(dim=-1).mean()
+                    module.register_accessible_tensor(name='adapter_loss', tensor=l2_loss)
 
         return result
 
@@ -125,6 +133,8 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
 @dataclass
 class ResidualAddAdapterStrategyConfig:
     stochastic_depth: float = 0.0
+    l2_lambda: float = 0.0
+
     _target_: str = "{0}.{1}".format(
         ResidualAddAdapterStrategy.__module__, ResidualAddAdapterStrategy.__name__
     )  # mandatory field

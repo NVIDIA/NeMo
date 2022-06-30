@@ -35,9 +35,9 @@ class AccessMixin(ABC):
 
     def __init__(self):
         super().__init__()
-        self._registry = []
+        self._registry = {}  # dictionary of lists
 
-    def register_accessible_tensor(self, tensor):
+    def register_accessible_tensor(self, name, tensor):
         """
         Register tensor for later use.
         """
@@ -48,12 +48,16 @@ class AccessMixin(ABC):
             tensor = tensor.detach()
 
         if not hasattr(self, '_registry'):
-            self._registry = []
+            self._registry = {}
 
-        if len(self._registry) > 0:
-            self._registry.clear()
+        # incorrect logic
+        # if len(self._registry) > 0:
+        #     self._registry.clear()
 
-        self._registry.append(tensor)
+        if name not in self._registry:
+            self._registry[name] = []
+
+        self._registry[name].append(tensor)
 
     @classmethod
     def get_module_registry(cls, module: torch.nn.Module):

@@ -105,6 +105,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 self.transpose_encoded[decoder_loss_name] = decoder_loss_cfg.get("transpose_encoded", False)
 
                 if self.output_from_layer[decoder_loss_name] is not None:
+                    self.access_cfg['save_encoder_tensors'] = True
                     self.set_access_enabled(access_enabled=True)
 
             self.decoder_losses = nn.ModuleDict(self.decoder_losses)
@@ -408,7 +409,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                     dec_input = encoded
                 else:
                     # extract output from specified layer using AccessMixin registry
-                    dec_input = registry[self.output_from_layer[dec_loss_name]][-1]
+                    dec_input = registry[self.output_from_layer[dec_loss_name]]['encoder'][-1]
                 if self.transpose_encoded[dec_loss_name]:
                     dec_input = dec_input.transpose(-2, -1)
 
