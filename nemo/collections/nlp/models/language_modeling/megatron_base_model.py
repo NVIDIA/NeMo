@@ -241,17 +241,22 @@ class MegatronBaseModel(NLPModel):
                 )
 
             # if using tensor parallel only, we can use async grad all-reduce
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not self.cfg.get('sequence_parallel', False):
                 async_grad_allreduce = True
             else:
                 async_grad_allreduce = False
+
+            if async_grad_allreduce:
+                grad_div_ar_fusion = True
+            else:
+                grad_div_ar_fusion = False
 
             self._optimizer = MainParamsOptimizerWrapper(
                 self._optimizer,
                 fp32_grad_accum=fp32_grad_accum,
                 contiguous_grad_bucket=contiguous_grad_bucket,
                 async_grad_allreduce=async_grad_allreduce,
-                grad_div_ar_fusion=self.cfg.get('grad_div_ar_fusion', True),
+                grad_div_ar_fusion=grad_div_ar_fusion,
                 grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
             )
 
