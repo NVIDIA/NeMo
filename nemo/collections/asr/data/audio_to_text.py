@@ -482,7 +482,7 @@ class AudioToBPEDataset(_AudioTextDataset):
                 if len(args) == 1 and isinstance(args[0], list):
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], jspan['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
@@ -1026,7 +1026,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 if len(args) == 1 and isinstance(args[0], list):
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], jspan['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
