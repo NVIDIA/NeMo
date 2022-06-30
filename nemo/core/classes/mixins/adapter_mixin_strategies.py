@@ -16,6 +16,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 import torch
+from nemo.core.classes.mixins import AccessMixin
 
 
 class AbstractAdapterStrategy(ABC):
@@ -55,7 +56,7 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
     Supports stochastic depth regularization.
     """
 
-    def __init__(self, stochastic_depth: float = 0.0):
+    def __init__(self, stochastic_depth: float = 0.0, l2_lambda: float = 0.0):
         """
         An implementation of residual addition of an adapter module with its input.
         Performs output = input + adapter(input).
@@ -66,6 +67,7 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
         """
         super().__init__()
         self.stochastic_depth = stochastic_depth
+        self.l2_lambda = l2_lambda
 
     def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin'):
         """
@@ -104,7 +106,20 @@ class ResidualAddAdapterStrategy(AbstractAdapterStrategy):
             out = noise * out
 
         # Return the residual connection output = input + adapter(input)
-        return input + out
+        result = input + out
+
+        # If l2_lambda is activated, register the loss value
+        if module.training and self.l2_lambda > 0.0:
+            if not isinstance(module, AccessMixin):
+                raise ValueError(f"Module {module.__class__.__name__} does not implement AccessMixin !")
+
+            # if l2 lambda is enabled, also enable AccessMixin
+            module.set_access_enabled(access_enabled=True)
+
+            l2_loss = self.l2_lambda * torch.norm(input - result, p=2)
+            module.register_accessible_tensor(l2_loss)
+
+        return result
 
 
 @dataclass

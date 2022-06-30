@@ -68,7 +68,7 @@ class AccessMixin(ABC):
                 module_registry[name] = m._registry
         return module_registry
 
-    def reset_registry(self):
+    def reset_registry(self: torch.nn.Module):
         """
         Reset the registries of all named sub-modules
         """
@@ -87,10 +87,12 @@ class AccessMixin(ABC):
         global _ACCESS_CFG
         return _ACCESS_CFG
 
-    def is_access_enabled(self):
+    @classmethod
+    def is_access_enabled(cls):
         global _ACCESS_ENABLED
         return _ACCESS_ENABLED
 
-    def set_access_enabled(self, access_enabled: bool):
+    @classmethod
+    def set_access_enabled(cls, access_enabled: bool):
         global _ACCESS_ENABLED
         _ACCESS_ENABLED = access_enabled
