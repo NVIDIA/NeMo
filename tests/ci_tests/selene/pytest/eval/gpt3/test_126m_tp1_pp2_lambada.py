@@ -22,8 +22,7 @@ class TestCIGPT126m:
     def test_ci_eval_gpt3_126m_tp1_pp2_lambada(self):
         p = Path(CI_JOB_RESULTS)
         files = list(p.glob('eval_gpt3_126m_tp1_pp2_lambada*/metrics.json'))
-        print(p)
-        print(files)
+
         assert len(files) == 1, f"Only one metrics.json file should be present inside {CI_JOB_RESULTS}"
 
         metrics_file = files[0]
