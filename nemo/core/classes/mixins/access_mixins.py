@@ -92,6 +92,11 @@ class AccessMixin(ABC):
         return _ACCESS_CFG
 
     @classmethod
+    def update_access_cfg(cls, cfg: dict):
+        global _ACCESS_CFG
+        _ACCESS_CFG.update(cfg)
+
+    @classmethod
     def is_access_enabled(cls):
         global _ACCESS_ENABLED
         return _ACCESS_ENABLED
