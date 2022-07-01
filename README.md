@@ -1501,7 +1501,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
+training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -3298,7 +3298,7 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
+  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -3325,7 +3325,7 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc1-py3
+  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
