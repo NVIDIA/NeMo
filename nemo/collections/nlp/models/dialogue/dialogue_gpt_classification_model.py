@@ -243,7 +243,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
-            prompt_ids = torch.tensor([1] * input_ids.size(0)) if self.prompt_learning else None
+            prompt_ids = torch.tensor([0] * input_ids.size(0)) if self.prompt_learning else None
 
             # this makes a 1d tensor of values 2 rather than 1, which is the prompt_id of 'assit_intent_and_slot_with_options'
             if self.cfg.dataset.prompt_template == "prompt_tuning_with_options" and prompt_ids is not None:
