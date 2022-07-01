@@ -559,7 +559,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
-        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+        tensorboard_logs = {
+            'train_loss': loss_value,
+            'learning_rate': self._optimizer.param_groups[0]['lr'],
+            'global_step': self.trainer.global_step,
+        }
 
         if hasattr(self, '_trainer') and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
@@ -588,7 +592,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         else:
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
-        transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
+        transcribed_texts, _ = self._wer.decoding.ctc_decoder_predictions_tensor(
             predictions=log_probs, predictions_len=encoded_len, return_hypotheses=False,
         )
 

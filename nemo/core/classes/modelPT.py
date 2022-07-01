@@ -34,6 +34,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -170,6 +171,11 @@ class ModelPT(LightningModule, Model):
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
+    def on_fit_start(self) -> None:
+        if self.cfg.get("dump_debug_info", False):
+            register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
+        return super().on_fit_start()
+
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = True,
     ):
@@ -226,7 +232,7 @@ class ModelPT(LightningModule, Model):
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_wights.ckpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
@@ -279,7 +285,7 @@ class ModelPT(LightningModule, Model):
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
-            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
 
             Example:
                 ```
@@ -325,7 +331,7 @@ class ModelPT(LightningModule, Model):
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         checkpoint = None
         try:
