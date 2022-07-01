@@ -66,13 +66,14 @@ class ASRModel(ModelPT, ABC):
 
     def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = True) -> torch.Tensor:
         """
+        Utility method to enable calculation of auxiliary losses for ASR training.
 
         Args:
-            loss:
-            reset_registry:
+            loss: The output loss value prior to addition with auxiliary losses.
+            reset_registry: Bool, whether to reset the AccessMixin registry after adding auxiliary losses.
 
         Returns:
-
+            Loss tensor used for back propagation.
         """
         # Add adapter auxiliary losses, if registered
         if AccessMixin.is_access_enabled():

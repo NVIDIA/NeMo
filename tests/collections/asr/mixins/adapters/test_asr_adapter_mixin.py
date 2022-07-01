@@ -423,12 +423,12 @@ class TestASRAdapterMixin:
         model.train()  # set training mode to true
 
         with torch.no_grad():
+            AccessMixin.reset_registry(model)
             _ = model(input_signal=x, input_signal_length=x_len)
 
             # extract losses
             auxiliary_losses = AccessMixin.get_module_registry(model)
 
-            assert len(auxiliary_losses) == 1  # 1 layer
             loss = list(auxiliary_losses.values())[0]
             assert 'adapter_loss' in loss
             assert loss['adapter_loss'][0] == torch.tensor(0.0)  # initially adapter is 0 init, no loss required.
