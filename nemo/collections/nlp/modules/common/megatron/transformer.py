@@ -1801,8 +1801,8 @@ class ParallelTransformer(MegatronModule):
                     masked_softmax_fusion=masked_softmax_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     attention_softmax_in_fp32=self.attention_softmax_in_fp32,
-                    seq_length=None,
-                    micro_batch_size=None,
+                    seq_length=None,  # used for jit warmup
+                    micro_batch_size=None,  # used for jit warmup
                     sequence_parallel=sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
                     layernorm_at_the_end=False,
