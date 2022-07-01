@@ -42,7 +42,7 @@ class BARTDataset(T5Dataset):
         favor_long_ngrams=False,
         delete_mask_prob=0,
         respect_document_boundaries=True,
-        documents=None
+        documents=None,
     ):
         super().__init__(
             cfg=cfg,

@@ -52,7 +52,7 @@ class T5Dataset(Dataset):
         whole_word_masking=True,
         favor_long_ngrams=False,
         respect_document_boundaries=True,
-        documents=None
+        documents=None,
     ):
         super().__init__()
 
@@ -97,7 +97,9 @@ class T5Dataset(Dataset):
                 documents=documents,
                 sizes=self.indexed_dataset.sizes,
                 num_samples=max_num_samples,
-                seq_length=(self.max_seq_length - 2) + int(self.max_seq_length * (self.masked_lm_prob - 0.05)) - self.max_ngram_size, # We can allocate an extra max seq length * masked_lm_prob that goes into the decoder.
+                seq_length=(self.max_seq_length - 2)
+                + int(self.max_seq_length * (self.masked_lm_prob - 0.05))
+                - self.max_ngram_size,  # We can allocate an extra max seq length * masked_lm_prob that goes into the decoder.
                 seed=self.seed,
                 index_mapping_dir=self.index_mapping_dir,
             )
@@ -153,7 +155,7 @@ class T5Dataset(Dataset):
             return self.samples_mapping.shape[0]
         else:
             return self.sample_idx.shape[0] - 1
-    
+
     def _get_sample(self, idx):
         if self.respect_document_boundaries:
             start_index, end_index, seq_length = self.samples_mapping[idx]
@@ -185,7 +187,7 @@ class T5Dataset(Dataset):
                 sample.astype(np.int64)
             seq_length = len(sample)
             sample = [sample]
-        
+
         return sample, seq_length
 
     def __getitem__(self, idx):

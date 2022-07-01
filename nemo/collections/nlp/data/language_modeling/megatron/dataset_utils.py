@@ -552,7 +552,7 @@ def build_train_valid_test_datasets(
     whole_word_masking=True,
     favor_long_ngrams=False,
     delete_mask_prob=0,
-    respect_document_boundaries=True
+    respect_document_boundaries=True,
 ):
 
     if len(data_prefix) == 1:
@@ -579,7 +579,7 @@ def build_train_valid_test_datasets(
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
-            respect_document_boundaries=respect_document_boundaries
+            respect_document_boundaries=respect_document_boundaries,
         )
     # Blending dataset.
     # Parse the values.
@@ -614,7 +614,7 @@ def build_train_valid_test_datasets(
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
-            respect_document_boundaries=respect_document_boundaries
+            respect_document_boundaries=respect_document_boundaries,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -660,7 +660,7 @@ def _build_train_valid_test_datasets(
     whole_word_masking=True,
     favor_long_ngrams=False,
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
-    respect_document_boundaries=True
+    respect_document_boundaries=True,
 ):
 
     if dataset_type not in DSET_TYPES:

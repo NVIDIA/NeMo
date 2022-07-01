@@ -58,7 +58,7 @@ class UL2Dataset(T5Dataset):
         whole_word_masking=True,
         favor_long_ngrams=False,
         respect_document_boundaries=True,
-        documents=None
+        documents=None,
     ):
         super().__init__(
             cfg=cfg,
@@ -81,7 +81,7 @@ class UL2Dataset(T5Dataset):
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
             respect_document_boundaries=respect_document_boundaries,
-            documents=documents
+            documents=documents,
         )
         self.mean_ngram_size = mean_ngram_size
         self.min_ngram_size = min_ngram_size
