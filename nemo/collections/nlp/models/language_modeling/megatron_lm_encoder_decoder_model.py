@@ -842,12 +842,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 torch.distributed.broadcast(
                     predicted_tokens_dec,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
-                    group=parallel_state.get_model_parallel_group(),
+                    group=parallel_state.get_pipeline_model_parallel_group(),
                 )
                 torch.distributed.broadcast(
                     log_probs,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
-                    group=parallel_state.get_model_parallel_group(),
+                    group=parallel_state.get_pipeline_model_parallel_group(),
                 )
 
         # Reset microbatch calculator to what it was before decoding.
