@@ -64,6 +64,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
                 print('self.language_model.prompt_table', self.language_model.prompt_table)
+                print('self.language_model.virtual_prompt_style', self.language_model.virtual_prompt_style)
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
