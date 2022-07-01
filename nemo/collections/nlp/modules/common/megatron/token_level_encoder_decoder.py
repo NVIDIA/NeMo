@@ -21,6 +21,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import RelativePositionEmbedding
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -130,13 +131,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
 
-        if self.position_embedding_type == 'learned_absolute':
-            add_position_embedding = True
-        elif self.position_embedding_type == 'relative':
-            add_position_embedding = False
-        else:
-            raise ValueError('Unknown position embeeding type. Options: ' '[learned_absolute | relative]')
-
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
@@ -154,9 +148,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     num_tokentypes=num_tokentypes,
                     use_cpu_initialization=use_cpu_initialization,
                     embedding_dropout_prob=hidden_dropout,
-                    add_position_embedding=add_position_embedding,
+                    position_embedding_type=position_embedding_type,
                 )
                 self._encoder_embedding_key = "encoder_embedding"
+                if self.position_embedding_type == 'relative':
+                    self.encoder_relative_position_embedding = RelativePositionEmbedding(
+                        init_method,
+                        LayerType.encoder
+                    )
+                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
 
             encoder = get_encoder_model(
                 arch=encoder_arch,

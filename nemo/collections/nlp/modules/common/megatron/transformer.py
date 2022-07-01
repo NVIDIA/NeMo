@@ -279,14 +279,10 @@ class ParallelAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        position_embedding_type='learned_absolute',
-        relative_attention_num_buckets=32,
-        relative_attention_max_distance=128,
         layer_type=None,
         megatron_legacy=False,
         bias=True,
         headscale=False,
-        has_relative_attention_bias=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -299,7 +295,6 @@ class ParallelAttention(MegatronModule):
         self.attn_mask_type = attn_mask_type
         self.megatron_legacy = megatron_legacy
         self.headscale = headscale
-        self.has_relative_attention_bias = has_relative_attention_bias
 
         if kv_channels is None:
             assert (
@@ -380,13 +375,6 @@ class ParallelAttention(MegatronModule):
         self.inference_current_sequence_len = 0
 
         # relative position embedding
-        self.position_embedding_type = position_embedding_type
-        self.relative_attention_num_buckets = relative_attention_num_buckets
-        self.relative_attention_max_distance = relative_attention_max_distance
-        if self.position_embedding_type == 'relative' and self.has_relative_attention_bias:
-            self.relative_attention_bias = torch.nn.Embedding(
-                relative_attention_num_buckets, self.num_attention_heads_per_partition
-            ).to(torch.cuda.current_device())
         self.layer_type = layer_type
 
     def _allocate_memory(self, inference_max_sequence_len, batch_size, dtype):
