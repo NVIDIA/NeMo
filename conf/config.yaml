@@ -29,10 +29,16 @@ data_dir: ${bignlp_path}/data  # Location to store and read the data.
 base_results_dir: ${bignlp_path}/results  # Location to store the results, checkpoints and logs.
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
-container: nvcr.io/ea-bignlp/bignlp-training:22.05-py3
+container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
-nccl_topology_xml_file: null  # This file will be exported as "export NCCL_TOPO_FILE=${nccl_topology_xml_file}"
+
+env_vars:
+  NCCL_TOPO_FILE: null # Should be a path to an XML file describing the topology
+  UCX_IB_PCI_RELAXED_ORDERING: null # Needed to improve Azure performance
+  NCCL_IB_PCI_RELAXED_ORDERING: null # Needed to improve Azure performance
+  NCCL_IB_TIMEOUT: null # InfiniBand Verbs Timeout. Set to 22 for Azure
+  NCCL_DEBUG: null # Logging level for NCCL. Set to "INFO" for debug information
 
 # GPU Mapping
 numa_mapping:

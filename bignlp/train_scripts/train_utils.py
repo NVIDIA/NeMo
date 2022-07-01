@@ -79,10 +79,11 @@ def numa_mapping(local_rank, devices, numa_cfg):
 
 
 def generate_cmd_prefix(cfg, code_dir):
-    nccl_topo_file = cfg.nccl_topology_xml_file
-    nccl_cmd = ""
-    if nccl_topo_file is not None:
-        nccl_cmd = f"export NCCL_TOPO_FILE={nccl_topo_file}; "
+    env_vars = cfg.get("env_vars")
+    export_env_vars = ""
+    for key, val in env_vars.items():
+        if val is not None:
+            export_env_vars += f"export {key}={val}; "
 
     # W&B Api Key file.
     wandb_cmd = ""
@@ -92,7 +93,10 @@ def generate_cmd_prefix(cfg, code_dir):
         wandb_cmd = f"wandb login {wandb_api_key}; "
 
     # Write command to launch training.
-    cmd_prefix = f'{wandb_cmd} cd {code_dir}; git rev-parse HEAD; cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; export TRANSFORMERS_CACHE="/tmp/.cache/"; {nccl_cmd}'
+    cmd_prefix = f'''{wandb_cmd} cd {code_dir}; git rev-parse HEAD; 
+                cd {code_dir}/nemo/collections/nlp/data/language_modeling/megatron; 
+                make; export PYTHONPATH="{code_dir}/.:$PYTHONPATH"; 
+                export TRANSFORMERS_CACHE="/tmp/.cache/"; {export_env_vars}'''
     return cmd_prefix
 
 

@@ -31,12 +31,12 @@ def _read_tb_logs_as_list(path, summary_name):
     raise FileNotFoundError(f"File not found matching: {path}/events*")
 
 
-class TestCIT5_220m:
+class TestBignlpCI:
 
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36988, 9.19974, 8.73127, 8.34452, 8.01717, 7.7143, 7.48602, 7.28745, 7.13045, 7.01348, 6.93398, 6.87399, 6.85421, 6.79917, 6.755, 6.73586, 6.71221, 6.70671, 6.69278, 6.65613]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.05787, 7.2006, 6.91634, 6.80103, 6.73035]}, "train_step_timing_avg": 1.6726}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36988, 9.19848, 8.73052, 8.34842, 8.02048, 7.71765, 7.4838, 7.2848, 7.13142, 7.01667, 6.92868, 6.84736, 6.82555, 6.79742, 6.74, 6.72155, 6.69301, 6.68404, 6.68105, 6.64781]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.06126, 7.19719, 6.88262, 6.77977, 6.72645]}, "train_step_timing_avg": 1.5887041999999996}
     """
 
     expected = json.loads(expected_json)

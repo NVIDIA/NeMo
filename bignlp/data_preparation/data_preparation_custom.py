@@ -145,7 +145,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
-        flags = f"--container-image {container} --container-mounts {mounts_str}"
+        flags = f"--container-image {container} --container-mounts {mounts_str} --no-container-mount-home "
 
         assert isinstance(train_tokenizer, bool), "train_tokenizer must be bool."
         if train_tokenizer:

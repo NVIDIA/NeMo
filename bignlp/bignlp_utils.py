@@ -18,22 +18,45 @@ def convert_to_cli(cfg, root=True):
     if cfg.get("conversion_config") is not None:
         result.append(f"conversion={cfg['conversion_config']}")
 
+    expected_env_vars = [
+        "NCCL_TOPO_FILE",
+        "UCX_IB_PCI_RELAXED_ORDERING",
+        "NCCL_IB_PCI_RELAXED_ORDERING",
+        "NCCL_IB_TIMEOUT",
+        "NCCL_DEBUG",
+    ]
     for k, v in cfg.items():
         if k in ["dgxa100_gpu2core", "dgxa100_gpu2mem", "container", "ci_test"]:
             continue
-        if k == 'task_templates':
+        if k == "task_templates":
+
             def dict2str(d):
-                output = ','.join([f'{str(key)}:"{str(val)}"'
-                                   if key == "prompt_template" else f'{str(key)}:{str(val)}'
-                                   for key, val in d.items()])
-                return f'{{{output}}}'
+                output = ",".join(
+                    [
+                        f'{str(key)}:"{str(val)}"'
+                        if key == "prompt_template"
+                        else f"{str(key)}:{str(val)}"
+                        for key, val in d.items()
+                    ]
+                )
+                return f"{{{output}}}"
+
             v = f"[{','.join([dict2str(d) for d in v])}]"
             result.append(f"{k}='{v}'".replace('"', '\\"'))
             continue
 
         if isinstance(v, omegaconf.dictconfig.DictConfig):
             output = convert_to_cli(v, False)
-            result.extend([f"{k}.{x}" for x in output if x != ""])
+            if k == "env_vars":
+                result.extend(
+                    [
+                        f"++{k}.{x}" if x.split("=")[0] not in expected_env_vars else f"{k}.{x}"
+                        for x in output
+                        if x != ""
+                    ]
+                )
+            else:
+                result.extend([f"{k}.{x}" for x in output if x != ""])
         elif isinstance(v, omegaconf.listconfig.ListConfig):
             if k == "data_prefix" or "_ds" in k:
                 if v is None:
@@ -52,6 +75,7 @@ def convert_to_cli(cfg, root=True):
             result.append(f"{k}={convert_to_null(v)}")
 
     return " \\\n  ".join(result) if root else result
+
 
 def convert_to_null(val):
     if val is None:

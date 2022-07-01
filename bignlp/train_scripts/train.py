@@ -63,7 +63,7 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" >> {log_file} 2>&1 \n')
+        f.writelines(f'bcprun -n {num_nodes} {env_cmd} -c "{train_cmd}" 2>&1 | tee {log_file}  \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -123,16 +123,11 @@ def run_training(cfg, hydra_args="", dependency=None):
         mounts_str = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
         mounts_str += add_container_mounts(container_mounts)
 
+        flags = f"--container-image {container} --container-mounts {mounts_str} --no-container-mount-home "
         if cfg.get("ci_test"):  # Whether this job is running in CI or not.
-            flags = (
-                f"--container-image {container} --container-mounts {mounts_str} "
-                f"-o {results_dir}/slurm_%j.log "
-            )
+            flags += f"-o {results_dir}/slurm_%j.log "
         else:
-            flags = (
-                f"--container-image {container} --container-mounts {mounts_str} "
-                f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
-            )
+            flags += f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
             
         train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
         
