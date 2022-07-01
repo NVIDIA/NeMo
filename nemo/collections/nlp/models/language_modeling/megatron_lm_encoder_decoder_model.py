@@ -110,7 +110,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
         self.enc_dec_model.model_type = ModelType.encoder_and_decoder
-        self.pad_fraction = []
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
@@ -455,6 +454,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def validation_step(self, batch, batch_idx):
         batch_for_pipeline = self.process_global_batch(batch)
+        '''
+        TODO: Remove debugging here before merge.
+        total_pad = (batch_for_pipeline[0] == self.tokenizer.pad_id).sum()
+        pad_fraction = total_pad / (batch_for_pipeline[0].size(0) * batch_for_pipeline[0].size(1))
+        self.pad_fraction.append(pad_fraction)
+        print(np.mean(self.pad_fraction))
+        '''
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
