@@ -317,7 +317,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
-                manifest_filepath=cfg.audio_manifest_filepath,
+                manifest_filepath=(Path(cfg.ds_item) / cfg.audio_manifest_filepath).__str__(),
                 sample_rate=cfg.sample_rate
             )
         if cfg.shuffle and cfg.use_tarred_dataset:

@@ -41,6 +41,11 @@ exp_manager:
   name: Punctuation_and_Capitalization  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
+  checkpoint_callback_params:
+    save_top_k: 3
+    monitor: "val_loss"
+    mode: "min"
+    save_best_model: true
   create_wandb_logger: true
   wandb_logger_kwargs:
     name: exp
@@ -104,8 +109,8 @@ model:
     # regular dataset.
     tar_shuffle_n: 1
 
-    audio_manifest_filepath: ../LibriTTS_data/audio_manifest_train_f_l.json
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_train_f_l.json
+    sample_rate: 16000
     num_workers: 24
 
   validation_ds:
@@ -133,8 +138,8 @@ model:
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: [fisher_data/data/audio_manifest_valid.json,../LibriTTS_data/audio_manifest_valid.json]
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_valid.json
+    sample_rate: 16000
     num_workers: 24
 
   test_ds:
@@ -163,8 +168,8 @@ model:
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: [fisher_data/data/audio_manifest_test.json,../LibriTTS_data/audio_manifest_test.json]
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_test.json
+    sample_rate: 16000
     num_workers: 24
 
   tokenizer:
