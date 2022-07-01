@@ -131,7 +131,7 @@ class DialogueGPTClassificationModel(NLPModel):
             attn_masks = torch.stack(new_attn_masks)
             labels = self.get_binary_score_labels(input_ids)
 
-        loss = self(input_ids, attn_masks, labels)
+        loss = self(input_ids, attn_masks, labels, inference=False)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss}
 
@@ -226,7 +226,7 @@ class DialogueGPTClassificationModel(NLPModel):
         # return self(batch)
         raise NotImplementedError()
 
-    def forward(self, input_ids, attention_mask, labels):
+    def forward(self, input_ids, attention_mask, labels, inference=True):
 
         if self.cfg.library == "huggingface":
             output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -271,7 +271,11 @@ class DialogueGPTClassificationModel(NLPModel):
             )
             left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
 
-            if self.prompt_learning:
+            if self.prompt_learning and not inference:
+                unmasked_unreduced_loss = self.language_model(
+                    input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids, inference=False
+                )
+            elif self.prompt_learning:
                 unmasked_unreduced_loss = self.language_model(
                     input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids
                 )
