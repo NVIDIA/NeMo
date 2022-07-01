@@ -4563,7 +4563,7 @@ The table and chart below show the performance results.
 <a id="markdown-changelog" name="changelog"></a>
 
 **NeMo Megatron 22.06.RC1**
-* Relative Position Embedding for T5 optimized for Korean language
+* Relative Position Embedding for T5 - early access
   - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
 * Hyperparameter tool: support for DGX A100 40GB configurations
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
