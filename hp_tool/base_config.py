@@ -183,17 +183,17 @@ def _gbs_tp_pp_gpt3_80gb(model_size_in_b):
     elif model_size_in_b <= 20.6:
         gbs, tp, pp = 1440, 8, 1
     elif model_size_in_b <= 45.6:
-        gbs, tp, pp = 1440, 8, 4
+        gbs, tp, pp = 1440, 8, 2
     elif model_size_in_b <= 123.6:
-        gbs, tp, pp = 1440, 8, 8
+        gbs, tp, pp = 1440, 8, 4
     elif model_size_in_b <= 196.6:
-        gbs, tp, pp = 1536, 8, 16
+        gbs, tp, pp = 1536, 8, 8
     elif model_size_in_b <= 392.2:
-        gbs, tp, pp = 1792, 8, 32
+        gbs, tp, pp = 1792, 8, 16
     elif model_size_in_b <= 735:
-        gbs, tp, pp = 1920, 8, 64
+        gbs, tp, pp = 1920, 8, 32
     elif model_size_in_b <= 1100:
-        gbs, tp, pp = 2048, 8, 128
+        gbs, tp, pp = 2048, 8, 64
     else:
         raise ValueError("No GPT-3 model larger than 1.1T parameters is supported.")
     return gbs, tp, pp

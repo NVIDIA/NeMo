@@ -16,7 +16,6 @@ train_settings:
   tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
   pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
   micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
  
 inference_settings:
   vocab_size: 51200

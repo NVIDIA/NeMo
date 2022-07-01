@@ -237,7 +237,10 @@ def generic_base_config(cfg, model_name="gpt3"):
 
 def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
     new_cfg = copy.deepcopy(base_cfg)
-    new_cfg["model"]["activations_checkpoint_num_layers"] = act
+    if act is not None:
+        new_cfg["model"]["activations_checkpoint_num_layers"] = act
+    else:
+        act = "selective"
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs

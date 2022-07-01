@@ -1,4 +1,5 @@
 import os
+import math
 import yaml
 import subprocess
 
@@ -20,7 +21,7 @@ def search_training_config(base_cfg, model_size, model_name, hydra_args, cfg):
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
-    act_layers = train_cfg.get("act_ckpt_layers")
+    gpus_per_node = train_cfg.get("gpus_per_node")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name == "gpt3" else 2
@@ -41,6 +42,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     max_minutes = train_cfg.get("max_minutes_per_run")
     max_steps = train_cfg.get("max_steps_per_run")
 
+    act_multiple = 1
     if model_name in ["t5", "mt5"]:
         if model_size_in_b < 1.0:
             act_multiple = 2
@@ -48,58 +50,74 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
             act_multiple = 4
         else:
             act_multiple = 8
-    else:
-        act_multiple = 1
 
-    valid_pp_list = []
+    valid_tp_pp_list = []
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [
-                x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
-            ]
-            # Override ackt_ckpt_layers with the parameter in the config file.
-            if act_layers is not None:
-                act_ckpt_layers = act_layers
+            for mbs in mbs_list:
+                num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
+                gbs = base_cfg["model"]["global_batch_size"]
+                att_heads = base_cfg["model"]["num_attention_heads"]
+                num_layers = base_cfg["model"]["num_layers"]
+                mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
+                mod_att_heads = att_heads % tp
+                mod_layers = (multiplier * num_layers) % pp
+                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
+                    valid_tp_pp_list.append((tp, pp))
 
-            for act in act_ckpt_layers:
-                for mbs in mbs_list:
-                    num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
-                    gbs = base_cfg["model"]["global_batch_size"]
-                    att_heads = base_cfg["model"]["num_attention_heads"]
-                    num_layers = base_cfg["model"]["num_layers"]
-                    mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
-                    mod_att_heads = att_heads % tp
-                    mod_layers = (multiplier * num_layers) % pp
-                    if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
-                        valid_pp_list.append(pp)
+    # Calculate necessary nodes for HP search.
+    override_nodes = train_cfg.get("override_search_num_nodes")
+    if override_nodes is None:
+        num_nodes = 1
+        for tp, pp in valid_tp_pp_list:
+            if math.ceil(tp * pp / gpus_per_node) > num_nodes:
+                num_nodes = math.ceil(tp * pp / gpus_per_node)
+    else:
+        num_nodes = override_nodes
 
     # Generate grid search configs.
-    override_nodes = train_cfg.get("override_search_num_nodes")
-    num_nodes = max(valid_pp_list) if override_nodes is None else override_nodes
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [
-                x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
-            ]
-            if act_layers is not None:
-                act_ckpt_layers = act_layers
-            for act in act_ckpt_layers:
-                for mbs in mbs_list:
+            for mbs in mbs_list:
+                if model_name in ["t5", "mt5"]:
+                    act_ckpt_layers = [
+                        x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
+                    ]
+                    if act_layers is not None:
+                        act_ckpt_layers = act_layers
+                    for act in act_ckpt_layers:
+                        new_cfg = utils.modify_cfg(
+                            base_cfg=base_cfg,
+                            act=act,
+                            tp=tp,
+                            pp=pp,
+                            mbs=mbs,
+                            max_minutes=max_minutes,
+                            max_steps=max_steps,
+                            num_nodes=num_nodes,
+                        )
+                        if new_cfg:  # Save candidate cfg.
+                            file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
+                            results_cfgs[act].append(file_name)
+                            with open(f"{base_dir}/{file_name}", "w") as f:
+                                yaml.dump(new_cfg, f)
+                else: # GPT-3 Uses Selective Activation Recomputation.
                     new_cfg = utils.modify_cfg(
-                        base_cfg=base_cfg,
-                        act=act,
-                        tp=tp,
-                        pp=pp,
-                        mbs=mbs,
-                        max_minutes=max_minutes,
-                        max_steps=max_steps,
-                        num_nodes=num_nodes,
-                    )
-                    if new_cfg:  # Save candidate cfg.
-                        file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
-                        results_cfgs[act].append(file_name)
-                        with open(f"{base_dir}/{file_name}", "w") as f:
-                            yaml.dump(new_cfg, f)
+                            base_cfg=base_cfg,
+                            act=None,
+                            tp=tp,
+                            pp=pp,
+                            mbs=mbs,
+                            max_minutes=max_minutes,
+                            max_steps=max_steps,
+                            num_nodes=num_nodes,
+                        )
+                        if new_cfg:  # Save candidate cfg.
+                            file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_selective.yaml"
+                            results_cfgs[act].append(file_name)
+                            with open(f"{base_dir}/{file_name}", "w") as f:
+                                yaml.dump(new_cfg, f)
+
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs, num_nodes
             
