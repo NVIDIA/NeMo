@@ -17,6 +17,7 @@ from abc import ABC
 import onnx
 import torch
 from torch.onnx import ExportTypes, TrainingMode
+from typing import Dict, Optional, Type, Union, List
 
 from nemo.core.classes import typecheck
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
@@ -56,7 +57,7 @@ class Exportable(ABC):
         do_constant_folding=True,
         onnx_opset_version=None,
         training=TrainingMode.EVAL,
-        check_trace: bool = False,
+        check_trace: Union[bool,List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
     ):
@@ -174,8 +175,13 @@ class Exportable(ABC):
                     )
 
                     if check_trace:
-                        verify_runtime(output, input_list, input_dict, input_names, output_names, output_example)
-
+                        if isinstance(check_trace, bool):
+                            check_trace_input = [input_example]
+                        else:
+                            check_trace_input = check_trace
+                        verify_runtime(self, output,
+                                       check_trace_input,
+                                       input_names)
                 else:
                     raise ValueError(f'Encountered unknown export format {format}.')
         finally:
