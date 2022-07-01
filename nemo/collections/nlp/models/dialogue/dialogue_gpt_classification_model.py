@@ -270,7 +270,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 torch.ones_like(input_ids_new[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
             )
             left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
-
+            print('inference mode', inference)
             if self.prompt_learning and not inference:
                 unmasked_unreduced_loss = self.language_model(
                     input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids, inference=False
