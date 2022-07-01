@@ -51,7 +51,7 @@ class T5Dataset(Dataset):
         permutation=False,
         whole_word_masking=True,
         favor_long_ngrams=False,
-        respect_document_boundaries=False,
+        respect_document_boundaries=True,
         documents=None
     ):
         super().__init__()
@@ -153,9 +153,8 @@ class T5Dataset(Dataset):
             return self.samples_mapping.shape[0]
         else:
             return self.sample_idx.shape[0] - 1
-
-    def __getitem__(self, idx):
-        
+    
+    def _get_sample(self, idx):
         if self.respect_document_boundaries:
             start_index, end_index, seq_length = self.samples_mapping[idx]
             sample = []
@@ -186,7 +185,11 @@ class T5Dataset(Dataset):
                 sample.astype(np.int64)
             seq_length = len(sample)
             sample = [sample]
+        
+        return sample, seq_length
 
+    def __getitem__(self, idx):
+        sample, seq_length = self._get_sample(idx)
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))

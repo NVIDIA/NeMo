@@ -135,6 +135,7 @@ model:
     permutation: False
     whole_word_masking: True
     favor_longer_ngrams: False
+    respect_document_boundaries: True
 
   optim:
     name: fused_adam

@@ -41,6 +41,8 @@ class BARTDataset(T5Dataset):
         whole_word_masking=True,
         favor_long_ngrams=False,
         delete_mask_prob=0,
+        respect_document_boundaries=True,
+        documents=None
     ):
         super().__init__(
             cfg=cfg,
@@ -62,6 +64,8 @@ class BARTDataset(T5Dataset):
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
+            respect_document_boundaries=respect_document_boundaries,
+            documents=documents,
         )
 
         # Params to store.

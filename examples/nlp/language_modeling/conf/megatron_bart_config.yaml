@@ -130,6 +130,7 @@ model:
     whole_word_masking: True
     favor_longer_ngrams: False
     delete_mask_prob: 0.3
+    respect_document_boundaries: True
 
   optim:
     name: fused_adam
