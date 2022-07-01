@@ -4562,6 +4562,10 @@ The table and chart below show the performance results.
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
+**NeMo Megatron 22.06.RC2**
+* Evaluation fix for P-Tuned and Prompt Tuned GPT-3 models
+* Fix for T5 & mT5 fine-tuning for pipeline parallel size greater than 1
+
 **NeMo Megatron 22.06.RC1**
 * Relative Position Embedding for T5 - early access
   - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
