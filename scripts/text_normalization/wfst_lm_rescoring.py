@@ -46,13 +46,13 @@ parser.add_argument("--regenerate_pkl", action="store_true", help="Set to True t
 parser.add_argument("--batch_size", default=200, type=int, help="Batch size for parallel processing")
 
 
-def rank(sentences: List[str], labels: List[int], models_tokenizers: Dict[str, Tuple['Model', 'Tokenizer']], context_len=None, do_lower=True):
+def rank(sentences: List[str], labels: List[int], models: Dict[str, 'Model'], context_len=None, do_lower=True):
     """
     computes scores for each sentences using all provided models and returns summary in data frame
     """
     df = pd.DataFrame({"sent": sentences, "labels": labels})
-    for model_name, model_tokenizer in models_tokenizers.items():
-        scores = model_utils.score_options(sentences=sentences, context_len=context_len, model=model_tokenizer, do_lower=do_lower)
+    for model_name, model in models.items():
+        scores = model_utils.score_options(sentences=sentences, context_len=context_len, model=model, do_lower=do_lower)
         df[model_name] = scores
     return df
 
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     for i, example in tqdm(enumerate(zip(post_norm_texts_weights, labels))):
         data, curr_labels = example
         assert len(data[0]) == len(curr_labels)
-        df = rank(sentences=data[0], labels=curr_labels, models_tokenizers=models, context_len=args.context_len if args.context_len is not None and args.context_len >= 0 else None, do_lower=True)
+        df = rank(sentences=data[0], labels=curr_labels, models=models, context_len=args.context_len if args.context_len is not None and args.context_len >= 0 else None, do_lower=True)
         df['sent'] = df['sent'].apply(lambda x: utils.remove_whitelist_boudaries(x))
         df["weights"] = data[1]
 
