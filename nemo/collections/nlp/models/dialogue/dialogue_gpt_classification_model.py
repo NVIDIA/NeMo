@@ -63,8 +63,6 @@ class DialogueGPTClassificationModel(NLPModel):
                 new_cfg = copy.copy(cfg)
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
-                print('self.language_model.prompt_table', self.language_model.prompt_table)
-                print('self.language_model.virtual_prompt_style', self.language_model.virtual_prompt_style)
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
@@ -270,14 +268,14 @@ class DialogueGPTClassificationModel(NLPModel):
                 torch.ones_like(input_ids_new[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
             )
             left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
-            print('inference mode', inference)
-            if self.prompt_learning and not inference:
+            if self.prompt_learning:
                 unmasked_unreduced_loss = self.language_model(
-                    input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids, inference=False
-                )
-            elif self.prompt_learning:
-                unmasked_unreduced_loss = self.language_model(
-                    input_ids, position_ids, attn_mask, labels=left_shifted_input_ids, taskname_ids=prompt_ids
+                    input_ids,
+                    position_ids,
+                    attn_mask,
+                    labels=left_shifted_input_ids,
+                    taskname_ids=prompt_ids,
+                    inference=inference,
                 )
             else:
                 unmasked_unreduced_loss = self.language_model(
