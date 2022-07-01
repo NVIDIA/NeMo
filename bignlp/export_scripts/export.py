@@ -24,7 +24,7 @@ FT_BACKEND_PATH = pathlib.Path("/opt/bignlp/fastertransformer_backend")
 
 def create_slurm_file(
     new_script_path,
-    cmd,
+    steps_cmds,
     job_name,
     flags="",
     dependency=None,
@@ -69,13 +69,15 @@ def create_slurm_file(
         if exclude:
             f.writelines(f"#SBATCH --exclude={','.join(exclude)}\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{cmd}"\n\n')
+        for cmd in steps_cmds:
+            assert "'" not in cmd
+            f.writelines(f"srun {flags} sh -c '{cmd}'\n\n")
         f.writelines("set +x\n")
 
 
 def create_bcp_file(
     *,
-    cmd,
+    cmds,
     num_nodes,
     ntasks_per_node=8,
     gpus_per_task=None,
@@ -87,7 +89,8 @@ def create_bcp_file(
     with open(new_script_path, "w") as f:
         if env_exports is not None:
             env_cmd = f"--env {env_exports}"
-        f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} {env_cmd} -c "{cmd}" >> {log_file} 2>&1 \n')
+        for cmd in cmds:
+            f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} {env_cmd} -c "{cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -105,12 +108,12 @@ def run_export(cfg, dependency=None):
     triton_model_dir = run_cfg.triton_model_dir
 
     try:
-        convert_cmd_fn = {"gpt": _get_gpt_conversion_cmd}[model_cfg.model_type]
+        convert_cmds_fn = {"gpt": _get_gpt_conversion_cmds}[model_cfg.model_type]
     except KeyError:
         print(f"{model_cfg.model_type} model_type is not supported yet in export stage")
         return
 
-    convert_cmd = convert_cmd_fn(cfg, checkpoint_path, triton_model_dir)
+    convert_cmds = convert_cmds_fn(cfg, checkpoint_path, triton_model_dir)
 
     results_dir = pathlib.Path(run_cfg.results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)  # slurm requires to have directory where logs are saved existent
@@ -125,8 +128,8 @@ def run_export(cfg, dependency=None):
     submit_cmd = _get_submission_cmd_fn(
         cfg=cfg,
         dependency=dependency,
-        job_name=f"{job_base_name}_convert",
-        cmd=convert_cmd,
+        job_name=job_name,
+        cmds=convert_cmds,
         # assume that tokenizer files are in data dir and checkpoints are in base results dir
         dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir],
         submission_script_path=new_script_path,
@@ -140,8 +143,8 @@ def run_export(cfg, dependency=None):
     print(f"Triton model store preparation job submitted with command: \n{submit_cmd}")
     print(f"Submitted Triton model store preparation script with job id: {conversion_job_id}")
 
-    accuracy_cmd_fn = {"gpt": _get_gpt_accuracy_cmd}[model_cfg.model_type]
-    accuracy_cmd = accuracy_cmd_fn(cfg)
+    accuracy_cmds_fn = {"gpt": _get_gpt_accuracy_cmds}[model_cfg.model_type]
+    accuracy_cmds = accuracy_cmds_fn(cfg)
 
     job_name = f"{job_base_name}_accuracy"
     new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
@@ -149,8 +152,8 @@ def run_export(cfg, dependency=None):
     submit_cmd = _get_submission_cmd_fn(
         cfg=cfg,
         dependency=conversion_job_id,
-        job_name=f"{job_name}",
-        cmd=accuracy_cmd,
+        job_name=job_name,
+        cmds=accuracy_cmds,
         # assume that checkpoints are in base results dir
         dirs_to_mount=[cfg.bignlp_path, cfg.base_results_dir],
         submission_script_path=new_script_path,
@@ -175,7 +178,7 @@ def _get_bcp_submission_command(
     cfg,
     dependency,
     job_name,
-    cmd,
+    cmds,
     dirs_to_mount,
     submission_script_path,
     nodes,
@@ -185,7 +188,7 @@ def _get_bcp_submission_command(
 ):
     create_bcp_file(
         new_script_path=submission_script_path,
-        cmd=cmd,
+        cmds=cmds,
         num_nodes=nodes,
         ntasks_per_node=ntasks_per_node,
         log_file=f"{logs_dir}/eval_log.txt",
@@ -199,7 +202,7 @@ def _get_bcm_submission_cmd(
     cfg,
     dependency,
     job_name,
-    cmd,
+    cmds,
     dirs_to_mount,
     submission_script_path,
     nodes,
@@ -221,19 +224,19 @@ def _get_bcm_submission_cmd(
         flags = (
             f"--container-image {container} --container-mounts {mounts_str} "
             f"--no-container-mount-home "
-            f"-o {logs_dir}/slurm_%j.log"
+            f"-o {logs_dir}/slurm_%J.log"
         )
     else:
         flags = (
             f"--container-image {container} --container-mounts {mounts_str} "
             f"--no-container-mount-home "
-            f"-o {logs_dir}/{job_name}-%j.log -e {logs_dir}/{job_name}-%j.error"
+            f"-o {logs_dir}/{job_name}-%J.log -e {logs_dir}/{job_name}-%J.error"
         )
     if cluster_cfg.get("srun_flags"):
         flags += f" {cluster_cfg.get('srun_flags')}"
     create_slurm_file(
         new_script_path=submission_script_path,
-        cmd=cmd,
+        steps_cmds=cmds,
         job_name=f"{cluster_cfg.job_name_prefix}{job_name}",
         flags=flags,
         dependency=dependency,
@@ -256,7 +259,7 @@ def _get_bcm_submission_cmd(
     return submit_cmd
 
 
-def _get_gpt_conversion_cmd(cfg, checkpoint_path, triton_model_dir):
+def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     convert_cfg = cfg.export.conversion
     deploy_cfg = cfg.export.triton_deployment
     model_cfg = cfg.training.model
@@ -293,16 +296,15 @@ def _get_gpt_conversion_cmd(cfg, checkpoint_path, triton_model_dir):
         triton_prepare_model_config_cmd += " \\\n --int8-mode"
     if deploy_cfg.enable_custom_all_reduce:
         triton_prepare_model_config_cmd += " \\\n --enable-custom-all-reduce"
-    return (
-        f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
-        f"rm -rf {triton_model_dir} && \\\n"
-        + convert_cmd
-        + " && \\\n"
-        + triton_prepare_model_config_cmd
-    )
+    return [
+        (
+            f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
+            f"rm -rf {triton_model_dir} && \\\n" + convert_cmd + " && \\\n" + triton_prepare_model_config_cmd
+        )
+    ]
 
 
-def _get_gpt_accuracy_cmd(cfg):
+def _get_gpt_accuracy_cmds(cfg):
     run_cfg = cfg.export.run
     convert_cfg = cfg.export.conversion
     triton_cfg = cfg.export.triton_deployment
@@ -327,12 +329,12 @@ def _get_gpt_accuracy_cmd(cfg):
         f" --beam-width {accuracy_cfg.runtime.beam_width} \\\n"
         f" --sampling-top-k {accuracy_cfg.runtime.sampling_top_k} \\\n"
         f" --sampling-top-p {accuracy_cfg.runtime.sampling_top_p} \\\n"
-        f" --data-type {accuracy_cfg.runtime.data_type}"
+        f" --data-type {accuracy_cfg.runtime.data_type} && \\\n"
+        f"mkdir -p $(dirname {accuracy_cfg.lambada_path}) && \\\n"
+        f"wget https://github.com/cybertronai/bflm/raw/master/lambada_test.jsonl -O {accuracy_cfg.lambada_path}"
     )
 
     lambada_cmd = (
-        f"mkdir -p $(dirname {accuracy_cfg.lambada_path}) && \\\n"
-        f"wget https://github.com/cybertronai/bflm/raw/master/lambada_test.jsonl -O {accuracy_cfg.lambada_path} && \\\n"
         f"python -u {lambada_script_path} \\\n"
         f" --checkpoint-path {checkpoint_path} \\\n"
         f" --lib-path {lib_path} \\\n"
@@ -342,4 +344,15 @@ def _get_gpt_accuracy_cmd(cfg):
         f" --batch-size {accuracy_cfg.batch_size}"
     )
 
-    return f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + create_config_ini_cmd + " && \\\n" + lambada_cmd
+    # separate into 2 tasks to not start lambada cmd before configurations and data files are prepared
+    # LOCAL_RANK is set with an enroot hook for Pytorch containers
+    # SLURM_LOCALID is set by Slurm
+    # OMPI_COMM_WORLD_LOCAL_RANK is set by mpirun
+    return [
+        (
+            f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
+            'export MY_LOCAL_RANK="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK:-}}}" && \\\n'
+            'if [ ${MY_LOCAL_RANK} = "0" ]; then ' + create_config_ini_cmd + "; fi"
+        ),
+        f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n" + lambada_cmd,
+    ]
