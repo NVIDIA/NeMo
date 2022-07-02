@@ -44,6 +44,21 @@ _EXT_DICT = {
 }
 
 
+def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float):
+    return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
+        
+def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float):
+    if isinstance(x, torch.Tensor):
+        return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
+    else:
+        if isinstance(x, dict):
+            new_dict = {}
+            for k in x.keys():
+                new_dict[k] = cast_all(x[k], from_dtype=torch.float16, to_dtype=torch.float)
+            return new_dict
+        elif isinstance(x, tuple):
+            return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
+
 class CastToFloat(nn.Module):
     def __init__(self, mod):
         super(CastToFloat, self).__init__()
@@ -68,6 +83,7 @@ def get_export_format(filename: str):
 def augment_filename(output: str, prepend: str):
     if prepend == 'self':
         return output
+
     path, filename = os.path.split(output)
     filename = f"{prepend}-{filename}"
     return os.path.join(path, filename)
