@@ -76,9 +76,9 @@ class MegatronModule(torch.nn.Module):
         if self.pre_process:
             if hasattr(self, 'language_model'):
                 return self.language_model.embedding.position_embeddings.weight
-            elif hasattr(self, 'encoder_embedding') and hasattr(self.encoder_embedding, 'position_embeddings'):
+            elif hasattr(self, 'encoder_embedding'):
                 return self.encoder_embedding.position_embeddings.weight
-            elif hasattr(self, 'decoder_embedding') and hasattr(self.decoder_embedding, 'position_embeddings'):
+            elif hasattr(self, 'decoder_embedding'):
                 return self.decoder_embedding.position_embeddings.weight
             else:
                 raise ValueError(

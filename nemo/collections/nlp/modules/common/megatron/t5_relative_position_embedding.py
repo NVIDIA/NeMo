@@ -17,13 +17,13 @@ import torch
 from apex.transformer.enums import LayerType
 
 
-class RelativePositionEmbedding(torch.nn.Module):
+class T5RelativePositionEmbedding(torch.nn.Module):
     """Relative Position Embedding implementation from the T5 paper : https://arxiv.org/abs/1910.10683"""
     def __init__(
-        self, init_method, layer_type, encoder_seq_length, decoder_seq_length, num_attention_heads,
+        self, init_method, layer_type, num_attention_heads,
         relative_position_num_buckets=32, relative_position_max_distance=128,
     ):
-        super(RelativePositionEmbedding, self).__init__()
+        super(T5RelativePositionEmbedding, self).__init__()
         self.layer_type = layer_type
 
         self.relative_position_num_buckets = relative_position_num_buckets
@@ -32,8 +32,6 @@ class RelativePositionEmbedding(torch.nn.Module):
         self.inter_attention_relative_position_bucket = None
         self.self_attention_relative_position_bias = None
         self.inter_attention_relative_position_bias = None
-        self.encoder_seq_length = encoder_seq_length
-        self.decoder_seq_length = decoder_seq_length
 
         # Relative position Embedding
         # Relative Position embedding (all attention layers).
@@ -45,6 +43,8 @@ class RelativePositionEmbedding(torch.nn.Module):
         # TODO (sandeepsub): All reduce relative position embedding once apex implements RPE groups.
         # self._all_reduce_position_embedding()
 
+    '''
+    NOTE: (sandeepsub) - uncomment this code once apex implements RPE groups.
     def _all_reduce_position_embedding(self):
         args = get_args()
         if args.pipeline_model_parallel_size == 1:
@@ -63,6 +63,7 @@ class RelativePositionEmbedding(torch.nn.Module):
                     torch.distributed.all_reduce(self.relative_position_embedding.weight.data, group=mpu.get_decoder_relative_position_embedding_group())
         else:
             raise ValueError("Torch Distributed not initialized, cannot allreduce relative position embeddings.")
+    '''
 
     def _relative_position_bucket(
         self, relative_position, bidirectional=True, num_buckets=32, max_distance=128
@@ -144,13 +145,13 @@ class RelativePositionEmbedding(torch.nn.Module):
 
         return values
 
-    def forward(self):
+    def forward(self, encoder_seq_length, decoder_seq_length):
         if self.layer_type is LayerType.encoder and self.self_attention_relative_position_bucket is None:
-            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(self.encoder_seq_length, self.encoder_seq_length)
+            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(encoder_seq_length, encoder_seq_length)
         
         if self.layer_type is LayerType.decoder and self.self_attention_relative_position_bucket is None:
-            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(self.decoder_seq_length, self.decoder_seq_length)
-            self.inter_attention_relative_position_bucket = self._compute_relative_position_bucket(self.decoder_seq_length, self.encoder_seq_length)
+            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(decoder_seq_length, decoder_seq_length)
+            self.inter_attention_relative_position_bucket = self._compute_relative_position_bucket(decoder_seq_length, encoder_seq_length)
 
         self.self_attention_relative_position_bias = self._compute_relative_position_bias(self.self_attention_relative_position_bucket)
 
@@ -158,12 +159,3 @@ class RelativePositionEmbedding(torch.nn.Module):
             self.inter_attention_relative_position_bias = self._compute_relative_position_bias(self.inter_attention_relative_position_bucket)
 
         return self.self_attention_relative_position_bias, self.inter_attention_relative_position_bias
-
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
-        """For easy load."""
-        return self.relative_position_embedding.state_dict(destination, prefix, keep_vars)
-
-    def load_state_dict(self, state_dict, strict=True):
-        """Customized load."""
-        # Position embedding.
-        self.relative_position_embedding.load_state_dict(state_dict, strict=strict)

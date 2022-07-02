@@ -397,14 +397,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     parallel_state.is_rank_in_position_embedding_group()
                     and parallel_state.get_pipeline_model_parallel_world_size() > 1
                     and parallel_state.get_pipeline_model_parallel_split_rank() is not None
+                    and self.cfg.get('position_embedding_type') == 'learned_absolute'
                 ):
-                    if self.cfg.get('position_embedding_type') != 'relative':
-                        position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
-                        if self.megatron_amp_o2:
-                            grad = position_embeddings_weight.main_grad
-                        else:
-                            grad = position_embeddings_weight.grad
-                        torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
+                    position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
+                    if self.megatron_amp_o2:
+                        grad = position_embeddings_weight.main_grad
+                    else:
+                        grad = position_embeddings_weight.grad
+                    torch.distributed.all_reduce(grad, group=parallel_state.get_position_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
