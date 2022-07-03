@@ -52,6 +52,7 @@ def parallel_lm_logits(
     bias: torch.Tensor = None,
     async_tensor_model_parallel_allreduce: bool = False,
     sequence_parallel: bool = False,
+    gradient_accumulation_fusion: bool = False,
 ):
     """Language Model logits using word embedding weights.
 
@@ -62,6 +63,7 @@ def parallel_lm_logits(
         bias (torch.Tensor, optional): bias tensor. Defaults to None.
         async_tensor_model_parallel_allreduce (bool, optional): TODO: understand this flag. Defaults to False.
         sequence_parallel (bool, optional): If True will use sequence parallelism. Defaults to False.
+        gradient_accumulation_fusioa (bool, optional): If True fuse gradient accumulation to WGRAD GEMM
 
     Returns:
         torch.Tensor: [b, s, (padded) vocab size]
@@ -84,7 +86,7 @@ def parallel_lm_logits(
         input=input_parallel,
         weight=word_embeddings_weight,
         bias=bias,
-        gradient_accumulation_fusion=False,
+        gradient_accumulation_fusion=gradient_accumulation_fusion,
         async_grad_allreduce=async_grad_allreduce,
         sequence_parallel_enabled=sequence_parallel,
     )

@@ -143,6 +143,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             onnx_safe=self.cfg.get('onnx_safe', False),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
+            gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
         )
 
         return model
