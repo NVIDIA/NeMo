@@ -78,7 +78,7 @@ class BARTDataset(T5Dataset):
     ):
         """Pad sequences and convert them to numpy."""
         bart_decoder_in = [self.bos_id] + tokens[:-1]
-        bart_decoder_out = tokens
+        bart_decoder_out = tokens + [self.eos_id]
 
         # FIXME: debug here for correct <EOS> <BOS>
         if masked_spans is not None:
