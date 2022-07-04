@@ -80,7 +80,6 @@ class BARTDataset(T5Dataset):
         bart_decoder_in = [self.bos_id] + tokens[:-1]
         bart_decoder_out = tokens + [self.eos_id]
 
-        # FIXME: debug here for correct <EOS> <BOS>
         if masked_spans is not None:
             # construct bart input by collapsing multiple <mask> into one, and delete randomly
             bart_input = []
