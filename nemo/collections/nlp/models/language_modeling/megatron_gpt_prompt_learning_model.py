@@ -746,7 +746,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             dataset,
             collate_fn=dataset.collate_fn,
             sampler=sampler,
-            batch_size=batch_size,
+            batch_size=batch_size // world_size,
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
