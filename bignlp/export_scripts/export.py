@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 import os
 import pathlib
 import subprocess
@@ -32,8 +33,9 @@ def create_slurm_file(
     exclusive=True,
     mem: typing.Optional[int] = None,
     overcommit=True,
-    nodes=1,
-    ntasks_per_node=8,
+    nodes=None,
+    ntasks=None,
+    ntasks_per_node=None,
     gpus_per_task=None,
     gpus_per_node=None,
     partition="batch",
@@ -45,8 +47,12 @@ def create_slurm_file(
     """
     with open(new_script_path, "w") as f:
         f.writelines("#!/usr/bin/env bash\n")
-        f.writelines(f"#SBATCH --nodes={nodes}\n")
-        f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
+        if nodes is not None:
+            f.writelines(f"#SBATCH --nodes={nodes}\n")
+        if ntasks is not None:
+            f.writelines(f"#SBATCH --ntasks={ntasks}\n")
+        if ntasks_per_node is not None:
+            f.writelines(f"#SBATCH --ntasks-per-node={ntasks_per_node}\n")
         if gpus_per_task is not None:
             f.writelines(f"#SBATCH --gpus-per-task={gpus_per_task}\n")
         if gpus_per_node is not None:
@@ -78,19 +84,29 @@ def create_slurm_file(
 def create_bcp_file(
     *,
     cmds,
-    num_nodes,
-    ntasks_per_node=8,
+    num_nodes=None,
+    num_tasks=None,
+    ntasks_per_node=None,
     gpus_per_task=None,
     gpus_per_node=None,
     log_file,
     new_script_path,
     env_exports=None,
 ):
+    bcprun_args = []
+    if num_nodes is not None:
+        bcprun_args.extend(["-n", str(num_nodes)])
+    if num_tasks is not None:
+        bcprun_args.extend(["--replicas", str(num_tasks)])
+    if ntasks_per_node is not None:
+        bcprun_args.extend(["-p", str(ntasks_per_node)])
+    if env_exports is not None:
+        bcprun_args.extend(["--env", str(env_exports)])
+    bcprun_args = " ".join(bcprun_args)
+
     with open(new_script_path, "w") as f:
-        if env_exports is not None:
-            env_cmd = f"--env {env_exports}"
         for cmd in cmds:
-            f.writelines(f'bcprun -n {num_nodes} -p {ntasks_per_node} {env_cmd} -c "{cmd}" >> {log_file} 2>&1 \n')
+            f.writelines(f'bcprun {bcprun_args} -c "{cmd}" >> {log_file} 2>&1 \n')
         f.writelines("\n")
         f.writelines("set +x \n")
     os.chmod(new_script_path, 0o755)
@@ -99,7 +115,9 @@ def create_bcp_file(
 def run_export(cfg, dependency=None):
     train_cfg = cfg.training
     model_cfg = train_cfg.model
+    cluster_cfg = cfg.cluster
 
+    accuracy_cfg = cfg.export.accuracy
     convert_cfg = cfg.export.conversion
     deploy_cfg = cfg.export.triton_deployment
     run_cfg = cfg.export.run
@@ -133,8 +151,7 @@ def run_export(cfg, dependency=None):
         # assume that tokenizer files are in data dir and checkpoints are in base results dir
         dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir],
         submission_script_path=new_script_path,
-        nodes=1,
-        ntasks_per_node=1,
+        ntasks=1,
         logs_dir=results_dir,
         time_limit=run_cfg.time_limit,
     )
@@ -149,6 +166,9 @@ def run_export(cfg, dependency=None):
     job_name = f"{job_base_name}_accuracy"
     new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
 
+    gpus_required = convert_cfg.tensor_model_parallel_size * deploy_cfg.pipeline_model_parallel_size
+    num_tasks = gpus_required
+    num_nodes = int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
     submit_cmd = _get_submission_cmd_fn(
         cfg=cfg,
         dependency=conversion_job_id,
@@ -157,8 +177,9 @@ def run_export(cfg, dependency=None):
         # assume that checkpoints are in base results dir
         dirs_to_mount=[cfg.bignlp_path, cfg.base_results_dir],
         submission_script_path=new_script_path,
-        nodes=deploy_cfg.pipeline_model_parallel_size,
-        ntasks_per_node=convert_cfg.tensor_model_parallel_size,
+        nodes=num_nodes,
+        ntasks=num_tasks,
+        ntasks_per_node=accuracy_cfg.ntasks_per_node,
         logs_dir=results_dir,
         time_limit=run_cfg.time_limit,
     )
@@ -181,8 +202,9 @@ def _get_bcp_submission_command(
     cmds,
     dirs_to_mount,
     submission_script_path,
-    nodes,
-    ntasks_per_node,
+    nodes=None,
+    ntasks=None,
+    ntasks_per_node=None,
     logs_dir,
     time_limit,
 ):
@@ -190,6 +212,7 @@ def _get_bcp_submission_command(
         new_script_path=submission_script_path,
         cmds=cmds,
         num_nodes=nodes,
+        num_tasks=ntasks,
         ntasks_per_node=ntasks_per_node,
         log_file=f"{logs_dir}/eval_log.txt",
     )
@@ -205,8 +228,9 @@ def _get_bcm_submission_cmd(
     cmds,
     dirs_to_mount,
     submission_script_path,
-    nodes,
-    ntasks_per_node,
+    nodes=None,
+    ntasks=None,
+    ntasks_per_node=None,
     gpus_per_task=None,
     gpus_per_node=None,
     logs_dir,
@@ -245,6 +269,7 @@ def _get_bcm_submission_cmd(
         overcommit=False,
         time=time_limit,
         nodes=nodes,
+        ntasks=ntasks,
         ntasks_per_node=ntasks_per_node,
         gpus_per_task=gpus_per_task or cluster_cfg.gpus_per_task,
         gpus_per_node=gpus_per_node or cluster_cfg.gpus_per_node,
