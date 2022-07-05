@@ -78,8 +78,7 @@ class TestTrainingGPT3Config:
           post_process: True
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
+          gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
 
@@ -275,8 +274,7 @@ class TestTrainingGPT3Config:
           post_process: True
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
+          gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
 
@@ -474,8 +472,7 @@ class TestTrainingGPT3Config:
           post_process: True
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
+          gradient_as_bucket_view: True
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 2
 
@@ -672,7 +669,6 @@ class TestTrainingGPT3Config:
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 0
 
@@ -869,7 +865,6 @@ class TestTrainingGPT3Config:
           persist_layer_norm: True # Use of persistent fused layer norm kernel.
           grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
           gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
           activations_checkpoint_method: block
           activations_checkpoint_num_layers: 1
 
