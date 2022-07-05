@@ -259,18 +259,10 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             num_workers=self._cfg.num_workers,
         )
         AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
-        input_uniq_id_list = []
-        for uniq_id in AUDIO_VAD_RTTM_MAP:
-            AUDIO_VAD_RTTM_MAP[uniq_id]['rttm_filepath'] = os.path.join(table_out_dir, uniq_id + ".txt")
-            input_uniq_id_list.append(uniq_id)
+        for key in AUDIO_VAD_RTTM_MAP:
+            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
 
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
-
-        # Error handling for empty audio samples.
-        for uniq_id in input_uniq_id_list:
-            if uniq_id not in AUDIO_VAD_RTTM_MAP:
-                del self.AUDIO_RTTM_MAP[uniq_id]
-
         self._speaker_manifest_path = self._vad_out_file
 
     def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
@@ -323,10 +315,6 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         else:
             raise ValueError(
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
-            )
-        if self.AUDIO_RTTM_MAP == {}:
-            raise ValueError(
-                "self.AUDIO_RTTM_MAP is empty: There are no input audio files containing detected speech signal. Abort."
             )
 
     def _extract_embeddings(self, manifest_file: str):

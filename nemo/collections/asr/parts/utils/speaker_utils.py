@@ -417,9 +417,9 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
             sparse_search_volume=clustering_params.sparse_search_volume,
-            maj_vote_spk_count=clustering_params.maj_vote_spk_count,
             cuda=cuda,
         )
+
         base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
         lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
         assert len(cluster_labels) == len(lines)
@@ -740,6 +740,15 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
         return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
 
 
+def getMinMaxOfRangeList(ranges):
+    """
+    Get the min and max of a given range list.
+    """
+    _max = max([x[1] for x in ranges])
+    _min = min([x[0] for x in ranges])
+    return _min, _max
+
+
 def getSubRangeList(target_range, source_range_list) -> List:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
@@ -779,8 +788,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
     speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value. In case of empty audio clip, the corresponding uniq_ids
-    are deleted from AUDIO_RTTM_MAP to avoid errors in the following steps.
+    and trimmed with the given offset and duration value.
 
     Args:
         AUDIO_RTTM_MAP (dict):
@@ -793,7 +801,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
         manifest (str):
             The path to the output manifest file.
     """
-    void_uniq_ids = []
+
     with open(manifest_file, 'w') as outfile:
         for uniq_id in AUDIO_RTTM_MAP:
             rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
@@ -802,27 +810,20 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
             vad_start_end_list_raw = []
             for line in rttm_lines:
                 start, dur = get_vad_out_from_rttm_line(line)
-                if dur > 0:
-                    vad_start_end_list_raw.append([start, start + dur])
+                vad_start_end_list_raw.append([start, start + dur])
             vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
             if len(vad_start_end_list) == 0:
-                logging.warning(f"File ID:{uniq_id} VAD label is not containing any speech segments.")
-                void_uniq_ids.append(uniq_id)
-                continue
-            elif duration <= 0:
-                logging.warning(f"File ID:{uniq_id} audio file has zero duration.")
-                void_uniq_ids.append(uniq_id)
-                continue
+                logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
+            elif duration == 0:
+                logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
             else:
+                min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
+                if max_vad > round(offset + duration, deci) or min_vad < offset:
+                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
-        for uniq_id in void_uniq_ids:
-            logging.warning(
-                f"Removing File ID:{uniq_id} from AUDIO_RTTM_MAP since File ID:{uniq_id} does not contain valid speech signal."
-            )
-            del AUDIO_RTTM_MAP[uniq_id]
+            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
     return manifest_file
 
 
