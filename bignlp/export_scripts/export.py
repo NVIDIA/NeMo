@@ -93,11 +93,13 @@ def create_bcp_file(
     new_script_path,
     env_exports=None,
 ):
+    assert ntasks_per_node is not None
+    assert num_nodes is not None
+    if num_tasks is not None:
+        assert ntasks_per_node * num_nodes == num_tasks
     bcprun_args = []
     if num_nodes is not None:
         bcprun_args.extend(["-n", str(num_nodes)])
-    if num_tasks is not None:
-        bcprun_args.extend(["--replicas", str(num_tasks)])
     if ntasks_per_node is not None:
         bcprun_args.extend(["-p", str(ntasks_per_node)])
     if env_exports is not None:
@@ -151,7 +153,9 @@ def run_export(cfg, dependency=None):
         # assume that tokenizer files are in data dir and checkpoints are in base results dir
         dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir],
         submission_script_path=new_script_path,
+        nodes=1,
         ntasks=1,
+        ntasks_per_node=1,
         logs_dir=results_dir,
         time_limit=run_cfg.time_limit,
     )
