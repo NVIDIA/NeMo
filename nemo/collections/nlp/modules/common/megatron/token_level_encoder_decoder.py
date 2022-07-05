@@ -67,7 +67,7 @@ class MegatronTokenLevelHead(MegatronModule):
                 word_embeddings_weight,
                 self.parallel_output,
                 bias=self.bias
-                self.gradient_accumulation_fusion = gradient_accumulation_fusion,
+                gradient_accumulation_fusion = self.gradient_accumulation_fusion,
         )
         return output
 
