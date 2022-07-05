@@ -180,7 +180,7 @@ def threshold(norm_texts_weights, unchanged=True, replacement=True):
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    # logging.setLevel(logging.DEBUG)
+    logging.setLevel(logging.DEBUG)
     lang = args.lang
     input_f = args.data
     if args.data == "text_normalization_dataset_files/LibriTTS.json":
