@@ -18,6 +18,7 @@ __all__ = [
 ]
 
 import functools
+import inspect
 
 import wrapt
 
@@ -28,8 +29,13 @@ _PRINTED_WARNING = {}
 
 
 def deprecated(wrapped=None, version=None, explanation=None):
-    """ Decorator class used for indicating that a function is deprecated and going to be removed.
-    Tracks down which functions printed the warning and will print it only once per function.
+    """
+        Decorator which can be used for indicating that a function/class is deprecated and going to be removed.
+        Tracks down which function/class printed the warning and will print it only once per call.
+
+        Args:
+          version: Version in which the function/class will be removed (optional).
+          explanation: Additional explanation, e.g. "Please, ``use another_function`` instead." (optional).
     """
 
     if wrapped is None:
@@ -37,31 +43,21 @@ def deprecated(wrapped=None, version=None, explanation=None):
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
-        """
-        Method prints the adequate warning (only once per function) when
-        required and calls the function func, passing the original arguments,
-        i.e. version and explanation.
-
-        Args:
-          version: Version in which the function will be removed (optional)
-          explanation: Additional explanation (optional), e.g. use method ``blabla instead``.
-        """
-
         # Check if we already warned about that function.
         if wrapped.__name__ not in _PRINTED_WARNING.keys():
             # Add to list so we won't print it again.
             _PRINTED_WARNING[wrapped.__name__] = True
 
             # Prepare the warning message.
-            msg = "Function ``{}`` is deprecated.".format(wrapped.__name__)
+            entity_name = "Class" if inspect.isclass(wrapped) else "Function"
+            msg = f"{entity_name} ``{wrapped.__name__}`` is deprecated."
 
-            # Optionally, add version and alternative.
+            # Optionally, add version and explanation.
             if version is not None:
-                msg = msg + " It is going to be removed in "
-                msg = msg + "the {} version.".format(version)
+                msg = f"{msg} It is going to be removed in the {version} version."
 
             if explanation is not None:
-                msg = msg + " " + explanation
+                msg = f"{msg} {explanation}"
 
             # Display the deprecated warning.
             logging.warning(msg)

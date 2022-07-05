@@ -25,15 +25,24 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
+from nemo import package_info
 from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.get_rank import is_global_rank_zero
+
+try:
+    from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+
+    HAVE_NLPPLUGIN = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLPPLUGIN = False
 
 __all__ = ['ModelPT']
 
@@ -91,11 +100,20 @@ class ModelPT(LightningModule, Model):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
 
+        if 'model' in cfg:
+            raise ValueError(
+                "Creating model config node is forbidden due to collision problem when loading from checkpoint."
+            )
+
         if 'target' not in cfg:
             # This is for Jarvis service.
             OmegaConf.set_struct(cfg, False)
             cfg.target = "{0}.{1}".format(self.__class__.__module__, self.__class__.__name__)
             OmegaConf.set_struct(cfg, True)
+
+        if 'nemo_version' not in cfg:
+            with open_dict(cfg):
+                cfg.nemo_version = package_info.__version__
 
         self._cfg = cfg
 
@@ -103,10 +121,11 @@ class ModelPT(LightningModule, Model):
         self._train_dl = None
         self._validation_dl = None
         self._test_dl = None
+        self._optimizer_param_groups = None
         self._optimizer = None
         self._scheduler = None
-        self.trainer = trainer  # reference required for self.*_rank
-        self._trainer = self.trainer  # alias for backward compatibility
+        self.set_trainer(trainer)
+
         self._save_restore_connector = SaveRestoreConnector()
 
         self._set_model_guid()
@@ -120,10 +139,10 @@ class ModelPT(LightningModule, Model):
                 self.setup_training_data(self._cfg.train_ds)
 
             if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
-                self.setup_multiple_validation_data(val_data_config=None)
+                self.setup_multiple_validation_data(val_data_config=cfg.validation_ds)
 
             if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
-                self.setup_multiple_test_data(test_data_config=None)
+                self.setup_multiple_test_data(test_data_config=cfg.test_ds)
 
         else:
             if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
@@ -151,6 +170,11 @@ class ModelPT(LightningModule, Model):
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
+
+    def on_fit_start(self) -> None:
+        if self.cfg.get("dump_debug_info", False):
+            register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
+        return super().on_fit_start()
 
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = True,
@@ -208,7 +232,7 @@ class ModelPT(LightningModule, Model):
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_wights.ckpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
@@ -261,7 +285,7 @@ class ModelPT(LightningModule, Model):
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
-            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
 
             Example:
                 ```
@@ -276,7 +300,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -303,7 +331,7 @@ class ModelPT(LightningModule, Model):
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         checkpoint = None
         try:
@@ -421,6 +449,9 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
+        # Setup the optimizer parameter groups (by default use all parameters that are trainable)
+        self.setup_optimizer_param_groups()
+
         # If config was not explicitly passed to us
         if optim_config is None:
             # See if internal config has `optim` namespace
@@ -453,6 +484,7 @@ class ModelPT(LightningModule, Model):
             logging.warning(f"Trainer wasn't specified in model constructor. Make sure that you really wanted it.")
 
         if 'sched' in optim_config and self._trainer is not None:
+
             if not isinstance(self._trainer.accumulate_grad_batches, int):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
             if self._trainer.max_steps is None or self.trainer.max_steps < 0:
@@ -460,18 +492,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_processes * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_gpus * self._trainer.num_nodes
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                    app = AppState()
+                    optim_config['sched']['t_num_workers'] = app.data_parallel_size
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -523,7 +547,7 @@ class ModelPT(LightningModule, Model):
         # Actually instantiate the optimizer
         if optimizer_cls is not None:
             if inspect.isclass(optimizer_cls):
-                optimizer = optimizer_cls(self.parameters(), **optimizer_args)
+                optimizer = optimizer_cls(self._optimizer_param_groups, **optimizer_args)
                 logging.info("Optimizer config = %s", str(optimizer))
 
                 self._optimizer = optimizer
@@ -539,7 +563,7 @@ class ModelPT(LightningModule, Model):
                     optimizer_config.update(optimizer_args)
 
                     optimizer_instance = hydra.utils.instantiate(
-                        optimizer_cls, self.parameters(), **optimizer_config
+                        optimizer_cls, self._optimizer_param_groups, **optimizer_config
                     )  # type: DictConfig
 
                     logging.info("Optimizer config = %s", str(optimizer_instance))
@@ -556,7 +580,7 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), **optimizer_args)
+            optimizer = optimizer(self._optimizer_param_groups, **optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 
@@ -570,6 +594,23 @@ class ModelPT(LightningModule, Model):
         # Return the optimizer with/without scheduler
         # This return allows multiple optimizers or schedulers to be created
         return self._optimizer, self._scheduler
+
+    def setup_optimizer_param_groups(self):
+        """
+            Used to create param groups for the optimizer.
+            As an example, this can be used to specify per-layer learning rates:
+            optim.SGD([
+                        {'params': model.base.parameters()},
+                        {'params': model.classifier.parameters(), 'lr': 1e-3}
+                        ], lr=1e-2, momentum=0.9)
+            See https://pytorch.org/docs/stable/optim.html for more information.
+            By default, ModelPT will use self.parameters().
+            Override this method to add custom param groups.
+    """
+        param_groups = None
+        if hasattr(self, 'parameters'):
+            param_groups = [{'params': self.parameters()}]
+        self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
         self.setup_optimization()
@@ -851,6 +892,36 @@ class ModelPT(LightningModule, Model):
         """
         return self._test_names[dataloader_idx]
 
+    def load_part_of_state_dict(self, state_dict, include, exclude, load_from_string):
+
+        excluded_param_names = []
+        # create dict
+        dict_to_load = {}
+        for k, v in state_dict.items():
+            should_add = False
+            # if any string in include is present, should add
+            for p in include:
+                if p in k:
+                    should_add = True
+                    break
+            # except for if any string from exclude is present
+            for e in exclude:
+                if e in k:
+                    excluded_param_names.append(k)
+                    should_add = False
+                    break
+            if should_add:
+                dict_to_load[k] = v
+
+        # Restore checkpoint part into current model
+        self.load_state_dict(dict_to_load, strict=False)
+        logging.info(f'Model checkpoint partially restored from {load_from_string}')
+        if len(excluded_param_names) > 0:
+            logging.info(
+                f'The following parameters were excluded from loading from {load_from_string} : {excluded_param_names}'
+            )
+            logging.info(f'Make sure that this is what you wanted!')
+
     @rank_zero_only
     def maybe_init_from_pretrained_checkpoint(self, cfg: OmegaConf, map_location: str = 'cpu'):
         """
@@ -859,15 +930,36 @@ class ModelPT(LightningModule, Model):
         requirement of exact model parameters matching.
 
         Initializations:
-            init_from_nemo_model: Str path to a .nemo model, which will be instantiated in order
-                to extract the state dict.
+            init_from_nemo_model: Str path to a .nemo model in order to load state_dict from single nemo file;
+            if loading from multiple files, pass in a dict where the values have the following fields:
+
+                path: Str path to .nemo model
+
+                include: Optional list of strings, at least one of which needs to be contained in parameter name
+                to be loaded from this .nemo file. Default: everything is included.
+
+                exclude: Optional list of strings, which can be used to exclude any parameter containing one of
+                these strings from being loaded from this .nemo file. Default: nothing is excluded.
+
+                hydra usage example:
+
+                init_from_nemo_model:
+                    model0:
+                        path:<path/to/model1>
+                        include:["encoder"]
+                    model1:
+                        path:<path/to/model2>
+                        include:["decoder"]
+                        exclude:["embed"]
 
             init_from_pretrained_model: Str name of a pretrained model checkpoint (obtained via cloud).
                 The model will be downloaded (or a cached copy will be used), instantiated and then
-                its state dict will be extracted.
+                its state dict will be extracted. If loading from multiple models, you can pass in a dict
+                with the same format as for init_from_nemo_model, except with "name" instead of "path"
 
             init_from_ptl_ckpt: Str name of a Pytorch Lightning checkpoint file. It will be loaded and
-                the state dict will extracted.
+                the state dict will extracted. If loading from multiple files, you can pass in a dict
+                with the same format as for init_from_nemo_model.
 
         Args:
             cfg: The config used to instantiate the model. It need only contain one of the above keys.
@@ -875,7 +967,11 @@ class ModelPT(LightningModule, Model):
                 (from the pretrained model or checkpoint) will be loaded.
 
         """
-        args = ['init_from_nemo_model', 'init_from_pretrained_model', 'init_from_ptl_ckpt']
+        args = [
+            'init_from_nemo_model',
+            'init_from_pretrained_model',
+            'init_from_ptl_ckpt',
+        ]
         arg_matches = [(1 if arg in cfg and arg is not None else 0) for arg in args]
 
         if sum(arg_matches) == 0:
@@ -890,57 +986,119 @@ class ModelPT(LightningModule, Model):
 
         if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
             with open_dict(cfg):
-                # Restore model
-                model_path = cfg.pop('init_from_nemo_model')
-                restored_model = self.restore_from(
-                    model_path, map_location=map_location, strict=cfg.get("init_strict", True)
-                )
+                if isinstance(cfg.init_from_nemo_model, str):
+                    model_path = cfg.init_from_nemo_model
+                    # Restore model
+                    restored_model = self.restore_from(
+                        model_path, map_location=map_location, strict=cfg.get("init_strict", True)
+                    )
+                    # Restore checkpoint into current model
+                    self.load_state_dict(restored_model.state_dict(), strict=False)
+                    logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
+                    del restored_model
+                elif isinstance(cfg.init_from_nemo_model, (DictConfig, dict)):
+                    model_load_dict = cfg.init_from_nemo_model
+                    for model_load_cfg in model_load_dict.values():
+                        model_path = model_load_cfg.path
+                        # Restore model
+                        restored_model = self.restore_from(
+                            model_path, map_location=map_location, strict=cfg.get("init_strict", True)
+                        )
 
-                # Restore checkpoint into current model
-                self.load_state_dict(restored_model.state_dict(), strict=False)
-                logging.info(f'Model checkpoint restored from nemo file with path : `{model_path}`')
+                        include = model_load_cfg.pop('include', [""])
+                        exclude = model_load_cfg.pop('exclude', [])
 
-                del restored_model
+                        self.load_part_of_state_dict(
+                            restored_model.state_dict(), include, exclude, f'nemo file with path `{model_path}`'
+                        )
+
+                        del restored_model
+                else:
+                    raise TypeError("Invalid type: init_from_nemo_model is not a string or a dict!")
 
         if 'init_from_pretrained_model' in cfg and cfg.init_from_pretrained_model is not None:
             with open_dict(cfg):
                 # Restore model
-                model_name = cfg.pop('init_from_pretrained_model')
 
-                # Check if model is being resumed or not - only works if `Trainer` is attached to model
-                if hasattr(self, 'trainer') and self.trainer is not None:
-                    trainer = self.trainer
-                    if (
-                        hasattr(trainer, 'resume_from_checkpoint')
-                        and trainer.checkpoint_connector.resume_checkpoint_path is not None
-                    ):
-                        logging.info(
-                            "Model training is being resumed via Pytorch Lightning.\n"
-                            "Initialization from pretrained model (via cloud) will be skipped."
+                if isinstance(cfg.init_from_pretrained_model, str):
+                    model_name = cfg.pop('init_from_pretrained_model')
+
+                    # Check if model is being resumed or not - only works if `Trainer` is attached to model
+                    if hasattr(self, 'trainer') and self.trainer is not None:
+                        trainer = self.trainer
+                        if (
+                            hasattr(trainer, 'resume_from_checkpoint')
+                            and trainer._checkpoint_connector.resume_checkpoint_path is not None
+                        ):
+                            logging.info(
+                                "Model training is being resumed via Pytorch Lightning.\n"
+                                "Initialization from pretrained model (via cloud) will be skipped."
+                            )
+                            return
+
+                    restored_model = self.from_pretrained(
+                        model_name, map_location=map_location, strict=cfg.get("init_strict", True)
+                    )
+
+                    # Restore checkpoint into current model
+                    self.load_state_dict(restored_model.state_dict(), strict=False)
+                    logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+
+                    del restored_model
+                elif isinstance(cfg.init_from_pretrained_model, (DictConfig, dict)):
+                    model_load_dict = cfg.init_from_pretrained_model
+                    for model_load_cfg in model_load_dict.values():
+                        model_name = model_load_cfg.name
+                        # Restore model
+                        restored_model = self.from_pretrained(
+                            model_name, map_location=map_location, strict=cfg.get("init_strict", True)
                         )
-                        return
 
-                restored_model = self.from_pretrained(
-                    model_name, map_location=map_location, strict=cfg.get("init_strict", True)
-                )
+                        include = model_load_cfg.pop('include', [""])
+                        exclude = model_load_cfg.pop('exclude', [])
 
-                # Restore checkpoint into current model
-                self.load_state_dict(restored_model.state_dict(), strict=False)
-                logging.info(f'Model checkpoint restored from pretrained chackpoint with name : `{model_name}`')
+                        self.load_part_of_state_dict(
+                            restored_model.state_dict(),
+                            include,
+                            exclude,
+                            f'pretrained chackpoint with name `{model_name}`',
+                        )
 
-                del restored_model
+                        del restored_model
+                else:
+                    raise TypeError("Invalid type: init_from_pretrained_model is not a string or a dict!")
 
         if 'init_from_ptl_ckpt' in cfg and cfg.init_from_ptl_ckpt is not None:
             with open_dict(cfg):
-                # Restore checkpoint
-                ckpt_path = cfg.pop('init_from_ptl_ckpt')
-                ckpt = torch.load(ckpt_path, map_location=map_location)
+                if isinstance(cfg.init_from_ptl_ckpt, str):
+                    # Restore checkpoint
+                    ckpt_path = cfg.pop('init_from_ptl_ckpt')
+                    ckpt = torch.load(ckpt_path, map_location=map_location)
 
-                # Restore checkpoint into current model
-                self.load_state_dict(ckpt['state_dict'], strict=False)
-                logging.info(f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`')
+                    # Restore checkpoint into current model
+                    self.load_state_dict(ckpt['state_dict'], strict=False)
+                    logging.info(
+                        f'Model checkpoint restored from pytorch lightning chackpoint with path : `{ckpt_path}`'
+                    )
 
-                del ckpt
+                    del ckpt
+                elif isinstance(cfg.init_from_ptl_ckpt, (DictConfig, dict)):
+                    model_load_dict = cfg.init_from_ptl_ckpt
+                    for model_load_cfg in model_load_dict.values():
+                        ckpt_path = model_load_cfg.path
+                        # Restore model
+                        ckpt = torch.load(ckpt_path, map_location=map_location)
+
+                        include = model_load_cfg.pop('include', [""])
+                        exclude = model_load_cfg.pop('exclude', [])
+
+                        self.load_part_of_state_dict(
+                            ckpt['state_dict'], include, exclude, f'nemo file with path `{model_path}`'
+                        )
+
+                        del ckpt
+                else:
+                    raise TypeError("Invalid type: init_from_ptl_ckpt is not a string or a dict!")
 
     def teardown(self, stage: str):
         """
@@ -1041,13 +1199,12 @@ class ModelPT(LightningModule, Model):
         DDP_WARN = """\n\nDuring testing, it is currently advisable to construct a new Trainer "
                     "with single GPU and no DDP to obtain accurate results.
                     "Following pattern should be used: "
-                    "gpu = 1 if cfg.trainer.gpus != 0 else 0"
-                    "trainer = Trainer(gpus=gpu)"
+                    "trainer = Trainer(devices=1, accelerator='gpu')" 
                     "if model.prepare_test(trainer):"
                     "  trainer.test(model)\n\n"""
 
         if trainer is not None:
-            if trainer.num_gpus > 1:
+            if trainer.num_devices > 1:
                 logging.warning(DDP_WARN)
                 return False
 
@@ -1064,7 +1221,7 @@ class ModelPT(LightningModule, Model):
         """
         self.trainer = trainer
         self._trainer = trainer
-        self.set_world_size(self._trainer)
+        self.set_world_size(trainer)
 
     def set_world_size(self, trainer: Trainer):
         """
@@ -1075,12 +1232,28 @@ class ModelPT(LightningModule, Model):
             trainer (Trainer): PyTorch Lightning Trainer object
         """
         # Update AppState with world information from trainer
-        if isinstance(trainer, Trainer):
-            app_state = AppState()
-            if self._trainer.num_gpus and self._trainer.num_nodes:
-                app_state.world_size = self._trainer.num_gpus * self._trainer.num_nodes
-        else:
-            logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        self.world_size = 1
+
+        if trainer is not None:
+            if isinstance(trainer, Trainer):
+                if trainer.num_devices and trainer.num_nodes:
+                    self.world_size = trainer.num_devices * trainer.num_nodes
+            else:
+                logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
+        app_state = AppState()
+        app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """
@@ -1147,6 +1320,10 @@ class ModelPT(LightningModule, Model):
         """
         self._cfg = cfg
         self._set_hparams(OmegaConf.create({'cfg': self._cfg}))
+
+        # TODO: Remove in NeMo 1.7 (or when PTL fixes this on their end)
+        if hasattr(self, '_hparams_initial') and 'cfg' in self._hparams_initial:
+            self._hparams_initial['cfg'] = OmegaConf.to_object(self._cfg)
 
     @staticmethod
     def _is_model_being_restored() -> bool:

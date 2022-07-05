@@ -43,20 +43,34 @@ This script uses the `/examples/nlp/token_classification/conf/punctuation_capita
 by default. You may update the config file from the file directly. 
 The other option is to set another config file via command line arguments by `--config-name=CONFIG_FILE_PATH'.
 
+Additional default parameters could be found in PunctuationCapitalizationDataConfigBase from 
+/nemo/collections/nlp/data/token_classification/punctuation_capitalization_dataset.py, 
+use `+` to modify their values via command line, e.g.: `+model.train_ds.num_workers=2`
+
 For more details about the config files and different ways of model restoration, see tutorials/00_NeMo_Primer.ipynb
 
 *** Model training ***
 
 To run this script and train the model from scratch, use:
     python punctuation_capitalization_train_evaluate.py \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
+        model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+        model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
+        model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
+        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        ~model.test_ds
 
 To use one of the pretrained versions of the model and finetune it, run:
     python punctuation_capitalization_train_evaluate.py \
         pretrained_model=punctuation_en_bert \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
+        model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+        model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
+        model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
+        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        ~model.test_ds
     
     pretrained_model   - pretrained PunctuationCapitalization model from list_available_models() or 
         path to a .nemo file, for example: punctuation_en_bert or model.nemo
@@ -65,15 +79,24 @@ If you wish to perform testing after training set `do_testing` to `true:
     python punctuation_capitalization_train_evaluate.py \
         +do_testing=true \
         pretrained_model=punctuation_en_bert \
-        model.train_ds.ds_item=<PATH_TO_TRAIN_DATA> \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
+        model.train_ds.ds_item=<PATH/TO/TRAIN/DATA> \
+        model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+        model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+        model.validation_ds.ds_item=<PATH/TO/DEV/DATA> \
+        model.validation_ds.text_file=<NAME_OF_DEV_INPUT_TEXT_FILE> \
+        model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+        model.test_ds.ds_item=<PATH/TO/TEST_DATA> \
+        model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
+        model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
 Set `do_training` to `false` and `do_testing` to `true` to perform evaluation without training:
     python punctuation_capitalization_train_evaluate.py \
         +do_testing=true \
         +do_training=false \
         pretrained_model=punctuation_en_bert \
-        model.validation_ds.ds_item=<PATH_TO_DEV_DATA>
+        model.test_ds.ds_item=<PATH/TO/TEST/DATA> \
+        model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
+        model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
 """
 
@@ -103,8 +126,11 @@ def main(cfg: DictConfig) -> None:
             model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         else:
             raise ValueError(
-                f'Provide path to the pre-trained .nemo file or choose from '
-                f'{PunctuationCapitalizationModel.list_available_models()}'
+                f'Config parameter `pretrained_model` should contain a path to the pre-trained .nemo file or a model '
+                f'name from '
+                f'{[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()]}. '
+                f'Provided `pretrained_model="{cfg.pretrained_model}"` is neither a valid path, nor a valid model '
+                f'name.'
             )
         model.update_config_after_restoring_from_checkpoint(
             class_labels=cfg.model.class_labels,

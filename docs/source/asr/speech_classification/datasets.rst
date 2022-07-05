@@ -80,7 +80,7 @@ These scripts below will download the Google Speech Commands v2 dataset and conv
 .. note::
   You may additionally pass :code:`--test_size` or :code:`--val_size` flag for splitting train val and test data. 
 
-  You may additionally pass :code:`--seg_len` flag for indicating the segment length. Default is 0.63s.
+  You may additionally pass :code:`--window_length_in_sec` flag for indicating the segment/window length. Default is 0.63s.
 
   You may additionally pass a :code:`-rebalance_method='fixed|over|under'` at the end of the script to rebalance the class samples in the manifest. 
     

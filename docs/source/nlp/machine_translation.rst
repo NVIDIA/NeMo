@@ -331,7 +331,8 @@ Tarred datasets can be created in two ways:
          model.encoder_tokenizer.vocab_size=32000 \
          model.decoder_tokenizer.vocab_size=32000 \
          ~model.test_ds \
-         trainer.gpus=[0,1,2,3] \
+         trainer.devices=[0,1,2,3] \
+         trainer.accelerator='gpu' \
          +trainer.fast_dev_run=true \
          exp_manager=null \
 
@@ -414,7 +415,8 @@ from :cite:`nlp-machine_translation-vaswani2017attention`.
     python examples/nlp/machine_translation/enc_dec_nmt.py \
       -cn aayn_base \
       do_training=true \
-      trainer.gpus=8 \
+      trainer.devices=8 \
+      trainer.accelerator='gpu' \
       ~trainer.max_epochs \
       +trainer.max_steps=100000 \
       +trainer.val_check_interval=1000 \
@@ -460,6 +462,82 @@ To use other indexes, append the index:
     exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU_dl_index_1
   
 Multiple test datasets work exactly the same way as validation datasets, simply replace ``validation_ds`` by ``test_ds`` in the above examples.
+
+Bottleneck Models and Latent Variable Models (VAE, MIM)
+-------------------------------------------------------
+
+NMT with bottleneck encoder architecture is also supported (i.e., fixed size bottleneck), along with the training of Latent Variable Models (currently VAE, and MIM).
+
+1. Supported  learning frameworks (**model.model_type**):
+    * NLL - Conditional cross entropy (the usual NMT loss)
+    * VAE - Variational Auto-Encoder (`paper <https://arxiv.org/pdf/1312.6114.pdf>`_)
+    * MIM - Mutual Information Machine (`paper <https://arxiv.org/pdf/2003.02645.pdf>`_)
+2. Supported encoder architectures (**model.encoder.arch**):
+    * seq2seq - the usual transformer encoder without a bottleneck
+    * bridge - attention bridge bottleneck (`paper <https://arxiv.org/pdf/1703.03130.pdf>`_)
+    * perceiver -  Perceiver bottleneck (`paper <https://arxiv.org/pdf/2103.03206.pdf>`_)
+
+
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **Parameter**                          | **Data Type**  | **Default**  | **Description**                                                                                       |
++========================================+================+==============+=======================================================================================================+
+| **model.model_type**                   | str            | ``nll``      | Learning (i.e., loss) type: nll (i.e., cross-entropy/auto-encoder), mim, vae (see description above)  |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.min_logv**                     | float          | ``-6``       | Minimal allowed log variance for mim                                                                  |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.latent_size**                  | int            | ``-1``       | Dimension of latent (projected from hidden) -1 will take value of hidden size                         |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model. non_recon_warmup_batches**    | bool           | ``200000``   | Warm-up steps for mim, and vae losses (anneals non-reconstruction part)                               |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model. recon_per_token**             | bool           | ``true``     | When false reconstruction is computed per sample, not per token                                       |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.arch**                 | str            | ``seq2seq``  | Supported architectures: ``seq2seq``, ``bridge``, ``perceiver`` (see description above).              |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.hidden_steps**         | int            | ``32``       | Fixed number of hidden steps                                                                          |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder.hidden_blocks**        | int            | ``1``        | Number of repeat blocks (see classes for description)                                                 |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+| **model.encoder. hidden_init_method**  | str            | ``default``  | See classes for available values                                                                      |
++----------------------------------------+----------------+--------------+-------------------------------------------------------------------------------------------------------+
+
+
+Detailed description of config parameters:
+
+* **model.encoder.arch=seq2seq**
+    * *model.encoder.hidden_steps is ignored*
+    * *model.encoder.hidden_blocks is ignored*
+    * *model.encoder.hidden_init_method is ignored*
+* **model.encoder.arch=bridge**
+    * *model.encoder.hidden_steps:* input is projected to the specified fixed steps
+    * *model.encoder.hidden_blocks:* number of encoder blocks to repeat after attention bridge projection
+    * *model.encoder.hidden_init_method:*
+         *  enc_shared (default) - apply encoder to inputs, than attention bridge, followed by hidden_blocks number of the same encoder (pre and post encoders share parameters)
+         * identity - apply attention bridge to inputs, followed by hidden_blocks number of the same encoder
+         * enc - similar to enc_shared but the initial encoder has independent parameters
+* **model.encoder.arch=perceiver**
+    * *model.encoder.hidden_steps:* input is projected to the specified fixed steps
+    * *model.encoder.hidden_blocks:* number of cross-attention + self-attention blocks to repeat after initialization block (all self-attention and cross-attention share parameters)
+    * *model.encoder.hidden_init_method:*
+         * params (default) - hidden state is initialized with learned parameters followed by cross-attention with independent parameters
+         * bridge - hidden state is initialized with an attention bridge
+
+
+Training requires the use of the following script (instead of ``enc_dec_nmt.py``):
+
+.. code ::
+
+    python -- examples/nlp/machine_translation/enc_dec_nmt-bottleneck.py \
+          --config-path=conf \
+          --config-name=aayn_bottleneck \
+          ...
+          model.model_type=nll \
+          model.non_recon_warmup_batches=7500 \
+          model.encoder.arch=perceiver \
+          model.encoder.hidden_steps=32 \
+          model.encoder.hidden_blocks=2 \
+          model.encoder.hidden_init_method=params \
+          ...
+
 
 Model Inference
 ---------------

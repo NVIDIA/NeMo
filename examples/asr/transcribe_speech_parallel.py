@@ -45,7 +45,7 @@ By setting the trainer config you may control these configs. For example to do t
 
 python transcribe_speech_parallel.py \
     trainer.precision=16 \
-    trainer.gpus=2 \
+    trainer.devices=2 \
     ...
 
 You may control the dataloader's config by setting the predict_ds:
@@ -92,7 +92,7 @@ class ParallelTranscriptionConfig:
 
     # decoding strategy for RNNT models
     rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
-    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
+    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
 
 
 def match_train_config(predict_ds, train_ds):
@@ -145,7 +145,7 @@ def main(cfg: ParallelTranscriptionConfig):
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
     predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file)
     trainer.callbacks.extend([predictor_writer])

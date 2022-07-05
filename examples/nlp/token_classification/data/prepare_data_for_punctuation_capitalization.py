@@ -74,8 +74,8 @@ To pre-process the raw text data, stored under :code:`sourced_data_dir` (see the
 section), run the following command:
 
     python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
-           -s <PATH_TO_THE_SOURCE_FILE>
-           -o <PATH_TO_THE_OUTPUT_DIRECTORY>
+           -s <PATH/TO/THE/SOURCE/FILE> \
+           -o <PATH/TO/THE/OUTPUT/DIRECTORY>
 
 """
 

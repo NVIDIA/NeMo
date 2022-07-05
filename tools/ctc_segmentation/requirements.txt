@@ -1,2 +1,2 @@
-ctc_segmentation==1.1.0
+ctc_segmentation==1.7.1
 num2words

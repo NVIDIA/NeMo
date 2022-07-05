@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,15 +15,11 @@
 import sys
 from unicodedata import category
 
-from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = False
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+import pynini
+from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_SPACE, NEMO_SIGMA, GraphFst
+from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 
 class PunctuationFst(GraphFst):
@@ -40,13 +35,31 @@ class PunctuationFst(GraphFst):
 
     def __init__(self, deterministic: bool = True):
         super().__init__(name="punctuation", kind="classify", deterministic=deterministic)
-
         s = "!#%&\'()*+,-./:;<=>?@^_`{|}~\""
 
-        punct_unicode = [chr(i) for i in range(sys.maxunicode) if category(chr(i)).startswith("P")]
-        punct_unicode.remove('[')
-        punct_unicode.remove(']')
-        punct = pynini.union(*s) | pynini.union(*punct_unicode)
+        punct_symbols_to_exclude = ["[", "]"]
+        punct_unicode = [
+            chr(i)
+            for i in range(sys.maxunicode)
+            if category(chr(i)).startswith("P") and chr(i) not in punct_symbols_to_exclude
+        ]
+
+        whitelist_symbols = load_labels(get_abs_path("data/whitelist/symbol.tsv"))
+        whitelist_symbols = [x[0] for x in whitelist_symbols]
+        self.punct_marks = [p for p in punct_unicode + list(s) if p not in whitelist_symbols]
+
+        punct = pynini.union(*self.punct_marks)
+        punct = pynini.closure(punct, 1)
+
+        emphasis = (
+            pynini.accep("<")
+            + (
+                (pynini.closure(NEMO_NOT_SPACE - pynini.union("<", ">"), 1) + pynini.closure(pynini.accep("/"), 0, 1))
+                | (pynini.accep("/") + pynini.closure(NEMO_NOT_SPACE - pynini.union("<", ">"), 1))
+            )
+            + pynini.accep(">")
+        )
+        punct = plurals._priority_union(emphasis, punct, NEMO_SIGMA)
 
         self.graph = punct
         self.fst = (pynutil.insert("name: \"") + self.graph + pynutil.insert("\"")).optimize()

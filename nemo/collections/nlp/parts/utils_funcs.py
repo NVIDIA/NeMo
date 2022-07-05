@@ -19,6 +19,7 @@ import time
 from typing import Dict, List, Union
 
 import numpy as np
+import torch
 from matplotlib import pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
@@ -128,3 +129,11 @@ def get_classification_report(labels, preds, label_ids, output_dict=False):
     ]
 
     return classification_report(labels, preds, target_names=labels_names, digits=4, output_dict=output_dict)
+
+
+def is_last_rank():
+    return torch.distributed.get_rank() == (torch.distributed.get_world_size() - 1)
+
+
+def get_last_rank():
+    return torch.distributed.get_world_size() - 1

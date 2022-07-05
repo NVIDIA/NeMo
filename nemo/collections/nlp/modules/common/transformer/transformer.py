@@ -148,15 +148,16 @@ class TransformerEncoderNM(EncoderModule, Exportable):
     def encoder(self):
         return self._encoder
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        sz = (max_batch, max_dim)
+        input_ids = torch.randint(low=0, high=2048, size=sz, device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
         return tuple([input_ids, encoder_mask])
 
 
@@ -255,16 +256,17 @@ class TransformerDecoderNM(DecoderModule, Exportable):
     def decoder(self):
         return self._decoder
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        mem_size = [2, self.num_states, 15, self._hidden_size]
+        sz = (max_batch, max_dim)
+        input_ids = torch.randint(low=0, high=2048, size=sz, device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
+        mem_size = [max_batch, self.num_states, max_dim - 1, self._hidden_size]
         decoder_mems = torch.rand(mem_size, device=sample.device)
         return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask, decoder_mems])
 

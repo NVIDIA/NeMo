@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ by default. You may update the config file from the file directly. The other opt
     model.train_ds.file=<TRAIN_JSON_FILE>
     model.validation_ds=<VAL_JSON_FILE>
     trainer.max_epochs=<NUM_EPOCHS>
-    trainer.gpus=[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
+    trainer.devices=[<CHANGE_TO_GPU_YOU_WANT_TO_USE>]
 
 
 ***Model Evaluation***
@@ -95,7 +95,9 @@ def main(cfg: DictConfig) -> None:
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if not cfg.pretrained_model:
+    if cfg.model.nemo_path is not None and os.path.isfile(cfg.model.nemo_path):
+        model = QAModel.restore_from(cfg.model.nemo_path, override_config_path=cfg, trainer=trainer)
+    elif not cfg.pretrained_model:
         logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
         model = QAModel(cfg.model, trainer=trainer)
     else:

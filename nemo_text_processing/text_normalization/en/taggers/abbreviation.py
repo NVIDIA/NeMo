@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +13,9 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_UPPER, GraphFst, insert_space
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class AbbreviationFst(GraphFst):
@@ -44,8 +37,6 @@ class AbbreviationFst(GraphFst):
         graph = NEMO_UPPER + dot + pynini.closure(insert_space + NEMO_UPPER + dot, 1)
         # A.B.C. -> A.B.C.
         graph |= NEMO_UPPER + dot + pynini.closure(NEMO_UPPER + dot, 1)
-        # ABC -> ABC
-        graph |= NEMO_UPPER + pynini.closure(NEMO_UPPER, 1)
         # ABC -> A B C
         graph |= NEMO_UPPER + pynini.closure(insert_space + NEMO_UPPER, 1)
 

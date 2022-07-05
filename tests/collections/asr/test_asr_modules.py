@@ -25,30 +25,6 @@ from nemo.utils import config_utils, logging
 
 class TestASRModulesBasicTests:
     @pytest.mark.unit
-    def test_AudioToMelSpectrogramPreprocessor1(self):
-        # Test 1 that should test the pure stft implementation as much as possible
-        instance1 = modules.AudioToMelSpectrogramPreprocessor(
-            dither=0, stft_conv=False, mag_power=1.0, normalize=False, preemph=0.0, log=False, pad_to=0
-        )
-        instance2 = modules.AudioToMelSpectrogramPreprocessor(
-            dither=0, stft_conv=True, mag_power=1.0, normalize=False, preemph=0.0, log=False, pad_to=0
-        )
-
-        # Ensure that the two functions behave similarily
-        for _ in range(10):
-            input_signal = torch.randn(size=(4, 512))
-            length = torch.randint(low=161, high=500, size=[4])
-            res1, length1 = instance1(input_signal=input_signal, length=length)
-            res2, length2 = instance2(input_signal=input_signal, length=length)
-            for len1, len2 in zip(length1, length2):
-                assert len1 == len2
-            assert res1.shape == res2.shape
-            diff = torch.mean(torch.abs(res1 - res2))
-            assert diff <= 1e-3
-            diff = torch.max(torch.abs(res1 - res2))
-            assert diff <= 1e-2
-
-    @pytest.mark.unit
     def test_AudioToMelSpectrogramPreprocessor_config(self):
         # Test that dataclass matches signature of module
         result = config_utils.assert_dataclass_signature_match(
@@ -91,26 +67,6 @@ class TestASRModulesBasicTests:
             assert diff <= 1e-3
             diff = torch.max(torch.abs(res_instance - res_batch))
             assert diff <= 1e-3
-
-    @pytest.mark.unit
-    def test_AudioToMelSpectrogramPreprocessor2(self):
-        # Test 2 that should test the stft implementation as used in ASR models
-        instance1 = modules.AudioToMelSpectrogramPreprocessor(dither=0, stft_conv=False)
-        instance2 = modules.AudioToMelSpectrogramPreprocessor(dither=0, stft_conv=True)
-
-        # Ensure that the two functions behave similarily
-        for _ in range(5):
-            input_signal = torch.randn(size=(4, 512))
-            length = torch.randint(low=161, high=500, size=[4])
-            res1, length1 = instance1(input_signal=input_signal, length=length)
-            res2, length2 = instance2(input_signal=input_signal, length=length)
-            for len1, len2 in zip(length1, length2):
-                assert len1 == len2
-            assert res1.shape == res2.shape
-            diff = torch.mean(torch.abs(res1 - res2))
-            assert diff <= 3e-3
-            diff = torch.max(torch.abs(res1 - res2))
-            assert diff <= 3
 
     @pytest.mark.unit
     def test_SpectrogramAugmentationr(self):
@@ -195,6 +151,34 @@ class TestASRModulesBasicTests:
         result = config_utils.assert_dataclass_signature_match(
             modules.CropOrPadSpectrogramAugmentation,
             modules.audio_preprocessing.CropOrPadSpectrogramAugmentationConfig,
+        )
+        signatures_match, cls_subset, dataclass_subset = result
+
+        assert signatures_match
+        assert cls_subset is None
+        assert dataclass_subset is None
+
+    @pytest.mark.unit
+    def test_MaskedPatchAugmentation(self):
+        # Make sure constructor works
+        audio_length = 128
+        instance1 = modules.MaskedPatchAugmentation(patch_size=16, mask_patches=0.5, freq_masks=2, freq_width=10)
+        assert isinstance(instance1, modules.MaskedPatchAugmentation)
+
+        # Make sure forward doesn't throw with expected input
+        instance0 = modules.AudioToMelSpectrogramPreprocessor(dither=0)
+        input_signal = torch.randn(size=(4, 512))
+        length = torch.randint(low=161, high=500, size=[4])
+        res0 = instance0(input_signal=input_signal, length=length)
+        res = instance1(input_spec=res0[0], length=length)
+
+        assert res.shape == res0[0].shape
+
+    @pytest.mark.unit
+    def test_MaskedPatchAugmentation_config(self):
+        # Test that dataclass matches signature of module
+        result = config_utils.assert_dataclass_signature_match(
+            modules.MaskedPatchAugmentation, modules.audio_preprocessing.MaskedPatchAugmentationConfig,
         )
         signatures_match, cls_subset, dataclass_subset = result
 

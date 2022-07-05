@@ -1,5 +1,4 @@
 doctor dao~dr. dao
-miss smith~ms. smith
 misses smith~mrs. smith
 mister dao~mr. dao
 saint george~st. george

@@ -37,14 +37,14 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
                 num += p.numel()
         return num
 
-    def input_example(self):
+    def input_example(self, max_batch=None, max_dim=None):
         """
         Override this method if random inputs won't work
         Returns:
             A tuple sample of valid input data.
         """
 
-        return
+        return None
 
     def freeze(self) -> None:
         r"""
@@ -69,9 +69,21 @@ class NeuralModule(Module, Typing, Serialization, FileIO):
         """
         Context manager which temporarily freezes a module, yields control and finally unfreezes the module.
         """
-        self.freeze()
+        training_mode = self.training
+        grad_map = {}
+        for pname, param in self.named_parameters():
+            grad_map[pname] = param.requires_grad
 
+        self.freeze()
         try:
             yield
         finally:
             self.unfreeze()
+
+            for pname, param in self.named_parameters():
+                param.requires_grad = grad_map[pname]
+
+            if training_mode:
+                self.train()
+            else:
+                self.eval()

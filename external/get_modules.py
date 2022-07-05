@@ -147,7 +147,7 @@ def main():
     # Add prefix - only for default name.
     filename = args.filename if args.filename != "modules.json" else args.collection + "_" + args.filename
     # Export to JSON.
-    with open(filename, 'w') as outfile:
+    with open(filename, 'w', encoding='utf-8') as outfile:
         json.dump(module_list, outfile)
 
     logging.info(

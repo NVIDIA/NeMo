@@ -60,23 +60,6 @@ from nemo.collections.nlp.data.text_normalization.utils import (
 )
 from nemo.utils import logging
 
-parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
-parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
-parser.add_argument(
-    "--max_integer_length",
-    default=4,
-    type=int,
-    help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
-)
-parser.add_argument(
-    "--max_denominator_length",
-    default=3,
-    type=int,
-    help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
-)
-args = parser.parse_args()
-
 engine = inflect.engine()
 
 # these are all words that can appear in a verbalized number, this list will be used later as a filter to detect numbers in verbalizations
@@ -398,4 +381,22 @@ def main():
 
 
 if __name__ == "__main__":
+
+    parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
+    parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
+    parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
+    parser.add_argument(
+        "--max_integer_length",
+        default=4,
+        type=int,
+        help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
+    )
+    parser.add_argument(
+        "--max_denominator_length",
+        default=3,
+        type=int,
+        help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
+    )
+    args = parser.parse_args()
+
     main()

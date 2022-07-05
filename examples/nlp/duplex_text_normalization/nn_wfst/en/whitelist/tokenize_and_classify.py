@@ -15,7 +15,9 @@
 
 import os
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
+    NEMO_WHITE_SPACE,
     GraphFst,
     delete_extra_space,
     delete_space,
@@ -24,16 +26,9 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
 from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
 from nemo_text_processing.text_normalization.en.taggers.word import WordFst
+from pynini.lib import pynutil
 
 from nemo.utils import logging
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
 
 
 class ClassifyFst(GraphFst):
@@ -74,20 +69,37 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f"Creating ClassifyFst grammars.")
 
-            word_graph = WordFst(deterministic=deterministic).fst
+            punctuation = PunctuationFst(deterministic=deterministic)
+            punct_graph = punctuation.fst
+            word_graph = WordFst(deterministic=deterministic, punctuation=punctuation).fst
             whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
-            punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = pynutil.add_weight(whitelist_graph, 1) | pynutil.add_weight(word_graph, 100)
 
-            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=1.1) + pynutil.insert(" }")
+            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.1) + pynutil.insert(" }")
+            punct = pynini.closure(
+                pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                | (pynutil.insert(" ") + punct),
+                1,
+            )
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
             token_plus_punct = (
                 pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
             )
 
-            graph = token_plus_punct + pynini.closure(delete_extra_space + token_plus_punct)
+            graph = (
+                token_plus_punct
+                + pynini.closure(
+                    (
+                        pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                        | (pynutil.insert(" ") + punct + pynutil.insert(" "))
+                    )
+                    + token_plus_punct
+                ).optimize()
+            )
+
             graph = delete_space + graph + delete_space
+            graph |= punct
 
             self.fst = graph.optimize()
 

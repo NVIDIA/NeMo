@@ -43,7 +43,7 @@ class PositionalEmbedding(nn.Module):
 
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=1)
         if bsz is not None:
-            return pos_emb[None, :, :].expand(bsz, -1, -1)
+            return pos_emb[None, :, :].repeat(bsz, 1, 1)
         else:
             return pos_emb[None, :, :]
 

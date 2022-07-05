@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import json
 import multiprocessing as mp
 import os
 import pickle
 import re
 import shutil
+import tempfile
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
@@ -50,6 +52,8 @@ TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
 TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
+NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"[^a-zA-Z0-9_.-]")
+REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"-*[^a-zA-Z0-9_.-]+-*")
 
 DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
@@ -157,36 +161,45 @@ def process_fragment(
         special_tokens=special_tokens,
         use_fast=use_fast_tokenizer,
     )
-    tmp_text = output_dir / f'tmp_text_{fragment_idx}.txt'
-    tmp_labels = output_dir / f'tmp_labels_{fragment_idx}.txt'
-    with text_file.open() as tf, labels_file.open() as lf, tmp_text.open('w') as otf, tmp_labels.open('w') as olf:
-        tf.seek(text_start_pos)
-        lf.seek(label_start_pos)
-        for _ in range(lines_per_dataset_fragment):
-            text_line = tf.readline()
-            if not text_line:
-                break
-            otf.write(text_line)
-            olf.write(lf.readline())
-    dataset = BertPunctuationCapitalizationDataset(
-        tmp_text,
-        tmp_labels,
-        max_seq_length,
-        tokenizer,
-        tokens_in_batch=tokens_in_batch,
-        pad_label=pad_label,
-        punct_label_ids=punct_label_ids,
-        capit_label_ids=capit_label_ids,
-        n_jobs=0,
-        use_cache=False,
-        add_masks_and_segment_ids_to_batch=False,
-        verbose=False,
-        tokenization_progress_queue=tokenization_progress_queue,
-        batch_mark_up_progress_queue=batch_mark_up_progress_queue,
-        batch_building_progress_queue=batch_building_progress_queue,
-    )
-    tmp_text.unlink()
-    tmp_labels.unlink()
+    tmp_text: Optional[str] = None
+    tmp_labels: Optional[str] = None
+    try:
+        otfd, tmp_text = tempfile.mkstemp(suffix='.txt', prefix=f'text_{fragment_idx}_', dir=output_dir, text=True)
+        olfd, tmp_labels = tempfile.mkstemp(suffix='.txt', prefix=f'labels_{fragment_idx}_', dir=output_dir, text=True)
+        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
+            olfd, 'w'
+        ) as olf:
+            tf.seek(text_start_pos)
+            lf.seek(label_start_pos)
+            for _ in range(lines_per_dataset_fragment):
+                text_line = tf.readline()
+                if not text_line:
+                    break
+                otf.write(text_line)
+                olf.write(lf.readline())
+        dataset = BertPunctuationCapitalizationDataset(
+            tmp_text,
+            tmp_labels,
+            max_seq_length,
+            tokenizer,
+            tokens_in_batch=tokens_in_batch,
+            pad_label=pad_label,
+            punct_label_ids=punct_label_ids,
+            capit_label_ids=capit_label_ids,
+            n_jobs=0,
+            use_cache=False,
+            add_masks_and_segment_ids_to_batch=False,
+            verbose=False,
+            tokenization_progress_queue=tokenization_progress_queue,
+            batch_mark_up_progress_queue=batch_mark_up_progress_queue,
+            batch_building_progress_queue=batch_building_progress_queue,
+        )
+    finally:
+        if tmp_text is not None and os.path.exists(tmp_text):
+            os.remove(tmp_text)
+        if tmp_labels is not None and os.path.exists(tmp_labels):
+            os.remove(tmp_labels)
+    dataset.features_pkl.unlink()
     tar_ctr = 0
     current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
     current_num_batches = 0
@@ -380,7 +393,7 @@ def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label
 
 
 def process_error(msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]) -> None:
-    if issubclass(error_class_or_function, Exception):
+    if inspect.isclass(error_class_or_function) and issubclass(error_class_or_function, Exception):
         raise error_class_or_function(msg)
     if callable(error_class_or_function):
         error_class_or_function(msg)
@@ -630,6 +643,20 @@ def create_metadata_file(
         json.dump(metadata, f, indent=2)
 
 
+def check_tar_file_prefix(
+    tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
+) -> None:
+    not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
+    if not_allowed_characters_in_prefix:
+        not_allowed_characters_in_prefix = set(not_allowed_characters_in_prefix)
+        msg = (
+            f"Found {len(not_allowed_characters_in_prefix)} not allowed characters in `{var_name}`. Only 'A-Z', "
+            f"'a-z', '0-9', '_', '-', '.' characters are allowed. Examples of not allowed characters: "
+            f"{list(not_allowed_characters_in_prefix)[:10]}. `{var_name}`[:30]={repr(tar_file_prefix)[:30]}."
+        )
+        process_error(msg, error_class_or_function)
+
+
 def create_tarred_dataset(
     text_file: Union[os.PathLike, str],
     labels_file: Union[os.PathLike, str],
@@ -730,10 +757,11 @@ def create_tarred_dataset(
         capit_label_vocab_file (:obj:`Union[os.PathLike, str]`, `optional`): same as ``punct_label_vocab_file`` for
             capitalization labels.
         tar_file_prefix (:obj:`str`, `optional`, defaults :obj:`'punctuation_capitalization'`): a string from which tar
-            file names start.
+            file names start. The string can contain only characters ``A-Z``, ``a-z``, ``0-9``, ``_``, ``-``, ``.``.
         n_jobs (:obj:`int`, `optional`): a number of workers for creating tarred dataset. If ``None``, then ``n_jobs``
             is equal to number of CPUs.
     """
+    check_tar_file_prefix(tar_file_prefix, ValueError, 'tar_file_prefix')
     if n_jobs is None:
         n_jobs = mp.cpu_count()
     text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
@@ -742,7 +770,7 @@ def create_tarred_dataset(
         prefix=tar_file_prefix,
         tokens_in_batch=tokens_in_batch,
         max_seq_length=max_seq_length,
-        tokenizer=tokenizer_name,
+        tokenizer=REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.sub('-', tokenizer_name),
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')

@@ -23,9 +23,17 @@ model:
     trim_silence: false
     max_duration: 16.7
     shuffle: true
+    use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
+    # tarred datasets
     is_tarred: false
     tarred_audio_filepaths: null
-    use_start_end_token: false
+    tarred_shard_strategy: "scatter"
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
 
   validation_ds:
     manifest_filepath: ???
@@ -33,6 +41,8 @@ model:
     batch_size: 32
     shuffle: false
     use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
 
   test_ds:
     manifest_filepath: null
@@ -40,6 +50,8 @@ model:
     batch_size: 32
     shuffle: false
     use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
 
   model_defaults:
     repeat: 5
@@ -48,6 +60,7 @@ model:
     se: true
     se_context_size: -1
     kernel_size_factor: 1.0
+    enc_final: 640
 
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
@@ -350,7 +363,7 @@ model:
         se_context_size: ${model.model_defaults.se_context_size}
         kernel_size_factor: ${model.model_defaults.kernel_size_factor}
 
-      - filters: &enc_final 640
+      - filters: ${model.model_defaults.enc_final}
         repeat: 1
         kernel: [41]
         stride: [1]
@@ -365,7 +378,7 @@ model:
 
   decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
-    feat_in: *enc_final
+    feat_in: ${model.model_defaults.enc_final}
     num_classes: -1  # filled with vocabulary size from tokenizer at runtime
     vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
@@ -388,20 +401,21 @@ model:
       last_epoch: -1
 
 trainer:
-  gpus: 0 # number of gpus
+  devices: 1 # number of gpus
   max_epochs: 100
   max_steps: null # computed at runtime if not set
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: false  # Provided by exp_manager
+  enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   log_every_n_steps: 100  # Interval of logging.
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   check_val_every_n_epoch: 1
   precision: 32
   sync_batchnorm: false
-  benchmark: false
+  benchmark: false # needs to be false for models with variable-length speech input as it slows down training
 
 exp_manager:
   exp_dir: null
@@ -419,10 +433,3 @@ exp_manager:
     entity: null
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
-
-hydra:
-  run:
-    dir: .
-  job_logging:
-    root:
-      handlers: null

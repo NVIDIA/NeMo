@@ -95,13 +95,15 @@ class MTBottleneckModel(MTEncDecModel):
         # project bridge dimension back to decoder hidden dimensions
         self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
 
-        # project dimension of encoder hidden to latent dimension
-        self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
-
-        # MIM or VAE
-        if self.model_type != "nll":
+        if self.model_type == "nll":
+            # project dimension of encoder hidden to latent dimension
+            self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+        else:
+            # MIM or VAE requires two independent projections for mean/variance
+            # project dimension of encoder hidden to latent dimension
+            self.hidden2latent_mean = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
             # for probabilistic latent variable models we also need variance
-            self.hidden2latent_logv = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+            self.hidden2latent_logv = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
 
     def _validate_encoder_decoder_hidden_size(self):
         """
@@ -110,9 +112,9 @@ class MTBottleneckModel(MTEncDecModel):
         """
         pass
 
-    def eval_epoch_end(self, outputs, mode):
+    def eval_epoch_end(self, outputs, mode, global_rank):
         # call parent for logging
-        super().eval_epoch_end(outputs, mode)
+        super().eval_epoch_end(outputs, mode, global_rank)
 
         # if user specifies one validation dataloader, then PTL reverts to giving a list of dictionary instead of a list of list of dictionary
         if isinstance(outputs[0], dict):

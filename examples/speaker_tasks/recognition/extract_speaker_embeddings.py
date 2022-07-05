@@ -54,14 +54,7 @@ except ImportError:
 
 def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./', device='cuda'):
     test_config = OmegaConf.create(
-        dict(
-            manifest_filepath=manifest_file,
-            sample_rate=16000,
-            labels=None,
-            batch_size=batch_size,
-            shuffle=False,
-            time_length=20,
-        )
+        dict(manifest_filepath=manifest_file, sample_rate=16000, labels=None, batch_size=batch_size, shuffle=False,)
     )
 
     speaker_model.setup_test_data(test_config)
@@ -83,7 +76,7 @@ def get_embeddings(speaker_model, manifest_file, batch_size=1, embedding_dir='./
 
     all_embs = np.asarray(all_embs)
     all_embs = embedding_normalize(all_embs)
-    with open(manifest_file, 'r') as manifest:
+    with open(manifest_file, 'r', encoding='utf-8') as manifest:
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
@@ -138,7 +131,7 @@ def main():
         device = 'cpu'
         logging.warning("Running model on CPU, for faster performance it is adviced to use atleast one NVIDIA GPUs")
 
-    get_embeddings(speaker_model, args.manifest, batch_size=64, embedding_dir=args.embedding_dir, device=device)
+    get_embeddings(speaker_model, args.manifest, batch_size=1, embedding_dir=args.embedding_dir, device=device)
 
 
 if __name__ == '__main__':

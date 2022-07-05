@@ -104,7 +104,7 @@ def __extract_all_files(filepath: str, data_root: str, data_dir: str):
 
 def extract_file(filepath: str, data_dir: str):
     try:
-        tar = tarfile.open(filepath)
+        tar = tarfile.open(filepath, encoding='utf-8')
         tar.extractall(data_dir)
         tar.close()
     except Exception:
@@ -135,7 +135,7 @@ def __process_data(data_folder: str, data_set: str):
 
     """
     fullpath = os.path.abspath(data_folder)
-    scp = glob(fullpath + "/**/*.wav", recursive=True)
+    filelist = glob(fullpath + "/**/*.wav", recursive=True)
     out = os.path.join(fullpath, data_set + "_all.json")
     utt2spk = os.path.join(fullpath, "utt2spk")
     utt2spk_file = open(utt2spk, "w")
@@ -152,7 +152,7 @@ def __process_data(data_folder: str, data_set: str):
     speakers = []
     lines = []
     with open(out, "w") as outfile:
-        for line in tqdm(scp):
+        for line in tqdm(filelist):
             line = line.strip()
             y, sr = l.load(line, sr=None)
             if sr != 16000:

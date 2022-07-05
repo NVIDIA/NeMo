@@ -14,19 +14,13 @@
 
 from collections import defaultdict
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_DIGIT, NEMO_SPACE, GraphFst, insert_space
 from nemo_text_processing.text_normalization.en.utils import load_labels
 from nemo_text_processing.text_normalization.ru.utils import get_abs_path
+from pynini.lib import pynutil
 
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    delete_space = pynutil.delete(" ")
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+delete_space = pynutil.delete(" ")
 
 
 def prepare_labels_for_insertion(file_path: str):
@@ -72,7 +66,9 @@ class DecimalFst(GraphFst):
 
         delimiter_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_delimiter.tsv"))
         delimiter = (
-            pynini.cross(",", "") + delimiter_map['@@decimal_delimiter@@'] + pynini.closure(pynutil.insert(" и"), 0, 1)
+            pynini.cross(",", "")
+            + delimiter_map['@@decimal_delimiter@@']
+            + pynini.closure(pynutil.add_weight(pynutil.insert(" и"), 0.5), 0, 1)
         ).optimize()
 
         decimal_endings_map = prepare_labels_for_insertion(get_abs_path("data/numbers/decimal_endings.tsv"))

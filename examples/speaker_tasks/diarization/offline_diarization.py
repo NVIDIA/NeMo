@@ -22,7 +22,7 @@ from nemo.utils import logging
 """
 This script demonstrates how to use run speaker diarization.
 Usage:
-  python speaker_diarize.py \
+  python offline_diarization.py \
     diarizer.manifest_filepath=<path to manifest file> \
     diarizer.out_dir='demo_output' \
     diarizer.speaker_embeddings.model_path=<pretrained modelname or path to .nemo> \
@@ -37,7 +37,6 @@ seed_everything(42)
 
 @hydra_runner(config_path="conf", config_name="offline_diarization.yaml")
 def main(cfg):
-
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     sd_model = ClusteringDiarizer(cfg=cfg)
     sd_model.diarize()

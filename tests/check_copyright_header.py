@@ -57,7 +57,7 @@ def main():
     current_year = int(datetime.today().year)
     starting_year = 2020
     python_header_path = "tests/py_cprheader.txt"
-    with open(python_header_path, 'r') as original:
+    with open(python_header_path, 'r', encoding='utf-8') as original:
         pyheader = original.read().split("\n")
         pyheader_lines = len(pyheader)
 
@@ -66,7 +66,7 @@ def main():
     for filename in Path(args.dir).rglob('*.py'):
         if str(filename) in EXCLUSIONS:
             continue
-        with open(str(filename), 'r') as original:
+        with open(str(filename), 'r', encoding='utf-8') as original:
             data = original.readlines()
 
         data = get_top_comments(data)

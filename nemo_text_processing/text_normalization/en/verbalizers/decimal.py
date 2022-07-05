@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_NOT_QUOTE, GraphFst, delete_space, insert_space
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class DecimalFst(GraphFst):
@@ -36,8 +29,10 @@ class DecimalFst(GraphFst):
 
     def __init__(self, cardinal, deterministic: bool = True):
         super().__init__(name="decimal", kind="verbalize", deterministic=deterministic)
-
-        self.optional_sign = pynini.closure(pynini.cross("negative: \"true\"", "minus ") + delete_space, 0, 1)
+        self.optional_sign = pynini.cross("negative: \"true\"", "minus ")
+        if not deterministic:
+            self.optional_sign |= pynini.cross("negative: \"true\"", "negative ")
+        self.optional_sign = pynini.closure(self.optional_sign + delete_space, 0, 1)
         self.integer = pynutil.delete("integer_part:") + cardinal.integer
         self.optional_integer = pynini.closure(self.integer + delete_space + insert_space, 0, 1)
         self.fractional_default = (

@@ -80,7 +80,7 @@ def main():
                 logging.warning("  * Failed to process `{}`".format(val))
 
     # Export to JSON.
-    with open(args.filename, 'w') as outfile:
+    with open(args.filename, 'w', encoding='utf-8') as outfile:
         json.dump(output_list, outfile)
 
     logging.info('Finshed the analysis, results exported to `{}`.'.format(args.filename))

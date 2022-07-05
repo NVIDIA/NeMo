@@ -208,13 +208,13 @@ class TransformerDecoder(nn.Module):
         else:
             return cached_mems_list[-1]
 
-    def input_example(self):
+    def input_example(self, max_batch=1, max_dim=256):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(2, 16, 1024), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
+        encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
         return tuple([input_ids, encoder_mask, input_ids, encoder_mask])

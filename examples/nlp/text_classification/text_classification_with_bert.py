@@ -60,7 +60,7 @@ For example the following would train a model for 50 epochs in 2 GPUs on a class
         model.train_ds=PATH_TO_TRAIN_FILE
         model.validation_ds=PATH_TO_VAL_FILE
         trainer.max_epochs=50
-        trainer.gpus=2
+        trainer.devices=2
 
 This script would also reload the last checkpoint after the training is done and does evaluation on the dev set,
 then performs inference on some sample queries.
@@ -73,7 +73,7 @@ you may update all the params in the config file from the command line. You may 
         model.train_ds=PATH_TO_TRAIN_FILE
         model.validation_ds=PATH_TO_VAL_FILE
         trainer.max_epochs=50
-        trainer.gpus=2
+        trainer.devices=2
 
 ***Load a saved model***
 This script would save the model after training into '.nemo' checkpoint file specified by nemo_path of the model config.
@@ -91,7 +91,7 @@ You may restore the saved model like this:
     eval_model.setup_test_data(test_data_config=eval_config)
 
 # You need to create a new trainer:
-    eval_trainer = pl.Trainer(gpus=1)
+    eval_trainer = pl.Trainer(devices=1)
     eval_model.set_trainer(eval_trainer)
     eval_trainer.test(model=eval_model, verbose=False)
 """
@@ -108,7 +108,12 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="text_classification_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'\nConfig Params:\n{OmegaConf.to_yaml(cfg)}')
-    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
+    try:
+        plugin = NLPDDPPlugin()
+    except (ImportError, ModuleNotFoundError):
+        plugin = None
+
+    trainer = pl.Trainer(plugins=plugin, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.model.train_ds.file_path:

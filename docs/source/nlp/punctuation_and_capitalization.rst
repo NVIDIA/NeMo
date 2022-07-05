@@ -139,8 +139,8 @@ section), run the following command:
 .. code::
 
     python examples/nlp/token_classification/data/prepare_data_for_punctuation_capitalization.py \
-           -s <PATH_TO_THE_SOURCE_FILE>
-           -o <PATH_TO_THE_OUTPUT_DIRECTORY>
+           -s <PATH/TO/THE/SOURCE/FILE> \
+           -o <PATH/TO/THE/OUTPUT/DIRECTORY>
 
 
 Required Argument for Dataset Conversion
@@ -175,9 +175,9 @@ For creating of tarred dataset you will need data in NeMo format:
 .. code::
 
     python examples/nlp/token_classification/data/create_punctuation_capitalization_tarred_dataset.py \
-        --text <PATH_TO_LOWERCASED_TEXT_WITHOUT_PUNCTUATION> \
-        --labels <PATH_TO_LABELS_IN_NEMO_FORMAT> \
-        --output_dir <PATH_TO_DIRECTORY_WITH_OUTPUT_TARRED_DATASET> \
+        --text <PATH/TO/LOWERCASED/TEXT/WITHOUT/PUNCTUATION> \
+        --labels <PATH/TO/LABELS/IN/NEMO/FORMAT> \
+        --output_dir <PATH/TO/DIRECTORY/WITH/OUTPUT/TARRED/DATASET> \
         --num_batches_per_tarfile 100
 
 All tar files contain similar amount of batches, so up to :code:`--num_batches_per_tarfile - 1` batches will be
@@ -534,10 +534,12 @@ For convenience, items of data config are described in 4 tables:
    * - **use_cache**
      - bool
      - ``true``
-     - Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
-       For large usual datasets, pickled features may considerably reduce time for training starting. Tokenization
-       of source sequences is not fast because sequences are split into words before tokenization. For even larger
-       datasets (~4M), tarred datasets are recommended.
+     - Whether to use pickled features which are already present in ``cache_dir``.
+       For large not tarred datasets, pickled features may considerably reduce time required for training to start.
+       Tokenization of source sequences is not fast because sequences are split into words before tokenization.
+       For even larger datasets (~4M), tarred datasets are recommended. If pickled features are missing, then
+       new pickled features file will be created regardless of the value of ``use_cache`` parameter because
+       pickled features are required for distributed training.
    * - **cache_dir**
      - string
      - ``null``
@@ -780,8 +782,13 @@ To train the model from scratch, run:
 
       python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
              model.train_ds.ds_item=<PATH/TO/TRAIN/DATA_DIR> \
+             model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+             model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
              model.validation_ds.ds_item=<PATH/TO/DEV/DATA_DIR> \
-             trainer.gpus=[0,1] \
+             model.validation_ds.text_file=<NAME_OF_DEV_TEXT_FILE> \
+             model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
+             trainer.devices=[0,1] \
+             trainer.accelerator='gpu' \
              optim.name=adam \
              optim.lr=0.0001
 
@@ -794,7 +801,11 @@ To train from the pre-trained model, run:
 
       python examples/nlp/token_classification/punctuation_capitalization_train_evaluate.py \
              model.train_ds.ds_item=<PATH/TO/TRAIN/DATA_DIR> \
-             model.validation_ds.ds_item=<PATH/TO/DEV/DATA_DIR> \
+             model.train_ds.text_file=<NAME_OF_TRAIN_INPUT_TEXT_FILE> \
+             model.train_ds.labels_file=<NAME_OF_TRAIN_LABELS_FILE> \
+             model.validation_ds.ds_item=<PATH/TO/DEV/DATA/DIR> \
+             model.validation_ds.text_file=<NAME_OF_DEV_TEXT_FILE> \
+             model.validation_ds.labels_file=<NAME_OF_DEV_LABELS_FILE> \
              pretrained_model=<PATH/TO/SAVE/.nemo>
 
 
@@ -814,18 +825,18 @@ Inference is performed by a script `examples/nlp/token_classification/punctuate_
 .. code::
 
     python punctuate_capitalize_infer.py \
-        --input_manifest <PATH_TO_INPUT_MANIFEST> \
-        --output_manifest <PATH_TO_OUTPUT_MANIFEST> \
+        --input_manifest <PATH/TO/INPUT/MANIFEST> \
+        --output_manifest <PATH/TO/OUTPUT/MANIFEST> \
         --pretrained_name punctuation_en_bert \
         --max_seq_length 64 \
         --margin 16 \
         --step 8
 
-:code:`<PATH_TO_INPUT_MANIFEST>` is a path to NeMo :ref:`ASR manifest<LibriSpeech_dataset>` with text in which you need to
+:code:`<PATH/TO/INPUT/MANIFEST>` is a path to NeMo :ref:`ASR manifest<LibriSpeech_dataset>` with text in which you need to
 restore punctuation and capitalization. If manifest contains :code:`'pred_text'` key, then :code:`'pred_text'` elements
 will be processed. Otherwise, punctuation and capitalization will be restored in :code:`'text'` elements.
 
-:code:`<PATH_TO_OUTPUT_MANIFEST>` is a path to NeMo ASR manifest into which result will be saved. The text with restored
+:code:`<PATH/TO/OUTPUT/MANIFEST>` is a path to NeMo ASR manifest into which result will be saved. The text with restored
 punctuation and capitalization is saved into :code:`'pred_text'` elements if :code:`'pred_text'` key is present in the
 input manifest. Otherwise result will be saved into :code:`'text'` elements.
 
@@ -872,8 +883,8 @@ To start evaluation of the pre-trained model, run:
            +model.to_testing=true \
            model.test_ds.ds_item=<PATH/TO/TEST/DATA/DIR>  \
            pretrained_model=punctuation_en_bert \
-           model.test_ds.text_file=<text_dev.txt> \
-           model.test_ds.labels_file=<labels_dev.txt>
+           model.test_ds.text_file=<NAME_OF_TEST_INPUT_TEXT_FILE> \
+           model.test_ds.labels_file=<NAME_OF_TEST_LABELS_FILE>
 
 
 Required Arguments

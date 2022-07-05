@@ -1,3 +1,5 @@
+NOTE: this folder will be removed in 1.8.0 version. Please, use scripts/dataset_processing/tts/ljspeech instead.
+
 These scripts are used for extracting features from LJSpeech.
 
 You will need to run the following scripts (note that these will call the other

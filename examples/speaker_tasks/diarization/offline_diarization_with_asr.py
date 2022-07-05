@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shutil
 
 from omegaconf import OmegaConf
 
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASR_TIMESTAMPS
 from nemo.collections.asr.parts.utils.diarization_utils import ASR_DIAR_OFFLINE
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -34,11 +33,12 @@ python offline_diarization_with_asr.py \
 
 Check out whole parameters in ./conf/offline_diarization_with_asr.yaml and their meanings.
 For details, have a look at <NeMo_git_root>/tutorials/speaker_tasks/Speaker_Diarization_Inference.ipynb
+Currently, the following NGC models are supported:
 
-Currently Supported ASR models:
+    stt_en_quartznet15x5
+    stt_en_citrinet*
+    stt_en_conformer_ctc*
 
-QuartzNet15x5Base-En
-stt_en_conformer_ctc_large
 """
 
 
@@ -47,35 +47,25 @@ def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
-    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer.asr.parameters)
-    asr_diar_offline.root_path = cfg.diarizer.out_dir
-    shutil.rmtree(asr_diar_offline.root_path, ignore_errors=True)
+    # ASR inference for words and word timestamps
+    asr_ts_decoder = ASR_TIMESTAMPS(**cfg.diarizer)
+    asr_model = asr_ts_decoder.set_asr_model()
+    word_hyp, word_ts_hyp = asr_ts_decoder.run_ASR(asr_model)
 
-    AUDIO_RTTM_MAP = audio_rttm_map(cfg.diarizer.manifest_filepath)
-    asr_diar_offline.AUDIO_RTTM_MAP = AUDIO_RTTM_MAP
-    asr_model = asr_diar_offline.set_asr_model(cfg.diarizer.asr.model_path)
+    # Create a class instance for matching ASR and diarization results
+    asr_diar_offline = ASR_DIAR_OFFLINE(**cfg.diarizer)
+    asr_diar_offline.word_ts_anchor_offset = asr_ts_decoder.word_ts_anchor_offset
 
-    word_list, word_ts_list = asr_diar_offline.run_ASR(asr_model)
+    # Diarization inference for speaker labels
+    diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
+    total_riva_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
 
-    score = asr_diar_offline.run_diarization(cfg, word_ts_list,)
-    total_riva_dict = asr_diar_offline.write_json_and_transcript(word_list, word_ts_list)
+    if diar_score is not None:
 
-    if score is not None:
-        metric, mapping_dict = score
-        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict)
-
+        metric, mapping_dict = diar_score
+        DER_result_dict = asr_diar_offline.gather_eval_results(metric, mapping_dict, total_riva_dict)
         WDER_dict = asr_diar_offline.get_WDER(total_riva_dict, DER_result_dict)
-        effective_wder = asr_diar_offline.get_effective_WDER(DER_result_dict, WDER_dict)
-
-        logging.info(
-            f"\nDER  : {DER_result_dict['total']['DER']:.4f} \
-            \nFA   : {DER_result_dict['total']['FA']:.4f} \
-            \nMISS : {DER_result_dict['total']['MISS']:.4f} \
-            \nCER  : {DER_result_dict['total']['CER']:.4f} \
-            \nWDER : {WDER_dict['total']:.4f} \
-            \neffective WDER : {effective_wder:.4f} \
-            \nspk_counting_acc : {DER_result_dict['total']['spk_counting_acc']:.4f}"
-        )
+        asr_diar_offline.print_errors(DER_result_dict, WDER_dict)
 
 
 if __name__ == '__main__':

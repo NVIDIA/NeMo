@@ -17,7 +17,11 @@ NVIDIA NeMo User Guide
    :name: core
 
    core/core
+   core/exp_manager
+   core/neural_types
    core/export
+   core/adapters/intro
+   core/api
 
 
 .. toctree::
@@ -29,13 +33,17 @@ NVIDIA NeMo User Guide
    asr/speech_classification/intro
    asr/speaker_recognition/intro
    asr/speaker_diarization/intro
+   asr/ssl/intro
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Natural Language Processing
    :name: Natural Language Processing
 
-   nlp/intro
+   nlp/models
+   nlp/megatron
+   nlp/api
+   nlp/text_normalization/intro
 
 .. toctree::
    :maxdepth: 2
@@ -53,12 +61,6 @@ NVIDIA NeMo User Guide
 
    common/intro
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Text Processing
-   :name: Text Processing
-
-   nemo_text_processing/intro
 
 .. toctree::
    :maxdepth: 2

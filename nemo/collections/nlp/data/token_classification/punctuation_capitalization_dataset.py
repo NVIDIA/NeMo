@@ -31,7 +31,7 @@ import itertools
 import multiprocessing as mp
 import os
 import pickle
-import random
+import tempfile
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -49,6 +49,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import get_label_st
 from nemo.core.classes import Dataset
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.utils.get_rank import is_global_rank_zero
 
 MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
 TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
@@ -63,9 +64,9 @@ class PunctuationCapitalizationDataConfigBase:
     """A base class for punctuation and capitalization data configs. This class does not define ``ds_item``
     attribute which works differently for train and evaluation data."""
 
-    #################################################
-    # COMMON DATASET PARAMETERS
-    #################################################
+    ###################################################
+    # PARAMETERS COMMON FOR REGULAR AND TARRED DATASETS
+    ###################################################
     use_tarred_dataset: bool = MISSING
     """Whether to use tarred dataset. If True, then you should provide ``tar_metadata_file``. Otherwise, you should
     provide ``text_file``, ``labels_file``, ``tokens_in_batch``."""
@@ -101,10 +102,11 @@ class PunctuationCapitalizationDataConfigBase:
     parameter equals ``-1``, then all samples are used."""
 
     use_cache: bool = True
-    """Whether to use pickled features. If pickled features does not exist, then pickled features will be created.
-    For large regular datasets, pickled features may considerably reduce time for training starting. Tokenization
-    of source sequences is not fast because sequences are split into words before tokenization. For even larger
-    datasets (~4M), tarred datasets are recommended."""
+    """Whether to use pickled features. If pickled features file does not exist or ``use_cache=False``, then features
+    are pickled in ``cache_dir``. Pickled features include input ids, subtokens mask (mask of first tokens in words),
+    encoded punctuation and capitalization labels, label ids. Features creation consumes considerable time and this
+    ``use_cache=True`` significantly speeds up training starting. Pickled features are also used for sharing features
+    between processes if data parallel training is used."""
 
     cache_dir: Optional[str] = None
     """A path to a directory containing cache or directory where newly created cache is saved. By default, it is
@@ -439,7 +441,7 @@ class TokenizeCreateMasksClipWorker:
         punct_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         capit_label_lines: Optional[Union[List[str], Tuple[str, ...]]],
         split_i: int,
-    ) -> Tuple[np.ndarray, List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
         """
         Tokenize, clip, encode labels, and create masks of first tokens in words.
 
@@ -794,7 +796,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             sequences are short, then a batch will contain more samples. Before packing into batches, samples are
             sorted by number of tokens they contain. Sorting allows to reduce number of pad tokens in a batch
             significantly. Regular PyTorch data loader shuffling will only permute batches with changing their content.
-            Proper shuffling is achieved via calling method :meth:`repack_batches_with_shuffle` every epoch.
+            Proper shuffling is achieved via calling method :meth:`repack_batches_with_shuffle` every epoch. If
+            parameter ``number_of_batches_is_multiple_of`` is greater than 1, some batches may be split into smaller
+            pieces.
         pad_label (:obj:`str`, `optional`, defaults to :obj:`'O'`): pad value to use for labels. It's also the neutral
             label both for punctuation and capitalization.
         punct_label_ids (:obj:`Dict[str, int]`, `optional`): dict to map punctuation labels to label ids. For dev set,
@@ -807,18 +811,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
             ``[True, False]``, and if ``ignore_extra_tokens=False``, then loss mask is ``[True, True]``.
         ignore_start_end (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to ignore [CLS] and [SEP] tokens
             in the loss_mask.
-        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to use pickled features or not. If
-            pickled features does not exist and ``use_cache=True``, then pickled features will be created. Pickled
-            features are looked for and stored in ``cache_dir``. Pickled features include input ids, subtokens mask
-            (mask of first tokens in words), encoded punctuation and capitalization labels, label ids. Features
-            creation consumes considerable time and this ``use_cache=True`` significantly speeds up training starting.
-
-            .. warning::
-                If you spawned more then 1 processes BEFORE dataset creation, then the ``use_cache`` parameter
-                has to be ``True``. In PyTorch Lightning spawning is performed when `Trainer.fit()
-                <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#fit>`_ or
-                `Trainer.test() <https://pytorch-lightning.readthedocs.io/en/latest/common/trainer.html#test>`_
-                are called.
+        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`): whether to use pickled features already present
+            in ``cache_dir`` or not. If pickled features file does not exist or ``use_cache=False``, then features are
+            pickled in ``cache_dir``. Pickled features include input ids, subtokens mask (mask of first tokens in
+            words), encoded punctuation and capitalization labels, label ids. Features creation consumes considerable
+            time and this ``use_cache=True`` significantly speeds up training starting. Pickled features are also
+            used for sharing features between processes if data parallel training is used.
         cache_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where cache (pickled features)
             is stored. By default, ``text_file`` parent directory is used. This parameter is useful if dataset
             directory is read-only and you wish to pickle features. In such a case specify a path to directory which
@@ -829,8 +827,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         label_info_save_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where label frequencies
             are saved. Be default a ``text_file`` parent directory is used. When method
             :meth:`save_labels_and_get_file_paths` is called label ids are saved into ``label_info_save_dir``
-            directory. Parameters ``cache_dir`` and ``label_info_save_dir`` are added for cases when directory
-            containing. This parameter is useful if directory containing ``text_file`` is read-only.
+            directory. This parameter is useful if directory containing ``text_file`` is read-only.
         punct_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to a .csv file containing
             punctuation label vocabulary. Each line in such a vocabulary file contains exactly one label. The first
             line has to contain `pad_label`, otherwise error will be raised.
@@ -843,12 +840,20 @@ class BertPunctuationCapitalizationDataset(Dataset):
             other useful information.
         n_jobs (:obj:`int`, `optional`, defaults to :obj:`0`): number of workers used for tokenization, encoding
             labels, creating "first token in word" mask, and clipping. If ``n_jobs <= 0`` data preparation is performed
-            without multiprocessing. By default ``n_jobs`` is equal to the number of CPUs.
+            without multiprocessing. By default ``n_jobs`` is ``0``.
 
             .. warning::
                 There can be deadlocking problems with some tokenizers (e.g. SentencePiece, HuggingFace AlBERT)
                 if ``n_jobs > 0``.
-
+        number_of_batches_is_multiple_of (:obj:`int`, `optional`, defaults to :obj:`1`): number of batches in the
+            dataset is made divisible by ``number_of_batches_is_multiple_of``. If ``number_of_batches_is_multiple_of``
+            is greater than 1, then several batches are split in parts until number of batches
+            is divisible by ``number_of_batches_is_multiple_of``. If there is no enough queries in the dataset to
+            create enough batches, then a warning is printed. This parameter is useful for dev and validation datasets
+            if multiple GPUs are used. The problem is that if number of batches is not evenly divisible by number of
+            GPUs, then some queries may be processed several times and metrics will be distorted.
+        batch_shuffling_random_seed (:obj:`int`, defaults to :obj:`int`): a random seed used for batches repacking and
+            shuffling.
         tokenization_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting tokenization
             progress. Useful for creation of tarred dataset
         batch_mark_up_progress_queue (:obj:`multiprocessing.Queue`, `optional`): a queue for reporting progress in
@@ -879,8 +884,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         num_samples: int = -1,
         tokens_in_batch: int = 5000,
         pad_label: str = 'O',
-        punct_label_ids: Optional[Dict[str, int]] = None,
-        capit_label_ids: Optional[Dict[str, int]] = None,
+        punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
+        capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = True,
         use_cache: bool = True,
@@ -892,11 +897,17 @@ class BertPunctuationCapitalizationDataset(Dataset):
         add_masks_and_segment_ids_to_batch: bool = True,
         verbose: bool = True,
         n_jobs: Optional[int] = 0,
+        number_of_batches_is_multiple_of: int = 1,
+        batch_shuffling_random_seed: int = 42,
         tokenization_progress_queue: Optional[mp.Queue] = None,
         batch_mark_up_progress_queue: Optional[mp.Queue] = None,
         batch_building_progress_queue: Optional[mp.Queue] = None,
     ) -> None:
         """ Initializes BertPunctuationCapitalizationDataset. """
+        if isinstance(punct_label_ids, DictConfig):
+            punct_label_ids = OmegaConf.to_container(punct_label_ids)
+        if isinstance(capit_label_ids, DictConfig):
+            capit_label_ids = OmegaConf.to_container(capit_label_ids)
         self._check_constructor_parameters(
             text_file,
             labels_file,
@@ -906,6 +917,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             capit_label_vocab_file,
             num_samples,
             use_cache,
+            number_of_batches_is_multiple_of,
         )
         if punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -913,9 +925,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if capit_label_vocab_file is not None:
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
-        text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
+        self.text_file, self.labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
         if label_info_save_dir is None:
-            self.label_info_save_dir = text_file.parent
+            self.label_info_save_dir = self.text_file.parent
         else:
             self.label_info_save_dir = Path(label_info_save_dir).expanduser()
 
@@ -929,23 +941,23 @@ class BertPunctuationCapitalizationDataset(Dataset):
         self.batch_mark_up_progress_queue = batch_mark_up_progress_queue
         self.batch_building_progress_queue = batch_building_progress_queue
 
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        features_pkl = self._get_path_to_pkl_features(text_file, cache_dir, max_seq_length, num_samples)
+        master_device = is_global_rank_zero()
+        self.features_pkl = self._get_path_to_pkl_features(self.text_file, cache_dir, max_seq_length, num_samples)
         features = None
-        if master_device and not (features_pkl.is_file() and use_cache):
+        if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
-                logging.info(f'Processing {text_file}')
-            res = self._read_dataset(text_file, labels_file, num_samples)
+                logging.info(f'Processing {self.text_file}')
+            res = self._read_dataset(self.text_file, self.labels_file, num_samples)
             text_lines, punct_label_lines, capit_label_lines, punct_unique_labels, capit_unique_labels = res
             if punct_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', labels_file
+                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', self.labels_file
                 )
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', labels_file
+                    capit_label_ids, capit_unique_labels, 'capit', 'capitalzation', self.labels_file
                 )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
@@ -962,31 +974,43 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 progress_queue=tokenization_progress_queue,
                 n_jobs=n_jobs,
             )
-            if use_cache:
-                features_pkl.parent.mkdir(parents=True, exist_ok=True)
-                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), open(features_pkl, "wb"))
-                if self.verbose:
-                    logging.info(f'Features saved to {features_pkl}')
+            self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
+
+            # save features to a temp file first to make sure that non-master processes don't start reading the file
+            # until the master process is done with writing
+            ofd, tmp_features_pkl = tempfile.mkstemp(
+                suffix='.pkl', prefix=os.path.basename(self.features_pkl), dir=os.path.dirname(self.features_pkl)
+            )
+            with os.fdopen(ofd, 'wb') as temp_f:
+                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), temp_f)
+
+            os.rename(tmp_features_pkl, self.features_pkl)
+
+            if self.verbose:
+                logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+        if not master_device:
+            while features is None and not os.path.exists(self.features_pkl):
+                sleep(10)
 
         if features is None:
-            features = pickle.load(open(features_pkl, 'rb'))
+            features = pickle.load(self.features_pkl.open('rb'))
             li = features[-2:]
             self._check_label_ids_loaded_from_pkl(
-                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file, features_pkl
+                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file
             )
             punct_label_ids, capit_label_ids = li[-2], li[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
-                logging.info(f'Features restored from {features_pkl}')
+                logging.info(f'Features restored from {self.features_pkl}')
             features = features[:-2]
 
         self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
+        self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
+        self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
         self.batches = self._pack_into_batches(
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels
         )
@@ -1022,6 +1046,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         capit_label_vocab_file: Union[str, os.PathLike],
         num_samples: int,
         use_cache: bool,
+        number_of_batches_is_multiple_of: int,
     ) -> None:
         if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
             raise ValueError(
@@ -1033,9 +1058,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and'
-                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with'
-                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are'
+                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and '
+                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with '
+                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are '
                 f'separated with spaces. Each line of the files should follow the format:\n'
                 f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
                 f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
@@ -1078,20 +1103,24 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 f"Parameter `num_samples` has to be positive or negative whereas `num_samples={num_samples}`. "
                 f"Negative `num_samples` is for using all samples in a dataset."
             )
+        if number_of_batches_is_multiple_of < 1 or not isinstance(number_of_batches_is_multiple_of, int):
+            raise ValueError(
+                f"Parameter `number_of_batches_is_multiple_of` has to be positive integer whereas "
+                f"{number_of_batches_is_multiple_of} is given."
+            )
 
-    @staticmethod
     def _check_label_ids_loaded_from_pkl(
+        self,
         parameter_punct_label_ids: Dict[str, int],
         parameter_capit_label_ids: Dict[str, int],
         pkl_punct_label_ids: Any,
         pkl_capit_label_ids: Any,
         punct_label_vocab_file: Optional[Path],
         capit_label_vocab_file: Optional[Path],
-        features_file: Path,
     ) -> None:
         if not isinstance(pkl_punct_label_ids, dict):
             raise ValueError(
-                f"Punctuation label ids loaded from features file {features_file} has wrong type "
+                f"Punctuation label ids loaded from features file {self.features_pkl} have wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
         if parameter_punct_label_ids is not None:
@@ -1102,11 +1131,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
                     if punct_label_vocab_file is None
                     else f"Punctuation labels loaded from file {punct_label_vocab_file}",
-                    second_labels_desc=f"Punctuation label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Punctuation label ids loaded from features file {self.features_pkl}",
                 )
         if not isinstance(pkl_capit_label_ids, dict):
             raise ValueError(
-                f"Capitalization label ids loaded from features file {features_file} has wrong type "
+                f"Capitalization label ids loaded from features file {self.features_pkl} has wrong type "
                 f"{type(pkl_capit_label_ids)}"
             )
         if parameter_capit_label_ids is not None:
@@ -1117,7 +1146,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
                     if capit_label_vocab_file is None
                     else f"Capitalization labels loaded from file {capit_label_vocab_file}",
-                    second_labels_desc=f"Capitalization label ids loaded from features file {features_file}",
+                    second_labels_desc=f"Capitalization label ids loaded from features file {self.features_pkl}",
                 )
 
     @staticmethod
@@ -1172,6 +1201,96 @@ class BertPunctuationCapitalizationDataset(Dataset):
         text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
         return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels
 
+    @staticmethod
+    def calc_batch_seq_length(queries: List[np.ndarray], length_is_multiple_of: int) -> int:
+        return ceil(max([len(elem) for elem in queries]) / length_is_multiple_of) * length_is_multiple_of
+
+    def _adjust_number_of_batches(
+        self,
+        input_ids: List[np.ndarray],
+        batch_beginnings: List[int],
+        batch_sizes: List[int],
+        batch_seq_lengths: List[int],
+    ) -> Tuple[List[int], List[int], List[int]]:
+        """
+        If length of ``batch_sizes`` list is not divisible by ``self.number_of_batches_is_multiple_of``, then
+        one or several batches are split into parts until number of batches is divisible by
+        ``self.number_of_batches_is_multiple_of``.
+
+        The method selects a batch and tries to slice smaller batches with 8 elements each from the batch. If
+        the batch cannot be sliced any further and there are still not enough batches, then the next batch from dataset
+        is selected.
+
+        If slicing batches of size 8 is not enough, then batches of size 1 are created.
+
+        If dataset is too small to create enough batches, then a warning is shown.
+
+        Args:
+            input_ids: tokenized queries of the dataset. `input_ids` are expected to be sorted by length in ascending
+                order.
+            batch_beginnings: indices of first elements of batches created inside :meth:`_mark_up_batches` method.
+                Expected to be sorted in ascending order.
+            batch_sizes: sizes of batches created inside :meth:`_mark_up_batches` method.
+            batch_seq_lengths: lengths of elements in batch after padding created inside :meth:`_mark_up_batches`
+                method.
+
+        Returns:
+            batch_beginnings: a list of indices in ``input_ids`` of first samples of every batch
+            batch_sizes: a list of numbers of samples in batches
+            batch_seq_lengths: a list of sequence lengths after padding for every batch
+        """
+        batch_beginnings, batch_sizes = batch_beginnings.copy(), batch_sizes.copy()
+        batch_seq_lengths = batch_seq_lengths.copy()
+        num_missing_batches = (
+            self.number_of_batches_is_multiple_of - len(batch_sizes) % self.number_of_batches_is_multiple_of
+        )
+        if num_missing_batches == 0:
+            return batch_beginnings, batch_sizes, batch_seq_lengths
+        if sum(batch_sizes) - len(batch_sizes) < num_missing_batches:
+            logging.warning(
+                f"Unable to achieve number of batches multiple of {self.number_of_batches_is_multiple_of} because "
+                f"dataset in files '{self.text_file}' and '{self.labels_file}' contains not enough queries "
+                f"({sum(batch_sizes)}) or queries in the dataset are too long. Dataset will have "
+                f"{len(batch_sizes)} batches instead. For validation or test dataset if multiple GPUs are used "
+                f"this will lead to distorted metrics because some batches will be processed several times. "
+                f"To fix this problem you may try to tweak (increase) parameter `tokens_in_batch`, though result is "
+                f"not guaranteed."
+            )
+            return batch_beginnings, batch_sizes, batch_seq_lengths
+        num_cut = 0
+        for ss in [8, 1]:  # ss - split_size
+            old_num_batches = len(batch_sizes)
+            # Starting from the last batch because its size is likely to be not multiple of 8. Thus number of
+            # batches which size is not multiple of 8 can be reduced by 1.
+            original_batch_index = old_num_batches - 1
+            while original_batch_index >= 0 and num_cut < num_missing_batches:
+                bs, bb = batch_sizes[original_batch_index], batch_beginnings[original_batch_index]
+                rb = 0  # an index of sliced first element of sliced batch in original batch (relative beginning)
+                if rb < bs - ss:
+                    while rb < bs - ss and num_cut < num_missing_batches:
+                        batch_sizes.append(ss)
+                        batch_beginnings.append(bb + rb)
+                        batch_seq_lengths.append(
+                            self.calc_batch_seq_length(input_ids[bb + rb : bb + rb + ss], length_is_multiple_of=8)
+                        )
+                        rb += ss
+                        num_cut += 1
+                    assert len(input_ids[bb + rb : bb + bs]) > 0
+                    batch_sizes[original_batch_index] = bs - rb
+                    batch_beginnings[original_batch_index] = bb + rb
+                    batch_seq_lengths[original_batch_index] = self.calc_batch_seq_length(
+                        input_ids[bb + rb : bb + bs], length_is_multiple_of=8
+                    )
+                original_batch_index -= 1
+            # Keeping order of batches.
+            batch_beginnings, batch_sizes, batch_seq_lengths = map(
+                list, zip(*sorted(zip(batch_beginnings, batch_sizes, batch_seq_lengths), key=lambda x: x[0]))
+            )
+        assert len(batch_beginnings) % self.number_of_batches_is_multiple_of == 0
+        assert len(batch_sizes) % self.number_of_batches_is_multiple_of == 0
+        assert len(batch_seq_lengths) % self.number_of_batches_is_multiple_of == 0
+        return batch_beginnings, batch_sizes, batch_seq_lengths
+
     def _mark_up_batches(self, input_ids: List[np.ndarray]) -> Tuple[List[int], List[int], List[int]]:
         """
         Computes indices of first samples in batch, batch sizes, seq lengths for batches. ``input_ids`` has to be
@@ -1210,9 +1329,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     if i > start:
                         batch_size = i - start
                         logging.warning(
-                            f"Could not create batch with multiple of 8 size. Probably there is a too long sequence in "
-                            f"the dataset. current_max_length={current_max_length}. Batch size will be reduced to "
-                            f"{batch_size}. tokens_in_batch={self.tokens_in_batch}. The batch includes sequences from "
+                            f"Could not create batch with multiple of 8 size. Probably, there is a too long sequence "
+                            f"in the dataset or parameter `tokens_in_batch` is too small. Current length of sequences "
+                            f"in batch is {current_max_length}. Batch size will be reduced to {batch_size}. "
+                            f"tokens_in_batch={self.tokens_in_batch}. The batch includes sequences from "
                             f"{start} to {i - 1}."
                         )
                     else:
@@ -1223,24 +1343,28 @@ class BertPunctuationCapitalizationDataset(Dataset):
                         start = i
                         current_max_length = ceil(len(inp) / 8) * 8
                         continue
-                seq_length = ceil(max([len(inp) for inp in input_ids[start : start + batch_size]]) / 8) * 8
+                seq_length = self.calc_batch_seq_length(input_ids[start : start + batch_size], length_is_multiple_of=8)
                 batch_beginnings.append(start)
                 batch_sizes.append(batch_size)
                 batch_seq_lengths.append(seq_length)
                 start += batch_size
-                current_max_length = ceil(max([len(inp) for inp in input_ids[start : i + 1]]) / 8) * 8
+                current_max_length = self.calc_batch_seq_length(input_ids[start : i + 1], length_is_multiple_of=8)
             if self.batch_mark_up_progress_queue is not None:
                 progress_made += 1
                 if progress_made >= BATCH_MARK_UP_PROGRESS_REPORT_PERIOD:
                     self.batch_mark_up_progress_queue.put(progress_made)
                     progress_made = 0
         if start < len(input_ids):
-            seq_length = ceil(max([len(inp) for inp in input_ids[start:]]) / 8) * 8
+            seq_length = self.calc_batch_seq_length(input_ids[start:], length_is_multiple_of=8)
             batch_beginnings.append(start)
             batch_sizes.append(len(input_ids) - start)
             batch_seq_lengths.append(seq_length)
             if self.batch_mark_up_progress_queue is not None:
                 self.batch_mark_up_progress_queue.put(progress_made)
+        if len(batch_beginnings) % self.number_of_batches_is_multiple_of:
+            batch_beginnings, batch_sizes, batch_seq_lengths = self._adjust_number_of_batches(
+                input_ids, batch_beginnings, batch_sizes, batch_seq_lengths
+            )
         assert sum(batch_sizes) == len(input_ids)
         for i in range(len(batch_beginnings) - 1):
             assert batch_beginnings[i] + batch_sizes[i] == batch_beginnings[i + 1]
@@ -1292,7 +1416,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
             The values of a batch dictionary are numpy arrays of identical shape.
         """
         zipped = list(zip(input_ids, subtokens_mask, punct_labels, capit_labels))
-        random.shuffle(zipped)
+        self.batch_shuffling_random_state.shuffle(zipped)
         input_ids, subtokens_mask, punct_labels, capit_labels = zip(*sorted(zipped, key=lambda x: x[0].shape[0]))
         batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(input_ids)
         batches = []
@@ -1341,7 +1465,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                     progress_made = 0
         if self.batch_building_progress_queue is not None:
             self.batch_building_progress_queue.put(progress_made)
-        random.shuffle(batches)
+        self.batch_shuffling_random_state.shuffle(batches)
         return batches
 
     def repack_batches_with_shuffle(self) -> None:

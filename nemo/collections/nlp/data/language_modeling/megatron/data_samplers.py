@@ -49,7 +49,7 @@ class MegatronPretrainingSampler:
         )
 
     def __len__(self):
-        return self.total_samples
+        return (self.total_samples - self.consumed_samples - 1) // self.micro_batch_times_data_parallel_size + 1
 
     def get_start_end_idx(self):
         start_idx = self.data_parallel_rank * self.micro_batch_size

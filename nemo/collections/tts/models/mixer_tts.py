@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import contextlib
 from typing import List, Optional
 
 import numpy as np
@@ -38,7 +38,7 @@ from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import average_pitch, regulate_len
 from nemo.collections.tts.torch.tts_tokenizers import EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core import Exportable
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
     LengthsType,
     LogprobsType,
@@ -50,26 +50,33 @@ from nemo.core.neural_types.elements import (
     TokenLogDurationType,
 )
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
 class MixerTTSModel(SpectrogramGenerator, Exportable):
-    """MixerTTS pipeline."""
+    """Mixer-TTS and Mixer-TTS-X models (https://arxiv.org/abs/2110.03584) that is used to generate mel spectrogram from text."""
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        super().__init__(cfg=cfg, trainer=trainer)
-        cfg = self._cfg
-        if "text_normalizer" in cfg.train_ds.dataset:
-            self.normalizer = instantiate(cfg.train_ds.dataset.text_normalizer)
-            self.text_normalizer_call = self.normalizer.normalize
-            self.text_normalizer_call_args = {}
-            if cfg.train_ds.dataset.get("text_normalizer_call_args", None) is not None:
-                self.text_normalizer_call_args = cfg.train_ds.dataset.text_normalizer_call_args
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
 
-        self.tokenizer = instantiate(cfg.train_ds.dataset.text_tokenizer)
+        # Setup normalizer
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
+
+        # Setup tokenizer
+        self.tokenizer = None
+        self._setup_tokenizer(cfg)
+        assert self.tokenizer is not None
+
         num_tokens = len(self.tokenizer.tokens)
         self.tokenizer_pad = self.tokenizer.pad
         self.tokenizer_unk = self.tokenizer.oov
+
+        super().__init__(cfg=cfg, trainer=trainer)
 
         self.pitch_loss_scale = cfg.pitch_loss_scale
         self.durs_loss_scale = cfg.durs_loss_scale
@@ -89,9 +96,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             self.lm_padding_value = (
                 self._train_dl.dataset.lm_padding_value
                 if self._train_dl is not None
-                else self._get_lm_padding_value(cfg.train_ds.dataset.lm_model)
+                else self._get_lm_padding_value(cfg.lm_model)
             )
-            self.lm_embeddings = self._get_lm_embeddings(cfg.train_ds.dataset.lm_model)
+            self.lm_embeddings = self._get_lm_embeddings(cfg.lm_model)
             self.lm_embeddings.weight.requires_grad = False
 
             self.self_attention_module = instantiate(
@@ -111,6 +118,39 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         self.decoder = instantiate(cfg.decoder)
         self.proj = nn.Linear(self.decoder.d_model, cfg.n_mel_channels)
+
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
+
+    def _setup_tokenizer(self, cfg):
+        text_tokenizer_kwargs = {}
+        if "g2p" in cfg.text_tokenizer:
+            g2p_kwargs = {}
+
+            if "phoneme_dict" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["phoneme_dict"] = self.register_artifact(
+                    'text_tokenizer.g2p.phoneme_dict', cfg.text_tokenizer.g2p.phoneme_dict,
+                )
+
+            if "heteronyms" in cfg.text_tokenizer.g2p:
+                g2p_kwargs["heteronyms"] = self.register_artifact(
+                    'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
+                )
+
+            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+
+        self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
     def _get_lm_model_tokenizer(self, lm_model="albert"):
         if getattr(self, "_lm_model_tokenizer", None) is not None:
@@ -163,7 +203,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         mel_mask = get_mask_from_lengths(true_spect_len)
         loss = 0.0
 
-        # dur loss and metrics
+        # Dur loss and metrics
         durs_loss = F.mse_loss(pred_durs, (true_durs + 1).float().log(), reduction='none')
         durs_loss = durs_loss * text_mask.float()
         durs_loss = durs_loss.sum() / text_mask.sum()
@@ -178,14 +218,14 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         pred_spect = pred_spect.transpose(1, 2)
 
-        # mel loss
+        # Mel loss
         mel_loss = F.mse_loss(pred_spect, true_spect, reduction='none').mean(dim=-2)
         mel_loss = mel_loss * mel_mask.float()
         mel_loss = mel_loss.sum() / mel_mask.sum()
 
         loss = loss + self.durs_loss_scale * durs_loss + self.mel_loss_scale * mel_loss
 
-        # aligner loss
+        # Aligner loss
         bin_loss, ctc_loss = None, None
         ctc_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=true_text_len, out_lens=true_spect_len)
         loss = loss + ctc_loss
@@ -194,7 +234,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             loss = loss + self.bin_loss_scale * bin_loss
         true_avg_pitch = average_pitch(true_pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
 
-        # pitch loss
+        # Pitch loss
         pitch_loss = F.mse_loss(pred_pitch, true_avg_pitch, reduction='none')  # noqa
         pitch_loss = (pitch_loss * text_mask).sum() / text_mask.sum()
 
@@ -242,7 +282,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         enc_out, enc_mask = self.encoder(text, text_mask)
 
-        # aligner
+        # Aligner
         attn_soft, attn_logprob, attn_hard, attn_hard_dur = None, None, None, None
         if spect is not None:
             attn_soft, attn_logprob, attn_hard, attn_hard_dur = self.run_aligner(
@@ -255,14 +295,14 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 enc_out, lm_emb, lm_emb, q_mask=enc_mask.squeeze(2), kv_mask=lm_tokens != self.lm_padding_value
             )
 
-        # duration predictor
+        # Duration predictor
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(log_durs_predicted.exp() - 1, 0)
 
-        # pitch predictor
+        # Pitch predictor
         pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
 
-        # avg pitch, add pitch_emb
+        # Avg pitch, add pitch_emb
         if not self.training:
             if pitch is not None:
                 pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
@@ -278,7 +318,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         if self.cond_on_lm_embeddings:
             enc_out = enc_out + lm_features
 
-        # regulate length
+        # Regulate length
         len_regulated_enc_out, dec_lens = regulate_len(attn_hard_dur, enc_out)
 
         dec_out, dec_lens = self.decoder(len_regulated_enc_out, get_mask_from_lengths(dec_lens).unsqueeze(2))
@@ -312,7 +352,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         enc_out, enc_mask = self.encoder(text, text_mask)
 
-        # aligner
+        # Aligner
         attn_hard_dur = None
         if use_gt_durs:
             attn_soft, attn_logprob, attn_hard, attn_hard_dur = self.run_aligner(
@@ -325,11 +365,11 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
                 enc_out, lm_emb, lm_emb, q_mask=enc_mask.squeeze(2), kv_mask=lm_tokens != self.lm_padding_value
             )
 
-        # duration predictor
+        # Duration predictor
         log_durs_predicted = self.duration_predictor(enc_out, enc_mask)
         durs_predicted = torch.clamp(log_durs_predicted.exp() - 1, 0)
 
-        # avg pitch, pitch predictor
+        # Avg pitch, pitch predictor
         if use_gt_durs and pitch is not None:
             pitch = average_pitch(pitch.unsqueeze(1), attn_hard_dur).squeeze(1)
             pitch_emb = self.pitch_emb(pitch.unsqueeze(1))
@@ -337,7 +377,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             pitch_predicted = self.pitch_predictor(enc_out, enc_mask)
             pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
 
-        # add pitch emb
+        # Add pitch emb
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         if self.cond_on_lm_embeddings:
@@ -417,7 +457,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             'train_bin_loss': torch.tensor(1.0).to(durs_loss.device) if bin_loss is None else bin_loss,
         }
 
-        return {'loss': loss, 'progress_bar': train_log, 'log': train_log}
+        return {'loss': loss, 'progress_bar': {k: v.detach() for k, v in train_log.items()}, 'log': train_log}
 
     def validation_step(self, batch, batch_idx):
         attn_prior, lm_tokens = None, None
@@ -550,15 +590,16 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         tokens_len: Optional[torch.Tensor] = None,
         lm_tokens: Optional[torch.Tensor] = None,
         raw_texts: Optional[List[str]] = None,
+        norm_text_for_lm_model: bool = True,
         lm_model: str = "albert",
     ):
         if tokens is not None:
             if tokens_len is None:
-                # it is assumed that padding is consecutive and only at the end
+                # It is assumed that padding is consecutive and only at the end
                 tokens_len = (tokens != self.tokenizer.pad).sum(dim=-1)
         else:
             if raw_texts is None:
-                logging.error("raw_texts must be specified if tokens is None")
+                raise ValueError("raw_texts must be specified if tokens is None")
 
             t_seqs = [self.tokenizer(t) for t in raw_texts]
             tokens = torch.nn.utils.rnn.pad_sequence(
@@ -570,7 +611,7 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
 
         if self.cond_on_lm_embeddings and lm_tokens is None:
             if raw_texts is None:
-                logging.error("raw_texts must be specified if lm_tokens is None")
+                raise ValueError("raw_texts must be specified if lm_tokens is None")
 
             lm_model_tokenizer = self._get_lm_model_tokenizer(lm_model)
             lm_padding_value = lm_model_tokenizer._convert_token_to_id('<pad>')
@@ -579,6 +620,9 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
             assert isinstance(self.tokenizer, EnglishCharsTokenizer) or isinstance(
                 self.tokenizer, EnglishPhonemesTokenizer
             )
+
+            if norm_text_for_lm_model and self.text_normalizer_call is not None:
+                raw_texts = [self.text_normalizer_call(t, **self.text_normalizer_call_kwargs) for t in raw_texts]
 
             preprocess_texts_as_tts_input = [self.tokenizer.text_preprocessing_func(t) for t in raw_texts]
             lm_tokens_as_ids_list = [
@@ -600,19 +644,32 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         return pred_spect
 
     def parse(self, text: str, normalize=True) -> torch.Tensor:
-        if normalize and getattr(self, "text_normalizer_call", None) is not None:
-            text = self.text_normalizer_call(text, **self.text_normalizer_call_args)
-        return torch.tensor(self.tokenizer.encode(text)).long().unsqueeze(0).to(self.device)
+        if self.training:
+            logging.warning("parse() is meant to be called in eval mode.")
+        if normalize and self.text_normalizer_call is not None:
+            text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
 
-    @staticmethod
-    def _loader(cfg):
+        eval_phon_mode = contextlib.nullcontext()
+        if hasattr(self.tokenizer, "set_phone_prob"):
+            eval_phon_mode = self.tokenizer.set_phone_prob(prob=1.0)
+
+        with eval_phon_mode:
+            tokens = self.tokenizer.encode(text)
+        return torch.tensor(tokens).long().unsqueeze(0).to(self.device)
+
+    def _loader(self, cfg):
         try:
             _ = cfg.dataset.manifest_filepath
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
 
-        dataset = instantiate(cfg.dataset)
+        dataset = instantiate(
+            cfg.dataset,
+            text_normalizer=self.normalizer,
+            text_normalizer_call_kwargs=self.text_normalizer_call_kwargs,
+            text_tokenizer=self.tokenizer,
+        )
         return torch.utils.data.DataLoader(  # noqa
             dataset=dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params,
         )
@@ -628,10 +685,32 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         pass
 
     @classmethod
-    def list_available_models(cls):
-        """Empty."""
-        pass
+    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+        Returns:
+            List of available pre-trained models.
+        """
+        list_of_models = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_mixertts",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_mixertts/versions/1.6.0/files/tts_en_lj_mixertts.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,  # noqa
+        )
+        list_of_models.append(model)
 
+        model = PretrainedModelInfo(
+            pretrained_model_name="tts_en_lj_mixerttsx",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_en_lj_mixerttsx/versions/1.6.0/files/tts_en_lj_mixerttsx.nemo",
+            description="This model is trained on LJSpeech sampled at 22050Hz with and can be used to generate female English voices with an American accent.",
+            class_=cls,  # noqa
+        )
+        list_of_models.append(model)
+
+        return list_of_models
+
+    # Methods for model exportability
     @property
     def input_types(self):
         return {
@@ -644,6 +723,24 @@ class MixerTTSModel(SpectrogramGenerator, Exportable):
         return {
             "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
         }
+
+    def input_example(self, max_text_len=10, max_lm_tokens_len=10):
+        text = torch.randint(
+            low=0, high=len(self.tokenizer.tokens), size=(1, max_text_len), device=self.device, dtype=torch.long,
+        )
+
+        inputs = {'text': text}
+
+        if self.cond_on_lm_embeddings:
+            inputs['lm_tokens'] = torch.randint(
+                low=0,
+                high=self.lm_embeddings.weight.shape[0],
+                size=(1, max_lm_tokens_len),
+                device=self.device,
+                dtype=torch.long,
+            )
+
+        return (inputs,)
 
     def forward_for_export(self, text, lm_tokens=None):
         text_mask = (text != self.tokenizer_pad).unsqueeze(2)
