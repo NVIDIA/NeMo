@@ -19,7 +19,7 @@ from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import MegatronTokenLevelHead
+from nemo.collections.nlp.modules.common.megatron.mup.layer import MegatronTokenLevelHead
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,
@@ -289,7 +289,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         )
 
         if add_decoder and post_process:
-            self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
+            self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight(), parallel_output)
             self._tokens_head_key = 'tokens_head'
 
     def forward(
@@ -375,7 +375,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 inference_max_sequence_len=inference_max_sequence_len,
             )
             # only transpose it for post_ln
-            token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
+            token_logits = self.tokens_head(dec_output)
 
             if labels is not None:
                 # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
