@@ -47,8 +47,12 @@ def get_masked_score(text, model, do_lower=True):
     spans = re.findall("<\s[^>.]*\s>", text)
     if len(spans) > 0:
         text_with_mask = []
-        for span in spans:
-            text_with_mask.append(text.replace(span, model.MASK_LABEL).replace("< ", "").replace(" >", ""))
+        for i, span in enumerate(spans):
+            other_spans = spans[:i] + spans[i+1:]
+            tmp_text = text
+            for o_span in other_spans:
+                tmp_text = tmp_text.replace(o_span, model.MASK_LABEL)
+            text_with_mask.append(tmp_text.replace("< ", "").replace(" >", ""))
         text = text_with_mask
     return get_score(text, model)
 
