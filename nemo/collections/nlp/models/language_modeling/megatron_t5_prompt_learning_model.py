@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import itertools
 from typing import Any, List
 
 import torch
@@ -35,6 +35,10 @@ from nemo.utils import logging
 
 try:
     from apex.transformer import parallel_state
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
+        forward_backward_pipelining_without_interleaving,
+    )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
 
     HAVE_APEX = True
 
@@ -118,7 +122,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
         # TODO: Fix this once apex patches FusedScaledMaskedSoftmax.
         # This is a workaround for the fact that `masked_softmax_fusion` has issues with certain input sizes that may be present while finetuning.
-        t5_cfg = MegatronT5Model.restore_from(cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True)
+        t5_cfg = MegatronT5Model.restore_from(
+            cfg.get('pretrained_language_model_path'), trainer=trainer, return_config=True
+        )
         OmegaConf.set_struct(t5_cfg, True)
         with open_dict(t5_cfg):
             t5_cfg.masked_softmax_fusion = False
@@ -127,7 +133,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             t5_cfg.micro_batch_size = cfg.get('micro_batch_size', 4)
             t5_cfg.global_batch_size = cfg.get('global_batch_size', 4)
             t5_cfg.precision = trainer.precision
-            
+
         self.frozen_model = MegatronT5Model.restore_from(
             cfg.get('pretrained_language_model_path'), trainer=trainer, override_config_path=t5_cfg,
         )
@@ -135,108 +141,197 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         # Freeze all T5 model weights for prompt-tuning/p-tuning
         self.frozen_model.freeze()
 
+    def fwd_bwd_step(self, batch, batch_idx, forward_only):
+        """
+            Dataloader produces a global batch which is turned into a list of microbatches.
+            The list of microbatches is then piped through the pipeline using Apex fwd/bwd functions.
+        """
+        # Get seq length of batch
+        _, seq_length = batch[0].shape
+        tensor_shape = [seq_length, self.cfg.micro_batch_size, self.hidden_size]
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            raise Exception("Pipeline parallelism is not supported yet")
+        else:
+            losses_reduced_per_micro_batch = forward_backward_no_pipelining(
+                forward_step_func=self.get_forward_output_and_loss_func(),
+                batch=batch,
+                model=self,
+                forward_only=forward_only,
+                tensor_shape=tensor_shape,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+
+        # only the last stages of the pipeline return losses
+        if losses_reduced_per_micro_batch:
+            # average loss across micro batches
+            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensor = torch.concat(loss_tensors_list)
+            loss_mean = loss_tensor.mean()
+        else:
+            # we're not on the last pipeline stage so no losses
+            loss_mean = torch.tensor(0.0).cuda()
+
+        return loss_mean
+
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
+
+            output_tensor, encoder_input = model(
+                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
+            )
+
+            def loss_func(output_tensor):
+                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
+
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
+
+    def backward(self, *args, **kwargs):
+        """ LightningModule hook to do backward.
+            We want this to do nothing since we run backward in the fwd/bwd functions from apex.
+            No need to call it here.
+        """
+        return
+
+    def optimizer_zero_grad(self, *args, **kwargs):
+        """ LightningModule hook to zero grad.
+            We want this to do nothing as we are zeroing grads during the training_step.
+        """
+        return
+
     def training_step(self, batch, batch_idx):
-        enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
-        output, encoder_input = self.forward(
-            enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=False
-        )
+        self._optimizer.zero_grad()
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=False)
+        self.allreduce_gradients()
 
-        loss = self.frozen_model.loss_func(loss_mask, output)
-        self.log('train_loss', loss)
+        ## logging
+        # we can only log on one rank if it is rank zero so we broadcast from last rank
+        # we can avoid this broadcast by updating the PTL log function to accept specific ranks
+        torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        # Reduced loss for logging.
-        reduced_loss = average_losses_across_data_parallel_group([loss])
+        if self.cfg.precision == 16:
+            loss_scale = self.trainer.precision_plugin.scaler._scale
+            if loss_scale is not None:
+                self.log('loss_scale', loss_scale)
 
-        # Cache reduced loss while accumulating gradients
-        self._reduced_loss_buffer.append(reduced_loss[0])
+        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]['lr']
+        self.log('lr', lr, rank_zero_only=True)
+        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True)
 
-        if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
-            # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr)
-            self.log('global_step', self.trainer.global_step, prog_bar=True)
-            self._reduced_loss_buffer = []
-        return loss
+        return loss_mean
 
     def inference_step(self, batch, batch_idx, inference=False):
         enc_input, dec_input, labels, loss_mask, enc_mask, dec_mask, position_ids, taskname_ids = batch
 
         mode = self.training
         self.eval()
-        loss = None
-        with torch.no_grad():
-            output, encoder_input = self.forward(
-                enc_input, dec_input, enc_mask, dec_mask, position_ids, taskname_ids, labels, inference=inference
-            )
-            loss = self.frozen_model.loss_func(loss_mask, output)
 
-            predicted_token_ids, log_probs = self.frozen_model.decode(
-                tokens_enc=enc_input,
-                enc_mask=enc_mask,
-                num_tokens_to_generate=self.decoder_seq_length,
-                encoder_input=encoder_input,
-            )
+        input_embeds = self.embed_input_train(enc_input, taskname_ids)
+
+        position_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.position_embeddings(position_ids)
+        encoder_input = input_embeds + position_embeddings
+
+        loss_mean = self.fwd_bwd_step(batch, batch_idx, forward_only=True)
+
+        predicted_token_ids, log_probs = self.frozen_model.decode(
+            tokens_enc=enc_input,
+            enc_mask=enc_mask,
+            num_tokens_to_generate=self.decoder_seq_length,
+            encoder_input=encoder_input,
+        )
+
+        processed_inputs, processed_preds, processed_labels = [], [], []
+        preds = predicted_token_ids.cpu().numpy().tolist()
+        labels = labels.cpu().numpy().tolist()
+        enc_inputs = enc_input.cpu().numpy().tolist()
+
+        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
+            if self.tokenizer.eos_id in pred:
+                idx = pred.index(self.tokenizer.eos_id)
+                pred = pred[:idx]
+
+            pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+            enc_input = [id for id in enc_input if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+
+            pred = self.tokenizer.ids_to_text(pred)
+            label = self.tokenizer.ids_to_text(label)
+            enc_input = self.tokenizer.ids_to_text(enc_input)
+
+            processed_preds.append(pred)
+            processed_labels.append(label)
+            processed_inputs.append(enc_input)
 
         self.train(mode=mode)
-        return {'loss': loss, 'predicted_token_ids': predicted_token_ids, 'labels': labels}
+        return {
+            'loss': loss_mean,
+            'predicted_token_ids': processed_preds,
+            'labels': processed_labels,
+            'enc_inputs': processed_inputs,
+        }
 
     def inference_epoch_end(self, outputs):
-        averaged_loss = None
-        losses = [x['loss'] for x in outputs]
-        averaged_loss = average_losses_across_data_parallel_group(losses)
-        all_preds = []
-        all_labels = []
-        for item in outputs:
-            preds = item['predicted_token_ids'].cpu().numpy().tolist()
-            labels = item['labels'].cpu().numpy().tolist()
 
-            for i, (pred, label) in enumerate(zip(preds, labels)):
-                if self.tokenizer.eos_id in pred:
-                    idx = pred.index(self.tokenizer.eos_id)
-                    pred = pred[:idx]
+        gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
 
-                pred = [id for id in pred if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
-                label = [id for id in label if id not in self.tokenizer.tokenizer.additional_special_tokens_ids]
+        all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs]))
+        all_labels = list(itertools.chain(*[item['labels'] for item in outputs]))
+        all_inputs = list(itertools.chain(*[item['enc_inputs'] for item in outputs]))
 
-                pred = self.tokenizer.ids_to_text(pred)
-                label = self.tokenizer.ids_to_text(label)
+        assert len(all_preds) == len(all_labels)
+        assert len(all_preds) == len(all_inputs)
 
-                all_preds.append(pred)
-                all_labels.append(label)
+        # Gather inputs, preds, labels from all workers
+        torch.distributed.all_gather_object(
+            gather_results,
+            [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
+            group=parallel_state.get_data_parallel_group(),
+        )
 
-        correct = 0
-        for pred, label in zip(all_preds, all_labels):
-            if pred == label:
-                correct += 1
-        acc = correct / len(all_preds)
+        # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+        if parallel_state.get_data_parallel_rank() == 0:
 
-        return averaged_loss[0], all_preds, acc
+            gather_results_dedup = list(set(itertools.chain(*gather_results)))
+
+            correct = 0
+            for (input, pred, label) in gather_results_dedup:
+                if pred == label:
+                    correct += 1
+
+            val_acc = correct / len(gather_results_dedup)
+            val_acc = torch.tensor(val_acc).cuda()
+
+            logging.info(f'Validation accuracy: {val_acc}')
+        else:
+            val_acc = torch.tensor(0.0).cuda()
+
+        averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()
+        logging.info(f'Validation loss: {averaged_loss}')
+
+        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
+        self.log('val_acc', val_acc, prog_bar=True, rank_zero_only=True)
 
     def validation_step(self, batch, batch_idx, inference=False):
         outcome = self.inference_step(batch, batch_idx, inference=inference)
-        self.log('val_loss', outcome['loss'])
         return outcome
 
     def validation_epoch_end(self, outputs):
-        averaged_loss, val_preds, val_acc = self.inference_epoch_end(outputs)
-
-        # we can only log on one rank if it is rank zero so we broadcast from last rank
-        torch.distributed.broadcast(averaged_loss, get_last_rank())
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True)
-
-        self.log('val_acc', val_acc, prog_bar=True)
-        logging.info(f'Validation loss: {averaged_loss}')
-        logging.info(f'Validation accuracy: {val_acc}')
+        self.inference_epoch_end(outputs)
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
     def test_epoch_end(self, outputs):
-        averaged_loss = average_losses_across_data_parallel_group(outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+        self.validation_epoch_end(outputs)
 
     def build_virtual_prompt_dataset(
         self, dataset_paths, batch_size, for_train, drop_last, shuffle, num_workers, pin_memory
@@ -265,7 +360,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             dataset,
             collate_fn=dataset.collate_fn,
             sampler=sampler,
-            batch_size=batch_size,
+            batch_size=batch_size // world_size,
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
@@ -288,63 +383,90 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             num_tokens_to_generate=self.decoder_seq_length,
             encoder_input=encoder_input,
         )
-        
-        return {
-            'enc_input': enc_input,
-            'predicted_token_ids': predicted_token_ids,
-            'log_probs': log_probs,
-            'labels': labels,
-        }
-        
-    def on_predict_epoch_end(self, outputs: List[Any]) -> None:
-        all_preds = []
-        all_labels = []
-        all_inputs = []
-        for item in outputs[0]:
-            preds = item['predicted_token_ids'].cpu().numpy().tolist()
-            enc_inputs = item['enc_input'].cpu().numpy().tolist()
-            if item['labels'] is not None:
-                labels = item['labels'].cpu().numpy().tolist()
-            else:
-                labels = [None] * len(preds)
 
-            for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
-                if self.tokenizer.eos_id in pred:
-                    idx = pred.index(self.tokenizer.eos_id)
-                    pred = pred[:idx]
+        processed_preds = []
+        processed_labels = []
+        processed_inputs = []
 
-                pred = [
+        preds = predicted_token_ids.cpu().numpy().tolist()
+        enc_inputs = enc_input.cpu().numpy().tolist()
+
+        if labels is not None:
+            labels = labels.cpu().numpy().tolist()
+        else:
+            labels = [None] * len(preds)
+
+        for i, (enc_input, pred, label) in enumerate(zip(enc_inputs, preds, labels)):
+            if self.tokenizer.eos_id in pred:
+                idx = pred.index(self.tokenizer.eos_id)
+                pred = pred[:idx]
+
+            pred = [
+                id
+                for id in pred
+                if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
+                and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            ]  # delete the sentinel token at the beginning of prediction
+
+            pred = self.tokenizer.ids_to_text(pred)
+            processed_preds.append(pred)
+
+            enc_input = [
+                id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            ]  # delete the sentinel token added to the end of input
+
+            input = self.tokenizer.ids_to_text(enc_input)
+            processed_inputs.append(input)
+
+            if label:
+                label = [
                     id
-                    for id in pred
+                    for id in label
                     if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
                     and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token at the beginning of prediction
-                pred = self.tokenizer.ids_to_text(pred)
-                all_preds.append(pred)
+                ]  # delete the sentinel token at the beginning of label
 
-                enc_input = [
-                    id for id in enc_input if id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                ]  # delete the sentinel token added to the end of input
-                input = self.tokenizer.ids_to_text(enc_input)
-                all_inputs.append(input)
+                label = self.tokenizer.ids_to_text(label)
+            processed_labels.append(label)
 
-                # If labels are given, collect them to calculate the accuracy
-                if label is not None:
-                    label = [
-                        id
-                        for id in label
-                        if id not in self.tokenizer.tokenizer.additional_special_tokens_ids
-                        and id not in self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
-                    ]  # delete the sentinel token at the beginning of label
-                    label = self.tokenizer.ids_to_text(label)
-                    all_labels.append(label)
+        return {
+            'enc_input': processed_inputs,
+            'predicted_token_ids': processed_preds,
+            'log_probs': log_probs,
+            'labels': processed_labels,
+        }
 
-        correct, acc = 0, None
-        if all_labels:
-            for pred, label in zip(all_preds, all_labels):
-                if pred == label:
-                    correct += 1
-            acc = correct / len(all_preds)
+    def on_predict_epoch_end(self, outputs: List[Any]) -> None:
 
-        results = {'input_prediction_pair': list(zip(all_inputs, all_preds)), 'acc': acc}
-        print(results)
+        gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        all_preds = list(itertools.chain(*[item['predicted_token_ids'] for item in outputs[0]]))
+        all_labels = list(itertools.chain(*[item['labels'] for item in outputs[0]]))
+        all_inputs = list(itertools.chain(*[item['enc_input'] for item in outputs[0]]))
+
+        assert len(all_preds) == len(all_labels)
+        assert len(all_preds) == len(all_inputs)
+
+        # Gather inputs, predictions, and ground truths from all workers
+        torch.distributed.all_gather_object(
+            gather_results,
+            [(input, pred, label) for (input, pred, label) in zip(all_inputs, all_preds, all_labels)],
+            group=parallel_state.get_data_parallel_group(),
+        )
+
+        # Deduplicate sentences that may have been distributed across multiple data parallel ranks.
+        if parallel_state.get_data_parallel_rank() == 0:
+            gather_results_dedup = list(set(itertools.chain(*gather_results)))
+
+            input_prediction_pair = []
+            correct = 0
+            for (input, pred, label) in gather_results_dedup:
+                input_prediction_pair.append((input, pred))
+                if label:
+                    if pred == label:
+                        correct += 1
+
+            acc = correct / len(gather_results_dedup) if all_labels[0] else None
+
+            results = {'input_prediction_pair': input_prediction_pair, 'acc': acc}
+            logging.info(f'Prediction results: {results}')
+            logging.info(f'Test finish---------------------------------')
