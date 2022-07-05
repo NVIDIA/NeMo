@@ -529,7 +529,6 @@ def addAnchorEmb(emb: torch.Tensor, anchor_sample_n: int, anchor_spk_n: int, sig
     new_emb_np = torch.vstack(new_emb_list)
     return new_emb_np
 
-
 def getEnhancedSpeakerCount(
     emb: torch.Tensor,
     cuda: bool,
@@ -955,11 +954,11 @@ class NMESC:
         If fixed_thres value is specified, then only one p-value is specified.
         If fixed_thres is not provided, multiple p-values are searched.
             If sparse_search is True:
-                1. Limit the number of p-values to be searched to sparse_search_volume.
-                2. N should be at least 2 to include a number greater than 1.
+                - Limit the number of p-values to be searched to sparse_search_volume.
+                - N should be at least 2 to include a number greater than 1.
             If sparse_search is False:
-                1. Scan all the p_values from 1 to max_N
-                2. If sparse_search is False, NMESC analysis could take more time compared to sparse_search = True.
+                - Scan all the p_values from 1 to max_N
+                - If sparse_search is False, NMESC analysis could take more time compared to sparse_search = True.
 
         Returns:
             p_value_list: (torch.tensor)
@@ -1062,7 +1061,7 @@ def COSclustering(
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32).cpu().numpy()
     elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
-        est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
+        est_num_of_spk_enhanced = getEnhancedSpeakerCount(NMESC, emb, cuda)
     else:
         est_num_of_spk_enhanced = None
 
