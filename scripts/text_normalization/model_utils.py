@@ -30,12 +30,10 @@ def init_models(model_name_list):
     return models
 
 
-def get_score(text, model, do_lower=True):
+def get_score(text, model):
     try:
         if isinstance(text, str):
-            text = [text.lower() if do_lower else text]
-        else:
-            text = [t.lower() for t in text] if do_lower else text
+            text = [text]
         score = -1 * sum(model.score_sentences(text)) / len(text)
     except Exception as e:
         print(e)
@@ -45,13 +43,14 @@ def get_score(text, model, do_lower=True):
 
 
 def get_masked_score(text, model, do_lower=True):
+    text = text.lower() if do_lower else text
     spans = re.findall("<\s[^>.]*\s>", text)
     if len(spans) > 0:
         text_with_mask = []
         for span in spans:
             text_with_mask.append(text.replace(span, model.MASK_LABEL).replace("< ", "").replace(" >", ""))
         text = text_with_mask
-    return get_score(text, model, do_lower=do_lower)
+    return get_score(text, model)
 
 
 def score_options(sentences: List[str], context_len, model, do_lower=True):
