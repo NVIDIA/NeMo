@@ -250,6 +250,8 @@ class MegatronBaseModel(NLPModel):
                 async_grad_allreduce = False
 
             if async_grad_allreduce:
+                # we need this to be configurable until make_nccl_premul_sum is in public PyTorch.
+                # currently cannot be imported in PyTorch 1.12.0
                 grad_div_ar_fusion = self.cfg.get('grad_div_ar_fusion', False)
             else:
                 grad_div_ar_fusion = False
