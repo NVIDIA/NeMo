@@ -240,8 +240,11 @@ class MegatronBaseModel(NLPModel):
                     "fp16 training is not yet supported with O2. Please set megatron_amp_O2 to False in the model config."
                 )
 
-            # if using tensor parallel only, we can use async grad all-reduce
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not self.cfg.get('sequence_parallel', False):
+            # if using tensor parallel only, we automatically use async grad all-reduce
+            # if using pipeline parallel or sequence parallel or gradient accumulation fusion, then we disable it
+            if self.cfg.get('pipeline_model_parallel_size', 1) == 1 and not (
+                self.cfg.get('sequence_parallel', False) or self.cfg.get('gradient_accumulation_fusion', False)
+            ):
                 async_grad_allreduce = True
             else:
                 async_grad_allreduce = False
