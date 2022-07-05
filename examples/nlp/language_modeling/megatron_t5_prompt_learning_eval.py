@@ -72,7 +72,7 @@ def main(cfg) -> None:
             cfg.virtual_prompt_model_file, trainer=trainer, return_config=True
         )
         with open_dict(prompt_learning_cfg):
-            prompt_learning_cfg.language_model_path = cfg.pretrained_language_model_file
+            prompt_learning_cfg.pretrained_language_model_path = cfg.pretrained_language_model_file
 
         # Now load prompt learning model with frozen T5 model base
         model = MegatronT5PromptLearningModel.restore_from(
