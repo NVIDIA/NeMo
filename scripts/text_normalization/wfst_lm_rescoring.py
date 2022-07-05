@@ -39,7 +39,7 @@ parser.add_argument(
 parser.add_argument("--overwrite_cache", action="store_true", help="overwrite cache")
 parser.add_argument("--model_name", type=str, default="bert-base-uncased")
 parser.add_argument("--cache_dir", default='cache', type=str, help="use cache dir")
-parser.add_argument("--data", default="text_normalization_dataset_files/EngConf.txt", choices=["text_normalization_dataset_files/EngConf.txt", "text_normalization_dataset_files/LibriTTS.json", "text_normalization_dataset_files/GoogleTN.json"], help="For En only. Path to a file for evaluation.")
+parser.add_argument("--data", default="text_normalization_dataset_files/EngConf.txt", help="For En only. Path to a file for evaluation.")
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
 parser.add_argument("--models", default="mlm_bert-base-uncased", type=str, help="Comma separated string of model names")
 parser.add_argument("--regenerate_pkl", action="store_true", help="Set to True to re-create pickle file with WFST normalization options")
@@ -171,6 +171,7 @@ def threshold(norm_texts_weights, unchanged=True, replacement=True):
 if __name__ == "__main__":
     args = parser.parse_args()
 
+    # logging.setLevel(logging.DEBUG)
     lang = args.lang
     input_f = args.data
     if args.data == "text_normalization_dataset_files/LibriTTS.json":
@@ -212,24 +213,32 @@ if __name__ == "__main__":
             return batch_idx
 
         # to save intermediate results to a file
-        batch = min(len(pre_inputs), args.batch_size)
+        # batch = min(len(pre_inputs), args.batch_size)
 
-        tmp_dir = f"/tmp/{os.path.basename(args.data)}"
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        os.makedirs(tmp_dir, exist_ok=True)
+        # tmp_dir = f"/tmp/{os.path.basename(args.data)}"
+        # if os.path.exists(tmp_dir):
+        #     shutil.rmtree(tmp_dir)
+        # os.makedirs(tmp_dir, exist_ok=True)
 
-        batch_ids = Parallel(n_jobs=args.n_jobs)(
-            delayed(__process_batch)(idx, pre_inputs[i: i + batch], tmp_dir)
-            for idx, i in enumerate(range(0, len(pre_inputs), batch))
-        )
+        # batch_ids = Parallel(n_jobs=args.n_jobs)(
+        #     delayed(__process_batch)(idx, pre_inputs[i: i + batch], tmp_dir)
+        #     for idx, i in enumerate(range(0, len(pre_inputs), batch))
+        # )
 
-        # aggregate all intermediate results
+        # # aggregate all intermediate results
+        # norm_texts_weights = []
+        # for batch_id in batch_ids:
+        #     batch_f = f"{tmp_dir}/{batch_id}.pkl"
+        #     norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
+
+
         norm_texts_weights = []
-        for batch_id in batch_ids:
-            batch_f = f"{tmp_dir}/{batch_id}.pkl"
-            norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
-
+        for x in tqdm(pre_inputs):
+            norm_texts_weights.append(normalizer.normalize(
+                    x, n_tagged=args.n_tagged, punct_post_process=False
+                ))
+        logging.debug("----norm_texts_weights----")
+        logging.debug(norm_texts_weights)
         with open(p_file, "wb") as handle:
             pickle.dump(norm_texts_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
