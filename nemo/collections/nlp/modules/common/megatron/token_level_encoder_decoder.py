@@ -353,19 +353,27 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
             if self.post_process and self.add_decoder:
-                dec_output, enc_output = output
+                dec_output, enc_output = output  # [s, b, h]
                 # project decoder output to vocabulary-size dimensions
                 token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
                 if labels is not None:
+                    # [b, s] -> [s, b]
+                    labels = labels.transpose(0, 1).contiguous()
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
                     else:
                         tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+
+                    # [s, b] -> [b, s]
+                    tokens_loss = tokens_loss.transpose(0, 1).contiguous()
+
                     return tokens_loss
                 else:
+                    # [s, b, h] -> [b, s, h]
+                    token_logits = token_logits.transpose(0, 1).contiguous()
                     return token_logits
 
             elif self.add_decoder and not self.add_encoder:

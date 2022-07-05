@@ -247,7 +247,7 @@ class MegatronBaseModel(NLPModel):
                 async_grad_allreduce = False
 
             if async_grad_allreduce:
-                grad_div_ar_fusion = True
+                grad_div_ar_fusion = self.cfg.get('grad_div_ar_fusion', False)
             else:
                 grad_div_ar_fusion = False
 
