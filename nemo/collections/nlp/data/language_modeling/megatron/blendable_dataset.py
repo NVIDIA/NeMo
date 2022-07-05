@@ -33,11 +33,7 @@ class BlendableDataset(torch.utils.data.Dataset):
         self.size = size
         total_dataset_size = sum([len(dataset) for dataset in self.datasets])
         if self.size < total_dataset_size:
-            raise ValueError(
-                "Dataset size is smaller than the sum of all dataset sizes. "
-                "This is not allowed. Please make sure that the dataset sizes "
-                f"are equal or smaller than the total dataset size. Dataset size: {total_dataset_size}"
-            )
+            raise ValueError(f"Provided dataset size argument {size} is smaller than the sum of all dataset sizes {total_dataset_size}.")
 
         # Normalize weights.
         weights = np.array(weights, dtype=np.float64)
