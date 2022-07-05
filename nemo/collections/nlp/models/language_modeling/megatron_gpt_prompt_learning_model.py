@@ -112,9 +112,11 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-        
+
         if self.pipeline_parallel:
-            assert self.cfg.optim.sched.get("min_lr", 0.0) == 0.0, "Minimum lr must be 0.0 when pipeline parallel size is > 1"
+            assert (
+                self.cfg.optim.sched.get("min_lr", 0.0) == 0.0
+            ), "Minimum lr must be 0.0 when pipeline parallel size is > 1"
 
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
@@ -345,10 +347,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-        # Freeze frozen model 
+        # Freeze frozen model
         for param in self.frozen_model.parameters():
             param.requires_grad = False
-            
+
         # Need to handle frozen model freezing differently when pp > 1
         if self.pipeline_parallel:
             virtual_prompt_params = {'params': []}
@@ -359,20 +361,19 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
                 if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                     virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
-                    
+
             # Unfreeze one part of each transformer layer setting lr to 0.0 so DDP
             # and AMP won't complain but model still remains frozen
             for layer in self.frozen_model.model.language_model.encoder.layers:
                 for param in layer.input_layernorm.parameters():
                     param.requires_grad = True
-                        
+
             frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
 
             self._optimizer_param_groups = virtual_prompt_params, frozen_model_params
-        
+
         else:
             super().setup_optimizer_param_groups()
-            
 
     def forward(
         self,
@@ -736,16 +737,16 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         )
 
         rank = parallel_state.get_data_parallel_rank()
-        world_size = parallel_state.get_data_parallel_world_size()
+        data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
+            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
         )
 
         dataloader = torch.utils.data.DataLoader(
             dataset,
             collate_fn=dataset.collate_fn,
             sampler=sampler,
-            batch_size=batch_size // world_size,
+            batch_size=batch_size // data_parallel_size,
             drop_last=drop_last,
             num_workers=num_workers,
             pin_memory=pin_memory,
