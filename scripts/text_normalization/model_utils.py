@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+import re
+from typing import List
+
+from tqdm import tqdm
+
 from nemo.collections.nlp.modules.common import MLMScorer
 from nemo.utils import logging
-import math
-from typing import List
-import re
-from tqdm import tqdm
 
 
 def init_models(model_name_list):
     model_names = model_name_list.split(",")
-    models ={}
+    models = {}
     for model_name in model_names:
         models[model_name] = MLMScorer(model_name)
     return models
@@ -40,6 +42,7 @@ def get_score(text, model, do_lower=True):
         print(f"Scoring error: {text}")
         score = math.inf
     return score
+
 
 def get_masked_score(text, model, do_lower=True):
     spans = re.findall("<\s[^>.]*\s>", text)
@@ -59,7 +62,7 @@ def score_options(sentences: List[str], context_len, model, do_lower=True):
             sentences = diffs
     for sent in tqdm(sentences):
         bos = ""
-        if isinstance(sent, list): # in case of set context len
+        if isinstance(sent, list):  # in case of set context len
             option_scores = [get_masked_score(bos + s, model, do_lower) for s in sent]
             logging.debug(sent)
             logging.debug(option_scores)
@@ -69,7 +72,7 @@ def score_options(sentences: List[str], context_len, model, do_lower=True):
             else:
                 av_score = round(sum(option_scores) / len(option_scores), 4)
             scores.append(av_score)
-        elif isinstance(sent, str): # in case of full context
+        elif isinstance(sent, str):  # in case of full context
             scores.append(round(get_masked_score(bos + sent, model, do_lower=do_lower)))
         else:
             raise ValueError()
@@ -81,6 +84,7 @@ def find_diff(text, context_len=3):
     diffs = []
     pattern_start = "< "
     pattern_end = " >"
+
     def __clean(s):
         return s.replace(pattern_start, "").replace(pattern_end, "").replace("  ", " ")
 
@@ -90,7 +94,7 @@ def find_diff(text, context_len=3):
         offset = index_start
         if pattern_end in text[offset:]:
             index_end = offset + text[offset:].index(pattern_end) + len(pattern_end)
-            center = __clean(text[index_start: index_end])
+            center = __clean(text[index_start:index_end])
 
             left_context = " ".join(__clean(text[:index_start]).split()[-context_len:])
             if len(left_context) > 0 and text[:index_start][-1].isspace():

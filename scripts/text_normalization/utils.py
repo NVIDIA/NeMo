@@ -13,25 +13,28 @@
 # limitations under the License.
 
 
-import string
+import copy
+import difflib
+import json
 import re
+import string
+from typing import List, Optional, Tuple, Union
+
 import pandas as pd
+import pynini
 from nemo_text_processing.inverse_text_normalization.en.taggers.cardinal import CardinalFst
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer
 from pynini.lib.rewrite import top_rewrite
-import pynini
 from tqdm import tqdm
-import json
-from typing import Optional, Union, List, Tuple
-import copy
-import difflib
+
 from nemo.utils import logging
 
 DELIMITER = '~~'
 
 cardinal_graph = CardinalFst().graph_no_exception
-cardinal_graph = pynini.closure(pynini.union("In ", "in ")) + cardinal_graph + pynini.closure(
-    pynini.accep(" ") + cardinal_graph)
+cardinal_graph = (
+    pynini.closure(pynini.union("In ", "in ")) + cardinal_graph + pynini.closure(pynini.accep(" ") + cardinal_graph)
+)
 
 inverse_normalizer = InverseNormalizer()
 
@@ -52,7 +55,7 @@ def load_data(input_fs: List[str]):
         if input_f.endswith(".json"):
             with open(input_f, "r") as f:
                 for line in f:
-                    line=json.loads(line)
+                    line = json.loads(line)
                     try:
                         inputs.append(line['text'].strip())
                         sentences.append([line['gt_normalized'].strip()])
@@ -93,7 +96,6 @@ def load_data(input_fs: List[str]):
     return inputs, targets, sentences, labels
 
 
-
 def remove_whitelist_boudaries(x):
     # remove raw whitelist
     x = re.sub(r"\|raw_start\|[^|]+\|raw_end\|", "", x)
@@ -101,19 +103,20 @@ def remove_whitelist_boudaries(x):
     x = x.replace("|norm_start|", "").replace("|norm_end|", "")
     return x
 
+
 def _clean_pre_norm_libritts(inputs: List[str], targets: List[List[str]]):
     for i in range(len(targets)):
         for j in range(len(targets[i])):
             targets[i][j] = clean_libri_tts(targets[i][j])
-    
+
     for i in range(len(inputs)):
         for target in targets[i]:
             diffs = get_diff(a=inputs[i].lower(), b=target.lower())
             for diff in diffs[::-1]:
-                in_diff = inputs[i][diff[0][0]: diff[0][1]].lower()
-                tg_diff = target[diff[1][0]: diff[1][1]].lower()
-                replacement = inputs[i][:diff[0][0]] + tg_diff + inputs[i][diff[0][1]:]
-                if (in_diff == "s"  and tg_diff == "z") or (in_diff == "z"  and tg_diff == "s"):
+                in_diff = inputs[i][diff[0][0] : diff[0][1]].lower()
+                tg_diff = target[diff[1][0] : diff[1][1]].lower()
+                replacement = inputs[i][: diff[0][0]] + tg_diff + inputs[i][diff[0][1] :]
+                if (in_diff == "s" and tg_diff == "z") or (in_diff == "z" and tg_diff == "s"):
                     inputs[i] = replacement
                 elif (in_diff == "re" and tg_diff == "er") or (in_diff == "er" and tg_diff == "re"):
                     inputs[i] = replacement
@@ -126,7 +129,7 @@ def _clean_pre_norm_libritts(inputs: List[str], targets: List[List[str]]):
 
 def _clean_pre_norm_google(inputs: List[str], targets: List[List[str]]):
     for i in range(len(inputs)):
-        
+
         inputs[i] = re.sub(r"\$\s([0-9]{1,})", r"$\1", inputs[i])
         inputs[i] = re.sub(r"\bmr ", r"Mr. ", inputs[i])
         inputs[i] = re.sub(r"\bdr ", r"Dr. ", inputs[i])
@@ -139,10 +142,10 @@ def _clean_pre_norm_google(inputs: List[str], targets: List[List[str]]):
         for target in targets[i]:
             diffs = get_diff(a=inputs[i].lower(), b=target.lower())
             for diff in diffs[::-1]:
-                in_diff = inputs[i][diff[0][0]: diff[0][1]].lower()
-                tg_diff = target[diff[1][0]: diff[1][1]].lower()
-                replacement = inputs[i][:diff[0][0]] + tg_diff + inputs[i][diff[0][1]:]
-                if (in_diff == "s"  and tg_diff == "z") or (in_diff == "z"  and tg_diff == "s"):
+                in_diff = inputs[i][diff[0][0] : diff[0][1]].lower()
+                tg_diff = target[diff[1][0] : diff[1][1]].lower()
+                replacement = inputs[i][: diff[0][0]] + tg_diff + inputs[i][diff[0][1] :]
+                if (in_diff == "s" and tg_diff == "z") or (in_diff == "z" and tg_diff == "s"):
                     inputs[i] = replacement
                 elif (in_diff == "re" and tg_diff == "er") or (in_diff == "er" and tg_diff == "re"):
                     inputs[i] = replacement
@@ -154,16 +157,17 @@ def _clean_pre_norm_google(inputs: List[str], targets: List[List[str]]):
                     inputs[i] = replacement
                 elif re.sub(r"\.", "", in_diff) == re.sub(r"( |\.)", "", tg_diff):
                     inputs[i] = replacement
-            
+
     return inputs, targets
 
-def clean_pre_norm(inputs: List[str], targets: List[List[str]], dataset: Optional[str]=None):
+
+def clean_pre_norm(inputs: List[str], targets: List[List[str]], dataset: Optional[str] = None):
     """returns pre_inputs, pre_targets
     """
     # deep copy
     pre_inputs = copy.deepcopy(inputs)
     pre_targets = copy.deepcopy(targets)
-    
+
     # --- data specific pre cleaning ---
     if dataset == "libritts":
         pre_inputs, pre_targets = _clean_pre_norm_libritts(inputs=pre_inputs, targets=pre_targets)
@@ -171,14 +175,15 @@ def clean_pre_norm(inputs: List[str], targets: List[List[str]], dataset: Optiona
         pre_inputs, pre_targets = _clean_pre_norm_google(inputs=pre_inputs, targets=pre_targets)
     else:
         pass
-    
+
     # --- general pre cleaning ---
     for i in range(len(pre_inputs)):
-        pre_inputs[i] =re.sub("librivox.org", "librivox dot org", pre_inputs[i])
-        pre_inputs[i] =re.sub(rf"([0-9]?[0-9](\.|:)[0-9][0-9]\s?)(a|A|p|P)(\.?)\s(M|m)(\.?)", rf"\1\3\4\5\6", pre_inputs[i])
+        pre_inputs[i] = re.sub("librivox.org", "librivox dot org", pre_inputs[i])
+        pre_inputs[i] = re.sub(
+            rf"([0-9]?[0-9](\.|:)[0-9][0-9]\s?)(a|A|p|P)(\.?)\s(M|m)(\.?)", rf"\1\3\4\5\6", pre_inputs[i]
+        )
         # pre_inputs[i] =re.sub(rf"\b(S|s)t\.", rf"saint", pre_inputs[i])
     return pre_inputs, pre_targets
-    
 
 
 def _clean_post_norm_libritts(inputs: List[str], targets: List[List[str]], norm_texts):
@@ -191,13 +196,14 @@ def _clean_post_norm_google(inputs: List[str], targets: List[List[str]], norm_te
             for j, norm in enumerate(norm_texts[i][0]):
                 diffs = get_diff(a=norm.lower(), b=target.lower())
                 for diff in diffs[::-1]:
-                    norm_diff = norm[diff[0][0]: diff[0][1]].lower()
-                    tg_diff = target[diff[1][0]: diff[1][1]].lower()
-                    replacement = norm[:diff[0][0]] + tg_diff + norm[diff[0][1]:]
+                    norm_diff = norm[diff[0][0] : diff[0][1]].lower()
+                    tg_diff = target[diff[1][0] : diff[1][1]].lower()
+                    replacement = norm[: diff[0][0]] + tg_diff + norm[diff[0][1] :]
                     if norm_diff == re.sub(r" ", "", tg_diff):
                         norm_texts[i][0][j] = replacement
-                    
+
     return targets, norm_texts
+
 
 def _clean_post_general(str) -> str:
     str = re.sub(rf" oh ", " zero ", str)
@@ -211,9 +217,11 @@ def _clean_post_general(str) -> str:
     str = str.replace("mountain", "mount")
     return str
 
-def  _clean_targets(str) -> str:
+
+def _clean_targets(str) -> str:
     str = re.sub(rf" o ", " zero ", str)
     return str
+
 
 def adjust_pred(pred, gt, dataset, delim_present=True):
     orig_pred = pred
@@ -222,9 +230,9 @@ def adjust_pred(pred, gt, dataset, delim_present=True):
         return pred
     pred = re.sub(rf"< ", "", pred)
     pred = re.sub(rf" >", "", pred)
-    pred= pred.lower().strip()
+    pred = pred.lower().strip()
     gt = gt.lower().strip()
-    can_be_adjusted=False
+    can_be_adjusted = False
 
     if dataset in ["google", "libritts"] and pred != gt:
         if is_date(pred=pred, gt=gt, cardinal_graph=cardinal_graph):
@@ -246,9 +254,9 @@ def adjust_pred(pred, gt, dataset, delim_present=True):
             elif " of " in gt:
                 gt = re.sub(r"(^the | of)", "", gt)
                 idx = gt.index(" ")
-                idx2 = (gt[idx+1:].index(" ") if " " in gt[idx+1:] else len(gt[idx+1:])) + idx + 1
-                gt = gt[idx+1:idx2] + " " + gt[:idx] + gt[idx2:]
-    if dataset =="libritts" and pred != gt:
+                idx2 = (gt[idx + 1 :].index(" ") if " " in gt[idx + 1 :] else len(gt[idx + 1 :])) + idx + 1
+                gt = gt[idx + 1 : idx2] + " " + gt[:idx] + gt[idx2:]
+    if dataset == "libritts" and pred != gt:
         if "dollar" in gt:
             gt = re.sub(rf"\band\b", "", gt)
             pred = re.sub(rf"\band\b", "", pred)
@@ -279,7 +287,7 @@ def adjust_pred(pred, gt, dataset, delim_present=True):
     pred = re.sub(rf"(\.)", "", pred)
     pred = re.sub(rf" +", " ", pred)
     if gt == pred:
-        can_be_adjusted=True
+        can_be_adjusted = True
     if can_be_adjusted:
         if delim_present:
             res = f" < {orig_gt} > "
@@ -288,8 +296,15 @@ def adjust_pred(pred, gt, dataset, delim_present=True):
         return res
     else:
         return orig_pred
-    
-def clean_post_norm(inputs: List[str], targets: List[List[str]], norm_texts, dataset: Optional[str]=None, delim_present: Optional[bool]=True):
+
+
+def clean_post_norm(
+    inputs: List[str],
+    targets: List[List[str]],
+    norm_texts,
+    dataset: Optional[str] = None,
+    delim_present: Optional[bool] = True,
+):
     """
     Args:
         inputs (List[str]): _description_
@@ -305,15 +320,19 @@ def clean_post_norm(inputs: List[str], targets: List[List[str]], norm_texts, dat
 
     # --- data specific pre cleaning ---
     if dataset == "libritts":
-        post_targets, post_norm_texts = _clean_post_norm_libritts(inputs=inputs, targets=post_targets, norm_texts=post_norm_texts)
+        post_targets, post_norm_texts = _clean_post_norm_libritts(
+            inputs=inputs, targets=post_targets, norm_texts=post_norm_texts
+        )
     elif dataset == "google":
-        post_targets, post_norm_texts = _clean_post_norm_google(inputs=inputs, targets=post_targets, norm_texts=post_norm_texts)
+        post_targets, post_norm_texts = _clean_post_norm_google(
+            inputs=inputs, targets=post_targets, norm_texts=post_norm_texts
+        )
 
     else:
         pass
-    
+
     # --- general pre cleaning ---
-    
+
     for i in range(len(targets)):
         for j, x in enumerate(post_targets[i]):
             post_targets[i][j] = _clean_post_general(x)
@@ -335,32 +354,43 @@ def clean_post_norm(inputs: List[str], targets: List[List[str]], norm_texts, dat
                     for diff in diffs[::-1]:
                         if diff[0][1] - diff[0][0] == 0 and diff[1][1] - diff[1][0] == 0:
                             continue
-                        pred = option[diff[0][0]:diff[0][1]]
-                        gt = _target[diff[1][0]:diff[1][1]]
+                        pred = option[diff[0][0] : diff[0][1]]
+                        gt = _target[diff[1][0] : diff[1][1]]
                         logging.debug(f"pred: |{pred}|\tgt: |{gt}|")
                         new_pred = adjust_pred(pred=pred, gt=gt, dataset=dataset, delim_present=delim_present)
-                        new_pred = post_norm_texts[i][0][jj][:diff[0][0]] + new_pred + post_norm_texts[i][0][jj][diff[0][1]:]
+                        new_pred = (
+                            post_norm_texts[i][0][jj][: diff[0][0]]
+                            + new_pred
+                            + post_norm_texts[i][0][jj][diff[0][1] :]
+                        )
                         logging.debug(f"|{post_norm_texts[i][0][jj]}| -> |{new_pred}|")
                         post_norm_texts[i][0][jj] = new_pred
     return post_targets, post_norm_texts
-    
-    
+
+
 def clean_libri_tts(target: str):
     """
 	Replace abbreviations in LibriTTS dataset
 	"""
     libri_only_remove_dot_abbrs = {
-        "Mrs.", "Mr.", "Dr.", "Co.", "Lt.",
-        "Sgt.", "Drs.", "Maj.", "Capt.", "Esq.",
-        "Gen.", "Ltd.", "Col."
+        "Mrs.",
+        "Mr.",
+        "Dr.",
+        "Co.",
+        "Lt.",
+        "Sgt.",
+        "Drs.",
+        "Maj.",
+        "Capt.",
+        "Esq.",
+        "Gen.",
+        "Ltd.",
+        "Col.",
     }
 
     # Normalized text in LibriTTS by Google which contains abbreviations from `libri_converts_abbrs` looks like this:
     # "&" -> "and", "Jr." -> "Junior" (i.e correct conversion).
-    libri_converts_abbrs = {
-        "&", "Gov.", "=", "Jr.", "Hon.", "Mt.",
-        "§"  # currently, unidecoder doesn't pass it
-    }
+    libri_converts_abbrs = {"&", "Gov.", "=", "Jr.", "Hon.", "Mt.", "§"}  # currently, unidecoder doesn't pass it
 
     # Normalized text in LibriTTS by Google which contains abbreviations from `libri_sometimes_converts_abbrs` sometimes wasn't converted.
     libri_sometimes_converts_abbrs = {"St.": "saint", "Rev.": "reverend"}
@@ -416,7 +446,7 @@ def clean_libri_tts(target: str):
         "&": "and",
         "§": "section",
         "#": "hash",
-        "=": "equals"
+        "=": "equals",
     }
 
     # let's normalize `libri_only_remove_dot_abbrs` abbreviations, because google doesn't do it well
@@ -434,6 +464,7 @@ def clean_libri_tts(target: str):
         target = target.replace(abbr, t)
 
     return target
+
 
 def remove_punctuation(text: str, remove_spaces=True, do_lower=True, lang="en", exclude=None):
     all_punct_marks = string.punctuation
@@ -454,6 +485,7 @@ def remove_punctuation(text: str, remove_spaces=True, do_lower=True, lang="en", 
     if do_lower:
         text = text.lower()
     return text.strip()
+
 
 def pprint(df):
     sent = df.iloc[0][0].split("|")[0].strip()
@@ -490,11 +522,8 @@ def get_alternative_label(pred: str, targets: List[str]) -> bool:
             break
     return acceptable
 
-def get_labels(
-    targets: List[str],
-    norm_texts_weights: List[Tuple[str, str]],
-    lang="en",
-) -> List[List[str]]:
+
+def get_labels(targets: List[str], norm_texts_weights: List[Tuple[str, str]], lang="en",) -> List[List[str]]:
     """
     Assign labels to generated normalization options (1 - for ground truth, 0 - other options)
     Args:
@@ -544,6 +573,7 @@ def contains_month(pred, gt):
             return True
     return False
 
+
 def is_date(pred, gt, cardinal_graph):
     """Returns True is pred and gt are date format modifications and are equal."""
     is_date_case = False
@@ -555,14 +585,17 @@ def is_date(pred, gt, cardinal_graph):
         is_date_case = True
     else:
         try:
-            if top_rewrite(gt.replace(" oh ", " zero ").replace(" o ", " zero "), cardinal_graph).replace(" ", "") == top_rewrite(pred.replace(" oh ", " zero ").replace(" o ", " zero "), cardinal_graph).replace(" ", ""):
+            if top_rewrite(gt.replace(" oh ", " zero ").replace(" o ", " zero "), cardinal_graph).replace(
+                " ", ""
+            ) == top_rewrite(pred.replace(" oh ", " zero ").replace(" o ", " zero "), cardinal_graph).replace(" ", ""):
                 is_date_case = True
         except:
             pass
 
     return is_date_case
 
-def is_correct(pred: str, targets: Union[List[str], str], lang: str)-> bool:
+
+def is_correct(pred: str, targets: Union[List[str], str], lang: str) -> bool:
     if isinstance(targets, List):
         targets = [remove_punctuation(x, remove_spaces=True, do_lower=True, lang=lang) for x in targets]
     else:
@@ -574,14 +607,7 @@ def is_correct(pred: str, targets: Union[List[str], str], lang: str)-> bool:
 
 def print_df(df):
     with pd.option_context(
-        "display.max_rows",
-        None,
-        "display.max_columns",
-        None,
-        "display.width",
-        1000,
-        "display.max_colwidth",
-        400,
+        "display.max_rows", None, "display.max_columns", None, "display.width", 1000, "display.max_colwidth", 400,
     ):
         print(df)
 
@@ -600,8 +626,8 @@ def get_diff(a, b):
     s = [x for x in s if x[2] != 1]
     # get not matching blocks
     matches = [[0, 0, 0]] + s
-    unmatches_l= []
-    unmatches_r= []
+    unmatches_l = []
+    unmatches_r = []
     for l, r in zip(matches[:-1], matches[1:]):
         unmatches_l.append([l[0] + l[2], r[0]])
         unmatches_r.append([l[1] + l[2], r[1]])
@@ -614,7 +640,7 @@ def get_diff(a, b):
         logging.debug("=" * 20)
     return result[1:]
 
-  
+
 def diff_pred_gt(pred, gt):
     """returns list of different substrings between prediction and gt
     relies on that prediction uses '< '  ' >'  
@@ -643,22 +669,22 @@ def diff_pred_gt(pred, gt):
     left = [-1] + left + [len(pred)]
     right = [0] + right + [len(pred)]
 
-    matches =[]
-    assert (len(left) == len(right))
+    matches = []
+    assert len(left) == len(right)
     idx = 1
     for i, seq in enumerate(s):
-        if i == len(s) -1 and seq[2] == 0:
+        if i == len(s) - 1 and seq[2] == 0:
             break
         while idx < len(left) - 1 and (seq[0] >= right[idx]):
             idx += 1
-            
-        if right[idx -1 ] <= seq[0] < left [idx] and  (seq[0] + seq[2]) <= left[idx]:
+
+        if right[idx - 1] <= seq[0] < left[idx] and (seq[0] + seq[2]) <= left[idx]:
             matches.append(seq)
 
     # get not matching blocks
     matches = [[0, 0, 0]] + matches + [[len(pred), len(gt), 0]]
-    unmatches_l= []
-    unmatches_r= []
+    unmatches_l = []
+    unmatches_r = []
     for l, r in zip(matches[:-1], matches[1:]):
         unmatches_l.append([l[0] + l[2], r[0]])
         unmatches_r.append([l[1] + l[2], r[1]])

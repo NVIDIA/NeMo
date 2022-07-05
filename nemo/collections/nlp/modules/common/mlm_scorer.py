@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM
-from torch.nn.functional import softmax
-import torch
 from typing import List
+
 import numpy as np
+import torch
+from torch.nn.functional import softmax
+from transformers import AutoModelForMaskedLM, AutoTokenizer
 
 __all__ = ['MLMScorer']
+
 
 class MLMScorer:
     def __init__(self, model_name, device='cpu'):
@@ -54,7 +56,6 @@ class MLMScorer:
             token_type.append([0] * id_len)
             attn_mask.append([1] * id_len)
 
-
         data = {
             'input_ids': torch.tensor(ids, device=self.device),
             'attention_mask': torch.tensor(attn_mask, device=self.device),
@@ -77,7 +78,6 @@ class MLMScorer:
             scores_log_prob += log_prob
 
         return scores_log_prob
-
 
     def __mask_text__(self, idx, tokens):
         masked = tokens.copy()

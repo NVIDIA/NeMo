@@ -13,36 +13,44 @@
 # limitations under the License.
 
 
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
-import pandas as pd
 import argparse
-from joblib import Parallel, delayed
-from tqdm import tqdm
-from typing import List, Tuple, Dict
-import shutil
-import re
-import model_utils
-from nemo.utils import logging
 import os
-import utils
 import pickle
+import re
+import shutil
+from typing import Dict, List, Tuple
 
+import model_utils
+import pandas as pd
+import utils
+from joblib import Parallel, delayed
+from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+from tqdm import tqdm
 
+from nemo.utils import logging
 
 parser = argparse.ArgumentParser(description="Re-scoring")
 parser.add_argument("--lang", default="en", type=str, choices=["en"])
 parser.add_argument("--n_tagged", default=100, type=int, help="Number WFST options")
 parser.add_argument("--context_len", default=-1, type=int, help="Context length, -1 to use full context")
-parser.add_argument(
-    "--threshold", default=0.2, type=float, help="delta threshold value"
-)
+parser.add_argument("--threshold", default=0.2, type=float, help="delta threshold value")
 parser.add_argument("--overwrite_cache", action="store_true", help="overwrite cache")
 parser.add_argument("--model_name", type=str, default="bert-base-uncased")
 parser.add_argument("--cache_dir", default='cache', type=str, help="use cache dir")
-parser.add_argument("--data", default="text_normalization_dataset_files/EngConf.txt", help="For En only. Path to a file for evaluation.")
+parser.add_argument(
+    "--data",
+    default="text_normalization_dataset_files/EngConf.txt",
+    help="For En only. Path to a file for evaluation.",
+)
 parser.add_argument("--n_jobs", default=-2, type=int, help="The maximum number of concurrently running jobs")
-parser.add_argument("--models", default="mlm_bert-base-uncased", type=str, help="Comma separated string of model names")
-parser.add_argument("--regenerate_pkl", action="store_true", help="Set to True to re-create pickle file with WFST normalization options")
+parser.add_argument(
+    "--models", default="mlm_bert-base-uncased", type=str, help="Comma separated string of model names"
+)
+parser.add_argument(
+    "--regenerate_pkl",
+    action="store_true",
+    help="Set to True to re-create pickle file with WFST normalization options",
+)
 parser.add_argument("--batch_size", default=200, type=int, help="Batch size for parallel processing")
 
 
@@ -52,10 +60,11 @@ def rank(sentences: List[str], labels: List[int], models: Dict[str, 'Model'], co
     """
     df = pd.DataFrame({"sent": sentences, "labels": labels})
     for model_name, model in models.items():
-        scores = model_utils.score_options(sentences=sentences, context_len=context_len, model=model, do_lower=do_lower)
+        scores = model_utils.score_options(
+            sentences=sentences, context_len=context_len, model=model, do_lower=do_lower
+        )
         df[model_name] = scores
     return df
-
 
 
 def threshold_weights(norm_texts_weights, delta: float = 0.2):
@@ -69,12 +78,13 @@ def threshold_weights(norm_texts_weights, delta: float = 0.2):
     # threshold value is factor applied to lowest/first weight of all normalization options for every input
     res = []
     for i, options_weights in enumerate(norm_texts_weights):
-        thresh = options_weights[1][0] + delta # minimum weight plus delta
+        thresh = options_weights[1][0] + delta  # minimum weight plus delta
         item = [x for x in zip(*options_weights)]
         # filters out all options for every input that is larger than threshold
         res.append(list(filter(lambda x: x[1] < thresh, item)))
 
     return [list(map(list, zip(*item))) for item in res]
+
 
 def _get_unchanged_count(text):
     """
@@ -88,7 +98,6 @@ def _get_unchanged_count(text):
     text = text.replace("|raw_start|", "").replace("|raw_end|", "")
 
     text = utils.remove_punctuation(text, remove_spaces=False, do_lower=False, exclude=exclude)
-
 
     start_pattern = "<"
     end_pattern = ">"
@@ -113,6 +122,7 @@ def _get_unchanged_count(text):
             unchanged_count += 1
     return unchanged_count
 
+
 def _get_replacement_count(text):
     """
     returns number of token replacements
@@ -120,6 +130,7 @@ def _get_replacement_count(text):
     start_pattern = "<"
     end_pattern = ">"
     return min(text.count(start_pattern), text.count(end_pattern))
+
 
 def threshold(norm_texts_weights, unchanged=True, replacement=True):
     """
@@ -141,7 +152,7 @@ def threshold(norm_texts_weights, unchanged=True, replacement=True):
         for example in norm_texts_weights:
             texts = example[0]
             counts = [f(t) for t in texts]
-            [logging.debug(f"{c} -- {t}") for t,c in zip(texts, counts)]
+            [logging.debug(f"{c} -- {t}") for t, c in zip(texts, counts)]
             target_count = min(counts) if use_min else max(counts)
             filtered_texts = []
             filtered_weights = []
@@ -167,7 +178,6 @@ def threshold(norm_texts_weights, unchanged=True, replacement=True):
     return norm_texts_weights
 
 
-
 if __name__ == "__main__":
     args = parser.parse_args()
 
@@ -185,7 +195,7 @@ if __name__ == "__main__":
     models = model_utils.init_models(model_name_list=args.model_name)
     input_fs = input_f.split(",")
     print("LOAD DATA...")
-    inputs, targets, _, _ = utils.load_data(input_fs)        
+    inputs, targets, _, _ = utils.load_data(input_fs)
     pre_inputs, pre_targets = utils.clean_pre_norm(dataset=args.dataset, inputs=inputs, targets=targets)
 
     print("INIT WFST...")
@@ -193,17 +203,16 @@ if __name__ == "__main__":
         input_case="cased", lang=lang, cache_dir=args.cache_dir, lm=True, overwrite_cache=args.overwrite_cache
     )
     print("APPLYING NORMALIZATION RULES...")
-    p_file = f"norm_texts_weights_{args.n_tagged}_{os.path.basename(args.data)}_{args.context_len}_{args.threshold}.pkl"
+    p_file = (
+        f"norm_texts_weights_{args.n_tagged}_{os.path.basename(args.data)}_{args.context_len}_{args.threshold}.pkl"
+    )
 
     if not os.path.exists(p_file) or args.regenerate_pkl:
         print(f"Creating WFST and saving to {p_file}")
 
         def __process_batch(batch_idx, batch, dir_name):
             normalized = [
-                normalizer.normalize(
-                    x, n_tagged=args.n_tagged, punct_post_process=True
-                )
-                for x in tqdm(batch)
+                normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=True) for x in tqdm(batch)
             ]
 
             with open(f"{dir_name}/{batch_idx}.p", "wb") as handle:
@@ -231,12 +240,9 @@ if __name__ == "__main__":
         #     batch_f = f"{tmp_dir}/{batch_id}.pkl"
         #     norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
 
-
         norm_texts_weights = []
         for x in tqdm(pre_inputs):
-            norm_texts_weights.append(normalizer.normalize(
-                    x, n_tagged=args.n_tagged, punct_post_process=False
-                ))
+            norm_texts_weights.append(normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False))
         logging.debug("----norm_texts_weights----")
         logging.debug(norm_texts_weights)
         with open(p_file, "wb") as handle:
@@ -244,7 +250,6 @@ if __name__ == "__main__":
     else:
         print(f"Loading WFST from {p_file}")
         norm_texts_weights = pickle.load(open(p_file, "rb"))
-
 
     print("THRESHOLDING...")
     # apply weights threshold to reduce number of options
@@ -258,33 +263,38 @@ if __name__ == "__main__":
     norm_texts_weights = threshold(norm_texts_weights)
 
     print("POST PROCESSING...")
-    post_targets, post_norm_texts_weights = utils.clean_post_norm(dataset=args.dataset, inputs=pre_inputs, targets=pre_targets, norm_texts=norm_texts_weights)
+    post_targets, post_norm_texts_weights = utils.clean_post_norm(
+        dataset=args.dataset, inputs=pre_inputs, targets=pre_targets, norm_texts=norm_texts_weights
+    )
 
     print("GETTING LABELS...")
     labels = utils.get_labels(targets=post_targets, norm_texts_weights=post_norm_texts_weights)
 
     examples_with_no_labels_among_wfst = [i for i, x in enumerate(labels) if 1 not in x]
-        
+
     print("GATHERING STATS...")
     model_stats = {m: 0 for m in models}
     gt_in_options = 0
     for i, example in tqdm(enumerate(zip(post_norm_texts_weights, labels))):
         data, curr_labels = example
         assert len(data[0]) == len(curr_labels)
-        df = rank(sentences=data[0], labels=curr_labels, models=models, context_len=args.context_len if args.context_len is not None and args.context_len >= 0 else None, do_lower=True)
+        df = rank(
+            sentences=data[0],
+            labels=curr_labels,
+            models=models,
+            context_len=args.context_len if args.context_len is not None and args.context_len >= 0 else None,
+            do_lower=True,
+        )
         df['sent'] = df['sent'].apply(lambda x: utils.remove_whitelist_boudaries(x))
         df["weights"] = data[1]
 
         do_print = False
 
-
         for model in models:
             # one hot vector for predictions, 1 for the best score option
             df[f"{model}_pred"] = (df[model] == min(df[model])).astype(int)
             # add constrain when multiple correct labels per example
-            pred_is_correct = min(
-                sum((df["labels"] == df[f"{model}_pred"]) & df["labels"] == 1), 1
-            )
+            pred_is_correct = min(sum((df["labels"] == df[f"{model}_pred"]) & df["labels"] == 1), 1)
 
             if not pred_is_correct:
                 do_print = True

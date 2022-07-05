@@ -144,7 +144,7 @@ class NormalizerWithAudio(Normalizer):
             if self.lang == "en":
                 # this to keep arpabet phonemes in the list of options
                 if "[" in text and "]" in text:
-                    
+
                     lattice = rewrite.rewrite_lattice(text, self.tagger.fst)
                 else:
                     try:
