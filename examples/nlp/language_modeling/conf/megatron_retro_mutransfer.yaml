@@ -185,6 +185,7 @@ delta_model:
 
 
 model:
+  shape_file: null  # the path to the shape file
   # model parallelism 
   micro_batch_size: 4
   tensor_model_parallel_size: 1

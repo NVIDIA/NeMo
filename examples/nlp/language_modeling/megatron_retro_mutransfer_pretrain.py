@@ -18,6 +18,7 @@ from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
+from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shapes
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
@@ -76,7 +77,8 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     model = MegatronRetrievalModel(cfg.model, trainer)
-
+    set_base_shapes(model, cfg.model.shape_file, rescale_params=False)
+    trainer.fit(model)
 
 
 if __name__ == '__main__':
