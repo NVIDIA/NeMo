@@ -14,7 +14,12 @@
 
 """Transformer based language model."""
 
+import random
+
+import torch
+
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -22,6 +27,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     attn_mask_postprocess,
     build_attention_mask_3d,
 )
+from nemo.core.classes.exportable import Exportable
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -38,7 +44,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTransformerDecoderModule"]
 
 
-class MegatronTransformerDecoderModule(MegatronModule):
+class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecoderModule):
     """Transformer decoder model.
     """
 
@@ -201,3 +207,24 @@ class MegatronTransformerDecoderModule(MegatronModule):
         state_dict_ = state_dict_self_attention
 
         self.model.load_state_dict(state_dict_, strict=strict)
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+
+        enc_output = torch.randint(
+            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=sample.device, dtype=torch.float32
+        )
+        enc_attn_mask = torch.tensor([[1 for _ in range(seq_len)]]).to(sample.device)
+
+        dec_len = random.randint(1, 10)
+        dec_input = torch.randint(
+            low=0, high=1000, size=(max_batch, dec_len, max_dim), device=sample.device, dtype=torch.float32
+        )
+        dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(sample.device)
+
+        return (dec_input, dec_attn_mask, enc_output, enc_attn_mask)

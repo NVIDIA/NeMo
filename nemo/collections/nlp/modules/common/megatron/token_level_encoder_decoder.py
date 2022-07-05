@@ -20,6 +20,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder impor
     MegatronTransformerEncoderDecoderModule,
 )
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_tokens_head_module import MegatronTokensHeadModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
@@ -28,6 +29,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.core.classes.exportable import Exportable
 
 try:
     from apex.transformer import tensor_parallel
@@ -43,7 +45,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTokenLevelHead", "MegatronTokenLevelEncoderDecoderModule"]
 
 
-class MegatronTokenLevelHead(MegatronModule):
+class MegatronTokenLevelHead(MegatronModule, Exportable, MegatronTokensHeadModule):
     """Masked LM head for token-based encoder-decoder models (e.g., T5)
 
     Arguments:
@@ -59,10 +61,28 @@ class MegatronTokenLevelHead(MegatronModule):
         self.bias.partition_dim = 0
         self.bias.stride = 1
         self.parallel_output = parallel_output
+        self.vocab_size = mpu_vocab_size
 
     def forward(self, hidden_states, word_embeddings_weight):
         output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
         return output
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+
+        sample_inp = torch.randint(
+            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=sample.device, dtype=torch.float32
+        )
+        embeddings = torch.randint(
+            low=0, high=1, size=(self.vocab_size, max_dim), device=sample.device, dtype=torch.float32
+        )
+
+        return (sample_inp, embeddings)
 
 
 # TODO: add soft prompts as an Embedding sub-class

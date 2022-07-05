@@ -168,7 +168,10 @@ try:
             return None
 
         dev = next(n.parameters()).device
-        mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        if isinstance(n, FusedLayerNorm) or isinstance(n, MixedFusedLayerNorm):
+            mod = nn.LayerNorm(n.normalized_shape, eps=n.eps, elementwise_affine=n.elementwise_affine,).to(dev)
+        elif isinstance(n, FastLayerNorm):
+            mod = nn.LayerNorm(n.weight.shape, eps=n.epsilon, elementwise_affine=True, dtype=torch.float16,).to(dev)
 
         n_state = n.state_dict()
         mod.load_state_dict(n_state)

@@ -896,6 +896,20 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
+
+        # filter invalid tokens from the predicted tokens -> first <unk>, else <pad>
+        if (predicted_tokens_dec >= tokenizer.vocab_size).sum() > 0:
+            # filter invalid tokens from the predicted tokens -> first <unk>, else <pad>
+            if hasattr(tokenizer, 'unk_id') and tokenizer.unk_id >= 0:
+                predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.unk_id
+            elif hasattr(tokenizer, 'pad_id') and tokenizer.pad_id >= 0:
+                predicted_tokens_dec[predicted_tokens_dec >= tokenizer.vocab_size] = tokenizer.pad_id
+            else:
+                # throw an error
+                raise ValueError(
+                    "Found a predicted token > tokenizer's vocab size. Tried replacing with <unk> or <pad>, but tokenizer had neither."
+                )
+
         return predicted_tokens_dec, log_probs
 
     def complete(self, request: Dict):

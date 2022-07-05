@@ -14,6 +14,9 @@
 
 """Transformer based language model."""
 
+import torch
+
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_module import MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -21,6 +24,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     attn_mask_postprocess,
     build_attention_mask_3d,
 )
+from nemo.core.classes.exportable import Exportable
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType
@@ -35,7 +39,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTransformerEncoderModule"]
 
 
-class MegatronTransformerEncoderModule(MegatronModule):
+class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncoderModule):
     """Transformer encoder model.
     """
 
@@ -190,3 +194,17 @@ class MegatronTransformerEncoderModule(MegatronModule):
         state_dict_ = state_dict_self_attention
 
         self.model.load_state_dict(state_dict_, strict=strict)
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        """
+        Generates input examples for tracing etc.
+        Returns:
+            A tuple of input examples.
+        """
+        sample = next(self.parameters())
+        sz = (max_batch, seq_len, max_dim)
+        input_ids = torch.randint(low=0, high=1000, size=sz, device=sample.device, dtype=torch.float32)
+        encoder_mask = torch.randint(
+            low=0, high=1, size=(max_batch, seq_len), device=sample.device, dtype=torch.float32
+        )
+        return tuple([input_ids, encoder_mask])
