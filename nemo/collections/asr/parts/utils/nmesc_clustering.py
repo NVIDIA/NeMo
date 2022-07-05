@@ -1062,7 +1062,7 @@ def COSclustering(
     if emb.shape[0] == 1:
         return torch.zeros((1,), dtype=torch.int32).cpu().numpy()
     elif emb.shape[0] <= max(enhanced_count_thres, min_samples_for_NMESC) and oracle_num_speakers is None:
-        est_num_of_spk_enhanced = getEnhancedSpeakerCount(NMESC, emb, cuda)
+        est_num_of_spk_enhanced = getEnhancedSpeakerCount(emb, cuda)
     else:
         est_num_of_spk_enhanced = None
 
