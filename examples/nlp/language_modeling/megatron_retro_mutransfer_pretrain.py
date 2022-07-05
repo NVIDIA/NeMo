@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shap
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
+from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
@@ -78,6 +79,10 @@ def main(cfg) -> None:
 
     model = MegatronRetrievalModel(cfg.model, trainer)
     set_base_shapes(model, cfg.model.shape_file, rescale_params=False)
+
+    for param in model.parameters():
+        normal_(param, 0, cfg.model.init_method_std)
+
     trainer.fit(model)
 
 
