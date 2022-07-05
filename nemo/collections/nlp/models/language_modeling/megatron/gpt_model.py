@@ -46,6 +46,7 @@ def post_language_model_processing(
     fp16_lm_cross_entropy,
     return_logits=False,
     sequence_parallel=False,
+    gradient_accumulation_fusion=False,
 ):
     if get_key_value:
         lm_output, presents = lm_output
@@ -53,7 +54,13 @@ def post_language_model_processing(
     # Output. Format is [s b h]
     if forward_method_parallel_output is not None:
         parallel_output = forward_method_parallel_output
-    output = parallel_lm_logits(lm_output, logit_weights, parallel_output, sequence_parallel=sequence_parallel)
+    output = parallel_lm_logits(
+            lm_output,
+            logit_weights,
+            parallel_output,
+            sequence_parallel=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
+    )
 
     if get_key_value:
         output = [output, presents]
@@ -112,6 +119,7 @@ class GPTModel(MegatronModule):
         openai_gelu=False,
         onnx_safe=False,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
 
         super(GPTModel, self).__init__()
@@ -121,6 +129,7 @@ class GPTModel(MegatronModule):
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = sequence_parallel
+        self.gradient_accumulation_fusion = gradient_accumulation_fusion,
 
         if kv_channels is None:
             assert (
@@ -158,6 +167,7 @@ class GPTModel(MegatronModule):
             openai_gelu=openai_gelu,
             onnx_safe=onnx_safe,
             sequence_parallel=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         self.initialize_word_embeddings(
@@ -205,6 +215,7 @@ class GPTModel(MegatronModule):
                 self.fp16_lm_cross_entropy,
                 return_logits=encoder_input is not None,
                 sequence_parallel=self.sequence_parallel,
+                gradient_accumulation_fusion=self.gradient_accumulation_fusion,
             )
         else:
             return lm_output

@@ -125,6 +125,7 @@ class ParallelMLP(MegatronModule):
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -150,6 +151,7 @@ class ParallelMLP(MegatronModule):
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
             no_async_tensor_model_parallel_allreduce=True,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         if activation in ['geglu', 'reglu', 'swiglu']:
@@ -165,6 +167,7 @@ class ParallelMLP(MegatronModule):
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 no_async_tensor_model_parallel_allreduce=True,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
         glu_activation_family = activation in ['reglu', 'swiglu']
@@ -215,6 +218,7 @@ class ParallelMLP(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         # Normformer normalization
@@ -495,6 +499,7 @@ class ParallelAttention(MegatronModule):
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -527,6 +532,7 @@ class ParallelAttention(MegatronModule):
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 no_async_tensor_model_parallel_allreduce=True,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
             assert attention_type == AttnType.cross_attn
@@ -538,6 +544,7 @@ class ParallelAttention(MegatronModule):
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 no_async_tensor_model_parallel_allreduce=True,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
             self.key_value = ColumnLinear(
@@ -548,6 +555,7 @@ class ParallelAttention(MegatronModule):
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
                 no_async_tensor_model_parallel_allreduce=True,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
         self.core_attention = CoreAttention(
@@ -575,6 +583,7 @@ class ParallelAttention(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         # Inference key-value memory
@@ -1028,6 +1037,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
         headscale=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelChunkedCrossAttention, self).__init__()
         self.cross_attention = ParallelAttention(
@@ -1050,6 +1060,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             megatron_legacy=megatron_legacy,
             bias=bias,
             headscale=headscale,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
         self.chunk_size = chunk_size
 
@@ -1216,6 +1227,7 @@ class ParallelTransformerLayer_(MegatronModule):
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1284,6 +1296,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 headscale=headscale,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
@@ -1334,6 +1347,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 headscale=headscale,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1374,6 +1388,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 chunk_size=chunk_size,
                 bias=bias,
                 headscale=headscale,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1409,6 +1424,7 @@ class ParallelTransformerLayer_(MegatronModule):
             layernorm_epsilon=layernorm_epsilon,
             persist_layer_norm=persist_layer_norm,
             sequence_parallel=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
@@ -1705,6 +1721,7 @@ class ParallelTransformer(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1805,6 +1822,7 @@ class ParallelTransformer(MegatronModule):
                 headscale=headscale,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
                 sequence_parallel=sequence_parallel,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:

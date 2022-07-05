@@ -72,6 +72,7 @@ def get_language_model(
     megatron_legacy=False,
     activations_checkpoint_granularity=None,
     sequence_parallel=False,
+    gradient_accumulation_fusion=False,
 ):
     """Build language model and return along with the key to save."""
 
@@ -121,6 +122,7 @@ def get_language_model(
         megatron_legacy=megatron_legacy,
         activations_checkpoint_granularity=activations_checkpoint_granularity,
         sequence_parallel=sequence_parallel,
+        gradient_accumulation_fusion=gradient_accumulation_fusion,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -392,6 +394,7 @@ class TransformerLanguageModel(MegatronModule):
         megatron_legacy=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -460,6 +463,7 @@ class TransformerLanguageModel(MegatronModule):
             megatron_legacy=megatron_legacy,
             sequence_parallel=sequence_parallel,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
         self._encoder_key = 'encoder'
 
@@ -493,6 +497,7 @@ class TransformerLanguageModel(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 sequence_parallel=sequence_parallel,
                 activations_checkpoint_granularity=activations_checkpoint_granularity,
+                gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
             self._decoder_key = 'decoder'
 

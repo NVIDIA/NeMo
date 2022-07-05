@@ -299,7 +299,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
-            if param.grad.data is not None:
+            if param.grad is not None:
                 if main_param.grad is None:
                     main_param.grad = param.grad.float()
                 else:

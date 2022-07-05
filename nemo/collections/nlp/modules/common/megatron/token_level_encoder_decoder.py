@@ -59,9 +59,16 @@ class MegatronTokenLevelHead(MegatronModule):
         self.bias.partition_dim = 0
         self.bias.stride = 1
         self.parallel_output = parallel_output
+        self.gradient_accumulation_fusion = gradient_accumulation_fusion,
 
     def forward(self, hidden_states, word_embeddings_weight):
-        output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
+        output = parallel_lm_logits(
+                hidden_states,
+                word_embeddings_weight,
+                self.parallel_output,
+                bias=self.bias
+                gradient_accumulation_fusion = self.gradient_accumulation_fusion,
+        )
         return output
 
 
