@@ -824,6 +824,9 @@ def prepare_lr_scheduler(
     if add_max_args_flag and scheduler_config.get('name', '') != "ExponentialLR":
         scheduler_args['max_steps'] = max_steps
 
+    if scheduler_config.get('name', '') == "CyclicLR":
+        del scheduler_args['max_steps']
+
     # Get the scheduler class from the config
     scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
 
@@ -865,7 +868,7 @@ def compute_max_steps(
         logging.warning(
             "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
-        # TODO: Master verion, not in pytorch 1.6.0
+        # TODO: Master version, not in pytorch 1.6.0
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)
