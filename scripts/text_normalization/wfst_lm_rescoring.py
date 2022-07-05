@@ -1,4 +1,4 @@
-# Copyright 2022, NVIDIA CORPORATION & AFFILIATION.  All rights reserved.
+# Copyright 2021, NVIDIA CORPORATION & AFFILIATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -97,11 +97,10 @@ def _get_unchanged_count(text):
     # remove raw text boundaries
     text = text.replace("|raw_start|", "").replace("|raw_end|", "")
 
-    text = utils.remove_punctuation(text, remove_spaces=False, do_lower=False, exclude=exclude)
-
     start_pattern = "<"
     end_pattern = ">"
 
+    text = utils.remove_punctuation(text, remove_spaces=False, do_lower=False, exclude=exclude)
     text_clean = ""
     for ch in text:
         if ch.isalpha() or ch.isspace() or ch in [start_pattern, end_pattern]:
@@ -211,10 +210,11 @@ if __name__ == "__main__":
         print(f"Creating WFST and saving to {p_file}")
 
         def __process_batch(batch_idx, batch, dir_name):
-            normalized = [
-                normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=True) for x in tqdm(batch)
-            ]
-
+            normalized = []
+            for x in tqdm(batch):
+                ns, ws = normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False)
+                ns = [re.sub(r"<(.+?)>", r"< \1 >", x) for x in ns]
+                normalized.append((ns, ws))
             with open(f"{dir_name}/{batch_idx}.p", "wb") as handle:
                 pickle.dump(normalized, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -242,7 +242,9 @@ if __name__ == "__main__":
 
         norm_texts_weights = []
         for x in tqdm(pre_inputs):
-            norm_texts_weights.append(normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False))
+            options, weights = normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False)
+            options = [re.sub(r"<(.+?)>", r"< \1 >", x) for x in options]
+            norm_texts_weights.append((options, weights))
         logging.debug("----norm_texts_weights----")
         logging.debug(norm_texts_weights)
         with open(p_file, "wb") as handle:
@@ -250,6 +252,7 @@ if __name__ == "__main__":
     else:
         print(f"Loading WFST from {p_file}")
         norm_texts_weights = pickle.load(open(p_file, "rb"))
+    
 
     print("THRESHOLDING...")
     # apply weights threshold to reduce number of options
@@ -296,7 +299,7 @@ if __name__ == "__main__":
             # add constrain when multiple correct labels per example
             pred_is_correct = min(sum((df["labels"] == df[f"{model}_pred"]) & df["labels"] == 1), 1)
 
-            if not pred_is_correct:
+            if not pred_is_correct or logging.getEffectiveLevel() <= logging.DEBUG:
                 do_print = True
 
             if do_print:

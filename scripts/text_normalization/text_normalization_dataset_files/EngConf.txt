@@ -46,6 +46,7 @@ Text me at six five zero-four five one-one two three four~~1
 
 Boeing 737~~RAW
 Boeing seven hundred thirty seven~~1
+Boeing seven hundred and thirty seven~~1
 
 The equation is 35-20=15~~RAW
 The equation is thirty five - twenty = fifteen~~0
