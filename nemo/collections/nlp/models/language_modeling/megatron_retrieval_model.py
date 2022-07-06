@@ -12,16 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from typing import Optional
-
-import torch
 import copy
-import hydra
-from nemo.core import optim
 import inspect
+import re
 from typing import Callable, Dict, List, Optional, Union
-from nemo.core.optim import prepare_lr_scheduler
+
+import hydra
+import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
@@ -36,6 +33,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import (
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
+from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam
 from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
     MegatronRetrievalTokenLevelEncoderDecoderModule,
 )
@@ -45,8 +43,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_params_for_weight_decay_optimization,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
+from nemo.core import optim
+from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 try:
@@ -570,7 +569,9 @@ class MegatronRetrievalModel(MegatronBaseModel):
                     else:
                         optimizer_config = {}
                     optimizer_config.update(optimizer_args)
-                    optimizer_instance = MuAdam(self._optimizer_param_groups, impl=optimizer_instance, decoupled_wd=True, **optimizer_config)
+                    optimizer_instance = MuAdam(
+                        self._optimizer_param_groups, impl=optimizer_instance, decoupled_wd=True, **optimizer_config
+                    )
 
                     # optimizer_instance = hydra.utils.instantiate(
                     #     optimizer_cls, self._optimizer_param_groups, **optimizer_config

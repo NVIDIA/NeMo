@@ -20,7 +20,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_d
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.mup.layer import MuReadout
-
 from nemo.collections.nlp.modules.common.megatron.utils import (
     ApexGuardDefaults,
     build_position_ids,

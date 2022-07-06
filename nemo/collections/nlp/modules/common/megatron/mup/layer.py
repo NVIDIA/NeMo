@@ -15,9 +15,7 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import (
-    parallel_lm_logits,
-)
+from nemo.collections.nlp.modules.common.megatron.utils import parallel_lm_logits
 
 
 class MuReadout(MegatronModule):
@@ -43,7 +41,9 @@ class MuReadout(MegatronModule):
 
     def forward(self, hidden_states, word_embeddings_weight):
         width_mult = word_embeddings_weight.infshape.width_mult()
-        output = parallel_lm_logits(hidden_states / width_mult, word_embeddings_weight, self.parallel_output, bias=self.bias)
+        output = parallel_lm_logits(
+            hidden_states / width_mult, word_embeddings_weight, self.parallel_output, bias=self.bias
+        )
         return output
 
 
