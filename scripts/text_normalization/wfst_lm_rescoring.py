@@ -201,6 +201,7 @@ if __name__ == "__main__":
     normalizer = NormalizerWithAudio(
         input_case="cased", lang=lang, cache_dir=args.cache_dir, lm=True, overwrite_cache=args.overwrite_cache
     )
+
     print("APPLYING NORMALIZATION RULES...")
     p_file = (
         f"norm_texts_weights_{args.n_tagged}_{os.path.basename(args.data)}_{args.context_len}_{args.threshold}.pkl"
@@ -222,23 +223,23 @@ if __name__ == "__main__":
             return batch_idx
 
         # to save intermediate results to a file
-        # batch = min(len(pre_inputs), args.batch_size)
+        batch = min(len(pre_inputs), args.batch_size)
 
-        # tmp_dir = f"/tmp/{os.path.basename(args.data)}"
-        # if os.path.exists(tmp_dir):
-        #     shutil.rmtree(tmp_dir)
-        # os.makedirs(tmp_dir, exist_ok=True)
+        tmp_dir = f"/tmp/{os.path.basename(args.data)}"
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        os.makedirs(tmp_dir, exist_ok=True)
 
-        # batch_ids = Parallel(n_jobs=args.n_jobs)(
-        #     delayed(__process_batch)(idx, pre_inputs[i: i + batch], tmp_dir)
-        #     for idx, i in enumerate(range(0, len(pre_inputs), batch))
-        # )
+        batch_ids = Parallel(n_jobs=args.n_jobs)(
+            delayed(__process_batch)(idx, pre_inputs[i : i + batch], tmp_dir)
+            for idx, i in enumerate(range(0, len(pre_inputs), batch))
+        )
 
-        # # aggregate all intermediate results
-        # norm_texts_weights = []
-        # for batch_id in batch_ids:
-        #     batch_f = f"{tmp_dir}/{batch_id}.pkl"
-        #     norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
+        # aggregate all intermediate results
+        norm_texts_weights = []
+        for batch_id in batch_ids:
+            batch_f = f"{tmp_dir}/{batch_id}.p"
+            norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
 
         norm_texts_weights = []
         for x in tqdm(pre_inputs):
@@ -252,7 +253,6 @@ if __name__ == "__main__":
     else:
         print(f"Loading WFST from {p_file}")
         norm_texts_weights = pickle.load(open(p_file, "rb"))
-    
 
     print("THRESHOLDING...")
     # apply weights threshold to reduce number of options
