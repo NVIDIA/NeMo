@@ -609,7 +609,7 @@ class ModelPT(LightningModule, Model):
             In the config file, add 'optim_param_group' to support different LRs 
             for different components (unspecified params will use the default LR):
             model:
-                optim_param_group:
+                optim_param_groups:
                     encoder: 1e-4
                     decoder: 1e-3
                 optim:
