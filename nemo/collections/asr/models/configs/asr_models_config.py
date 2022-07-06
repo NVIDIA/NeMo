@@ -60,7 +60,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     # bucketing params
     bucketing_strategy: str = "synced_randomized"
     bucketing_batch_size: Optional[Any] = None
-    bucket_weights: List[int] = None
+    bucket_weights: Optional[List[int]] = None
 
 
 @dataclass
