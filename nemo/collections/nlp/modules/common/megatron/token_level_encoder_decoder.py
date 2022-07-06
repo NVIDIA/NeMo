@@ -242,7 +242,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                             relative_position_max_distance=relative_attention_max_distance,
                             bidirectional=True
                         )
-                        self.decoder_cross_attention_relative_position_embedding = "decoder_cross_attention_relative_position_embedding"
+                        self._decoder_cross_attention_relative_position_embedding_key = "decoder_cross_attention_relative_position_embedding"
 
             decoder = get_decoder_model(
                 arch=decoder_arch,
