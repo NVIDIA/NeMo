@@ -137,7 +137,7 @@ class MegatronBaseModel(NLPModel):
                 f'Please set model.cuda_device_max_connections=1 for models larger than 20B parameters.'
             )
         if cuda_device_max_connections:
-            os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = cuda_device_max_connections
+            os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = str(cuda_device_max_connections)
 
     def _build_tokenizer(self):
         """
