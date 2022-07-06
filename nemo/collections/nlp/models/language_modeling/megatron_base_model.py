@@ -14,6 +14,7 @@
 
 
 import os
+from omegaconf import open_dict
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -61,6 +62,8 @@ class MegatronBaseModel(NLPModel):
 
         super().__init__(cfg, trainer=trainer, no_lm_init=no_lm_init)
 
+        self._validate_config()
+
         # used in NVIDIA NGC PyTorch containers
         self._enable_nvidia_optimizations()
 
@@ -97,7 +100,7 @@ class MegatronBaseModel(NLPModel):
     def _enable_nvidia_optimizations(self):
         "These optimizations are present in NVIDIA NGC PyTorch Containers"
 
-        # Version check
+        # NVIDIA container version check
         nvidia_torch_version = os.getenv('NVIDIA_PYTORCH_VERSION', None)
         if nvidia_torch_version is not None:
             NVIDIA_TORCH_MAJOR = int(nvidia_torch_version.split('.')[0])
@@ -120,9 +123,21 @@ class MegatronBaseModel(NLPModel):
                 torch._C._jit_set_texpr_fuser_enabled(False)
                 torch._C._jit_set_nvfuser_enabled(True)
                 torch._C._debug_set_autodiff_subgraph_inlining(False)
+
         else:
-            # Not a Nvidia container. Dependency check is on users
+            # Not a Nvidia container. NVFUSER Dependency check is on users
             pass
+
+        # Overlap the execution of TP-collective kernels with compute kernels
+        cuda_device_max_connections = self.cfg.get('cuda_device_max_connections', None)
+        if cuda_device_max_connections > 1:
+            logging.info(
+                f'Found cuda_device_max_connections: {cuda_device_max_connections} is greater than 1. '
+                f'This may negatively affect training performance of large models. '
+                f'Please set model.cuda_device_max_connections=1 for models larger than 20B parameters.'
+            )
+        if cuda_device_max_connections:
+            os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = cuda_device_max_connections
 
     def _build_tokenizer(self):
         """
@@ -277,3 +292,13 @@ class MegatronBaseModel(NLPModel):
             return self._optimizer
         else:
             return [self._optimizer], [self._scheduler]
+
+    def _validate_config(self):
+        """ Certain configurations might be incompatible or discouraged. We can check for them here."""
+
+        if self.cfg.get('sequence_parallel', False) and self.cfg.get('tensor_model_parallel_size', 1) == 1:
+            logging.info(
+                "Sequence parallel should only be used with tensor parallel size > 1. Setting sequence parallel to False"
+            )
+            with open_dict(self.cfg):
+                self.cfg.sequence_parallel = False
