@@ -55,6 +55,9 @@ try:
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
         forward_backward_pipelining_without_interleaving,
     )
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_with_interleaving import (
+        _forward_backward_pipelining_with_interleaving,
+    )
     from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import forward_backward_no_pipelining
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
@@ -81,7 +84,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # TODO: Not sure how to use lists of modules with PTL.
         # This means we can only use pipeline parallelism without the interleaved schedule.
-        self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
+        # self.model = build_model(model_provider_func=self.model_provider_func, wrap_with_ddp=False)[0]
+        self.model = build_model(
+            model_provider_func=self.model_provider_func,
+            wrap_with_ddp=False,
+            virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+        )
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
         # self.setup_optimizer_param_groups()
@@ -193,16 +201,28 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.model,
-                forward_only=False,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
-                sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            )
+            if self.cfg.get('virtual_pipeline_model_parallel_size', 1) > 1:
+                losses_reduced_per_micro_batch = _forward_backward_pipelining_with_interleaving(
+                    forward_step_func=self.get_forward_output_and_loss_func(),
+                    batch=batch_for_pipeline,
+                    model=self.model,
+                    forward_only=False,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                    grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                )
+            else:
+                losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                    forward_step_func=self.get_forward_output_and_loss_func(),
+                    batch=batch_for_pipeline,
+                    model=self.model,
+                    forward_only=False,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                    grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                )
         else:
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
             if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
