@@ -606,7 +606,7 @@ class ModelPT(LightningModule, Model):
             See https://pytorch.org/docs/stable/optim.html for more information.
             By default, ModelPT will use self.parameters().
             Override this method to add custom param groups.
-            In the config file, add 'optim_param_group' to support different LRs 
+            In the config file, add 'optim_param_groups' to support different LRs 
             for different components (unspecified params will use the default LR):
             model:
                 optim_param_groups:
