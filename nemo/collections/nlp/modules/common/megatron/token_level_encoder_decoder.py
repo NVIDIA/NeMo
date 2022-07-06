@@ -60,16 +60,9 @@ class MegatronTokenLevelHead(MegatronModule):
         self.bias.partition_dim = 0
         self.bias.stride = 1
         self.parallel_output = parallel_output
-        self.gradient_accumulation_fusion = gradient_accumulation_fusion,
 
     def forward(self, hidden_states, word_embeddings_weight):
-        output = parallel_lm_logits(
-                hidden_states,
-                word_embeddings_weight,
-                self.parallel_output,
-                bias=self.bias
-                gradient_accumulation_fusion = self.gradient_accumulation_fusion,
-        )
+        output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
         return output
 
 
@@ -333,7 +326,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         """
         Return value is per token / per dimension (i.e., non collapsed loss value)
         """
-        encoder_self_attention_relative_position_bias, decoder_self_attention_relative_position_bias, decoder_cross_attention_relative_position_bias = None, None, None
+        (
+            encoder_self_attention_relative_position_bias,
+            decoder_self_attention_relative_position_bias,
+            decoder_cross_attention_relative_position_bias,
+        ) = (None, None, None)
 
         if enc_input is None:
             if self.pre_process and self.add_encoder:
@@ -346,8 +343,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                 if self.position_embedding_type == 'relative':
                     encoder_self_attention_relative_position_bias, _ = self.encoder_relative_position_embedding(
-                        encoder_seq_length=enc_input_ids.size(1),
-                        decoder_seq_length=None
+                        encoder_seq_length=enc_input_ids.size(1), decoder_seq_length=None
                     )
             else:
                 enc_input = None
@@ -363,9 +359,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 
                 if self.position_embedding_type == 'relative':
-                    decoder_self_attention_relative_position_bias, decoder_cross_attention_relative_position_bias = self.decoder_relative_position_embedding(
-                        encoder_seq_length=enc_input_ids.size(1),
-                        decoder_seq_length=dec_input_ids.size(1)
+                    (
+                        decoder_self_attention_relative_position_bias,
+                        decoder_cross_attention_relative_position_bias,
+                    ) = self.decoder_relative_position_embedding(
+                        encoder_seq_length=enc_input_ids.size(1), decoder_seq_length=dec_input_ids.size(1)
                     )
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
@@ -390,7 +388,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_output, enc_output = output  # [s, b, h]
                 # project decoder output to vocabulary-size dimensions
                 token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
-                import ipdb; ipdb.set_trace()
 
                 if labels is not None:
                     # [b, s] -> [s, b]

@@ -282,6 +282,7 @@ class CoreAttention(MegatronModule):
         layer_number,
         num_attention_heads,
         hidden_size,
+        attention_type=AttnType.self_attn,
         attn_mask_type=AttnMaskType.padding,
         precision=16,
         apply_query_key_layer_scaling=True,
@@ -303,6 +304,7 @@ class CoreAttention(MegatronModule):
         if self.apply_query_key_layer_scaling:
             self.attention_softmax_in_fp32 = True
         self.layer_number = max(1, layer_number)
+        self.attention_type = attention_type
         self.attn_mask_type = attn_mask_type
         self.sequence_parallel = sequence_parallel
 
@@ -319,6 +321,9 @@ class CoreAttention(MegatronModule):
         self.hidden_size_per_partition = safe_divide(projection_size, world_size)
         self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
         self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
+        self.num_attention_heads_partition_offset = (
+            self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
+        )
 
         self.headscale = headscale
         if headscale:
@@ -356,6 +361,7 @@ class CoreAttention(MegatronModule):
         layer_past=None,
         get_key_value=False,
         rotary_pos_emb=None,
+        relative_position_bias=None,
     ):
 
         # ===================================
@@ -402,6 +408,15 @@ class CoreAttention(MegatronModule):
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
+
+        if relative_position_bias is not None and self.attention_type == AttnType.self_attn:
+            attention_scores += relative_position_bias[
+                :,
+                self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset
+                + self.num_attention_heads_per_partition,
+                : attention_scores.size(2),
+                : attention_scores.size(3),
+            ]
 
         # ==================================================
         # Update attention mask for inference. [b, np, sq, sk]
@@ -516,7 +531,9 @@ class ParallelAttention(MegatronModule):
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         self.hidden_size_per_attention_head = safe_divide(projection_size, num_attention_heads)
         self.num_attention_heads_per_partition = safe_divide(num_attention_heads, world_size)
-        self.num_attention_heads_partition_offset = self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
+        self.num_attention_heads_partition_offset = (
+            self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
+        )
 
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
@@ -559,6 +576,7 @@ class ParallelAttention(MegatronModule):
             layer_number=self.layer_number,
             num_attention_heads=num_attention_heads,
             hidden_size=hidden_size,
+            attention_type=self.attention_type,
             attn_mask_type=self.attn_mask_type,
             precision=precision,
             apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -592,7 +610,7 @@ class ParallelAttention(MegatronModule):
         self.layer_type = layer_type
 
     def _checkpointed_attention_forward(
-        self, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=None,
+        self, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=None, relative_position_bias=None
     ):
         """Forward method with activation checkpointing."""
 
@@ -602,13 +620,26 @@ class ParallelAttention(MegatronModule):
             value_layer = inputs[2]
             attention_mask = inputs[3]
             rotary_pos_emb = inputs[4]
+            relative_position_bias = inputs[5]
             output_ = self.core_attention(
-                query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=rotary_pos_emb
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
             )
             return output_
 
         hidden_states = tensor_parallel.checkpoint(
-            custom_forward, False, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb,
+            custom_forward,
+            False,
+            query_layer,
+            key_layer,
+            value_layer,
+            attention_mask,
+            rotary_pos_emb,
+            relative_position_bias,
         )
 
         return hidden_states
@@ -771,129 +802,30 @@ class ParallelAttention(MegatronModule):
             past_key, past_value = layer_past
             key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
             value_layer = torch.cat((past_value.type_as(value_layer), value_layer), dim=0)
+
         if get_key_value:
             present = (key_layer, value_layer)
 
-        # # ===================================
-        # # Raw attention scores. [b, np, s, s]
-        # # ===================================
-
-        # # [b, np, sq, sk]
-        # output_size = (query_layer.size(1), query_layer.size(2), query_layer.size(0), key_layer.size(0))
-
-        # # TODO: figure out how to do this
-        # # apply relative positional encoding (rotary embedding)
-        # if rotary_pos_emb is not None:
-        #     q_pos_emb, k_pos_emb = rotary_pos_emb
-
-        #     query_layer = apply_rotary_pos_emb(query_layer, q_pos_emb)
-        #     key_layer = apply_rotary_pos_emb(key_layer, k_pos_emb)
-        #     # TODO, can apply positional embedding to value_layer so it has
-        #     # absolute positional embedding.
-        #     # otherwise, only relative positional embedding takes effect
-        #     # value_layer = apply_rotary_pos_emb(value_layer, k_pos_emb)
-
-        # # [sq, b, np, hn] -> [sq, b * np, hn]
-        # query_layer = query_layer.view(output_size[2], output_size[0] * output_size[1], -1)
-        # # [sk, b, np, hn] -> [sk, b * np, hn]
-        # key_layer = key_layer.view(output_size[3], output_size[0] * output_size[1], -1)
-
-        # # preallocting result tensor: [b * np, sq, sk]
-        # matmul_result = torch.empty(
-        #     output_size[0] * output_size[1],
-        #     output_size[2],
-        #     output_size[3],
-        #     dtype=query_layer.dtype,
-        #     device=torch.cuda.current_device(),
-        # )
-
-        # # Raw attention scores. [b * np, sq, sk]
-        # matmul_result = torch.baddbmm(
-        #     matmul_result,
-        #     query_layer.transpose(0, 1),  # [b * np, sq, hn]
-        #     key_layer.transpose(0, 1).transpose(1, 2),  # [b * np, hn, sk]
-        #     beta=0.0,
-        #     alpha=(1.0 / self.norm_factor),
-        # )
-
-        # # change view to [b, np, sq, sk]
-        # attention_scores = matmul_result.view(*output_size)
-
-        # # ==================================================
-        # # Update attention mask for inference. [b, np, sq, sk]
-        # # ==================================================
-
-        # if get_key_value:
-        #     with torch.no_grad():
-        #         if layer_past is not None:
-        #             attention_mask = attention_mask[
-        #                 ..., attention_scores.size(3) - 1, : attention_scores.size(3)
-        #             ].unsqueeze(2)
-        #         else:
-        #             attention_mask = attention_mask[..., : attention_scores.size(3), : attention_scores.size(3)]
-
-        if relative_position_bias is not None and self.attention_type == AttnType.self_attn:
-            attention_scores += relative_position_bias[:, self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset + self.num_attention_heads_per_partition, : attention_scores.size(2), : attention_scores.size(3)]
-
-        # ===========================
-        # Attention probs and dropout
-        # ===========================
-
-        # # attention scores and attention mask [b, np, sq, sk]
-        # attention_probs = self.scale_mask_softmax(attention_scores, attention_mask)
-
-        # Currently if all key sequences are masked, attention will be uniformly distributed.
-        # E.g. attention_mask last dimension all True, attention prob is 1 / last_dim
-        # # The correct behavior should be paying zero attention to them
-        # issue is created at https://github.com/NVIDIA/apex/issues/1390
-        # following is a work around:
-        # all_k_masked = attention_mask.all(axis=-1)
-        # zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
-        # attention_probs = attention_probs * zero_attention_mask
-
-        # # This is actually dropping out entire tokens to attend to, which might
-        # # seem a bit unusual, but is taken from the original Transformer paper.
-        # with tensor_parallel.random.get_cuda_rng_tracker().fork():
-        #     attention_probs = self.attention_dropout(attention_probs)
-
-        # # =========================
-        # # Context layer. [sq, b, hp]
-        # # =========================
-
-        # # value_layer -> context layer.
-        # # [sk, b, np, hn] --> [b, np, sq, hn]
-
-        # # context layer shape: [b, np, sq, hn]
-        # output_size = (value_layer.size(1), value_layer.size(2), query_layer.size(0), value_layer.size(3))
-
-        # # change view [sk, b * np, hn]
-        # value_layer = value_layer.view(value_layer.size(0), output_size[0] * output_size[1], -1)
-
-        # # change view [b * np, sq, sk]
-        # attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
-
-        # # matmul: [b * np, sq, hn]
-        # context_layer = torch.bmm(attention_probs, value_layer.transpose(0, 1))
-
-        # # change view [b, np, sq, hn]
-        # context_layer = context_layer.view(*output_size)
-
-        # if self.headscale:
-        #     context_layer = context_layer * self.head_scale_tensor
-
-        # # [b, np, sq, hn] --> [sq, b, np, hn]
-        # context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
-
-        # # [sq, b, np, hn] --> [sq, b, hp]
-        # new_context_layer_shape = context_layer.size()[:-2] + (self.hidden_size_per_partition,)
-        # context_layer = context_layer.view(*new_context_layer_shape)
-
         if self.checkpoint_core_attention:
             context_layer = self._checkpointed_attention_forward(
-                query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
             )
         else:
-            context_layer = self.core_attention(query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb)
+            context_layer = self.core_attention(
+                query_layer,
+                key_layer,
+                value_layer,
+                attention_mask,
+                layer_past=layer_past,
+                get_key_value=get_key_value,
+                rotary_pos_emb=rotary_pos_emb,
+                relative_position_bias=relative_position_bias,
+            )
 
         # =================
         # Output. [sq, b, h]
