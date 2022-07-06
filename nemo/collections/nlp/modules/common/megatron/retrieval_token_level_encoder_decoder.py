@@ -345,7 +345,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
             # scale down the pre-decoder output by half
-            hidden = (hidden[0] * 0.5, hidden[1] * 0.5)
+            # hidden = (hidden[0] * 0.5, hidden[1] * 0.5)
             # stop passing through the gradients
             encoder_output = hidden[1].transpose(0, 1).contiguous()
 
@@ -362,8 +362,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 neighbors=neighbors,
             )
             #  scale down the retrieved emb output
-            if retrieved_emb is not None:
-                retrieved_emb = retrieved_emb * (1 / max(1, self.num_chunked_cross_attention))
+            # if retrieved_emb is not None:
+            #     retrieved_emb = retrieved_emb * (1 / max(1, self.num_chunked_cross_attention))
 
         if self.add_decoder:
             dec_output = self.post_decoder(
