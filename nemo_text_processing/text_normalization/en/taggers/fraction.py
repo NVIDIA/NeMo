@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import GraphFst, get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class FractionFst(GraphFst):
@@ -54,7 +47,7 @@ class FractionFst(GraphFst):
 
         graph = pynini.closure(integer + pynini.accep(" "), 0, 1) + (numerator + denominator)
         graph |= pynini.closure(integer + (pynini.accep(" ") | pynutil.insert(" ")), 0, 1) + pynini.compose(
-            pynini.string_file(get_abs_path("data/cardinal/fraction.tsv")), (numerator + denominator)
+            pynini.string_file(get_abs_path("data/number/fraction.tsv")), (numerator + denominator)
         )
 
         self.graph = graph

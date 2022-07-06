@@ -8,7 +8,7 @@ Introduction
 
 .. _dummy_header:
 
-`NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_ is a toolkit for building new state-of-the-art
+`NVIDIA NeMo <https://github.com/NVIDIA/NeMo>`_, part of the NVIDIA AI platform, is a toolkit for building new state-of-the-art
 conversational AI models. NeMo has separate collections for Automatic Speech Recognition (ASR),
 Natural Language Processing (NLP), and Text-to-Speech (TTS) models. Each collection consists of
 prebuilt modules that include everything needed to train on your data.
@@ -137,6 +137,7 @@ Docker containers
 To build a nemo container with Dockerfile from a branch,  please run 
 
 .. code-block:: bash
+
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t nemo:latest.
 
 

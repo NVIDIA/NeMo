@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +13,7 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_DIGIT,
     NEMO_NOT_QUOTE,
@@ -23,15 +23,8 @@ from nemo_text_processing.text_normalization.en.graph_utils import (
 )
 from nemo_text_processing.text_normalization.en.taggers.date import get_four_digit_year_graph
 from nemo_text_processing.text_normalization.en.utils import get_abs_path
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-    from pynini.examples import plurals
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 
 class CardinalFst(GraphFst):
@@ -50,13 +43,13 @@ class CardinalFst(GraphFst):
         self.lm = lm
         self.deterministic = deterministic
         # TODO replace to have "oh" as a default for "0"
-        graph = pynini.Far(get_abs_path("data/cardinal/cardinal_number_name.far")).get_fst()
+        graph = pynini.Far(get_abs_path("data/number/cardinal_number_name.far")).get_fst()
         self.graph_hundred_component_at_least_one_none_zero_digit = (
             pynini.closure(NEMO_DIGIT, 2, 3) | pynini.difference(NEMO_DIGIT, pynini.accep("0"))
         ) @ graph
 
-        graph_digit = pynini.string_file(get_abs_path("data/cardinal/digit.tsv"))
-        graph_zero = pynini.string_file(get_abs_path("data/cardinal/zero.tsv"))
+        graph_digit = pynini.string_file(get_abs_path("data/number/digit.tsv"))
+        graph_zero = pynini.string_file(get_abs_path("data/number/zero.tsv"))
 
         single_digits_graph = pynini.invert(graph_digit | graph_zero)
         self.single_digits_graph = single_digits_graph + pynini.closure(insert_space + single_digits_graph)

@@ -25,7 +25,7 @@ import hydra
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.utilities import model_summary, rank_zero_only
 
 from nemo import package_info
 from nemo.core import optim
@@ -34,6 +34,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -170,6 +171,11 @@ class ModelPT(LightningModule, Model):
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
+    def on_fit_start(self) -> None:
+        if self.cfg.get("dump_debug_info", False):
+            register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
+        return super().on_fit_start()
+
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = True,
     ):
@@ -226,7 +232,7 @@ class ModelPT(LightningModule, Model):
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_wights.ckpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
@@ -279,7 +285,7 @@ class ModelPT(LightningModule, Model):
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
-            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
 
             Example:
                 ```
@@ -294,7 +300,11 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        if save_restore_connector.model_extracted_dir is None:
+            restore_path = os.path.abspath(os.path.expanduser(restore_path))
+        else:
+            restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
+
         if not path.exists(restore_path):
             raise FileNotFoundError(f"Can't find {restore_path}")
 
@@ -321,7 +331,7 @@ class ModelPT(LightningModule, Model):
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         checkpoint = None
         try:
@@ -439,9 +449,8 @@ class ModelPT(LightningModule, Model):
                 The list of "arg_value" will be parsed and a dictionary of optimizer kwargs \
                 will be built and supplied to instantiate the optimizer.
         """
-
-        if self._optimizer_param_groups is None:
-            self.setup_optimizer_param_groups()
+        # Setup the optimizer parameter groups (by default use all parameters that are trainable)
+        self.setup_optimizer_param_groups()
 
         # If config was not explicitly passed to us
         if optim_config is None:
@@ -483,21 +492,10 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                if self._trainer.accelerator is None:
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_devices or 1
-                elif self._trainer.accelerator == "ddp_cpu":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
-                elif self._trainer.accelerator == "ddp":
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
-                elif HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
+                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
                     app = AppState()
                     optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                else:
-                    logging.warning(
-                        f"The lightning trainer received accelerator: {self._trainer.accelerator}. We "
-                        "recommend to use 'ddp' instead."
-                    )
-                    optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -1244,6 +1242,18 @@ class ModelPT(LightningModule, Model):
                 logging.warning(f'World size can only be set by PyTorch Lightning Trainer.')
         app_state = AppState()
         app_state.world_size = self.world_size
+
+    def summarize(self, max_depth: int = 1) -> model_summary.ModelSummary:
+        """Summarize this LightningModule.
+
+        Args:
+            max_depth: The maximum depth of layer nesting that the summary will include. A value of 0 turns the
+                layer summary off. Default: 1.
+
+        Return:
+            The model summary object
+        """
+        return model_summary.summarize(self, max_depth=max_depth)
 
     def _update_dataset_config(self, dataset_name: str, config: Optional[Union[DictConfig, Dict]]):
         """

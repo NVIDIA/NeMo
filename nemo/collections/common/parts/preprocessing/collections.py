@@ -664,6 +664,7 @@ class DiarizationSpeechLabel(DiarizationLabel):
                 else:
                     sess_spk_dict = None
                     rttm_speaker_digits = None
+            
             # Training mode
             else:
                 sess_spk_dict = get_rttm_speaker_index(rttm_to_labels(item['rttm_file']))
@@ -722,4 +723,3 @@ class DiarizationSpeechLabel(DiarizationLabel):
             offset=item.get('offset', None),
         )
         return item
-

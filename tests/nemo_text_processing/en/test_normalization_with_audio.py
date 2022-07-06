@@ -16,25 +16,22 @@ import pytest
 from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from parameterized import parameterized
 
-from ..utils import CACHE_DIR, PYNINI_AVAILABLE, get_test_cases_multiple
+from ..utils import CACHE_DIR, get_test_cases_multiple
 
 
 class TestNormalizeWithAudio:
     normalizer_with_audio_en = (
         NormalizerWithAudio(input_case='cased', lang='en', lm=False, cache_dir=CACHE_DIR, overwrite_cache=False)
-        if PYNINI_AVAILABLE and CACHE_DIR
+        if CACHE_DIR
         else None
     )
 
     @parameterized.expand(get_test_cases_multiple('en/data_text_normalization/test_cases_normalize_with_audio.txt'))
-    @pytest.mark.skipif(
-        not PYNINI_AVAILABLE, reason="`pynini` not installed, please install via nemo_text_processing/setup.sh"
-    )
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_norm(self, test_input, expected):
         if self.normalizer_with_audio_en:
-            pred = self.normalizer_with_audio_en.normalize(test_input, n_tagged=200, punct_post_process=True)
+            pred = self.normalizer_with_audio_en.normalize(test_input, n_tagged=30, punct_post_process=True)
             assert len(set(pred).intersection(set(expected))) == len(
                 expected
             ), f'missing: {set(expected).difference(set(pred))}'

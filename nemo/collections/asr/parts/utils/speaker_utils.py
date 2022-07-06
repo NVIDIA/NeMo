@@ -203,22 +203,12 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
         uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
         for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
-    if multiscale_args_dict['use_single_scale_clustering'] is not False:
-        lim_scale_n = multiscale_args_dict['use_single_scale_clustering']
+    if multiscale_args_dict['use_single_scale_clustering']:
         _multiscale_args_dict = deepcopy(multiscale_args_dict)
-        _multiscale_args_dict['scale_dict'] = {}
-        for scale_idx in range(lim_scale_n):
-            _multiscale_args_dict['scale_dict'][scale_idx] = multiscale_args_dict['scale_dict'][scale_idx]
-        _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:lim_scale_n]
-
+        _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
+        _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:1]
     else:
         _multiscale_args_dict = multiscale_args_dict
-    # if multiscale_args_dict['use_single_scale_clustering']:
-        # _multiscale_args_dict = deepcopy(multiscale_args_dict)
-        # _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
-        # _multiscale_args_dict['multiscale_weights'] = multiscale_args_dict['multiscale_weights'][:1]
-    # else:
-        # _multiscale_args_dict = multiscale_args_dict
 
     for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
         embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
@@ -322,11 +312,13 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
 
     return filename
 
+
 def string_to_float(x, round_digits):
     """
     Convert string to float then round the number.
     """
     return round(float(x), round_digits)
+
 
 def convert_rttm_line(rttm_line, round_digits=3):
     """
@@ -346,11 +338,12 @@ def convert_rttm_line(rttm_line, round_digits=3):
         speaker (str):
             speaker string in RTTM lines.
     """
-    rttm  = rttm_line.strip().split()
+    rttm = rttm_line.strip().split()
     start = string_to_float(rttm[3], round_digits)
     end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
     speaker = rttm[7]
     return start, end, speaker
+
 
 def rttm_to_labels(rttm_filename):
     """
@@ -363,18 +356,6 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
-def get_rttm_speaker_index(rttm_labels):
-    """
-    Generate speaker mapping between integer index to RTTM speaker label names.
-    """
-    speaker_set = set()
-    for rttm_line in rttm_labels:
-        spk_str = rttm_line.split()[-1]
-        speaker_set.add(spk_str)
-    num_of_spks = len(speaker_set)
-    speaker_list = sorted(list(speaker_set))
-    speaker_mapping_dict = { key: val for key, val in enumerate(speaker_list) }
-    return speaker_mapping_dict
 
 def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
     """
@@ -436,7 +417,6 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
             sparse_search_volume=clustering_params.sparse_search_volume,
-            maj_vote_spk_count=clustering_params.maj_vote_spk_count,
             cuda=cuda,
         )
 
@@ -838,8 +818,8 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
                 logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
             else:
                 min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
-                # if max_vad > round(offset + duration, deci) or min_vad < offset:
-                    # logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
+                if max_vad > round(offset + duration, deci) or min_vad < offset:
+                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )

@@ -31,7 +31,7 @@ import itertools
 import multiprocessing as mp
 import os
 import pickle
-import random
+import tempfile
 from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
@@ -827,8 +827,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         label_info_save_dir (:obj:`Union[str, os.PathLike]`, `optional`): a path to a directory where label frequencies
             are saved. Be default a ``text_file`` parent directory is used. When method
             :meth:`save_labels_and_get_file_paths` is called label ids are saved into ``label_info_save_dir``
-            directory. Parameters ``cache_dir`` and ``label_info_save_dir`` are added for cases when directory
-            containing. This parameter is useful if directory containing ``text_file`` is read-only.
+            directory. This parameter is useful if directory containing ``text_file`` is read-only.
         punct_label_vocab_file (:obj:`Union[str, os.PathLike]`, `optional`): a path to a .csv file containing
             punctuation label vocabulary. Each line in such a vocabulary file contains exactly one label. The first
             line has to contain `pad_label`, otherwise error will be raised.
@@ -976,13 +975,24 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 n_jobs=n_jobs,
             )
             self.features_pkl.parent.mkdir(parents=True, exist_ok=True)
-            pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), self.features_pkl.open("wb"))
+
+            # save features to a temp file first to make sure that non-master processes don't start reading the file
+            # until the master process is done with writing
+            ofd, tmp_features_pkl = tempfile.mkstemp(
+                suffix='.pkl', prefix=os.path.basename(self.features_pkl), dir=os.path.dirname(self.features_pkl)
+            )
+            with os.fdopen(ofd, 'wb') as temp_f:
+                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), temp_f)
+
+            os.rename(tmp_features_pkl, self.features_pkl)
+
             if self.verbose:
                 logging.info(f'Features saved to {self.features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+        if not master_device:
+            while features is None and not os.path.exists(self.features_pkl):
+                sleep(10)
 
         if features is None:
             features = pickle.load(self.features_pkl.open('rb'))
@@ -1110,7 +1120,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
     ) -> None:
         if not isinstance(pkl_punct_label_ids, dict):
             raise ValueError(
-                f"Punctuation label ids loaded from features file {self.features_pkl} has wrong type "
+                f"Punctuation label ids loaded from features file {self.features_pkl} have wrong type "
                 f"{type(pkl_punct_label_ids)}"
             )
         if parameter_punct_label_ids is not None:

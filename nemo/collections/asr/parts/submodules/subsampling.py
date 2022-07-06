@@ -33,7 +33,7 @@ class StackingSubsampling(torch.nn.Module):
 
     def forward(self, x, lengths):
         b, t, h = x.size()
-        pad_size = self.subsampling_factor - (t % self.subsampling_factor)
+        pad_size = (self.subsampling_factor - (t % self.subsampling_factor)) % self.subsampling_factor
         x = torch.nn.functional.pad(x, (0, 0, 0, pad_size))
         _, t, _ = x.size()
         x = torch.reshape(x, (b, t // self.subsampling_factor, h * self.subsampling_factor))
@@ -138,7 +138,14 @@ class ConvSubsampling(torch.nn.Module):
             repeat_num=self._sampling_num,
         )
         x = x.unsqueeze(1)
-        x = self.conv(x)
+        if self._subsampling == 'striding':
+            # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
+            # to be removed once the above is fixed in cudnn
+            with torch.cuda.amp.autocast(dtype=torch.float32):
+                x = self.conv(x)
+        else:
+            x = self.conv(x)
+
         b, c, t, f = x.size()
         x = self.out(x.transpose(1, 2).reshape(b, t, -1))
         return x, lengths

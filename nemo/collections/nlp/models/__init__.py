@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.dialogue_state_tracking_sgdqa.sgdqa_model import SGDQAModel
+
 from nemo.collections.nlp.models.duplex_text_normalization import (
     DuplexDecoderModel,
     DuplexTaggerModel,
@@ -32,5 +32,6 @@ from nemo.collections.nlp.models.machine_translation import MTEncDecModel
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel
 from nemo.collections.nlp.models.text2sparql.text2sparql_model import Text2SparqlModel
 from nemo.collections.nlp.models.text_classification import TextClassificationModel
+from nemo.collections.nlp.models.text_normalization_as_tagging import ThutmoseTaggerModel
 from nemo.collections.nlp.models.token_classification import PunctuationCapitalizationModel, TokenClassificationModel
 from nemo.collections.nlp.models.zero_shot_intent_recognition import ZeroShotIntentModel

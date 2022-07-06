@@ -55,12 +55,15 @@ class MegatronTransformerEncoderModule(MegatronModule):
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
+        position_embedding_type='learned_absolute',
+        relative_attention_num_buckets=32,
+        relative_attention_max_distance=128,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         layernorm_epsilon=1e-5,
-        bias_gelu_fusion=True,
+        bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         persist_layer_norm=False,
@@ -68,6 +71,9 @@ class MegatronTransformerEncoderModule(MegatronModule):
         onnx_safe=False,
         activation='gelu',
         bias=True,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
+        headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
@@ -81,6 +87,8 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
+        self.normalization = normalization
+        self.transformer_block_type = transformer_block_type
 
         if kv_channels is None:
 
@@ -109,8 +117,11 @@ class MegatronTransformerEncoderModule(MegatronModule):
             layernorm_epsilon=layernorm_epsilon,
             hidden_dropout=hidden_dropout,
             attention_dropout=attention_dropout,
+            position_embedding_type=position_embedding_type,
+            relative_attention_num_buckets=relative_attention_num_buckets,
+            relative_attention_max_distance=relative_attention_max_distance,
             use_cpu_initialization=use_cpu_initialization,
-            bias_gelu_fusion=bias_gelu_fusion,
+            bias_activation_fusion=bias_activation_fusion,
             bias_dropout_fusion=bias_dropout_add_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
             persist_layer_norm=persist_layer_norm,
@@ -118,6 +129,9 @@ class MegatronTransformerEncoderModule(MegatronModule):
             onnx_safe=onnx_safe,
             activation=activation,
             bias=bias,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
+            headscale=headscale,
             model_type=parent_model_type,
         )
         self._model_key = 'model'

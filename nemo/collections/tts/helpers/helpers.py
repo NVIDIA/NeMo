@@ -56,6 +56,12 @@ from pystoi import stoi
 
 from nemo.utils import logging
 
+HAVE_WANDB = True
+try:
+    import wandb
+except ModuleNotFoundError:
+    HAVE_WANDB = False
+
 try:
     from pytorch_lightning.utilities import rank_zero_only
 except ModuleNotFoundError:
@@ -91,17 +97,7 @@ def get_batch_size(train_dataloader):
 
 
 def get_num_workers(trainer):
-    if trainer.accelerator is None:
-        return trainer.num_devices or 1
-    elif trainer.accelerator == "ddp_cpu":
-        return trainer.num_devices * trainer.num_nodes
-    elif trainer.accelerator == "ddp":
-        return trainer.num_devices * trainer.num_nodes
-    else:
-        logging.warning(
-            f"The lightning trainer received accelerator: {trainer.accelerator}. We " "recommend to use 'ddp' instead."
-        )
-        return trainer.num_devices * trainer.num_nodes
+    return trainer.num_devices * trainer.num_nodes
 
 
 def binarize_attention(attn, in_len, out_len):
@@ -127,7 +123,7 @@ def binarize_attention(attn, in_len, out_len):
 
 def binarize_attention_parallel(attn, in_lens, out_lens):
     """For training purposes only. Binarizes attention with MAS.
-           These will no longer recieve a gradient.
+           These will no longer receive a gradient.
 
         Args:
             attn: B x 1 x max_mel_len x max_text_len
@@ -135,7 +131,7 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     with torch.no_grad():
         attn_cpu = attn.data.cpu().numpy()
         attn_out = b_mas(attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
-    return torch.from_numpy(attn_out).to(attn.get_device())
+    return torch.from_numpy(attn_out).to(attn.device)
 
 
 def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
@@ -294,6 +290,7 @@ def tacotron2_log_to_tb_func(
             step,
             dataformats="HWC",
         )
+
         if add_audio:
             filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
             log_mel = mel_postnet[0].data.cpu().numpy().T
@@ -309,9 +306,74 @@ def tacotron2_log_to_tb_func(
             swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
 
 
-def plot_alignment_to_numpy(alignment, info=None):
-    fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none')
+def tacotron2_log_to_wandb_func(
+    swriter,
+    tensors,
+    step,
+    tag="train",
+    log_images=False,
+    log_images_freq=1,
+    add_audio=True,
+    griffin_lim_mag_scale=1024,
+    griffin_lim_power=1.2,
+    sr=22050,
+    n_fft=1024,
+    n_mels=80,
+    fmax=8000,
+):
+    _, spec_target, mel_postnet, gate, gate_target, alignments = tensors
+    if not HAVE_WANDB:
+        return
+    if log_images and step % log_images_freq == 0:
+        alignments = []
+        specs = []
+        gates = []
+        alignments += [
+            wandb.Image(plot_alignment_to_numpy(alignments[0].data.cpu().numpy().T), caption=f"{tag}_alignment",)
+        ]
+        alignments += [
+            wandb.Image(plot_spectrogram_to_numpy(spec_target[0].data.cpu().numpy()), caption=f"{tag}_mel_target",),
+            wandb.Image(plot_spectrogram_to_numpy(mel_postnet[0].data.cpu().numpy()), caption=f"{tag}_mel_predicted",),
+        ]
+        gates += [
+            wandb.Image(
+                plot_gate_outputs_to_numpy(
+                    gate_target[0].data.cpu().numpy(), torch.sigmoid(gate[0]).data.cpu().numpy(),
+                ),
+                caption=f"{tag}_gate",
+            )
+        ]
+
+        swriter.log({"specs": specs, "alignments": alignments, "gates": gates})
+
+        if add_audio:
+            audios = []
+            filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+            log_mel = mel_postnet[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio_pred = griffin_lim(magnitude.T ** griffin_lim_power)
+
+            log_mel = spec_target[0].data.cpu().numpy().T
+            mel = np.exp(log_mel)
+            magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
+            audio_true = griffin_lim(magnitude.T ** griffin_lim_power)
+
+            audios += [
+                wandb.Audio(audio_true / max(np.abs(audio_true)), caption=f"{tag}_wav_target", sample_rate=sr,),
+                wandb.Audio(audio_pred / max(np.abs(audio_pred)), caption=f"{tag}_wav_predicted", sample_rate=sr,),
+            ]
+
+            swriter.log({"audios": audios})
+
+
+def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
+    if phoneme_seq:
+        fig, ax = plt.subplots(figsize=(15, 10))
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    ax.set_title(title)
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
     if info is not None:
@@ -319,6 +381,12 @@ def plot_alignment_to_numpy(alignment, info=None):
     plt.xlabel(xlabel)
     plt.ylabel('Encoder timestep')
     plt.tight_layout()
+
+    if phoneme_seq != None:
+        # for debugging of phonemes and durs in maps. Not used by def in training code
+        ax.set_yticks(np.arange(len(phoneme_seq)))
+        ax.set_yticklabels(phoneme_seq)
+        ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)

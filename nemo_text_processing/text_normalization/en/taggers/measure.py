@@ -1,5 +1,4 @@
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
-# Copyright 2015 and onwards Google, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
     NEMO_ALPHA,
     NEMO_DIGIT,
@@ -32,15 +32,8 @@ from nemo_text_processing.text_normalization.en.taggers.ordinal import OrdinalFs
 from nemo_text_processing.text_normalization.en.taggers.whitelist import get_formats
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
 from nemo_text_processing.text_normalization.en.verbalizers.ordinal import OrdinalFst as OrdinalVerbalizer
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-    from pynini.examples import plurals
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.examples import plurals
+from pynini.lib import pynutil
 
 
 class MeasureFst(GraphFst):
@@ -196,6 +189,19 @@ class MeasureFst(GraphFst):
             + delimiter
             + (cardinal_graph | NEMO_ALPHA)
         )
+
+        math |= (
+            (cardinal_graph | NEMO_ALPHA)
+            + delimiter
+            + pynini.cross("=", "equals")
+            + delimiter
+            + (cardinal_graph | NEMO_ALPHA)
+            + delimiter
+            + math_operations
+            + delimiter
+            + cardinal_graph
+        )
+
         math = (
             pynutil.insert("units: \"math\" cardinal { integer: \"")
             + math
