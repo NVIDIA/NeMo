@@ -621,7 +621,7 @@ class ModelPT(LightningModule, Model):
 
         known_groups = []
         param_groups = []
-        if getattr(self.cfg, "optim_param_groups", None):
+        if hasattr(self.cfg, "optim_param_groups"):
             param_groups_cfg = self.cfg.optim_param_groups
             for group, lr in param_groups_cfg.items():
                 module = getattr(self, group, None)
@@ -630,17 +630,19 @@ class ModelPT(LightningModule, Model):
                     known_groups.append(group)
                     param_groups.append({"params": params, "lr": lr})
 
-        other_params = []
-        for n, p in self.named_parameters():
-            is_unknown = True
-            for group in known_groups:
-                if n.startswith(group):
-                    is_unknown = False
-            if is_unknown:
-                other_params.append(p)
+            other_params = []
+            for n, p in self.named_parameters():
+                is_unknown = True
+                for group in known_groups:
+                    if n.startswith(group):
+                        is_unknown = False
+                if is_unknown:
+                    other_params.append(p)
 
-        if len(other_params):
-            param_groups = [{"params": other_params}] + param_groups
+            if len(other_params):
+                param_groups = [{"params": other_params}] + param_groups
+        else:
+            param_groups = [{"params": self.parameters()}]
 
         self._optimizer_param_groups = param_groups
 
