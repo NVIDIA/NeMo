@@ -46,7 +46,8 @@ _EXT_DICT = {
 
 def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float):
     return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
-        
+
+
 def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float):
     if isinstance(x, torch.Tensor):
         return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
@@ -58,6 +59,7 @@ def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float):
             return new_dict
         elif isinstance(x, tuple):
             return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
+
 
 class CastToFloat(nn.Module):
     def __init__(self, mod):
@@ -129,6 +131,7 @@ def to_onnxrt_input(ort_input_names, input_names, input_dict, input_list):
             odict[k] = val
     return odict
 
+
 def verify_runtime(model, output, input_examples, input_names, check_tolerance=0.01):
     onnx_model = onnx.load(output)
     ort_input_names = [node.name for node in onnx_model.graph.input]
@@ -148,11 +151,12 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         output_example = model.forward(*input_list, **input_dict)
-        ort_input=to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
+        ort_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
         all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
     return all_good
+
 
 def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
     # Verify the model can be read, and is valid
