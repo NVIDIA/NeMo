@@ -594,7 +594,7 @@ class ParallelAttention(MegatronModule):
                 else:
                     attention_mask = attention_mask[..., : attention_scores.size(3), : attention_scores.size(3)]
 
-        if relative_position_bias is not None and self.attention_type == AttnType.self_attn:
+        if relative_position_bias is not None:
             attention_scores += relative_position_bias[:, self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset + self.num_attention_heads_per_partition, : attention_scores.size(2), : attention_scores.size(3)]
 
         # ===========================
