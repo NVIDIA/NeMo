@@ -109,6 +109,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # configuration used for inference
         self._inference_config = None
 
+        # At pipeline-parallel training, set the pipeline stage that the current GPU belongs to skip loading inputs
+        # Intemediate stage: doesn't need any inputs
+        # Fist pipeline stage: needs only 'tokens' and 'position_ids'
+        # Last pipeline stage: needs only 'labels' and 'loss_mask'
+        self._is_first_pipe_stage = False
+        self._is_intermediate_pipe_stage = False
+        self._is_last_pipe_stage = False
+        if (parallel_state.get_pipeline_model_parallel_world_size() > 1):
+            if parallel_state.is_pipeline_first_stage():
+                self._is_first_pipe_stage = True
+            elif parallel_state.is_pipeline_last_stage():
+                self._is_last_pipe_stage = True
+            else:
+                self._is_intermediate_pipe_stage = True
+
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
@@ -169,8 +184,13 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
 
-        # we prepare the micro batches for the apex fwd/bwd function
-        batch_for_pipeline = self.process_global_batch(batch)
+        if self._is_intermediate_pipe_stage:
+            # The intermediate pipeline stages do not need any inputs from data loader
+            # GPT3 uses decoder with AttnMask:causal, thus doesn't need attention_mask
+            batch_for_pipeline = None
+        else:
+            # we prepare the micro batches for the apex fwd/bwd function
+            batch_for_pipeline = self.process_global_batch(batch)
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
@@ -343,9 +363,27 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-            tokens, labels, loss_mask, attention_mask, position_ids = batch
-            attention_mask = attention_mask[0:1]
+            if parallel_state.get_pipeline_model_parallel_world_size() == 1:
+                batch = [x.cuda(non_blocking=True) for x in batch]
+                tokens, labels, loss_mask, attention_mask, position_ids = batch
+                attention_mask = attention_mask[0:1]
+            else:
+                # GPT3 uses only causal mask, which doesn't need attention mask
+                if self._is_first_pipe_stage:
+                    # Fist pipeline stage needs only the tokens and position_ids
+                    tokens = batch[0].cuda(non_blocking=True)
+                    position_ids = batch[4].cuda(non_blocking=True)
+                    labels, loss_mask, attention_mask = None, None, None
+                elif self._is_intermediate_pipe_stage:
+                    # Intermediate pipeline stage doesn't need any inputs
+                    tokens, labels, loss_mask, attention_mask, position_ids = None, None, None, None, None
+                elif self._is_last_pipe_stage:
+                    # Last pipeline stage needs only the labels and loss_mask
+                    labels = batch[1].cuda(non_blocking=True)
+                    loss_mask = batch[2].cuda(non_blocking=True)
+                    tokens, attention_mask, position_ids = None, None, None
+                else:
+                    assert False
             output_tensor = model(tokens, position_ids, attention_mask, labels)
 
             def loss_func(output_tensor):
