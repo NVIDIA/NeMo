@@ -241,13 +241,13 @@ if __name__ == "__main__":
             batch_f = f"{tmp_dir}/{batch_id}.p"
             norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
 
-        norm_texts_weights = []
-        for x in tqdm(pre_inputs):
-            options, weights = normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False)
-            options = [re.sub(r"<(.+?)>", r"< \1 >", x) for x in options]
-            norm_texts_weights.append((options, weights))
-        logging.debug("----norm_texts_weights----")
-        logging.debug(norm_texts_weights)
+        # norm_texts_weights = []
+        # for x in tqdm(pre_inputs):
+        #     options, weights = normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False)
+        #     options = [re.sub(r"<(.+?)>", r"< \1 >", x) for x in options]
+        #     norm_texts_weights.append((options, weights))
+        # logging.debug("----norm_texts_weights----")
+        # logging.debug(norm_texts_weights)
         with open(p_file, "wb") as handle:
             pickle.dump(norm_texts_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
@@ -312,6 +312,11 @@ if __name__ == "__main__":
             print(f"GT   : {post_targets[i]}\n")
             utils.print_df(df)
             print("-" * 80 + "\n")
+            with open(os.path.basename(args.data) + '.errors', 'a') as fp:
+                fp.write(inputs[i] + '~~RAW\n')
+                for t in targets[i]:
+                    fp.write(t + '~~1\n')
+                fp.write('\n')
 
     if gt_in_options != len(post_norm_texts_weights):
         print("WFST options for some examples don't contain the ground truth:")

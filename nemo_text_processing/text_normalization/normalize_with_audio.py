@@ -178,7 +178,10 @@ class NormalizerWithAudio(Normalizer):
                 ]
 
         if self.lm:
-            return normalized_texts, weights
+            remove_dup = sorted(list(set(zip(normalized_texts, weights))), key=lambda x: x[1])
+            normalized_texts, weights = zip(*remove_dup)
+            return list(normalized_texts), weights
+
 
         normalized_texts = set(normalized_texts)
         return normalized_texts

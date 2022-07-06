@@ -44,19 +44,30 @@ def get_score(text, model):
 
 def get_masked_score(text, model, do_lower=True):
     text = text.lower() if do_lower else text
-    spans = re.findall("<\s[^>.]*\s>", text)
+    spans = re.findall("<\s.+?\s>", text)
     if len(spans) > 0:
         text_with_mask = []
-        for span in spans:
-                text_with_mask.append(text.replace(span, model.MASK_LABEL).replace("< ", "").replace(" >", ""))
-        # for i, span in enumerate(spans):
-        #     other_spans = spans[:i] + spans[i+1:]
-        #     tmp_text = text
-        #     for o_span in other_spans:
-        #         tmp_text = tmp_text.replace(o_span, model.MASK_LABEL)
-        #     text_with_mask.append(tmp_text.replace("< ", "").replace(" >", ""))
+        
+        for match in re.finditer("<\s.+?\s>", text):
+            new_text = text[:match.span()[0]] + match.group().replace("< ", "").replace(" >", "") + text[match.span()[1]:]
+            new_text = re.sub("<\s.+?\s>", model.MASK_LABEL, new_text)
+            text_with_mask.append(new_text)
         text = text_with_mask
+    
     return get_score(text, model)
+
+def _get_ambiguous_positions(sentences):
+    l_sets = [set([x]) for x in re.findall("<\s.+?\s>", sentences[0])]
+    for sentence in sentences[1:]:
+        spans = re.findall("<\s.+?\s>", sentence)
+        assert(len(spans) == len(l_sets))
+        for i in range(len(spans)):
+            l_sets[i].add(spans[i])
+    
+    ambiguous = []
+    for span in l_sets:
+        ambiguous.append(len(span) > 1)
+    return ambiguous
 
 
 def score_options(sentences: List[str], context_len, model, do_lower=True):
@@ -65,10 +76,15 @@ def score_options(sentences: List[str], context_len, model, do_lower=True):
         diffs = [find_diff(s, context_len) for s in sentences]
         if len(set([len(d) for d in diffs])) == 1:
             sentences = diffs
+    
+    ambiguous_positions = None
+    if sentences and isinstance(sentences[0], str):
+        ambiguous_positions = _get_ambiguous_positions(sentences)
+
+
     for sent in tqdm(sentences):
-        bos = ""
         if isinstance(sent, list):  # in case of set context len
-            option_scores = [get_masked_score(bos + s, model, do_lower) for s in sent]
+            option_scores = [get_masked_score( s, model, do_lower) for s in sent]
             logging.debug(sent)
             logging.debug(option_scores)
             logging.debug("=" * 50)
@@ -78,7 +94,12 @@ def score_options(sentences: List[str], context_len, model, do_lower=True):
                 av_score = round(sum(option_scores) / len(option_scores), 4)
             scores.append(av_score)
         elif isinstance(sent, str):  # in case of full context
-            scores.append(round(get_masked_score(bos + sent, model, do_lower=do_lower)))
+            if ambiguous_positions:
+                matches  = list(re.finditer("<\s.+?\s>", sent))
+                for match, pos in zip(matches[::-1], ambiguous_positions[::-1]):
+                    if not pos:
+                        sent = sent[:match.span()[0]] + match.group().replace("< ", "").replace(" >", "") + sent[match.span()[1]:]
+            scores.append(round(get_masked_score(sent, model, do_lower=do_lower)))
         else:
             raise ValueError()
     return scores
@@ -115,3 +136,11 @@ def find_diff(text, context_len=3):
     if len(diffs) == 0:
         diffs = [text]
     return diffs
+
+
+if __name__=='__main__':
+    import sys
+    arg = sys.argv[1]
+    model = MLMScorer('bert-base-uncased')
+    print(arg)
+    print(model.score_sentence(arg))
