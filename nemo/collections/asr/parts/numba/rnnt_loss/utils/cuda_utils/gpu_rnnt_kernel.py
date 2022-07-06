@@ -76,6 +76,8 @@ def compute_alphas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
+    big_blank_: int,
+    big_blank_duration_: int
 ):
     """
     Compute alpha (forward variable) probabilities over the transduction step.
@@ -99,6 +101,7 @@ def compute_alphas_kernel(
         maxU: The maximum possible target sequence length. Represents U in the logprobs tensor.
         alphabet_size: The vocabulary dimension V+1 (inclusive of RNNT blank).
         blank_: Index of the RNNT blank token in the vocabulary. Generally the first or last token in the vocab.
+        big_blank_: Index of the RNNT big blank token in the vocabulary. Generally the first or last token in the vocab.
 
     Updates:
         Kernel inplace updates the following inputs:
@@ -178,6 +181,8 @@ def compute_betas_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
+    big_blank_: int,
+    big_blank_duration_: int
 ):
     """
     Compute beta (backward variable) probabilities over the transduction step.
@@ -277,6 +282,8 @@ def compute_grad_kernel(
     maxU: int,
     alphabet_size: int,
     blank_: int,
+    big_blank_: int,
+    big_blank_duration_: int,
     fastemit_lambda: float,
     clamp: float,
 ):
