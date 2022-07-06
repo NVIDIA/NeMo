@@ -66,7 +66,7 @@ def main(cfg) -> None:
 
     base_model = MegatronRetrievalModel(cfg.base_model, trainer)
     delta_model = MegatronRetrievalModel(cfg.delta_model, trainer)
-    make_base_shapes(base_model, delta_model, savefile='shape_info.yaml')
+    make_base_shapes(base_model, delta_model, savefile=cfg.model.shape_file)
 
 
 if __name__ == '__main__':
