@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import itertools
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -21,7 +20,6 @@ import librosa
 import numpy as np
 import torch
 from omegaconf import DictConfig
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 

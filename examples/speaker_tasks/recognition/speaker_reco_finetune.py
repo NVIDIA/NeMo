@@ -29,7 +29,7 @@ def main(cfg):
 
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     trainer = pl.Trainer(**cfg.trainer)
-    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    _ = exp_manager(trainer, cfg.get("exp_manager", None))
     speaker_model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     speaker_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(speaker_model)
