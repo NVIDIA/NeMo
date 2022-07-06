@@ -70,8 +70,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
         # Setup RNNT Loss
         loss_name, loss_kwargs = self.extract_rnnt_loss_cfg(self.cfg.get("loss", None))
 
+        blank_duration = self.cfg.model_defaults.blank_duration # will change to be configurable
+
         self.loss = RNNTLoss(
-            num_classes=self.joint.num_classes_with_blank - 1, loss_name=loss_name, loss_kwargs=loss_kwargs
+            num_classes=self.joint.num_classes_with_blank - 2, blank_duration=blank_duration, loss_name=loss_name, loss_kwargs=loss_kwargs
         )
 
         if hasattr(self.cfg, 'spec_augment') and self._cfg.spec_augment is not None:

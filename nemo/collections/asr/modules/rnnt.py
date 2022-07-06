@@ -1276,7 +1276,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.vocabulary = vocabulary
 
         self._vocab_size = num_classes
-        self._num_classes = num_classes + 1  # add 1 for blank symbol
+        self._num_classes = num_classes + 2  # add 2 for two blank symbols
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument
