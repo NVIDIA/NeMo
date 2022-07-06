@@ -1,4 +1,4 @@
-name: &name "TitaNet"
+name: &name "TitaNet-Finetune"
 sample_rate: &sample_rate 16000
 
 init_from_pretrained_model:
@@ -18,12 +18,6 @@ model:
     tarred_audio_filepaths: null
     tarred_shard_strategy: "scatter"
     augmentor:
-      noise:
-        manifest_path: null
-        prob: 0.3
-        min_snr_db: 0
-        max_snr_db: 30
-
       speed:
         prob: 0.3
         sr: *sample_rate
@@ -134,9 +128,9 @@ model:
     margin: 0.2
 
   optim:
-    name: sgd
-    lr: .006 #(original titanet-large was trained with 0.08 lr)
-    weight_decay: 0.001
+    name: adamw
+    lr: .0001 #(original titanet-large was trained with 0.08 lr)
+    weight_decay: 0.0002
 
     # scheduler setup
     sched:
@@ -146,7 +140,7 @@ model:
 
 trainer:
   devices: 1 # number of gpus (original titanet-large was trained on 4 nodes with 8 gpus each)
-  max_epochs: 250
+  max_epochs: 10
   max_steps: -1 # computed at runtime if not set
   num_nodes: 1
   accelerator: gpu
