@@ -606,10 +606,42 @@ class ModelPT(LightningModule, Model):
             See https://pytorch.org/docs/stable/optim.html for more information.
             By default, ModelPT will use self.parameters().
             Override this method to add custom param groups.
-    """
-        param_groups = None
-        if hasattr(self, 'parameters'):
-            param_groups = [{'params': self.parameters()}]
+            In the config file, add 'optim_param_group' to support different LRs 
+            for different components (unspecified params will use the default LR):
+            model:
+                optim_param_group:
+                    encoder: 1e-4
+                    decoder: 1e-3
+                optim:
+                    lr: 3e-3   
+        """
+        if not hasattr(self, "parameters"):
+            self._optimizer_param_groups = None
+            return
+
+        known_groups = []
+        param_groups = []
+        if getattr(self.cfg, "optim_param_groups", None):
+            param_groups_cfg = self.cfg.optim_param_groups
+            for group, lr in param_groups_cfg.items():
+                module = getattr(self, group, None)
+                if module and hasattr(module, "parameters"):
+                    params = module.parameters()
+                    known_groups.append(group)
+                    param_groups.append({"params": params, "lr": lr})
+
+        other_params = []
+        for n, p in self.named_parameters():
+            is_unknown = True
+            for group in known_groups:
+                if n.startswith(group):
+                    is_unknown = False
+            if is_unknown:
+                other_params.append(p)
+
+        if len(other_params):
+            param_groups = [{"params": other_params}] + param_groups
+
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
