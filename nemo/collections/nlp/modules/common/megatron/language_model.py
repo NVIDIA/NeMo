@@ -175,7 +175,7 @@ class Embedding(MegatronModule):
         num_tokentypes: size of the token-type embeddings. 0 value
                         will ignore this embedding
         use_cpu_initialization: whether to initialize the weights in CPU
-        add_position_embedding: flag for controlling whether to add position embedding to the input.
+        position_embedding_type: position embedding type determines whether we instantiate a learnable position embedding table.
     """
 
     def __init__(
@@ -187,15 +187,16 @@ class Embedding(MegatronModule):
         init_method,
         num_tokentypes=0,
         use_cpu_initialization=False,
-        add_position_embedding=True,
         fp32_residual_connection=False,
         sequence_parallel=False,
+        position_embedding_type='learned_absolute',
     ):
         super(Embedding, self).__init__()
 
         self.hidden_size = hidden_size
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
+        self.position_embedding_type = position_embedding_type
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
@@ -203,9 +204,7 @@ class Embedding(MegatronModule):
         )
         self._word_embeddings_key = 'word_embeddings'
 
-        self.add_position_embedding = add_position_embedding
-
-        if self.add_position_embedding:
+        if self.position_embedding_type == 'learned_absolute':
             # Position embedding (serial).
             self.position_embeddings = torch.nn.Embedding(max_sequence_length, self.hidden_size)
             self._position_embeddings_key = 'position_embeddings'
@@ -234,7 +233,7 @@ class Embedding(MegatronModule):
         """Zero out all parameters in embedding."""
         self.word_embeddings.weight.data.fill_(0)
         self.word_embeddings.weight.shared = True
-        if self.add_position_embedding:
+        if self.position_embedding_type == 'learned_absolute':
             self.position_embeddings.weight.data.fill_(0)
             self.position_embeddings.weight.shared = True
         if self.num_tokentypes > 0:
@@ -258,7 +257,7 @@ class Embedding(MegatronModule):
     def forward(self, input_ids, position_ids, token_type_ids=None):
         # Embeddings.
         words_embeddings = self.word_embeddings(input_ids)
-        if self.add_position_embedding:
+        if self.position_embedding_type == 'learned_absolute':
             position_embeddings = self.position_embeddings(position_ids)
             embeddings = words_embeddings + position_embeddings
         else:
@@ -291,7 +290,7 @@ class Embedding(MegatronModule):
 
         state_dict_ = {}
         state_dict_[self._word_embeddings_key] = self.word_embeddings.state_dict(destination, prefix, keep_vars)
-        if self.add_position_embedding:
+        if self.position_embedding_type == 'learned_absolute':
             state_dict_[self._position_embeddings_key] = self.position_embeddings.state_dict(
                 destination, prefix, keep_vars
             )
@@ -316,7 +315,7 @@ class Embedding(MegatronModule):
                     state_dict_[key.split('word_embeddings.')[1]] = state_dict[key]
         self.word_embeddings.load_state_dict(state_dict_, strict=strict)
 
-        if self.add_position_embedding:
+        if self.position_embedding_type == 'learned_absolute':
             # Position embedding.
             if self._position_embeddings_key in state_dict:
                 state_dict_ = state_dict[self._position_embeddings_key]
