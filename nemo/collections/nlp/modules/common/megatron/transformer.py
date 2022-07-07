@@ -139,7 +139,9 @@ class ParallelMLP(MegatronModule):
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
 
-        # TODO: figure out async
+        no_async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        )
         # Project to 4h.
         self.dense_h_to_4h = ColumnLinear(
             hidden_size,
@@ -150,7 +152,7 @@ class ParallelMLP(MegatronModule):
             use_cpu_initialization=use_cpu_initialization,
             bias=bias,
             sequence_parallel_enabled=sequence_parallel,
-            no_async_tensor_model_parallel_allreduce=True,
+            no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
@@ -166,7 +168,7 @@ class ParallelMLP(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=True,
+                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -535,6 +537,10 @@ class ParallelAttention(MegatronModule):
             self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
         )
 
+        no_async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() == 1 or sequence_parallel
+        )
+
         # Strided linear layer.
         if attention_type == AttnType.self_attn:
             self.query_key_value = ColumnLinear(
@@ -545,7 +551,7 @@ class ParallelAttention(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=True,
+                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
         else:
@@ -557,7 +563,7 @@ class ParallelAttention(MegatronModule):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=True,
+                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
@@ -568,7 +574,7 @@ class ParallelAttention(MegatronModule):
                 init_method=init_method,
                 bias=bias,
                 sequence_parallel_enabled=sequence_parallel,
-                no_async_tensor_model_parallel_allreduce=True,
+                no_async_tensor_model_parallel_allreduce=no_async_tensor_model_parallel_allreduce,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
