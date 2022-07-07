@@ -1137,8 +1137,8 @@ pipeline {
         stage('Duplex Text Normalization Inference') {
           steps {
             sh 'cd examples/nlp/duplex_text_normalization && \
-            echo "In 2021 my email was myemail@abc.com!" > test.txt \
-            echo "In twenty twenty one my email was myemail at abc dot com." > gt.txt
+            echo "In 2021 my email was myemail@abc.com." > test.txt && \
+            echo "In twenty twenty one my email was myemail at abc dot com." > gt.txt && \
             python duplex_text_normalization_infer.py lang=en mode=tn tagger_pretrained_model=neural_text_normalization_t5 decoder_pretrained_model=neural_text_normalization_t5 inference.from_file=test.txt \
             cmp --silent gt.txt test_tn.txt || echo exit(1)'
           }
