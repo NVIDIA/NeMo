@@ -626,13 +626,13 @@ class ModelPT(LightningModule, Model):
             for group, lr in param_groups_cfg.items():
                 module = getattr(self, group, None)
                 if module is None:
-                    raise ValueError(f"Module {group} not found in model.")
+                    raise ValueError(f"{group} not found in model.")
                 elif hasattr(module, "parameters"):
                     params = module.parameters()
                     known_groups.append(group)
                     param_groups.append({"params": params, "lr": lr})
                 else:
-                    raise ValueError(f"Module {group} does not have parameters.")
+                    raise ValueError(f"{group} does not have parameters.")
 
             other_params = []
             for n, p in self.named_parameters():
