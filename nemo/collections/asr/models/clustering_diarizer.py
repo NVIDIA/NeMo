@@ -259,9 +259,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             shift_length_in_sec=self._vad_shift_length_in_sec,
             num_workers=self._cfg.num_workers,
         )
-        AUDIO_VAD_RTTM_MAP = deepcopy(self.AUDIO_RTTM_MAP.copy())
-        for key in AUDIO_VAD_RTTM_MAP:
-            AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+
+        AUDIO_VAD_RTTM_MAP = {}
+        for key in self.AUDIO_RTTM_MAP:
+            if os.path.exists(os.path.join(table_out_dir, key + ".txt")):
+                AUDIO_VAD_RTTM_MAP[key] = deepcopy(self.AUDIO_RTTM_MAP[key])
+                AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+            else:
+                logging.warning(
+                    f"Ignoring uniq_id: {key} for diarization, since no .frame file found for it due to zero or negative duration"
+                )
 
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
