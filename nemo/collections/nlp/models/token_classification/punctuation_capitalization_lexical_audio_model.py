@@ -66,9 +66,10 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         if cfg.get('freeze_audio_encoder', False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
-            self.audio_encoder.add_module('conf_encoder',
-                                          ConformerLayer(d_model=cfg.get('frozen_conf_d_model'),
-                                                         d_ff=cfg.get('frozen_conf_d_ff')))
+            for i in range(cfg.get('frozen_conf_num_layers')):
+                self.audio_encoder.add_module(f'conf_encoder_{i}',
+                                              ConformerLayer(d_model=cfg.get('frozen_conf_d_model'),
+                                                             d_ff=cfg.get('frozen_conf_d_ff')))
 
         if cfg.get('restore_lexical_encoder_from', None):
             model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)

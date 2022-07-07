@@ -250,9 +250,11 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
 
     use_weighted_loss: Optional[bool] = False
 
-    frozen_conf_d_model: Optional[int] = 128
+    frozen_conf_d_model: Optional[int] = 256
 
-    frozen_conf_d_ff: Optional[int] = 512
+    frozen_conf_d_ff: Optional[int] = 1024
+
+    frozen_conf_num_layers: Optional[int] = 8
 
 
 @dataclass
