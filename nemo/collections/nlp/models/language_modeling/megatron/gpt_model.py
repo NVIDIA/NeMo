@@ -26,7 +26,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 
 try:
-    from apex.transformer import tensor_parallel
+    from apex.transformer import tensor_parallel, parallel_state
     from apex.transformer.enums import AttnMaskType
 
     HAVE_APEX = True
@@ -54,12 +54,16 @@ def post_language_model_processing(
     # Output. Format is [s b h]
     if forward_method_parallel_output is not None:
         parallel_output = forward_method_parallel_output
+    async_tensor_model_parallel_allreduce = (
+        parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
+    )
     output = parallel_lm_logits(
-            lm_output,
-            logit_weights,
-            parallel_output,
-            sequence_parallel=sequence_parallel,
-            gradient_accumulation_fusion=gradient_accumulation_fusion,
+        lm_output,
+        logit_weights,
+        parallel_output,
+        sequence_parallel=sequence_parallel,
+        gradient_accumulation_fusion=gradient_accumulation_fusion,
+        async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
     )
 
     if get_key_value:
@@ -129,7 +133,7 @@ class GPTModel(MegatronModule):
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = sequence_parallel
-        self.gradient_accumulation_fusion = gradient_accumulation_fusion,
+        self.gradient_accumulation_fusion = (gradient_accumulation_fusion,)
 
         if kv_channels is None:
             assert (
