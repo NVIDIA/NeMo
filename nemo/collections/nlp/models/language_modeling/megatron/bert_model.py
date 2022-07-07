@@ -93,7 +93,14 @@ class BertLMHead(MegatronModule):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.gelu(hidden_states)
         hidden_states = self.layernorm(hidden_states)
-        output = parallel_lm_logits(hidden_states, word_embeddings_weight, self.parallel_output, bias=self.bias)
+        async_tensor_model_parallel_allreduce = parallel_state.get_tensor_model_parallel_world_size() > 1
+        output = parallel_lm_logits(
+            hidden_states,
+            word_embeddings_weight,
+            self.parallel_output,
+            bias=self.bias,
+            async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
+        )
         return output
 
 
