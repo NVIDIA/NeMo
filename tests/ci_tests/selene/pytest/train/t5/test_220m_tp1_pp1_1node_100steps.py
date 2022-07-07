@@ -19,6 +19,7 @@ def _read_tb_logs_as_list(path, summary_name):
         summary_list: list, the values in the read summary list, formatted as a list.
     """
     files = os.listdir(path)
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
     for f in files:
         if f[:6] == "events":
             event_file = os.path.join(path, f)
@@ -31,12 +32,12 @@ def _read_tb_logs_as_list(path, summary_name):
     raise FileNotFoundError(f"File not found matching: {path}/events*")
 
 
-class TestCIT5_220m:
+class TestBignlpCI:
 
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36845, 9.24566, 8.75846, 8.36097, 8.03214, 7.71757, 7.52091, 7.32731, 7.17058, 7.0614, 6.953, 6.86574, 6.85068, 6.79981, 6.76557, 6.74009, 6.73121, 6.71234, 6.70114, 6.65549]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.07252, 7.2434, 6.90797, 6.81748, 6.74248]}, "train_step_timing_avg": 1.2255}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.36845, 9.24521, 8.75951, 8.35952, 8.03257, 7.72289, 7.50988, 7.31457, 7.15776, 7.0498, 6.9479, 6.86734, 6.84596, 6.78808, 6.74337, 6.7372, 6.70998, 6.69635, 6.69181, 6.64998]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.07386, 7.23239, 6.91115, 6.77175, 6.72425]}, "train_step_timing_avg": 1.1461722}
     """
 
     expected = json.loads(expected_json)
