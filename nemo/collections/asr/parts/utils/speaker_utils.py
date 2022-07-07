@@ -630,7 +630,10 @@ def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     silence_ids = provided_uniq_ids - vad_uniq_ids
     for uniq_id in silence_ids:
         del AUDIO_RTTM_MAP[uniq_id]
-        logging.warning(f"{uniq_id} ignored due to silence detected in uniq_id")
+        logging.warning(f"{uniq_id} ignored due to silence detected in the session.")
+
+    if len(AUDIO_RTTM_MAP) == 0:
+        raise ValueError("All files present in manifest contains silence, aborting next steps")
 
 
 def getOverlapRange(rangeA, rangeB):
@@ -760,15 +763,6 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
         label_list_B = [[fl2int(x[0] + 1, deci), fl2int(x[1], deci)] for x in label_list_B]
         combined = combine_int_overlaps(label_list_A + label_list_B)
         return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
-
-
-def getMinMaxOfRangeList(ranges):
-    """
-    Get the min and max of a given range list.
-    """
-    _max = max([x[1] for x in ranges])
-    _min = min([x[0] for x in ranges])
-    return _min, _max
 
 
 def getSubRangeList(target_range, source_range_list) -> List:
