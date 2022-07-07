@@ -133,7 +133,7 @@ class GPTModel(MegatronModule):
         self.post_process = post_process
         self.fp16_lm_cross_entropy = fp16_lm_cross_entropy
         self.sequence_parallel = sequence_parallel
-        self.gradient_accumulation_fusion = (gradient_accumulation_fusion,)
+        self.gradient_accumulation_fusion = gradient_accumulation_fusion
 
         if kv_channels is None:
             assert (

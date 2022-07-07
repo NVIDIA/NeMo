@@ -291,3 +291,12 @@ class MegatronBaseModel(NLPModel):
             )
             with open_dict(self.cfg):
                 self.cfg.sequence_parallel = False
+
+        if (
+            self.cfg.get('gradient_accumulation_fusion', False)
+            and self.cfg.get('pipeline_model_parallel_size', 1) == 1
+        ):
+            logging.info("Gradient accumulation fusion should only be used with pipeline parallel size > 1.")
+            with open_dict(self.cfg):
+                self.cfg.gradient_accumulation_fusion = False
+
