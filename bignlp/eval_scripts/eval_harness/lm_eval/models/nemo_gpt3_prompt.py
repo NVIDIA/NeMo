@@ -113,6 +113,12 @@ def setup_trainer_and_model(args):
 
     model.freeze()
 
+    # Have to turn off activations_checkpoint_method for inference
+    try:
+        model.model.language_model.encoder.activations_checkpoint_method = None
+    except AttributeError:
+        pass
+
     return trainer, model
 
 
