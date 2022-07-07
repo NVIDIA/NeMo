@@ -56,9 +56,9 @@ exp_manager:
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_medium
 
-  freeze_audio_encoder: true
+  freeze_audio_encoder: false
 
-  use_adapters: true
+  use_adapters: false
 
   adapter_config:
     dim: 32
