@@ -210,9 +210,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if hasattr(self, 'encoder_embedding') and share_word_embeddings:
                     self.decoder_embedding = self.encoder_embedding
                 else:
-                    # This is the case where PP > 1 and first decoder first stage.
-                    # We initialize decoder embeddings, but set them to zero since we they're tied with the encoder embeddings.
-                    # A later initialize_embedding call will synchronize the embeddings.
+                    # This is the case where PP > 1 and first decoder first stage, or when not sharing embeddings with encoder
                     self.decoder_embedding = Embedding(
                         hidden_size=hidden_size,
                         vocab_size=vocab_size,
@@ -223,6 +221,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         embedding_dropout_prob=hidden_dropout,
                         add_position_embedding=add_position_embedding,
                     )
+                    # We initialize decoder embeddings, but set them to zero since we they're tied with the encoder embeddings.
+                    # A later initialize_embedding call will synchronize the embeddings.
                     if share_word_embeddings:
                         self.decoder_embedding.zero_parameters()
 
@@ -273,12 +273,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         )
         self._enc_dec_model_key = "enc_dec_model"
 
-        self.initialize_word_embeddings(
-            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
-        )
+        # NOTE: Update here when adding support in PP > 1 (function has to be called)
+        if self.share_word_embeddings:
+            self.initialize_word_embeddings(
+                init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+            )
 
         if add_decoder and post_process:
-            if not share_decoder_tokens_head_embeddings:
+            if share_decoder_tokens_head_embeddings:
+                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
+            else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=hidden_size,
                     output_size=vocab_size,
@@ -287,8 +291,6 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     init_method=init_method_normal(init_method_std),
                     use_cpu_initialization=use_cpu_initialization,
                 )
-            else:
-                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
 
             self._tokens_head_key = 'tokens_head'
 
@@ -386,7 +388,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if self.share_decoder_tokens_head_embeddings:
                     token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
                 else:
-                    token_logits = self.tokens_head(dec_output)
+                    token_logits = self.tokens_head(dec_output)[0]
 
                 if labels is not None:
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
