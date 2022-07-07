@@ -21,7 +21,7 @@ class TelephoneFst(GraphFst):
     """
     Finite state transducer for verbalizing telephone, e.g.
         telephone { number_part: "123-123-5678" }
-        -> 123-123-5678 
+        -> 123-123-5678
     """
 
     def __init__(self):

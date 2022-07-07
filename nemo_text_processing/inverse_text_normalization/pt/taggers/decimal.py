@@ -29,7 +29,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_million: 'pynini.FstL
     e.g. one million -> integer_part: "1" quantity: "million"
     e.g. one point five million -> integer_part: "1" fractional_part: "5" quantity: "million"
 
-    Args: 
+    Args:
         decimal: decimal FST
         cardinal_up_to_million: cardinal FST
     """
@@ -49,7 +49,7 @@ def get_quantity(decimal: 'pynini.FstLike', cardinal_up_to_million: 'pynini.FstL
         "quintilhão",
         "quintilhões",
         "sextilhão",
-        "sextilhões"
+        "sextilhões",
     )
     res = (
         pynutil.insert("integer_part: \"")
@@ -74,7 +74,7 @@ class DecimalFst(GraphFst):
         This decimal rule assumes that decimals can be pronounced as:
         (a cardinal) + ('vírgula' or 'ponto') plus (any sequence of cardinals <1000, including 'zero')
 
-        Also writes large numbers in shortened form, e.g. 
+        Also writes large numbers in shortened form, e.g.
             e.g. um vírgula dois seis milhões -> decimal { negative: "false" integer_part: "1" morphosyntactic_features: "," fractional_part: "26" quantity: "milhões" }
             e.g. dois milhões -> decimal { negative: "false" integer_part: "2" quantity: "milhões" }
             e.g. mil oitcentos e vinte e quatro milhões -> decimal { negative: "false" integer_part: "1824" quantity: "milhões" }

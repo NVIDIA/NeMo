@@ -56,7 +56,8 @@ class MoneyFst(GraphFst):
             + insert_space
             + pynutil.insert("fractional_part: \"")
             + pynini.union(
-                pynutil.add_weight(((NEMO_SIGMA - "um" - "uma") @ cardinal_graph), -0.7) @ add_leading_zero_to_double_digit
+                pynutil.add_weight(((NEMO_SIGMA - "um" - "uma") @ cardinal_graph), -0.7)
+                @ add_leading_zero_to_double_digit
                 + delete_space
                 + pynutil.delete(pynini.union("centavos")),
                 pynini.cross("um", "01") + delete_space + pynutil.delete(pynini.union("centavo")),
@@ -106,10 +107,20 @@ class MoneyFst(GraphFst):
 
         graph_cents_standalone = pynini.union(
             pynutil.insert("currency: \"R$\" integer_part: \"0\" ") + cents_standalone,
-            pynutil.add_weight(pynutil.insert("integer_part: \"0\" ") + cents_standalone + delete_extra_space + pynutil.delete("de") + delete_space + graph_unit_singular, -0.1)
+            pynutil.add_weight(
+                pynutil.insert("integer_part: \"0\" ")
+                + cents_standalone
+                + delete_extra_space
+                + pynutil.delete("de")
+                + delete_space
+                + graph_unit_singular,
+                -0.1,
+            ),
         )
 
-        graph_decimal = graph_decimal_final + delete_extra_space + (pynutil.delete("de") + delete_space).ques + graph_unit_plural
+        graph_decimal = (
+            graph_decimal_final + delete_extra_space + (pynutil.delete("de") + delete_space).ques + graph_unit_plural
+        )
         graph_decimal |= graph_cents_standalone
         final_graph = graph_integer | graph_decimal
         final_graph = self.add_tokens(final_graph)

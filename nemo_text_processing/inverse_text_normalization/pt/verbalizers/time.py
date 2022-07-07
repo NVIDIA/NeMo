@@ -14,8 +14,8 @@
 
 import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_NOT_QUOTE,
     NEMO_DIGIT,
+    NEMO_NOT_QUOTE,
     GraphFst,
     delete_space,
     insert_space,
@@ -35,13 +35,13 @@ class TimeFst(GraphFst):
         add_leading_zero_to_double_digit = (NEMO_DIGIT + NEMO_DIGIT) | (pynutil.insert("0") + NEMO_DIGIT)
 
         prefix = (
-                pynutil.delete("morphosyntactic_features:")
-                + delete_space
-                + pynutil.delete("\"")
-                + pynini.closure(NEMO_NOT_QUOTE, 1)
-                + pynutil.delete("\"")
-                + delete_space
-                + insert_space
+            pynutil.delete("morphosyntactic_features:")
+            + delete_space
+            + pynutil.delete("\"")
+            + pynini.closure(NEMO_NOT_QUOTE, 1)
+            + pynutil.delete("\"")
+            + delete_space
+            + insert_space
         )
         optional_prefix = pynini.closure(prefix, 0, 1)
 

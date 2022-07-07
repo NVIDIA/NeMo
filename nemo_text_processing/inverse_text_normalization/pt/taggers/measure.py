@@ -27,7 +27,7 @@ from pynini.lib import pynutil
 class MeasureFst(GraphFst):
     """
     Finite state transducer for classifying measure
-        e.g. menos doze quilogramas -> measure { cardinal { negative: "true" integer: "12" } units: "kg" } 
+        e.g. menos doze quilogramas -> measure { cardinal { negative: "true" integer: "12" } units: "kg" }
 
     Args:
         cardinal: CardinalFst

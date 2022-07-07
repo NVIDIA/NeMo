@@ -20,7 +20,7 @@ from pynini.lib import pynutil
 
 class TelephoneFst(GraphFst):
     """
-    Finite state transducer for classifying telephone numbers, e.g. 
+    Finite state transducer for classifying telephone numbers, e.g.
         um dois um dois três quatro cinco seis sete oito nove -> { number_part: "(12) 12345-6789" }.
         If 11 digits are spoken, they are grouped as 2+5+4 (eg. (12) 34567-8901).
         If 10 digits are spoken, they are grouped as 2+4+4 (eg. (12) 3456-7890).
@@ -47,12 +47,16 @@ class TelephoneFst(GraphFst):
 
         single_digits = pynini.invert(graph_all_digits).optimize()
 
-        double_digits = pynini.union(
-            graph_teen | graph_twenties,
-            (graph_ties + pynutil.insert("0")),
-            (graph_ties + delete_space + pynutil.delete("e") + delete_space + graph_digit),
-            (graph_all_digits + delete_space + graph_all_digits)
-        ).invert().optimize()
+        double_digits = (
+            pynini.union(
+                graph_teen | graph_twenties,
+                (graph_ties + pynutil.insert("0")),
+                (graph_ties + delete_space + pynutil.delete("e") + delete_space + graph_digit),
+                (graph_all_digits + delete_space + graph_all_digits),
+            )
+            .invert()
+            .optimize()
+        )
 
         # define `eleven_digit_graph`, `ten_digit_graph`, `nine_digit_graph`, `eight_digit_graph`
         # which accept telephone numbers spoken (1) only with single digits,

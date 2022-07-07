@@ -23,7 +23,7 @@ from nemo_text_processing.text_normalization.token_parser import TokenParser
 
 class InverseNormalizer(Normalizer):
     """
-    Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing. 
+    Inverse normalizer that converts text from spoken to written form. Useful for ASR postprocessing.
     Input is expected to have no punctuation outside of approstrophe (') and dash (-) and be lower cased.
 
     Args:
@@ -81,7 +81,7 @@ class InverseNormalizer(Normalizer):
 
     def inverse_normalize_list(self, texts: List[str], verbose=False) -> List[str]:
         """
-        NeMo inverse text normalizer 
+        NeMo inverse text normalizer
 
         Args:
             texts: list of input strings
