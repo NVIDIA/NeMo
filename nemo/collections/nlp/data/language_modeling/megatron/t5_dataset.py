@@ -55,7 +55,7 @@ class T5Dataset(Dataset):
         respect_document_boundaries=True,
         documents=None,
         max_seq_length_delta=None,
-        max_seq_length_delta_no_document_boundary=None
+        max_seq_length_delta_no_document_boundary=None,
     ):
         super().__init__()
 
@@ -74,7 +74,11 @@ class T5Dataset(Dataset):
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
         self.max_seq_length_delta = 2 if max_seq_length_delta is None else max_seq_length_delta
-        self.max_seq_length_delta_no_document_boundary = (self.max_seq_length - 2) + int(self.max_seq_length * (self.masked_lm_prob - 0.05)) - self.max_ngram_size if max_seq_length_delta_no_document_boundary is None else max_seq_length_delta_no_document_boundary
+        self.max_seq_length_delta_no_document_boundary = (
+            (self.max_seq_length - 2) + int(self.max_seq_length * (self.masked_lm_prob - 0.05)) - self.max_ngram_size
+            if max_seq_length_delta_no_document_boundary is None
+            else max_seq_length_delta_no_document_boundary
+        )
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
@@ -95,14 +99,15 @@ class T5Dataset(Dataset):
             assert documents is not None
             assert np.min(documents) >= 0
             assert np.max(documents) < indexed_dataset.sizes.shape[0]
-            
+
             self.doc_idx, self.sample_idx, self.shuffle_idx = _build_index_mappings(
                 name=self.name,
                 data_prefix=data_prefix,
                 documents=documents,
                 sizes=self.indexed_dataset.sizes,
                 num_samples=max_num_samples,
-                seq_length=self.max_seq_length - self.max_seq_length_delta_no_document_boundary,  # We can allocate an extra (max seq length * masked_lm_prob) - max_ngram_size that goes into the decoder.
+                seq_length=self.max_seq_length
+                - self.max_seq_length_delta_no_document_boundary,  # We can allocate an extra (max seq length * masked_lm_prob) - max_ngram_size that goes into the decoder.
                 seed=self.seed,
                 index_mapping_dir=self.index_mapping_dir,
             )
