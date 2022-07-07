@@ -202,6 +202,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if add_decoder:
             # If this is the decoder first stage
             if pre_process:
+                # FIXME: support untying weights
                 # If the encoder also lies on this rank (PP = 1), then just assign embeddings directly.
                 if hasattr(self, 'encoder_embedding'):
                     self.decoder_embedding = self.encoder_embedding
