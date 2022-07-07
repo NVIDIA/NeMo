@@ -34,8 +34,8 @@ trainer:
   # LR schedulers, apex, etc.
   resume_from_checkpoint: null
   #  sync_batchnorm: true
-  flush_logs_every_n_steps: 200
-  log_every_n_steps: 200
+  flush_logs_every_n_steps: 500
+  log_every_n_steps: 500
 #  limit_train_batches: 500
 
 exp_manager:
