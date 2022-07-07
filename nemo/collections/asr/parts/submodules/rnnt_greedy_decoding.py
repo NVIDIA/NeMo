@@ -81,7 +81,8 @@ class _GreedyRNNTInfer(Typing):
             no limit.
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+            Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -202,7 +203,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             no limit.
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+            Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -375,7 +377,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             no limit.
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+            Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
