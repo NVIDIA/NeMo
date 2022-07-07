@@ -615,8 +615,9 @@ def isOverlap(rangeA, rangeB):
 
 def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     """
-    This function will validate the manifest file from NeMo voice activity detection or Oracle VAD to the uniq_ids present 
-    in provided audio manifest file. If there is a mis-match we ignore those uniq_ids from clustering.
+    This function will check the valid speech segments in the manifest file which is either generated from NeMo voice activity detection
+    (VAD) or oracle VAD. If the audio file does not contain any valid speech segments, 
+    we ignore the audio files (indexed by uniq_id) for the rest of the processing steps.
     """
     vad_uniq_ids = set()
     with open(vad_manifest, 'r') as vad_file:
@@ -630,7 +631,7 @@ def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     silence_ids = provided_uniq_ids - vad_uniq_ids
     for uniq_id in silence_ids:
         del AUDIO_RTTM_MAP[uniq_id]
-        logging.warning(f"{uniq_id} ignored due to silence detected in the session.")
+        logging.warning(f"{uniq_id} is ignored since the file does not contain any speech signal to be processed.")
 
     if len(AUDIO_RTTM_MAP) == 0:
         raise ValueError("All files present in manifest contains silence, aborting next steps")
