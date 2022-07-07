@@ -63,6 +63,13 @@ def get_args():
         help="Target sample rate to load the dataset. Should match what the model was trained on.",
     )
     parser.add_argument(
+        '--heteronyms',
+        required=False,
+        type=str,
+        default='../../scripts/tts_dataset_files/heteronyms-052722',
+        help="Heteronyms file to specify which words should be disambiguated. All others will use default pron.",
+    )
+    parser.add_argument(
         '--verbose',
         action='store_true',
         help="If set to True, logs scores for each disambiguated word in disambiguation_logs.txt.",
@@ -113,7 +120,7 @@ def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):
     return dist_sum / total_frames
 
 
-def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None):
+def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, log_file=None):
     """Retrieves and disambiguate all candidate sentences for disambiguation of a given some text.
 
     Assumes that the max number of candidates per word is a reasonable batch size.
@@ -125,7 +132,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
     base_g2p = aligner_g2p(text)
 
     # Tokenize text
-    words = [word for word, _ in aligner.tokenizer.g2p.word_tokenize_func(text)]
+    words = [word for word, _ in aligner_g2p.word_tokenize_func(text)]
 
     ### Loop Through Words ###
     result_g2p = []
@@ -139,7 +146,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
         g2p_default_len = len(aligner_g2p(word))
 
         # Check if word needs to be disambiguated
-        if (word in aligner_g2p.phoneme_dict) and (not aligner_g2p.is_unique_in_phoneme_dict(word)):
+        if word in heteronyms:
             # Add candidate for each ambiguous pronunciation
             word_candidates = []
             candidate_prons_and_lengths = []
@@ -206,8 +213,11 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
             if re.search("[a-zA-Z]", word) is None:
                 # Punctuation or space
                 result_g2p.append(f"<{word}>")
+            elif word in aligner_g2p.phoneme_dict:
+                # Take default pronunciation for everything else in the dictionary
+                result_g2p.append(f"<{' '.join(aligner_g2p.phoneme_dict[word][0])}>")
             else:
-                # No ambiguity or OOV
+                # OOV
                 result_g2p.append(f"<{' '.join(aligner_g2p(word))}>")
 
         # Advance to phoneme index of next word
@@ -219,7 +229,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, log_file=None
     return result_g2p
 
 
-def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
+def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, device, verbose):
     """Disambiguates the phonemes for all words with ambiguous pronunciations in the given manifest.
     """
     log_file = open('disambiguation_logs.txt', 'w') if verbose else None
@@ -240,7 +250,9 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, device, verbose):
                 spec, spec_len = load_and_prepare_audio(aligner, audio_path, sr, device)
 
                 # Get pronunciation candidates and disambiguate
-                disambiguated_text = disambiguate_candidates(aligner, text, spec, spec_len, device, log_file)
+                disambiguated_text = disambiguate_candidates(
+                    aligner, text, spec, spec_len, device, heteronyms, log_file
+                )
 
                 entry['disambiguated_text'] = ''.join(disambiguated_text)
                 f_out.write(f"{json.dumps(entry)}\n")
@@ -268,15 +280,24 @@ def main():
         if overwrite.lower() != 'y':
             print("Not overwriting output file, quitting.")
             quit()
+    if not os.path.exists(args.heteronyms):
+        print("Could not find heteronyms list: ", args.heteronyms)
+
+    # Read heteronyms list, one per line
+    heteronyms = set()
+    with open(args.heteronyms, 'r') as f_het:
+        for line in f_het:
+            heteronyms.add(line.strip().lower())
 
     # Load model
+    print("Restoring Aligner model from checkpoint...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     aligner = AlignerModel.restore_from(args.model, map_location=device)
 
     # Disambiguation
     print("Beginning disambiguation...")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, device, args.verbose)
+    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, heteronyms, device, args.verbose)
 
 
 if __name__ == '__main__':
