@@ -71,6 +71,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
+            raise ValueError(
+                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
+            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -118,7 +122,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder_arch == 'perceiver':
+            raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
+        if hasattr(self.cfg, 'bias_gelu_fusion'):
+            logging.warning('bias_gelu_fusion is deprecated. Please use bias_activation_fusion instead.')
+            activation_fusion = self.cfg.bias_gelu_fusion
+        else:
+            activation_fusion = self.cfg.get('bias_activation_fusion', True)
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,
@@ -148,10 +158,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_activation_fusion=(
-                (self.cfg.get('bias_gelu_fusion', True) and self.cfg.get('activation', 'gelu') == 'gelu')
-                or (self.cfg.get('bias_activation_fusion', True) and self.cfg.get('activation', 'gelu') == 'geglu')
-            ),
+            bias_activation_fusion=activation_fusion,
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             onnx_safe=self.cfg.get('onnx_safe', False),
@@ -160,6 +167,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             normalization=self.cfg.get('normalization', 'layernorm'),
             transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
             headscale=self.cfg.get('headscale', False),
+            hidden_steps=self.cfg.get('hidden_steps', -1),
+            num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
         )
@@ -395,7 +404,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     and parallel_state.get_pipeline_model_parallel_world_size() > 1
                     and parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 ):
-                    if self.enc_dec_model.position_embedding_type != 'relative':
+                    if self.cfg.get('position_embedding_type') != 'relative':
                         position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
                         if self.megatron_amp_o2:
                             grad = position_embeddings_weight.main_grad
@@ -859,7 +868,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.enc_dec_model.position_embedding_type != 'relative':
+            if self.cfg.get('position_embedding_type') != 'relative':
                 self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
