@@ -223,6 +223,7 @@ class BeamRNNTInfer(Typing):
 
         self.beam_size = beam_size
         self.score_norm = score_norm
+        self.max_candidates = beam_size
 
         if self.beam_size == 1:
             logging.info("Beam size of 1 was used, switching to sample level `greedy_search`")
@@ -415,7 +416,7 @@ class BeamRNNTInfer(Typing):
             not_blank = True
             symbols_added = 0
 
-            while not_blank:
+            while not_blank and (symbols_added < self.max_candidates):
                 ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
@@ -428,7 +429,7 @@ class BeamRNNTInfer(Typing):
 
                 if self.preserve_alignments:
                     # insert logprobs into last timestep
-                    alignments[-1].append(ytu.to('cpu'))
+                    alignments[-1].append((ytu.to('cpu'), torch.tensor(pred, dtype=torch.int32)))
 
                 if pred == self.blank:
                     not_blank = False
@@ -560,9 +561,13 @@ class BeamRNNTInfer(Typing):
 
                     if self.preserve_alignments:
                         if k == self.blank:
-                            new_hyp.alignments[-1].append((logprobs.clone(), self.blank))
+                            new_hyp.alignments[-1].append(
+                                (logprobs.clone(), torch.tensor(self.blank, dtype=torch.int32))
+                            )
                         else:
-                            new_hyp.alignments[-1].append((logprobs.clone(), new_hyp.y_sequence[-1]))
+                            new_hyp.alignments[-1].append(
+                                (logprobs.clone(), torch.tensor(new_hyp.y_sequence[-1], dtype=torch.int32))
+                            )
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)

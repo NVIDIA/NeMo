@@ -199,6 +199,7 @@ class AbstractRNNTDecoding(ABC):
             )
 
         elif self.cfg.strategy == 'maes':
+
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
