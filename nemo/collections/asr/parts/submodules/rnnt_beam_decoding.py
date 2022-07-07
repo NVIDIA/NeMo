@@ -164,7 +164,7 @@ class BeamRNNTInfer(Typing):
 
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             beam decoding (sample). When set to true, the Hypothesis will contain
-            the non-null value for `alignments` in it. Here, `alignments` is a List of List of ints.
+            the non-null value for `alignments` in it. Here, `alignments` is a List of List of Tensor (of length V + 1).
 
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more targets from a vocabulary.
@@ -427,8 +427,8 @@ class BeamRNNTInfer(Typing):
                 pred = pred.item()
 
                 if self.preserve_alignments:
-                    # insert logits into last timestep
-                    alignments[-1].append(pred)
+                    # insert logprobs into last timestep
+                    alignments[-1].append(ytu.to('cpu'))
 
                 if pred == self.blank:
                     not_blank = False
@@ -519,6 +519,10 @@ class BeamRNNTInfer(Typing):
                 ytu = torch.log_softmax(self.joint.joint(hi, y) / self.softmax_temperature, dim=-1)  # [1, 1, 1, V + 1]
                 ytu = ytu[0, 0, 0, :]  # [V + 1]
 
+                # preserve alignments
+                if self.preserve_alignments:
+                    logprobs = ytu.cpu().clone()
+
                 # remove blank token before top k
                 top_k = ytu[ids].topk(beam_k, dim=-1)
 
@@ -556,9 +560,9 @@ class BeamRNNTInfer(Typing):
 
                     if self.preserve_alignments:
                         if k == self.blank:
-                            new_hyp.alignments[-1].append(self.blank)
+                            new_hyp.alignments[-1].append((logprobs.clone(), self.blank))
                         else:
-                            new_hyp.alignments[-1].append(new_hyp.y_sequence[-1])
+                            new_hyp.alignments[-1].append((logprobs.clone(), new_hyp.y_sequence[-1]))
 
                 # keep those hypothesis that have scores greater than next search generation
                 hyps_max = float(max(hyps, key=lambda x: x.score).score)
