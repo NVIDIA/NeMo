@@ -128,17 +128,6 @@ class MegatronBaseModel(NLPModel):
             # Not a Nvidia container. NVFUSER Dependency check is on users
             pass
 
-        # Overlap the execution of TP-collective kernels with compute kernels
-        cuda_device_max_connections = self.cfg.get('cuda_device_max_connections', None)
-        if cuda_device_max_connections > 1:
-            logging.info(
-                f'Found cuda_device_max_connections: {cuda_device_max_connections} is greater than 1. '
-                f'This may negatively affect training performance of large models. '
-                f'Please set model.cuda_device_max_connections=1 for models larger than 20B parameters.'
-            )
-        if cuda_device_max_connections:
-            os.environ['CUDA_DEVICE_MAX_CONNECTIONS'] = str(cuda_device_max_connections)
-
     def _build_tokenizer(self):
         """
         Default tokenizer is based on available nemo tokenizers.
