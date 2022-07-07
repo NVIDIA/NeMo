@@ -70,7 +70,7 @@ class BARTDataset(T5Dataset):
             respect_document_boundaries=respect_document_boundaries,
             documents=documents,
             max_seq_length_delta=MAX_SEQ_LENGTH_DELTA,
-            max_seq_length_delta_no_document_boundary=MAX_SEQ_LENGTH_DELTA
+            max_seq_length_delta_no_document_boundary=MAX_SEQ_LENGTH_DELTA,
         )
 
         # Params to store.
