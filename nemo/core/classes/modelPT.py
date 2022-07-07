@@ -610,10 +610,14 @@ class ModelPT(LightningModule, Model):
             for different components (unspecified params will use the default LR):
             model:
                 optim_param_groups:
-                    encoder: 1e-4
-                    decoder: 1e-3
+                    encoder: 
+                        lr: 1e-4
+                        momentum: 0.8
+                    decoder: 
+                        lr: 1e-3
                 optim:
-                    lr: 3e-3   
+                    lr: 3e-3
+                    momentum: 0.9   
         """
         if not hasattr(self, "parameters"):
             self._optimizer_param_groups = None
@@ -623,14 +627,16 @@ class ModelPT(LightningModule, Model):
         param_groups = []
         if "optim_param_groups" in self.cfg:
             param_groups_cfg = self.cfg.optim_param_groups
-            for group, lr in param_groups_cfg.items():
+            for group, group_cfg in param_groups_cfg.items():
                 module = getattr(self, group, None)
                 if module is None:
                     raise ValueError(f"{group} not found in model.")
                 elif hasattr(module, "parameters"):
-                    params = module.parameters()
                     known_groups.append(group)
-                    param_groups.append({"params": params, "lr": lr})
+                    new_group = {"params": module.parameters()}
+                    for k, v in group_cfg.items():
+                        new_group[k] = v
+                    param_groups.append(new_group)
                 else:
                     raise ValueError(f"{group} does not have parameters.")
 
