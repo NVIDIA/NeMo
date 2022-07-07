@@ -363,6 +363,6 @@ If using adaptive bucketing, note that the same batch size will be assigned to e
 	model.train_ds.bucket_weights=[2,1,1,3]
 	model.train_ds.bucketing_batch_size=[4,4,4,2]
 
-All instances of data from `bucket4` will still be trained with `batch_size=2`.
+All instances of data from `bucket4` will still be trained with `batch_size=2` while all others would have `batch_size=4`.
 
 It is recommended to set bucketing strategies to `fully_randomized` during multi-GPU training to prevent possible dataset bias during training. 
