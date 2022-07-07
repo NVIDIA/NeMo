@@ -101,7 +101,9 @@ def audio_rttm_map(manifest):
                 AUDIO_RTTM_MAP[uniqname] = meta
             else:
                 raise KeyError(
-                    "file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(meta['audio_filepath'])
+                    "file {} is already part of AUDIO_RTTM_MAP, it might be duplicated, Note: file basename must be unique".format(
+                        meta['audio_filepath']
+                    )
                 )
 
     return AUDIO_RTTM_MAP
@@ -611,6 +613,26 @@ def isOverlap(rangeA, rangeB):
     return end1 > start2 and end2 > start1
 
 
+def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
+    """
+    This function will validate the manifest file from NeMo voice activity detection or Oracle VAD to the uniq_ids present 
+    in provided audio manifest file. If there is a mis-match we ignore those uniq_ids from clustering.
+    """
+    vad_uniq_ids = set()
+    with open(vad_manifest, 'r') as vad_file:
+        for line in vad_file:
+            line = line.strip()
+            dic = json.loads(line)
+            if dic['duration'] > 0:
+                vad_uniq_ids.add(dic['uniq_id'])
+
+    provided_uniq_ids = set(AUDIO_RTTM_MAP.keys())
+    silence_ids = provided_uniq_ids - vad_uniq_ids
+    for uniq_id in silence_ids:
+        del AUDIO_RTTM_MAP[uniq_id]
+        logging.warning(f"{uniq_id} ignored due to silence detected in uniq_id")
+
+
 def getOverlapRange(rangeA, rangeB):
     """
     Calculate the overlapping range between rangeA and rangeB.
@@ -814,16 +836,13 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
             vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
             if len(vad_start_end_list) == 0:
                 logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
-            elif duration == 0:
-                logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
+            elif duration <= 0:
+                logging.warning(f"File ID: {uniq_id}: The audio file has negative or zero duration.")
             else:
-                min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
-                if max_vad > round(offset + duration, deci) or min_vad < offset:
-                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
                 overlap_range_list = getSubRangeList(
                     source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
                 )
-            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
+                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
     return manifest_file
 
 

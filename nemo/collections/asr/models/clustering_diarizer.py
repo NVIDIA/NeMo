@@ -37,6 +37,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     perform_clustering,
     score_labels,
     segments_manifest_to_subsegments_manifest,
+    validate_vad_manifest,
     write_rttm2manifest,
 )
 from nemo.collections.asr.parts.utils.vad_utils import (
@@ -314,8 +315,9 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
         else:
             raise ValueError(
-                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed"
+                "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed from config"
             )
+        validate_vad_manifest(self.AUDIO_RTTM_MAP, vad_manifest=self._speaker_manifest_path)
 
     def _extract_embeddings(self, manifest_file: str):
         """
