@@ -495,7 +495,9 @@ if __name__ == "__main__":
             n_tagged=args.n_tagged,
             punct_post_process=not args.no_punct_post_process,
         )
-        normalized_texts = set(normalized_texts)
+
+        if not normalizer.lm:
+            normalized_texts = set(normalized_texts)
         if args.audio_data:
             asr_model = get_asr_model(args.model)
             pred_text = asr_model.transcribe([args.audio_data])[0]

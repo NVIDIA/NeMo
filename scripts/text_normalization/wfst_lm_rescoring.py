@@ -18,8 +18,7 @@ import os
 import pickle
 import re
 import shutil
-from typing import Dict, List, Tuple
-
+from typing import Dict, List
 import model_utils
 import pandas as pd
 import utils
