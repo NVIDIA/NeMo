@@ -441,12 +441,21 @@ def getMultiScaleCosAffinityMatrix(uniq_embs_and_timestamps: dict, device: torch
 
 
 @torch.jit.script
-def getCosAffinityMatrix(_emb: torch.Tensor):
+def getCosAffinityMatrix(emb: torch.Tensor):
     """
     Calculate cosine similarity values among speaker embeddings then min-max normalize
     the affinity matrix.
+    Args:
+        emb: (torch.tensor)
+            Matrix containing embedding vectors. emb variable should be float(FP32) type to make the data-type
+            compatible with torch.mm operation for both CPU and GPU(CUDA).
+            dimension: (Number of embedding vectors) x (embedding dimension)
+    Returns:
+        sim_d: (torch.tensor)
+            Matrix containing cosine similarity values among the given embedding vectors.
+            dimension: (Number of embedding vectors) x (Number of embedding vectors)
     """
-    emb = _emb.half()
+    emb = emb.float()
     sim_d = cos_similarity(emb, emb)
     sim_d = ScalerMinMax(sim_d)
     return sim_d
@@ -935,7 +944,6 @@ class NMESC:
         Returns:
             est_num_of_spk: (int)
                 Estimated number of speakers
-
             g_p: (float)
                 The ratio between p_neighbors value and the maximum eigen gap value.
         """
