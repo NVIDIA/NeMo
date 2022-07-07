@@ -2,13 +2,15 @@ from pathlib import Path
 from typing import Optional, Union, Dict, Any, Tuple, List
 
 import torch
+
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
 
 from nemo.core.classes.mixins import adapter_mixins
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from torch.nn import Linear, LSTM
+from torch.nn import Linear
 
 import nemo.collections.asr as nemo_asr
 
@@ -64,10 +66,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         if cfg.get('freeze_audio_encoder', False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
-            self.audio_encoder.add_module('lstm_encoder',
-                                          LSTM(input_size=self.audio_encoder.cfg.encoder.d_model,
-                                               hidden_size=cfg.lstm_hidden_size,
-                                               num_layers=cfg.lstm_num_layers))
+            self.audio_encoder.add_module('conf_encoder',
+                                          ConformerLayer(d_model=cfg.get('frozen_conf_d_model'),
+                                                         d_ff=cfg.get('frozen_conf_d_ff')))
 
         if cfg.get('restore_lexical_encoder_from', None):
             model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)

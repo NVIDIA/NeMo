@@ -231,12 +231,6 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     freeze_audio_encoder: bool = False
     """Freeze audio encoder weight and add LSTM module on top of it"""
 
-    lstm_hidden_size: int = 256
-    """LSTM unit hidden size"""
-
-    lstm_num_layers: int = 2
-    """LSTM num layers"""
-
     fusion_inner_size: int = 2048
     """Fusion inner size"""
 
@@ -255,6 +249,10 @@ class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalization
     adapter_config: Optional[LinearAdapterConfig] = None
 
     use_weighted_loss: Optional[bool] = False
+
+    frozen_conf_d_model: Optional[int] = 128
+
+    frozen_conf_d_ff: Optional[int] = 512
 
 
 @dataclass
