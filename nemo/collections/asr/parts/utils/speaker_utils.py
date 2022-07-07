@@ -615,9 +615,10 @@ def isOverlap(rangeA, rangeB):
 
 def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     """
-    This function will check the valid speech segments in the manifest file which is either generated from NeMo voice activity detection
-    (VAD) or oracle VAD. If the audio file does not contain any valid speech segments, 
-    we ignore the audio files (indexed by uniq_id) for the rest of the processing steps.
+    This function will check the valid speech segments in the manifest file which is either 
+    generated from NeMo voice activity detection(VAD) or oracle VAD. 
+    If an audio file does not contain any valid speech segments, we ignore the audio file 
+    (indexed by uniq_id) for the rest of the processing steps.
     """
     vad_uniq_ids = set()
     with open(vad_manifest, 'r') as vad_file:
