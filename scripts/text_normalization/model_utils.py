@@ -60,7 +60,8 @@ def _get_ambiguous_positions(sentences):
     l_sets = [set([x]) for x in re.findall("<\s.+?\s>", sentences[0])]
     for sentence in sentences[1:]:
         spans = re.findall("<\s.+?\s>", sentence)
-        assert(len(spans) == len(l_sets))
+        if len(spans) != len(l_sets):
+            return None
         for i in range(len(spans)):
             l_sets[i].add(spans[i])
     
