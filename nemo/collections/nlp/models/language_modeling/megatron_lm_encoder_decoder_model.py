@@ -80,6 +80,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 raise ValueError(
                     f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
                 )
+        if cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if not cfg.get('share_word_embeddings', True) or not cfg.get('share_decoder_tokens_head_embeddings', True):
+                raise ValueError(
+                    "when pipeline_model_parallel_size > 1 we require share_word_embeddings=True and share_decoder_tokens_head_embeddings=True"
+                )
 
         # Make sure trainer.accumulate_grad_batches is 1.
         self._validate_trainer()
@@ -171,6 +176,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
+            share_word_embeddings=self.cfg.get('share_word_embeddings', True),
+            share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
         )
         return model
 
