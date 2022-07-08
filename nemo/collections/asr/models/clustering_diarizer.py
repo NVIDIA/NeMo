@@ -266,7 +266,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 AUDIO_VAD_RTTM_MAP[key] = deepcopy(self.AUDIO_RTTM_MAP[key])
                 AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
             else:
-                logging.warning(f"no .frame file found for {key} due to zero or negative duration")
+                logging.warning(f"no vad file found for {key} due to zero or negative duration")
 
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
