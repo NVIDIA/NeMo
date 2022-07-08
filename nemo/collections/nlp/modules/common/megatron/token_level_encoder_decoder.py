@@ -104,6 +104,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         position_embedding_type='learned_absolute',
         relative_attention_num_buckets=32,
         relative_attention_max_distance=128,
+        relative_position_bias_self_attention_only=False,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -138,6 +139,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.position_embedding_type = position_embedding_type
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
+        self.relative_position_bias_self_attention_only = relative_position_bias_self_attention_only
 
         if kv_channels is None:
             assert (
@@ -162,10 +164,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if self.position_embedding_type == 'relative':
                     self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(init_method_std),
-                        layer_type=LayerType.encoder,
                         num_attention_heads=num_attention_heads,
                         relative_position_num_buckets=relative_attention_num_buckets,
                         relative_position_max_distance=relative_attention_max_distance,
+                        bidirectional=True,
                     )
                     self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
 
@@ -234,12 +236,23 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 if self.position_embedding_type == 'relative':
                     self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(init_method_std),
-                        layer_type=LayerType.decoder,
                         num_attention_heads=num_attention_heads,
                         relative_position_num_buckets=relative_attention_num_buckets,
                         relative_position_max_distance=relative_attention_max_distance,
+                        bidirectional=False,
                     )
                     self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+                    if not self.relative_position_bias_self_attention_only:
+                        self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
+                            init_method=init_method_normal(init_method_std),
+                            num_attention_heads=num_attention_heads,
+                            relative_position_num_buckets=relative_attention_num_buckets,
+                            relative_position_max_distance=relative_attention_max_distance,
+                            bidirectional=True,
+                        )
+                        self._decoder_cross_attention_relative_position_embedding_key = (
+                            "decoder_cross_attention_relative_position_embedding"
+                        )
 
             decoder = get_decoder_model(
                 arch=decoder_arch,
@@ -351,8 +364,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
 
                 if self.position_embedding_type == 'relative':
-                    encoder_self_attention_relative_position_bias, _ = self.encoder_relative_position_embedding(
-                        encoder_seq_length=enc_input_ids.size(1), decoder_seq_length=None
+                    encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
+                        query_seq_length=enc_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
                     )
             else:
                 enc_input = None
@@ -368,12 +381,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 
                 if self.position_embedding_type == 'relative':
-                    (
-                        decoder_self_attention_relative_position_bias,
-                        decoder_cross_attention_relative_position_bias,
-                    ) = self.decoder_relative_position_embedding(
-                        encoder_seq_length=enc_input_ids.size(1), decoder_seq_length=dec_input_ids.size(1)
+                    decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
+                        query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                     )
+                    if not self.relative_position_bias_self_attention_only:
+                        decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
+                            query_seq_length=dec_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
+                        )
+                    else:
+                        decoder_cross_attention_relative_position_bias = None
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
@@ -397,10 +413,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_output, enc_output = output  # [s, b, h]
                 # project decoder output to vocabulary-size dimensions
                 token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
-
                 if labels is not None:
                     # [b, s] -> [s, b]
                     labels = labels.transpose(0, 1).contiguous()
+
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half

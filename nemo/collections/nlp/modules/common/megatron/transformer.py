@@ -413,7 +413,7 @@ class CoreAttention(MegatronModule):
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
 
-        if relative_position_bias is not None and self.attention_type == AttnType.self_attn:
+        if relative_position_bias is not None:
             attention_scores += relative_position_bias[
                 :,
                 self.num_attention_heads_partition_offset : self.num_attention_heads_partition_offset

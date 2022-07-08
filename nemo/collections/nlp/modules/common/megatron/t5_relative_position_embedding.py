@@ -20,18 +20,17 @@ from apex.transformer.enums import LayerType
 class T5RelativePositionEmbedding(torch.nn.Module):
     """Relative Position Embedding implementation from the T5 paper : https://arxiv.org/abs/1910.10683"""
     def __init__(
-        self, init_method, layer_type, num_attention_heads,
+        self, init_method, bidirectional, num_attention_heads,
         relative_position_num_buckets=32, relative_position_max_distance=128,
     ):
         super(T5RelativePositionEmbedding, self).__init__()
-        self.layer_type = layer_type
-
         self.relative_position_num_buckets = relative_position_num_buckets
         self.relative_position_max_distance = relative_position_max_distance
         self.self_attention_relative_position_bucket = None
         self.inter_attention_relative_position_bucket = None
         self.self_attention_relative_position_bias = None
         self.inter_attention_relative_position_bias = None
+        self.bidirectional = bidirectional
 
         # Relative position Embedding
         # Relative Position embedding (all attention layers).
@@ -130,7 +129,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket_tensor = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional= (self.layer_type is LayerType.encoder),
+            bidirectional= self.bidirectional,
             num_buckets=self.relative_position_num_buckets,
             max_distance=self.relative_position_max_distance
         )
@@ -145,17 +144,6 @@ class T5RelativePositionEmbedding(torch.nn.Module):
 
         return values
 
-    def forward(self, encoder_seq_length, decoder_seq_length):
-        if self.layer_type is LayerType.encoder and self.self_attention_relative_position_bucket is None:
-            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(encoder_seq_length, encoder_seq_length)
-        
-        if self.layer_type is LayerType.decoder and self.self_attention_relative_position_bucket is None:
-            self.self_attention_relative_position_bucket = self._compute_relative_position_bucket(decoder_seq_length, decoder_seq_length)
-            self.inter_attention_relative_position_bucket = self._compute_relative_position_bucket(decoder_seq_length, encoder_seq_length)
-
-        self.self_attention_relative_position_bias = self._compute_relative_position_bias(self.self_attention_relative_position_bucket)
-
-        if self.layer_type is LayerType.decoder:
-            self.inter_attention_relative_position_bias = self._compute_relative_position_bias(self.inter_attention_relative_position_bucket)
-
-        return self.self_attention_relative_position_bias, self.inter_attention_relative_position_bias
+    def forward(self, query_seq_length, key_seq_length):
+        self_attention_relative_position_bucket = self._compute_relative_position_bucket(query_seq_length, key_seq_length)
+        return self._compute_relative_position_bias(self_attention_relative_position_bucket)

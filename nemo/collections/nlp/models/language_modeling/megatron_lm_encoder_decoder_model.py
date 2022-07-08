@@ -150,6 +150,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
             relative_attention_num_buckets=self.cfg.get('relative_attention_num_buckets', 32),
             relative_attention_max_distance=self.cfg.get('relative_attention_max_distance', 128),
+            relative_position_bias_self_attention_only=self.cfg.get('relative_position_bias_self_attention_only', True),
             precision=self.cfg.get('precision', 16),
             fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
             activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
