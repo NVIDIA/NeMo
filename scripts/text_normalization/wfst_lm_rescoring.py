@@ -19,6 +19,7 @@ import pickle
 import re
 import shutil
 from typing import Dict, List
+
 import model_utils
 import pandas as pd
 import utils
@@ -182,12 +183,16 @@ if __name__ == "__main__":
     logging.setLevel(logging.DEBUG)
     lang = args.lang
     input_f = args.data
+
     if args.data == "text_normalization_dataset_files/LibriTTS.json":
         args.dataset = "libritts"
-    if args.data == "text_normalization_dataset_files/GoogleTN.json":
+    elif args.data == "text_normalization_dataset_files/GoogleTN.json":
         args.dataset = "google"
     else:
         args.dataset = None
+    logging.debug(f"data : {args.data}\ndataset: {args.dataset}")
+    with open(os.path.basename(args.data) + '.errors', 'w') as fp:
+        pass
     if not os.path.exists(args.data):
         raise FileNotFoundError(f"{args.data} file not found")
     models = model_utils.init_models(model_name_list=args.model_name)
@@ -311,11 +316,12 @@ if __name__ == "__main__":
             print(f"GT   : {post_targets[i]}\n")
             utils.print_df(df)
             print("-" * 80 + "\n")
-            with open(os.path.basename(args.data) + '.errors', 'a') as fp:
-                fp.write(inputs[i] + '~~RAW\n')
-                for t in targets[i]:
-                    fp.write(t + '~~1\n')
-                fp.write('\n')
+            if not pred_is_correct:
+                with open(os.path.basename(args.data) + '.errors', 'a') as fp:
+                    fp.write(inputs[i] + '~~RAW\n')
+                    for t in targets[i]:
+                        fp.write(t + '~~1\n')
+                    fp.write('\n')
 
     if gt_in_options != len(post_norm_texts_weights):
         print("WFST options for some examples don't contain the ground truth:")

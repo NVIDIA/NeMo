@@ -153,6 +153,7 @@ Gran just back on ski; left party at five and a quarter miles.~~1
 
 1/2 oz. of peppercorns, 4 onions, 6 thin slices of bacon, 2 hard-boiled eggs.~~RAW
 one half ounce of peppercorns, four onions, six thin slices of bacon, two hard - boiled eggs.~~1
+one half ounces of peppercorns, four onions, six thin slices of bacon, two hard - boiled eggs.~~1
 
 He was a trooper in the 23rd Dragoons.~~RAW
 He was a trooper in the twenty third Dragoons.~~1
@@ -185,6 +186,7 @@ Aces of World War one Osprey Aircraft of the Aces number forty.~~1
 The college is affiliated to Tamil Nadu Dr. M.G.R. Medical University.~~RAW
 The college is affiliated to Tamil Nadu Dr. MGR Medical University.~~1
 The college is affiliated to Tamil Nadu Dr. M.G.R. Medical University.~~1
+The college is affiliated to Tamil Nadu Doctor MGR Medical University.~~1
 
 Vanderheide, Al, "Dutch Reformed Leader dr G.C. Berkouwer Passes Away", Internet Christian Library.~~RAW
 Vanderheide, Al, "Dutch Reformed Leader doctor GC Berkouwer Passes Away", Internet Christian Library.~~1
@@ -214,6 +216,7 @@ York street number four, Covent Garden, London; Original from Fogg Library, Digi
 Risk of invasive cervical cancer associated with polymorphic HLA-DR/DQ haplotypes".~~RAW
 Risk of invasive cervical cancer associated with polymorphic HLA-DR/DQ haplotypes"~~1
 Risk of invasive cervical cancer associated with polymorphic HLA dash DR slash DQ haplotypes"~~1
+Risk of invasive cervical cancer associated with polymorphic HLA-DR slash DQ haplotypes"~~1
 
 Vetter U, Weis MA, Morike M, Eanes ED, Eyre DR (Feb 1993).~~RAW
 Vetter U, Weis MA, Morike M, Eanes ED, Eyre DR (february nineteen ninety three).~~1
@@ -293,6 +296,7 @@ Journal of Reliability Engineering Association of Japan Accession number; 02 A 0
 Journal of Reliability Engineering Association of Japan Accession number; zero two A zero five zero nine one six eight, ISSN o nine one nine sil two six nine seven, volume twenty four; number point four; PAGE two hundred seventy six to two hundred eighty three (two thousand two) "A. Albertsen, Electrolytic Capacitor Lifetime Estimation" (PDF).~~1
 Journal of Reliability Engineering Association of Japan Accession number; zero two A zero five zero nine one six eight, ISSN zero nine nineteen to twenty six ninety seven, Volume twenty four; number four; PAGE two hundred seventy six to two hundred eighty three (two thousand two) "A. Albertsen, Electrolytic Capacitor Lifetime Estimation" (PDF).~~1
 Journal of Reliability Engineering Association of Japan Accession number; zero two A zero five zero nine one six eight, ISSN zero nine one nine to twenty six ninety seven, Volume twenty four; number four; PAGE two hundred seventy six to two hundred eighty three (two thousand two) "A. Albertsen, Electrolytic Capacitor Lifetime Estimation" (PDF).~~1
+Journal of Reliability Engineering Association of Japan Accession number; zero two A zero five zero nine one six eight, ISSN zero nine one nine - twenty six ninety seven, Volume twenty four; number four; PAGE two hundred seventy six to two hundred eighty three (two thousand two) "A. Albertsen, Electrolytic Capacitor Lifetime Estimation" (PDF).~~1
 
 Zanella AJ, Broom DM, Hunter JC, Mendl MT~~RAW
 Zanella AJ, Broom DM, Hunter JC, Mendl MT~~1
@@ -795,4 +799,5 @@ whats was the value of x if x plus two equals five?~~1
 
 Please tweet @PizzaHut I've been waiting for my delivery for 85min now #nothappy~~RAW
 Please tweet at PizzaHut I've been waiting for my delivery for eighty five minute now hashtag nothappy~~1
+Please tweet at PizzaHut I've been waiting for my delivery for eighty five minute now hash nothappy~~1
 Please tweet @ PizzaHut I've been waiting for my delivery for eighty five minute now # nothappy~~1

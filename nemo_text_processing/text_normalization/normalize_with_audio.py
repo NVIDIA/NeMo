@@ -182,7 +182,6 @@ class NormalizerWithAudio(Normalizer):
             normalized_texts, weights = zip(*remove_dup)
             return list(normalized_texts), weights
 
-
         normalized_texts = set(normalized_texts)
         return normalized_texts
 
