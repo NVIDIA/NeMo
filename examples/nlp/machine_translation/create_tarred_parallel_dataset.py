@@ -33,7 +33,10 @@ if __name__ == '__main__':
         '--encoder_tokenizer_model', type=str, default='None', help='Path to pre-trained encoder tokenizer model'
     )
     parser.add_argument(
-        '--encoder_tokenizer_name', type=str, default='yttm', help='Encoder BPE Tokenizer Name, Options: [yttm, sentencepiece]'
+        '--encoder_tokenizer_name',
+        type=str,
+        default='yttm',
+        help='Encoder BPE Tokenizer Name, Options: [yttm, sentencepiece]',
     )
     parser.add_argument('--encoder_tokenizer_vocab_size', type=int, default=32000, help='Encoder Vocab size after BPE')
     parser.add_argument(
@@ -52,7 +55,10 @@ if __name__ == '__main__':
         '--decoder_tokenizer_model', type=str, default='None', help='Path to pre-trained decoder tokenizer model'
     )
     parser.add_argument(
-        '--decoder_tokenizer_name', type=str, default='yttm', help='Encoder BPE Tokenizer Name, Options: [yttm, sentencepiece]'
+        '--decoder_tokenizer_name',
+        type=str,
+        default='yttm',
+        help='Encoder BPE Tokenizer Name, Options: [yttm, sentencepiece]',
     )
     parser.add_argument('--decoder_tokenizer_vocab_size', type=int, default=32000, help='Encoder Vocab size after BPE')
     parser.add_argument(
@@ -87,13 +93,17 @@ if __name__ == '__main__':
         '--n_preproc_jobs', type=int, default=-2, help='Number of processes to use for creating the tarred dataset.',
     )
     parser.add_argument(
-        '--byte_fallback', action="store_true", help='Whether to use byte fallback with sentencepiece for BPE tokenization.'
+        '--byte_fallback',
+        action="store_true",
+        help='Whether to use byte fallback with sentencepiece for BPE tokenization.',
     )
     parser.add_argument(
         '--split_digits', action="store_true", help='Whether to split digits while tokenizing with sentencepiece.'
     )
     parser.add_argument(
-        '--no_split_by_whitespace', action="store_true", help='Whether to split digits while tokenizing with sentencepiece.'
+        '--no_split_by_whitespace',
+        action="store_true",
+        help='Whether to split digits while tokenizing with sentencepiece.',
     )
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
