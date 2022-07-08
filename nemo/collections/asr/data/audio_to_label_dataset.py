@@ -150,6 +150,9 @@ def get_tarred_speech_label_dataset(
             world_size=world_size,
         )
 
-        datasets.append(dataset)
+        if bucketing_weights:
+            [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
+        else:
+            datasets.append(dataset)
 
     return get_chain_dataset(datasets=datasets, ds_config=config)
