@@ -327,7 +327,7 @@ Upsampling Datasets
 
 Buckets may also be 'weighted' to allow multiple runs through a target dataset during each training epoch. This can be beneficial in cases when a dataset is composed of several component sets of unequal sizes and one desires to mitigate bias towards the larger sets through oversampling.   
 
-Weighting is managed with the `bucket_weights` parameter. After passing your composite tarred datasets in the format described above for bucketing, pass a list of integers (one per bucket) to indicate how many times a manifest should be read during training. 
+Weighting is managed with the `bucketing_weights` parameter. After passing your composite tarred datasets in the format described above for bucketing, pass a list of integers (one per bucket) to indicate how many times a manifest should be read during training. 
 
 For example, by passing `[2,1,1,3]` to the code below:
 
@@ -344,7 +344,7 @@ For example, by passing `[2,1,1,3]` to the code below:
     [PATH_TO_TARS/bucket3/audio__OP_0..511_CL_.tar],
     [PATH_TO_TARS/bucket4/audio__OP_0..511_CL_.tar]]
 	...
-	model.train_ds.bucket_weights=[2,1,1,3]
+	model.train_ds.bucketing_weights=[2,1,1,3]
 
 NeMo will configure training so that all data in `bucket1` will be present twice in a training epoch, `bucket4` will be present three times, and that of `bucket2` and `bucket3` will occur only once each. Note that this will increase the effective amount of data present during training and thus affect training time per epoch.
 
@@ -360,7 +360,7 @@ If using adaptive bucketing, note that the same batch size will be assigned to e
     [PATH_TO_TARS/bucket4/tarred_audio_manifest.json]]
 	...
 	...
-	model.train_ds.bucket_weights=[2,1,1,3]
+	model.train_ds.bucketing_weights=[2,1,1,3]
 	model.train_ds.bucketing_batch_size=[4,4,4,2]
 
 All instances of data from `bucket4` will still be trained with a batch size of 2 while all others would have a batch size of 4. As with standard bucketing, this requires `batch_size`` to be set to 1. 

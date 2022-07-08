@@ -50,7 +50,7 @@ An example ASR train and validation configuration should look similar to the fol
       # bucketing params
       bucketing_strategy: "synced_randomized"
       bucketing_batch_size: null
-      bucket_weights: null
+      bucketing_weights: null
 
     validation_ds:
       manifest_filepath: ???

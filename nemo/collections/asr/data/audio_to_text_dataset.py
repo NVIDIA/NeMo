@@ -162,7 +162,7 @@ def get_tarred_dataset(
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
-    bucket_weights = config.get('bucket_weights', None)  # For upsampling buckets
+    bucket_weights = config.get('bucketing_weights', None)  # For upsampling buckets
     if bucket_weights:
         for idx, weight in enumerate(bucket_weights):
             if not isinstance(weight, int) or weight <= 0:
@@ -412,7 +412,7 @@ def get_chain_dataset(datasets, ds_config):
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
     bucketing_batch_size = ds_config['bucketing_batch_size']
-    bucket_weights = ds_config.get('bucket_weights', None)  # To adjust for upsampled buckets
+    bucket_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
 
     bucketing_batch_sizes = []
 
