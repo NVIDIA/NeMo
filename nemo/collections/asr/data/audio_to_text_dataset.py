@@ -162,9 +162,9 @@ def get_tarred_dataset(
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
-    bucket_weights = config.get('bucketing_weights', None)  # For upsampling buckets
-    if bucket_weights:
-        for idx, weight in enumerate(bucket_weights):
+    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    if bucketing_weights:
+        for idx, weight in enumerate(bucketing_weights):
             if not isinstance(weight, int) or weight <= 0:
                 raise ValueError(f"bucket weights must be positive integers")
 
@@ -222,8 +222,8 @@ def get_tarred_dataset(
                 world_size=world_size,
                 return_sample_id=config.get('return_sample_id', False),
             )
-        if bucket_weights:
-            [datasets.append(dataset) for _ in range(bucket_weights[dataset_idx])]
+        if bucketing_weights:
+            [datasets.append(dataset) for _ in range(bucketing_weights[dataset_idx])]
         else:
             datasets.append(dataset)
 
@@ -412,7 +412,7 @@ def get_chain_dataset(datasets, ds_config):
 
 def calc_bucketing_batch_sizes(ds_config, datasets_len):
     bucketing_batch_size = ds_config['bucketing_batch_size']
-    bucket_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
+    bucketing_weights = ds_config.get('bucketing_weights', None)  # To adjust for upsampled buckets
 
     bucketing_batch_sizes = []
 
@@ -421,8 +421,8 @@ def calc_bucketing_batch_sizes(ds_config, datasets_len):
             f"batch_size should be set to one when bucketing_batch_size is set and adaptive bucketing is enabled (batch_size={ds_config['batch_size']}!"
         )
     if type(bucketing_batch_size) == int:  # linear scaling
-        if bucket_weights:  # Want same batchsize for the same duplicated bucket
-            for idx, weight in enumerate(bucket_weights):
+        if bucketing_weights:  # Want same batchsize for the same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
                 scale_factor = datasets_len - idx
                 [bucketing_batch_sizes.append(scale_factor * bucketing_batch_size) for _ in range(weight)]
         else:
@@ -432,8 +432,8 @@ def calc_bucketing_batch_sizes(ds_config, datasets_len):
     elif isinstance(bucketing_batch_size, ListConfig) or isinstance(
         bucketing_batch_size, list
     ):  # assigned bucket sizes
-        if bucket_weights:  # Want same batchsize for same duplicated bucket
-            for idx, weight in enumerate(bucket_weights):
+        if bucketing_weights:  # Want same batchsize for same duplicated bucket
+            for idx, weight in enumerate(bucketing_weights):
                 [bucketing_batch_sizes.append(bucketing_batch_size[idx]) for _ in range(weight)]
         else:
             bucketing_batch_sizes = bucketing_batch_size
