@@ -31,6 +31,8 @@ from nemo.core import Dataset
 
 class T5Dataset(Dataset):
     # account for added tokens
+    MAX_SEQ_LENGTH_DELTA = 2
+
     def __init__(
         self,
         cfg,
@@ -54,8 +56,6 @@ class T5Dataset(Dataset):
         favor_long_ngrams=False,
         respect_document_boundaries=True,
         documents=None,
-        max_seq_length_delta=None,
-        max_seq_length_delta_no_document_boundary=None,
     ):
         super().__init__()
 
@@ -73,12 +73,6 @@ class T5Dataset(Dataset):
         self.whole_word_masking = whole_word_masking
         self.favor_long_ngrams = favor_long_ngrams
         self.respect_document_boundaries = respect_document_boundaries
-        self.max_seq_length_delta = 2 if max_seq_length_delta is None else max_seq_length_delta
-        self.max_seq_length_delta_no_document_boundary = (
-            (self.max_seq_length - 2) + int(self.max_seq_length * (self.masked_lm_prob - 0.05)) - self.max_ngram_size
-            if max_seq_length_delta_no_document_boundary is None
-            else max_seq_length_delta_no_document_boundary
-        )
 
         # Dataset.
         self.indexed_dataset = indexed_dataset
@@ -106,8 +100,7 @@ class T5Dataset(Dataset):
                 documents=documents,
                 sizes=self.indexed_dataset.sizes,
                 num_samples=max_num_samples,
-                seq_length=self.max_seq_length
-                - self.max_seq_length_delta_no_document_boundary,  # We can allocate an extra (max seq length * masked_lm_prob) - max_ngram_size that goes into the decoder.
+                seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA
                 seed=self.seed,
                 index_mapping_dir=self.index_mapping_dir,
             )
@@ -117,7 +110,7 @@ class T5Dataset(Dataset):
                 data_prefix=data_prefix,
                 num_epochs=num_epochs,
                 max_num_samples=max_num_samples,
-                max_seq_length=self.max_seq_length - self.max_seq_length_delta,  # account for added tokens
+                max_seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA,  # account for added tokens
                 short_seq_prob=self.short_seq_prob,
                 seed=self.seed,
                 name=self.name,
