@@ -55,7 +55,7 @@ def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
         if isinstance(x, dict):
             new_dict = {}
             for k in x.keys():
-                new_dict[k] = cast_all(x[k], from_dtype=torch.float16, to_dtype=torch.float)
+                new_dict[k] = cast_all(x[k], from_dtype=from_dtype, to_dtype=to_dtype)
             return new_dict
         elif isinstance(x, tuple):
             return tuple(cast_all(y, from_dtype=from_dtype, to_dtype=to_dtype) for y in x)
