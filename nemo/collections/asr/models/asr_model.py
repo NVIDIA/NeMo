@@ -130,4 +130,4 @@ class ExportableEncDecModel(Exportable):
         else:
             ret = self.output_module(decoder_input)
         # convert all FP16 results to FP32 for consistency
-        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float)
+        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)

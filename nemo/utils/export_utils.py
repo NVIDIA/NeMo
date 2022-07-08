@@ -44,11 +44,11 @@ _EXT_DICT = {
 }
 
 
-def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float):
+def cast_tensor(x, from_dtype=torch.float16, to_dtype=torch.float32):
     return x.to(dtype=to_dtype) if x.dtype == from_dtype else x
 
 
-def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float):
+def cast_all(x, from_dtype=torch.float16, to_dtype=torch.float32):
     if isinstance(x, torch.Tensor):
         return cast_tensor(x, from_dtype=from_dtype, to_dtype=to_dtype)
     else:
@@ -68,7 +68,7 @@ class CastToFloat(nn.Module):
 
     def forward(self, x):
         if torch.is_autocast_enabled():
-            ret = self.mod.forward(x.to(torch.float)).to(x.dtype)
+            ret = self.mod.forward(x.to(torch.float32)).to(x.dtype)
         else:
             ret = self.mod.forward(x)
         return ret
