@@ -13,15 +13,21 @@
 # limitations under the License.
 
 import math
+
 import torch
 from apex.transformer.enums import LayerType
 
 
 class T5RelativePositionEmbedding(torch.nn.Module):
     """Relative Position Embedding implementation from the T5 paper : https://arxiv.org/abs/1910.10683"""
+
     def __init__(
-        self, init_method, bidirectional, num_attention_heads,
-        relative_position_num_buckets=32, relative_position_max_distance=128,
+        self,
+        init_method,
+        bidirectional,
+        num_attention_heads,
+        relative_position_num_buckets=32,
+        relative_position_max_distance=128,
     ):
         super(T5RelativePositionEmbedding, self).__init__()
         self.relative_position_num_buckets = relative_position_num_buckets
@@ -34,9 +40,9 @@ class T5RelativePositionEmbedding(torch.nn.Module):
 
         # Relative position Embedding
         # Relative Position embedding (all attention layers).
-        self.relative_position_embedding = torch.nn.Embedding( \
-            self.relative_position_num_buckets, num_attention_heads) \
-            .to(torch.cuda.current_device())
+        self.relative_position_embedding = torch.nn.Embedding(
+            self.relative_position_num_buckets, num_attention_heads
+        ).to(torch.cuda.current_device())
         self._relative_position_embedding_key = 'relative_position_embedding'
         init_method(self.relative_position_embedding.weight)
         # TODO (sandeepsub): All reduce relative position embedding once apex implements RPE groups.
@@ -64,9 +70,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
             raise ValueError("Torch Distributed not initialized, cannot allreduce relative position embeddings.")
     '''
 
-    def _relative_position_bucket(
-        self, relative_position, bidirectional=True, num_buckets=32, max_distance=128
-    ):
+    def _relative_position_bucket(self, relative_position, bidirectional=True, num_buckets=32, max_distance=128):
         """
         Adapted from HuggingFace T5 Model:
         https://github.com/huggingface/transformers/blob/b5e2b183af5e40e33a4dc7659e697d137259d56e
@@ -121,17 +125,15 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         """
 
         """Compute binned relative position bias"""
-        context_position = torch.arange(
-            query_length, dtype=torch.long, device=torch.cuda.current_device())[:, None]
-        memory_position = torch.arange(
-            key_length, dtype=torch.long, device=torch.cuda.current_device())[None, :]
+        context_position = torch.arange(query_length, dtype=torch.long, device=torch.cuda.current_device())[:, None]
+        memory_position = torch.arange(key_length, dtype=torch.long, device=torch.cuda.current_device())[None, :]
 
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket_tensor = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional= self.bidirectional,
+            bidirectional=self.bidirectional,
             num_buckets=self.relative_position_num_buckets,
-            max_distance=self.relative_position_max_distance
+            max_distance=self.relative_position_max_distance,
         )
 
         return relative_position_bucket_tensor
@@ -145,5 +147,7 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         return values
 
     def forward(self, query_seq_length, key_seq_length):
-        self_attention_relative_position_bucket = self._compute_relative_position_bucket(query_seq_length, key_seq_length)
+        self_attention_relative_position_bucket = self._compute_relative_position_bucket(
+            query_seq_length, key_seq_length
+        )
         return self._compute_relative_position_bias(self_attention_relative_position_bucket)

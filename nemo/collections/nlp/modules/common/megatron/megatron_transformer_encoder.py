@@ -134,7 +134,12 @@ class MegatronTransformerEncoderModule(MegatronModule):
         self.model.set_input_tensor(input_tensor)
 
     def forward(
-        self, enc_input, enc_attn_mask, layer_past=None, get_key_value=False, enc_self_attention_relative_position_bias=None
+        self,
+        enc_input,
+        enc_attn_mask,
+        layer_past=None,
+        get_key_value=False,
+        enc_self_attention_relative_position_bias=None,
     ):
         # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
@@ -143,8 +148,12 @@ class MegatronTransformerEncoderModule(MegatronModule):
 
         # transformer encoder
         enc_output = self.model(
-            enc_input, attn_mask_postprocess(enc_attn_mask_3d), layer_past=layer_past, get_key_value=get_key_value,
-            self_attention_relative_position_bias=enc_self_attention_relative_position_bias, cross_attention_relative_position_bias=None
+            enc_input,
+            attn_mask_postprocess(enc_attn_mask_3d),
+            layer_past=layer_past,
+            get_key_value=get_key_value,
+            self_attention_relative_position_bias=enc_self_attention_relative_position_bias,
+            cross_attention_relative_position_bias=None,
         )
 
         return enc_output

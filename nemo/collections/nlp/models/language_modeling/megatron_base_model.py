@@ -14,9 +14,9 @@
 
 
 import os
-from omegaconf import open_dict
 
 import torch
+from omegaconf import open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 
@@ -299,4 +299,3 @@ class MegatronBaseModel(NLPModel):
             logging.info("Gradient accumulation fusion should only be used with pipeline parallel size > 1.")
             with open_dict(self.cfg):
                 self.cfg.gradient_accumulation_fusion = False
-

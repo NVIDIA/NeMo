@@ -116,7 +116,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self._is_first_pipe_stage = False
         self._is_intermediate_pipe_stage = False
         self._is_last_pipe_stage = False
-        if (parallel_state.get_pipeline_model_parallel_world_size() > 1):
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if parallel_state.is_pipeline_first_stage():
                 self._is_first_pipe_stage = True
             elif parallel_state.is_pipeline_last_stage():
