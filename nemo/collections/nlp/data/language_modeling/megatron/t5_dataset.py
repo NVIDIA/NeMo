@@ -100,7 +100,7 @@ class T5Dataset(Dataset):
                 documents=documents,
                 sizes=self.indexed_dataset.sizes,
                 num_samples=max_num_samples,
-                seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA
+                seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA,
                 seed=self.seed,
                 index_mapping_dir=self.index_mapping_dir,
             )
