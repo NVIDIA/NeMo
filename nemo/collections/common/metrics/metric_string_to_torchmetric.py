@@ -13,15 +13,12 @@
 # limitations under the License.
 
 from torchmetrics import (
-    AUC,
-    AUROC,
     Accuracy,
     AveragePrecision,
     F1Score,
     MatthewsCorrCoef,
     PearsonCorrCoef,
     SpearmanCorrCoef,
-    SQuAD,
 )
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
@@ -32,13 +29,10 @@ __all__ = ['MetricStringToTorchMetric']
 
 MetricStringToTorchMetric = {
     'accuracy': Accuracy,
-    'auc': AUC,
-    'auroc': AUROC,
     'average_precision': AveragePrecision,
     'f1': F1Score,
     'pearson_corr_coef': PearsonCorrCoef,
     'spearman_corr_coef': SpearmanCorrCoef,
     'matthews_corr_coef': MatthewsCorrCoef,
     'exact_string_match': ExactStringMatchMetric,
-    'squad': SQuAD,
 }
