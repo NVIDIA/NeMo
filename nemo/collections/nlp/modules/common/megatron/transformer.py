@@ -1778,6 +1778,8 @@ class ParallelTransformer(MegatronModule):
             use_transformer_engine = True
             if use_transformer_engine:
                 checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
+                params_dtype = torch.float32
+                # params_dtype = torch.bfloat16
 
                 return TransformerLayer(
                     hidden_size=hidden_size,
@@ -1792,7 +1794,7 @@ class ParallelTransformer(MegatronModule):
                     kv_channels=kv_channels,
                     self_attn_mask_type=self_attn_mask_type.name,
                     tp_size=parallel_state.get_tensor_model_parallel_world_size(),
-                    params_dtype=torch.float32,
+                    params_dtype=params_dtype,
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
                     fuse_wgrad_accumulation=False,
