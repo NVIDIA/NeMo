@@ -34,6 +34,7 @@ from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
+from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.get_rank import is_global_rank_zero
 
 try:
@@ -170,6 +171,11 @@ class ModelPT(LightningModule, Model):
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
 
+    def on_fit_start(self) -> None:
+        if self.cfg.get("dump_debug_info", False):
+            register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
+        return super().on_fit_start()
+
     def register_artifact(
         self, config_path: str, src: str, verify_src_exists: bool = True,
     ):
@@ -226,7 +232,7 @@ class ModelPT(LightningModule, Model):
 
         .nemo file is an archive (tar.gz) with the following:
             model_config.yaml - model configuration in .yaml format. You can deserialize this into cfg argument for model's constructor
-            model_wights.chpt - model checkpoint
+            model_wights.ckpt - model checkpoint
 
         Args:
             save_path: Path to .nemo file where model instance should be saved
@@ -279,7 +285,7 @@ class ModelPT(LightningModule, Model):
                 model as an OmegaConf DictConfig object without instantiating the model.
             trainer: Optional, a pytorch lightning Trainer object that will be forwarded to the
                 instantiated model's constructor.
-            save_restore_connector (SaveRestoreConnector): Can be overrided to add custom save and restore logic.
+            save_restore_connector (SaveRestoreConnector): Can be overridden to add custom save and restore logic.
 
             Example:
                 ```
@@ -325,7 +331,7 @@ class ModelPT(LightningModule, Model):
     ):
         """
         Loads ModelPT from checkpoint, with some maintenance of restoration.
-        For documentation, please refer to LightningModule.load_from_checkpoin() documentation.
+        For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         checkpoint = None
         try:
@@ -600,10 +606,54 @@ class ModelPT(LightningModule, Model):
             See https://pytorch.org/docs/stable/optim.html for more information.
             By default, ModelPT will use self.parameters().
             Override this method to add custom param groups.
-    """
-        param_groups = None
-        if hasattr(self, 'parameters'):
-            param_groups = [{'params': self.parameters()}]
+            In the config file, add 'optim_param_groups' to support different LRs 
+            for different components (unspecified params will use the default LR):
+            model:
+                optim_param_groups:
+                    encoder: 
+                        lr: 1e-4
+                        momentum: 0.8
+                    decoder: 
+                        lr: 1e-3
+                optim:
+                    lr: 3e-3
+                    momentum: 0.9   
+        """
+        if not hasattr(self, "parameters"):
+            self._optimizer_param_groups = None
+            return
+
+        known_groups = []
+        param_groups = []
+        if "optim_param_groups" in self.cfg:
+            param_groups_cfg = self.cfg.optim_param_groups
+            for group, group_cfg in param_groups_cfg.items():
+                module = getattr(self, group, None)
+                if module is None:
+                    raise ValueError(f"{group} not found in model.")
+                elif hasattr(module, "parameters"):
+                    known_groups.append(group)
+                    new_group = {"params": module.parameters()}
+                    for k, v in group_cfg.items():
+                        new_group[k] = v
+                    param_groups.append(new_group)
+                else:
+                    raise ValueError(f"{group} does not have parameters.")
+
+            other_params = []
+            for n, p in self.named_parameters():
+                is_unknown = True
+                for group in known_groups:
+                    if n.startswith(group):
+                        is_unknown = False
+                if is_unknown:
+                    other_params.append(p)
+
+            if len(other_params):
+                param_groups = [{"params": other_params}] + param_groups
+        else:
+            param_groups = [{"params": self.parameters()}]
+
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):

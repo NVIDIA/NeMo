@@ -108,7 +108,6 @@ pipeline {
         sh 'python -c "import nemo.collections.tts as nemo_tts"'
       }
     }
-
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
@@ -138,18 +137,18 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
           }
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
           }
         }
       }
@@ -166,7 +165,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python normalize.py --input_file=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output_file=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_05-25.txt || exit 1'
@@ -176,7 +175,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python inverse_normalize.py --input_file=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output_file=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -185,7 +184,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3 --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
             cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -193,7 +192,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
             cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -201,7 +200,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-3'
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
           }
         }
       }
@@ -308,6 +307,20 @@ pipeline {
           steps {
             sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
             --config-path="../conf/ssl/citrinet/" --config-name="citrinet_ssl_ci" \
+            model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
+            model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            +trainer.fast_dev_run=True \
+            exp_manager.exp_dir=examples/asr/speech_pre_training_results'
+            sh 'rm -rf examples/asr/speech_pre_training_results'
+          }
+        }
+
+        stage('L2: Speech Pre-training - Wav2Vec') {
+          steps {
+            sh 'python examples/asr/speech_pretraining/speech_pre_training.py \
+            --config-path="../conf/ssl/wav2vec/" --config-name="wav2vec_ci" \
             model.train_ds.manifest_filepath=/home/TestData/an4_dataset/an4_train.json \
             model.validation_ds.manifest_filepath=/home/TestData/an4_dataset/an4_val.json \
             trainer.devices=[1] \
@@ -735,7 +748,7 @@ pipeline {
             exp_manager=null'
           }
         }
-        stage('Test Restore with AlBERT') {
+        stage('Test Restore Punctuation & Capitalization with AlBERT') {
           steps {
             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -753,7 +766,7 @@ pipeline {
             rm -rf "${data_dir}"'
           }
         }
-        stage('Test Restore with RoBERTa') {
+        stage('Test Restore Punctuation & Capitalization with RoBERTa') {
           steps {
             sh 'data_dir="$(mktemp -d -p "$(pwd)")" && \
             cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}"/ && \
@@ -764,7 +777,7 @@ pipeline {
               +model.test_ds.use_cache=false \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation/ \
+              model.test_ds.ds_item="${data_dir}" \
               trainer.devices=[1] \
               trainer.accelerator="gpu" \
               exp_manager=null && \
@@ -1594,17 +1607,23 @@ pipeline {
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.label_vocab_dir') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            label_vocab_dir=label_vocab_dir && \
+            work_dir="$(mktemp -d -p "$(pwd)")" && \
+            label_vocab_dir="${work_dir}/labels" && \
             mkdir -p ${label_vocab_dir} && \
+            data_dir="${work_dir}/data" && \
+            mkdir -p "${data_dir}" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
             punct_label_vocab="${label_vocab_dir}/punct_label_vocab.csv" && \
             capit_label_vocab="${label_vocab_dir}/capit_label_vocab.csv" && \
             printf "O\n,\n.\n?\n" > "${punct_label_vocab}" && \
             printf "O\nU\n" > "${capit_label_vocab}" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               model.common_dataset_parameters.label_vocab_dir="${label_vocab_dir}" \
               model.class_labels.punct_labels_file="$(basename "${punct_label_vocab}")" \
@@ -1615,15 +1634,15 @@ pipeline {
               trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1631,27 +1650,31 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -r "${label_vocab_dir}" && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/*'
+            rm -rf "${work_dir}"'
           }
         }
         stage('Punctuation & Capitalization, Using model.common_datasest_parameters.{punct,capit}_label_ids') {
           steps {
             sh 'cd examples/nlp/token_classification && \
-            conf_path=/home/TestData/nlp/token_classification_punctuation && \
+            work_dir="$(mktemp -d -p "$(pwd)")" && \
+            output_dir="${work_dir}/output" && \
+            mkdir -p "${output_dir}" && \
+            data_dir="${work_dir}/data" && \
+            mkdir -p "${data_dir}" && \
+            cp /home/TestData/nlp/token_classification_punctuation/*.txt "${data_dir}" && \
             conf_name=punctuation_capitalization_config_with_ids && \
-            cp conf/punctuation_capitalization_config.yaml "${conf_path}/${conf_name}.yaml" && \
+            cp conf/punctuation_capitalization_config.yaml "${work_dir}/${conf_name}.yaml" && \
             sed -i $\'s/punct_label_ids: null/punct_label_ids: {O: 0, \\\',\\\': 1, .: 2, \\\'?\\\': 3}/\' \
-              "${conf_path}/${conf_name}.yaml" && \
+              "${work_dir}/${conf_name}.yaml" && \
             sed -i $\'s/capit_label_ids: null/capit_label_ids: {O: 0, U: 1}/\' \
-              "${conf_path}/${conf_name}.yaml" && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
-              --config-path "${conf_path}" \
+              "${work_dir}/${conf_name}.yaml" && \
+            python punctuation_capitalization_train_evaluate.py \
+              --config-path "${work_dir}" \
               --config-name "${conf_name}" \
               model.train_ds.use_tarred_dataset=false \
-              model.train_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.validation_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
+              model.train_ds.ds_item="${data_dir}" \
+              model.validation_ds.ds_item="${data_dir}" \
+              model.test_ds.ds_item="${data_dir}" \
               model.language_model.pretrained_model_name=distilbert-base-uncased \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
@@ -1659,15 +1682,15 @@ pipeline {
               trainer.devices=[0,1] \
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
-              +exp_manager.explicit_log_dir=/home/TestData/nlp/token_classification_punctuation/output \
+              +exp_manager.explicit_log_dir="${output_dir}" \
               +do_testing=false && \
-            CUDA_LAUNCH_BLOCKING=1 python punctuation_capitalization_train_evaluate.py \
+            python punctuation_capitalization_train_evaluate.py \
               +do_training=false \
               +do_testing=true \
               ~model.train_ds \
               ~model.validation_ds \
-              model.test_ds.ds_item=/home/TestData/nlp/token_classification_punctuation \
-              pretrained_model=/home/TestData/nlp/token_classification_punctuation/output/checkpoints/Punctuation_and_Capitalization.nemo \
+              model.test_ds.ds_item="${data_dir}" \
+              pretrained_model="${output_dir}/checkpoints/Punctuation_and_Capitalization.nemo" \
               +model.train_ds.use_cache=false \
               +model.validation_ds.use_cache=false \
               +model.test_ds.use_cache=false \
@@ -1675,8 +1698,7 @@ pipeline {
               trainer.strategy=ddp \
               trainer.max_epochs=1 \
               exp_manager=null && \
-            rm -rf /home/TestData/nlp/token_classification_punctuation/output/* && \
-            rm "${conf_path}/${conf_name}.yaml"'
+            rm -rf "${work_dir}"'
           }
         }
       }
@@ -2107,7 +2129,7 @@ pipeline {
         model.num_attention_heads=8 \
         model.activation='swiglu' \
         model.masked_softmax_fusion=False \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.micro_batch_size=2 \
@@ -2139,7 +2161,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.masked_softmax_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
@@ -2711,75 +2733,69 @@ pipeline {
             trainer.num_nodes=1"
       }
     }
-    stage('L2: Megatron GPT Prompt Learning and Inference') {
+    stage('L2: Megatron GPT Prompt Learning') {
       when {
-	anyOf {
-	  branch 'main'
-	  changeRequest target: 'main'
-	}
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
       }
       failFast true
-      steps {
-        sh "echo 'TESTING P-TUNING TRAINING -------'"
-        sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
-            --config-name=megatron_gpt_prompt_learning_config \
-            name='/home/TestData/nlp/prompt_learning/p_tuning_test' \
-            trainer.max_steps=6 \
-            trainer.max_epochs=null \
-            trainer.val_check_interval=2 \
-            model.language_model_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            model.existing_tasks=[] \
-            model.new_tasks=['rte'] \
-            model.virtual_prompt_style='p-tuning' \
-            model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test_train.jsonl'] \
-            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test_val.jsonl']"
-
-        sh "echo 'TESTING P-TUNING INFERENCE --------'"
-        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test.nemo' \
-            gpt_model_file='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test_test.jsonl']"
-
-        sh "echo TESTING PROMPT-TUNING TRAINING ------"
-        sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
-            --config-name=megatron_gpt_prompt_learning_config \
-            name='/home/TestData/nlp/prompt_learning/prompt_tuning_test' \
-            trainer.max_steps=6 \
-            trainer.max_epochs=null \
-            trainer.val_check_interval=2 \
-            model.restore_path='/home/TestData/nlp/prompt_learning/p_tuning_test.nemo' \
-            model.language_model_path='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            model.existing_tasks=['rte'] \
-            model.new_tasks=['boolq, intent_and_slot'] \
-            model.virtual_prompt_style='prompt-tuning' \
-            model.prompt_tuning.new_prompt_init_methods=['text, random'] \
-            model.prompt_tuning.new_prompt_init_text=['some init text goes here, None'] \
-            model.data.train_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_train.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_train.jsonl'] \
-            model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test_val.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_val.jsonl']"
-
-        sh "echo TESTING PROMPT-TUNING INFERENCE --------"
-        sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
-            virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo' \
-            gpt_model_file='/home/TestData/nlp/megatron_gpt/125M/megatron_gpt.nemo' \
-            inference.greedy=True \
-            inference.add_BOS=True \
-            trainer.devices=1 \
-            trainer.num_nodes=1 \
-            tensor_model_parallel_size=1 \
-            pipeline_model_parallel_size=1 \
-            prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test_test.jsonl, /home/TestData/nlp/prompt_learning/intent_and_slot_CI_test_test.jsonl, /home/TestData/nlp/prompt_learning/boolq_CI_test_test.jsonl']"
-
-        sh "rm -rf nemo_experiments"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test.nemo"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test.nemo"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/prompt_tuning_test"
-        sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test"
+      parallel{
+        stage('GPT Prompt Learning TP=2 PP=1') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/p_tuning_test_tp' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.tensor_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['rte'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp"
+            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                tensor_model_parallel_size=2 \
+                prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo"
+          }
+        }
+        stage('GPT Prompt Learning TP=1 PP=2') {
+          steps {
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning.py \
+                --config-name=megatron_gpt_prompt_learning_config \
+                name='/home/TestData/nlp/prompt_learning/p_tuning_test_pp' \
+                trainer.devices=2 \
+                trainer.max_steps=6 \
+                trainer.max_epochs=null \
+                model.pipeline_model_parallel_size=2 \
+                model.language_model_path='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                model.existing_tasks=[] \
+                model.new_tasks=['boolq'] \
+                model.data.train_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
+                model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
+                model.global_batch_size=4"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp"
+            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+                virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo' \
+                gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
+                inference.greedy=True \
+                inference.add_BOS=False \
+                trainer.devices=2 \
+                pipeline_model_parallel_size=2 \
+                prompts=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
+            sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
+          }
+        }
       }
     }
 
@@ -2877,7 +2893,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='pre_ln' \
@@ -2902,7 +2918,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='pre_ln' \
@@ -2999,7 +3015,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='normformer' \
@@ -3024,7 +3040,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='swiglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='normformer' \
@@ -3078,7 +3094,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3100,7 +3116,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='reglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3134,7 +3150,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='geglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
@@ -3157,7 +3173,7 @@ pipeline {
         model.hidden_size=64 \
         model.num_attention_heads=8 \
         model.activation='geglu' \
-        model.bias_gelu_fusion=False \
+        model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"

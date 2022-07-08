@@ -36,7 +36,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 )
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging
 
 try:
@@ -70,6 +69,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer=trainer)
+        if cfg.get('pipeline_model_parallel_size', 1) > 2 and self.cfg.get('position_embedding_type') == 'relative':
+            raise ValueError(
+                "pipeline_model_parallel_size cannot be > 2 with position_embedding_type == relative at the moment."
+            )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
@@ -117,7 +120,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
-
+        if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder_arch == 'perceiver':
+            raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
+        if hasattr(self.cfg, 'bias_gelu_fusion'):
+            logging.warning('bias_gelu_fusion is deprecated. Please use bias_activation_fusion instead.')
+            activation_fusion = self.cfg.bias_gelu_fusion
+        else:
+            activation_fusion = self.cfg.get('bias_activation_fusion', True)
         model = MegatronTokenLevelEncoderDecoderModule(
             encoder_arch=self.cfg.encoder_arch,
             decoder_arch=self.cfg.decoder_arch,
@@ -147,10 +156,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
             layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_activation_fusion=(
-                (self.cfg.get('bias_gelu_fusion', True) and self.cfg.get('activation', 'gelu') == 'gelu')
-                or (self.cfg.get('bias_activation_fusion', True) and self.cfg.get('activation', 'gelu') == 'geglu')
-            ),
+            bias_activation_fusion=activation_fusion,
             bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
             masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
             onnx_safe=self.cfg.get('onnx_safe', False),
@@ -159,6 +165,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             normalization=self.cfg.get('normalization', 'layernorm'),
             transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
             headscale=self.cfg.get('headscale', False),
+            hidden_steps=self.cfg.get('hidden_steps', -1),
+            num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
         )
@@ -394,7 +402,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     and parallel_state.get_pipeline_model_parallel_world_size() > 1
                     and parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 ):
-                    if self.enc_dec_model.position_embedding_type != 'relative':
+                    if self.cfg.get('position_embedding_type') != 'relative':
                         position_embeddings_weight = self.enc_dec_model.position_embeddings_weight()
                         if self.megatron_amp_o2:
                             grad = position_embeddings_weight.main_grad
@@ -707,7 +715,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.enc_dec_model.position_embedding_type != 'relative':
+            if self.cfg.get('position_embedding_type') != 'relative':
                 self.enc_dec_model.sync_initial_position_embeddings()
 
     def setup_training_data(self, cfg):
@@ -729,48 +737,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if hasattr(self, '_test_ds'):
             consumed_samples = 0
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
-
-    def configure_optimizers(self):
-        self.setup_optimization()
-
-        # Wrap the baseline optimizer with the optimizer class with master parameters
-        if self.megatron_amp_o2 and self._optimizer is not None:
-            if self.cfg.precision == 'bf16':
-                fp32_grad_accum = True
-                contiguous_grad_bucket = True
-
-            elif self.cfg.precision == 16:
-                fp32_grad_accum = False
-                # TODO: contiguous grad bucket for fp16 is also planned to be supported
-                contiguous_grad_bucket = False
-
-            # if using tensor parallel only, we can use async grad all-reduce
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
-                async_grad_allreduce = True
-            else:
-                async_grad_allreduce = False
-
-            self._optimizer = MainParamsOptimizerWrapper(
-                self._optimizer,
-                fp32_grad_accum=fp32_grad_accum,
-                contiguous_grad_bucket=contiguous_grad_bucket,
-                async_grad_allreduce=async_grad_allreduce,
-                grad_div_ar_fusion=self.cfg.get('grad_div_ar_fusion', True),
-                grad_allreduce_chunk_size_mb=self.cfg.get('grad_allreduce_chunk_size_mb', 125),
-            )
-
-            assert self._trainer.max_steps is not None, "'max_steps' is missing in trainer config."
-            if hasattr(self._cfg.optim, 'sched'):
-                sched_config = self._cfg.optim.sched
-                sched_config['max_steps'] = self._trainer.max_steps
-                self._scheduler = prepare_lr_scheduler(
-                    optimizer=self._optimizer, scheduler_config=sched_config, train_dataloader=self._train_dl
-                )
-
-        if self._scheduler is None:
-            return self._optimizer
-        else:
-            return [self._optimizer], [self._scheduler]
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
@@ -880,12 +846,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 torch.distributed.broadcast(
                     predicted_tokens_dec,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
-                    group=parallel_state.get_model_parallel_group(),
+                    group=parallel_state.get_pipeline_model_parallel_group(),
                 )
                 torch.distributed.broadcast(
                     log_probs,
                     parallel_state.get_pipeline_model_parallel_last_rank(),
-                    group=parallel_state.get_model_parallel_group(),
+                    group=parallel_state.get_pipeline_model_parallel_group(),
                 )
 
         # Reset microbatch calculator to what it was before decoding.
