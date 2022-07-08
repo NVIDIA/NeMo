@@ -113,6 +113,13 @@ model:
   # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
+  ## Profiling options
+  profile: False
+  profile_start_step: 10  # Global batch to start profiling
+  profile_end_step: 10 # Global batch to end profiling
+  profile_rank: 0 # Rank ID to profile
+  profile_gen_shape: False # Generate model and kernel details including input shapes
+
   data:
     # Path to data must be specified by the user.
     # can override from the CLI: "model.data.data_prefix=[.5,/raid/data/pile/my-gpt3_00_text_document,.5,/raid/data/pile/my-gpt3_01_text_document]",
