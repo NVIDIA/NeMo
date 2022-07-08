@@ -1778,6 +1778,7 @@ class ParallelTransformer(MegatronModule):
             use_transformer_engine = True
             if use_transformer_engine:
                 checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
+
                 return TransformerLayer(
                     hidden_size=hidden_size,
                     ffn_hidden_size=ffn_hidden_size,
@@ -1789,13 +1790,11 @@ class ParallelTransformer(MegatronModule):
                     attention_dropout=attention_dropout,
                     layer_number=layer_number + layer_number_offset,
                     kv_channels=kv_channels,
-                    self_attn_mask_type=self_attn_mask_type,
-                    dp_group=parallel_state.get_data_parallel_group(),
-                    tp_group=parallel_state.get_tensor_model_parallel_group(),
+                    self_attn_mask_type=self_attn_mask_type.name,
+                    tp_size=parallel_state.get_tensor_model_parallel_world_size(),
                     params_dtype=torch.float32,
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
-                    num_microbatches=None,
                     fuse_wgrad_accumulation=False,
                     bias_dropout_fusion=bias_dropout_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
@@ -1805,7 +1804,6 @@ class ParallelTransformer(MegatronModule):
                     micro_batch_size=None,  # used for jit warmup
                     sequence_parallel=sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
-                    layernorm_at_the_end=False,
                 )
             else:
                 return ParallelTransformerLayer(
@@ -2076,19 +2074,37 @@ class ParallelTransformer(MegatronModule):
                     past = None
                     if layer_past is not None:
                         past = layer_past[index]
-                    hidden_states = layer(
-                        hidden_states,
-                        attention_mask,
-                        encoder_output=encoder_output,
-                        enc_dec_attn_mask=enc_dec_attn_mask,
-                        layer_past=past,
-                        get_key_value=get_key_value,
-                        set_inference_key_value_memory=set_inference_key_value_memory,
-                        inference_max_sequence_len=inference_max_sequence_len,
-                        rotary_pos_emb=rotary_pos_emb,
-                        self_attention_relative_position_bias=self_attention_relative_position_bias,
-                        cross_attention_relative_position_bias=cross_attention_relative_position_bias,
-                    )
+                    # TODO: make flag configurable
+                    use_transformer_engine = True
+                    if use_transformer_engine:
+                        # TODO: inference with TE
+                        # inference_params = {
+                        #     'get_key_value': get_key_value,
+                        #     'set_inference_key_value_memory': set_inference_key_value_memory,
+                        #     'inference_max_sequence_len': inference_max_sequence_len,
+                        # }
+                        inference_params = None
+                        hidden_states = layer(
+                            hidden_states,
+                            attention_mask,
+                            encoder_output=encoder_output,
+                            enc_dec_attn_mask=enc_dec_attn_mask,
+                            inference_params=inference_params,
+                        )
+                    else:
+                        hidden_states = layer(
+                            hidden_states,
+                            attention_mask,
+                            encoder_output=encoder_output,
+                            enc_dec_attn_mask=enc_dec_attn_mask,
+                            layer_past=past,
+                            get_key_value=get_key_value,
+                            set_inference_key_value_memory=set_inference_key_value_memory,
+                            inference_max_sequence_len=inference_max_sequence_len,
+                            rotary_pos_emb=rotary_pos_emb,
+                            self_attention_relative_position_bias=self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                        )
 
         # Final layer norm.
         if self.post_process:

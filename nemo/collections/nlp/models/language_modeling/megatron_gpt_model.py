@@ -63,6 +63,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
+try:
+    import transformer_engine
+
+    HAVE_TE = True
+
+except (ImportError, ModuleNotFoundError):
+    HAVE_TE = False
+
 
 class MegatronGPTModel(MegatronBaseModel, TextGeneration):
     """
@@ -622,6 +630,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.model.sync_initial_word_embeddings()
+
+        # if self.cfg.get('use_transformer_engine', False):
+        #     transformer_engine.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
