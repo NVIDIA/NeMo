@@ -16,9 +16,6 @@
 import re
 import string
 from collections import Counter
-from typing import List
-
-from sacrebleu import corpus_bleu
 
 
 class QAMetrics(object):
@@ -74,42 +71,3 @@ class QAMetrics(object):
         """ Computes exact match between prediction and ground truth """
 
         return int(cls.normalize_answer(prediction) == cls.normalize_answer(ground_truth))
-
-    @classmethod
-    def get_bleu(cls, predictions: List[str], ground_truths: List[str]):
-        """ Calculates bleu between list of predictions and ground truths """
-
-        non_empty_gt_indices = [i for i in range(len(predictions)) if ground_truths[i]]
-        non_empty_gt_predictions = [predictions[i] for i in non_empty_gt_indices]
-        non_empty_ground_truths = [ground_truths[i] for i in non_empty_gt_indices]
-
-        if (not non_empty_gt_predictions) or (not non_empty_ground_truths):
-            non_empty_gt_score = 0.0
-        else:
-            sacre_bleu = corpus_bleu(non_empty_gt_predictions, [non_empty_ground_truths], tokenize="13a",)
-            non_empty_gt_score = sacre_bleu.score
-
-        empty_gt_indices = [i for i in range(len(predictions)) if not ground_truths[i]]
-        empty_gt_predictions = [predictions[i] for i in empty_gt_indices]
-        empty_ground_truths = [ground_truths[i] for i in empty_gt_indices]
-
-        if (not empty_gt_predictions) or (not empty_ground_truths):
-            empty_gt_score = 0.0
-        else:
-            empty_gt_score = sum(
-                [
-                    100.0 if empty_gt_predictions[i] == empty_ground_truths[i] else 0.0
-                    for i in range(len(empty_ground_truths))
-                ]
-            ) / len(empty_ground_truths)
-
-        return non_empty_gt_score + empty_gt_score
-
-
-if __name__ == "__main__":
-    pred = "This is a sample QAMetrics test"
-    gt = "This is a sample of QAMetrics tests"
-
-    print(QAMetrics.get_f1(pred, gt))
-    print(QAMetrics.get_exact_match(pred, gt))
-    print(QAMetrics.get_bleu([pred], [gt]))
