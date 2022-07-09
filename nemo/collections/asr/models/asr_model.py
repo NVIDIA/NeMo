@@ -64,7 +64,7 @@ class ASRModel(ModelPT, ABC):
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
 
-    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = True) -> torch.Tensor:
+    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = False) -> torch.Tensor:
         """
         Utility method to enable calculation of auxiliary losses for ASR training.
 

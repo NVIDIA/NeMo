@@ -308,6 +308,21 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
 
+        # reset module registry from AccessMixin
+        if (
+            self.training
+            and self.decoder_losses is not None
+            and self.output_from_layer is not None
+            and len(self.output_from_layer) > 0
+        ):
+            layer_names = list(self.output_from_layer.values())
+            register_layer = any([name is not None for name in layer_names])
+
+            if register_layer:
+                self.reset_registry()
+                self.access_cfg['save_encoder_tensors'] = True
+                self.set_access_enabled(access_enabled=True)
+
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None
         if (has_input_signal ^ has_processed_signal) == False:
@@ -455,16 +470,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        # reset module registry from AccessMixin
-        if self.decoder_losses is not None and self.output_from_layer is not None and len(self.output_from_layer) > 0:
-            layer_names = list(self.output_from_layer.values())
-            register_layer = any([name is not None for name in layer_names])
-
-            if register_layer:
-                self.reset_registry()
-                self.access_cfg['save_encoder_tensors'] = True
-                self.set_access_enabled(access_enabled=True)
-
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
             input_signal=signal, input_signal_length=signal_len,
@@ -491,11 +496,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.output_from_layer is not None and len(self.output_from_layer) > 0:
-            self.reset_registry()
-            self.access_cfg['save_encoder_tensors'] = True
-            self.set_access_enabled(access_enabled=True)
-
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
             input_signal=signal, input_signal_length=signal_len,
