@@ -114,12 +114,3 @@ class QAProcessor(DataProcessor):
                 logging.info('max no. of chars in doc: {}'.format(np.max(len_docs)))
 
         return examples
-
-
-if __name__ == "__main__":
-    filepath = "/home/ameyasunilm/QABenchmarking/indomain-data.json"
-    processor = QAProcessor(filepath, TRAINING_MODE)
-    examples = processor.get_examples()
-    import pdb
-
-    pdb.set_trace()
