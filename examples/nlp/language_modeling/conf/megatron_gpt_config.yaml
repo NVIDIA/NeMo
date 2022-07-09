@@ -117,7 +117,7 @@ model:
   profile: False
   profile_start_step: 10  # Global batch to start profiling
   profile_end_step: 10 # Global batch to end profiling
-  profile_rank: 0 # Rank ID to profile
+  profile_ranks: [0] # Global rank IDs to profile
   profile_gen_shape: False # Generate model and kernel details including input shapes
 
   data:

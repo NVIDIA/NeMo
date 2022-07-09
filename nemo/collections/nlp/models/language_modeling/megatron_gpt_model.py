@@ -127,7 +127,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # Profiling options
         self._profile_start_step = cfg.profile_start_step if cfg.profile else None
         self._profile_end_step = cfg.profile_end_step if cfg.profile else None
-        self._profile_rank = cfg.profile_rank
+        self._profile_ranks = cfg.profile_ranks
         self._profile_gen_shape = cfg.profile_gen_shape
         if cfg.profile:
             assert (type(self._profile_start_step) == int and
@@ -286,7 +286,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
 
     def on_train_batch_start(self, batch, batch_idx, unused: Optional[int] = 0) -> None:
-        if batch_idx == self._profile_start_step and torch.distributed.get_rank() == self._profile_rank:
+        if batch_idx == self._profile_start_step and torch.distributed.get_rank() in self._profile_ranks:
             print("====== Start nsys profiling ======")
             torch.cuda.cudart().cudaProfilerStart()
             if self._profile_gen_shape:
@@ -331,7 +331,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
 
-        if batch_idx == self._profile_end_step and torch.distributed.get_rank() == self._profile_rank:
+        if batch_idx == self._profile_end_step and torch.distributed.get_rank() in self._profile_ranks:
             print("====== End nsys profiling ======")
             torch.cuda.cudart().cudaProfilerStop()
 
