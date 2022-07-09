@@ -104,10 +104,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 self.start_step[decoder_loss_name] = decoder_loss_cfg.get("start_step", 0)
                 self.transpose_encoded[decoder_loss_name] = decoder_loss_cfg.get("transpose_encoded", False)
 
-                if self.output_from_layer[decoder_loss_name] is not None:
-                    self.access_cfg['save_encoder_tensors'] = True
-                    self.set_access_enabled(access_enabled=True)
-
             self.decoder_losses = nn.ModuleDict(self.decoder_losses)
 
         else:
@@ -461,6 +457,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        if self.output_from_layer is not None and len(self.output_from_layer) > 0:
+            self.reset_registry()
+            self.access_cfg['save_encoder_tensors'] = True
+            self.set_access_enabled(access_enabled=True)
+
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
             input_signal=signal, input_signal_length=signal_len,
@@ -481,9 +482,17 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         if self.feat_pen:
             loss_value += self.feat_pen
 
+        # Reset access registry
+        self.reset_registry()
+
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        if self.output_from_layer is not None and len(self.output_from_layer) > 0:
+            self.reset_registry()
+            self.access_cfg['save_encoder_tensors'] = True
+            self.set_access_enabled(access_enabled=True)
+
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
             input_signal=signal, input_signal_length=signal_len,
@@ -493,6 +502,9 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         if self.feat_pen:
             loss_value += self.feat_pen
+
+        # reset access registry
+        self.reset_registry()
 
         return {
             'val_loss': loss_value,

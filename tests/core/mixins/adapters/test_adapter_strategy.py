@@ -169,6 +169,7 @@ class TestAdapterStrategy:
 
         with torch.no_grad():
             access_mixins.AccessMixin.reset_registry(module)
+            assert access_mixins.AccessMixin.is_access_enabled() is False
 
             assert adapter_strategy.stochastic_depth == 0.0
             assert adapter_strategy.l2_lambda > 0.0
@@ -177,6 +178,7 @@ class TestAdapterStrategy:
             assert (out - x).abs().mean() < 1e-5
 
             # extract losses
+            assert access_mixins.AccessMixin.is_access_enabled() is True
             auxiliary_losses = access_mixins.AccessMixin.get_module_registry(module)
             loss = list(auxiliary_losses.values())[0]
             assert 'adapter_loss' in loss

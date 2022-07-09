@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from abc import ABC
+from typing import Optional
 
 import torch
 from omegaconf import DictConfig
@@ -72,15 +73,37 @@ class AccessMixin(ABC):
                 module_registry[name] = m._registry
         return module_registry
 
-    def reset_registry(self: torch.nn.Module):
+    def reset_registry(self: torch.nn.Module, registry_key: Optional[str] = None):
         """
         Reset the registries of all named sub-modules
         """
         if hasattr(self, "_registry"):
-            self._registry.clear()
+            if registry_key is None:
+                self._registry.clear()
+            else:
+                if registry_key in self._registry:
+                    self._registry.pop(registry_key)
+                else:
+                    raise KeyError(
+                        f"Registry key `{registry_key}` provided, but registry does not have this key.\n"
+                        f"Available keys in registry : {list(self._registry.keys())}"
+                    )
+
         for _, m in self.named_modules():
             if hasattr(m, "_registry"):
-                m._registry.clear()
+                if registry_key is None:
+                    m._registry.clear()
+                else:
+                    if registry_key in self._registry:
+                        self._registry.pop(registry_key)
+                    else:
+                        raise KeyError(
+                            f"Registry key `{registry_key}` provided, but registry does not have this key.\n"
+                            f"Available keys in registry : {list(self._registry.keys())}"
+                        )
+
+        # Explicitly disable registry cache after reset
+        AccessMixin.set_access_enabled(access_enabled=False)
 
     @property
     def access_cfg(self):

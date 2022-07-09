@@ -661,7 +661,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
-        # reset AccessMixin cache
+        # Reset access registry
         if AccessMixin.is_access_enabled():
             AccessMixin.reset_registry(self)
 
@@ -695,6 +695,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
             # Add auxiliary losses, if registered
             loss_value = self.add_auxiliary_losses(loss_value)
 
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
             tensorboard_logs = {
                 'train_loss': loss_value,
                 'learning_rate': self._optimizer.param_groups[0]['lr'],
@@ -726,6 +730,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
             # Add auxiliary losses, if registered
             loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
 
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 
