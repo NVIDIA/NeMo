@@ -51,10 +51,6 @@ class AccessMixin(ABC):
         if not hasattr(self, '_registry'):
             self._registry = {}
 
-        # incorrect logic
-        # if len(self._registry) > 0:
-        #     self._registry.clear()
-
         if name not in self._registry:
             self._registry[name] = []
 
