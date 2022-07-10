@@ -1,4 +1,4 @@
-# Copyright 2021, NVIDIA CORPORATION & AFFILIATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # Copyright 2020 AWSLABS, AMAZON.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
