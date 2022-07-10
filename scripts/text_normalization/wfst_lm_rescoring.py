@@ -177,10 +177,10 @@ def threshold(norm_texts_weights, unchanged=True, replacement=True):
     return norm_texts_weights
 
 
-if __name__ == "__main__":
+def main():
     args = parser.parse_args()
 
-    logging.setLevel(logging.DEBUG)
+    logging.setLevel(logging.INFO)
     lang = args.lang
     input_f = args.data
 
@@ -190,11 +190,10 @@ if __name__ == "__main__":
         args.dataset = "google"
     else:
         args.dataset = None
-    logging.debug(f"data : {args.data}\ndataset: {args.dataset}")
-    with open(os.path.basename(args.data) + '.errors', 'w') as fp:
-        pass
     if not os.path.exists(args.data):
         raise FileNotFoundError(f"{args.data} file not found")
+
+    print("Create Masked Language Model...")
     models = model_utils.init_models(model_name_list=args.model_name)
     input_fs = input_f.split(",")
     print("LOAD DATA...")
@@ -245,13 +244,6 @@ if __name__ == "__main__":
             batch_f = f"{tmp_dir}/{batch_id}.p"
             norm_texts_weights.extend(pickle.load(open(batch_f, "rb")))
 
-        # norm_texts_weights = []
-        # for x in tqdm(pre_inputs):
-        #     options, weights = normalizer.normalize(x, n_tagged=args.n_tagged, punct_post_process=False)
-        #     options = [re.sub(r"<(.+?)>", r"< \1 >", x) for x in options]
-        #     norm_texts_weights.append((options, weights))
-        # logging.debug("----norm_texts_weights----")
-        # logging.debug(norm_texts_weights)
         with open(p_file, "wb") as handle:
             pickle.dump(norm_texts_weights, handle, protocol=pickle.HIGHEST_PROTOCOL)
     else:
@@ -316,12 +308,6 @@ if __name__ == "__main__":
             print(f"GT   : {post_targets[i]}\n")
             utils.print_df(df)
             print("-" * 80 + "\n")
-            if not pred_is_correct:
-                with open(os.path.basename(args.data) + '.errors', 'a') as fp:
-                    fp.write(inputs[i] + '~~RAW\n')
-                    for t in targets[i]:
-                        fp.write(t + '~~1\n')
-                    fp.write('\n')
 
     if gt_in_options != len(post_norm_texts_weights):
         print("WFST options for some examples don't contain the ground truth:")
@@ -333,9 +319,17 @@ if __name__ == "__main__":
                 print(x)
             print("=" * 40)
 
+    all_correct = True
     for model, correct in model_stats.items():
         print(
             f"{model} -- correct: {correct}/{len(post_norm_texts_weights)} or ({round(correct/len(post_norm_texts_weights) * 100, 2)}%)"
         )
+        all_correct = all_correct and (correct == len(post_norm_texts_weights))
 
     print(f"examples_with_no_labels_among_wfst: {len(examples_with_no_labels_among_wfst)}")
+    return all_correct
+
+
+if __name__ == "__main__":
+    all_correct = main()
+    print(f"all_correct: {all_correct}")

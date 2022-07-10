@@ -151,6 +151,11 @@ pipeline {
             sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
           }
         }
+        stage('Test En Hybrid TN') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python scripts/text_normalization/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 | grep "all_correct: True" || exit 1'
+          }
+        }
       }
     }
 

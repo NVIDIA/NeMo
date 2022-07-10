@@ -14,35 +14,44 @@
 
 import math
 import re
-from typing import List
+from typing import List, Union
 
+import torch
 from tqdm import tqdm
 
 from nemo.collections.nlp.modules.common import MLMScorer
 from nemo.utils import logging
 
 
-def init_models(model_name_list):
+def init_models(model_name_list: str):
+    """
+    returns dictionary of Masked Language Models by their HuggingFace name.
+    """
     model_names = model_name_list.split(",")
     models = {}
     for model_name in model_names:
-        models[model_name] = MLMScorer(model_name)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        models[model_name] = MLMScorer(model_name=model_name, device=device)
     return models
 
 
-def get_score(text, model):
+def get_score(texts: Union[List[str], str], model: MLMScorer):
+    """Computes MLM score for list of text using model"""
     try:
-        if isinstance(text, str):
-            text = [text]
-        score = -1 * sum(model.score_sentences(text)) / len(text)
+        if isinstance(texts, str):
+            texts = [texts]
+        score = -1 * sum(model.score_sentences(texts)) / len(texts)
     except Exception as e:
         print(e)
-        print(f"Scoring error: {text}")
+        print(f"Scoring error: {texts}")
         score = math.inf
     return score
 
 
 def get_masked_score(text, model, do_lower=True):
+    """text is normalized prediction which contains <> around semiotic tokens.
+    If multiple tokens are present, multiple variants of the text are created where all but one ambiguous semiotic tokens are masked
+    to avoid unwanted reinforcement of neighboring semiotic tokens."""
     text = text.lower() if do_lower else text
     spans = re.findall("<\s.+?\s>", text)
     if len(spans) > 0:
@@ -59,7 +68,10 @@ def get_masked_score(text, model, do_lower=True):
     return get_score(text, model)
 
 
-def _get_ambiguous_positions(sentences):
+def _get_ambiguous_positions(sentences: List[str]):
+    """returns None or index list of ambigous semiotic tokens for list of sentences.
+    E.g. if sentences = ["< street > < three > A", "< saint > < three > A"], it returns [1, 0] since only 
+    the first semiotic span <street>/<saint> is ambiguous."""
     l_sets = [set([x]) for x in re.findall("<\s.+?\s>", sentences[0])]
     for sentence in sentences[1:]:
         spans = re.findall("<\s.+?\s>", sentence)
@@ -75,6 +87,7 @@ def _get_ambiguous_positions(sentences):
 
 
 def score_options(sentences: List[str], context_len, model, do_lower=True):
+    """return list of scores for each sentence in list where model is used for MLM Scoring."""
     scores = []
     if context_len is not None:
         diffs = [find_diff(s, context_len) for s in sentences]
@@ -143,12 +156,3 @@ def find_diff(text, context_len=3):
     if len(diffs) == 0:
         diffs = [text]
     return diffs
-
-
-if __name__ == '__main__':
-    import sys
-
-    arg = sys.argv[1]
-    model = MLMScorer('bert-base-uncased')
-    print(arg)
-    print(model.score_sentence(arg))

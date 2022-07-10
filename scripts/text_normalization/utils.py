@@ -45,6 +45,8 @@ def load_data(input_fs: List[str]):
     Returns:
         inputs: List[str] list of abs file paths
         targets: List[List[str]] list of targets, can contain multiple options for each target
+        sentences: List[List[str]] list of sentence options
+        labels: List[List[int]] list of labels (1,0)
     """
     inputs = []
     sentences = []
@@ -105,6 +107,10 @@ def remove_whitelist_boudaries(x):
 
 
 def _clean_pre_norm_libritts(inputs: List[str], targets: List[List[str]]):
+    """
+    standardizes format of inputs and targets before being normalized, so more rules apply.
+    This is specific for libritts.
+    """
     for i in range(len(targets)):
         for j in range(len(targets[i])):
             targets[i][j] = clean_libri_tts(targets[i][j])
@@ -128,6 +134,10 @@ def _clean_pre_norm_libritts(inputs: List[str], targets: List[List[str]]):
 
 
 def _clean_pre_norm_google(inputs: List[str], targets: List[List[str]]):
+    """
+    standardizes format of inputs and targets before being normalized, so more rules apply.
+    This is specific for google dataset.
+    """
     for i in range(len(inputs)):
 
         inputs[i] = re.sub(r"\$\s([0-9]{1,})", r"$\1", inputs[i])
@@ -162,7 +172,8 @@ def _clean_pre_norm_google(inputs: List[str], targets: List[List[str]]):
 
 
 def clean_pre_norm(inputs: List[str], targets: List[List[str]], dataset: Optional[str] = None):
-    """returns pre_inputs, pre_targets
+    """
+    standardizes format of inputs and targets before being normalized, so more rules apply.
     """
     # deep copy
     pre_inputs = copy.deepcopy(inputs)
@@ -191,6 +202,10 @@ def _clean_post_norm_libritts(inputs: List[str], targets: List[List[str]], norm_
 
 
 def _clean_post_norm_google(inputs: List[str], targets: List[List[str]], norm_texts):
+    """
+    standardizes format of inputs and targets, and predicted normalizations for easier evaluation.
+    This is specific for google dataset.
+    """
     for i in range(len(targets)):
         for target in targets[i]:
             for j, norm in enumerate(norm_texts[i][0]):
@@ -206,6 +221,9 @@ def _clean_post_norm_google(inputs: List[str], targets: List[List[str]], norm_te
 
 
 def _clean_post_general(str) -> str:
+    """
+    standardizes format of inputs and targets, and predicted normalizations for easier evaluation.
+    """
     str = re.sub(rf" oh ", " zero ", str)
     str = re.sub(rf" oh$", " zero", str)
     str = re.sub(rf"^oh ", "zero ", str)
@@ -219,11 +237,13 @@ def _clean_post_general(str) -> str:
 
 
 def _clean_targets(str) -> str:
+    """Clean ground truth options."""
     str = re.sub(rf" o ", " zero ", str)
     return str
 
 
-def adjust_pred(pred, gt, dataset, delim_present=True):
+def adjust_pred(pred: str, gt: str, dataset: str, delim_present=True):
+    """Standardize prediction format to make evaluation easier"""
     orig_pred = pred
     orig_gt = gt
     if delim_present and not re.search(rf"< (.*?) >", pred):
@@ -307,8 +327,8 @@ def clean_post_norm(
 ):
     """
     Args:
-        inputs (List[str]): _description_
-        targets (List[List[str]]): _description_
+        inputs (List[str]): inputs
+        targets (List[List[str]]): targets
         norm_texts (List[(List[str], List[float])]): List of normalization options, weights
         dataset (Optional[str], optional): _description_. Defaults to None.
         delim_present (Optional[str], optional): The flag indicates whether normalization output contain delimiters "<>".
@@ -467,6 +487,7 @@ def clean_libri_tts(target: str):
 
 
 def remove_punctuation(text: str, remove_spaces=True, do_lower=True, lang="en", exclude=None):
+    """Removes punctuation (and optionally spaces) in text for better evaluation"""
     all_punct_marks = string.punctuation
 
     if exclude is not None:
@@ -487,19 +508,9 @@ def remove_punctuation(text: str, remove_spaces=True, do_lower=True, lang="en", 
     return text.strip()
 
 
-def pprint(df):
-    sent = df.iloc[0][0].split("|")[0].strip()
-    print(sent)
-    df = df.sort_values(by=df.columns[1])
-    for i in range(len(df)):
-        sent = df.iloc[i][0]
-        if "|" in sent:
-            sent = sent.split("|")[1].strip()
-        score = df.iloc[i][1]
-        print(f"{score}\t{sent}")
-
-
 def get_alternative_label(pred: str, targets: List[str]) -> bool:
+    """Returns true if prediction matches target options"""
+
     def _relax_diff(text):
         text = text.replace("us dollars", "dollars")
         text = text.replace("etcetera", "").replace("etc", "")
@@ -596,6 +607,9 @@ def is_date(pred, gt, cardinal_graph):
 
 
 def is_correct(pred: str, targets: Union[List[str], str], lang: str) -> bool:
+    """
+    returns True if prediction matches targets for language lang.
+    """
     if isinstance(targets, List):
         targets = [remove_punctuation(x, remove_spaces=True, do_lower=True, lang=lang) for x in targets]
     else:
@@ -606,13 +620,16 @@ def is_correct(pred: str, targets: Union[List[str], str], lang: str) -> bool:
 
 
 def print_df(df):
+    """
+    prints data frame
+    """
     with pd.option_context(
         "display.max_rows", None, "display.max_columns", None, "display.width", 1000, "display.max_colwidth", 400,
     ):
         print(df)
 
 
-def get_diff(a, b):
+def get_diff(a: str, b: str):
     """returns list of different substrings between and b
 
     Returns:
@@ -641,13 +658,13 @@ def get_diff(a, b):
     return result[1:]
 
 
-def diff_pred_gt(pred, gt):
+def diff_pred_gt(pred: str, gt: str):
     """returns list of different substrings between prediction and gt
     relies on that prediction uses '< '  ' >'  
 
     Args:
-        pred (_type_): _description_
-        gt (_type_): _description_
+        pred (str): prediction
+        gt (str): ground truth
 
     Returns:
         list of Tuple(pred start and end, gt start and end) subsections

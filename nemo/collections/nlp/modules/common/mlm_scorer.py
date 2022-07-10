@@ -24,7 +24,13 @@ __all__ = ['MLMScorer']
 
 
 class MLMScorer:
-    def __init__(self, model_name, device='cpu'):
+    def __init__(self, model_name: str, device: str = 'cpu'):
+        """
+        Creates MLM scorer from https://arxiv.org/abs/1910.14659.
+        Args:
+            model_name: HuggingFace pretrained model name
+            device: either 'cpu' or 'cuda'
+        """
         self.model = AutoModelForMaskedLM.from_pretrained(model_name).to(device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
         self.device = device
@@ -32,14 +38,13 @@ class MLMScorer:
 
     def score_sentences(self, sentences: List[str]):
         """
-        TODO: Optimize for duplicates (in list)
+        returns list of MLM scores for each sentence in list.
         """
-
         return [self.score_sentence(sentence) for sentence in sentences]
 
     def score_sentence(self, sentence: str):
         """
-        TODO: Optimize for duplicates (after mapping)
+        returns MLM score for sentence.
         """
         assert type(sentence) == str
 
@@ -79,7 +84,10 @@ class MLMScorer:
 
         return scores_log_prob
 
-    def __mask_text__(self, idx, tokens):
+    def __mask_text__(self, idx: int, tokens: List[str]):
+        """
+        replaces string at index idx in list `tokens` with a masked token and returns the modified list. 
+        """
         masked = tokens.copy()
         masked[idx] = self.MASK_LABEL
         return masked
