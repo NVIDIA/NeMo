@@ -90,9 +90,7 @@ def load_data(input_fs: List[str]):
 
     if len(cur_sentences) > 0:
         sentences.append(cur_sentences)
-        cur_sentences = []
         labels.append(cur_labels)
-        cur_labels = []
     assert len(inputs) == len(sentences)
     targets = [[x for i, x in enumerate(sents) if ls[i]] for (sents, ls) in zip(sentences, labels)]
     return inputs, targets, sentences, labels
@@ -392,25 +390,6 @@ def clean_libri_tts(target: str):
     """
 	Replace abbreviations in LibriTTS dataset
 	"""
-    libri_only_remove_dot_abbrs = {
-        "Mrs.",
-        "Mr.",
-        "Dr.",
-        "Co.",
-        "Lt.",
-        "Sgt.",
-        "Drs.",
-        "Maj.",
-        "Capt.",
-        "Esq.",
-        "Gen.",
-        "Ltd.",
-        "Col.",
-    }
-
-    # Normalized text in LibriTTS by Google which contains abbreviations from `libri_converts_abbrs` looks like this:
-    # "&" -> "and", "Jr." -> "Junior" (i.e correct conversion).
-    libri_converts_abbrs = {"&", "Gov.", "=", "Jr.", "Hon.", "Mt.", "§"}  # currently, unidecoder doesn't pass it
 
     # Normalized text in LibriTTS by Google which contains abbreviations from `libri_sometimes_converts_abbrs` sometimes wasn't converted.
     libri_sometimes_converts_abbrs = {"St.": "saint", "Rev.": "reverend"}
