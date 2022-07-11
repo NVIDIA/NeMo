@@ -1429,7 +1429,7 @@ class ModelPT(LightningModule, Model):
             if batch_idx == self._nsys_profile_start_step and torch.distributed.get_rank() in self._nsys_profile_ranks:
                 logging.info("====== Start nsys profiling ======")
                 torch.cuda.cudart().cudaProfilerStart()
-                if self._profile_gen_shape:
+                if self._nsys_profile_gen_shape:
                     torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
