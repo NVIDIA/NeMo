@@ -1407,10 +1407,10 @@ class ModelPT(LightningModule, Model):
     def _setup_nsys_profiling(self):
         if self.cfg.get('nsys_profile', False):
             # Nsys profiling options
-            self._nsys_profile_start_step = self.cfg.profile_start_step
-            self._nsys_profile_end_step = self.cfg.profile_end_step
-            self._nsys_profile_ranks = self.cfg.profile_ranks
-            self._nsys_profile_gen_shape = self.cfg.profile_gen_shape
+            self._nsys_profile_start_step = self.cfg.nsys_profile_start_step
+            self._nsys_profile_end_step = self.cfg.nsys_profile_end_step
+            self._nsys_profile_ranks = self.cfg.nsys_profile_ranks
+            self._nsys_profile_gen_shape = self.cfg.nsys_profile_gen_shape
 
             assert (
                 type(self._nsys_profile_start_step) == int
