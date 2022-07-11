@@ -307,6 +307,11 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             3) The encoded features tensor of shape [B, D, T].
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
+        # Reset access registry
+        if self.is_access_enabled():
+            self.reset_registry()
+
+        # Check for special flag for validation step
         if hasattr(self, '_in_validation_step'):
             in_validation_step = self._in_validation_step
         else:
@@ -323,7 +328,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             register_layer = any([name is not None for name in layer_names])
 
             if register_layer:
-                self.reset_registry()
                 self.access_cfg['save_encoder_tensors'] = True
                 self.set_access_enabled(access_enabled=True)
 
