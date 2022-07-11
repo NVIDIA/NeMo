@@ -1419,6 +1419,8 @@ class ModelPT(LightningModule, Model):
             And then wrap the model training script with:
             nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
 
+            See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
+
         """
         if self.cfg.get('nsys_profile', False):
             # Nsys profiling options
