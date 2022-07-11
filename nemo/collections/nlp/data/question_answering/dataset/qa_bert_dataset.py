@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.input_features.qa_input_features import BERTQAInputFeatures
+from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_features import BERTQAInputFeatures
 from nemo.utils import logging
 
 
@@ -67,7 +67,10 @@ class BERTQADataset(QADataset):
         self.segment_mask_id_to_segment_mask = {}
         self.segment_mask_to_segment_mask_id = {}
 
-        self._check_valid_mode()
+        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
+            raise ValueError(
+                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
+            )
 
         # get examples from processor and keep according to limit
         self.examples = self.processor.get_examples()
@@ -80,10 +83,9 @@ class BERTQADataset(QADataset):
 
         # create cached filename to load/save features as per flag
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        self.cached_features_file = (
-            self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+        self.cached_features_file = QADataset.get_cached_feature_filename(
+            self.data_file,
+            [
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -91,15 +93,31 @@ class BERTQADataset(QADataset):
                 str(self.doc_stride),
                 str(self.max_query_length),
                 str(self.num_samples),
-            )
+            ],
         )
 
         if use_cache and os.path.exists(self.cached_features_file):
-            self._load_features_from_cache()
+            if self.mode == TRAINING_MODE:
+                del self.examples
+                del self.processor
+            (
+                self.features,
+                self.input_mask_id_to_input_mask,
+                self.input_mask_to_input_mask_id,
+                self.segment_mask_id_to_segment_mask,
+                self.segment_mask_to_segment_mask_id,
+            ) = QADataset.load_features_from_cache(self.cached_features_file)
         else:
             self._convert_examples_to_features()
             if use_cache:
-                self._dump_features_to_cache()
+                items_to_pickle = [
+                    self.features,
+                    self.input_mask_id_to_input_mask,
+                    self.input_mask_to_input_mask_id,
+                    self.segment_mask_id_to_segment_mask,
+                    self.segment_mask_to_segment_mask_id,
+                ]
+                QADataset.dump_features_to_cache(self.cached_features_file, items_to_pickle)
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
@@ -331,57 +349,6 @@ class BERTQADataset(QADataset):
         if self.mode == TRAINING_MODE:
             self.examples = []
             del self.processor
-
-    def _load_features_from_cache(self):
-        """ Loads pickled features from the file """
-
-        logging.info(f"loading from {self.cached_features_file}")
-
-        # delete self.examples during training mode to save memory
-        if self.mode == TRAINING_MODE:
-            del self.examples
-            del self.processor
-
-        with open(self.cached_features_file, "rb") as reader:
-            items_to_pickle = pickle.load(reader)
-            (
-                self.features,
-                self.input_mask_id_to_input_mask,
-                self.input_mask_to_input_mask_id,
-                self.segment_mask_id_to_segment_mask,
-                self.segment_mask_to_segment_mask_id,
-            ) = items_to_pickle
-            items_to_pickle = None
-            del items_to_pickle
-
-    def _dump_features_to_cache(self):
-        """ Pickles features to file """
-
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if master_device:
-            logging.info(f"Saving train features into cached file {self.cached_features_file}")
-            with open(self.cached_features_file, "wb") as writer:
-                items_to_pickle = [
-                    self.features,
-                    self.input_mask_id_to_input_mask,
-                    self.input_mask_to_input_mask_id,
-                    self.segment_mask_id_to_segment_mask,
-                    self.segment_mask_to_segment_mask_id,
-                ]
-                pickle.dump(items_to_pickle, writer)
-
-    def _check_valid_mode(self):
-        """ Checks if provided mode is in given three options """
-
-        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
-            raise ValueError(
-                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
-            )
-        else:
-            return
-
-    def __len__(self):
-        return len(self.features)
 
     def __getitem__(self, idx: int):
         feature = self.features[idx]

@@ -26,7 +26,7 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.input_features.qa_input_features import S2SQAInputFeatures
+from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_features import S2SQAInputFeatures
 from nemo.utils import logging
 
 
@@ -58,7 +58,10 @@ class S2SQADataset(QADataset):
         self.mode = mode
         self.use_cache = use_cache
 
-        self._check_valid_mode()
+        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
+            raise ValueError(
+                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
+            )
 
         # get examples from processor and keep according to limit
         self.examples = self.processor.get_examples()
@@ -71,10 +74,9 @@ class S2SQADataset(QADataset):
 
         # create cached filename to load/save features as per flag
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        self.cached_features_file = (
-            self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+        self.cached_features_file = QADataset.get_cached_feature_filename(
+            self.data_file,
+            [
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -82,22 +84,30 @@ class S2SQADataset(QADataset):
                 str(self.max_seq_length),
                 str(self.max_answer_length),
                 str(self.num_samples),
-            )
+            ],
         )
 
         if use_cache and os.path.exists(self.cached_features_file):
-            self._load_features_from_cache()
+            if self.mode == TRAINING_MODE:
+                del self.examples
+                del self.processor
+            self.features = QADataset.load_features_from_cache(self.cached_features_file)
         else:
             self._convert_examples_to_features()
             if use_cache:
-                self._dump_features_to_cache()
+                QADataset.dump_features_to_cache(self.cached_features_file, self.features)
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
             self.features[i] = S2SQAInputFeatures(**self.features[i])
 
     def _convert_examples_to_features(self):
-        """ Converts loaded examples to features """
+        """
+        Iterates through each QA example, formats into input and output template,
+            and encodes the input and output template
+        Input template: `context: <context text> question: <question text>`
+        Output template: `<answer text>`
+        """
 
         logging.info(f"Preprocessing data into features.")
 
@@ -126,15 +136,29 @@ class S2SQADataset(QADataset):
             del self.processor
 
     def _prep_query(self, example):
+        """
+        Formats a question into input format: ` question: <question text>`
+        The space at the start allows concatention with the context for input
+        """
         formatted_query = f" question: {example.question_text}"
         query_tokens = self.tokenizer.tokenizer.tokenize(formatted_query)[: self.max_query_length]
 
         return query_tokens, formatted_query
 
     def _prep_context(self, example, query_tokens, context_prefix_tokens):
-        # -1 accounts for </s> token in T5/BART
+        """
+        Calculates the maximum possible length for a given context given a question
+            as inputs are of fixed length
+        Divides the context into multiple spans based on the calculated max length
+        """
+
         context_tokens = self.tokenizer.tokenizer.tokenize(example.context_text)
-        max_context_length = self.max_seq_length - len(query_tokens) - len(context_prefix_tokens) - 1
+        max_context_length = (
+            self.max_seq_length
+            - len(query_tokens)
+            - len(context_prefix_tokens)
+            - 1  # -1 accounts for </s> token in T5/BART
+        )
         context_spans = S2SQADataset.get_docspans(context_tokens, max_context_length, self.doc_stride)
         context_spans = tuple(context_spans)
 
@@ -143,6 +167,13 @@ class S2SQADataset(QADataset):
     def _encode_all_context_spans(
         self, unique_id, context_spans, context_tokens, formatted_query, example, example_index, has_groundtruth,
     ):
+        """
+        Fromats all spans extracted from a single context as:
+            `context: <context span text> question: <question text> answer: <answer text>` and encodes
+        If the answer text (example.answer_text) is not present in a given context span,
+            the answer is converted to a blank answer
+        """
+
         for context_span_idx, context_span in enumerate(context_spans):
 
             # format query and context span text
@@ -177,59 +208,22 @@ class S2SQADataset(QADataset):
         return unique_id
 
     def _encode_answer(self, has_groundtruth, example, context_span_text):
-        if has_groundtruth:
-            if not example.is_impossible:
-                target = example.answer_text if example.answer_text in context_span_text else ""
-            else:
-                target = ""
-        else:
-            target = None
+        """
+        Marks answer as blank if given answer is not present in context, and encodes
+        """
 
-        if target is not None:
-            encoded_output_dict = self.tokenizer.tokenizer(
-                target, truncation=True, max_length=self.max_answer_length, padding="max_length", return_tensors="pt",
-            )
-            labels = torch.squeeze(encoded_output_dict["input_ids"])
-            labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100
+        if has_groundtruth and not example.is_impossible:
+            target = example.answer_text if example.answer_text in context_span_text else ""
         else:
-            labels = None
+            target = ""
+
+        encoded_output_dict = self.tokenizer.tokenizer(
+            target, truncation=True, max_length=self.max_answer_length, padding="max_length", return_tensors="pt",
+        )
+        labels = torch.squeeze(encoded_output_dict["input_ids"])
+        labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100
 
         return labels
-
-    def _load_features_from_cache(self):
-        """ Loads pickled features from the file """
-
-        logging.info(f"loading from {self.cached_features_file}")
-
-        # delete self.examples during training mode to save memory
-        if self.mode == TRAINING_MODE:
-            del self.examples
-            del self.processor
-
-        with open(self.cached_features_file, "rb") as reader:
-            self.features = pickle.load(reader)
-
-    def _dump_features_to_cache(self):
-        """ Pickles features to file """
-
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if master_device:
-            logging.info(f"Saving train features into cached file {self.cached_features_file}")
-            with open(self.cached_features_file, "wb") as writer:
-                pickle.dump(self.features, writer)
-
-    def _check_valid_mode(self):
-        """ Checks if provided mode is in given three options """
-
-        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
-            raise ValueError(
-                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
-            )
-        else:
-            return
-
-    def __len__(self):
-        return len(self.features)
 
     def __getitem__(self, idx: int):
         feature = self.features[idx]

@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import collections
+import pickle
 from functools import lru_cache
 from typing import List
 
 import psutil
-from matplotlib.style import context
+import torch
 
 from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.core.classes import Dataset
@@ -31,15 +32,42 @@ class QADataset(Dataset):
         self, data_file: str, processor: object, tokenizer: object, **kwargs,
     ):
         self.mode = None
+        self.features = None
         self.data_file = data_file
         self.processor = processor
         self.tokenizer = tokenizer
 
     def __len__(self):
-        raise NotImplementedError
+        return len(self.features)
 
     def __getitem__(self, idx: int):
         raise NotImplementedError
+
+    @staticmethod
+    def get_cached_feature_filename(data_file: str, parameters: List):
+        """ Returns cahced feature file name from given data file and parameters """
+
+        cached_features_file = data_file + "_cache"
+        for param in parameters:
+            cached_features_file = f"{cached_features_file}_{param}"
+
+        return cached_features_file
+
+    @staticmethod
+    def load_features_from_cache(cached_filename):
+        logging.info(f"loading from {cached_filename}")
+        with open(cached_filename, "rb") as reader:
+            features = pickle.load(reader)
+
+        return features
+
+    @staticmethod
+    def dump_features_to_cache(cached_filename, features):
+        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        if master_device:
+            logging.info(f"Saving train features into cached file {cached_filename}")
+            with open(cached_filename, "wb") as writer:
+                pickle.dump(features, writer)
 
     @staticmethod
     def check_if_sufficient_memory():

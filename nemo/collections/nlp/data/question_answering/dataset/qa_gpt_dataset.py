@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.question_answering.data_processor.qa_processing i
     TRAINING_MODE,
 )
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.input_features.qa_input_features import GPTQAInputFeatures
+from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_features import GPTQAInputFeatures
 from nemo.utils import logging
 
 
@@ -59,7 +59,10 @@ class GPTQADataset(QADataset):
         self.mode = mode
         self.use_cache = use_cache
 
-        self._check_valid_mode()
+        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
+            raise ValueError(
+                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
+            )
 
         # get examples from processor and keep according to limit
         self.examples = self.processor.get_examples()
@@ -72,10 +75,9 @@ class GPTQADataset(QADataset):
 
         # create cached filename to load/save features as per flag
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        self.cached_features_file = (
-            self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+        self.cached_features_file = QADataset.get_cached_feature_filename(
+            self.data_file,
+            [
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -83,21 +85,29 @@ class GPTQADataset(QADataset):
                 str(self.max_seq_length),
                 str(self.max_answer_length),
                 str(self.num_samples),
-            )
+            ],
         )
 
         if use_cache and os.path.exists(self.cached_features_file):
-            self._load_features_from_cache()
+            if self.mode == TRAINING_MODE:
+                del self.examples
+                del self.processor
+            self.features = QADataset.load_features_from_cache(self.cached_features_file)
         else:
             self._convert_examples_to_features()
             if use_cache:
-                self._dump_features_to_cache()
+                QADataset.dump_features_to_cache(self.cached_features_file, self.features)
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
             self.features[i] = GPTQAInputFeatures(**self.features[i])
 
     def _convert_examples_to_features(self):
+        """
+        Iterates through each QA example, formats into template and encodes
+        Template: `context: <context text> question: <question text> answer: <answer text>`
+        """
+
         logging.info(f"Preprocessing data into features.")
 
         has_groundtruth = self.mode != INFERENCE_MODE
@@ -141,6 +151,11 @@ class GPTQADataset(QADataset):
             del self.processor
 
     def _prep_query(self, query_prefix, example):
+        """
+        Formats a question into input format: ` question: <question text>`
+        The space at the start allows concatention with the context and answer for input
+        """
+
         formatted_query = f"{query_prefix}{example.question_text}"
         query_tokens_length, query_tokens, formatted_query = self._get_n_tokens_in_sentence(
             formatted_query, self.max_query_length
@@ -149,36 +164,39 @@ class GPTQADataset(QADataset):
         return query_tokens_length, query_tokens, formatted_query
 
     def _prep_answer(self, example, has_groundtruth):
-        if has_groundtruth:
-            if not example.is_impossible:
-                target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
-            else:
-                target = self.tokenizer.tokenizer.eos_token
+        """
+        Appends EOS token to answer or sets EOS token as answer if blank answer case
+        """
+
+        answer_tokens_length, answer_tokens, formatted_answer = 0, None, None
+        if has_groundtruth and not (example.is_impossible):
+            target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
         else:
             target = self.tokenizer.tokenizer.eos_token
 
-        if target:
-            answer_tokens_length, answer_tokens, formatted_answer = self._get_n_tokens_in_sentence(
-                target, self.max_answer_length
-            )
-        else:
-            answer_tokens_length, answer_tokens, formatted_answer = 0, None, None
+        answer_tokens_length, answer_tokens, formatted_answer = self._get_n_tokens_in_sentence(
+            target, self.max_answer_length
+        )
 
         return answer_tokens_length, answer_tokens, formatted_answer
 
     def _prep_context(
         self, example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
     ):
-        context_tokens = self.tokenizer.tokenizer.tokenize(example.context_text)
+        """
+        Calculates the maximum possible length for a given context given a question
+            as inputs are fixed length
+        Divides the context into multiple spans based on the calculated max length
+        """
 
-        # -1 accounts for EOS token
+        context_tokens = self.tokenizer.tokenizer.tokenize(example.context_text)
         max_context_length = (
             self.max_seq_length
             - query_tokens_length
             - answer_tokens_length
             - len(context_prefix_tokens)
             - len(answer_prefix_tokens)
-            - 1
+            - 1  # -1 accounts for EOS token
         )
         context_spans = GPTQADataset.get_docspans(context_tokens, max_context_length, self.doc_stride)
         context_spans = tuple(context_spans)
@@ -197,6 +215,13 @@ class GPTQADataset(QADataset):
         example,
         example_index,
     ):
+        """
+        Formats all spans extracted from a single context as:
+            `context: <context span text> question: <question text> answer: <answer text>`
+        If the answer text (example.answer_text) is not present in a given context span,
+            the answer is converted to EOS token
+        """
+
         for context_span_idx, context_span in enumerate(context_spans):
             context_span_tokens = context_tokens[context_span.start : context_span.start + context_span.length]
             context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
@@ -204,14 +229,11 @@ class GPTQADataset(QADataset):
             input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
             training_mask_end, _, _ = self._get_n_tokens_in_sentence(input_without_answer, self.max_seq_length)
 
-            # mark as a negative sample if answer not present in context
+            # mark as a negative sample i.e. answer = EOS token if answer not present in context
+            input_with_answer = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
             if formatted_answer and example.answer_text:
                 if example.answer_text in context_span_text:
                     input_with_answer = f"{input_without_answer}{formatted_answer}"
-                else:
-                    input_with_answer = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
-            else:
-                input_with_answer = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
 
             encoded_input_dict = self.tokenizer.tokenizer(
                 input_with_answer,
@@ -251,38 +273,6 @@ class GPTQADataset(QADataset):
 
         return seq_length, tokens, trunc_sentence
 
-    def _load_features_from_cache(self):
-        """ Loads pickled features from the file """
-
-        logging.info(f"loading from {self.cached_features_file}")
-
-        # delete self.examples during training mode to save memory
-        if self.mode == TRAINING_MODE:
-            del self.examples
-            del self.processor
-
-        with open(self.cached_features_file, "rb") as reader:
-            self.features = pickle.load(reader)
-
-    def _dump_features_to_cache(self):
-        """ Pickles features to file """
-
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-        if master_device:
-            logging.info(f"Saving train features into cached file {self.cached_features_file}")
-            with open(self.cached_features_file, "wb") as writer:
-                pickle.dump(self.features, writer)
-
-    def _check_valid_mode(self):
-        """ Checks if provided mode is in given three options """
-
-        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
-            raise ValueError(
-                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
-            )
-        else:
-            return
-
     @classmethod
     def get_labels_from_inputs(cls, input_ids, training_mask_end, input_attn_mask, tokenizer):
         """
@@ -301,9 +291,6 @@ class GPTQADataset(QADataset):
         )
 
         return labels
-
-    def __len__(self):
-        return len(self.features)
 
     def __getitem__(self, idx: int):
         feature = self.features[idx]
