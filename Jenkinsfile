@@ -1092,13 +1092,13 @@ pipeline {
             sh 'TIME=`date +"%Y-%m-%d-%T"` && \
             echo "In 2021 my email was myemail@abc.com." > /tmp/test_${TIME}.txt && \
             echo "In twenty twenty one my email was myemail at abc dot com." > /tmp/gt_${TIME}.txt'
-            sh 'cd examples/nlp/duplex_text_normalization && \
-            python duplex_text_normalization_infer.py \
-            lang=en mode=tn \
-            tagger_pretrained_model=neural_text_normalization_t5 \
-            decoder_pretrained_model=neural_text_normalization_t5 \
-            inference.from_file=/tmp/test_${TIME}.txt'
-            sh 'cmp --silent /tmp/gt_${TIME}.txt /tmp/test_${TIME}_tn.txt || exit 1'
+//             sh 'cd examples/nlp/duplex_text_normalization && \
+//             python duplex_text_normalization_infer.py \
+//             lang=en mode=tn \
+//             tagger_pretrained_model=neural_text_normalization_t5 \
+//             decoder_pretrained_model=neural_text_normalization_t5 \
+//             inference.from_file=/tmp/test_${TIME}.txt'
+//             sh 'cmp --silent /tmp/gt_${TIME}.txt /tmp/test_${TIME}_tn.txt || exit 1'
           }
         }
       }
