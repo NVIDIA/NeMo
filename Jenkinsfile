@@ -1054,18 +1054,18 @@ pipeline {
       }
     }
 
-//     stage('L2: Duplex Text Normalization') {
-//       when {
-//         anyOf {
-//           branch 'main'
-//           changeRequest target: 'main'
-//         }
-//       }
-//       failFast true
-//       parallel {
-//         stage('Duplex Text Normalization Inference') {
-//           steps {
-//             sh 'TIME=`date +"%Y-%m-%d-%T"` && \
+    stage('L2: Duplex Text Normalization') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('Duplex Text Normalization Inference') {
+          steps {
+            sh 'TIME=`date +"%Y-%m-%d-%T"`'
 //             echo "In 2021 my email was myemail@abc.com." > /tmp/test_${TIME}.txt && \
 //             echo "In twenty twenty one my email was myemail at abc dot com." > /tmp/gt_${TIME}.txt'
 //             sh 'cd examples/nlp/duplex_text_normalization && \
@@ -1075,10 +1075,10 @@ pipeline {
 //             decoder_pretrained_model=neural_text_normalization_t5 \
 //             inference.from_file=/tmp/test_${TIME}.txt'
 //             sh 'cmp --silent /tmp/gt_${TIME}.txt /tmp/test_${TIME}_tn.txt || exit 1'
-//           }
-//         }
-//       }
-//     }
+          }
+        }
+      }
+    }
 
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
