@@ -130,9 +130,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         self._profile_ranks = cfg.profile_ranks
         self._profile_gen_shape = cfg.profile_gen_shape
         if cfg.profile:
-            assert (type(self._profile_start_step) == int and
-                    type(self._profile_end_step) == int and
-                    self._profile_end_step >= self._profile_start_step
+            assert (
+                type(self._profile_start_step) == int
+                and type(self._profile_end_step) == int
+                and self._profile_end_step >= self._profile_start_step
             )
 
     def set_inference_config(self, inference_config):
@@ -284,15 +285,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         return loss_mean
 
-
-    def on_train_batch_start(self, batch, batch_idx, unused: Optional[int] = 0) -> None:
-        if batch_idx == self._profile_start_step and torch.distributed.get_rank() in self._profile_ranks:
-            print("====== Start nsys profiling ======")
-            torch.cuda.cudart().cudaProfilerStart()
-            if self._profile_gen_shape:
-                torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
-
-
     def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
         super().on_train_batch_end(outputs, batch, batch_idx)
 
@@ -330,10 +322,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
                     # accumulated gradient updates.
                     grad_scaler.optimizer_update_skipped = None
-
-        if batch_idx == self._profile_end_step and torch.distributed.get_rank() in self._profile_ranks:
-            print("====== End nsys profiling ======")
-            torch.cuda.cudart().cudaProfilerStop()
 
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.

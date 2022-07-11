@@ -19,7 +19,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
@@ -167,6 +167,9 @@ class ModelPT(LightningModule, Model):
 
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
+
+        # Setup nsys profiling if it has been enabled in the model config
+        self._setup_nsys_profiling()
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
@@ -1400,3 +1403,43 @@ class ModelPT(LightningModule, Model):
             cls._save_restore_connector = save_restore_connector
         else:
             setattr(cls, '_save_restore_connector', save_restore_connector)
+
+    def _setup_nsys_profiling(self):
+        if self.cfg.get('nsys_profile', False):
+            # Nsys profiling options
+            self._nsys_profile_start_step = self.cfg.profile_start_step
+            self._nsys_profile_end_step = self.cfg.profile_end_step
+            self._nsys_profile_ranks = self.cfg.profile_ranks
+            self._nsys_profile_gen_shape = self.cfg.profile_gen_shape
+
+            assert (
+                type(self._nsys_profile_start_step) == int
+                and type(self._nsys_profile_end_step) == int
+                and self._nsys_profile_end_step >= self._nsys_profile_start_step
+            )
+
+    def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
+        """ PyTorch Lightning hook: 
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
+
+            We use it here to enable nsys profiling.
+        """
+
+        if self.cfg.get('nsys_profile', False):
+            if batch_idx == self._nsys_profile_start_step and torch.distributed.get_rank() in self._nsys_profile_ranks:
+                logging.info("====== Start nsys profiling ======")
+                torch.cuda.cudart().cudaProfilerStart()
+                if self._profile_gen_shape:
+                    torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+
+    def on_train_batch_end(self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, unused: int = 0) -> None:
+        """ PyTorch Lightning hook: 
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
+
+            We use it here to enable nsys profiling.
+        """
+
+        if self.cfg.get('nsys_profile', False):
+            if batch_idx == self._profile_end_step and torch.distributed.get_rank() in self._profile_ranks:
+                logging.info("====== End nsys profiling ======")
+                torch.cuda.cudart().cudaProfilerStop()

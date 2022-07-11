@@ -114,11 +114,11 @@ model:
   sequence_parallel: False
 
   ## Profiling options
-  profile: False
-  profile_start_step: 10  # Global batch to start profiling
-  profile_end_step: 10 # Global batch to end profiling
-  profile_ranks: [0] # Global rank IDs to profile
-  profile_gen_shape: False # Generate model and kernel details including input shapes
+  nsys_profile: False
+  nsys_profile_start_step: 10  # Global batch to start profiling
+  nsys_profile_end_step: 10 # Global batch to end profiling
+  nsys_profile_ranks: [0] # Global rank IDs to profile
+  nsys_profile_gen_shape: False # Generate model and kernel details including input shapes
 
   data:
     # Path to data must be specified by the user.
