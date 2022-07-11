@@ -1778,8 +1778,8 @@ class ParallelTransformer(MegatronModule):
             use_transformer_engine = True
             if use_transformer_engine:
                 checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
-                params_dtype = torch.float32
-                # params_dtype = torch.bfloat16
+                # params_dtype = torch.float32
+                params_dtype = torch.bfloat16
 
                 return TransformerLayer(
                     hidden_size=hidden_size,
