@@ -17,45 +17,49 @@ import re
 import string
 from collections import Counter
 
+import torch
+
+from nemo.collections.nlp.parts.utils_funcs import tensor2list
+
 
 class QAMetrics(object):
-    @classmethod
-    def normalize_answer(cls, s: str):
+    @staticmethod
+    def remove_articles(text):
+        return re.sub(r"\b(a|an|the)\b", " ", text)
+
+    @staticmethod
+    def white_space_fix(text):
+        return " ".join(text.split())
+
+    @staticmethod
+    def remove_punc(text):
+        exclude = set(string.punctuation)
+        return "".join(ch for ch in text if ch not in exclude)
+
+    @staticmethod
+    def normalize_answer(s: str):
         """ Lower text and remove punctuation, articles and extra whitespace """
 
-        def remove_articles(text):
-            return re.sub(r"\b(a|an|the)\b", " ", text)
+        return QAMetrics.white_space_fix(QAMetrics.remove_articles(QAMetrics.remove_punc(s.lower())))
 
-        def white_space_fix(text):
-            return " ".join(text.split())
-
-        def remove_punc(text):
-            exclude = set(string.punctuation)
-            return "".join(ch for ch in text if ch not in exclude)
-
-        def lower(text):
-            return text.lower()
-
-        return white_space_fix(remove_articles(remove_punc(lower(s))))
-
-    @classmethod
-    def _get_tokens(cls, s: str):
+    @staticmethod
+    def _get_normalized_tokens(s: str):
         """ Get normalized tokens """
         if not s:
             return []
-        return cls.normalize_answer(s).split()
+        return QAMetrics.normalize_answer(s).split()
 
-    @classmethod
-    def get_f1(cls, prediction: str, ground_truth: str):
+    @staticmethod
+    def get_one_f1(prediction: str, ground_truth: str):
         """ Computes f1 score between prediction and ground truth """
 
-        prediction_tokens = cls._get_tokens(prediction)
-        ground_truth_tokens = cls._get_tokens(ground_truth)
+        prediction_tokens = QAMetrics._get_normalized_tokens(prediction)
+        ground_truth_tokens = QAMetrics._get_normalized_tokens(ground_truth)
         common = Counter(prediction_tokens) & Counter(ground_truth_tokens)
         num_same = sum(common.values())
 
+        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
         if len(ground_truth_tokens) == 0 or len(prediction_tokens) == 0:
-            # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
             return int(ground_truth_tokens == prediction_tokens)
         if num_same == 0:
             return 0
@@ -66,8 +70,20 @@ class QAMetrics(object):
 
         return f1
 
-    @classmethod
-    def get_exact_match(cls, prediction: str, ground_truth: str):
+    @staticmethod
+    def get_one_exact_match(prediction: str, ground_truth: str):
         """ Computes exact match between prediction and ground truth """
 
-        return int(cls.normalize_answer(prediction) == cls.normalize_answer(ground_truth))
+        return int(QAMetrics.normalize_answer(prediction) == QAMetrics.normalize_answer(ground_truth))
+
+    @staticmethod
+    def convert_dict_outputs_to_lists(outputs, keys):
+        output_lists = [[] for _ in range(len(keys))]
+        for output in outputs:
+            for i, key in enumerate(keys):
+                if type(output[key]) == torch.Tensor:
+                    output_lists[i].extend(tensor2list(output[key]))
+                else:
+                    output_lists[i].extend(output[key])
+
+        return output_lists
