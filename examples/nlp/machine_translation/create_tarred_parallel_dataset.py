@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--no_split_by_whitespace',
         action="store_true",
-        help='Whether to split digits while tokenizing with sentencepiece.',
+        help='If True, this will not respect whitepsaces while learning BPE merges.',
     )
     args = parser.parse_args()
     if not os.path.exists(args.out_dir):
