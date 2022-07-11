@@ -10,6 +10,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     data_dir=${BASE_RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \
     "container='${BUILD_IMAGE_NAME_SRUN}'" \
+    container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data] \
     cluster.partition=${SLURM_PARTITION} \
     cluster.account=${SLURM_ACCOUNT} \
     cluster.gpus_per_task=null \
