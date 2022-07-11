@@ -1053,7 +1053,6 @@ pipeline {
         }
       }
     }
-
     stage('L2: COPY') {
       when {
         anyOf {
@@ -1084,7 +1083,6 @@ pipeline {
         }
       }
     }
-
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
