@@ -1054,7 +1054,7 @@ pipeline {
       }
     }
 
-    stage('L2: Duplex Text Normalization') {
+    stage('L2: COPY') {
       when {
         anyOf {
           branch 'main'
@@ -1063,45 +1063,25 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('Duplex Text Normalization with Tarred dataset') {
+        stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
           steps {
-            sh 'cd examples/nlp/duplex_text_normalization && \
-            python duplex_text_normalization_train.py \
-            data.validation_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv \
-            mode=tn \
-            lang=en \
-            tagger_model.do_training=false \
-            decoder_model.transformer=t5-small \
-            data.validation_ds.batch_size=2 \
-            data.train_ds.use_cache=false \
-            data.validation_ds.use_cache=false \
-            data.test_ds.batch_size=2 \
-            data.train_ds.decoder_data_augmentation=false \
-            data.train_ds.num_workers=2 \
-            decoder_trainer.devices=[0,1] \
-            decoder_trainer.accelerator="gpu" \
-            data.train_ds.use_tarred_dataset=true \
-            +decoder_trainer.fast_dev_run=true \
-            decoder_exp_manager.create_checkpoint_callback=false \
-            data.train_ds.tar_metadata_file=/home/TestData/nlp/duplex_text_norm/tarred_small/metadata.json \
-            data.test_ds.use_cache=false \
-            data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+            python dialogue.py \
+            do_training=False \
+            model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+            model.dataset.dialogues_example_dir=answer_extender \
+            model.library=huggingface \
+            model.dataset.task=ms_marco \
+            model.dataset.debug_mode=True \
+            trainer.val_check_interval=0.0 \
+            trainer.devices=[0] \
+            model.dataset.use_cache=false \
+            model.language_model.pretrained_model_name=gpt2 \
+            trainer.accelerator=gpu \
+            exp_manager=null  && \
+            rm -rf answer_extender'
           }
         }
-//         stage('Duplex Text Normalization Inference') {
-//           steps {
-// //             sh 'TIME=`date +"%Y-%m-%d-%T"`'
-// //             echo "In 2021 my email was myemail@abc.com." > /tmp/test_${TIME}.txt && \
-// //             echo "In twenty twenty one my email was myemail at abc dot com." > /tmp/gt_${TIME}.txt'
-//             sh 'cd examples/nlp/duplex_text_normalization && \
-//             python duplex_text_normalization_infer.py \
-//             lang=en mode=tn \
-//             tagger_pretrained_model=neural_text_normalization_t5 \
-//             decoder_pretrained_model=neural_text_normalization_t5 \
-//             inference.from_file=/tmp/test_${TIME}.txt'
-//             sh 'cmp --silent /tmp/gt_${TIME}.txt /tmp/test_${TIME}_tn.txt || exit 1'
-//           }
-//         }
       }
     }
 
