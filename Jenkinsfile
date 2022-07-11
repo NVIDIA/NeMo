@@ -1134,16 +1134,16 @@ pipeline {
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
           }
         }
-        stage('Duplex Text Normalization Inference') {
-          steps {
-            sh 'cd examples/nlp/duplex_text_normalization && \
-            TIME=`date +"%Y-%m-%d-%T"` && \
-            echo "In 2021 my email was myemail@abc.com." > test_${TIME}.txt && \
-            echo "In twenty twenty one my email was myemail at abc dot com." > gt_${TIME}.txt && \
-            python duplex_text_normalization_infer.py lang=en mode=tn tagger_pretrained_model=neural_text_normalization_t5 decoder_pretrained_model=neural_text_normalization_t5 inference.from_file=test.txt && \
-            cmp --silent gt_${TIME}.txt test_${TIME}_tn.txt || exit 1'
-          }
-        }
+//         stage('Duplex Text Normalization Inference') {
+//           steps {
+//             sh 'cd examples/nlp/duplex_text_normalization && \
+//             TIME=`date +"%Y-%m-%d-%T"` && \
+//             echo "In 2021 my email was myemail@abc.com." > test_${TIME}.txt && \
+//             echo "In twenty twenty one my email was myemail at abc dot com." > gt_${TIME}.txt && \
+//             python duplex_text_normalization_infer.py lang=en mode=tn tagger_pretrained_model=neural_text_normalization_t5 decoder_pretrained_model=neural_text_normalization_t5 inference.from_file=test.txt && \
+//             cmp --silent gt_${TIME}.txt test_${TIME}_tn.txt || exit 1'
+//           }
+//         }
         //this is a new test by @aleksandraa
         //cannot run it in a fork, Jenkins doesn't see it
         //need to uncomment, when given writing permissions to NeMo
