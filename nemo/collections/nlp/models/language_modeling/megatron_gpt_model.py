@@ -124,18 +124,6 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             else:
                 self._is_intermediate_pipe_stage = True
 
-        # Profiling options
-        self._profile_start_step = cfg.profile_start_step if cfg.profile else None
-        self._profile_end_step = cfg.profile_end_step if cfg.profile else None
-        self._profile_ranks = cfg.profile_ranks
-        self._profile_gen_shape = cfg.profile_gen_shape
-        if cfg.profile:
-            assert (
-                type(self._profile_start_step) == int
-                and type(self._profile_end_step) == int
-                and self._profile_end_step >= self._profile_start_step
-            )
-
     def set_inference_config(self, inference_config):
         self._inference_config = inference_config
 
