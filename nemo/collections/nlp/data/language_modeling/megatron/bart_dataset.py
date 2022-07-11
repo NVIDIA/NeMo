@@ -56,7 +56,7 @@ class BARTDataset(T5Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - self.MAX_SEQ_LENGTH_DELTA,
+            max_seq_length=max_seq_length,
             max_seq_length_dec=None,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
