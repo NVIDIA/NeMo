@@ -57,7 +57,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.utils.exp_manager import exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="dialogue_config")
