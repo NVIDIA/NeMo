@@ -361,8 +361,8 @@ def create_spt_model(
     if split_digits:
         cmd += " --split_digits=true"
 
-    if split_by_whitespace:
-        cmd += " --split_by_whitespace=true"
+    if not split_by_whitespace:
+        cmd += " --split_by_whitespace=false"
 
     sentencepiece.SentencePieceTrainer.Train(cmd)
 
