@@ -1411,10 +1411,10 @@ class ModelPT(LightningModule, Model):
 
             ## Nsys profiling options
             nsys_profile: False
-            nsys_profile_start_step: 10  # Global batch to start profiling
-            nsys_profile_end_step: 10 # Global batch to end profiling
-            nsys_profile_ranks: [0] # Global rank IDs to profile
-            nsys_profile_gen_shape: False # Generate model and kernel details including input shapes
+                start_step: 10  # Global batch to start profiling
+                end_step: 10 # Global batch to end profiling
+                ranks: [0] # Global rank IDs to profile
+                gen_shape: False # Generate model and kernel details including input shapes
 
             And then wrap the model training script with:
             nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
@@ -1422,18 +1422,30 @@ class ModelPT(LightningModule, Model):
             See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
 
         """
-        if self.cfg.get('nsys_profile', False):
-            # Nsys profiling options
-            self._nsys_profile_start_step = self.cfg.nsys_profile_start_step
-            self._nsys_profile_end_step = self.cfg.nsys_profile_end_step
-            self._nsys_profile_ranks = self.cfg.nsys_profile_ranks
-            self._nsys_profile_gen_shape = self.cfg.nsys_profile_gen_shape
+        if self.cfg.get('nsys_profile', None):
+            if self.cfg.nsys_profile.get('enabled', False):
+                # Nsys profiling options
+                self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+                self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+                self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
+                self._nsys_profile_gen_shape = self.cfg.nsys_profile.get('gen_shape', False)
 
-            assert (
-                type(self._nsys_profile_start_step) == int
-                and type(self._nsys_profile_end_step) == int
-                and self._nsys_profile_end_step >= self._nsys_profile_start_step
-            )
+                if type(self._nsys_profile_start_step) == int:
+                    logging.info(f'Nsys profiling setup with start_step: {self._nsys_profile_start_step}')
+                else:
+                    raise ValueError(
+                        f'Nsys start_step must be of type int. Found: {type(self._nsys_profile_start_step)}'
+                    )
+
+                if type(self._nsys_profile_end_step) == int:
+                    logging.info(f'Nsys profiling setup with end_step: {self._nsys_profile_end_step}')
+                else:
+                    raise ValueError(f'Nsys end_step must be of type int. Found: {type(self._nsys_profile_end_step)}')
+
+                if self._nsys_profile_end_step >= self._nsys_profile_start_step:
+                    pass
+                else:
+                    raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
 
     def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
         """ PyTorch Lightning hook: 
@@ -1442,12 +1454,17 @@ class ModelPT(LightningModule, Model):
             We use it here to enable nsys profiling.
         """
 
-        if self.cfg.get('nsys_profile', False):
-            if batch_idx == self._nsys_profile_start_step and torch.distributed.get_rank() in self._nsys_profile_ranks:
-                logging.info("====== Start nsys profiling ======")
-                torch.cuda.cudart().cudaProfilerStart()
-                if self._nsys_profile_gen_shape:
-                    torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+        if self.device.type == 'cuda':
+            if self.cfg.get('nsys_profile', None):
+                if self.cfg.nsys_profile.get('enabled', False):
+                    if (
+                        batch_idx == self._nsys_profile_start_step
+                        and torch.distributed.get_rank() in self._nsys_profile_ranks
+                    ):
+                        logging.info("====== Start nsys profiling ======")
+                        torch.cuda.cudart().cudaProfilerStart()
+                        if self._nsys_profile_gen_shape:
+                            torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
     def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
         """ PyTorch Lightning hook: 
@@ -1456,7 +1473,12 @@ class ModelPT(LightningModule, Model):
             We use it here to enable nsys profiling.
         """
 
-        if self.cfg.get('nsys_profile', False):
-            if batch_idx == self._nsys_profile_end_step and torch.distributed.get_rank() in self._nsys_profile_ranks:
-                logging.info("====== End nsys profiling ======")
-                torch.cuda.cudart().cudaProfilerStop()
+        if self.device.type == 'cuda':
+            if self.cfg.get('nsys_profile', None):
+                if self.cfg.nsys_profile.get('enabled', False):
+                    if (
+                        batch_idx == self._nsys_profile_end_step
+                        and torch.distributed.get_rank() in self._nsys_profile_ranks
+                    ):
+                        logging.info("====== End nsys profiling ======")
+                        torch.cuda.cudart().cudaProfilerStop()
