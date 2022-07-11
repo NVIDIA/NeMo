@@ -32,6 +32,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_t5_model import Mega
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import logging
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 try:
     from apex.transformer import parallel_state
@@ -135,7 +136,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
             t5_cfg.precision = trainer.precision
 
         self.frozen_model = MegatronT5Model.restore_from(
-            cfg.get('pretrained_language_model_path'), trainer=trainer, override_config_path=t5_cfg,
+            cfg.get('pretrained_language_model_path'), trainer=trainer, override_config_path=t5_cfg, save_restore_connector=NLPSaveRestoreConnector(),
         )
 
         # Freeze all T5 model weights for prompt-tuning/p-tuning
@@ -160,6 +161,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 forward_only=forward_only,
                 tensor_shape=tensor_shape,
                 dtype=self.autocast_dtype,
+                disable_autocast=True,
                 grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
             )
 
