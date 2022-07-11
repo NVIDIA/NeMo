@@ -1432,7 +1432,7 @@ class ModelPT(LightningModule, Model):
                 if self._profile_gen_shape:
                     torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
 
-    def on_train_batch_end(self, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, unused: int = 0) -> None:
+    def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
         """ PyTorch Lightning hook: 
             https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
 
@@ -1440,6 +1440,6 @@ class ModelPT(LightningModule, Model):
         """
 
         if self.cfg.get('nsys_profile', False):
-            if batch_idx == self._profile_end_step and torch.distributed.get_rank() in self._profile_ranks:
+            if batch_idx == self._nsys_profile_end_step and torch.distributed.get_rank() in self._nsys_profile_ranks:
                 logging.info("====== End nsys profiling ======")
                 torch.cuda.cudart().cudaProfilerStop()
