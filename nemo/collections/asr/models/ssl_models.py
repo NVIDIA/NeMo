@@ -307,10 +307,14 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
             3) The encoded features tensor of shape [B, D, T].
             2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
         """
+        if hasattr(self, '_in_validation_step'):
+            in_validation_step = self._in_validation_step
+        else:
+            in_validation_step = False
 
         # reset module registry from AccessMixin
         if (
-            self.training
+            (self.training or in_validation_step)
             and self.decoder_losses is not None
             and self.output_from_layer is not None
             and len(self.output_from_layer) > 0
@@ -496,6 +500,9 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
         return {'loss': loss_value, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
+        # Set flag to register tensors
+        self._in_validation_step = True
+
         signal, signal_len, targets, target_lengths = batch
         spectrograms, spec_masks, encoded, encoded_len = self.forward(
             input_signal=signal, input_signal_length=signal_len,
@@ -508,6 +515,7 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
 
         # reset access registry
         self.reset_registry()
+        del self._in_validation_step
 
         return {
             'val_loss': loss_value,
