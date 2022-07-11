@@ -22,6 +22,7 @@ class TestConfig:
           output_subdir: null
         
         debug: False
+        profile: False
         
         run_data_preparation: True
         run_training: True
