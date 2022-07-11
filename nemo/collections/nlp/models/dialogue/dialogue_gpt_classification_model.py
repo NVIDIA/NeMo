@@ -63,6 +63,7 @@ class DialogueGPTClassificationModel(NLPModel):
                 new_cfg = copy.copy(cfg)
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
+                self.language_model.init_new_prompts()
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
@@ -232,13 +233,11 @@ class DialogueGPTClassificationModel(NLPModel):
 
         elif self.cfg.library == "megatron":
             num_prompt_tokens = (
-                self.language_model.num_prompt_tokens if hasattr(self.language_model, 'num_prompt_tokens') else 0
+                len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
             )
+
             position_ids = torch.arange(
-                start=num_prompt_tokens,
-                end=num_prompt_tokens + input_ids.size(1),
-                dtype=torch.long,
-                device=input_ids.device,
+                start=0, end=num_prompt_tokens + input_ids.size(1), dtype=torch.long, device=input_ids.device,
             )
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
@@ -260,17 +259,23 @@ class DialogueGPTClassificationModel(NLPModel):
                 size=(input_ids.size(0), num_prompt_tokens),
                 fill_value=self.tokenizer.tokenizer.pad_token_id,
                 dtype=torch.long,
-                device=input_ids.device,
             )
 
-            input_ids_new = torch.cat([prompt_token_labels, input_ids], axis=1)
+            if self.prompt_learning:
+                prompt_token_labels.data = torch.LongTensor(
+                    np.tile(np.array(self.language_model.pseudo_token_ids), (input_ids.size(0), 1))
+                )
+
+            prompt_token_labels = prompt_token_labels.to(input_ids.device)
+
+            input_ids_new = torch.cat([torch.zeros_like(prompt_token_labels), input_ids], axis=1)
             make_up_last_column_input_ids = (
                 torch.ones_like(input_ids_new[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
             )
             left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
             if self.prompt_learning:
                 unmasked_unreduced_loss = self.language_model(
-                    input_ids,
+                    input_ids_new,
                     position_ids,
                     attn_mask,
                     labels=left_shifted_input_ids,
@@ -285,7 +290,7 @@ class DialogueGPTClassificationModel(NLPModel):
             if isinstance(unmasked_unreduced_loss, tuple):
                 unmasked_unreduced_loss = unmasked_unreduced_loss[0]
 
-            labels = torch.cat([torch.zeros_like(prompt_token_labels), labels], axis=1)
+            labels = torch.cat([prompt_token_labels, labels], axis=1)
             make_up_last_column_labels = torch.ones_like(labels[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
             new_labels = torch.cat([labels[:, 1:], make_up_last_column_labels], axis=-1)
             filler = torch.zeros_like(new_labels)

@@ -297,22 +297,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         return tasks
 
-    def state_dict(self):
-        """
-        Custom state dict that only contains prompt table and prompt encoder parameters. 
-        No frozen model parameters are stored in the state dict. Prompt encoder parameters 
-        are only in state dict for intermediate checkpoints saved during training. Final
-        nemo checkpoints at the end of training will contain prompt table parameters only. 
-        """
-        state_dict_ = {}
-        if self.frozen_model.model.pre_process:
-            state_dict_[self._prompt_table_key] = self.prompt_table.state_dict()
-
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                state_dict_[self._prompt_encoder_key] = self.prompt_encoder.state_dict()
-
-        return state_dict_
-
     def load_state_dict(self, state_dict, strict: bool = True):
         """
         Custom load state dict method that only loads prompt table and prompt encoder
@@ -381,12 +365,10 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 input_embeds = self.embed_input_inference(input_ids, taskname_ids)
             else:
                 input_embeds = self.embed_input_train(input_ids, taskname_ids)
-
             position_embeddings = self.frozen_model.model.language_model.embedding.position_embeddings(position_ids)
             encoder_input = input_embeds + position_embeddings
         else:
             encoder_input = None
-
         # Call forward on GPT model with preprocessed embeddings
         if self.float_type == torch.float32:
             output = self.frozen_model.model(

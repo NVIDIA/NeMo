@@ -57,7 +57,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.utils.exp_manager import exp_manager
+from nemo.utils.exp_manager import StatelessTimer, exp_manager
 
 
 @hydra_runner(config_path="conf", config_name="dialogue_config")
@@ -66,11 +66,11 @@ def main(cfg: DictConfig) -> None:
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
     try:
-        plugin = NLPDDPPlugin()
+        plugins = NLPDDPPlugin()
     except (ImportError, ModuleNotFoundError):
-        plugin = None
+        plugins = None
 
-    trainer = pl.Trainer(**cfg.trainer, plugins=plugin)
+    trainer = pl.Trainer(**cfg.trainer, plugins=plugins)
 
     exp_manager(trainer, cfg.get("exp_manager", None))
 

@@ -64,8 +64,9 @@ model:
   prompt_learning: false # please change to true to activate prompt learning
   language_model_path: null
   new_tasks: ['intent_and_slot']
-  new_prompt_init_method: ['text']
-  new_prompt_init_text: ['intent classification and slot filling']
+  prompt_tuning:
+    new_prompt_init_methods: ['random']
+    new_prompt_init_text: ['intent classification and slot filling']
   data: {}
   virtual_prompt_style: 'prompt-tuning' #'p-tuning'
   encoder_seq_length: 2048
