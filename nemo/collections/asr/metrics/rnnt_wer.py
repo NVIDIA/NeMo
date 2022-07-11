@@ -113,10 +113,11 @@ class AbstractRNNTDecoding(ABC):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
+        self.big_blank_id = big_blank_id
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
         self.joint_fused_batch_size = self.cfg.get('fused_batch_size', None)
@@ -151,6 +152,7 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
+                big_blank_index=self.big_blank_id,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
@@ -454,10 +456,11 @@ class RNNTDecoding(AbstractRNNTDecoding):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        blank_id = len(vocabulary)
+        blank_id = len(vocabulary) - 1
+        big_blank_id = len(vocabulary)
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id)
+        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """

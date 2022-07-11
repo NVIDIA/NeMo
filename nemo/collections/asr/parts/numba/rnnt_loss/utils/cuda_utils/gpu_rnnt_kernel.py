@@ -145,7 +145,7 @@ def compute_alphas_kernel(
                 )
 
             # for t in range(1, T) for u in range(1, U) step to compute alphas[b, t, u]
-            elif t > 0 and t < T:
+            elif t > 0 and t < T and t < big_blank_duration_:
                 no_emit = alphas[offset + (t - 1) * maxU + u] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, t - 1, u, blank_
                 )
@@ -154,6 +154,22 @@ def compute_alphas_kernel(
                 )
 
                 alphas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
+            # for t in range(1, T) for u in range(1, U) step to compute alphas[b, t, u]
+            elif t > 0 and t < T and t >= big_blank_duration_:
+                no_emit = alphas[offset + (t - 1) * maxU + u] + logp(
+                    denom, acts, maxT, maxU, alphabet_size, b, t - 1, u, blank_
+                )
+#                if t - big_blank_duration_ >= T:
+#                    print(t - big_blank_duration_, T, alphabet_size)
+                big_blank_no_emit = alphas[offset + (t - big_blank_duration_) * maxU + u] + logp(
+                    denom, acts, maxT, maxU, alphabet_size, b, t - big_blank_duration_, u, big_blank_
+                )
+#                big_blank_no_emit = -1111.1
+                emit = alphas[offset + t * maxU + u - 1] + logp(
+                    denom, acts, maxT, maxU, alphabet_size, b, t, u - 1, labels[u - 1]
+                )
+
+                alphas[offset + t * maxU + u] = rnnt_helper.log_3sum_exp(emit, no_emit, big_blank_no_emit)
 
         # sync across all B=b and U=u
         cuda.syncthreads()
@@ -247,7 +263,7 @@ def compute_betas_kernel(
                 betas[offset + (T - 1) * maxU + u] = betas[offset + (T - 1) * maxU + u + 1] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, T - 1, u, labels[u]
                 )
-            elif (t >= 0) and (t < T - 1):
+            elif (t >= 0) and (t < T - 1): # and (t >= T - big_blank_duration_):
                 # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
                 no_emit = betas[offset + (t + 1) * maxU + u] + logp(
                     denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
@@ -256,6 +272,19 @@ def compute_betas_kernel(
                     denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
                 )
                 betas[offset + t * maxU + u] = rnnt_helper.log_sum_exp(emit, no_emit)
+#            elif (t >= 0) and (t < T - 1) and (t < T - big_blank_duration_):
+#                # for t in reversed(range(T - 1)) for u in reversed(range(U - 1)) step to compute betas[b, t, u]
+#                no_emit = betas[offset + (t + 1) * maxU + u] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, blank_
+#                )
+##                big_blank_no_emit = betas[offset + (t + big_blank_duration_) * maxU + u] + logp(
+##                    denom, acts, maxT, maxU, alphabet_size, b, t, u, big_blank_
+##                )
+#                big_blank_no_emit = -11111.1
+#                emit = betas[offset + t * maxU + u + 1] + logp(
+#                    denom, acts, maxT, maxU, alphabet_size, b, t, u, labels[u]
+#                )
+#                betas[offset + t * maxU + u] = rnnt_helper.log_3sum_exp(emit, no_emit, big_blank_no_emit)
 
         # sync across all B=b and U=u
         cuda.syncthreads()
@@ -378,10 +407,16 @@ def compute_grad_kernel(
             if (idx == blank_) and (t == T - 1) and (u == U - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb])
 
+#            if (idx == big_blank_) and (t == T - big_blank_duration_) and (u == U - 1):
+#                grad -= math.exp(alphas[col] + logpk - logll[mb])
+
             # grad of blank across t < T;
             # grad[b, t<T-1, u, v=blank] -= exp(alphas[b, t, u] + logpk - logll[b] betas[b, t + 1, u])
             if (idx == blank_) and (t < T - 1):
                 grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
+
+#            if (idx == big_blank_) and (t < T - big_blank_duration_):
+#                grad -= math.exp(alphas[col] + logpk - logll[mb] + betas[col + maxU])
 
             # grad of correct token across u < U;
             # grad[b, t, u<U-1, v=label[u]] -= exp(alphas[b, t, u] + logpk - logll[b] + betas[b, t, u+1])
