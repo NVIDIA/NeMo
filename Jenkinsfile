@@ -1053,6 +1053,7 @@ pipeline {
         }
       }
     }
+
     stage('L2: Duplex TN') {
       when {
         anyOf {
@@ -1089,9 +1090,9 @@ pipeline {
         }
         stage('Duplex Text Normalization Inference') {
           steps {
-            sh 'TIME=`date +"%Y-%m-%d-%T"` && \
-            echo "In 2021 my email was myemail@abc.com." > /tmp/test_${TIME}.txt && \
-            echo "In twenty twenty one my email was myemail at abc dot com." > /tmp/gt_${TIME}.txt'
+            sh 'TIME=`date +"%Y-%m-%d-%T"`'
+//             echo "In 2021 my email was myemail@abc.com." > /tmp/test_${TIME}.txt && \
+//             echo "In twenty twenty one my email was myemail at abc dot com." > /tmp/gt_${TIME}.txt'
 //             sh 'cd examples/nlp/duplex_text_normalization && \
 //             python duplex_text_normalization_infer.py \
 //             lang=en mode=tn \
@@ -1103,6 +1104,7 @@ pipeline {
         }
       }
     }
+
     stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
       when {
         anyOf {
@@ -1188,6 +1190,7 @@ pipeline {
     // }
      }
     }
+
     stage('L2: Parallel SQUAD v1.1 & v2.0') {
       when {
         anyOf {
