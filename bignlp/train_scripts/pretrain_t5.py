@@ -52,7 +52,7 @@ def main(cfg):
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
 
     # Write command to launch training.
-        if cfg.get("profile", False):
+    if cfg.get("profile", False):
         slurm_node = os.environ.get("SLURM_NODEID", "0")
         slurm_rank = os.environ.get("SLURM_PROCID", "0")
         slurm_jobid = os.environ.get("SLURM_JOB_ID", "0")
