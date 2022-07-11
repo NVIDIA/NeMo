@@ -44,8 +44,8 @@ class PartialConv1d(torch.nn.Conv1d):
         # if a mask is input, or tensor shape changed, update mask ratio
         if mask_in is not None or self.last_size != tuple(input.shape):
             # borisf: disabled update for inference
-            if self.training:
-                self.last_size = tuple(input.shape)
+            # if self.training:
+            self.last_size = tuple(input.shape)
             with torch.no_grad():
                 if self.weight_maskUpdater.type() != input.type():
                     self.weight_maskUpdater = self.weight_maskUpdater.to(input)
