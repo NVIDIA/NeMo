@@ -32,7 +32,6 @@ from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import 
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
@@ -107,10 +106,7 @@ class GPTQAModel(NLPModel):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         input_ids, input_attn_mask, unique_ids, training_mask_end, labels = batch
         loss, per_sample_perplexity = self.forward(input_ids, input_attn_mask, labels)
@@ -130,13 +126,10 @@ class GPTQAModel(NLPModel):
         return self.validation_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         loss_terms = [x[f"{prefix}_loss"] for x in outputs]
-        generated_answers, unique_ids, per_sample_perplexity = self._convert_dict_outputs_to_lists(
+        generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
             outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
         )
 
@@ -187,7 +180,7 @@ class GPTQAModel(NLPModel):
                 inference_dl = self.setup_inference_data(file, batch_size=batch_size, num_samples=num_samples)
 
                 outputs = self._inference(inference_dl, device)
-                generated_answers, unique_ids, per_sample_perplexity = self._convert_dict_outputs_to_lists(
+                generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
                     outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
                 )
                 all_predictions = self._get_predictions(
@@ -304,10 +297,9 @@ class GPTQAModel(NLPModel):
         outputs = []
         for i, batch in enumerate(inference_dl):
             input_ids, input_attn_mask, unique_ids, training_mask_end = batch
-            input_ids, input_attn_mask, training_mask_end = self._transfer_tensors_to_device(
-                [input_ids, input_attn_mask, training_mask_end], device,
+            input_ids, input_attn_mask, training_mask_end = (
+                tensor.to(device) for tensor in [input_ids, input_attn_mask, training_mask_end]
             )
-
             input_ids, input_attn_mask, labels, generated_texts = self._prep_inference_labels(
                 input_ids, input_attn_mask, training_mask_end, device
             )
@@ -343,8 +335,8 @@ class GPTQAModel(NLPModel):
             padding="max_length",
             return_tensors="pt",
         )
-        input_ids, input_attn_mask = self._transfer_tensors_to_device(
-            [encoded_dict["input_ids"], encoded_dict["attention_mask"]], device
+        input_ids, input_attn_mask = (
+            tensor.to(device) for tensor in [encoded_dict["input_ids"], encoded_dict["attention_mask"]]
         )
         labels = GPTQADataset.get_labels_from_inputs(
             input_ids, training_mask_end, input_attn_mask, self.tokenizer.tokenizer,
@@ -406,7 +398,7 @@ class GPTQAModel(NLPModel):
 
         return answers
 
-    def _get_raw_scores(self, examples, preds):
+    def _get_exact_match_and_f1(self, examples, preds):
         exact_scores = {}
         f1_scores = {}
 
@@ -418,20 +410,16 @@ class GPTQAModel(NLPModel):
                 # For unanswerable questions, only correct answer is empty string
                 gold_answers = [""]
 
-            if qas_id not in preds:
-                logging.warning(f"Missing prediction for {qas_id}")
-                continue
-
             pred = preds[qas_id].generated_text
-            exact_scores[qas_id] = max(QAMetrics.get_exact_match(pred, a) for a in gold_answers)
-            f1_scores[qas_id] = max(QAMetrics.get_f1(pred, a) for a in gold_answers)
+            exact_scores[qas_id] = max(QAMetrics.get_one_exact_match(pred, a) for a in gold_answers)
+            f1_scores[qas_id] = max(QAMetrics.get_one_f1(pred, a) for a in gold_answers)
 
         return exact_scores, f1_scores
 
     def _evaluate_predictions(
         self, examples, all_predictions: Dict[str, str],
     ):
-        exact, f1 = self._get_raw_scores(examples, all_predictions)
+        exact, f1 = self._get_exact_match_and_f1(examples, all_predictions)
         total = len(exact)
 
         return collections.OrderedDict(
@@ -457,21 +445,6 @@ class GPTQAModel(NLPModel):
 
         with open(output_file, "w") as writer:
             writer.write(json.dumps(outputs))
-
-    def _transfer_tensors_to_device(self, tensors: Tuple, device):
-        tensors = (tensor.to(device) for tensor in tensors)
-        return tensors
-
-    def _convert_dict_outputs_to_lists(self, outputs, keys):
-        output_lists = [[] for _ in range(len(keys))]
-        for output in outputs:
-            for i, key in enumerate(keys):
-                if type(output[key]) == torch.Tensor:
-                    output_lists[i].extend(tensor2list(output[key]))
-                else:
-                    output_lists[i].extend(output[key])
-
-        return output_lists
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

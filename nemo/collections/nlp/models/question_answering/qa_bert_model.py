@@ -100,10 +100,7 @@ class BERTQAModel(NLPModel):
         return {'loss': loss, 'lr': lr}
 
     def validation_step(self, batch, batch_idx):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
@@ -122,10 +119,7 @@ class BERTQAModel(NLPModel):
         return self.validation_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
@@ -677,7 +671,7 @@ class BERTQAModel(NLPModel):
 
         return output_text
 
-    def _get_raw_scores(self, examples: List, preds: Dict[str, str]):
+    def _get_exact_match_and_f1(self, examples: List, preds: Dict[str, str]):
         """
         Computes the exact and f1 scores from the examples and the model predictions
         """
@@ -692,13 +686,9 @@ class BERTQAModel(NLPModel):
                 # For unanswerable questions, only correct answer is empty string
                 gold_answers = [""]
 
-            if qas_id not in preds:
-                logging.warning(f"Missing prediction for {qas_id}")
-                continue
-
             prediction = preds[qas_id]
-            exact_scores[qas_id] = max(QAMetrics.get_exact_match(prediction, a) for a in gold_answers)
-            f1_scores[qas_id] = max(QAMetrics.get_f1(prediction, a) for a in gold_answers)
+            exact_scores[qas_id] = max(QAMetrics.get_one_exact_match(prediction, a) for a in gold_answers)
+            f1_scores[qas_id] = max(QAMetrics.get_one_f1(prediction, a) for a in gold_answers)
 
         return exact_scores, f1_scores
 
@@ -706,12 +696,12 @@ class BERTQAModel(NLPModel):
         """ Applies no answer threshold """
 
         new_scores = {}
-        for qid, s in scores.items():
-            pred_na = na_probs[qid] > na_prob_thresh
+        for question_id, score in scores.items():
+            pred_na = na_probs[question_id] > na_prob_thresh
             if pred_na:
-                new_scores[qid] = float(not qid_to_has_ans[qid])
+                new_scores[question_id] = float(not qid_to_has_ans[question_id])
             else:
-                new_scores[qid] = s
+                new_scores[question_id] = score
 
         return new_scores
 
@@ -756,7 +746,7 @@ class BERTQAModel(NLPModel):
         best_score = cur_score
         best_thresh = 0.0
         qid_list = sorted(na_probs, key=lambda k: na_probs[k])
-        for _, qid in enumerate(qid_list):
+        for qid in qid_list:
             if qid not in scores:
                 continue
             if qid_to_has_ans[qid]:
@@ -798,7 +788,7 @@ class BERTQAModel(NLPModel):
         if no_answer_probs is None:
             no_answer_probs = {k: 0.0 for k in all_predictions}
 
-        exact, f1 = self._get_raw_scores(examples, all_predictions)
+        exact, f1 = self._get_exact_match_and_f1(examples, all_predictions)
 
         exact_threshold = self._apply_no_ans_threshold(
             exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold

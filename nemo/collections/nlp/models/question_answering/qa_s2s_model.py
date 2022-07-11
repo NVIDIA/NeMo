@@ -33,7 +33,6 @@ from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import 
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
@@ -124,10 +123,7 @@ class S2SQAModel(NLPModel):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         input_ids, input_attn_mask, unique_ids, labels = batch
         loss, per_sample_perplexity = self.forward(input_ids, input_attn_mask, labels)
@@ -148,13 +144,10 @@ class S2SQAModel(NLPModel):
         return self.validation_step(batch, batch_idx)
 
     def validation_epoch_end(self, outputs):
-        if self.trainer.testing:
-            prefix = 'test'
-        else:
-            prefix = 'val'
+        prefix = "test" if self.trainer.testing else "val"
 
         loss_terms = [x[f"{prefix}_loss"] for x in outputs]
-        generated_answers, unique_ids, per_sample_perplexity = self._convert_dict_outputs_to_lists(
+        generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
             outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
         )
 
@@ -214,7 +207,7 @@ class S2SQAModel(NLPModel):
                 inference_dl = self.setup_inference_data(file, batch_size=batch_size, num_samples=num_samples)
 
                 outputs = self._inference(inference_dl, device)
-                generated_answers, unique_ids, per_sample_perplexity = self._convert_dict_outputs_to_lists(
+                generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
                     outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
                 )
                 all_predictions = self._get_predictions(
@@ -332,10 +325,10 @@ class S2SQAModel(NLPModel):
 
             # get predictions
             input_ids, input_attn_mask, unique_ids = batch
-            input_ids, input_attn_mask = self._transfer_tensors_to_device([input_ids, input_attn_mask], device,)
+            input_ids, input_attn_mask = (tensor.to(device) for tensor in [input_ids, input_attn_mask])
             generated_texts = self._generate_candidates(input_ids, input_attn_mask)
 
-            labels = input_ids.clone()
+            labels = self._prep_inference_labels(generated_texts, device)
             _, per_sample_perplexity = self.forward(input_ids, input_attn_mask, labels)
             labels[labels == -100] = self.tokenizer.tokenizer.pad_token_id
 
@@ -348,6 +341,23 @@ class S2SQAModel(NLPModel):
             )
 
         return outputs
+
+    def _prep_inference_labels(self, generated_texts, device):
+        encoded_output_dict = self.tokenizer.tokenizer(
+            generated_texts,
+            truncation=True,
+            max_length=self._cfg.dataset.max_answer_length,
+            padding="max_length",
+            return_tensors="pt",
+        )
+        input_ids = encoded_output_dict["input_ids"].to(device)
+        labels = torch.squeeze(input_ids)
+        labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100
+        if len(labels.shape) == 1:
+            labels = torch.unsqueeze(labels, 0)
+        labels = labels.to(device)
+
+        return labels
 
     def _generate_candidates(self, input_ids, input_attn_mask):
         num_tokens_to_generate = self.cfg.tokens_to_generate
@@ -367,7 +377,7 @@ class S2SQAModel(NLPModel):
 
         return generated_answers
 
-    def _get_raw_scores(self, examples, preds):
+    def _get_exact_match_and_f1(self, examples, preds):
         exact_scores = {}
         f1_scores = {}
 
@@ -379,20 +389,16 @@ class S2SQAModel(NLPModel):
                 # For unanswerable questions, only correct answer is empty string
                 gold_answers = [""]
 
-            if qas_id not in preds:
-                logging.warning(f"Missing prediction for {qas_id}")
-                continue
-
             pred = preds[qas_id].generated_text
-            exact_scores[qas_id] = max(QAMetrics.get_exact_match(pred, a) for a in gold_answers)
-            f1_scores[qas_id] = max(QAMetrics.get_f1(pred, a) for a in gold_answers)
+            exact_scores[qas_id] = max(QAMetrics.get_one_exact_match(pred, a) for a in gold_answers)
+            f1_scores[qas_id] = max(QAMetrics.get_one_f1(pred, a) for a in gold_answers)
 
         return exact_scores, f1_scores
 
     def _evaluate_predictions(
         self, examples, all_predictions: Dict[str, str],
     ):
-        exact, f1 = self._get_raw_scores(examples, all_predictions)
+        exact, f1 = self._get_exact_match_and_f1(examples, all_predictions)
         total = len(exact)
 
         return collections.OrderedDict(
@@ -419,21 +425,6 @@ class S2SQAModel(NLPModel):
 
         with open(output_file, "w") as writer:
             writer.write(json.dumps(outputs))
-
-    def _transfer_tensors_to_device(self, tensors: Tuple, device):
-        tensors = (tensor.to(device) for tensor in tensors)
-        return tensors
-
-    def _convert_dict_outputs_to_lists(self, outputs, keys):
-        output_lists = [[] for _ in range(len(keys))]
-        for output in outputs:
-            for i, key in enumerate(keys):
-                if type(output[key]) == torch.Tensor:
-                    output_lists[i].extend(tensor2list(output[key]))
-                else:
-                    output_lists[i].extend(output[key])
-
-        return output_lists
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
