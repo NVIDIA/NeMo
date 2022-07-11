@@ -1405,6 +1405,21 @@ class ModelPT(LightningModule, Model):
             setattr(cls, '_save_restore_connector', save_restore_connector)
 
     def _setup_nsys_profiling(self):
+        """ Enables nsys profiling
+
+            To use, add the following optoins to the model config:
+
+            ## Nsys profiling options
+            nsys_profile: False
+            nsys_profile_start_step: 10  # Global batch to start profiling
+            nsys_profile_end_step: 10 # Global batch to end profiling
+            nsys_profile_ranks: [0] # Global rank IDs to profile
+            nsys_profile_gen_shape: False # Generate model and kernel details including input shapes
+
+            And then wrap the model training script with:
+            nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+
+        """
         if self.cfg.get('nsys_profile', False):
             # Nsys profiling options
             self._nsys_profile_start_step = self.cfg.nsys_profile_start_step
