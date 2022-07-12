@@ -122,7 +122,7 @@ class QAMetrics(object):
             [
                 (f"{prefix}exact", (100.0 * sum(exact_scores.values()) / total) if total != 0 else 0.),
                 (f"{prefix}f1", (100.0 * sum(f1_scores.values()) / total) if total != 0 else 0.),
-                (f"{prefix}total", total),
+                (f"{prefix}total", float(total)),
             ]
         )
 
