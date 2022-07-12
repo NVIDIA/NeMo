@@ -1981,7 +1981,7 @@ pipeline {
       }
       failFast true
       steps {
-        sh 'cd examples/nlp/machine_translation && \
+        sh "cd examples/nlp/machine_translation && \
         python enc_dec_nmt_finetune.py \
         model_path=/home/TestData/nlp/nmt/toy_data/TransformerLargeDe-En.nemo \
         trainer.devices=[0] \
@@ -1996,12 +1996,13 @@ pipeline {
         +trainer.limit_val_batches=1 \
         +trainer.limit_test_batches=1 \
         +trainer.max_steps=10 \
-        +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_results \
+        +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_finetune \
         +exp_manager.create_checkpoint_callback=True \
         +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
         +exp_manager.checkpoint_callback_params.mode=max \
         +exp_manager.checkpoint_callback_params.save_best_model=true \
-        '
+        "
+        sh "rm -rf examples/nlp/machine_translation/nmt_finetune"
       }
     }
 
