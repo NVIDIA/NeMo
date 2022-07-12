@@ -78,7 +78,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
     def _build_vocab(self):
         self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
-        T5Model.add_special_tokens_to_tokenizer(
+        MegatronT5Model.add_special_tokens_to_tokenizer(
             tokenizer=self.tokenizer,
             tokenizer_cfg=self._cfg.tokenizer,
             dataset_type=self._cfg.data.get("dataset_type", "t5")
@@ -134,7 +134,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
             # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
             for i in range(tokenizer_cfg.num_sentinel_tokens):
-                if f'▁<extra_id_{i}>' in tokenizer.special_token_to_id:
+                if f'▁<extra_id_{i}>' in tokenizer.vocab:
                     tokenizer.special_token_to_id[f'<extra_id_{i}>'] = tokenizer.text_to_ids(
                         f'<extra_id_{i}>'
                     )[0]
@@ -143,7 +143,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
 
             if dataset_type == "ul2":
                 for mask_type in ['r', 's', 'x']:
-                    if f'▁<extra_id_{mask_type}>' in tokenizer.special_token_to_id:
+                    if f'▁<extra_id_{mask_type}>' in tokenizer.vocab:
                         tokenizer.special_token_to_id[f'<extra_id_{i}>'] = tokenizer.text_to_ids(
                             f'<extra_id_{i}>'
                         )[0]
