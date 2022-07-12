@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 
+@dataclass
 class BERTQAInputFeatures(object):
     """ A single set of features of a QA example for BERT-like model """
 

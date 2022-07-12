@@ -13,23 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
-
 import ijson
 import numpy as np
 
-from nemo.collections.nlp.data.data_utils import (
-    DataProcessor,
-    check_chinese_char,
-    normalize_answer,
-    normalize_chinese_answer,
-)
+from nemo.collections.nlp.data.data_utils import DataProcessor
 from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import QAExample
 from nemo.utils import logging
 
-TRAINING_MODE = "train"
+TRAINING_MODE   = "train"
 EVALUATION_MODE = "eval"
-INFERENCE_MODE = "infer"
+INFERENCE_MODE  = "infer"
 
 
 class QAProcessor(DataProcessor):
