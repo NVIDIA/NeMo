@@ -117,16 +117,16 @@ class MegatronBaseModel(NLPModel):
             # if NVIDIA_TORCH_MAJOR < 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR < 11):
             #     self.cfg.persist_layer_norm = False
 
-            if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
-                # NVFUSER
-                torch._C._jit_set_profiling_executor(True)
-                torch._C._jit_set_profiling_mode(True)
-                torch._C._jit_override_can_fuse_on_cpu(False)
-                torch._C._jit_override_can_fuse_on_gpu(False)
-                torch._C._jit_set_texpr_fuser_enabled(False)
-                torch._C._jit_set_nvfuser_enabled(True)
-                torch._C._debug_set_autodiff_subgraph_inlining(False)
+            # if NVIDIA_TORCH_MAJOR >= 21 or (NVIDIA_TORCH_MAJOR == 21 and NVIDIA_TORCH_MINOR >= 11):
 
+            # NVFUSER
+            torch._C._jit_set_profiling_executor(True)
+            torch._C._jit_set_profiling_mode(True)
+            torch._C._jit_override_can_fuse_on_cpu(False)
+            torch._C._jit_override_can_fuse_on_gpu(False)
+            torch._C._jit_set_texpr_fuser_enabled(False)
+            torch._C._jit_set_nvfuser_enabled(True)
+            torch._C._debug_set_autodiff_subgraph_inlining(False)
         else:
             # Not a Nvidia container. NVFUSER Dependency check is on users
             pass

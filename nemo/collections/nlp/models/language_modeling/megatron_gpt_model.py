@@ -632,7 +632,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.model.sync_initial_word_embeddings()
 
         # if self.cfg.get('use_transformer_engine', False):
-        #     transformer_engine.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
+        #     for layer in self.layers:
+        #         layer.set_tensor_parallel_group(transformer_engine.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):

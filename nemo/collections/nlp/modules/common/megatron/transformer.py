@@ -16,6 +16,7 @@
 """Transformer."""
 import math
 from contextlib import nullcontext
+from typing import Any, Callable, Optional
 
 import torch
 import torch.nn.functional as F
@@ -1612,7 +1613,7 @@ class ParallelTransformerLayer_(MegatronModule):
 
 class ParallelTransformerLayer(ParallelTransformerLayer_):
     def __init__(self, **kwargs):
-        super(ParallelTransformerLayer, self).__init__(**kwargs)
+        super(ParallelTransformerLayer, self).__init__()
 
         if kwargs['precision'] == 32:
             self.dtype = torch.float32
@@ -1664,6 +1665,107 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 self_attention_relative_position_bias,
                 cross_attention_relative_position_bias,
+            )
+
+
+class AutocastTransformerLayer(TransformerLayer):
+    def __init__(
+        self,
+        hidden_size: int,
+        ffn_hidden_size: int,
+        layernorm_epsilon: float,
+        num_attention_heads: int,
+        init_method: Callable,
+        output_layer_init_method: Callable,
+        hidden_dropout: float,
+        attention_dropout: float,
+        layer_number: Optional[int] = None,
+        kv_channels: Optional[int] = None,
+        self_attn_mask_type: str = "causal",
+        tp_group: Optional[Any] = None,
+        tp_size: int = 1,
+        params_dtype: torch.dtype = torch.float32,
+        get_rng_state_tracker: Optional[Callable] = None,
+        checkpoint_core_attention: bool = False,
+        num_grad_accumulation_steps: Optional[int] = None,
+        fuse_wgrad_accumulation: bool = False,
+        bias_dropout_fusion: bool = False,
+        masked_softmax_fusion: bool = True,
+        apply_query_key_layer_scaling: bool = True,
+        attention_softmax_in_fp32: bool = False,
+        seq_length: Optional[int] = None,
+        micro_batch_size: Optional[int] = None,
+        sequence_parallel: bool = False,
+        apply_residual_connection_post_layernorm: bool = False,
+        output_layernorm: bool = False,
+        layer_type: str = "encoder",
+        drop_path_rate: float = 0,
+        autocast_dtype: Any = 16,
+    ) -> None:
+        super().__init__(
+            hidden_size,
+            ffn_hidden_size,
+            layernorm_epsilon,
+            num_attention_heads,
+            init_method,
+            output_layer_init_method,
+            hidden_dropout,
+            attention_dropout,
+            layer_number,
+            kv_channels,
+            self_attn_mask_type,
+            tp_group,
+            tp_size,
+            params_dtype,
+            get_rng_state_tracker,
+            checkpoint_core_attention,
+            num_grad_accumulation_steps,
+            fuse_wgrad_accumulation,
+            bias_dropout_fusion,
+            masked_softmax_fusion,
+            apply_query_key_layer_scaling,
+            attention_softmax_in_fp32,
+            seq_length,
+            micro_batch_size,
+            sequence_parallel,
+            apply_residual_connection_post_layernorm,
+            output_layernorm,
+            layer_type,
+            drop_path_rate,
+        )
+
+        if autocast_dtype == 32:
+            self.dtype = torch.float32
+        elif autocast_dtype == 16:
+            self.dtype = torch.float16
+        elif autocast_dtype == 'bf16':
+            self.dtype = torch.bfloat16
+        else:
+            raise ValueError
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        attention_mask: torch.Tensor,
+        encoder_output: Optional[torch.Tensor] = None,
+        enc_dec_attn_mask: Optional[torch.Tensor] = None,
+        inference_params: Optional[Any] = None,
+    ) -> torch.Tensor:
+        if self.dtype == torch.float32:
+            return super().forward(
+                hidden_states,
+                attention_mask,
+                encoder_output=encoder_output,
+                enc_dec_attn_mask=enc_dec_attn_mask,
+                inference_params=inference_params,
+            )
+        with torch.autocast(device_type="cuda", dtype=self.dtype):
+            return super().forward(
+                hidden_states,
+                attention_mask,
+                encoder_output=encoder_output,
+                enc_dec_attn_mask=enc_dec_attn_mask,
+                inference_params=inference_params,
             )
 
 
@@ -1778,10 +1880,9 @@ class ParallelTransformer(MegatronModule):
             use_transformer_engine = True
             if use_transformer_engine:
                 checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
-                # params_dtype = torch.float32
-                params_dtype = torch.bfloat16
+                params_dtype = torch.float32  # initialize weights in fp32
 
-                return TransformerLayer(
+                return AutocastTransformerLayer(
                     hidden_size=hidden_size,
                     ffn_hidden_size=ffn_hidden_size,
                     layernorm_epsilon=layernorm_epsilon,
@@ -1806,6 +1907,7 @@ class ParallelTransformer(MegatronModule):
                     micro_batch_size=None,  # used for jit warmup
                     sequence_parallel=sequence_parallel,
                     apply_residual_connection_post_layernorm=False,
+                    autocast_dtype=precision,
                 )
             else:
                 return ParallelTransformerLayer(
