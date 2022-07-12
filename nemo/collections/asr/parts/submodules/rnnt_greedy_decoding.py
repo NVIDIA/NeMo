@@ -26,7 +26,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
 from dataclasses import dataclass
+from omegaconf import DictConfig
 from typing import List, Optional, Union
 
 import numpy as np
@@ -94,6 +97,32 @@ class _GreedyRNNTInfer(Typing):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+                Supported values:
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
     """
 
     @property
@@ -120,6 +149,7 @@ class _GreedyRNNTInfer(Typing):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
         self.decoder = decoder_model
@@ -130,6 +160,57 @@ class _GreedyRNNTInfer(Typing):
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
+
+        if confidence_method_cfg is None:
+            confidence_method_cfg = rnnt_utils.ConfidenceMethodConfig()
+        # set confidence calculation method
+        if confidence_method_cfg.name == "max_prob":
+            max_prob = lambda x: (x.max(dim=-1)[0].exp() * x.size(-1) - 1) / (x.size(-1) - 1)
+            # max_prob = lambda x: x.max(dim=-1)[0].exp()
+            method = max_prob
+        elif confidence_method_cfg.name == "norm_ent":
+            self.entropy_alpha = confidence_method_cfg.entropy_alpha
+            if confidence_method_cfg.entropy_alpha == 1.:
+                ent_alpha_1 = lambda x: (x.exp() * x).sum(-1)
+                if confidence_method_cfg.entropy_norm == "lin":
+                    lin_ent_alpha_1 = lambda x: 1 + ent_alpha_1(x) / math.log(x.size(-1))
+                    method = lin_ent_alpha_1
+                elif confidence_method_cfg.entropy_norm == "exp":
+                    exp_ent_alpha_1 = lambda x: (ent_alpha_1(x).exp() * x.size(-1) - 1) / (x.size(-1) - 1)
+                    # exp_ent_alpha_1 = lambda x: ent_alpha_1(x).exp()
+                    method = exp_ent_alpha_1
+                else:
+                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
+            else:
+                ent = lambda x: x.exp().pow(self.entropy_alpha).sum(-1)
+                if confidence_method_cfg.entropy_norm == "lin":
+                    if confidence_method_cfg.entropy_type == "tsallis":
+                        tsallis_lin_ent = lambda x: 1 + (1 - ent(x)) / (math.pow(x.size(-1), 1 - self.entropy_alpha) - 1)
+                        method = tsallis_lin_ent
+                    elif confidence_method_cfg.entropy_type == "renui":
+                        renui_lin_ent = lambda x: 1 + (1 / (self.entropy_alpha - 1)) * ent(x).log2() / math.log(x.size(-1), 2)
+                        method = renui_lin_ent
+                    else:
+                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
+                elif confidence_method_cfg.entropy_norm == "exp":
+                    if confidence_method_cfg.entropy_type == "tsallis":
+                        tsallis_exp_ent = lambda x: (((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp() - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha)))) / (1 - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha))))
+                        # tsallis_exp_ent = lambda x: ((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp()
+                        method = tsallis_exp_ent
+                    elif confidence_method_cfg.entropy_type == "renui":
+                        renui_exp_ent = lambda x: (ent(x).pow(1 / (self.entropy_alpha - 1)) * x.size(-1) - 1) / (x.size(-1) - 1)
+                        # renui_exp_ent = lambda x: ent(x).pow(1 / (self.entropy_alpha - 1))
+                        method = renui_exp_ent
+                    else:
+                        raise ValueError(f"Unsupported `confidence_method_cfg.entropy_type`: `{confidence_method_cfg.entropy_type}`")
+                else:
+                    raise ValueError(f"Unsupported `confidence_method_cfg.entropy_norm`: `{confidence_method_cfg.entropy_norm}`")
+        else:
+            raise ValueError(f"Unsupported `confidence_method_cfg.name`: `{confidence_method_cfg.name}`")
+        # self.entropy_alpha = confidence_method_cfg.entropy_alpha
+        # ent = lambda x: x.exp().pow(self.entropy_alpha).sum(-1)
+        # method = lambda x: (1 + (1 - ent(x)) / (math.pow(x.size(-1), 1 - self.entropy_alpha) - 1) + (((1 / (1 - self.entropy_alpha)) * (1 - ent(x))).exp() - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha)))) / (1 - math.exp((1 / (1 - self.entropy_alpha)) * (1 - math.pow(x.size(-1), 1 - self.entropy_alpha))))) / 2
+        self._get_confidence = method
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
@@ -225,6 +306,32 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+                Supported values:
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
     """
 
     def __init__(
@@ -235,6 +342,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -243,6 +351,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
+            confidence_method_cfg=confidence_method_cfg,
         )
 
     @typecheck()
@@ -361,7 +470,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
                 if self.preserve_frame_confidence:
                     # insert confidence into last timestep
-                    hypothesis.frame_confidence[-1].append(float(v.exp()))
+                    hypothesis.frame_confidence[-1].append(float(self._get_confidence(logp)))
 
                 del logp
 
@@ -429,6 +538,32 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
+        confidence_method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+            confidence scores.
+
+            name: The method name (str).
+                Supported values:
+                    - 'max_prob' for using the maximum token probability as a confidence.
+                    - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+            entropy_type: Which type of entropy to use (str). Used if confidence_method_cfg.name is set to `norm_ent`.
+                Supported values:
+                    - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                        Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                    - 'renui' for the Rényi entropy.
+                        Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                        where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                        More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+            entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+            entropy_norm: A mapping of the entropy value to the interval [0,1].
+                Supported values:
+                    - 'lin' for using the linear mapping.
+                    - 'exp' for using exponential mapping with linear shift.
     """
 
     def __init__(
@@ -439,6 +574,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
+        confidence_method_cfg: Optional[DictConfig] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -447,6 +583,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
+            confidence_method_cfg=confidence_method_cfg,
         )
 
         # Depending on availability of `blank_as_pad` support
@@ -535,6 +672,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # frame_confidence is a 3-dimensional dangling list representing B x T x U
                 for hyp in hypotheses:
                     hyp.frame_confidence = [[]]
+                    hyp.y_3best = [[]]
+                    hyp.frame_confidence_3best = [[[]]]
+                    hyp.logp = [[]]
 
             # Last Label buffer + Last Label without blank buffer
             # batch level equivalent of the last_label
@@ -601,17 +741,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                     (logp_vals[batch_idx], logp_ids[batch_idx])
                                 )
                         del logp_vals
-                    del logp
 
                     # If preserving per-frame confidence, check if sequence length of sample has been reached
                     # before adding confidence scores
                     if self.preserve_frame_confidence:
                         # Insert probabilities into last timestep per sample
-                        v_exp = v.exp()
+                        v_exp = self._get_confidence(logp).tolist()
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].frame_confidence[-1].append(float(v_exp[batch_idx]))
+                                hypotheses[batch_idx].frame_confidence[-1].append(v_exp[batch_idx])
                         del v_exp
+                    del logp
 
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
@@ -640,6 +780,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             for batch_idx in range(batchsize):
                                 if len(hypotheses[batch_idx].frame_confidence[-1]) > 0:
                                     hypotheses[batch_idx].frame_confidence.append([])  # blank buffer for next timestep
+                                    hypotheses[batch_idx].y_3best.append([])
+                                    hypotheses[batch_idx].frame_confidence_3best.append([])
+                                    hypotheses[batch_idx].logp.append([])
                     else:
                         # Collect batch indices where blanks occurred now/past
                         blank_indices = (blank_mask == 1).nonzero(as_tuple=False)
@@ -686,6 +829,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 for batch_idx in range(batchsize):
                     if len(hypotheses[batch_idx].frame_confidence[-1]) == 0:
                         del hypotheses[batch_idx].frame_confidence[-1]
+                        del hypotheses[batch_idx].y_3best[-1]
+                        del hypotheses[batch_idx].frame_confidence_3best[-1]
+                        del hypotheses[batch_idx].logp[-1]
 
         # Preserve states
         for batch_idx in range(batchsize):
@@ -805,17 +951,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                                     (logp_vals[batch_idx], logp_ids[batch_idx])
                                 )
                         del logp_vals
-                    del logp
 
                     # If preserving per-frame confidence, check if sequence length of sample has been reached
                     # before adding confidence scores
                     if self.preserve_frame_confidence:
                         # Insert ids into last timestep per sample
-                        v_exp = v.exp()
+                        v_exp = self._get_confidence(logp).tolist()
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
                                 hypotheses[batch_idx].frame_confidence[-1].append(float(v_exp[batch_idx]))
                         del v_exp
+                    del logp
 
                     # If all samples predict / have predicted prior blanks, exit loop early
                     # This is equivalent to if single sample predicted k
@@ -1183,6 +1329,7 @@ class GreedyRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    confidence_method_cfg: Optional[rnnt_utils.ConfidenceMethodConfig] = None
 
 
 @dataclass
@@ -1190,3 +1337,4 @@ class GreedyBatchedRNNTInferConfig:
     max_symbols_per_step: Optional[int] = 10
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
+    confidence_method_cfg: Optional[rnnt_utils.ConfidenceMethodConfig] = None

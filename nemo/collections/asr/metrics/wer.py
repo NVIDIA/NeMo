@@ -18,6 +18,7 @@ from types import BuiltinFunctionType, FunctionType
 from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
+import math
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -115,7 +116,34 @@ class AbstractCTCDecoding(ABC):
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
                 reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Supported values:
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
 
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
@@ -163,12 +191,18 @@ class AbstractCTCDecoding(ABC):
             self.preserve_frame_confidence = self.confidence_cfg.get('preserve_frame_confidence', False) | self.preserve_token_confidence
             self.exclude_blank_from_confidence = self.confidence_cfg.get('exclude_blank', True)
             self.word_confidence_reduction = self.confidence_cfg.get('reduction', "min")
+            self.confidence_method_cfg = self.confidence_cfg.get('method_cfg', None)
         else:
             self.preserve_frame_confidence = False
             self.preserve_token_confidence = False
             self.preserve_word_confidence = False
             self.exclude_blank_from_confidence = True
             self.word_confidence_reduction = "min"
+            self.confidence_method_cfg = None
+
+        # define reduction functions
+        self.reduction_function_bank = {"mean": (lambda x: sum(x) / len(x)), "min": min, "max": max, "prod": math.prod}
+        self.reduction_function = self.reduction_function_bank[self.word_confidence_reduction]
 
         possible_strategies = ['greedy']
         if self.cfg.strategy not in possible_strategies:
@@ -188,6 +222,7 @@ class AbstractCTCDecoding(ABC):
         if self.preserve_frame_confidence is None:
             if self.cfg.strategy in ['greedy']:
                 self.preserve_frame_confidence = self.cfg.greedy.get('preserve_frame_confidence', False)
+                self.confidence_method_cfg = self.cfg.greedy.get('confidence_method_cfg', None)
 
         # we need timestamps to extract non-blank per-frame confidence
         self.compute_timestamps |= self.preserve_frame_confidence
@@ -199,6 +234,7 @@ class AbstractCTCDecoding(ABC):
                 preserve_alignments=self.preserve_alignments,
                 compute_timestamps=self.compute_timestamps,
                 preserve_frame_confidence=self.preserve_frame_confidence,
+                confidence_method_cfg=self.confidence_method_cfg,
             )
 
         else:
@@ -380,7 +416,6 @@ class AbstractCTCDecoding(ABC):
         """
         if not self.exclude_blank_from_confidence:
             raise NotImplementedError("TBD")
-        func = (lambda x: sum(x) / len(x)) if self.word_confidence_reduction == "mean" else (min if self.word_confidence_reduction == "min" else max)
         for hyp in hypotheses_list:
             if not isinstance(hyp.text, tuple) or len(hyp.text) != 3:
                 # the method must have been called in the wrong place
@@ -395,23 +430,21 @@ class AbstractCTCDecoding(ABC):
             for tr in token_repetitions:
                 # token repetition can be zero
                 j = i + tr
-                token_confidence.append(func(non_blank_frame_confidence[i: j]))
+                token_confidence.append(self.reduction_function(non_blank_frame_confidence[i: j]))
                 i = j
             hyp.token_confidence = token_confidence
         if self.preserve_word_confidence:
             for hyp in hypotheses_list:
-                hyp.word_confidence = self.reduce_token_confidence(hyp.token_confidence, self.decode_tokens_to_str(hyp.text[0]).split(), func)
+                hyp.word_confidence = self._reduce_token_confidence(hyp)
         return hypotheses_list
 
     @abstractmethod
-    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to reduce token confidence to a word-level confidence.
 
         Args:
-            token_confidence: List of float representing the per-token confidence.
-            words: List of words (str).
-            reduction: function (e.g. mean)
+            hypothesis: Hypothesis
 
         Returns:
             A list of word-level confidence scores.
@@ -780,7 +813,34 @@ class CTCDecoding(AbstractCTCDecoding):
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
                 reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Supported values:
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
 
             batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of
                 ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
@@ -790,6 +850,7 @@ class CTCDecoding(AbstractCTCDecoding):
                 preserve_alignments: Same as above, overrides above value.
                 compute_timestamps: Same as above, overrides above value.
                 preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method: Same as above, overrides confidence_cfg.method.
 
         blank_id: The id of the RNNT blank token.
     """
@@ -803,23 +864,21 @@ class CTCDecoding(AbstractCTCDecoding):
 
         super().__init__(decoding_cfg=decoding_cfg, blank_id=blank_id)
 
-    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to reduce token confidence to a word-level confidence.
 
         Args:
-            token_confidence: List of float representing the per-token confidence.
-            words: List of words (str).
-            reduction: function (e.g. mean)
+            hypothesis: Hypothesis
 
         Returns:
             A list of word-level confidence scores.
         """
         word_confidence = []
         i = 0
-        for word in words:
+        for word in self.decode_tokens_to_str(hyp.text[0]).split():
             word_len = len(word)
-            word_confidence.append(reduction(token_confidence[i: i+word_len]))
+            word_confidence.append(self.reduction_function(hypothesis.token_confidence[i: i+word_len]))
             # we assume that there is exactly one space token between words and exclude it from word confidence
             i += word_len + 1
         return word_confidence

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from types import BuiltinFunctionType, FunctionType
 from typing import List, Union
 
 import editdistance
@@ -99,13 +98,42 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 exclude_blank: Bool flag indicating that blank token confidence scores are to be excluded
                     from the `token_confidence`.
                 reduction: Which reduction type to use for collapsing per-token confidence into per-word confidence.
-                    Valid options are `mean`, `min`, `max`.
+                    Valid options are `mean`, `min`, `max`, `prod`.
+                method_cfg: A dict-like object which contains the method name and settings to compute per-frame
+                    confidence scores.
+
+                    name: The method name (str).
+                        Supported values:
+                            - 'max_prob' for using the maximum token probability as a confidence.
+                            - 'norm_ent' for using normalized entropy of a log-likelihood vector.
+
+                    entropy_type: Which type of entropy to use (str).
+                        Used if confidence_method_cfg.name is set to `norm_ent`.
+                        Supported values:
+                            - 'tsallis' for the Tsallis entropy with the Boltzmann constant one.
+                                Tsallis entropy formula is the following: H_α = 1/(α-1)*(1-sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/Tsallis_entropy
+                            - 'renui' for the Rényi entropy.
+                                Rényi entropy formula is the following: H_α = 1/(1-α)*log_2(sum_i(p^α_i)),
+                                where α is a parameter. If α == 1, then the entropy behaves like an ordinary entropy.
+                                More: https://en.wikipedia.org/wiki/R%C3%A9nyi_entropy
+
+                    entropy_alpha: An entropy method's parameter. Here we restrict it to be > 0.
+                        When α == 1, any entropy type behaves like the Shannon entropy: H = -sum_i(p_i*log(p_i))
+
+                    entropy_norm: A mapping of the entropy value to the interval [0,1].
+                        Supported values:
+                            - 'lin' for using the linear mapping.
+                            - 'exp' for using exponential mapping with linear shift.
 
             The config may further contain the following sub-dictionaries:
             "greedy":
                 max_symbols: int, describing the maximum number of target tokens to decode per
                     timestep during greedy decoding. Setting to larger values allows longer sentences
                     to be decoded, at the cost of increased execution time.
+                preserve_frame_confidence: Same as above, overrides above value.
+                confidence_method: Same as above, overrides confidence_cfg.method.
 
             "beam":
                 beam_size: int, defining the beam size for beam search. Must be >= 1.
@@ -167,50 +195,41 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
             decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id
         )
 
-    def reduce_token_confidence(self, token_confidence: List[float], words: List[str], reduction: Union[BuiltinFunctionType, FunctionType]) -> List[float]:
+    def _reduce_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to reduce token confidence to a word-level confidence.
 
+        **Note**: Only supports Sentencepiece based tokenizers!
+
         Args:
-            token_confidence: List of float representing the per-token confidence.
-            words: List of words (str).
-            reduction: function (e.g. mean)
+            hypothesis: Hypothesis
 
         Returns:
             A list of word-level confidence scores.
         """
-        # It is hard to reduce token-level confidence scores to word scores because the detokenization is not bijective
-        # Unless we have something like tokenizer.detokenize_with_ranges() 
-        # from https://github.com/OpenNMT/Tokenizer/tree/master/bindings/python, we have to do the following tricks
-        word_lengths = [len(self.tokenizer.text_to_tokens(word)) for word in words]
-        token_number = sum(word_lengths) if len(word_lengths) > 0 else 0
-        token_confidence_number = len(token_confidence)
-        if token_number != token_confidence_number:
-            if token_number == token_confidence_number + 1:
-                # suppose that we lost _ or ## at the beginning
-                word_lengths[0] = word_lengths[0] - 1
-            elif token_number < token_confidence_number:
-                # suppose that we have suboptimal token sequences for some words
-                logging.warning(f"Suboptimal tokenization obtained for text `{' '.join(words)}`.\n"
-                    f"Original number of tokens: {token_confidence_number}, "
-                    f"number of tokens after detokenization and tokenization: {token_number}\n"
-                    f"Word confidence scores may not be accurate.")
-            else:
-                logging.warning(f"Unable to calculate token numbers per word for text `{' '.join(words)}`.\n"
-                    f"Original number of tokens: {token_confidence_number}, "
-                    f"number of tokens after detokenization and tokenization: {token_number}\n"
-                    f"Word confidence scores will be set to 0.5.")
-                return [0.5] * len(words)
+        assert len(hypothesis.y_sequence) == len(hypothesis.token_confidence)
         word_confidence = []
-        i = 0
-        for word_len in word_lengths:
-            if word_len == 0:
-                # suppose that there was _ or ## which was collapsed into a zero-length word
-                i += 1
-                continue
-            j = i + word_len
-            word_confidence.append(reduction(token_confidence[i: j]))
-            i = j
+        # run only if there are final words
+        if len(hypothesis.words) > 0:
+            j = 0
+            prev_unk = False
+            prev_underline = False
+            for i, token_id in enumerate(hypothesis.y_sequence):
+                token = self.decode_ids_to_tokens([int(token_id)])[0]
+                token_text = self.decode_tokens_to_str([int(token_id)])
+                # treat `<unk>` as a separate word regardless of the next token
+                # to match the result of `tokenizer.ids_to_text`
+                if (token != token_text or prev_unk) and i > j:
+                    # do not add confidence for `▁` if the current token starts with `▁`
+                    # to match the result of `tokenizer.ids_to_text`
+                    if not prev_underline:
+                        word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: i]))
+                    j = i
+                prev_unk = token == '<unk>'
+                prev_underline = token == '▁'
+            if not prev_underline:
+                word_confidence.append(self.reduction_function(hypothesis.token_confidence[j: len(hypothesis.y_sequence)]))
+        assert len(hypothesis.words) == len(word_confidence), (len(hypothesis.words), len(word_confidence), ' '.join(hypothesis.words))
         return word_confidence
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:

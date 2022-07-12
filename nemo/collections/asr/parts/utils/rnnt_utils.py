@@ -26,6 +26,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -205,13 +207,32 @@ def select_k_expansions(
 
 
 @dataclass
+class ConfidenceMethodConfig:
+    name: str = "max_prob"
+    entropy_type: str = "tsallis"
+    entropy_alpha: float = 1.
+    entropy_norm: str = "lin"
+
+    def __post_init__(self):
+        if self.name not in ("max_prob", "norm_ent"):
+            raise ValueError(f"`name` has to be one of the following: `max_prob`, `norm_ent`. Provided: {self.name}")
+        if self.entropy_type not in ("tsallis", "renui"):
+            raise ValueError(f"`entropy_type` has to be one of the following: `tsallis`, `renui`. Provided: {self.entropy_type}")
+        if self.entropy_alpha <= 0.:
+            raise ValueError(f"`entropy_alpha` has to be > 0. Provided: {self.entropy_alpha}")
+        if self.entropy_norm not in ("lin", "exp"):
+            raise ValueError(f"`entropy_norm` has to be one of the following: `lin`, `exp`. Provided: {self.entropy_norm}")
+
+
+@dataclass
 class ConfidenceConfig:
     preserve_frame_confidence: bool = False
     preserve_token_confidence: bool = False
     preserve_word_confidence: bool = False
     exclude_blank: bool = True
     reduction: str = "min"
+    method_cfg: ConfidenceMethodConfig = ConfidenceMethodConfig()
 
     def __post_init__(self):
-        if self.reduction not in ("mean", "min", "max"):
-            raise ValueError(f"reduction has to be one of the following: `mean`, `min`, `max`. Provided: {self.reduction}")
+        if self.reduction not in ("mean", "min", "max", "prod"):
+            raise ValueError(f"`reduction` has to be one of the following: `mean`, `min`, `max`, `prod`. Provided: {self.reduction}")
