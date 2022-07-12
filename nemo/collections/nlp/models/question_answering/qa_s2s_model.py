@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import collections
-import json
 from typing import List, Optional
 
 import torch
