@@ -140,6 +140,7 @@ class AbstractRNNTDecoding(ABC):
                 decoder_model=decoder,
                 joint_model=joint,
                 blank_index=self.blank_id,
+                big_blank_index=self.big_blank_id,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
                 ),
@@ -305,7 +306,7 @@ class AbstractRNNTDecoding(ABC):
 
             # RNN-T sample level is already preprocessed by implicit CTC decoding
             # Simply remove any blank tokens
-            prediction = [p for p in prediction if p != self.blank_id]
+            prediction = [p for p in prediction if p != self.blank_id and p != self.big_blank_id]
 
             # De-tokenize the integer tokens
             hypothesis = self.decode_tokens_to_str(prediction)
@@ -456,8 +457,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
     def __init__(
         self, decoding_cfg, decoder, joint, vocabulary,
     ):
-        blank_id = len(vocabulary) - 1
-        big_blank_id = len(vocabulary)
+        blank_id = len(vocabulary)
+        big_blank_id = len(vocabulary) + 1
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
         super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id)
@@ -486,7 +487,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of decoded tokens.
         """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
+        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c != self.big_blank_id]
         return token_list
 
 
@@ -533,6 +534,7 @@ class RNNTWER(Metric):
         self.use_cer = use_cer
         self.log_prediction = log_prediction
         self.blank_id = self.decoding.blank_id
+        self.big_blank_id = self.decoding.big_blank_id
         self.labels_map = self.decoding.labels_map
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)

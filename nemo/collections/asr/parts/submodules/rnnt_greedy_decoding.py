@@ -175,17 +175,17 @@ class _GreedyRNNTInfer(Typing):
             log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
 
         Returns:
-             logits of shape (B, T=1, U=1, V + 1)
+             logits of shape (B, T=1, U=1, V + 2)
         """
         with torch.no_grad():
             logits = self.joint.joint(enc, pred)
 
             if log_normalize is None:
                 if not logits.is_cuda:  # Use log softmax only if on CPU
-                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 2)
             else:
                 if log_normalize:
-                    logits = logits.log_softmax(dim=len(logits.shape) - 1)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 2)
 
         return logits
 
@@ -495,6 +495,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
             # Mask buffers
             blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
+            big_blank_mask = torch.full([batchsize], fill_value=0, dtype=torch.bool, device=device)
 
             # Get max sequence length
             max_out_len = out_len.max()
@@ -507,11 +508,13 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
 
                 # Reset blank mask
                 blank_mask.mul_(False)
+                big_blank_mask.mul_(False)
 
                 # Update blank mask with time mask
                 # Batch: [B, T, D], but Bi may have seq len < max(seq_lens_in_batch)
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
+                big_blank_mask = time_idx >= out_len
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -541,7 +544,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     blank_mask.bitwise_or_(k_is_blank)
                     blank_mask.bitwise_or_(k_is_big_blank)
 
+                    big_blank_mask.bitwise_or_(k_is_big_blank)
+
                     del k_is_blank
+                    del k_is_big_blank
+
+#                    print("blank mask is", blank_mask)
 
                     # If preserving alignments, check if sequence length of sample has been reached
                     # before adding alignment
@@ -691,7 +699,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Set a dummy label for the blank value
                         # This value will be overwritten by "blank" again the last label update below
                         # This is done as vocabulary of prediction network does not contain "blank" token of RNNT
-                        last_label_without_blank_mask = last_label == self._blank_index
+                        last_label_without_blank_mask = last_label == self._blank_index or last_label == self._big_blank_index
                         last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
                         last_label_without_blank[~last_label_without_blank_mask] = last_label[
                             ~last_label_without_blank_mask
@@ -700,7 +708,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Perform batch step prediction of decoder, getting new states and scores ("g")
                         g, hidden_prime = self._pred_step(last_label_without_blank, hidden, batch_size=batchsize)
 
-                    # Batched joint step - Output = [B, V + 1]
+                    # Batched joint step - Output = [B, V + ]
                     logp = self._joint_step(f, g, log_normalize=None)[:, 0, 0, :]
 
                     if logp.dtype != torch.float32:
