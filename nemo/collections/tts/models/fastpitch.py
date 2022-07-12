@@ -516,7 +516,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('T_text') if self.export_config["enable_ragged_batches"] else ('B', 'T_text')
+        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
 
         # Define input_types and output_types as required by export()
         self._input_types = {
