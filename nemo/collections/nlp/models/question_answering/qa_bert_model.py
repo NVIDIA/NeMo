@@ -1,5 +1,4 @@
 # Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,33 +13,27 @@
 # limitations under the License.
 
 import collections
-import json
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.parts.utils import _compute_softmax
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-    QAProcessor,
-)
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
 from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import BERTQADataset
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
-from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
 
-class BERTQAModel(NLPModel):
+class BERTQAModel(BaseQAModel):
     """ BERT model with a QA (token classification) head """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -58,36 +51,6 @@ class BERTQAModel(NLPModel):
         )
 
         self.loss = SpanningLoss()
-
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file:
-            logging.info(
-                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
-
-    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file:
-            logging.info(
-                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
-
-    def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if not test_data_config or test_data_config.file is None:
-            logging.info(
-                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
 
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
@@ -144,7 +107,7 @@ class BERTQAModel(NLPModel):
             all_start_logits.append(start_logits)
             all_end_logits.append(end_logits)
 
-        exact_match, f1, all_predictions, all_nbest = -1, -1, [], []
+        eval_results, all_predictions, all_nbest = {}, [], []
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
 
             unique_ids = []
@@ -158,7 +121,7 @@ class BERTQAModel(NLPModel):
                 end_logits.extend(tensor2list(u))
 
             eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
-            exact_match, f1, all_predictions, all_nbest = self.evaluate(
+            eval_results, _, _ = self.evaluate(
                 eval_dataset.features,
                 eval_dataset.examples,
                 eval_dataset.processor,
@@ -172,12 +135,10 @@ class BERTQAModel(NLPModel):
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
-        logging.info(f"{prefix} exact match {exact_match}")
-        logging.info(f"{prefix} f1 {f1}")
-
         self.log(f'{prefix}_loss', avg_loss)
-        self.log(f'{prefix}_exact_match', exact_match)
-        self.log(f'{prefix}_f1', f1)
+        for eval_key in eval_results:
+            logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
+            self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
 
     def test_epoch_end(self, outputs):
         return self.validation_epoch_end(outputs)
@@ -223,7 +184,7 @@ class BERTQAModel(NLPModel):
         all_predictions = []
         all_nbest = []
         mode = self.training
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if isinstance(self.trainer.device_ids, list) else "cpu"
 
         try:
             # Switch model to evaluation mode
@@ -231,17 +192,10 @@ class BERTQAModel(NLPModel):
             self.to(device)
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {
-                "batch_size": batch_size,
-                "file": file,
-                "shuffle": False,
-                "num_samples": num_samples,
-                'num_workers': 2,
-                'pin_memory': False,
-                'drop_last': False,
-            }
-            dataloader_cfg = OmegaConf.create(dataloader_cfg)
-            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
+
+            infer_datalayer = self.setup_inference_data(
+                file, batch_size=batch_size, num_samples=num_samples, num_workers=2,
+            )
 
             all_logits = []
             all_unique_ids = []
@@ -273,23 +227,20 @@ class BERTQAModel(NLPModel):
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
-            with open(file, 'r') as test_file_fp:
-                test_data = json.load(test_file_fp)["data"]
-                id_to_question_mapping = {}
-                for title in test_data:
-                    for par in title["paragraphs"]:
-                        for question in par["qas"]:
-                            id_to_question_mapping[question["id"]] = question["question"]
+            if output_prediction_file:
+                QAMetrics.dump_predicted_answers_to_file(
+                    output_prediction_file,
+                    infer_datalayer.dataset.examples,
+                    all_predictions,
+                )
 
-            for question_id in all_predictions:
-                all_predictions[question_id] = (id_to_question_mapping[question_id], all_predictions[question_id])
-
-            if output_nbest_file is not None:
-                with open(output_nbest_file, "w") as writer:
-                    writer.write(json.dumps(all_nbest, indent=4) + "\n")
-            if output_prediction_file is not None:
-                with open(output_prediction_file, "w") as writer:
-                    writer.write(json.dumps(all_predictions, indent=4) + "\n")
+            if output_nbest_file:
+                QAMetrics.dump_nbest_predictions_to_file(
+                    output_nbest_file,
+                    infer_datalayer.dataset.examples,
+                    all_nbest,
+                    keys_to_dump=["text", "probability"],
+                )
 
         finally:
             # set mode back to its original value
@@ -326,9 +277,9 @@ class BERTQAModel(NLPModel):
             null_score_diff_threshold,
         )
 
-        exact_match, f1 = self._evaluate_predictions(examples, all_predictions)
+        eval_results = QAMetrics.evaluate_predictions(examples, all_predictions)
 
-        return exact_match, f1, all_predictions, all_nbest_json
+        return eval_results, all_predictions, all_nbest_json
 
     def get_predictions(
         self,
@@ -527,7 +478,7 @@ class BERTQAModel(NLPModel):
             else:
                 # predict "" iff the null score -
                 # the score of best non-null > threshold
-                score_diff = score_null - best_non_null_entry.start_logit - (best_non_null_entry.end_logit)
+                score_diff = score_null - best_non_null_entry.start_logit - best_non_null_entry.end_logit
                 scores_diff_json[example.qas_id] = score_diff
                 if score_diff > null_score_diff_threshold:
                     all_predictions[example.qas_id] = ""
@@ -670,139 +621,6 @@ class BERTQAModel(NLPModel):
         output_text = orig_text[orig_start_position : (orig_end_position + 1)]
 
         return output_text
-
-    def _get_exact_match_and_f1(self, examples: List, preds: Dict[str, str]):
-        """
-        Computes the exact and f1 scores from the examples and the model predictions
-        """
-        exact_scores = {}
-        f1_scores = {}
-
-        for example in examples:
-            qas_id = example.qas_id
-            gold_answers = [answer["text"] for answer in example.answers if QAMetrics.normalize_answer(answer["text"])]
-
-            if not gold_answers:
-                # For unanswerable questions, only correct answer is empty string
-                gold_answers = [""]
-
-            prediction = preds[qas_id]
-            exact_scores[qas_id] = max(QAMetrics.get_one_exact_match(prediction, a) for a in gold_answers)
-            f1_scores[qas_id] = max(QAMetrics.get_one_f1(prediction, a) for a in gold_answers)
-
-        return exact_scores, f1_scores
-
-    def _apply_no_ans_threshold(self, scores, na_probs, qid_to_has_ans, na_prob_thresh):
-        """ Applies no answer threshold """
-
-        new_scores = {}
-        for question_id, score in scores.items():
-            pred_na = na_probs[question_id] > na_prob_thresh
-            if pred_na:
-                new_scores[question_id] = float(not qid_to_has_ans[question_id])
-            else:
-                new_scores[question_id] = score
-
-        return new_scores
-
-    def _make_eval_dict(self, exact_scores, f1_scores, qid_list=None):
-        """ Returns dictionary with formatted evaluation scores """
-
-        if not qid_list:
-            total = len(exact_scores)
-            return collections.OrderedDict(
-                [
-                    ("exact", 100.0 * sum(exact_scores.values()) / total),
-                    ("f1", 100.0 * sum(f1_scores.values()) / total),
-                    ("total", total),
-                ]
-            )
-        else:
-            total = len(qid_list)
-            return collections.OrderedDict(
-                [
-                    ("exact", 100.0 * sum(exact_scores[k] for k in qid_list) / total),
-                    ("f1", 100.0 * sum(f1_scores[k] for k in qid_list) / total),
-                    ("total", total),
-                ]
-            )
-
-    def _merge_eval(self, main_eval, new_eval, prefix):
-        """ 
-        Merges 2 evaluation dictionaries into the first one by adding 
-            prefix as key for name collision handling
-        """
-
-        for k in new_eval:
-            main_eval["%s_%s" % (prefix, k)] = new_eval[k]
-
-    def _find_best_thresh(self, preds, scores, na_probs, qid_to_has_ans):
-        """
-        Find best threshhold to maximize evaluation metric
-        """
-
-        num_no_ans = sum(1 for k in qid_to_has_ans if not qid_to_has_ans[k])
-        cur_score = num_no_ans
-        best_score = cur_score
-        best_thresh = 0.0
-        qid_list = sorted(na_probs, key=lambda k: na_probs[k])
-        for qid in qid_list:
-            if qid not in scores:
-                continue
-            if qid_to_has_ans[qid]:
-                diff = scores[qid]
-            else:
-                if preds[qid]:
-                    diff = -1
-                else:
-                    diff = 0
-            cur_score += diff
-            if cur_score > best_score:
-                best_score = cur_score
-                best_thresh = na_probs[qid]
-
-        return 100.0 * best_score / len(scores), best_thresh
-
-    def _find_all_best_thresh(self, main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_has_ans):
-        """
-        Find best threshholds to maximize all evaluation metrics.
-        """
-        best_exact, exact_thresh = self._find_best_thresh(preds, exact_raw, na_probs, qid_to_has_ans)
-        best_f1, f1_thresh = self._find_best_thresh(preds, f1_raw, na_probs, qid_to_has_ans)
-
-        main_eval["best_exact"] = best_exact
-        main_eval["best_exact_thresh"] = exact_thresh
-        main_eval["best_f1"] = best_f1
-        main_eval["best_f1_thresh"] = f1_thresh
-
-    def _evaluate_predictions(
-        self,
-        examples,
-        all_predictions: Dict[str, str],
-        no_answer_probs: Optional[float] = None,
-        no_answer_probability_threshold: float = 1.0,
-    ):
-        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in examples[: len(all_predictions)]}
-        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
-        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
-        if no_answer_probs is None:
-            no_answer_probs = {k: 0.0 for k in all_predictions}
-
-        exact, f1 = self._get_exact_match_and_f1(examples, all_predictions)
-
-        exact_threshold = self._apply_no_ans_threshold(
-            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
-        )
-        f1_threshold = self._apply_no_ans_threshold(
-            f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
-        )
-
-        evaluation = self._make_eval_dict(exact_threshold, f1_threshold)
-
-        evaluation["best_f1"] = evaluation["f1"]
-        evaluation["best_exact"] = evaluation["exact"]
-
-        return evaluation["best_exact"], evaluation["best_f1"]
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

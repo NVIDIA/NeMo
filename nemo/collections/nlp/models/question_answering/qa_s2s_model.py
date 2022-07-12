@@ -1,5 +1,4 @@
 # Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +14,7 @@
 
 import collections
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -23,21 +22,16 @@ from pytorch_lightning import Trainer
 from torch.cuda.amp import autocast
 from transformers import AutoModelForSeq2SeqLM
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-    QAProcessor,
-)
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
 from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import S2SQADataset
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.nlp_model import NLPModel
+from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
 
-class S2SQAModel(NLPModel):
+class S2SQAModel(BaseQAModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         self.cfg = cfg
@@ -69,51 +63,6 @@ class S2SQAModel(NLPModel):
                 self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
         elif self.cfg.library == "megatron":
             self.language_model = language_model
-
-    def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if not train_data_config or not train_data_config.file:
-            logging.info(
-                f"Dataloader config or file_path for the train is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
-
-    def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if not val_data_config or not val_data_config.file:
-            logging.info(
-                f"Dataloader config or file_path for the validation is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
-
-    def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if not test_data_config or test_data_config.file is None:
-            logging.info(
-                f"Dataloader config or file_path for the test is missing, so no data loader for test is created!"
-            )
-            self._test_dl = None
-            return
-
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
-
-    def setup_inference_data(self, input_file, batch_size=1, num_samples=-1, num_workers=2):
-        dataloader_cfg = {
-            "batch_size": batch_size,
-            "file": input_file,
-            "shuffle": False,
-            "num_samples": num_samples,
-            'num_workers': num_workers,
-            'pin_memory': False,
-            'drop_last': False,
-        }
-        dataloader_cfg = OmegaConf.create(dataloader_cfg)
-        inference_dl = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
-
-        return inference_dl
 
     def training_step(self, batch, batch_idx):
         input_ids, input_attn_mask, unique_ids, labels = batch
@@ -154,16 +103,14 @@ class S2SQAModel(NLPModel):
         avg_loss = torch.stack(loss_terms).mean()
 
         eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
-        exact_match, f1 = self.evaluate(
+        eval_results, _, _ = self.evaluate(
             eval_dataset.features, eval_dataset.examples, unique_ids, per_sample_perplexity, generated_answers,
         )
 
-        logging.info(f"{prefix} exact match {exact_match}")
-        logging.info(f"{prefix} f1 {f1}")
-
         self.log(f'{prefix}_loss', avg_loss)
-        self.log(f'{prefix}_exact_match', exact_match)
-        self.log(f'{prefix}_f1', f1)
+        for eval_key in eval_results:
+            logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
+            self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
 
     def test_epoch_end(self, outputs):
         self.validation_epoch_end(outputs)
@@ -191,11 +138,16 @@ class S2SQAModel(NLPModel):
 
     @torch.no_grad()
     def inference(
-        self, file: str, batch_size: int = 1, num_samples: int = -1, output_prediction_file: Optional[str] = None,
+        self,
+        file: str,
+        batch_size: int = 1,
+        num_samples: int = -1,
+        output_prediction_file: Optional[str] = None,
+        output_nbest_file: Optional[str] = None,
     ):
         all_predictions = []
         mode = self.training
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if isinstance(self.trainer.device_ids, list) else "cpu"
         if self.cfg.library == "huggingface":
             try:
                 # switch model to evaluation mode
@@ -210,7 +162,7 @@ class S2SQAModel(NLPModel):
                 generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
                     outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
                 )
-                all_predictions = self._get_predictions(
+                all_predictions, all_nbest_predictions = self._get_predictions(
                     inference_dl.dataset.features,
                     inference_dl.dataset.examples,
                     unique_ids,
@@ -219,8 +171,18 @@ class S2SQAModel(NLPModel):
                 )
 
                 if output_prediction_file:
-                    self._dump_predictions_to_file(
-                        output_prediction_file, inference_dl.dataset.examples, all_predictions,
+                    QAMetrics.dump_predicted_answers_to_file(
+                        output_prediction_file,
+                        inference_dl.dataset.examples,
+                        all_predictions
+                    )
+
+                if output_nbest_file:
+                    QAMetrics.dump_nbest_predictions_to_file(
+                        output_nbest_file,
+                        inference_dl.dataset.examples,
+                        all_nbest_predictions,
+                        keys_to_dump=["generated_text", "perplexity"],
                     )
 
             finally:
@@ -231,18 +193,18 @@ class S2SQAModel(NLPModel):
         elif self.cfg.library == 'megatron':
             raise ValueError("Megatron Inference is not supported by S2SQAModel")
 
-        return all_predictions
+        return all_predictions, all_nbest_predictions
 
     def evaluate(
         self, features, examples, unique_ids, per_sample_perplexity, generated_texts,
     ):
-        all_predictions = self._get_predictions(
+        all_predictions, all_nbest_json = self._get_predictions(
             features, examples, unique_ids, per_sample_perplexity, generated_texts,
         )
 
-        evaluation_results = self._evaluate_predictions(examples, all_predictions)
+        eval_results = QAMetrics.evaluate_predictions(examples, all_predictions)
 
-        return evaluation_results["exact"], evaluation_results["f1"]
+        return eval_results, all_predictions, all_nbest_json
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         processor = QAProcessor(cfg.file, mode)
@@ -273,16 +235,6 @@ class S2SQAModel(NLPModel):
 
         return data_loader
 
-    @torch.no_grad()
-    def _get_per_sample_perplexity(self, logits, labels):
-        loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction='none')
-        unreduced_loss = loss_fct(logits.view(-1, logits.size(-1)), labels.view(-1),)
-        unreduced_loss = unreduced_loss.reshape(labels.shape)
-        mask_0 = unreduced_loss != 0
-        per_sample_perplexity = torch.exp((unreduced_loss * mask_0).sum(axis=1) / mask_0.sum(axis=1))
-
-        return per_sample_perplexity
-
     def _get_predictions(
         self, features, examples: List, unique_ids: List[int], per_sample_perplexity: List, generated_texts: List,
     ):
@@ -300,6 +252,7 @@ class S2SQAModel(NLPModel):
         )
 
         all_predictions = collections.OrderedDict()
+        all_nbest_json = collections.OrderedDict()
         for (example_index, example) in enumerate(examples):
 
             # finish this loop if we went through all batch examples
@@ -312,12 +265,14 @@ class S2SQAModel(NLPModel):
                 pos = unique_id_to_pos[feature.unique_id]
                 curr_perplexity = per_sample_perplexity[pos]
                 curr_generated_text = generated_texts[pos]
-                prelim_predictions.append(_PrelimPrediction(feature_index, curr_perplexity, curr_generated_text,))
+                prelim_prediction = _PrelimPrediction(feature_index, curr_perplexity, curr_generated_text)
+                prelim_predictions.append(prelim_prediction)
 
             prelim_predictions = sorted(prelim_predictions, key=lambda x: x.perplexity)
-            all_predictions[example.qas_id] = prelim_predictions[0]
+            all_predictions[example.qas_id] = prelim_predictions[0].generated_text
+            all_nbest_json[example.qas_id] = [pred._asdict() for pred in prelim_predictions]
 
-        return all_predictions
+        return all_predictions, all_nbest_json
 
     def _inference(self, inference_dl, device):
         outputs = []
@@ -376,55 +331,6 @@ class S2SQAModel(NLPModel):
             raise ValueError("Megatron Generation is not supported by S2SQAModel")
 
         return generated_answers
-
-    def _get_exact_match_and_f1(self, examples, preds):
-        exact_scores = {}
-        f1_scores = {}
-
-        for example in examples:
-            qas_id = example.qas_id
-            gold_answers = [answer["text"] for answer in example.answers if QAMetrics.normalize_answer(answer["text"])]
-
-            if not gold_answers:
-                # For unanswerable questions, only correct answer is empty string
-                gold_answers = [""]
-
-            pred = preds[qas_id].generated_text
-            exact_scores[qas_id] = max(QAMetrics.get_one_exact_match(pred, a) for a in gold_answers)
-            f1_scores[qas_id] = max(QAMetrics.get_one_f1(pred, a) for a in gold_answers)
-
-        return exact_scores, f1_scores
-
-    def _evaluate_predictions(
-        self, examples, all_predictions: Dict[str, str],
-    ):
-        exact, f1 = self._get_exact_match_and_f1(examples, all_predictions)
-        total = len(exact)
-
-        return collections.OrderedDict(
-            [
-                ("exact", 100.0 * sum(exact.values()) / total),
-                ("f1", 100.0 * sum(f1.values()) / total),
-                ("total", total),
-            ]
-        )
-
-    def _dump_predictions_to_file(self, output_file, examples, predictions):
-        outputs = {"data": []}
-        for ex in examples:
-            outputs["data"].append(
-                {
-                    "id": ex.qas_id,
-                    "context": ex.context_text,
-                    "question": ex.question_text,
-                    "predicted_answer": predictions[ex.qas_id].generated_text,
-                    "perplexity": predictions[ex.qas_id].perplexity,
-                    "ground_truth_answers": ex.answer_text,
-                }
-            )
-
-        with open(output_file, "w") as writer:
-            writer.write(json.dumps(outputs))
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:
