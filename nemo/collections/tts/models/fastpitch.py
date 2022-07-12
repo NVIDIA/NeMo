@@ -524,18 +524,18 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "pitch": NeuralType(tensor_shape, RegressionValuesType()),
             "pace": NeuralType(tensor_shape),
             "speaker": NeuralType(('B'), Index(), optional=True),
-            "volume":NeuralType(tensor_shape, optional=True),
-            "batch_lengths": NeuralType(('B'), optional=True)
+            "volume": NeuralType(tensor_shape, optional=True),
+            "batch_lengths": NeuralType(('B'), optional=True),
         }
         self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
             "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
+            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
+            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
         }
         if self.export_config["enable_volume"]:
-            self._output_types["volume_aligned"] = NeuralType(('B', 'T_spec'), RegressionValuesType())
+            self._output_types["volume_aligned"] = NeuralType(('B', 'T'), RegressionValuesType())
 
     def _export_teardown(self):
         self._input_types = self._output_types = None
@@ -576,7 +576,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
         inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
 
-        if self.export_config["enable_volume"]
+        if self.export_config["enable_volume"]:
             volume = torch.clamp(torch.randn(sz, device=par.device, dtype=torch.float32) * 0.1 + 1, min=0.01)
             inputs['volume'] = volume
         if self.export_config["enable_ragged_batches"]:
@@ -606,15 +606,22 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
 
     def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
         if self.export_config["enable_ragged_batches"]:
-            text, pitch, pace, volume = create_batch(
+            text, pitch, pace, volume_tensor = create_batch(
                 text, pitch, pace, volume, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx
             )
+            if volume is not None:
+                volume = volume_tensor
         return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
 
 
 @torch.jit.script
 def create_batch(
-    text: torch.Tensor, pitch: torch.Tensor, pace: torch.Tensor, batch_lengths: torch.Tensor, padding_idx: int = -1, volume: Optional[torch.Tensor]=None
+    text: torch.Tensor,
+    pitch: torch.Tensor,
+    pace: torch.Tensor,
+    batch_lengths: torch.Tensor,
+    padding_idx: int = -1,
+    volume: Optional[torch.Tensor] = None,
 ):
     batch_lengths = batch_lengths.to(torch.int64)
     max_len = torch.max(batch_lengths[1:] - batch_lengths[:-1])
@@ -623,9 +630,7 @@ def create_batch(
     texts = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.int64, device=text.device) + padding_idx
     pitches = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device)
     paces = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
-    volumes = None
-    if volume is not None:
-        volumes = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
+    volumes = torch.zeros(batch_lengths.shape[0] - 1, max_len, dtype=torch.float32, device=text.device) + 1.0
 
     while index < batch_lengths.shape[0]:
         seq_start = batch_lengths[index - 1]
