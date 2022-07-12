@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e # exit script immediately if a command fails, necessary for jenkins to fail on any error
+
 python examples/nlp/machine_translation/megatron_nmt_training.py \
 trainer.devices=2 \
 trainer.accelerator=gpu \
@@ -48,7 +50,7 @@ model.encoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_
 model.decoder_tokenizer.library=sentencepiece \
 model.decoder_tokenizer.model=/home/TestData/nlp/nmt/toy_data/spm_64k_all_langs_plus_en.model
 
-sh python examples/nlp/machine_translation/megatron_nmt_training.py \
+python examples/nlp/machine_translation/megatron_nmt_training.py \
 trainer.devices=2 \
 trainer.accelerator=gpu \
 trainer.log_every_n_steps=1 \
