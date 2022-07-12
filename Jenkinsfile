@@ -102,6 +102,19 @@ pipeline {
         sh "tests/jenkins/megatron_nmt_pretraining_and_resume_training_tp_2.sh"
       }
     }
+    stage('L2: Megatron NMT Training TP=2 COPY 2 FOR TESTING') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "chmod +x tests/jenkins/megatron_nmt_pretraining_and_resume_training_tp_2.sh"
+        sh "tests/jenkins/megatron_nmt_pretraining_and_resume_training_tp_2.sh"
+      }
+    }
     stage('L0: Unit Tests GPU') {
       steps {
         sh 'NEMO_NUMBA_MINVER=0.53 pytest -m "not pleasefixme and not torch_tts" --with_downloads'
