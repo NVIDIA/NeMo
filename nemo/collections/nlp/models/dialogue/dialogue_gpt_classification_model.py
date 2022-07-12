@@ -244,9 +244,6 @@ class DialogueGPTClassificationModel(NLPModel):
 
             prompt_ids = torch.tensor([0] * input_ids.size(0)) if self.prompt_learning else None
 
-            # this makes a 1d tensor of values 2 rather than 1, which is the prompt_id of 'assit_intent_and_slot_with_options'
-            if self.cfg.dataset.prompt_template == "prompt_tuning_with_options" and prompt_ids is not None:
-                prompt_ids = prompt_ids * 2
             attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
             full_attention_mask_expand = torch.tril(
