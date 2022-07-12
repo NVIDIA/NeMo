@@ -50,8 +50,8 @@ def main(cfg):
         slurm_jobid = os.environ.get("SLURM_JOB_ID", "0")
         profile_out_path = os.path.join(results_dir, "profile_logs")
         os.makedirs(profile_out_path, exist_ok=True)
-        nsys = f"nsys profile -s none -o -t " \
-               f"cuda,nvtx {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} " \
+        nsys = f"nsys profile -s none -t cuda,nvtx " \
+               f"-o {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} " \
                f"--force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop"
     else:
         nsys = ""
