@@ -1882,6 +1882,7 @@ pipeline {
               +exp_manager.create_checkpoint_callback=true \
               +exp_manager.resume_if_exists=True \
               '
+              sh 'rm -rf examples/nlp/machine_translation/nmt_results'
             }
         }
 
