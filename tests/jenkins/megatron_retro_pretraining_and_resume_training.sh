@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+set -e # exit script immediately if a command fails, necessary for jenkins to fail on any error
 
 python examples/nlp/language_modeling/megatron_retro_pretraining.py \
 trainer.devices=2 \
