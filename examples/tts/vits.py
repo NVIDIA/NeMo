@@ -29,7 +29,7 @@ def main(cfg):
     #     scaler = GradScaler(enabled=True)
     #     plugins.append(NativeMixedPrecisionPlugin(precision=cfg.trainer.precision, device='cuda', scaler=scaler))
 
-    trainer = pl.Trainer(resume_from_checkpoint=cfg.checkpoint_path, replace_sampler_ddp=False, **cfg.trainer)
+    trainer = pl.Trainer(replace_sampler_ddp=False, **cfg.trainer)
     # trainer = pl.Trainer(plugins=plugins, **cfg.trainer) 
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = VitsModel(cfg=cfg.model, trainer=trainer)

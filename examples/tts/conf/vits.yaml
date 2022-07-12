@@ -32,7 +32,7 @@ model:
   n_window_stride: 256
   n_fft: 1024
   lowfreq: 0
-  highfreq: 8000
+  highfreq: null
   window: hann
 
   splice_length: 64
@@ -227,5 +227,6 @@ exp_manager:
     name: vits_orig_g2p
     project: ${name}
     entity: nvidia
+    resume: "allow"
   resume_if_exists: false
   resume_ignore_no_checkpoint: false
