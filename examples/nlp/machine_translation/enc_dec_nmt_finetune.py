@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from omegaconf import OmegaConf
+from omegaconf.omegaconf import MISSING
 from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
@@ -57,7 +58,7 @@ Usage:
 @dataclass
 class MTFineTuneConfig(NemoConfig):
     name: Optional[str] = 'MTEncDec'
-    model_path: Optional[str] = 'test.nemo'
+    model_path: str = MISSING
     do_training: bool = True
     do_testing: bool = False
     model: MTEncDecModelConfig = MTEncDecModelConfig()

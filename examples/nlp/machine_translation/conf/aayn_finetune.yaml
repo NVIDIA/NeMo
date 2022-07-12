@@ -1,7 +1,7 @@
 name: AttentionIsAllYouNeedFinetune
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
-model_path: test.nemo
+model_path: ???
 
 model:
   train_ds:
@@ -60,11 +60,6 @@ model:
       - 0.9
       - 0.98
     weight_decay: 0.0
-    sched:
-      name: WarmupAnnealing
-      min_lr: 0.00002
-      last_epoch: -1
-      warmup_steps: 0
 
 trainer:
   devices: 4
