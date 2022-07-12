@@ -2002,7 +2002,7 @@ pipeline {
               +exp_manager.create_checkpoint_callback=True \
               +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
               +exp_manager.checkpoint_callback_params.mode=max \
-              +exp_manager.checkpoint_callback_params.save_best_model=true
+              +exp_manager.checkpoint_callback_params.save_best_model=true \
               '
             }
         }
