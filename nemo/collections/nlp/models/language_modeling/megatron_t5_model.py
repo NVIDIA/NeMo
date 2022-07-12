@@ -88,7 +88,6 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
     @classmethod
     def add_special_tokens_to_tokenizer(cls, tokenizer, tokenizer_cfg, dataset_type="t5"):
         # T5-related construction
-        import ipdb; ipdb.set_trace()
         if tokenizer_cfg.library == 'huggingface' or tokenizer_cfg.library == 'megatron':
             additional_tokens = {
                 'additional_special_tokens': [f'<extra_id_{i}>' for i in range(tokenizer_cfg.num_sentinel_tokens)]
