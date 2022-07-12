@@ -58,6 +58,7 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     bucketing_batch_size: Optional[Any] = None
     bucketing_weights: Optional[List[int]] = None
 
+
 @dataclass
 class EncDecClassificationConfig(model_cfg.ModelConfig):
     # Model global arguments
