@@ -14,8 +14,6 @@
 # limitations under the License.
 
 import os
-import pickle
-
 import numpy as np
 import torch
 from tqdm import trange
@@ -213,7 +211,7 @@ class S2SQADataset(QADataset):
         """
 
         if has_groundtruth and not example.is_impossible:
-            target = example.answer_text if example.answer_text in context_span_text else ""
+            target = example.answer_text
         else:
             target = ""
 

@@ -143,6 +143,7 @@ class GPTQADataset(QADataset):
                 formatted_answer,
                 example,
                 example_index,
+                has_groundtruth,
             )
 
         # delete self.examples during training mode to save memory
@@ -166,17 +167,22 @@ class GPTQADataset(QADataset):
     def _prep_answer(self, example, has_groundtruth):
         """
         Appends EOS token to answer or sets EOS token as answer if blank answer case
+        In inference mode, answer is returned as an empty string
         """
 
-        answer_tokens_length, answer_tokens, formatted_answer = 0, None, None
-        if has_groundtruth and not (example.is_impossible):
-            target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
+        if has_groundtruth:
+            if not example.is_impossible:
+                target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
+            else:
+                target = self.tokenizer.tokenizer.eos_token
         else:
-            target = self.tokenizer.tokenizer.eos_token
+            target = ""
 
-        answer_tokens_length, answer_tokens, formatted_answer = self._get_n_tokens_in_sentence(
-            target, self.max_answer_length
-        )
+        if target:
+            answer_tokens_length, answer_tokens, formatted_answer = \
+                self._get_n_tokens_in_sentence(target, self.max_answer_length)
+        else:
+            answer_tokens_length, answer_tokens, formatted_answer = 0, [], ""
 
         return answer_tokens_length, answer_tokens, formatted_answer
 
@@ -214,6 +220,7 @@ class GPTQADataset(QADataset):
         formatted_answer,
         example,
         example_index,
+        has_groundtruth,
     ):
         """
         Formats all spans extracted from a single context as:
@@ -229,11 +236,11 @@ class GPTQADataset(QADataset):
             input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
             training_mask_end, _, _ = self._get_n_tokens_in_sentence(input_without_answer, self.max_seq_length)
 
-            # mark as a negative sample i.e. answer = EOS token if answer not present in context
-            input_with_answer = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
-            if formatted_answer and example.answer_text:
-                if example.answer_text in context_span_text:
-                    input_with_answer = f"{input_without_answer}{formatted_answer}"
+            # mark as a negative sample if answer not present in context
+            if has_groundtruth:
+                input_with_answer = f"{input_without_answer}{formatted_answer}"
+            else:
+                input_with_answer = input_without_answer
 
             encoded_input_dict = self.tokenizer.tokenizer(
                 input_with_answer,
@@ -245,7 +252,7 @@ class GPTQADataset(QADataset):
             input_ids = torch.squeeze(encoded_input_dict["input_ids"])
             input_attn_mask = torch.squeeze(encoded_input_dict["attention_mask"])
 
-            labels = GPTQADataset.get_labels_from_inputs(
+            labels = GPTQADataset.update_labels_for_no_pad_loss(
                 input_ids, training_mask_end, input_attn_mask, self.tokenizer.tokenizer,
             )
 
@@ -274,7 +281,7 @@ class GPTQADataset(QADataset):
         return seq_length, tokens, trunc_sentence
 
     @classmethod
-    def get_labels_from_inputs(cls, input_ids, training_mask_end, input_attn_mask, tokenizer):
+    def update_labels_for_no_pad_loss(cls, input_ids, training_mask_end, input_attn_mask, tokenizer):
         """
         Loss mask for GPT is constructed to ignore loss for padding tokens
         GPT eos token is same as pas token and needs to be excluded from loss mask

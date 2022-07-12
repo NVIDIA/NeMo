@@ -14,10 +14,7 @@
 # limitations under the License.
 
 import os
-import pickle
-
 import numpy as np
-import torch
 from tqdm import trange
 
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
