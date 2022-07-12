@@ -1,5 +1,4 @@
 # Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
-# Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
+import json
 import re
 import string
-from collections import Counter
-
 import torch
 
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
@@ -55,7 +54,7 @@ class QAMetrics(object):
 
         prediction_tokens = QAMetrics._get_normalized_tokens(prediction)
         ground_truth_tokens = QAMetrics._get_normalized_tokens(ground_truth)
-        common = Counter(prediction_tokens) & Counter(ground_truth_tokens)
+        common = collections.Counter(prediction_tokens) & collections.Counter(ground_truth_tokens)
         num_same = sum(common.values())
 
         # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
@@ -81,9 +80,120 @@ class QAMetrics(object):
         output_lists = [[] for _ in range(len(keys))]
         for output in outputs:
             for i, key in enumerate(keys):
-                if type(output[key]) == torch.Tensor:
+                if isinstance(output[key], torch.Tensor):
                     output_lists[i].extend(tensor2list(output[key]))
                 else:
                     output_lists[i].extend(output[key])
 
         return output_lists
+
+    @staticmethod
+    def get_exact_match_and_f1(examples, preds, question_id_filter=[]):
+        """
+        Returns a dictionary of question id: exact match/f1 score
+        Questions with ids *not* present in `question_id_filter` are excluded
+        """
+        exact_scores = {}
+        f1_scores = {}
+
+        for example in examples:
+            question_id = example.qas_id
+            if question_id not in question_id_filter:
+                continue
+
+            gold_answers = [answer["text"] for answer in example.answers if QAMetrics.normalize_answer(answer["text"])]
+
+            if not gold_answers:
+                # For unanswerable questions, only correct answer is empty string
+                gold_answers = [""]
+
+            pred = preds[question_id]
+            exact_scores[question_id] = max(QAMetrics.get_one_exact_match(pred, a) for a in gold_answers)
+            f1_scores[question_id] = max(QAMetrics.get_one_f1(pred, a) for a in gold_answers)
+
+        return exact_scores, f1_scores
+
+    @staticmethod
+    def make_eval_dict(exact_scores, f1_scores, prefix=""):
+        """ Returns dictionary with formatted evaluation scores """
+
+        total = len(exact_scores)
+        return collections.OrderedDict(
+            [
+                (f"{prefix}exact", (100.0 * sum(exact_scores.values()) / total) if total != 0 else 0.),
+                (f"{prefix}f1", (100.0 * sum(f1_scores.values()) / total) if total != 0 else 0.),
+                (f"{prefix}total", total),
+            ]
+        )
+
+    @staticmethod
+    def merge_eval_dicts(eval_dicts):
+        """
+        Combines multiple evaluation dict outputs into one dict
+        Ex: combines eval dicts for HasAns F1, NoAnsF1, and Total F1
+        """
+
+        merged_dict = collections.OrderedDict()
+        for eval_dict in eval_dicts:
+            for key in eval_dict:
+                merged_dict[key] = eval_dict[key]
+
+        return merged_dict
+
+    @staticmethod
+    def evaluate_predictions(examples, all_predictions):
+        """ 
+        Calculates exact match and f1 scores for all predictions, 
+            questions with answers, and no answer questions
+        """
+
+        qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in examples[: len(all_predictions)]}
+        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
+        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
+
+        all_exact, all_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, list(qas_id_to_has_answer))
+        all_eval_dict = QAMetrics.make_eval_dict(all_exact, all_f1)
+
+        has_ans_exact, has_ans_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, has_answer_qids)
+        has_ans_eval_dict = QAMetrics.make_eval_dict(has_ans_exact, has_ans_f1, prefix="HasAns_")
+        
+        no_ans_exact, no_ans_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, no_answer_qids)
+        no_ans_eval_dict = QAMetrics.make_eval_dict(no_ans_exact, no_ans_f1, prefix="NoAns_")
+
+        merged_eval_dict = QAMetrics.merge_eval_dicts([all_eval_dict, has_ans_eval_dict, no_ans_eval_dict])
+
+        return merged_eval_dict
+
+    @staticmethod
+    def dump_predicted_answers_to_file(output_filename, examples, predictions):
+        outputs = {"data": []}
+        for ex in examples:
+            outputs["data"].append(
+                {
+                    "id": ex.qas_id,
+                    "context": ex.context_text,
+                    "question": ex.question_text,
+                    "predicted_answer": predictions[ex.qas_id],
+                }
+            )
+
+        with open(output_filename, "w") as writer:
+            writer.write(json.dumps(outputs))
+
+    @staticmethod
+    def dump_nbest_predictions_to_file(output_filename, examples, nbest_predictions, keys_to_dump=[]):
+        outputs = {"data": []}
+        for ex in examples:
+            output_item = {
+                "id": ex.qas_id,
+                "context": ex.context_text,
+                "question": ex.question_text,
+                "nbest_predictions": [],
+            }
+            for pred in nbest_predictions[ex.qas_id]:
+                output_item["nbest_predictions"].append({ key: pred[key] for key in keys_to_dump })
+
+            outputs["data"].append(output_item)
+
+        with open(output_filename, "w") as writer:
+            writer.write(json.dumps(outputs))
