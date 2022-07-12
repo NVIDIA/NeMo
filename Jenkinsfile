@@ -1786,18 +1786,18 @@ pipeline {
         }
       }
     }
-    stage('L2: Megatron NMT Training TP=2') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      steps {
-        sh "tests/jenkins/megatron_nmt_pretraining_and_resume_training_tp_2.sh"
-      }
-    }
+    // stage('L2: Megatron NMT Training TP=2') {
+    //   when {
+    //     anyOf {
+    //       branch 'main'
+    //       changeRequest target: 'main'
+    //     }
+    //   }
+    //   failFast true
+    //   steps {
+    //     sh "tests/jenkins/megatron_nmt_pretraining_and_resume_training_tp_2.sh"
+    //   }
+    // }
     stage('L2: Megatron Bert Pretraining and Resume Training') {
       when {
         anyOf {
