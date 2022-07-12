@@ -70,7 +70,7 @@ class StatelessNet(torch.nn.Module):
                 embed_size = emb_dim - (emb_dim // 2 // self.context_size) * (self.context_size - 1)
 
             if blank_as_pad:
-                embed = torch.nn.Embedding(vocab_size + 1, embed_size, padding_idx=blank_idx)
+                embed = torch.nn.Embedding(vocab_size + 2, embed_size, padding_idx=blank_idx)
             else:
                 embed = torch.nn.Embedding(vocab_size, embed_size)
 

@@ -114,8 +114,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     """
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
-        blank_id = tokenizer.tokenizer.vocab_size - 1
-        big_blank_id = tokenizer.tokenizer.vocab_size
+        blank_id = tokenizer.tokenizer.vocab_size
+        big_blank_id = tokenizer.tokenizer.vocab_size + 1
         self.tokenizer = tokenizer
 
         super(RNNTBPEDecoding, self).__init__(
