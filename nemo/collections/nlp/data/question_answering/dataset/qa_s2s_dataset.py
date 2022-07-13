@@ -18,13 +18,9 @@ import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-)
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_features import S2SQAInputFeatures
+from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_example import S2SQAInputExample
 from nemo.utils import logging
 
 
@@ -45,7 +41,13 @@ class S2SQADataset(QADataset):
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
     ):
-        super().__init__(data_file=data_file, processor=processor, tokenizer=tokenizer)
+        super().__init__(
+            data_file=data_file,
+            processor=processor,
+            tokenizer=tokenizer,
+            mode=mode,
+            num_samples=num_samples
+        )
 
         self.keep_doc_spans = keep_doc_spans
         self.doc_stride = doc_stride
@@ -55,20 +57,6 @@ class S2SQADataset(QADataset):
         self.num_samples = num_samples
         self.mode = mode
         self.use_cache = use_cache
-
-        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
-            raise ValueError(
-                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
-            )
-
-        # get examples from processor and keep according to limit
-        self.examples = self.processor.get_examples()
-        if num_samples == 0:
-            raise ValueError(
-                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
-            )
-        elif num_samples > 0:
-            self.examples = self.examples[:num_samples]
 
         self._set_cached_features_filename()
         if use_cache and os.path.exists(self.cached_features_file):
@@ -83,7 +71,7 @@ class S2SQADataset(QADataset):
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
-            self.features[i] = S2SQAInputFeatures(**self.features[i])
+            self.features[i] = S2SQAInputExample(**self.features[i])
 
     def _set_cached_features_filename(self):
         """ Creates cache filename using dataset config parameters """

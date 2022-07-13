@@ -20,6 +20,11 @@ from typing import List
 import psutil
 import torch
 
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
+    EVALUATION_MODE,
+    INFERENCE_MODE,
+    TRAINING_MODE,
+)
 from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.core.classes import Dataset
 from nemo.utils import logging
@@ -29,13 +34,27 @@ class QADataset(Dataset):
     ''' Base class for QA Datasets '''
 
     def __init__(
-        self, data_file: str, processor: object, tokenizer: object, **kwargs,
+        self, data_file: str, processor: object, tokenizer: object, mode: str, num_samples: int, **kwargs,
     ):
-        self.mode = None
-        self.features = None
+        self.mode = mode
         self.data_file = data_file
         self.processor = processor
         self.tokenizer = tokenizer
+        self.features = None
+
+        if self.mode not in [TRAINING_MODE, EVALUATION_MODE, INFERENCE_MODE]:
+            raise ValueError(
+                f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
+            )
+        
+        # get examples from processor and keep according to limit
+        self.examples = self.processor.get_examples()
+        if num_samples == 0:
+            raise ValueError(
+                f"num_samples has to be positive or -1 (to use the entire dataset), however got {num_samples}."
+            )
+        elif num_samples > 0:
+            self.examples = self.examples[:num_samples]
 
     def __len__(self):
         return len(self.features)

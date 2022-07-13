@@ -17,12 +17,13 @@ from typing import List, Optional
 
 
 @dataclass
-class S2SQAInputFeatures(object):
-    """ A single set of features of a QA example for T5/BART-like model """
+class GPTQAInputExample(object):
+    """ A single set of features of a QA example for GPT-like model """
 
     unique_id: int
     input_ids: List[int]
     input_attn_mask: List[int]
+    training_mask_end: int = None
     labels: List[int] = None
     example_index: int = None
     context_span_index: int = None
