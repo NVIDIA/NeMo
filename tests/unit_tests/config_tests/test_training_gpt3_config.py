@@ -454,10 +454,10 @@ class TestTrainingGPT3Config:
 
         model:
           # model parallelism
-          micro_batch_size: 4
+          micro_batch_size: 1
           global_batch_size: 1440
-          tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 2
+          tensor_model_parallel_size: 2
+          pipeline_model_parallel_size: 4
           resume_from_checkpoint: null
 
           # model architecture
@@ -652,9 +652,9 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          micro_batch_size: 2
+          micro_batch_size: 1
           global_batch_size: 1440
-          tensor_model_parallel_size: 8
+          tensor_model_parallel_size: 4
           pipeline_model_parallel_size: 4
           resume_from_checkpoint: null
 
@@ -850,10 +850,10 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          micro_batch_size: 1
+          micro_batch_size: 2
           global_batch_size: 1536
           tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 16
+          pipeline_model_parallel_size: 8
           resume_from_checkpoint: null
 
           # model architecture
