@@ -12,46 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dataclasses import dataclass
 from typing import List
 
 
+@dataclass
 class QAExample(object):
-    """
-    A single training/test example for a QA dataset, as loaded from disk.
+    """ A single training/test example for a QA dataset, as loaded from disk """
 
-    Args:
-        qas_id: The example's unique identifier
-        question_text: The question string
-        context_text: The context string
-        context_id: id representing context string
-        answer_text: The answer string
-        start_position_character: The character position of the start of
-            the answer, 0 indexed
-        title: The title of the example
-        answers: None by default, this is used during evaluation.
-            Holds answers as well as their start positions.
-        is_impossible: False by default, set to True if the example has
-            no possible answer.
-    """
+    # The example's unique identifier
+    qas_id: str
 
-    def __init__(
-        self,
-        qas_id: str,
-        question_text: str,
-        context_text: str,
-        context_id: int,
-        answer_text: str,
-        start_position_character: int,
-        title: str,
-        answers: List[str] = [],
-        is_impossible: bool = False,
-    ):
-        self.qas_id = qas_id
-        self.question_text = question_text
-        self.context_id = context_id
-        self.context_text = context_text
-        self.answer_text = answer_text
-        self.title = title
-        self.is_impossible = is_impossible
-        self.answers = answers
-        self.start_position_character = start_position_character
+    # The question string
+    question_text: str
+
+    # The context string
+    context_text: str
+
+    # id representing context string
+    context_id: int
+
+    # The answer string
+    answer_text: str
+
+    # The character position of the start of the answer, 0 indexed
+    start_position_character: int
+
+    # The title of the example
+    title: str
+
+    # None by default, this is used during evaluation. Holds answers as well as their start positions
+    answers: List[str] = []
+
+    # False by default, set to True if the example has no possible answer
+    is_impossible: bool = False
