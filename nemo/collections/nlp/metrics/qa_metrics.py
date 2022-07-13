@@ -169,34 +169,27 @@ class QAMetrics(object):
 
     @staticmethod
     def dump_predicted_answers_to_file(output_filename, examples, predictions):
-        outputs = {"data": []}
-        for ex in examples:
-            outputs["data"].append(
-                {
+        with open(output_filename, "w") as writer:
+            for ex in examples:
+                output_item = {
                     "id": ex.qas_id,
                     "context": ex.context_text,
                     "question": ex.question_text,
                     "predicted_answer": predictions[ex.qas_id],
                 }
-            )
-
-        with open(output_filename, "w") as writer:
-            writer.write(json.dumps(outputs))
+                writer.write(json.dumps(output_item)+"\n")
 
     @staticmethod
     def dump_nbest_predictions_to_file(output_filename, examples, nbest_predictions, keys_to_dump=[]):
-        outputs = {"data": []}
-        for ex in examples:
-            output_item = {
-                "id": ex.qas_id,
-                "context": ex.context_text,
-                "question": ex.question_text,
-                "nbest_predictions": [],
-            }
-            for pred in nbest_predictions[ex.qas_id]:
-                output_item["nbest_predictions"].append({ key: pred[key] for key in keys_to_dump })
-
-            outputs["data"].append(output_item)
-
         with open(output_filename, "w") as writer:
-            writer.write(json.dumps(outputs))
+            for ex in examples:
+                output_item = {
+                    "id": ex.qas_id,
+                    "context": ex.context_text,
+                    "question": ex.question_text,
+                    "nbest_predictions": [],
+                }
+                for pred in nbest_predictions[ex.qas_id]:
+                    output_item["nbest_predictions"].append({ key: pred[key] for key in keys_to_dump })
+
+                writer.write(json.dumps(output_item)+"\n")
