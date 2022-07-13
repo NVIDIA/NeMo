@@ -13,7 +13,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 105000 # consumed_samples = global_step * global_batch_size
   max_time: "12:11:00:00"
   log_every_n_steps: 10
   val_check_interval: 2000
