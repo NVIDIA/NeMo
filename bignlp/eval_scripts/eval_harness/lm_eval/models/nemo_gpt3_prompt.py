@@ -113,9 +113,13 @@ def setup_trainer_and_model(args):
 
     model.freeze()
 
-    # Have to turn off activations_checkpoint_method for inference
+    # Have to turn off activation checkpointing for inference
     try:
-        model.model.language_model.encoder.activations_checkpoint_method = None
+        model.frozen_model.model.language_model.encoder.activations_checkpoint_granularity = None
+    except AttributeError:
+        pass
+    try:
+        model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
 
