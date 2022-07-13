@@ -40,6 +40,11 @@ from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging, timers
 
+from nemo.core.classes.exportable import Exportable
+from typing import Dict, List, Optional
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+
 try:
     from apex.transformer import parallel_state
     from apex.transformer.pipeline_parallel.utils import _reconfigure_microbatch_calculator
@@ -50,6 +55,183 @@ except (ImportError, ModuleNotFoundError):
 
 
 __all__ = ["MegatronNMTModel"]
+
+class TokensHeadWEmb(torch.nn.Module, Exportable):
+    """
+    Combines decoder_embedding with the tokens_head layer to simulate the classifier in NemoNMT
+    """
+    def __init__(self, decoder_embedding, tokens_head, device='cuda:0'):
+        super(TokensHeadWEmb, self).__init__()
+
+        self.decoder_embedding = decoder_embedding
+        self.tokens_head = tokens_head
+        self.device = device
+
+        # properties needed for export
+        self.training = False
+
+    def train(self, dummy_input):
+        return None
+
+    def modules(self):
+        return (
+            self.decoder_embedding,
+            self.tokens_head,
+        )
+
+    def forward(self, dec_output):
+        return self.tokens_head(dec_output, self.decoder_embedding.word_embeddings.weight)
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        return torch.randint(
+            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=self.device, dtype=torch.float32
+        )
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"log_probs": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @property
+    def input_names(self) -> List[str]:
+        return ['hidden_states']
+
+    @property
+    def output_names(self) -> List[str]:
+        return ['log_probs']
+
+class DecWEmb(torch.nn.Module, Exportable):
+    """
+    Combines decoder_embedding with the decoder component
+    """
+    def __init__(self, decoder_embedding, decoder, device='cuda:0'):
+        super(DecWEmb, self).__init__()
+
+        self.decoder_embedding = decoder_embedding
+        self.decoder = decoder
+        self.device = device
+
+        # properties needed for export
+        self.training = False
+
+    def train(self, dummy_input):
+        return None
+
+    def modules(self):
+        return (
+            self.decoder_embedding,
+            self.decoder
+        )
+
+    def forward(self, input_ids, decoder_mask, encoder_mask, encoder_embeddings, dec_mems):
+        position_ids = build_position_ids(input_ids)
+        dec_input = self.decoder_embedding(input_ids, position_ids, token_type_ids=None)
+
+        # dec_input, dec_attn_mask, enc_output, enc_attn_mask | dec_input, dec_attn_mask, enc_output, enc_attn_mask
+        _ = dec_mems
+
+        return self.decoder(
+            dec_input, decoder_mask, encoder_embeddings, encoder_mask
+        ).float()
+
+    def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
+        enc_output = torch.randint(
+            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=self.device, dtype=torch.float32
+        )
+        enc_attn_mask = torch.tensor([[1 for _ in range(seq_len)]]).to(self.device)
+
+        dec_len = random.randint(10, 128)
+        dec_input = torch.randint(
+            low=0, high=1000, size=(max_batch, dec_len), device=self.device
+        )
+        dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(self.device)
+        decoder_mems = torch.zeros([ 8, 6, 1024], dtype=torch.float32).to(self.device)
+
+        # input_ids, decoder_mask, encoder_mask, encoder_embeddings
+        return (dec_input, dec_attn_mask, enc_attn_mask, enc_output, decoder_mems)
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "decoder_mask": NeuralType(('B', 'T'), MaskType()),
+            "encoder_mask": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "encoder_embeddings": NeuralType(('B', 'T'), MaskType()),
+            "decoder_mems": NeuralType(('B', 'T', 'D'), ChannelType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @property
+    def input_names(self) -> List[str]:
+        return ['input_ids', 'decoder_mask', 'encoder_mask', 'encoder_embeddings', 'decoder_memes']
+
+    @property
+    def output_names(self) -> List[str]:
+        return ['last_hidden_states']
+
+class EncWEmb(torch.nn.Module, Exportable):
+    """
+    Combines encoder_embedding with the encoder component
+    """
+    def __init__(self, encoder_embedding, encoder, device='cuda:0'):
+        super(EncWEmb, self).__init__()
+
+        self.encoder_embedding = encoder_embedding
+        self.encoder = encoder
+        self.device = device
+
+        # properties needed for export
+        self.training = False
+
+    def train(self, dummy_input):
+        return None
+
+    def modules(self):
+        return (
+            self.encoder_embedding,
+            self.encoder
+        )
+
+    def forward(self, input_ids, encoder_mask):
+        position_ids = build_position_ids(input_ids)
+        enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)    
+
+        # pass input through the encoder
+        return self.encoder(
+            enc_input=enc_input, 
+            enc_attn_mask=encoder_mask, 
+        ).type(torch.float32)
+
+    def input_example(self):
+        seq_len = random.randint(0, 128)
+        return torch.randint(0, 30000, (1, seq_len)).to(self.device), torch.ones((1, seq_len), dtype=int).to(self.device)
+
+    @property
+    def input_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {
+            "input_ids": NeuralType(('B', 'T'), ChannelType()),
+            "encoder_mask": NeuralType(('B', 'T'), MaskType()),
+        }
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+
+    @property
+    def input_names(self) -> List[str]:
+        return ['input_ids', 'encoder_mask']
+
+    @property
+    def output_names(self) -> List[str]:
+        return ['last_hidden_states']
 
 
 class MegatronNMTModel(MegatronLMEncoderDecoderModel):
@@ -801,3 +983,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_test_start(self) -> None:
         self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    # the following properties are needed for nemo2riva tool to work
+    @property
+    def encoder(self):
+        return EncWEmb(self.enc_dec_model.encoder_embedding, self.enc_dec_model.enc_dec_model.encoder)
+
+    @property
+    def decoder(self):
+        return DecWEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.enc_dec_model.decoder)
+
+    @property
+    def tokens_head(self):
+        return TokensHeadWEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.tokens_head)
