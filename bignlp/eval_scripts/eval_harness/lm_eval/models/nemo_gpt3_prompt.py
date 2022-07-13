@@ -122,6 +122,15 @@ def setup_trainer_and_model(args):
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
+    # O2 cases
+    try:
+        model.frozen_model.model.module.language_model.encoder.activations_checkpoint_granularity = None
+    except AttributeError:
+        pass
+    try:
+        model.frozen_model.model.module.language_model.encoder.activations_checkpoint_method = None
+    except AttributeError:
+        pass
 
     return trainer, model
 
