@@ -358,7 +358,8 @@ class RetrievalTranslationDataset(TranslationDataset):
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
         compute_ids = False
-        add_special = True
+        add_special = False
+        add_tgt_to_tgt = True
         if compute_ids:
             src_retrieval_ids = dataset_to_ids(
                 self.retrieval_db_src,
@@ -403,33 +404,48 @@ class RetrievalTranslationDataset(TranslationDataset):
         tgt_retrieval_ids_start = np.load(os.path.join(self.retrieval_db_tgt,'start_indices.npy'))
 
         src_ids_extended = []
+        tgt_ids_extended = []
         for i in tqdm(range(len(src_ids)), desc='Adding retrieved sentences to src'):
-            to_add = []
-            # add the original src sentence
-            to_add.extend(src_ids[i])
-            # samp_prob = 0.1
-            # copy_prob = 0.05
-            samp_prob = 0.0
-            copy_prob = 0.0
+            to_add_src = []
+            to_add_tgt = []
+
+            samp_prob = 0.1
+            copy_prob = 0.05
+            # samp_prob = 0.0
+            # copy_prob = 0.0
             if np.random.uniform(0,1) > samp_prob:
                 for nn_id in self.nn_list[i].tolist():
                     # Add the src and tgt of nearest neighbor
                     if np.random.uniform(0,1) > copy_prob:
                         if add_special:
-                            to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
-                        to_add.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
+                            to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+                        to_add_src.extend(src_retrieval_ids[src_retrieval_ids_start[nn_id]:src_retrieval_ids_start[nn_id+1]])
                         if add_special:
-                            to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
-                        to_add.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+                            to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+                        if add_tgt_to_tgt:
+                            to_add_tgt.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+                        else:
+                            to_add_src.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
+
                     else:
                         if add_special:
-                            to_add.extend([tokenizer_src.token_to_id('[NN_SRC]')])
-                        to_add.extend(src_ids[i])
+                            to_add_src.extend([tokenizer_src.token_to_id('[NN_SRC]')])
+                        to_add_src.extend(src_ids[i])
                         if add_special:
-                            to_add.extend([tokenizer_src.token_to_id('[NN_TGT]')])
-                        to_add.extend(tgt_ids[i])
-            src_ids_extended.append(to_add)
+                            to_add_src.extend([tokenizer_src.token_to_id('[NN_TGT]')])
+                        if add_tgt_to_tgt:
+                            to_add_tgt.extend(tgt_ids[i])
+                        else:
+                            to_add_src.extend(tgt_ids[i])
+            # add the original src sentence and tgt sentence
+            to_add_src.extend(src_ids[i])
+            to_add_tgt.extend(tgt_ids[i])
+            
+            src_ids_extended.append(to_add_src)
+            tgt_ids_extended.append(to_add_tgt)
+        
         src_ids = src_ids_extended
+        tgt_ids = tgt_ids_extended
 
         if self.clean:
             src_ids, tgt_ids = self.clean_src_and_target(
