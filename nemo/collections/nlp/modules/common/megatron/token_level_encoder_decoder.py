@@ -115,7 +115,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_encoder=True,
         add_decoder=True,
         num_self_attention_per_cross_attention=1,
-        share_word_embeddings=True,
+        share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
@@ -131,7 +131,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.position_embedding_type = position_embedding_type
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
-        self.share_word_embeddings = share_word_embeddings
+        self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
 
         if self.position_embedding_type == 'learned_absolute':
@@ -207,7 +207,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             # If this is the decoder first stage
             if pre_process:
                 # If the encoder also lies on this rank (PP = 1), then just assign embeddings directly.
-                if hasattr(self, 'encoder_embedding') and share_word_embeddings:
+                if hasattr(self, 'encoder_embedding') and share_token_embeddings:
                     self.decoder_embedding = self.encoder_embedding
                 else:
                     # This is the case where PP > 1 and first decoder first stage, or when not sharing embeddings with encoder
@@ -223,7 +223,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     )
                     # We initialize decoder embeddings, but set them to zero since we they're tied with the encoder embeddings.
                     # A later initialize_embedding call will synchronize the embeddings.
-                    if share_word_embeddings:
+                    if share_token_embeddings:
                         self.decoder_embedding.zero_parameters()
 
                 self._decoder_embedding_key = "decoder_embedding"
@@ -274,7 +274,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self._enc_dec_model_key = "enc_dec_model"
 
         # NOTE: Update here when adding support in PP > 1 (function has to be called)
-        if self.share_word_embeddings:
+        if self.share_token_embeddings:
             self.initialize_word_embeddings(
                 init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
             )

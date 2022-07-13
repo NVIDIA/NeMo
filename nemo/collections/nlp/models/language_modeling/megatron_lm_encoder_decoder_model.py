@@ -81,9 +81,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
                 )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if not cfg.get('share_word_embeddings', True) or not cfg.get('share_decoder_tokens_head_embeddings', True):
+            if not cfg.get('share_token_embeddings', True) or not cfg.get('share_decoder_tokens_head_embeddings', True):
                 raise ValueError(
-                    "when pipeline_model_parallel_size > 1 we require share_word_embeddings=True and share_decoder_tokens_head_embeddings=True"
+                    "when pipeline_model_parallel_size > 1 we require share_token_embeddings=True and share_decoder_tokens_head_embeddings=True"
                 )
 
         # Make sure trainer.accumulate_grad_batches is 1.
@@ -176,7 +176,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
-            share_word_embeddings=self.cfg.get('share_word_embeddings', True),
+            share_token_embeddings=self.cfg.get('share_token_embeddings', True),
             share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
         )
         return model
@@ -396,7 +396,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.enc_dec_model.share_word_embeddings:
+            if self.enc_dec_model.share_token_embeddings:
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
