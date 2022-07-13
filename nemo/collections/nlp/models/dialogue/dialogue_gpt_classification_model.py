@@ -613,7 +613,7 @@ class DialogueGPTClassificationModel(NLPModel):
 
     def setup(self, stage=None):
         super().setup()
-        if self.prompt_learning and self.cfg.library == "megatron":
+        if self.cfg.library == "megatron" and self.prompt_learning:
             self.language_model.init_new_prompts()
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):

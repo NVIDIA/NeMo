@@ -217,7 +217,7 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def setup(self, stage=None):
         super().setup()
-        if self.prompt_learning and self.cfg.library == "megatron":
+        if self.cfg.library == "megatron" and self.prompt_learning:
             self.language_model.init_new_prompts()
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
