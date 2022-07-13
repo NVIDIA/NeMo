@@ -25,6 +25,7 @@ def main(cfg):
     numa_cfg = cfg.get("numa_mapping")
 
     # Run parameters
+    model_cfg = train_cfg.get("model")
     run_cfg = train_cfg.get("run")
     results_dir = run_cfg.get("results_dir")
 
@@ -38,7 +39,6 @@ def main(cfg):
 
     # Re-build the hydra args to add dataset blend
     if "mt5" in cfg.get("training_config"):
-        model_cfg = train_cfg.get("model")
         model_data_cfg = model_cfg.get("data")
         if model_data_cfg.get("data_prefix") is None:
             cfg.get("training").model.data.data_prefix = generate_mt5_data_blend(cfg)
@@ -47,7 +47,7 @@ def main(cfg):
 
     cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
     set_gpu_queue_sw = "CUDA_DEVICE_MAX_CONNECTIONS=1" if \
-        train_cfg.get("model").get("tensor_model_parallel_size", 0) > 1 else ""
+        model_cfg.get("tensor_model_parallel_size", 0) > 1 else ""
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_t5_pretraining.py"

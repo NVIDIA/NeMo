@@ -24,6 +24,7 @@ def main(cfg):
     numa_cfg = cfg.get("numa_mapping")
 
     # Run parameters
+    model_cfg = train_cfg.get("model")
     run_cfg = train_cfg.get("run")
     results_dir = run_cfg.get("results_dir")
 
@@ -37,7 +38,7 @@ def main(cfg):
 
     cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
     set_gpu_queue_sw = "CUDA_DEVICE_MAX_CONNECTIONS=1" if \
-        train_cfg.get("model").get("tensor_model_parallel_size", 0) > 1 else ""
+        model_cfg.get("tensor_model_parallel_size", 0) > 1 else ""
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
