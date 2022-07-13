@@ -470,10 +470,18 @@ def check_resume(
             for fold in other_run_dirs:
                 if fold.is_dir():
                     run_count += 1
+            logging.info(f"Backing up run_{run_count}")
             new_run_dir = Path(Path(log_dir) / f"run_{run_count}")
             new_run_dir.mkdir()
             for _file in files_to_move:
                 move(str(_file), str(new_run_dir))
+            time.sleep(10)
+    else:
+        files_to_move = [child for child in Path(log_dir).iterdir() if child.is_file()]
+        while len(files_to_move) > 0:
+            logging.info(f"Waiting for global_rank_zero() to finish back up of previous run")
+            files_to_move = [child for child in Path(log_dir).iterdir() if child.is_file()]
+            time.sleep(5)
 
 
 def check_explicit_log_dir(
