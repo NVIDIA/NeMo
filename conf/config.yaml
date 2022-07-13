@@ -15,6 +15,7 @@ hydra:
   output_subdir: null
 
 debug: False
+profile: False # profiling only supported on BCM (https://docs.nvidia.com/nsight-systems/UserGuide/index.html)
 
 run_data_preparation: True
 run_training: True
