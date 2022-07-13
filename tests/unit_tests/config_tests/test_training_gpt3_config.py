@@ -59,7 +59,7 @@ class TestTrainingGPT3Config:
           global_batch_size: 256
           tensor_model_parallel_size: 1
           pipeline_model_parallel_size: 1
-          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          resume_from_checkpoint: null
 
           # model architecture
           encoder_seq_length: 2048
@@ -76,20 +76,20 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True # Use of persistent fused layer norm kernel.
-          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
-          activations_checkpoint_granularity: full # 'selective' or 'full'
-          activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-          activations_checkpoint_num_layers: 0 # not used with 'selective'
+          persist_layer_norm: True
+          grad_div_ar_fusion: True
+          gradient_as_bucket_view: True
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: full
+          activations_checkpoint_method: block
+          activations_checkpoint_num_layers: 0
           sequence_parallel: False
 
           tokenizer:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
-            delimiter: null # only used for tabular tokenizer
+            delimiter: null
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -108,7 +108,7 @@ class TestTrainingGPT3Config:
           seed: 1234
           use_cpu_initialization: False
           onnx_safe: False
-          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+          apex_transformer_log_level: 30
 
           optim:
             name: fused_adam
@@ -133,7 +133,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
-            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+            index_mapping_dir: null
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -253,12 +253,11 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          # model parallelism: MBS=2, TPS=2, AGB=9 for 80GB nodes.
           micro_batch_size: 2
           global_batch_size: 1440
           tensor_model_parallel_size: 2
           pipeline_model_parallel_size: 1
-          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          resume_from_checkpoint: null
 
           # model architecture
           encoder_seq_length: 2048
@@ -275,13 +274,13 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True # Use of persistent fused layer norm kernel.
-          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
-          activations_checkpoint_granularity: full # 'selective' or 'full'
-          activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-          activations_checkpoint_num_layers: 0 # not used with 'selective'
+          persist_layer_norm: True
+          grad_div_ar_fusion: True
+          gradient_as_bucket_view: True
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: full
+          activations_checkpoint_method: block
+          activations_checkpoint_num_layers: 0
           sequence_parallel: False
 
           tokenizer:
@@ -307,7 +306,7 @@ class TestTrainingGPT3Config:
           seed: 1234
           use_cpu_initialization: False
           onnx_safe: False
-          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+          apex_transformer_log_level: 30
 
           optim:
             name: fused_adam
@@ -332,7 +331,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
-            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+            index_mapping_dir: null
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -455,11 +454,11 @@ class TestTrainingGPT3Config:
 
         model:
           # model parallelism
-          micro_batch_size: 4
+          micro_batch_size: 1
           global_batch_size: 1440
-          tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 2
-          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          tensor_model_parallel_size: 2
+          pipeline_model_parallel_size: 4
+          resume_from_checkpoint: null
 
           # model architecture
           encoder_seq_length: 2048
@@ -476,20 +475,20 @@ class TestTrainingGPT3Config:
           make_vocab_size_divisible_by: 128
           pre_process: True
           post_process: True
-          persist_layer_norm: True # Use of persistent fused layer norm kernel.
-          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
-          activations_checkpoint_granularity: full # 'selective' or 'full'
-          activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-          activations_checkpoint_num_layers: 2 # not used with 'selective'
-          sequence_parallel: False
+          persist_layer_norm: True
+          grad_div_ar_fusion: True
+          gradient_as_bucket_view: True
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: selective
+          activations_checkpoint_method: null
+          activations_checkpoint_num_layers: null
+          sequence_parallel: True
 
           tokenizer:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
-            delimiter: null # only used for tabular tokenizer
+            delimiter: null
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
@@ -508,7 +507,7 @@ class TestTrainingGPT3Config:
           seed: 1234
           use_cpu_initialization: False
           onnx_safe: False
-          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+          apex_transformer_log_level: 30
 
           optim:
             name: fused_adam
@@ -533,7 +532,7 @@ class TestTrainingGPT3Config:
             reset_position_ids: False
             reset_attention_mask: False
             eod_mask_loss: False
-            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
+            index_mapping_dir: null
             data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
@@ -615,11 +614,11 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          logger: False # logger provided by exp_manager
+          logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 105000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 105000
           max_time: "12:11:00:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -643,8 +642,8 @@ class TestTrainingGPT3Config:
             monitor: val_loss
             save_top_k: 5
             mode: min
-            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+            always_save_nemo: False
+            save_nemo_on_train_end: False
             filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
             model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
@@ -653,51 +652,50 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
-          micro_batch_size: 2
+          micro_batch_size: 1
           global_batch_size: 1440
-          tensor_model_parallel_size: 8
+          tensor_model_parallel_size: 4
           pipeline_model_parallel_size: 4
-          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          resume_from_checkpoint: null
 
           # model architecture
           encoder_seq_length: 2048
           max_position_embeddings: 2048
           num_layers: 48
           hidden_size: 8192
-          ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
+          ffn_hidden_size: ${multiply:4, ${.hidden_size}}
           num_attention_heads: 64
-          init_method_std: 0.007  # Standard deviation of the zero mean normal distribution used for weight initialization.')
-          hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
-          kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-          apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+          init_method_std: 0.007
+          hidden_dropout: 0.1
+          kv_channels: null
+          apply_query_key_layer_scaling: True 
           layernorm_epsilon: 1e-5
-          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-          pre_process: True # add embedding
-          post_process: True # add pooler
-          persist_layer_norm: True # Use of persistent fused layer norm kernel.
-          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
-          activations_checkpoint_granularity: full # 'selective' or 'full'
-          activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-          activations_checkpoint_num_layers: 0 # not used with 'selective'
-          sequence_parallel: False
+          make_vocab_size_divisible_by: 128
+          pre_process: True
+          post_process: True
+          persist_layer_norm: True
+          grad_div_ar_fusion: True
+          gradient_as_bucket_view: True
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: selective
+          activations_checkpoint_method: null
+          activations_checkpoint_num_layers: null
+          sequence_parallel: True
 
           tokenizer:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
-            delimiter: null # only used for tabular tokenizer
+            delimiter: null
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
           # precision
-          native_amp_init_scale: 4294967296 # 2 ** 32
+          native_amp_init_scale: 4294967296
           native_amp_growth_interval: 1000
-          hysteresis: 2 # Gradient scale hysteresis
-          fp32_residual_connection: False # Move residual connections to fp32
-          fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+          hysteresis: 2
+          fp32_residual_connection: False
+          fp16_lm_cross_entropy: False
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
@@ -705,9 +703,9 @@ class TestTrainingGPT3Config:
 
           # miscellaneous
           seed: 1234
-          use_cpu_initialization: False # Init weights on the CPU (slow for large models)
-          onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+          use_cpu_initialization: False
+          onnx_safe: False
+          apex_transformer_log_level: 30
 
           optim:
             name: fused_adam
@@ -728,12 +726,12 @@ class TestTrainingGPT3Config:
             seq_length: 2048
             skip_warmup: True
             num_workers: 2
-            dataloader_type: single # cyclic
-            reset_position_ids: False # Reset position ids after end-of-document token
-            reset_attention_mask: False # Reset attention mask after end-of-document token
-            eod_mask_loss: False # Mask loss for the end of document tokens
-            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-            data_prefix: # Should be weight path weight path... for a blended dataset
+            dataloader_type: single
+            reset_position_ids: False
+            reset_attention_mask: False
+            eod_mask_loss: False
+            index_mapping_dir: null
+            data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
               - .0333
@@ -814,11 +812,11 @@ class TestTrainingGPT3Config:
           devices: 8
           accelerator: gpu
           precision: bf16
-          logger: False # logger provided by exp_manager
+          logger: False
           enable_checkpointing: False
           replace_sampler_ddp: False
           max_epochs: null
-          max_steps: 100000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+          max_steps: 100000
           max_time: "34:23:00:00"
           log_every_n_steps: 10
           val_check_interval: 2000
@@ -842,8 +840,8 @@ class TestTrainingGPT3Config:
             monitor: val_loss
             save_top_k: 5
             mode: min
-            always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-            save_nemo_on_train_end: False # not recommended when training large models on clusters with short time limits
+            always_save_nemo: False
+            save_nemo_on_train_end: False
             filename: 'megatron_gpt--{val_loss:.2f}-{step}-{consumed_samples}'
             model_parallel_size: ${multiply:${training.model.tensor_model_parallel_size}, ${training.model.pipeline_model_parallel_size}}
           log_step_timing: True
@@ -852,51 +850,50 @@ class TestTrainingGPT3Config:
             buffer_size: 5
 
         model:
-          # model parallelism: MBS=2, TPS=2, AGB=8 for 80GB nodes. 
-          micro_batch_size: 1
+          micro_batch_size: 2
           global_batch_size: 1536
           tensor_model_parallel_size: 8
-          pipeline_model_parallel_size: 16
-          resume_from_checkpoint: null # manually set the checkpoint file to load from
+          pipeline_model_parallel_size: 8
+          resume_from_checkpoint: null
 
           # model architecture
           encoder_seq_length: 2048
           max_position_embeddings: 2048
           num_layers: 96
           hidden_size: 12288
-          ffn_hidden_size: ${multiply:4, ${.hidden_size}}  # Transformer FFN hidden size. 4 * hidden_size.
+          ffn_hidden_size: ${multiply:4, ${.hidden_size}}
           num_attention_heads: 96
-          init_method_std: 0.006  # Standard deviation of the zero mean normal distribution used for weight initialization.')
-          hidden_dropout: 0.1  # Dropout probability for hidden state transformer.
-          kv_channels: null  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
-          apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
+          init_method_std: 0.006
+          hidden_dropout: 0.1
+          kv_channels: null
+          apply_query_key_layer_scaling: True
           layernorm_epsilon: 1e-5
-          make_vocab_size_divisible_by: 128 # Pad the vocab size to be divisible by this value for computation efficiency.
-          pre_process: True # add embedding
-          post_process: True # add pooler
-          persist_layer_norm: True # Use of persistent fused layer norm kernel.
-          grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
-          gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-          gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
-          activations_checkpoint_granularity: full # 'selective' or 'full'
-          activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-          activations_checkpoint_num_layers: 1 # not used with 'selective'
-          sequence_parallel: False
+          make_vocab_size_divisible_by: 128
+          pre_process: True
+          post_process: True
+          persist_layer_norm: True
+          grad_div_ar_fusion: True
+          gradient_as_bucket_view: True
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: selective
+          activations_checkpoint_method: null
+          activations_checkpoint_num_layers: null
+          sequence_parallel: True
 
           tokenizer:
             library: 'megatron'
             type: 'GPT2BPETokenizer'
             model: null
-            delimiter: null # only used for tabular tokenizer
+            delimiter: null
             vocab_file: ${data_dir}/bpe/vocab.json
             merge_file: ${data_dir}/bpe/merges.txt
 
           # precision
-          native_amp_init_scale: 4294967296 # 2 ** 32
+          native_amp_init_scale: 4294967296
           native_amp_growth_interval: 1000
-          hysteresis: 2 # Gradient scale hysteresis
-          fp32_residual_connection: False # Move residual connections to fp32
-          fp16_lm_cross_entropy: False # Move the cross entropy unreduced loss calculation for lm head to fp16
+          hysteresis: 2
+          fp32_residual_connection: False
+          fp16_lm_cross_entropy: False
 
           # Megatron O2-style half-precision
           megatron_amp_O2: True
@@ -904,9 +901,9 @@ class TestTrainingGPT3Config:
 
           # miscellaneous
           seed: 1234
-          use_cpu_initialization: False # Init weights on the CPU (slow for large models)
-          onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
-          apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
+          use_cpu_initialization: False
+          onnx_safe: False
+          apex_transformer_log_level: 30
 
           optim:
             name: fused_adam
@@ -927,12 +924,12 @@ class TestTrainingGPT3Config:
             seq_length: 2048
             skip_warmup: True
             num_workers: 2
-            dataloader_type: single # cyclic
-            reset_position_ids: False # Reset position ids after end-of-document token
-            reset_attention_mask: False # Reset attention mask after end-of-document token
-            eod_mask_loss: False # Mask loss for the end of document tokens
-            index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-            data_prefix: # Should be weight path weight path... for a blended dataset
+            dataloader_type: single
+            reset_position_ids: False
+            reset_attention_mask: False
+            eod_mask_loss: False
+            index_mapping_dir: null
+            data_prefix:
               - .0333
               - ${data_dir}/my-gpt3_00_text_document
               - .0333
