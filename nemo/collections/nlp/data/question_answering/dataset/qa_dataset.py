@@ -44,16 +44,6 @@ class QADataset(Dataset):
         raise NotImplementedError
 
     @staticmethod
-    def get_cached_feature_filename(data_file: str, parameters: List):
-        """ Returns cahced feature file name from given data file and parameters """
-
-        cached_features_file = data_file + "_cache"
-        for param in parameters:
-            cached_features_file = f"{cached_features_file}_{param}"
-
-        return cached_features_file
-
-    @staticmethod
     def load_features_from_cache(cached_filename):
         logging.info(f"loading from {cached_filename}")
         with open(cached_filename, "rb") as reader:

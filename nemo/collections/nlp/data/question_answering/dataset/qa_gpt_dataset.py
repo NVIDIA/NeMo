@@ -72,21 +72,7 @@ class GPTQADataset(QADataset):
         elif num_samples > 0:
             self.examples = self.examples[:num_samples]
 
-        # create cached filename to load/save features as per flag
-        vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        self.cached_features_file = QADataset.get_cached_feature_filename(
-            self.data_file,
-            [
-                self.mode,
-                self.tokenizer.name,
-                str(vocab_size),
-                str(self.max_query_length),
-                str(self.max_seq_length),
-                str(self.max_answer_length),
-                str(self.num_samples),
-            ],
-        )
-
+        self._set_cached_features_filename()
         if use_cache and os.path.exists(self.cached_features_file):
             if self.mode == TRAINING_MODE:
                 del self.examples
@@ -100,6 +86,24 @@ class GPTQADataset(QADataset):
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
             self.features[i] = GPTQAInputFeatures(**self.features[i])
+
+    def _set_cached_features_filename(self):
+        """ Creates cache filename using dataset config parameters """
+
+        vocab_size = getattr(self.tokenizer, "vocab_size", 0)
+        self.cached_features_file = (
+            self.data_file
+            + '_cache'
+            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+                self.mode,
+                self.tokenizer.name,
+                str(vocab_size),
+                str(self.max_query_length),
+                str(self.max_seq_length),
+                str(self.max_answer_length),
+                str(self.num_samples),
+            )
+        )
 
     def _convert_examples_to_features(self):
         """
