@@ -401,6 +401,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             encoder_input = input_embeds + position_embeddings
         else:
             encoder_input = None
+
         # Call forward on GPT model with preprocessed embeddings
         if self.autocast_dtype == torch.float32:
             output = self.frozen_model.model(

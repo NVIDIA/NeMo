@@ -63,7 +63,6 @@ class DialogueGPTClassificationModel(NLPModel):
                 new_cfg = copy.copy(cfg)
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
-                self.language_model.init_new_prompts()
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
@@ -427,7 +426,7 @@ class DialogueGPTClassificationModel(NLPModel):
         # adapted from MegatronGPTModel._bucketize_gpt_inference 
         """
         batch_size = labels.size(0)
-        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_tags else None
+        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
         batch_tokens = input_ids.tolist()
 
         # unpad tokens
@@ -611,6 +610,11 @@ class DialogueGPTClassificationModel(NLPModel):
             raise ValueError("Only sgd, assistant, zero_shot, design supported for Dialogue GPT Classification Model")
 
         self.data_prepared = True
+
+    def setup(self, stage=None):
+        super().setup()
+        if self.prompt_learning and self.cfg.library == "megatron":
+            self.language_model.init_new_prompts()
 
     def update_data_dirs(self, data_dir: str, dialogues_example_dir: str):
         """

@@ -66,7 +66,6 @@ class DialogueGPTGenerationModel(NLPModel):
                 new_cfg = copy.copy(cfg)
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
-                self.language_model.init_new_prompts()
             else:
                 self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
 
@@ -216,12 +215,17 @@ class DialogueGPTGenerationModel(NLPModel):
         loss = torch.sum(losses.view(-1) * loss_mask) / loss_mask.sum()
         return loss
 
+    def setup(self, stage=None):
+        super().setup()
+        if self.prompt_learning and self.cfg.library == "megatron":
+            self.language_model.init_new_prompts()
+
     def prepare_megatron_generation(self, labels, input_ids, template_length):
         """
         # adapted from MegatronGPTModel._bucketize_gpt_inference 
         """
         batch_size = labels.size(0)
-        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_tags else None
+        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
         batch_tokens = input_ids.tolist()
 
         # unpad tokens
