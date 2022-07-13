@@ -51,10 +51,6 @@ def log_sum_exp(a: float, b: float):
     else:
         return math.log1p(math.exp(a - b)) + b
 
-@cuda.jit(device=True, inline=True)
-def log_3sum_exp(a: float, b: float, c: float):
-    return log_sum_exp(log_sum_exp(a, b), c)
-
 
 @cuda.jit(device=True, inline=True)
 def div_up(x: int, y: int):
