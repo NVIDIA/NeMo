@@ -151,16 +151,19 @@ class QAMetrics(object):
         has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
         no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
 
-        all_exact, all_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, list(qas_id_to_has_answer))
-        all_eval_dict = QAMetrics.make_eval_dict(all_exact, all_f1)
+        filters_and_prefixes = [
+            (list(qas_id_to_has_answer), ""),
+            (has_answer_qids, "HasAns_"),
+            (no_answer_qids, "NoAns_")
+        ]
 
-        has_ans_exact, has_ans_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, has_answer_qids)
-        has_ans_eval_dict = QAMetrics.make_eval_dict(has_ans_exact, has_ans_f1, prefix="HasAns_")
-        
-        no_ans_exact, no_ans_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, no_answer_qids)
-        no_ans_eval_dict = QAMetrics.make_eval_dict(no_ans_exact, no_ans_f1, prefix="NoAns_")
+        eval_dicts = []
+        for qas_id_filter, prefix in filters_and_prefixes:
+            curr_exact, curr_f1 = QAMetrics.get_exact_match_and_f1(examples, all_predictions, qas_id_filter)
+            curr_eval_dict = QAMetrics.make_eval_dict(curr_exact, curr_f1, prefix=prefix)
+            eval_dicts.append(curr_eval_dict)
 
-        merged_eval_dict = QAMetrics.merge_eval_dicts([all_eval_dict, has_ans_eval_dict, no_ans_eval_dict])
+        merged_eval_dict = QAMetrics.merge_eval_dicts(eval_dicts)
 
         return merged_eval_dict
 
