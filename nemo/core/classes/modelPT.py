@@ -35,7 +35,7 @@ from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
-from nemo.utils.get_rank import is_global_rank_zero
+from nemo.utils.get_rank import get_rank, is_global_rank_zero
 
 try:
     from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
@@ -1452,10 +1452,7 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if (
-                        batch_idx == self._nsys_profile_start_step
-                        and torch.distributed.get_rank() in self._nsys_profile_ranks
-                    ):
+                    if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== Start nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStart()
                         if self._nsys_profile_gen_shape:
@@ -1470,9 +1467,6 @@ class ModelPT(LightningModule, Model):
         if self.device.type == 'cuda':
             if hasattr(self, '_nsys_profile_enabled'):
                 if self._nsys_profile_enabled:
-                    if (
-                        batch_idx == self._nsys_profile_end_step
-                        and torch.distributed.get_rank() in self._nsys_profile_ranks
-                    ):
+                    if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
                         logging.info("====== End nsys profiling ======")
                         torch.cuda.cudart().cudaProfilerStop()
