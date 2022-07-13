@@ -13,7 +13,7 @@ trainer:
   enable_checkpointing: False
   replace_sampler_ddp: False
   max_epochs: null
-  max_steps: 600000 # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
+  max_steps: 600000 # consumed_samples = global_step * global_batch_size
   max_time: "01:11:30:00" # days:hours:minutes:seconds
   log_every_n_steps: 10
   val_check_interval: 2000
@@ -48,7 +48,6 @@ exp_manager:
     buffer_size: 5
 
 model:
-  # model parallelism 
   micro_batch_size: 4
   global_batch_size: 256
   tensor_model_parallel_size: 1
@@ -73,23 +72,14 @@ model:
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  gradient_accumulation_fusion: False # Fuse weight gradient accumulation to GEMMs
+  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
 
   ## Activation Checkpointing
-  # NeMo Megatron supports 'selective' activation checkpointing where only the memory intensive part of attention is checkpointed.
-  # These memory intensive activations are also less compute intensive which makes activation checkpointing more efficient for LLMs (20B+).
-  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
-  # 'full' will checkpoint the entire transformer layer.
   activations_checkpoint_granularity: full # 'selective' or 'full'
   activations_checkpoint_method: block # 'uniform', 'block', not used with 'selective'
-  # 'uniform' divides the total number of transformer layers and checkpoints the input activation
-  # of each chunk at the specified granularity
-  # 'block' checkpoints the specified number of layers per pipeline stage at the specified granularity
   activations_checkpoint_num_layers: 0 # not used with 'selective'
 
   ## Sequence Parallelism
-  # Makes tensor parallelism more memory efficient for LLMs (20B+) by parallelizing layer norms and dropout sequentially
-  # See Reducing Activation Recomputation in Large Transformer Models: https://arxiv.org/abs/2205.05198 for more details.
   sequence_parallel: False
 
   tokenizer:

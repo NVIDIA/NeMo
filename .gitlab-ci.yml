@@ -173,8 +173,9 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1_1node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -185,8 +186,9 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -197,8 +199,9 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -210,7 +213,10 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp4_pp4_4node_100steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -222,7 +228,10 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 5b_tp2_pp1_1node_100steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -234,7 +243,10 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 5b_tp2_pp2_2node_100steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -246,7 +258,10 @@ train.gpt3.20b_tp8_pp2_4node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 20b_tp8_pp2_4node_100steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -258,7 +273,10 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 40b_tp8_pp4_8node_100steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -270,7 +288,10 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 175b_tp8_pp16_16node_50steps
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -293,8 +314,9 @@ train.t5.220m_tp2_pp1_1node_100steps:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp1_1node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -305,8 +327,9 @@ train.t5.220m_tp1_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -317,8 +340,9 @@ train.t5.220m_tp2_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -342,8 +366,9 @@ train.mt5.170m_tp2_pp1_1node_100steps:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp1_1node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -354,8 +379,9 @@ train.mt5.170m_tp1_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -366,8 +392,9 @@ train.mt5.170m_tp2_pp2_2node_100steps:
     RUN_TASK: train
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - build-BigNLP
 
@@ -378,8 +405,9 @@ eval.gpt3.126m_tp1_pp1_lambada:
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1_lambada
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
@@ -391,8 +419,9 @@ eval.gpt3.126m_tp2_pp1_lambada:
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1_lambada
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
@@ -404,8 +433,9 @@ eval.gpt3.126m_tp1_pp2_lambada:
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2_lambada
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
@@ -417,8 +447,9 @@ eval.gpt3.126m_tp2_pp2_lambada:
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2_lambada
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
@@ -430,8 +461,9 @@ convert.gpt3.126m_tp1_pp1:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
@@ -443,8 +475,9 @@ convert.gpt3.126m_tp2_pp1:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
@@ -456,8 +489,9 @@ convert.gpt3.126m_tp1_pp2:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
@@ -469,8 +503,9 @@ convert.gpt3.126m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
@@ -481,8 +516,9 @@ convert.t5.220m_tp1_pp1:
     RUN_TASK: convert
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp1
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.t5.220m_tp1_pp1_1node_100steps
 
@@ -493,8 +529,9 @@ convert.t5.220m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp2
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.t5.220m_tp2_pp2_2node_100steps
 
@@ -505,8 +542,9 @@ finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
     RUN_TASK: finetune
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps_mnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - convert.t5.220m_tp1_pp1
 
@@ -517,8 +555,9 @@ finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
     RUN_TASK: finetune
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps_mnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - convert.t5.220m_tp2_pp2
 
@@ -529,8 +568,9 @@ eval.t5.220m_tp1_pp1:
     RUN_TASK: eval
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp1_mnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
@@ -541,8 +581,9 @@ eval.t5.220m_tp2_pp2:
     RUN_TASK: eval
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp2_mnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
 
@@ -553,8 +594,9 @@ convert.mt5.170m_tp1_pp1:
     RUN_TASK: convert
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp1
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.mt5.170m_tp1_pp1_1node_100steps
 
@@ -565,8 +607,9 @@ convert.mt5.170m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp2
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
@@ -577,8 +620,9 @@ finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
     RUN_TASK: finetune
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp1_1node_100steps_xnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - convert.mt5.170m_tp1_pp1
 
@@ -589,8 +633,9 @@ finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
     RUN_TASK: finetune
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps_xnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - convert.mt5.170m_tp2_pp2
 
@@ -601,8 +646,9 @@ eval.mt5.170m_tp1_pp1:
     RUN_TASK: eval
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp1_xnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - finetune.mt5.170m_tp1_pp1_1node_100steps_xnli
 
@@ -613,8 +659,9 @@ eval.mt5.170m_tp2_pp2:
     RUN_TASK: eval
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp2_xnli
-  rules:
-    - when: always
+  only:
+    - master
+    - merge_requests
   needs:
     - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
 
@@ -625,10 +672,23 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
     RUN_TASK: prompt_learn
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1_1node_100steps_squad
+  only:
+    - master
+    - merge_requests
+  needs:
+    - convert.gpt3.126m_tp1_pp1
+
+prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: prompt_learn
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1_1node_squad_real
   rules:
     - when: always
   needs:
-    - convert.gpt3.126m_tp1_pp1
+    - build-BigNLP
 
 eval.gpt3.prompt_126m_tp1_pp1_squad:
   <<: *bignlp-LUNA-test-LAUNCHER
@@ -637,10 +697,23 @@ eval.gpt3.prompt_126m_tp1_pp1_squad:
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: prompt_126m_tp1_pp1_squad
+  only:
+    - master
+    - merge_requests
+  needs:
+    - prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
+
+eval.gpt3.prompt_126m_tp1_pp1_squad_real:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: eval
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: prompt_126m_tp1_pp1_squad_real
   rules:
     - when: always
   needs:
-    - prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
+    - prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
 
 data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
@@ -650,7 +723,10 @@ data_prep.gpt3.the_pile_prepare_shard00:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: the_pile_prepare_shard00
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -663,7 +739,10 @@ data_prep.t5.the_pile_prepare_shard00:
     RUN_MODEL: t5
     RUN_JOB_NAME: the_pile_prepare_shard00
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 
@@ -676,7 +755,10 @@ data_prep.mt5.mc4_prepare_lang_mt:
     RUN_MODEL: mt5
     RUN_JOB_NAME: mc4_prepare_lang_mt
   rules:
-    - when: manual
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - build-BigNLP
 

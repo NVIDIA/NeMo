@@ -86,6 +86,7 @@ class TestTrainingT5Config:
           position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
           relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
           relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+          relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
           kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
@@ -310,6 +311,7 @@ class TestTrainingT5Config:
           position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
           relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
           relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+          relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
           kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
@@ -534,6 +536,7 @@ class TestTrainingT5Config:
           position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
           relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
           relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+          relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
           kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
@@ -758,6 +761,7 @@ class TestTrainingT5Config:
           position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
           relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
           relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+          relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
           kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5
@@ -982,6 +986,7 @@ class TestTrainingT5Config:
           position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
           relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
           relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+          relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
           kv_channels: 64  # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
           apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
           layernorm_epsilon: 1e-5

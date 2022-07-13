@@ -1,6 +1,6 @@
 import os
-
 import json
+
 import pytest
 
 from tensorboard.backend.event_processing import event_accumulator
@@ -32,61 +32,60 @@ def _read_tb_logs_as_list(path, summary_name):
     raise FileNotFoundError(f"File not found matching: {path}/events*")
 
 
-class TestBignlpCI:
+class TestCIGPT126m:
 
     margin_loss, margin_time = 0.05, 0.1
     expected_json = \
     r"""
-    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [10.2944, 8.5356, 8.07193, 7.67528, 7.29639, 6.67694, 6.09533, 5.54995, 5.20871, 4.93846, 4.78442, 4.66575, 4.55398, 4.47985, 4.43629, 4.31995, 4.25373, 4.23297, 4.15783, 4.05233]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [7.21609, 5.04802, 4.50659, 4.21289, 3.94675]}, "train_step_timing_avg": 0.0746176}
+    {"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [8.43695, 8.60533, 8.45081, 8.1846, 8.00846, 7.85251, 7.71426, 7.78954, 7.66998, 7.38658, 7.38321, 7.53914, 7.40403, 7.45651, 7.22913, 7.22767, 7.43749, 7.49854, 7.44012, 7.34642]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [8.04726, 7.57884, 7.36397, 7.34229, 7.33877]}, "train_step_timing_avg": 0.049167999999999996}
     """
-
     expected = json.loads(expected_json)
 
-    def test_ci_mt5_170m_train_loss_deterministic(self):
+    def test_ci_gpt3_126m_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
         train_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "reduced_train_loss")
 
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(train_loss_list) == 100, f"The events file must have 10 training loss values, one per training iteration."
+        # assert len(train_loss_list) == 100, f"The events file must have 10 training loss values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_mt5_170m_train_loss_approx(self):
+    def test_ci_gpt3_126m_train_loss_approx(self):
         # Expected training loss curve at different global steps.
         expected = self.expected["reduced_train_loss"]
         expected_vals = expected["values"]
         train_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "reduced_train_loss")
 
         assert train_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(train_loss_list) == 100, f"The events file must have 100 training loss values, one per training iteration."
+        # assert len(train_loss_list) == 100, f"The events file must have 100 training loss values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert train_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
 
-    def test_ci_mt5_170m_val_loss_deterministic(self):
+    def test_ci_gpt3_126m_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
         val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
+        # assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == expected_vals[i], f"The loss at step {step} should be {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_mt5_170m_val_loss_approx(self):
+    def test_ci_gpt3_126m_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
         expected = self.expected["val_loss"]
         expected_vals = expected["values"]
         val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
         assert val_loss_list is not None, f"No TensorBoard events file was found in the logs."
-        assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
+        # assert len(val_loss_list) == 5, f"The events file must have 5 validation loss values."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             assert val_loss_list[step] == pytest.approx(expected=expected_vals[i], rel=self.margin_loss), f"The loss at step {step} should be approximately {expected_vals[i]} but it is {val_loss_list[step]}."
 
-    def test_ci_mt5_170m_train_step_timing_1node(self):
+    def test_ci_gpt3_126m_train_step_timing_1node(self):
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
         train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
