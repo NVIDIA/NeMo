@@ -44,8 +44,7 @@ def get_rank():
     """ Helper function that returns torch.distributed.get_rank() if DDP has been initialized otherwise it returns 0.
     """
 
-    rank = 0
     if is_global_rank_zero():
-        return rank
+        return 0
     else:
         return torch.distributed.get_rank()
