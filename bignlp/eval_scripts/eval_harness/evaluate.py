@@ -341,9 +341,6 @@ def main():
             if merge_file is not None:
                 conf.cfg.tokenizer.merge_file = merge_file
 
-            # Force activations_checkpoint_method to be None
-            conf.cfg.activations_checkpoint_method = None
-
             if is_global_rank_zero():
                 with open(hparams_override_file, "w") as f:
                     OmegaConf.save(config=conf, f=f)
