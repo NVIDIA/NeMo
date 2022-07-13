@@ -14,7 +14,7 @@
 import itertools
 import random
 import re
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -36,14 +36,12 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
     MegatronLMEncoderDecoderModel,
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.utils import AppState, logging, timers
-
 from nemo.core.classes.exportable import Exportable
-from typing import Dict, List, Optional
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.utils import AppState, logging, timers
 
 try:
     from apex.transformer import parallel_state
@@ -56,10 +54,12 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ["MegatronNMTModel"]
 
+
 class TokensHeadWEmb(torch.nn.Module, Exportable):
     """
     Combines decoder_embedding with the tokens_head layer to simulate the classifier in NemoNMT
     """
+
     def __init__(self, decoder_embedding, tokens_head, device='cuda:0'):
         super(TokensHeadWEmb, self).__init__()
 
@@ -105,10 +105,12 @@ class TokensHeadWEmb(torch.nn.Module, Exportable):
     def output_names(self) -> List[str]:
         return ['log_probs']
 
+
 class DecWEmb(torch.nn.Module, Exportable):
     """
     Combines decoder_embedding with the decoder component
     """
+
     def __init__(self, decoder_embedding, decoder, device='cuda:0'):
         super(DecWEmb, self).__init__()
 
@@ -123,10 +125,7 @@ class DecWEmb(torch.nn.Module, Exportable):
         return None
 
     def modules(self):
-        return (
-            self.decoder_embedding,
-            self.decoder
-        )
+        return (self.decoder_embedding, self.decoder)
 
     def forward(self, input_ids, decoder_mask, encoder_mask, encoder_embeddings, dec_mems):
         position_ids = build_position_ids(input_ids)
@@ -135,9 +134,7 @@ class DecWEmb(torch.nn.Module, Exportable):
         # dec_input, dec_attn_mask, enc_output, enc_attn_mask | dec_input, dec_attn_mask, enc_output, enc_attn_mask
         _ = dec_mems
 
-        return self.decoder(
-            dec_input, decoder_mask, encoder_embeddings, encoder_mask
-        ).float()
+        return self.decoder(dec_input, decoder_mask, encoder_embeddings, encoder_mask).float()
 
     def input_example(self, max_batch=1, max_dim=1024, seq_len=6):
         enc_output = torch.randint(
@@ -146,11 +143,9 @@ class DecWEmb(torch.nn.Module, Exportable):
         enc_attn_mask = torch.tensor([[1 for _ in range(seq_len)]]).to(self.device)
 
         dec_len = random.randint(10, 128)
-        dec_input = torch.randint(
-            low=0, high=1000, size=(max_batch, dec_len), device=self.device
-        )
+        dec_input = torch.randint(low=0, high=1000, size=(max_batch, dec_len), device=self.device)
         dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(self.device)
-        decoder_mems = torch.zeros([ 8, 6, 1024], dtype=torch.float32).to(self.device)
+        decoder_mems = torch.zeros([8, 6, 1024], dtype=torch.float32).to(self.device)
 
         # input_ids, decoder_mask, encoder_mask, encoder_embeddings
         return (dec_input, dec_attn_mask, enc_attn_mask, enc_output, decoder_mems)
@@ -177,10 +172,12 @@ class DecWEmb(torch.nn.Module, Exportable):
     def output_names(self) -> List[str]:
         return ['last_hidden_states']
 
+
 class EncWEmb(torch.nn.Module, Exportable):
     """
     Combines encoder_embedding with the encoder component
     """
+
     def __init__(self, encoder_embedding, encoder, device='cuda:0'):
         super(EncWEmb, self).__init__()
 
@@ -195,24 +192,21 @@ class EncWEmb(torch.nn.Module, Exportable):
         return None
 
     def modules(self):
-        return (
-            self.encoder_embedding,
-            self.encoder
-        )
+        return (self.encoder_embedding, self.encoder)
 
     def forward(self, input_ids, encoder_mask):
         position_ids = build_position_ids(input_ids)
-        enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)    
+        enc_input = self.encoder_embedding(input_ids, position_ids, token_type_ids=None)
 
         # pass input through the encoder
-        return self.encoder(
-            enc_input=enc_input, 
-            enc_attn_mask=encoder_mask, 
-        ).type(torch.float32)
+        return self.encoder(enc_input=enc_input, enc_attn_mask=encoder_mask,).type(torch.float32)
 
     def input_example(self):
         seq_len = random.randint(0, 128)
-        return torch.randint(0, 30000, (1, seq_len)).to(self.device), torch.ones((1, seq_len), dtype=int).to(self.device)
+        return (
+            torch.randint(0, 30000, (1, seq_len)).to(self.device),
+            torch.ones((1, seq_len), dtype=int).to(self.device),
+        )
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
