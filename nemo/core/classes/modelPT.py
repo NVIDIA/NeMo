@@ -1417,9 +1417,10 @@ class ModelPT(LightningModule, Model):
             nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
             See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
         """
-        if self.cfg.get('nsys_profile', None):
+        if self.cfg.get('nsys_profile', None) is not None:
             if self.cfg.nsys_profile.get('enabled', False):
                 # Nsys profiling options
+                self._nsys_profile_enabled = True
                 self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
                 self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
                 self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
@@ -1449,8 +1450,8 @@ class ModelPT(LightningModule, Model):
         """
 
         if self.device.type == 'cuda':
-            if self.cfg.get('nsys_profile', None):
-                if self.cfg.nsys_profile.get('enabled', False):
+            if hasattr(self, '_nsys_profile_enabled'):
+                if self._nsys_profile_enabled:
                     if (
                         batch_idx == self._nsys_profile_start_step
                         and torch.distributed.get_rank() in self._nsys_profile_ranks
@@ -1467,8 +1468,8 @@ class ModelPT(LightningModule, Model):
         """
 
         if self.device.type == 'cuda':
-            if self.cfg.get('nsys_profile', None):
-                if self.cfg.nsys_profile.get('enabled', False):
+            if hasattr(self, '_nsys_profile_enabled'):
+                if self._nsys_profile_enabled:
                     if (
                         batch_idx == self._nsys_profile_end_step
                         and torch.distributed.get_rank() in self._nsys_profile_ranks
