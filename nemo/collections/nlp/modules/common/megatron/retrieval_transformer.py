@@ -54,7 +54,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -84,7 +83,6 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.init_method = init_method
-        self.model_attn_mask_type = attn_mask_type
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
@@ -107,7 +105,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             kv_channels=kv_channels,
             layer_type=layer_type,
             ffn_hidden_size=ffn_hidden_size,
-            self_attn_mask_type=self.model_attn_mask_type,
+            self_attn_mask_type=AttnMaskType.padding,
             pre_process=self.pre_process,
             post_process=self.post_process,
             precision=precision,
@@ -255,7 +253,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         # # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
         )
         enc_attn_mask_3d = enc_attn_mask_3d[:, None, :, :]
 
@@ -320,7 +318,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         pre_process=True,
         post_process=True,
         use_cpu_initialization=False,
-        attn_mask_type=AttnMaskType.causal,
         hidden_dropout=0.1,
         attention_dropout=0.1,
         precision=16,
@@ -349,7 +346,6 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         self.init_method = init_method
-        self.model_attn_mask_type = attn_mask_type
         self.hidden_dropout = hidden_dropout
         self.output_layer_init_method = output_layer_init_method
         self.parent_model_type = parent_model_type
@@ -372,7 +368,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             kv_channels=kv_channels,
             layer_type=layer_type,
             ffn_hidden_size=ffn_hidden_size,
-            self_attn_mask_type=self.model_attn_mask_type,
+            self_attn_mask_type=AttnMaskType.padding,  # we use attention mask reset, enforce to use padding AttnMaskType, otherwise it has numeric issues
             pre_process=self.pre_process,
             post_process=self.post_process,
             precision=precision,
@@ -410,9 +406,12 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
     def _calculate_dec_att_mask(self, dec_attn_mask, eod_positions):
         # # convert to Megatron mask
+
+        # customized attention mask, starts with causal attention mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=self.model_attn_mask_type,
+            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=AttnMaskType.causal,
         )
+        # add the attention mask reset
         if eod_positions is not None:
             # to mask out the token ids [id, id,  eod, id, pad, eod, id, id]
             # so attention is not across eod, mask should be:
