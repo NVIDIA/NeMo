@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torchmetrics import (
-    Accuracy,
-    AveragePrecision,
-    F1Score,
-    MatthewsCorrCoef,
-    PearsonCorrCoef,
-    SpearmanCorrCoef,
-)
+from torchmetrics import Accuracy, AveragePrecision, F1Score, MatthewsCorrCoef, PearsonCorrCoef, SpearmanCorrCoef
 
 from nemo.collections.common.metrics.classification_accuracy import ExactStringMatchMetric
 

@@ -46,7 +46,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         self.val_metric = torch.nn.ModuleList(self.val_metric)
         if hasattr(self.cfg.data, "test_ds"):
             self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
-            self.test_metric = torch.nn.ModuleList(self.test_metric)        
+            self.test_metric = torch.nn.ModuleList(self.test_metric)
 
     def setup_metric(self, data_cfg):
         # XNLI is a special case.
@@ -68,13 +68,18 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                         raise ValueError(
                             f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
                         )
-                if data_cfg.metric.get('labels_are_strings', False) and data_cfg.metric.name in self._metrics_require_string2category_map:
+                if (
+                    data_cfg.metric.get('labels_are_strings', False)
+                    and data_cfg.metric.name in self._metrics_require_string2category_map
+                ):
                     if data_cfg.metric.num_classes is None:
                         raise ValueError(
                             "Number of classes is not provided in the metric section within the data config. "
                             f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
                         )
-                    if data_cfg.metric.get('class_labels', None) is None or not isinstance(data_cfg.metric.get('class_labels', None), ListConfig):
+                    if data_cfg.metric.get('class_labels', None) is None or not isinstance(
+                        data_cfg.metric.get('class_labels', None), ListConfig
+                    ):
                         raise ValueError(
                             "Class labels are not provided properly in the metric section witnin the data config. "
                             f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
@@ -91,7 +96,9 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 if isinstance(data_cfg.src_file_name, ListConfig):
                     # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
                     metric = [
-                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes) if metric_name != 'exact_string_match' else metric()
+                        metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
+                        if metric_name != 'exact_string_match'
+                        else metric()
                         for _ in range(len(self.cfg.data.test_ds.src_file_name))
                     ]
                 else:
@@ -230,12 +237,12 @@ class MegatronT5FinetuneModel(MegatronT5Model):
 
             pred = torch.LongTensor([pred]).to(self.device)
             label = torch.LongTensor([label]).to(self.device)
-        
+
         # If labels are strings, we need to convert them to indices for some metrics.
         elif metric_name in self._metrics_require_string2category_map and labels_are_strings:
             # Cast string labels to integers before computing the metric.
             if pred not in class_labels:
-                pred = 0 # If the prediction is not in the class labels, use the first class label.
+                pred = 0  # If the prediction is not in the class labels, use the first class label.
             else:
                 pred = class_labels.index(pred)
             if label not in class_labels:
