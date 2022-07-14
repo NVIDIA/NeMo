@@ -147,13 +147,13 @@ pipeline {
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-9-22'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-9-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
           }
         }
         stage('Test En Hybrid TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python scripts/text_normalization/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-9-22 | grep "all_correct: True" || exit 1'
+            sh 'CUDA_VISIBLE_DEVICES="" python scripts/text_normalization/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 | grep "all_correct: True" || exit 1'
           }
         }
       }
@@ -1028,7 +1028,37 @@ pipeline {
         }
       }
     }
-    stage('L2: Dialogue Generation Part 2') {
+//     stage('L2: Dialogue Generation Part 2') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       parallel {
+//         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
+//           steps {
+//             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+//             python dialogue.py \
+//             do_training=False \
+//             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+//             model.dataset.dialogues_example_dir=answer_extender \
+//             model.library=huggingface \
+//             model.dataset.task=ms_marco \
+//             model.dataset.debug_mode=True \
+//             trainer.val_check_interval=0.0 \
+//             trainer.devices=[0] \
+//             model.dataset.use_cache=false \
+//             model.language_model.pretrained_model_name=gpt2 \
+//             trainer.accelerator=gpu \
+//             exp_manager=null  && \
+//             rm -rf answer_extender'
+//           }
+//         }
+//       }
+//     }
+    stage('L2: COPY') {
       when {
         anyOf {
           branch 'main'
@@ -1139,29 +1169,6 @@ pipeline {
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
           }
         }
-        //this is a new test by @aleksandraa
-        //cannot run it in a fork, Jenkins doesn't see it
-        //need to uncomment, when given writing permissions to NeMo
-        //stage('Text normalization as tagging (Thutmose Tagger)') {
-        //  steps {
-        //    sh 'cd examples/nlp/normalization_as_tagging && \
-	    //    python normalization_as_tagging_train.py \
-	    //    lang="en" \
-        //    data.validation_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/valid.tsv \
-        //    data.train_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/train.tsv \
-        //    data.train_ds.batch_size=2 \
-        //    data.train_ds.num_workers=2 \
-        //    model.language_model.pretrained_model_name=bert-base-uncased \
-        //    model.label_map=/home/TestData/nlp/text_normalization_as_tagging/en_mini/label_map.txt \
-        //    model.semiotic_classes=/home/TestData/nlp/text_normalization_as_tagging/en_mini/semiotic_classes.txt \
-        //    exp_manager.create_checkpoint_callback=false \
-        //    trainer.devices=1 \
-        //    trainer.num_nodes=1 \
-        //    trainer.accelerator=gpu \
-        //    trainer.strategy=ddp \
-        //    +trainer.fast_dev_run=true'
-        //  }
-        //}
       }
     }
     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
@@ -1887,6 +1894,7 @@ pipeline {
               +exp_manager.create_checkpoint_callback=true \
               +exp_manager.resume_if_exists=True \
               '
+              sh 'rm -rf examples/nlp/machine_translation/nmt_results'
             }
         }
 
@@ -1976,6 +1984,41 @@ pipeline {
         }
       }
     }
+
+    stage('L2: NMT Attention is All You Need Finetuning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "cd examples/nlp/machine_translation && \
+        python enc_dec_nmt_finetune.py \
+        model_path=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+        trainer.devices=[0] \
+        ~trainer.max_epochs \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        +trainer.val_check_interval=10 \
+        +trainer.limit_val_batches=1 \
+        +trainer.limit_test_batches=1 \
+        +trainer.max_steps=10 \
+        +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_finetune \
+        +exp_manager.create_checkpoint_callback=True \
+        +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
+        +exp_manager.checkpoint_callback_params.mode=max \
+        +exp_manager.checkpoint_callback_params.save_best_model=true \
+        "
+        sh "rm -rf examples/nlp/machine_translation/nmt_finetune"
+      }
+    }
+
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
