@@ -252,11 +252,12 @@ def compute_betas_kernel(
     # Initilize beta[b, t=T-1, u=U-1] for all b in B with log_probs[b, t=T-1, u=U-1, blank]
     if u == 0:
         betas[offset + (T - 1) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - 1, U - 1, blank_)
-        if T >= big_blank_duration_:
+        if T >= big_blank_duration_ and big_blank_duration_ == 1:
             betas[offset + (T - 1) * maxU + U - 1] = rnnt_helper.log_sum_exp(
                 betas[offset + (T - 1) * maxU + U - 1],
                 logp(denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration_, U - 1, big_blank_)
             )
+#            betas[offset + (T - big_blank_duration_) * maxU + U - 1] = logp(denom, acts, maxT, maxU, alphabet_size, b, T - big_blank_duration_, U - 1, big_blank_)
 
     # sync until all betas are initialized
     cuda.syncthreads()
@@ -279,6 +280,14 @@ def compute_betas_kernel(
                           denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_
                         )
                     )
+                elif t + big_blank_duration_ == T and big_blank_duration_ != 1:
+                    betas[offset + t * maxU + U - 1] = rnnt_helper.log_sum_exp(
+                        betas[offset + t * maxU + U - 1],
+                        logp(
+                          denom, acts, maxT, maxU, alphabet_size, b, t, U - 1, big_blank_
+                        )
+                    )
+
 
         elif u < U:
             if t == T - 1:
