@@ -4168,10 +4168,11 @@ given Global Batch Size (GBS).
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
 Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
 
-We measured the throughput of training a 5B parameter GPT-3 model on a DGX
-SuperPOD using a different number of nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.51x
-speedup. The table and chart below show the performance results.
+We measured the throughput of training 5B and 175B parameter GPT-3 models on 
+different numbers of DGX nodes, and we achieved near-linear
+scaling. For example, when scaling from 1 node to 20 nodes with a 5B model, we achieve 18.51x
+speedup. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speedup.
+The tables and charts below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |        |
 | ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
@@ -4181,6 +4182,15 @@ speedup. The table and chart below show the performance results.
 |      | Speed-up                        | 1x     | 2x     | 4.93x  | 8.71x  | 9.7x   | 16.95x | 18.51x |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
+
+|      |                                 |        | Nodes  |        |
+| ---- | ------------------------------- | ------ | ------ | ------ |
+|      |                                 | 16     | 32     | 128    |
+|      | Tokens per Second               | 20642  | 38025  | 141306 |
+| 5B   | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
+|      | Speed-up                        | 1x     | 1.84x  | 6.85x  |
+
+<img src="img/175B_GPT_3_throughput.svg"/>
 
 #### 7.1.3. Inference Performance
 <a id="markdown-inference-performance" name="inference-performance"></a>
