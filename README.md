@@ -4578,11 +4578,12 @@ The table and chart below show the performance results.
 **NeMo Megatron 22.06**
 * Sequence Parallelism and Selective Activation Checkpointing for GPT-3
 * Relative Position Embeddings for T5
+  * We used mC4 dataset (24 Languages) for pretraining the mT5 and verified our results on KNLI, KorQuAD, KLUE-STS, and XNLI tasks
 * Hyperparameter tool update with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
 * Hyperparameter tool: support for DGX A100 40GB configurations for GPT-3, T5, and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
 * Operation fusions for higher training throughput (3-6% speed-up)
-* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed up: nn%), 40B (speed up: nn%), 175B (speed up: nn%) 
+* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: nn%), 40B (speed-up: nn%), 175B (speed-up: nn%) 
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
@@ -4622,7 +4623,7 @@ The table and chart below show the performance results.
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* We observe lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings
+* Latest T5 code cannot fine-tune Absolute Position Embedding checkpoints correctly
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
 * For customers looking to do inference on BCP please use a previous inference container
