@@ -73,7 +73,7 @@ The context-aware version :cite:`textprocessing-norm-bakhturina2022shallow` is a
 
 .. code-block:: bash
 
-    cd NeMo/scripts/text_processing/
+    cd NeMo/nemo_text_processing/
     python wfst_lm_rescoring.py
 
 

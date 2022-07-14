@@ -153,7 +153,7 @@ pipeline {
         }
         stage('Test En Hybrid TN') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python scripts/text_normalization/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 | grep "all_correct: True" || exit 1'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 | grep "all_correct: True" || exit 1'
           }
         }
       }
