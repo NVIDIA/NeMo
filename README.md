@@ -4166,7 +4166,9 @@ given Global Batch Size (GBS).
 
 #### 7.1.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
-Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+Training performance: 
+ - NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+ - NVIDIA DGX SuperPODs (128 x 8 x A100 80GB for 175B GPT-3 model)
 
 We measured the throughput of training 5B and 175B parameter GPT-3 models on 
 different numbers of DGX nodes, and we achieved near-linear
