@@ -6,7 +6,7 @@ validation_datasets: ???
 ckpt_path: ???
 export_dir: ???
 sup_data_path: ???
-sup_data_types: ["log_mel", "duration_prior", "pitch", "voiced_mask", "p_voiced", "energy"] 
+sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"] 
 
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/tts.tsv"
 
@@ -36,7 +36,6 @@ heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921" #"scripts/tts_dat
 adlr_symbol_id_mapper_path: "scripts/tts_dataset_files/mapping.txt"
 
 model:
-  # aligner
   target: nemo.collections.tts.models.RadTTSModel
   bin_loss_start_ratio: 0.2
   bin_loss_warmup_epochs: 100
@@ -337,3 +336,4 @@ exp_manager:
     mode: min
     filepath: ${export_dir}
     filename: model_checkpoint
+_checkpoint
