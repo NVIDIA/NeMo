@@ -81,7 +81,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
                 )
         if cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if not cfg.get('share_token_embeddings', True) or not cfg.get('share_decoder_tokens_head_embeddings', True):
+            if not cfg.get('share_token_embeddings', True) or not cfg.get(
+                'share_decoder_tokens_head_embeddings', True
+            ):
                 raise ValueError(
                     "when pipeline_model_parallel_size > 1 we require share_token_embeddings=True and share_decoder_tokens_head_embeddings=True"
                 )
