@@ -1,7 +1,7 @@
 variables: &VARS
   HP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-hp-tool"
   HP_REGISTRY_SRUN: "gitlab-master.nvidia.com#dl/joc/bignlp-hp-tool"
-  HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.03-py"
+  HP_BASE_TRAINING_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.08-py"
   HP_BASE_INFERENCE_IMAGE: "nvcr.io/ea-bignlp/bignlp-inference:22.05-py3"
   BUILD_IMAGE_TRAINING_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_training_hp_tool:pipe.${CI_PIPELINE_ID}
   BUILD_IMAGE_INFERENCE_NAME_SRUN: ${HP_REGISTRY_SRUN}/bignlp_inference_hp_tool:pipe.${CI_PIPELINE_ID}
