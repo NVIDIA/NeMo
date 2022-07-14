@@ -228,7 +228,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
-| P-Tuning and Prompt Tuning                | Yes (Tensor Parallelism only)             | N/A                                                                                                                                                                  |
+| P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
