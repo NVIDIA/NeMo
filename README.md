@@ -4171,7 +4171,7 @@ Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model
 We measured the throughput of training 5B and 175B parameter GPT-3 models on 
 different numbers of DGX nodes, and we achieved near-linear
 scaling. For example, when scaling from 1 node to 20 nodes with a 5B model, we achieve 18.51x
-speedup. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speedup.
+speed-up. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
 The tables and charts below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |        |
@@ -4475,7 +4475,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 16.38x
-speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
+speed-up. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
 |         |                                        |        |                |                | Nodes    |                |                 |
@@ -4555,7 +4555,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
 We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 14.87x
-speedup. We are actively working on improving the scaling performance for mT5 models. 
+speed-up. We are actively working on improving the scaling performance for mT5 models. 
 The table and chart below show the performance results.
 
 
