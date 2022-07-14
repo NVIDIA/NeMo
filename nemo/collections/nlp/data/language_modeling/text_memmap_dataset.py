@@ -29,7 +29,6 @@ __all__ = ['TextMemMapDataset', 'CSVMemMapDataset', 'build_index_files']
 __idx_version__ = '0.1'  # index file version
 __idx_suffix__ = 'idx'  # index file suffix
 
-
 class TextMemMapDataset(Dataset):
     """
     Allow per-line lazy access to multiple text files using numpy memmap.
@@ -40,6 +39,7 @@ class TextMemMapDataset(Dataset):
         self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
         super().__init__()
+        self.mdata_midx_list = []
 
         if len(dataset_paths) < 1:
             raise ValueError("files_list must contain at leat one file name")
