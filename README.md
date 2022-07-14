@@ -189,6 +189,15 @@ are adopted. Tensor model parallelism partitions individual transformer layers o
 model parallelism stripes layers of a model over multiple devices. For more details, refer to
 [this paper](https://arxiv.org/pdf/2104.04473.pdf).
 
+Our latest techniques, sequence parallelism and selective activation recomputation, bring up to `~30%` faster 
+training time for GPT-3 models ranging from 20B to 1T parameters.
+Sequence parallelism expands tensor-level model parallelism, by 
+noticing that the regions of a transformer layer that have not previously been parallelized are independent 
+along the sequence dimension. By splitting these layers along the sequence dimension we can distribute 
+the compute and, most importantly, the activation memory for these regions across the tensor parallel devices.
+Selective activation recomputation improves cases where memory constraints force us to recompute some, 
+but not all, of the activations. For more details, refer to [this paper](https://arxiv.org/abs/2205.05198).
+
 **GPT-3 architecture**
 
 <img src="img/model_overview.png"/>
@@ -206,6 +215,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Data parallelism                | Yes                    | N/A                                                                                                                                                                  |
 | Tensor parallelism              | Yes                    | Yes                                                                                                                                                               |
 | Pipeline parallelism            | Yes                     | Yes (Megatron-LM checkpoints)                                                                                                                          |
+| Sequence parallelism            | Yes                     | No                                                                                                                       |
+| Selective activation checkpointing | Yes                     | No                                                                                                                       |
 | Gradient checkpointing          | Yes                    | N/A                                                                                                                                                                  |
 | Partial gradient checkpointing  | Yes                    | N/A                                                                                                                                                                  |
 | FP32/TF32                       | Yes                    | Yes (FP16 enabled by default)                                                                                                                                     |
@@ -217,7 +228,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
-| P-Tuning and Prompt Tuning                | Yes (Tensor Parallelism only)             | N/A                                                                                                                                                                  |
+| P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
@@ -227,6 +238,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Data parallelism                 | Yes                                                      |    N/A    |
 | Tensor parallelism               | Yes                                                      |    No     |
 | Pipeline parallelism             | Yes                                                      |    No     |
+| Sequence parallelism            | No                     | No                                                                                                                       |
+| Selective activation checkpointing | No                     | No                                                                                                                       |
 | Gradient checkpointing           | Yes                                                      |    N/A    |
 | Partial gradient checkpointing   | Yes                                                      |    N/A    |
 | FP32/TF32                        | Yes                                                      |    No     |
@@ -4568,16 +4581,15 @@ The table and chart below show the performance results.
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
-**NeMo Megatron 22.06.RC2**
-* Evaluation fix for P-Tuned and Prompt Tuned GPT-3 models
-* Fix for T5 & mT5 fine-tuning for pipeline parallel size greater than 1
-
-**NeMo Megatron 22.06.RC1**
-* Relative Position Embedding for T5 - early access
-  - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
-* Hyperparameter tool: support for DGX A100 40GB configurations
+**NeMo Megatron 22.06**
+* Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Relative Position Embeddings for T5
+  * We used mC4 dataset (24 Languages) for pretraining the mT5 and verified our results on KNLI, KorQuAD, KLUE-STS, and XNLI tasks
+* Hyperparameter tool update with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Hyperparameter tool: support for DGX A100 40GB configurations for GPT-3, T5, and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
-* Operation fusions for higher training throughput
+* Operation fusions for higher training throughput (2%-7% speed-up)
+* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: 14%), 40B (speed-up: 9%), 175B (speed-up: 15%) 
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
@@ -4617,7 +4629,7 @@ The table and chart below show the performance results.
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* We observe lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings
+* Latest T5 code cannot fine-tune Absolute Position Embedding checkpoints correctly
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
 * For customers looking to do inference on BCP please use a previous inference container
