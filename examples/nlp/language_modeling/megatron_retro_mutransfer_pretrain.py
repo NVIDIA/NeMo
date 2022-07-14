@@ -85,10 +85,12 @@ def main(cfg) -> None:
 
     for name, layer in model.named_modules():
         if name.endswith('.self_attention') or name.endswith('.inter_attention'):
-            layer.norm_factor = layer.hidden_size_per_attention_head 
+            layer.norm_factor = layer.hidden_size_per_attention_head
         else:
             if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
-                logging.error(f'module {name} has norm factor but its name is not ending with attention, need to double check')
+                logging.error(
+                    f'module {name} has norm factor but its name is not ending with attention, need to double check'
+                )
 
     trainer.fit(model)
 
