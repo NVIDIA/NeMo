@@ -19,11 +19,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000
@@ -59,11 +59,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000
@@ -99,11 +99,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000
@@ -139,11 +139,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000
@@ -179,11 +179,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000
@@ -219,11 +219,11 @@ class TestmT5Config:
           num_tokens_in_b: 1000
           vocab_size: 250000
           logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb
-          override_search_num_nodes: null
-          tensor_parallel_sizes: null
-          pipeline_parallel_sizes: null
-          micro_batch_sizes: null
-          act_ckpt_layers: null
+          override_search_num_nodes: auto
+          tensor_parallel_sizes: auto
+          pipeline_parallel_sizes: auto
+          micro_batch_sizes: auto
+          act_ckpt_layers: auto
          
         inference_settings:
           vocab_size: 250000

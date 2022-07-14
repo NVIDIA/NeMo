@@ -80,8 +80,12 @@ class TestBaseConfigs:
           persist_layer_norm: True
           grad_div_ar_fusion: True
           gradient_as_bucket_view: True
-          activations_checkpoint_method: block
-          activations_checkpoint_num_layers: 0
+          gradient_accumulation_fusion: True
+          activations_checkpoint_granularity: selective
+          activations_checkpoint_method: null
+          activations_checkpoint_num_layers: null
+
+          sequence_parallel: True
 
           tokenizer:
             library: 'megatron'
