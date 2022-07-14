@@ -73,7 +73,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
 
     # Calculate necessary nodes for HP search.
     override_nodes = train_cfg.get("override_search_num_nodes")
-    if override_nodes is None:
+    if override_nodes is None or override_nodes == "auto":
         num_nodes = 1
         for tp, pp in valid_tp_pp_list:
             if math.ceil(tp * pp / gpus_per_node) > num_nodes:
