@@ -19,7 +19,7 @@ from typing import List, Union
 import torch
 from tqdm import tqdm
 
-from nemo.collections.nlp.modules.common import MLMScorer
+from nemo.collections.common.parts import MLMScorer
 from nemo.utils import logging
 
 
