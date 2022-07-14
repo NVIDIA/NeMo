@@ -945,7 +945,7 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
 
-The 5B model uses the bf16 data type. It can be trained in about 7 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 5B model uses the bf16 data type. It can be trained in about 5 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 4096, and 32 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
 parallelism of 2. For the details on all the parameters, see the 5b.yaml
@@ -977,10 +977,10 @@ creating the job (number of replicas).
 
 **20B configuration:**
 
-The 20B model uses the bf16 data type. It can be trained in about 7 days using 80 nodes with 8 GPUs per node. The model includes 44
+The 20B model uses the bf16 data type. It can be trained in about 6 days using 80 nodes with 8 GPUs per node. The model includes 44
 transformer layers, a hidden size of 6144, and 48 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8. For the details on all the parameters, see the 20b.yaml
+parallelism of 2 and pipeline parallelism of 4. For the details on all the parameters, see the 20b.yaml
 config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1008,10 +1008,10 @@ creating the job (number of replicas).
 
 **40B configuration:**
 
-The 40B model uses the bf16 data type. It can be trained in about 12 days using 80 nodes with 8 GPUs per node. The model includes 48
+The 40B model uses the bf16 data type. It can be trained in about 10.3 days using 80 nodes with 8 GPUs per node. The model includes 48
 transformer layers, a hidden size of 8192, and 64 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 4. 
+parallelism of 4 and pipeline parallelism of 4. 
 For the details on all the parameters, see the 40b.yaml config file.
 
 To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1039,10 +1039,10 @@ creating the job (number of replicas).
 
 **175B configuration:**
 
-The 175B model uses the bf16 data type. It can be trained in about 35 days using 128 nodes with 8 GPUs per node. The model includes 96
+The 175B model uses the bf16 data type. It can be trained in about 27 days using 128 nodes with 8 GPUs per node. The model includes 96
 transformer layers, a hidden size of 12288, and 96 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 16. 
+parallelism of 8 and pipeline parallelism of 8. 
 For the details on all the parameters, see the 175b.yaml config file.
 
 To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -4166,12 +4166,15 @@ given Global Batch Size (GBS).
 
 #### 7.1.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
-Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+Training performance: 
+ - NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+ - NVIDIA DGX SuperPODs (128 x 8 x A100 80GB for 175B GPT-3 model)
 
-We measured the throughput of training a 5B parameter GPT-3 model on a DGX
-SuperPOD using a different number of nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.51x
-speedup. The table and chart below show the performance results.
+We measured the throughput of training 5B and 175B parameter GPT-3 models on 
+different numbers of DGX nodes, and we achieved near-linear
+scaling. For example, when scaling from 1 node to 20 nodes with a 5B model, we achieve 18.51x
+speed-up. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
+The tables and charts below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |        |
 | ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
@@ -4181,6 +4184,15 @@ speedup. The table and chart below show the performance results.
 |      | Speed-up                        | 1x     | 2x     | 4.93x  | 8.71x  | 9.7x   | 16.95x | 18.51x |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
+
+|      |                                 |        | Nodes  |        |
+| ---- | ------------------------------- | ------ | ------ | ------ |
+|      |                                 | 16     | 32     | 128    |
+|      | Tokens per Second               | 20642  | 38025  | 141306 |
+| 175B | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
+|      | Speed-up                        | 1x     | 1.84x  | 6.85x  |
+
+<img src="img/175B_GPT_3_throughput.svg"/>
 
 #### 7.1.3. Inference Performance
 <a id="markdown-inference-performance" name="inference-performance"></a>
@@ -4465,7 +4477,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 16.38x
-speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
+speed-up. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
 |         |                                        |        |                |                | Nodes    |                |                 |
@@ -4545,7 +4557,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
 We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 14.87x
-speedup. We are actively working on improving the scaling performance for mT5 models. 
+speed-up. We are actively working on improving the scaling performance for mT5 models. 
 The table and chart below show the performance results.
 
 
