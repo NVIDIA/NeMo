@@ -4583,7 +4583,7 @@ The table and chart below show the performance results.
 * Hyperparameter tool: support for DGX A100 40GB configurations for GPT-3, T5, and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
 * Operation fusions for higher training throughput (3-6% speed-up)
-* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: nn%), 40B (speed-up: nn%), 175B (speed-up: nn%) 
+* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: 14%), 40B (speed-up: 9%), 175B (speed-up: 15%) 
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
