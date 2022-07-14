@@ -79,16 +79,15 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.cfg = cfg
         self.log_train_images = False
 
-        self.normalizer = None
-        self.text_normalizer_call = None
-        self.text_normalizer_call_kwargs = {}
-        self._setup_normalizer(cfg)
-
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
             spk_id = torch.tensor([0] * (batch_data[3]).size(0)).cuda().to(self.device)
+            v_m = batch_data[9]
+            p_v = batch_data[10]
         else:
             spk_id = batch_data[13]
+            v_m = batch_data[9]
+            p_v = batch_data[10]
         batch_data_dict = {
             "audio": batch_data[0],
             "audio_lens": batch_data[1],
@@ -99,8 +98,8 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             "align_prior_matrix": batch_data[6],
             "pitch": batch_data[7],
             "pitch_lens": batch_data[8],
-            "voiced_mask": batch_data[9],
-            "p_voiced": batch_data[10],
+            "voiced_mask": v_m,
+            "p_voiced": p_v,
             "energy": batch_data[11],
             "energy_lens": batch_data[12],
             "speaker_id": spk_id,
@@ -261,7 +260,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             optimizer = torch.optim.Adam(
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
-        elif self.optim.name == 'RAdam':
+        elif self.optim.name == 'RAdam':  # Fasle for inference riva
             optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
         else:
             logging.info("Unrecognized optimizer %s!" % (self.optim.name))
@@ -316,20 +315,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         if self._parser is not None:
             return self._parser
         return self._parser
-
-    def _setup_normalizer(self, cfg):
-        if "text_normalizer" in cfg:
-            normalizer_kwargs = {}
-
-            if "whitelist" in cfg.text_normalizer:
-                normalizer_kwargs["whitelist"] = self.register_artifact(
-                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
-                )
-
-            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
-            self.text_normalizer_call = self.normalizer.normalize
-            if "text_normalizer_call_kwargs" in cfg:
-                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def _setup_tokenizer(self, cfg):
         text_tokenizer_kwargs = {}
@@ -386,5 +371,19 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             self._tb_logger = tb_logger
         return self._tb_logger
 
+    @property
+    def input_module(self):
+        return self.model
+
+    @property
+    def output_module(self):
+        return self.model
+
+    def forward_for_export(self, text, lens, speaker_id, speaker_id_text, speaker_id_attributes):
+        return self.model.forward_for_export(text, lens, speaker_id, speaker_id_text, speaker_id_attributes)
+
     def get_export_subnet(self, subnet=None):
         return self.model.get_export_subnet(subnet)
+
+
+subnet(subnet)

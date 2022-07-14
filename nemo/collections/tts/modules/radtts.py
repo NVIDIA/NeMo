@@ -851,3 +851,5 @@ class RadTTSModule(NeuralModule, Exportable):
             lens=lens,
         ).values()
         return mel.float(), n_frames, dur.float()
+()
+        return mel.float(), n_frames, dur.float()

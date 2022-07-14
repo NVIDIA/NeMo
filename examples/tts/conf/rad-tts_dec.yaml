@@ -3,7 +3,7 @@ sample_rate: 22050
 
 train_dataset: ???
 validation_datasets: ???
-ckpt_path: ???
+ckpt_path: None
 export_dir: ???
 sup_data_path: ???
 sup_data_types: ["log_mel", "align_prior_matrix", "pitch", "voiced_mask", "p_voiced", "energy"] 
@@ -33,7 +33,6 @@ mel_loss_scale: 1.0
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921" #"scripts/tts_dataset_files/heteronyms-030921"
-adlr_symbol_id_mapper_path: "scripts/tts_dataset_files/mapping.txt"
 
 model:
   # aligner
@@ -272,6 +271,10 @@ exp_manager:
   checkpoint_callback_params:
     monitor: val/loss_ctc
     mode: min
+    filepath: ${export_dir}
+    filename: model_checkpoint
+
+e: min
     filepath: ${export_dir} 
     filename: model_checkpoint
 
