@@ -189,8 +189,8 @@ are adopted. Tensor model parallelism partitions individual transformer layers o
 model parallelism stripes layers of a model over multiple devices. For more details, refer to
 [this paper](https://arxiv.org/pdf/2104.04473.pdf).
 
-Our latest techniques, sequence parallelism and selective activation recomputation, help to bring `~30%` faster 
-training time for GPT-3 models ranging from 22B to 1T parameters.
+Our latest techniques, sequence parallelism and selective activation recomputation, bring up to `~30%` faster 
+training time for GPT-3 models ranging from 20B to 1T parameters.
 Sequence parallelism expands tensor-level model parallelism, by 
 noticing that the regions of a transformer layer that have not previously been parallelized are independent 
 along the sequence dimension. By splitting these layers along the sequence dimension we can distribute 
@@ -4582,7 +4582,7 @@ The table and chart below show the performance results.
 * Hyperparameter tool update with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
 * Hyperparameter tool: support for DGX A100 40GB configurations for GPT-3, T5, and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
-* Operation fusions for higher training throughput (3-6% speed-up)
+* Operation fusions for higher training throughput (2%-7% speed-up)
 * Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: 14%), 40B (speed-up: 9%), 175B (speed-up: 15%) 
 
 **NeMo Megatron 22.05.01**
