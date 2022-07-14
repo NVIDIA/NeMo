@@ -89,7 +89,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                     act_ckpt_layers = [
                         x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
                     ]
-                    if act_layers is not None:
+                    if act_layers is not None and act_layers != "auto":
                         act_ckpt_layers = act_layers
                     for act in act_ckpt_layers:
                         new_cfg = utils.modify_cfg(
@@ -312,11 +312,11 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
         raise NotImplementedError("Model name not implemented.")
 
     # Override the tp, pp, mbs search if indicated in the config params.
-    if tp_sizes is not None:
+    if tp_sizes is not None and tp_sizes != "auto":
         tp = tp_sizes
-    if pp_sizes is not None:
+    if pp_sizes is not None and pp_sizes != "auto":
         pp = pp_sizes
-    if mbs_sizes is not None:
+    if mbs_sizes is not None and mbs_sizes != "auto":
         mbs = mbs_sizes
     return tp, pp, mbs
 

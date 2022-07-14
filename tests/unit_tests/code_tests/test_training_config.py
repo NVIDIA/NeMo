@@ -15,28 +15,28 @@ class TestCalculateTpPpMbsGrid:
         [
             # GPT-3 tests
             (0.126, 12, "gpt3", {"tensor_parallel_sizes": [1,2,4,5], "pipeline_parallel_sizes": [2,4,8], "micro_batch_sizes": [4,8,32], "gpu_memory_gb": 80}, {"tp": [1,2,4,5], "pp": [2,4,8], "mbs": [4,8,32]}),
-            (0.126, 12, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [1,2,4,8]}),
-            (2.5, 24, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [1,2,4,8]}),
-            (5.0, 24, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1], "mbs": [1,2,4,8]}),
-            (10.0, 24, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [1,2,4,8]}),
-            (20.0, 44, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [8], "pp": [1,2,4], "mbs": [1,2,4,8]}),
-            (40.0, 48, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [8], "pp": [2,3,4,6], "mbs": [1,2,4,8]}),
-            (175.0, 96, "gpt3", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [8], "pp": [8,12,16,24], "mbs": [1,2]}),
+            (0.126, 12, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [1,2,4,6,8]}),
+            (2.5, 24, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [1,2,4,8]}),
+            (5.0, 24, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1], "mbs": [1,2,4,8]}),
+            (10.0, 24, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [1,2,4,8]}),
+            (20.0, 44, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8,10,12,16]}),
+            (40.0, 48, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [2,4,8], "pp": [1,2,3,4], "mbs": [1,2,4,6,8,10,12,16]}),
+            (175.0, 96, "gpt3", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,3,4,6,8,12,16], "mbs": [1,2,4,6,8]}),
             # T5 tests
             (0.22, 12, "t5", {"tensor_parallel_sizes": [1,2,4,5], "pipeline_parallel_sizes": [2,4,8], "micro_batch_sizes": [4,8,32], "gpu_memory_gb": 80}, {"tp": [1,2,4,5], "pp": [2,4,8], "mbs": [4,8,32]}),
-            (0.22, 12, "t5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
-            (3.0, 24, "t5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [4,6,8,12,16,24,32,48]}),
-            (11.0, 24, "t5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [2,4,6,8,12,16,24]}),
-            (23.0, 36, "t5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2], "mbs": [1,2,4,6,8]}),
-            (41.0, 48, "t5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8]}),
+            (0.22, 12, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
+            (3.0, 24, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [4,6,8,12,16,24,32,48]}),
+            (11.0, 24, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [2,4,6,8,12,16,24]}),
+            (23.0, 36, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2], "mbs": [1,2,4,6,8]}),
+            (41.0, 48, "t5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8]}),
             # mT5 tests
             (0.17, 6, "mt5", {"tensor_parallel_sizes": [1,2,4,5], "pipeline_parallel_sizes": [2,4,8], "micro_batch_sizes": [4,8,32], "gpu_memory_gb": 80}, {"tp": [1,2,4,5], "pp": [2,4,8], "mbs": [4,8,32]}),
-            (0.17, 6, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
-            (0.39, 12, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
-            (3.2, 24, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [4,6,8,12,16,24,32,48]}),
-            (11.9, 24, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [2,4,6,8,12,16,24]}),
-            (24.65, 36, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2], "mbs": [1,2,4,6,8]}),
-            (42.54, 48, "mt5", {"tensor_parallel_sizes": None, "pipeline_parallel_sizes": None, "micro_batch_sizes": None, "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8]}),
+            (0.17, 6, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
+            (0.39, 12, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2], "pp": [1], "mbs": [16,32,64,128]}),
+            (3.2, 24, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [1,2,4], "pp": [1], "mbs": [4,6,8,12,16,24,32,48]}),
+            (11.9, 24, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1], "mbs": [2,4,6,8,12,16,24]}),
+            (24.65, 36, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2], "mbs": [1,2,4,6,8]}),
+            (42.54, 48, "mt5", {"tensor_parallel_sizes": "auto", "pipeline_parallel_sizes": "auto", "micro_batch_sizes": "auto", "gpu_memory_gb": 80}, {"tp": [4,8], "pp": [1,2,4], "mbs": [1,2,4,6,8]}),
         ],
     )
     def test_calculate_tp_pp_mbs_grid(self, model_size, layers, model_name, train_cfg, expected):
@@ -48,6 +48,6 @@ class TestCalculateTpPpMbsGrid:
         }
         tp, pp, mbs = tc._calculate_tp_pp_mbs_grid(**params)
 
-        assert tp == expected["tp"], "TP should be {expected['tp']} but it is {tp}."
-        assert pp == expected["pp"], "PP should be {expected['pp']} but it is {pp}."
-        assert mbs == expected["mbs"], "MBS should be {expected['mbs']} but it is {mbs}."
+        assert tp == expected["tp"], f"TP should be {expected['tp']} but it is {tp}."
+        assert pp == expected["pp"], f"PP should be {expected['pp']} but it is {pp}."
+        assert mbs == expected["mbs"], f"MBS should be {expected['mbs']} but it is {mbs}."
