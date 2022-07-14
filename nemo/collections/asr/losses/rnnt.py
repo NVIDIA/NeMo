@@ -87,6 +87,13 @@ RNNT_LOSS_RESOLVER = {
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
+    "pytorch": RNNTLossConfig(
+        loss_name="pytorch",
+        lib_name="pytorch",
+        min_version='0.0',
+        is_available=True,
+        installation_msg="it just works but slow",
+    ),
 }
 
 RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
@@ -165,6 +172,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx: int, blank_
         loss_func = RNNTLossNumba(blank=blank_idx, big_blank=big_blank_idx, blank_duration=blank_duration, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
+    elif loss_name == 'pytorch':
+        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank=big_blank_idx, reduction='none')
+
     else:
         raise ValueError(
             f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
@@ -172,6 +182,90 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx: int, blank_
 
     return loss_func
 
+class RNNTLossPytorch(Loss):
+    @property
+    def input_types(self):
+        """Input types definitions for CTCLoss.
+        """
+        return {
+            "acts": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "act_lens": NeuralType(tuple('B'), LengthsType()),
+            "label_lens": NeuralType(tuple('B'), LengthsType()),
+        }
+
+    @property
+    def output_types(self):
+        """Output types definitions for CTCLoss.
+        loss:
+            NeuralType(None)
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    def __init__(self, blank, blank_duration, reduction):
+        super().__init__()
+        self.blank = blank
+        self.big_blank = 1 + blank
+        self.blank_duration = blank_duration
+        self.reduction = reduction
+
+    @typecheck()
+    def forward(self, acts, labels, act_lens, label_lens):
+        acts = torch.log_softmax(acts, -1)
+        forward_logprob = self.compute_forward_prob(acts, labels, act_lens, label_lens)
+        return -forward_logprob
+
+    def compute_forward_prob(self, acts, labels, act_lens, label_lens):
+        B, T, U, _ = acts.shape
+
+        log_alpha = torch.zeros(B, T, U)
+        log_alpha = log_alpha.cuda()
+        for t in range(T):
+            for u in range(U):
+                if u == 0:
+                    if t == 0:
+                        log_alpha[:, t, u] = 0.0
+                    else:
+                        tmp = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
+                        if t >= self.blank_duration:
+                            tt = log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, 0, self.big_blank]
+                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
+
+                        else:
+                            log_alpha[:, t, u] = tmp
+                            
+                else:
+                    if t == 0:
+                        gathered = torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
+                        log_alpha[:, t, u] = log_alpha[:, t,u-1] + gathered.cuda()
+                    else:
+                        tmp = torch.logsumexp(torch.stack([
+                            log_alpha[:, t-1, u] + acts[:, t-1, u, self.blank],
+                            log_alpha[:, t, u-1] + torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
+                        ]), dim=0)
+                        if t >= self.blank_duration:
+                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([
+                                tmp,
+                                log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, u, self.big_blank],
+                            ]), dim=0)
+                        else:
+                            log_alpha[:, t, u] = tmp
+
+        log_probs = []
+        for b in range(B):
+            tt = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
+            if act_lens[b] >= self.blank_duration:
+                jj = log_alpha[b, act_lens[b]-self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-self.blank_duration, label_lens[b], self.big_blank]
+                to_append = torch.logsumexp(torch.stack([
+                      tt, jj
+                ]), dim=0)
+                
+                log_probs.append(to_append)
+            else:
+                log_probs.append(tt)
+        log_prob = torch.stack(log_probs) 
+
+        return log_prob
 
 class RNNTLoss(Loss):
     @property
@@ -280,7 +374,7 @@ class RNNTLoss(Loss):
         # Reduce transcript length to correct alignment if additional padding was applied.
         # Transcript: [B, L] -> [B, L']; If L' < L
         if targets.shape[1] != max_targets_len:
-            targets = targets.narrow(dim=1, start=0, length=max_targets_len)
+            targets = targets.narrow(dim=1, start=0, length=max_targets_len).contiguous()
 
         # Loss reduction can be dynamic, so set it prior to call
         if self.reduction != 'mean_batch':
@@ -306,3 +400,48 @@ class RNNTLoss(Loss):
         )
 
         return loss
+
+if __name__ == "__main__":
+    B, T, U, V = 2, 32, 16, 256
+    B, T, U, V = 3, 11, 7, 5 
+    B, T, U, V = 3, 3, 3, 3
+
+    duration=4
+
+    Loss = RNNTLossPytorch(V - 2, blank_duration=duration, reduction='mean')
+    Loss2 = RNNTLoss(V - 2, blank_duration=duration, reduction='mean_batch', loss_name='warprnnt_numba')
+
+    for t in range(1000):
+        acts = torch.rand([B, T, U, V]) - 0.5
+        acts = torch.nn.Parameter(acts * 5, requires_grad=True)
+
+        labels = torch.randint(low=0, high=V, size=[B, U])
+        act_lens = torch.randint(low=1, high=T + 1, size=[B])
+        label_lens = torch.randint(low=1, high=U + 1, size=[B]) - 1
+        act_lens[0] = T
+        label_lens[0] = U - 1
+        logits = acts
+        
+        logits = logits.cuda()
+        labels = labels.cuda()
+        act_lens = act_lens.cuda()
+        label_lens = label_lens.cuda()
+
+        labels = labels.contiguous()
+
+        loss = Loss(acts=logits, labels=labels, act_lens=act_lens, label_lens=label_lens)
+        loss = torch.mean(loss)
+        loss.backward()
+        grad1 = torch.clone(acts.grad)
+        acts.grad *= 0.0
+
+        loss2 = Loss2(log_probs=logits, targets=labels, input_lengths=act_lens, target_lengths=label_lens)
+        
+        loss2.backward()
+
+        print("loss diff", float(loss - loss2))
+        print("grad norm diff per element", float(torch.norm(acts.grad - grad1) / (B * T * U * V)))
+#        print("they are")
+#        print(acts.grad)
+#        print(grad1)
+
