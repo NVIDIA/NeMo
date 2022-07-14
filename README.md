@@ -945,7 +945,7 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
 
-The 5B model uses the bf16 data type. It can be trained in about 7 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 5B model uses the bf16 data type. It can be trained in about 5 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 4096, and 32 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
 parallelism of 2. For the details on all the parameters, see the 5b.yaml
@@ -977,10 +977,10 @@ creating the job (number of replicas).
 
 **20B configuration:**
 
-The 20B model uses the bf16 data type. It can be trained in about 7 days using 80 nodes with 8 GPUs per node. The model includes 44
+The 20B model uses the bf16 data type. It can be trained in about 6 days using 80 nodes with 8 GPUs per node. The model includes 44
 transformer layers, a hidden size of 6144, and 48 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8. For the details on all the parameters, see the 20b.yaml
+parallelism of 2 and pipeline parallelism of 4. For the details on all the parameters, see the 20b.yaml
 config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1008,10 +1008,10 @@ creating the job (number of replicas).
 
 **40B configuration:**
 
-The 40B model uses the bf16 data type. It can be trained in about 12 days using 80 nodes with 8 GPUs per node. The model includes 48
+The 40B model uses the bf16 data type. It can be trained in about 10.3 days using 80 nodes with 8 GPUs per node. The model includes 48
 transformer layers, a hidden size of 8192, and 64 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 4. 
+parallelism of 4 and pipeline parallelism of 4. 
 For the details on all the parameters, see the 40b.yaml config file.
 
 To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1039,10 +1039,10 @@ creating the job (number of replicas).
 
 **175B configuration:**
 
-The 175B model uses the bf16 data type. It can be trained in about 35 days using 128 nodes with 8 GPUs per node. The model includes 96
+The 175B model uses the bf16 data type. It can be trained in about 27 days using 128 nodes with 8 GPUs per node. The model includes 96
 transformer layers, a hidden size of 12288, and 96 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 16. 
+parallelism of 8 and pipeline parallelism of 8. 
 For the details on all the parameters, see the 175b.yaml config file.
 
 To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
