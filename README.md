@@ -189,7 +189,7 @@ are adopted. Tensor model parallelism partitions individual transformer layers o
 model parallelism stripes layers of a model over multiple devices. For more details, refer to
 [this paper](https://arxiv.org/pdf/2104.04473.pdf).
 
-Our latest techniques, sequence parallelism and selective activation recomputation, helps to bring `~30%` faster 
+Our latest techniques, sequence parallelism and selective activation recomputation, help to bring `~30%` faster 
 training time for GPT-3 models ranging from 22B to 1T parameters.
 Sequence parallelism expands tensor-level model parallelism, by 
 noticing that the regions of a transformer layer that have not previously been parallelized are independent 
