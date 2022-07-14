@@ -291,12 +291,6 @@ Once your cluster is up and running, continue with the cluster validation steps.
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
-Also make sure to download this benchmarking repo to `/shared/data`:
-```
-cd /shared/data
-git clone https://github.com/JonShelley/azure.git
-```
-**NOTE:** If you choose to download this repo to another path, please change the `AZURE_NCCL_PATH` variable at the top of `cluster_validation.sh`.
 
 The cluster validation script at `csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
@@ -334,9 +328,9 @@ Before launching jobs, the NCCL topology file needs to be created, and some chan
 ##### 4.1.3.1 Generate NCCL Topology
 <a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
 
-To generate the NCCL topology file, run the following (use path for wherever `JonShelley/azure` was downloaded):
+To generate the NCCL topology file, run the following:
 ```
-sbatch -N 1 -o ndv4-topo.xml /shared/data/azure/benchmarking/NDv4/cc-slurm-ngc/nccl/scripts/gentopo.sh
+sbatch -N 1 -o ndv4-topo.xml csp/azure/gentopo.sh
 mv ndv4-topo.xml /opt/microsoft/ndv4-topo.xml
 ```
 
