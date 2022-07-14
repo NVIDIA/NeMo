@@ -84,8 +84,9 @@ def main(cfg) -> None:
         normal_(param, 0, cfg.model.init_method_std)
 
     for name, layer in model.named_modules():
-        if name.endswith('.self_attention') or name.endswith('.inter_attention'):
-            layer.norm_factor = layer.hidden_size_per_attention_head
+        if name.endswith('.self_attention') or name.endswith('.inter_attention') or name.endswith('.cross_attention'):
+            if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
+                layer.norm_factor = layer.hidden_size_per_attention_head
         else:
             if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
                 logging.error(
