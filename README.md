@@ -1508,7 +1508,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -1561,11 +1561,11 @@ train_settings:
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: null  # null to use the minimum required number of nodes
-  tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
-  micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
+  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
+  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
  
 inference_settings:
   vocab_size: 51200
@@ -1616,11 +1616,11 @@ train_settings:
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: null  # null to use the minimum required number of nodes
-  tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
-  micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
+  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
+  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
 
 The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
@@ -1654,14 +1654,14 @@ when estimating how long it will take to train the model, to the desired number 
 parameter can be used to configure where the result logs will be saved. By default, this directory 
 will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. The 
 `override_search_num_nodes` parameter can be used to override the number of nodes that will be 
-used for each training run in the HP grid search. By default, leaving this as `null` will run the tool 
+used for each training run in the HP grid search. By default, leaving this as `auto` will run the tool 
 with the smallest possible node count, to save compute. Finally, 
 the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
 parameters can be used to override the heuristics that choose the grid search space for these 
-four parameters. If these are left as `null`, our tool will select appropriate values. However, 
+four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
 if you wish to override them, you can use these parameters. For example, if you only wish to search 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
-`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `null`.  
+`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.  
 
 ###### 5.3.2.2.4. Inference HP Search
 <a id="markdown-inference-hp-search" name="inference-hp-search"></a>
@@ -1760,7 +1760,7 @@ Notes:
  - Since the HP search tool uses the minimum number of nodes necessary to save compute and time, 
 the result might vary slightly when increasing the node count for these models. This value can be 
 overriden using the `override_search_num_nodes` parameter, but increasing the node count will make 
-the search slower and more costly.
+the search somewhat more costly.
  - If one of the optimal configs is very close to 100% GPU memory utilization, it is possible that 
 the full training job will crash due to a memory spike. We recommend using a config that keeps the 
 memory usage under 98% to avoid this issue. To save some memory, the recommendation is to try 
@@ -3305,7 +3305,7 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -3332,7 +3332,7 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
