@@ -5,7 +5,7 @@ import subprocess
 import hydra
 import omegaconf
 
-from hp_tool.utils import convert_to_cli
+from hp_tool.utils import convert_to_cli, add_container_mounts
 
 
 def create_slurm_file(
@@ -78,10 +78,7 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
     results_dir = run_cfg.results_dir
     time_limit = run_cfg.time_limit
 
-    if os.path.isdir(results_dir):
-        return None
-    else:
-        os.makedirs(results_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
 
     if model_name == "gpt3":
         model, pretrain_file, config = "gpt3", "gpt", "126m"
@@ -111,13 +108,7 @@ def run_training(cfg, bignlp_hp_tool_path, model_name):
 
     # Process container-mounts.
     mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-    if container_mounts is not None:
-        assert isinstance(
-            container_mounts, omegaconf.listconfig.ListConfig
-        ), "container_mounts must be a list."
-        for mount in container_mounts:
-            if mount is not None and isinstance(mount, str):
-                mounts_str += f",{mount}:{mount}"
+    mounts_str += add_container_mounts(container_mounts)
 
     flags = (
         f"--container-image {container} "

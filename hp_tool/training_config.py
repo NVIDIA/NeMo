@@ -1,4 +1,5 @@
 import os
+import math
 import yaml
 import subprocess
 
@@ -20,13 +21,15 @@ def search_training_config(base_cfg, model_size, model_name, hydra_args, cfg):
 def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     search_cfg = cfg.get("search_config")
     train_cfg = search_cfg.get("train_settings")
+    gpus_per_node = train_cfg.get("gpus_per_node")
+
     act_layers = train_cfg.get("act_ckpt_layers")
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name == "gpt3" else 2
 
     num_layers = base_cfg["model"]["num_layers"]
-    results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
+    act_granularity = base_cfg["model"]["activations_checkpoint_granularity"]
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -41,53 +44,73 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     max_minutes = train_cfg.get("max_minutes_per_run")
     max_steps = train_cfg.get("max_steps_per_run")
 
-    if model_name in ["t5", "mt5"]:
-        if model_size_in_b < 1.0:
-            act_multiple = 2
-        elif 1.0 <= model_size_in_b < 26.0:
-            act_multiple = 4
-        else:
-            act_multiple = 8
+    act_multiple = 1
+    if act_granularity == "full":
+        results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
+        if model_name != "gpt3":
+            if model_size_in_b < 1.0:
+                act_multiple = 2
+            elif 1.0 <= model_size_in_b < 26.0:
+                act_multiple = 4
+            else:
+                act_multiple = 8
     else:
-        act_multiple = 1
+        results_cfgs = [[]]
 
-    valid_pp_list = []
+    valid_tp_pp_list = []
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [
-                x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
-            ]
-            # Override ackt_ckpt_layers with the parameter in the config file.
-            if act_layers is not None:
-                act_ckpt_layers = act_layers
+            for mbs in mbs_list:
+                num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
+                gbs = base_cfg["model"]["global_batch_size"]
+                att_heads = base_cfg["model"]["num_attention_heads"]
+                num_layers = base_cfg["model"]["num_layers"]
+                mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
+                mod_att_heads = att_heads % tp
+                mod_layers = (multiplier * num_layers) % pp
+                if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
+                    valid_tp_pp_list.append((tp, pp))
 
-            for act in act_ckpt_layers:
-                for mbs in mbs_list:
-                    num_gpus = base_cfg["trainer"]["num_nodes"] * base_cfg["trainer"]["devices"]
-                    gbs = base_cfg["model"]["global_batch_size"]
-                    att_heads = base_cfg["model"]["num_attention_heads"]
-                    num_layers = base_cfg["model"]["num_layers"]
-                    mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
-                    mod_att_heads = att_heads % tp
-                    mod_layers = (multiplier * num_layers) % pp
-                    if mod_gbs == 0 and mod_att_heads == 0 and mod_layers == 0:
-                        valid_pp_list.append(pp)
+    # Calculate necessary nodes for HP search.
+    override_nodes = train_cfg.get("override_search_num_nodes")
+    if override_nodes is None:
+        num_nodes = 1
+        for tp, pp in valid_tp_pp_list:
+            if math.ceil(tp * pp / gpus_per_node) > num_nodes:
+                num_nodes = math.ceil(tp * pp / gpus_per_node)
+    else:
+        num_nodes = override_nodes
 
     # Generate grid search configs.
-    override_nodes = train_cfg.get("override_search_num_nodes")
-    num_nodes = max(valid_pp_list) if override_nodes is None else override_nodes
     for tp in tp_list:
         for pp in pp_list:
-            act_ckpt_layers = [
-                x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
-            ]
-            if act_layers is not None:
-                act_ckpt_layers = act_layers
-            for act in act_ckpt_layers:
-                for mbs in mbs_list:
+            for mbs in mbs_list:
+                if act_granularity == "full":
+                    act_ckpt_layers = [
+                        x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
+                    ]
+                    if act_layers is not None and act_layers != "auto":
+                        act_ckpt_layers = act_layers
+                    for act in act_ckpt_layers:
+                        new_cfg = utils.modify_cfg(
+                            base_cfg=base_cfg,
+                            act=act,
+                            tp=tp,
+                            pp=pp,
+                            mbs=mbs,
+                            max_minutes=max_minutes,
+                            max_steps=max_steps,
+                            num_nodes=num_nodes,
+                        )
+                        if new_cfg:  # Save candidate cfg.
+                            file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
+                            results_cfgs[act].append(file_name)
+                            with open(f"{base_dir}/{file_name}", "w") as f:
+                                yaml.dump(new_cfg, f)
+                else:
                     new_cfg = utils.modify_cfg(
                         base_cfg=base_cfg,
-                        act=act,
+                        act=None,
                         tp=tp,
                         pp=pp,
                         mbs=mbs,
@@ -96,10 +119,11 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
                         num_nodes=num_nodes,
                     )
                     if new_cfg:  # Save candidate cfg.
-                        file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_{act}.yaml"
-                        results_cfgs[act].append(file_name)
+                        file_name = f"{model_name}_{model_size_in_b}b_{num_nodes}nodes_tp_{tp}_pp_{pp}_mbs_{mbs}_act_ckpt_selective.yaml"
+                        results_cfgs[0].append(file_name)
                         with open(f"{base_dir}/{file_name}", "w") as f:
                             yaml.dump(new_cfg, f)
+
     print("\nAll candidate configurations created correctly.\n")
     return base_dir, results_cfgs, num_nodes
             
@@ -108,45 +132,48 @@ def _tp_pp_mbs_grid_gpt3_80gb(model_size_in_b, valid_pp):
     """
     tp = [1, 2, 4, 8]
     pp = [1]
-    mbs = [1, 2, 4, 8]
+    mbs = [1, 2, 4, 6, 8, 10, 12, 16]
     if model_size_in_b <= 1.0:
         tp = [1, 2]
+        mbs = [1, 2, 4, 6, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4]
+        mbs = [1, 2, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
         tp = [2, 4, 8]
+        mbs = [1, 2, 4, 8]
     elif 8.0 < model_size_in_b <= 13.0:
         tp = [4, 8]
+        mbs = [1, 2, 4, 8]
     elif 13.0 < model_size_in_b <= 23.0:
-        tp = [8]
-        pp = [x for x in valid_pp if x < 6]
+        tp = [2, 4, 8]
+        pp = [x for x in valid_pp if x <= 4]
     elif 23.0 < model_size_in_b <= 45.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 1 < x < 7]
+        tp = [2, 4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 4]
     elif 45.0 < model_size_in_b <= 95:
-        tp = [8]
-        pp = [x for x in valid_pp if 3 < x < 11]
-        mbs = [1, 2, 4]
+        tp = [2, 4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 8]
     elif 95.0 < model_size_in_b <= 130.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 5 < x < 21]
-        mbs = [1, 2, 4]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 16]
+        mbs = [1, 2, 4, 6, 8, 10, 12]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 7 < x < 29]
-        mbs = [1, 2]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 16]
+        mbs = [1, 2, 4, 6, 8]
     elif 195.0 < model_size_in_b <= 395.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 15 < x < 65]
-        mbs = [1, 2]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 32]
+        mbs = [1, 2, 4, 6, 8]
     elif 395.0 < model_size_in_b <= 790.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 19 < x < 71]
-        mbs = [1, 2]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 100]
+        mbs = [1, 2, 4]
     elif 790.0 < model_size_in_b <= 1100.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 29 < x < 131]
-        mbs = [1, 2]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 130]
+        mbs = [1, 2, 4]
     return tp, pp, mbs
 
 def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
@@ -154,48 +181,51 @@ def _tp_pp_mbs_grid_gpt3_40gb(model_size_in_b, valid_pp):
     """
     tp = [1, 2, 4, 8]
     pp = [1]
-    mbs = [1, 2, 4, 8]
+    mbs = [1, 2, 4, 6, 8, 10, 12, 16]
     if model_size_in_b <= 1.0:
         tp = [1, 2, 4]
+        mbs = [1, 2, 4, 8]
     elif 1.0 < model_size_in_b <= 4.0:
         tp = [1, 2, 4, 8]
+        mbs = [1, 2, 4, 8]
     elif 4.0 < model_size_in_b <= 8.0:
         tp = [4, 8]
         pp = [1, 2]
+        mbs = [1, 2, 4]
     elif 8.0 < model_size_in_b <= 13.0:
         tp = [8]
         pp = [1, 2, 4]
-    elif 13.0 < model_size_in_b <= 23.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 2 <= x <= 8]
         mbs = [1, 2, 4]
+    elif 13.0 < model_size_in_b <= 23.0:
+        tp = [2, 4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 8]
     elif 23.0 < model_size_in_b <= 45.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 4 <= x <= 12]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 12]
         mbs = [1, 2, 4]
     elif 45.0 < model_size_in_b <= 95:
-        tp = [8]
-        pp = [x for x in valid_pp if 4 <= x <= 16]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 1 <= x <= 16]
         mbs = [1, 2, 4]
     elif 95.0 < model_size_in_b <= 130.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 6 <= x <= 26]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 26]
         mbs = [1, 2]
     elif 130.0 < model_size_in_b <= 195.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 8 <= x <= 32]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 2 <= x <= 32]
         mbs = [1, 2]
     elif 195.0 < model_size_in_b <= 395.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 16 <= x <= 64]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 4 <= x <= 64]
         mbs = [1, 2]
     elif 395.0 < model_size_in_b <= 790.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 20 <= x <= 128]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 8 <= x <= 128]
         mbs = [1, 2]
     elif 790.0 < model_size_in_b <= 1100.0:
-        tp = [8]
-        pp = [x for x in valid_pp if 28 <= x <= 192]
+        tp = [4, 8]
+        pp = [x for x in valid_pp if 8 <= x <= 192]
         mbs = [1, 2]
     return tp, pp, mbs
     
@@ -282,11 +312,11 @@ def _calculate_tp_pp_mbs_grid(model_size_in_b, num_layers, model_name, train_cfg
         raise NotImplementedError("Model name not implemented.")
 
     # Override the tp, pp, mbs search if indicated in the config params.
-    if tp_sizes is not None:
+    if tp_sizes is not None and tp_sizes != "auto":
         tp = tp_sizes
-    if pp_sizes is not None:
+    if pp_sizes is not None and pp_sizes != "auto":
         pp = pp_sizes
-    if mbs_sizes is not None:
+    if mbs_sizes is not None and mbs_sizes != "auto":
         mbs = mbs_sizes
     return tp, pp, mbs
 
@@ -329,8 +359,9 @@ def create_bignlp_config(model_name, cfg):
         new_cfg: OmegaConf, new config object ready for bignlp-scripts.
     """
     results_dir = os.path.join(cfg.search_config.train_settings.logs, "training_logs")
-    training_container = cfg.training_container
-    data_dir = cfg.data_dir
+    training_container = cfg.get("training_container")
+    data_dir = cfg.get("data_dir")
+    container_mounts = cfg.get("container_mounts")
     wandb_cfg = cfg.get("wandb")
     api_key_file = wandb_cfg.get("api_key_file")
 
@@ -363,6 +394,7 @@ def create_bignlp_config(model_name, cfg):
     wandb_api_key_file: {api_key_f}
     """
     new_cfg = OmegaConf.create(s)
+    new_cfg.container_mounts.extend(container_mounts)
     return new_cfg
 
 
@@ -410,13 +442,7 @@ def launch_throughput_measure(dependency_list, model_name, model_size_in_b, num_
 
     # Process container-mounts.
     mounts_str = f"{bignlp_hp_tool_path}:{bignlp_hp_tool_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
-    if container_mounts is not None:
-        assert isinstance(
-            container_mounts, omegaconf.listconfig.ListConfig
-        ), "container_mounts must be a list."
-        for mount in container_mounts:
-            if mount is not None and isinstance(mount, str):
-                mounts_str += f",{mount}:{mount}"
+    mounts_str += utils.add_container_mounts(container_mounts)
 
     flags = (
         f"--container-image {container} "

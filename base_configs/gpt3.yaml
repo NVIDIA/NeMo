@@ -22,7 +22,6 @@ trainer:
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
 
-
 exp_manager:
   explicit_log_dir: ${training.run.results_dir}
   exp_dir: null
@@ -73,8 +72,15 @@ model:
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  activations_checkpoint_method: block
-  activations_checkpoint_num_layers: 0
+  gradient_accumulation_fusion: True # Fuse weight gradient accumulation to GEMMs
+
+  ## Activation Checkpointing
+  activations_checkpoint_granularity: selective # 'selective' or 'full'
+  activations_checkpoint_method: null # 'uniform', 'block', not used with 'selective'
+  activations_checkpoint_num_layers: null # not used with 'selective'
+
+  ## Sequence Parallelism
+  sequence_parallel: True
 
   tokenizer:
     library: 'megatron'

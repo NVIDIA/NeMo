@@ -90,11 +90,11 @@ def calculate_model_size_params(
         elif model_size_in_b < 205:
             hs, att_h, lr = 12288, 96, 0.6e-4
         elif model_size_in_b < 405:
-            hs, att_h, lr = 14336, 128, 0.5e-4
+            hs, att_h, lr = 20480, 128, 0.5e-4
         elif model_size_in_b < 805:
             hs, att_h, lr = 20480, 128, 0.4e-4
         elif model_size_in_b < 1105:
-            hs, att_h, lr = 24576, 128, 0.3e-4
+            hs, att_h, lr = 25600, 160, 0.3e-4
         else:
             raise ValueError("Model_size for GPT-3 must be smaller than 1.1T parameters.")
     elif model_name == "t5":
@@ -172,7 +172,7 @@ def calculate_model_size_params(
             if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin):
                 return layers, hs, att_h, ffn, kv, lr
         margin += 0.01  # Double margin of acceptable model sizes.
-
+    
     # Try multiples of 2
     margin = 0.01
     for attempt in range(0, 6):
@@ -237,7 +237,10 @@ def generic_base_config(cfg, model_name="gpt3"):
 
 def modify_cfg(base_cfg, act, tp, pp, mbs, max_minutes, max_steps, num_nodes):
     new_cfg = copy.deepcopy(base_cfg)
-    new_cfg["model"]["activations_checkpoint_num_layers"] = act
+    if act is not None:
+        new_cfg["model"]["activations_checkpoint_num_layers"] = act
+    else:
+        act = "selective"
     new_cfg["model"]["tensor_model_parallel_size"] = tp
     new_cfg["model"]["pipeline_model_parallel_size"] = pp
     new_cfg["model"]["micro_batch_size"] = mbs
@@ -340,3 +343,15 @@ def convert_to_null(val):
     if val is None:
         return "null"
     return val
+
+def add_container_mounts(container_mounts):
+    mounts_str = ""
+    if container_mounts is not None:
+        assert isinstance(
+            container_mounts, omegaconf.listconfig.ListConfig
+        ), "container_mounts must be a list."
+        for mount in container_mounts:
+            if mount is not None and isinstance(mount, str):
+                mounts_str += f",{mount}" if ":" in mount else f",{mount}:{mount}"
+    return mounts_str
+
