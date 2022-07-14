@@ -28,6 +28,8 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
+# from nemo.collections.asr.parts.utils.nmesc_clustering_export import COSclustering
+from nemo.collections.asr.parts.utils.nmesc_clustering_export import SpeakerClustering
 from nemo.utils import logging
 
 
@@ -219,9 +221,11 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
                 torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
             )
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            time_stamps_tensor= torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]])
             embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
                 'embeddings': embeddings[uniq_id],
-                'time_stamps': time_stamps[uniq_id],
+                'time_stamps': time_stamps_tensor
+                # 'time_stamps': time_stamps[uniq_id],
             }
 
     return embs_and_timestamps
@@ -411,23 +415,49 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
                 raise ValueError("Provided option as oracle num of speakers but num_speakers in manifest is null")
         else:
             num_speakers = None
-
-        cluster_labels = COSclustering(
-            uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
+        uniq_embs_and_timestamps=embs_and_timestamps[uniq_id]
+        
+        multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float()
+        uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+        num_speakers = -1 if num_speakers is None else num_speakers 
+        
+        speaker_clustering = SpeakerClustering(
+                    max_num_speaker=max_num_speakers,
+                    enhanced_count_thres=clustering_params.enhanced_count_thres,
+                    max_rp_threshold=clustering_params.max_rp_threshold,
+                    sparse_search_volume=clustering_params.sparse_search_volume,
+                    multiscale_weights=multiscale_weights,
+                    cuda=cuda)
+        
+        speaker_clustering = torch.jit.script(speaker_clustering)
+        
+        cluster_labels = speaker_clustering.forward(
+            uniq_scale_dict,
             oracle_num_speakers=num_speakers,
-            max_num_speaker=max_num_speakers,
-            enhanced_count_thres=clustering_params.enhanced_count_thres,
-            max_rp_threshold=clustering_params.max_rp_threshold,
-            sparse_search_volume=clustering_params.sparse_search_volume,
-            cuda=cuda,
-        )
+            )
+        
+        # cluster_labels = COSclustering(
+            # uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
+            # oracle_num_speakers=num_speakers,
+            # max_num_speaker=max_num_speakers,
+            # enhanced_count_thres=clustering_params.enhanced_count_thres,
+            # max_rp_threshold=clustering_params.max_rp_threshold,
+            # sparse_search_volume=clustering_params.sparse_search_volume,
+            # cuda=cuda,
+        # )
 
         base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
-        lines = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
-        assert len(cluster_labels) == len(lines)
+        timestamps = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
+        cluster_labels = cluster_labels.cpu().numpy()
+        assert len(cluster_labels) == timestamps.shape[0]
+        # for idx, label in enumerate(cluster_labels):
+            # tag = 'speaker_' + str(label)
+            # lines[idx] += tag
+        lines = []
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)
-            lines[idx] += tag
+            lines.append(f"{timestamps[idx][0]:.3f} {timestamps[idx][1]:.3f} {tag}")
+
         a = get_contiguous_stamps(lines)
         labels = merge_stamps(a)
 
