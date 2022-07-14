@@ -4187,7 +4187,7 @@ The tables and charts below show the performance results.
 | ---- | ------------------------------- | ------ | ------ | ------ |
 |      |                                 | 16     | 32     | 128    |
 |      | Tokens per Second               | 20642  | 38025  | 141306 |
-| 5B   | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
+| 175B | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
 |      | Speed-up                        | 1x     | 1.84x  | 6.85x  |
 
 <img src="img/175B_GPT_3_throughput.svg"/>
