@@ -475,13 +475,14 @@ def check_resume(
             new_run_dir.mkdir()
             for _file in files_to_move:
                 move(str(_file), str(new_run_dir))
-            time.sleep(10)
+            time.sleep(15)
     else:
         files_to_move = [child for child in Path(log_dir).iterdir() if child.is_file()]
         while len(files_to_move) > 0:
             logging.info(f"Waiting for global_rank_zero() to finish back up of previous run")
             files_to_move = [child for child in Path(log_dir).iterdir() if child.is_file()]
             time.sleep(5)
+        time.sleep(10)
 
 
 def check_explicit_log_dir(
