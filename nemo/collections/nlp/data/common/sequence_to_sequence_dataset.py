@@ -160,7 +160,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         else:
             return self.max_num_samples
 
-    def __getitem__(self, idx):
+    def _get_sample(self, idx):
         if isinstance(idx, np.int64):
             idx = idx.item()
 
@@ -172,11 +172,17 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
         assert idx < len(self.src_indexed_dataset)
         src = self.src_indexed_dataset[idx]
+        tgt = self.tgt_indexed_dataset[idx]
+
+        return src, tgt
+
+    def __getitem__(self, idx):
+        src, tgt = self._get_sample(idx)
+
         if len(src) > self.max_src_seq_length - 2:
             src = src[: self.max_src_seq_length - 2]
         text_enc = np.concatenate([[self.src_tokenizer.bos_id], src, [self.src_tokenizer.eos_id]])
 
-        tgt = self.tgt_indexed_dataset[idx]
         if len(tgt) > self.max_tgt_seq_length - 2:
             tgt = tgt[: self.max_tgt_seq_length - 2]
 

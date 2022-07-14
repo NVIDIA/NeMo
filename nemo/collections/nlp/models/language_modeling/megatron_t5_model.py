@@ -80,24 +80,31 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         self.num_sentinel_tokens = self._cfg.tokenizer.num_sentinel_tokens
         MegatronT5Model.add_special_tokens_to_tokenizer(
             tokenizer=self.tokenizer,
-            tokenizer_cfg=self._cfg.tokenizer,
+            library=self._cfg.tokenizer.library,
+            num_sentinent_tokens=self.num_sentinel_tokens,
             dataset_type=self._cfg.data.get("dataset_type", "t5")
         )
         super()._build_vocab()
 
     @classmethod
-    def add_special_tokens_to_tokenizer(cls, tokenizer, tokenizer_cfg, dataset_type="t5"):
+    def add_special_tokens_to_tokenizer(
+        cls,
+        tokenizer,
+        library,
+        num_sentinel_tokens=100,
+        dataset_type="t5"
+    ):
         # T5-related construction
-        if tokenizer_cfg.library == 'huggingface' or tokenizer_cfg.library == 'megatron':
+        if library == 'huggingface' or library == 'megatron':
             additional_tokens = {
-                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(tokenizer_cfg.num_sentinel_tokens)]
+                'additional_special_tokens': [f'<extra_id_{i}>' for i in range(num_sentinel_tokens)]
             }
             if dataset_type == "ul2":
                 for mask_type in ['r', 's', 'x']:
                     additional_tokens['additional_special_tokens'].extend([f'<extra_id_{mask_type}>'])
             tokenizer.add_special_tokens(additional_tokens)
 
-        if tokenizer_cfg.library == 'sentencepiece':
+        if library == 'sentencepiece':
             # Need to add cls, sep, mask tokens to the tokenizer if they don't exist.
             # If cls, sep and mask are not attributes of the tokenizer, add it.
             if not hasattr(tokenizer, 'cls_token'):
@@ -133,7 +140,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
                 tokenizer.add_special_tokens({'eos_token': '</s>'})
 
             # Special check to see if <extra_id_{}> is already present in the tokenizer. If it is, only modify the additional_special_tokens function.
-            for i in range(tokenizer_cfg.num_sentinel_tokens):
+            for i in range(num_sentinel_tokens):
                 if f'▁<extra_id_{i}>' in tokenizer.vocab:
                     tokenizer.special_token_to_id[f'<extra_id_{i}>'] = tokenizer.text_to_ids(
                         f'<extra_id_{i}>'
