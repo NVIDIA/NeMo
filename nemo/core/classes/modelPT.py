@@ -491,8 +491,10 @@ class ModelPT(LightningModule, Model):
                 elif app.model_parallel_size is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
                 else:
-                    optim_config['sched']['t_num_workers'] = (self._trainer.num_devices * self._trainer.num_nodes) / app.model_parallel_size
-                    
+                    optim_config['sched']['t_num_workers'] = (
+                        self._trainer.num_devices * self._trainer.num_nodes
+                    ) / app.model_parallel_size
+
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
