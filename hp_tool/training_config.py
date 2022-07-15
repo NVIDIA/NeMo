@@ -29,7 +29,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     multiplier = 1 if model_name == "gpt3" else 2
 
     num_layers = base_cfg["model"]["num_layers"]
-    act_granularity = base_cfg["model"].get(["activations_checkpoint_granularity"], "full")
+    act_granularity = base_cfg["model"].get("activations_checkpoint_granularity", "full")
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
