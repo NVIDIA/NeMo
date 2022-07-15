@@ -177,7 +177,7 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         inference_max_sequence_len=None,
     ):
         # Call forward on GPT model with preprocessed embeddings
-        if self.float_type == torch.float32:
+        if self.autocast_dtype == torch.float32:
             bsz = len(input_ids)
             prefix_tuning_key_values = self.prefix_generator(bsz)
             output = self.frozen_model.model(
@@ -191,7 +191,7 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
                 prefix_tuning_key_values=prefix_tuning_key_values,
             )
         else:
-            with torch.autocast(device_type="cuda", dtype=self.float_type):
+            with torch.autocast(device_type="cuda", dtype=self.autocast_dtype):
                 bsz = len(input_ids)
                 prefix_tuning_key_values = self.prefix_generator(bsz)
                 output = self.frozen_model.model(
