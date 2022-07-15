@@ -867,3 +867,4 @@ class ConvAttention(torch.nn.Module):
 
         attn = self.softmax(attn)  # softmax along T2
         return attn, attn_logprob
+

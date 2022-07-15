@@ -384,3 +384,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     def get_export_subnet(self, subnet=None):
         return self.model.get_export_subnet(subnet)
+
+
+subnet(subnet)
