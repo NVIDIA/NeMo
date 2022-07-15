@@ -83,7 +83,7 @@ def main(cfg) -> None:
 
     for name, tensor in model.named_parameters():
         if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
-            std = cfg.model.init_method_std / math.sqrt(2.0 * cfg.model.dec_num_layers)
+            std = cfg.model.init_method_std / math.sqrt(2.0 * 12.0)
             normal_(tensor, 0, std)
         elif name.endswith('layernorm.weight'):
             if tensor.std() != 0 and tensor.mean() != 1:
