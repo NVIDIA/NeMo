@@ -804,6 +804,7 @@ class NMESC_model:
         use_subsampling_for_NME: bool = True,
         fixed_thres: float = 0.0,
         maj_vote_spk_count: bool = False,
+        parallelism: bool = True,
         cuda: bool = False,
         device: torch.device = torch.device('cpu'),
     ):
@@ -865,7 +866,7 @@ class NMESC_model:
         self.p_value_list: torch.Tensor = self.min_p_value.unsqueeze(0)
         self.device = device
         self.maj_vote_spk_count = maj_vote_spk_count
-        self.parallelism = True
+        self.parallelism = parallelism
 
     def forward(self):
         """
@@ -883,12 +884,28 @@ class NMESC_model:
         eig_ratio_list = torch.zeros(p_volume,)
         est_num_of_spk_list = torch.zeros(p_volume,)
 
-        for p_idx, p_value in enumerate(self.p_value_list):
-            est_num_of_spk, g_p = self.getEigRatio(p_value)
-            est_spk_n_dict[p_value.item()] = est_num_of_spk
-            eig_ratio_list[p_idx] = g_p
-            est_num_of_spk_list[p_idx] = est_num_of_spk
-        
+        if self.parallelism:
+            futures : List[torch.jit.Future[torch.Tensor]] = []
+            for p_idx, p_value in enumerate(self.p_value_list):
+                futures.append(torch.jit.fork(self.getEigRatio, p_value))
+            results = []
+            for future in futures:
+                results.append(torch.jit.wait(future))
+            
+            for p_idx, p_value in enumerate(self.p_value_list):
+                output = results[p_idx]
+                g_p, est_num_of_spk = output[0], output[1].int()
+                eig_ratio_list[p_idx] = g_p
+                est_spk_n_dict[p_value.item()] = est_num_of_spk
+                est_num_of_spk_list[p_idx] = est_num_of_spk
+        else:
+            for p_idx, p_value in enumerate(self.p_value_list):
+                output = self.getEigRatio(p_value)
+                g_p, est_num_of_spk = output[0], output[1].int()
+                est_spk_n_dict[p_value.item()] = est_num_of_spk
+                eig_ratio_list[p_idx] = g_p
+                est_num_of_spk_list[p_idx] = est_num_of_spk
+
         index_nn = torch.argmin(eig_ratio_list)
         rp_p_value = self.p_value_list[index_nn]
         affinity_mat = getAffinityGraphMat(self.mat, rp_p_value)
@@ -958,8 +975,7 @@ class NMESC_model:
         max_key = arg_sorted_idx[0]
         max_eig_gap = lambda_gap_list[max_key] / (torch.max(lambdas).item() + self.eps)
         g_p = (p_neighbors / self.mat.shape[0]) / (max_eig_gap + self.eps)
-        return (est_num_of_spk, g_p)
-        # turn torch.tensor([est_num_of_spk, g_p])
+        return torch.stack([g_p, est_num_of_spk])
 
     def getPvalueList(self):
         """
@@ -1259,6 +1275,7 @@ class SpeakerClustering(torch.nn.Module):
         maj_vote_spk_count: bool = False,
         fixed_thres: float = 0.0,
         multiscale_weights: torch.Tensor = torch.tensor(1).unsqueeze(0),
+        parallelism: bool = False,
         cuda: bool = False,
     ):
         """
@@ -1307,6 +1324,9 @@ class SpeakerClustering(torch.nn.Module):
             multiscale_weights: (torch.tensor)
                 Multi-scale weights that are used when affinity scores are merged.
 
+            parallelism: (bool)
+                Use dynamic parallelism feature in torch.jit compiler to accelerate the p-value search.
+
             cuda: (bool)
                 Boolean variable for toggling cuda availability.
 
@@ -1322,6 +1342,7 @@ class SpeakerClustering(torch.nn.Module):
         self.maj_vote_spk_count: bool = maj_vote_spk_count
         self.fixed_thres: float = fixed_thres
         self.multiscale_weights: torch.Tensor = multiscale_weights
+        self.parallelism: bool = parallelism
         self.cuda: bool = cuda
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
 
@@ -1371,6 +1392,7 @@ class SpeakerClustering(torch.nn.Module):
             fixed_thres=self.fixed_thres,
             NME_mat_size=self.NME_mat_size,
             maj_vote_spk_count=self.maj_vote_spk_count,
+            parallelism=self.parallelism,
             cuda=self.cuda,
             device=self.device,
         )
