@@ -17,57 +17,49 @@
 # Adapted by: @adithyare
 
 from tkinter.tix import Tree
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import (
-    MegatronBaseModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
-from nemo.collections.nlp.modules.common.megatron.transformer import ColumnLinear
-from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    TextGeneration,
-)
-from nemo.core.classes.module import NeuralModule
+
 import torch
-from torch import nn
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from pytorch_lightning.trainer.trainer import Trainer
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import (
-    MegatronBaseModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
-    MegatronGPTModel,
-)
+from torch import nn
+
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
+    MegatronGPTPromptLearningModel
+from nemo.collections.nlp.modules.common import (PromptEncoder, PromptTable,
+                                                 VirtualPromptPlaceholderToken,
+                                                 VirtualPromptSource,
+                                                 VirtualPromptStyle)
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.language_model import (
-    get_language_model,
-)
+from nemo.collections.nlp.modules.common.megatron.transformer import \
+    ColumnLinear
+from nemo.collections.nlp.modules.common.transformer.text_generation import \
+    TextGeneration
+from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common import (
-    PromptEncoder,
-    PromptTable,
-    VirtualPromptPlaceholderToken,
-    VirtualPromptSource,
-    VirtualPromptStyle,
-)
+from nemo.core.classes.module import NeuralModule
 
 try:
-    from apex.transformer import tensor_parallel
-    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
-    from apex.transformer import parallel_state
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import (
-        forward_backward_pipelining_without_interleaving,
-    )
-    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import (
-        forward_backward_no_pipelining,
-    )
+    from apex.transformer import parallel_state, tensor_parallel
+    from apex.transformer.parallel_state import \
+        get_tensor_model_parallel_world_size
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_no_pipelining import \
+        forward_backward_no_pipelining
+    from apex.transformer.pipeline_parallel.schedules.fwd_bwd_pipelining_without_interleaving import \
+        forward_backward_pipelining_without_interleaving
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    init_method_normal
+
 
 class Prefix(MegatronModule):
     """
