@@ -70,7 +70,7 @@ def main(cfg):
         tp = model_cfg.get("tensor_model_parallel_size")
         pp = model_cfg.get("pipeline_model_parallel_size")
         mbs = model_cfg.get("micro_batch_size")
-        act_ckpt_granularity = model_cfg.get("activations_checkpoint_granularity")
+        act_ckpt_granularity = model_cfg.get("activations_checkpoint_granularity", "full")
         if act_ckpt_granularity == "selective":
             act_ckpt_layers = "selective"
         elif act_ckpt_granularity == "full":

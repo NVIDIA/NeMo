@@ -29,7 +29,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     multiplier = 1 if model_name == "gpt3" else 2
 
     num_layers = base_cfg["model"]["num_layers"]
-    act_granularity = base_cfg["model"]["activations_checkpoint_granularity"]
+    act_granularity = base_cfg["model"].get(["activations_checkpoint_granularity"])
 
     tp_list, pp_list, mbs_list = _calculate_tp_pp_mbs_grid(
         model_size_in_b=model_size_in_b,
@@ -45,7 +45,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     max_steps = train_cfg.get("max_steps_per_run")
 
     act_multiple = 1
-    if act_granularity == "full":
+    if act_granularity is None or act_granularity == "full":
         results_cfgs = [[] for _ in range(multiplier * num_layers + 1)]
         if model_name != "gpt3":
             if model_size_in_b < 1.0:
@@ -85,7 +85,7 @@ def generate_grid_search_configs(base_cfg, model_size_in_b, model_name, cfg):
     for tp in tp_list:
         for pp in pp_list:
             for mbs in mbs_list:
-                if act_granularity == "full":
+                if act_granularity is None or act_granularity == "full":
                     act_ckpt_layers = [
                         x for x in range(multiplier * num_layers // pp + 1) if x % act_multiple == 0
                     ]
