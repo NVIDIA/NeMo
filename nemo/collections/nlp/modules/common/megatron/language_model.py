@@ -493,6 +493,7 @@ class TransformerLanguageModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        prefix_tuning_key_values=None,
     ):
         # Embeddings.
         if self.pre_process and encoder_input is None:
@@ -509,6 +510,7 @@ class TransformerLanguageModel(MegatronModule):
                 get_key_value=get_key_value,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
+                prefix_tuning_key_values=prefix_tuning_key_values,
             )
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)

@@ -168,6 +168,7 @@ class GPTModel(MegatronModule):
         encoder_input=None,
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
+        prefix_tuning_key_values=None,
     ):
 
         lm_output = self.language_model(
@@ -179,6 +180,7 @@ class GPTModel(MegatronModule):
             encoder_input=encoder_input,
             set_inference_key_value_memory=set_inference_key_value_memory,
             inference_max_sequence_len=inference_max_sequence_len,
+            prefix_tuning_key_values=prefix_tuning_key_values,
         )
 
         if self.post_process:

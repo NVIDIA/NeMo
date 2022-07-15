@@ -517,6 +517,7 @@ class ParallelAttention(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # rotary positional embedding
         position_bias=None,
+        prefix_tuning_key_values=None,
     ):
         # hidden_states: [sq, b, h]
 
@@ -616,6 +617,18 @@ class ParallelAttention(MegatronModule):
 
         real_seq_length = hidden_states.shape[0]
         key_length = key_layer.shape[0]
+
+        # TODO: (@adithyare) I'm not sure if this the correct place insert the prefix_tuning key,values into the key_layer and value_layer.
+        if prefix_tuning_key_values is not None:
+            key, value = prefix_tuning_key_values[0], prefix_tuning_key_values[1]
+            key_layer = torch.cat((key, key_layer), dim=0)
+            value_layer = torch.cat((value, value_layer), dim=0)
+            extra_attention_mask = torch.zeros(
+                (attention_mask.shape[0], 1, attention_mask.shape[-2], key.shape[0]),
+                dtype=torch.bool,
+                device=attention_mask.device,
+            )
+            attention_mask = torch.cat((extra_attention_mask, attention_mask), dim=-1)
 
         if layer_past is not None:
             past_key, past_value = layer_past
@@ -1204,6 +1217,7 @@ class ParallelTransformerLayer_(MegatronModule):
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         position_bias=None,
         encoder_decoder_position_bias=None,
+        prefix_tuning_key_values=None,
     ):
         # Self attention.
         if rotary_pos_emb is not None:
@@ -1242,6 +1256,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
+                prefix_tuning_key_values=prefix_tuning_key_values,
             )
 
             if get_key_value:
@@ -1385,6 +1400,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         inference_max_sequence_len=None,
         position_bias=None,
         encoder_decoder_position_bias=None,
+        prefix_tuning_key_values=None,
     ):
         if self.dtype == torch.float32:
             return super().forward(
@@ -1399,6 +1415,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 position_bias,
                 encoder_decoder_position_bias,
+                prefix_tuning_key_values,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1413,6 +1430,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
                 rotary_pos_emb,
                 position_bias,
                 encoder_decoder_position_bias,
+                prefix_tuning_key_values,
             )
 
 
@@ -1611,6 +1629,7 @@ class ParallelTransformer(MegatronModule):
         rotary_pos_emb,
         position_bias=None,
         encoder_decoder_position_bias=None,
+        prefix_tuning_key_values=None,
     ):
         """Forward method with activation checkpointing."""
 
@@ -1623,6 +1642,7 @@ class ParallelTransformer(MegatronModule):
                 rotary_pos_emb = inputs[4]
                 position_bias = inputs[5]
                 encoder_decoder_position_bias = inputs[6]
+                prefix_tuning_key_values = inputs[7]
                 for index in range(start, end):
                     layer = self._get_layer(index)
                     x_ = layer(
@@ -1633,6 +1653,11 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb,
                         position_bias,
                         encoder_decoder_position_bias,
+                        prefix_tuning_key_values=prefix_tuning_key_values[
+                            :, :, index, :, :, :
+                        ]
+                        if prefix_tuning_key_values is not None
+                        else None,  # We're splitting up the prefix tuning representaiton per layer. @adithyare
                     )
                 return x_
 
@@ -1656,6 +1681,7 @@ class ParallelTransformer(MegatronModule):
                     rotary_pos_emb,
                     position_bias,
                     encoder_decoder_position_bias,
+                    prefix_tuning_key_values,
                 )
                 l += self.activations_checkpoint_num_layers
         elif self.activations_checkpoint_method == 'block':
@@ -1673,6 +1699,7 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb,
                         position_bias,
                         encoder_decoder_position_bias,
+                        prefix_tuning_key_values,
                     )
                 else:
                     hidden_states = custom(l, l + 1)(
@@ -1683,6 +1710,7 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb,
                         position_bias,
                         encoder_decoder_position_bias,
+                        prefix_tuning_key_values,
                     )
         else:
             raise ValueError("Invalid activation checkpoint method.")
@@ -1713,6 +1741,7 @@ class ParallelTransformer(MegatronModule):
         retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
         position_bias=None,
         encoder_decoder_position_bias=None,
+        prefix_tuning_key_values=None,
     ):
         # Checks.
         if inference_max_sequence_len:
@@ -1753,6 +1782,7 @@ class ParallelTransformer(MegatronModule):
                 rotary_pos_emb,
                 position_bias,
                 encoder_decoder_position_bias,
+                prefix_tuning_key_values,
             )
 
             if type(hidden_states) is tuple:
@@ -1782,6 +1812,11 @@ class ParallelTransformer(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                     position_bias=position_bias,
                     encoder_decoder_position_bias=encoder_decoder_position_bias,
+                    prefix_tuning_key_values=prefix_tuning_key_values[
+                        :, :, index, :, :, :
+                    ]
+                    if prefix_tuning_key_values is not None
+                    else None,
                 )
                 if get_key_value:
                     hidden_states, present = hidden_states
