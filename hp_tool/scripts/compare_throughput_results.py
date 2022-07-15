@@ -72,7 +72,7 @@ def main(cfg):
         mbs = model_cfg.get("micro_batch_size")
         act_ckpt_granularity = model_cfg.get("activations_checkpoint_granularity")
         if act_ckpt_granularity == "selective":
-            act_ckpt_layers = "_selective"
+            act_ckpt_layers = "selective"
         elif act_ckpt_granularity == "full":
             act_ckpt_layers = model_cfg.get("activations_checkpoint_num_layers")
         vocab = settings_cfg.get("vocab_size")
@@ -108,7 +108,7 @@ def main(cfg):
                         gpus_per_node=gpus_per_node,
                         time_per_step=avg_global_step_time,
                     )
-                    config_name = f"tp{tp}_pp{pp}_mbs{mbs}_act{act_ckpt_layers}"
+                    config_name = f"tp{tp}_pp{pp}_mbs{mbs}_act_{act_ckpt_layers}"
                     result.append(
                         [
                             model_name,
@@ -186,7 +186,7 @@ def calculate_tflops(
         ((2*R3*M3*M3*(5*O3+4*P3)+6*R3*M3*N3*(O3+P3)+4*R3*M3*(O3*O3+P3*P3+O3*P3))*3*L3/2+6*R3*P3*M3*Q3)/(G3*H3)/1000000000000/F3
     """
     if model_name == "gpt3":
-        act_term = 4 * gbs * enc_seq_len * enc_seq_len * hs * layers if act_ckpt_layers == "_selective" else 0
+        act_term = 4 * gbs * enc_seq_len * enc_seq_len * hs * layers if act_ckpt_layers == "selective" else 0
 
         # Model FLOPS calculation
         model_flops = ((
@@ -196,7 +196,7 @@ def calculate_tflops(
         model_tflops = model_flops / 1e12
         model_tflops_per_gpu = model_flops_per_gpu / 1e12
         # HW FLOPS calculation
-        if act_ckpt_layers == "_selective":
+        if act_ckpt_layers == "selective":
             hw_flops = ((
                 24*gbs*enc_seq_len*hs*hs + 4*gbs*enc_seq_len*enc_seq_len*hs
             ) * (3*layers) + act_term + (6*gbs*enc_seq_len*hs*vocab)) / time_per_step
