@@ -234,13 +234,6 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
             state_dict[self.prefix_generator_key], strict=strict
         )
 
-    #def configure_optimizers(self):
-    #    lr = 1e-4
-    #    return torch.optim.Adam(
-    #        self.prefix_generator.parameters(), lr=lr
-    #    )
-
-
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
