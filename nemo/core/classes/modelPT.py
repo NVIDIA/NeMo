@@ -488,7 +488,7 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                
+
                 app_state = AppState()
                 if app_state.data_parallel_size is not None:
                     optim_config['sched']['t_num_workers'] = app_state.data_parallel_size
