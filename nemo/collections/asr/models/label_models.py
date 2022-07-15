@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import itertools
 from math import ceil
 from typing import Dict, List, Optional, Union
@@ -20,9 +19,7 @@ from typing import Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
-import gc
 from omegaconf import DictConfig
-from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
 from tqdm import tqdm
 
@@ -229,7 +226,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
         self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
         self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
         self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
-    
+
     def test_dataloader(self):
         if self._test_dl is not None:
             return self._test_dl
@@ -252,16 +249,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
         }
 
-<<<<<<< HEAD
-    # @typecheck()
-=======
->>>>>>> origin/main
     def forward_for_export(self, processed_signal, processed_signal_len):
         encoded, length = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
         logits, embs = self.decoder(encoder_output=encoded, length=length)
-        del encoded, length, processed_signal, processed_signal_len
-        torch.cuda.empty_cache() 
-        gc.collect()
         return logits, embs
 
     @typecheck()
@@ -285,11 +275,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
 
         self.log('loss', loss)
         self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-<<<<<<< HEAD
-        print('learning_rate', self._optimizer.param_groups[0]['lr'])
-=======
         self.log('global_step', self.trainer.global_step)
->>>>>>> origin/main
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
@@ -366,61 +352,6 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel):
             'test_loss': test_loss_mean,
             'test_acc_top_k': topk_scores,
         }
-
-    def setup_finetune_model(self, model_config: DictConfig):
-        """
-        setup_finetune_model method sets up training data, validation data and test data with new
-        provided config, this checks for the previous labels set up during training from scratch, if None,
-        it sets up labels for provided finetune data from manifest files
-
-        Args:
-            model_config: cfg which has train_ds, optional validation_ds, optional test_ds, 
-            mandatory encoder and decoder model params. Make sure you set num_classes correctly for finetune data.
-
-        Returns: 
-            None
-        """
-        logging.info("Setting up data loaders with manifests provided from model_config")
-
-        if 'train_ds' in model_config and model_config.train_ds is not None:
-            self.setup_training_data(model_config.train_ds)
-        else:
-            raise KeyError("train_ds is not found in model_config but you need it for fine tuning")
-
-        if self.labels is None or len(self.labels) == 0:
-            raise ValueError(f'New labels must be non-empty list of labels. But I got: {self.labels}')
-
-        if 'validation_ds' in model_config and model_config.validation_ds is not None:
-            self.setup_multiple_validation_data(model_config.validation_ds)
-
-        if 'test_ds' in model_config and model_config.test_ds is not None:
-            self.setup_multiple_test_data(model_config.test_ds)
-
-        if self.labels is not None:  # checking for new finetune dataset labels
-            logging.warning(
-                "Trained dataset labels are same as finetune dataset labels -- continuing change of decoder parameters"
-            )
-        else:
-            logging.warning(
-                "Either you provided a dummy manifest file during training from scratch or you restored from a pretrained nemo file"
-            )
-
-        decoder_config = model_config.decoder
-        new_decoder_config = copy.deepcopy(decoder_config)
-        if new_decoder_config['num_classes'] != len(self.labels):
-            raise ValueError(
-                "number of classes provided {} is not same as number of different labels in finetuning data: {}".format(
-                    new_decoder_config['num_classes'], len(self.labels)
-                )
-            )
-
-        del self.decoder
-        self.decoder = EncDecSpeakerLabelModel.from_config_dict(new_decoder_config)
-
-        with open_dict(self._cfg.decoder):
-            self._cfg.decoder = new_decoder_config
-
-        logging.info(f"Changed decoder output to # {self.decoder._num_classes} classes.")
 
     @torch.no_grad()
     def get_embedding(self, path2audio_file):
