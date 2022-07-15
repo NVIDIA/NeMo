@@ -142,7 +142,7 @@ class TarredSentenceDataset(IterableDataset):
     """
     A similar Dataset to the SentenceDataset, but which loads tarred tokenized pickle files.
     Accepts a single JSON metadata file containing the total number of batches
-    as well as the path(s) to the tarball(s) containing the wav files. 
+    as well as the path(s) to the tarball(s) containing the wav files.
     Valid formats for the text_tar_filepaths argument include:
     (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
@@ -223,12 +223,14 @@ class TarredSentenceDataset(IterableDataset):
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
         if shard_strategy == 'scatter':
-            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
             if len(text_tar_filepaths) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
-                    f"by number of distributed workers ({world_size})."
+                    f"by number of distributed workers ({world_size}). "
+                    f"Some shards will not be used ({len(text_tar_filepaths) % world_size})."
                 )
+            batches_per_tar = self.metadata['num_batches'] // len(text_tar_filepaths)
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
             logging.info('Begin Index : %d' % (begin_idx))
@@ -237,7 +239,7 @@ class TarredSentenceDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
-            self.length = self.metadata['num_batches'] // world_size
+            self.length = batches_per_tar * len(text_tar_filepaths)
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")

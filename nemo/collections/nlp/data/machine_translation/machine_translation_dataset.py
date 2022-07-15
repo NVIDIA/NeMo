@@ -385,12 +385,14 @@ class TarredTranslationDataset(IterableDataset):
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
         if shard_strategy == 'scatter':
-            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
             if len(text_tar_filepaths) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
-                    f"by number of distributed workers ({world_size})."
+                    f"by number of distributed workers ({world_size}). "
+                    f"Some shards will not be used ({len(text_tar_filepaths) % world_size})."
                 )
+            batches_per_tar = self.metadata['num_batches'] // len(text_tar_filepaths)
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
             logging.info('Begin Index : %d' % (begin_idx))
@@ -399,7 +401,7 @@ class TarredTranslationDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
-            self.length = self.metadata['num_batches'] // world_size
+            self.length = batches_per_tar * len(text_tar_filepaths)
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
