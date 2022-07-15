@@ -138,6 +138,8 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
     result_g2p = []
     word_start_idx = 0
 
+    has_heteronym = False
+
     for word in words:
         if log_file:
             log_file.write(f"----------------\n{word}\n")
@@ -147,6 +149,8 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
 
         # Check if word needs to be disambiguated
         if word in heteronyms:
+            has_heteronym = True
+
             # Add candidate for each ambiguous pronunciation
             word_candidates = []
             candidate_prons_and_lengths = []
@@ -226,10 +230,10 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
     if log_file:
         log_file.write(f"===\n{''.join(result_g2p)}\n===\n")
 
-    return result_g2p
+    return result_g2p, has_heteronym
 
 
-def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, device, verbose):
+def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, device, verbose, heteronyms_only=True):
     """Disambiguates the phonemes for all words with ambiguous pronunciations in the given manifest.
     """
     log_file = open('disambiguation_logs.txt', 'w') if verbose else None
@@ -250,10 +254,15 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, devic
                 spec, spec_len = load_and_prepare_audio(aligner, audio_path, sr, device)
 
                 # Get pronunciation candidates and disambiguate
-                disambiguated_text = disambiguate_candidates(
+                disambiguated_text, has_heteronym = disambiguate_candidates(
                     aligner, text, spec, spec_len, device, heteronyms, log_file
                 )
 
+                # Skip writing entry if user only wants samples with heteronyms
+                if heteronyms_only and not has_heteronym:
+                    continue
+
+                # Save entry with disambiguation
                 entry['disambiguated_text'] = ''.join(disambiguated_text)
                 f_out.write(f"{json.dumps(entry)}\n")
 
