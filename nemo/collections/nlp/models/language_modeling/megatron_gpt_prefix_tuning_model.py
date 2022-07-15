@@ -67,7 +67,7 @@ try:
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
+from nemo.collections.nlp.modules.common.megatron.utils import init_method_normal
 
 class Prefix(MegatronModule):
     """
@@ -100,9 +100,9 @@ class Prefix(MegatronModule):
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
-        self.prefix_layer_projection = nn.Linear(
-            prefix_projection_size, num_layers * hidden_size * 2
-        )  # TODO: (@adithyare) should eventually make this tensor-parallel
+        self.prefix_layer_projection = ColumnLinear(
+            prefix_projection_size, num_layers * hidden_size * 2, bias=False, gather_output=False
+        ) 
         nn.init.normal_(self.prefix_embeddings.weight)
         nn.init.xavier_uniform_(self.prefix_projection.weight)
         nn.init.constant_(self.prefix_projection.bias, 0)
@@ -120,7 +120,7 @@ class Prefix(MegatronModule):
             prefix_reps
         )  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
-        prefix_reps = self.prefix_layer_projection(
+        prefix_reps, _ = self.prefix_layer_projection(
             prefix_reps
         )  # (bsz, seqlen, num_layers * hidden_size * 2)
         prefix_reps = self.dropout(prefix_reps)
