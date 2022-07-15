@@ -485,15 +485,15 @@ class ModelPT(LightningModule, Model):
                 raise ValueError("We do not currently support gradient acculumation that is not an integer.")
             if self._trainer.max_steps is None or self.trainer.max_steps < 0:
                 # Store information needed to calculate max_steps
-                app = AppState()
-                if app.data_parallel_size is not None:
-                    optim_config['sched']['t_num_workers'] = app.data_parallel_size
-                elif app.model_parallel_size is None:
+                app_state = AppState()
+                if app_state.data_parallel_size is not None:
+                    optim_config['sched']['t_num_workers'] = app_state.data_parallel_size
+                elif app_state.model_parallel_size is None:
                     optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
                 else:
                     optim_config['sched']['t_num_workers'] = (
                         self._trainer.num_devices * self._trainer.num_nodes
-                    ) / app.model_parallel_size
+                    ) / app_state.model_parallel_size
 
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
