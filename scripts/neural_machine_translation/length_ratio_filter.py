@@ -91,7 +91,7 @@ def get_args():
         "-z",
         type=float,
         default=1.3,
-        help="Ratio of the length of the source sentence to the length of the target sentence." "",
+        help="Ratio of the length of the source sentence to the length of the target sentence.",
     )
     args = parser.parse_args()
     args.input_src = args.input_src.expanduser()
