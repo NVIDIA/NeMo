@@ -72,6 +72,8 @@ def load_data(input_fs: List[str]):
                         try:
                             sent, label = line.strip().split(DELIMITER)
                         except Exception as e:
+                            if line.startswith("#"):
+                                continue
                             print(e)
                             raise ValueError(f"Check format for line {line}")
                         if label == "RAW":

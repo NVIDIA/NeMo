@@ -47,8 +47,6 @@ from pynini.lib import pynutil
 
 from nemo.utils import logging
 
-logging.setLevel("DEBUG")
-
 
 class ClassifyFst(GraphFst):
     """

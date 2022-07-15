@@ -1,3 +1,8 @@
+# This dataset is licensed under a Creative Commons Attribution 4.0 International License. https://creativecommons.org/licenses/by/4.0/
+# This dataset is hand labeled and is intended for English text normalization and has both true positive (~~1) and true negative labels (~~0).
+# This dataset focuses on inputs with ambiguous semiotic tokens where normalization dependends on the context. 
+# This dataset is used to evaluate the context-aware hybrid text normalization under /NeMo/nemo_text_processing/hybrid/
+# 
 The train leaves on 1/4 at 5pm.~~RAW
 The train leaves on one quarter at five p m.~~0
 The train leaves on january fourth at five p m.~~1
