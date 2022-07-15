@@ -66,11 +66,11 @@ def pad_energy_avg_and_f0(energy_avg, f0, out_lens):
 
 
 @torch.jit.script
-def adjust_f0(f0, f0_mean: float, f0_std: float, vmask_bool):
+def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
         f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
         f0[vmask_bool] = (f0[vmask_bool] - f0_mu) / f0_sigma
-        f0_std = f0_std if f0_std > 0 else float(f0_sigma)
+        f0_std = f0_std if f0_std > 0 else f0_sigma
         f0[vmask_bool] = f0[vmask_bool] * f0_std + f0_mean
     return f0
 
