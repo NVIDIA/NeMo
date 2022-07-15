@@ -29,8 +29,8 @@ python length_ratio_filter.py --input-src train.en \
     --input-tgt train.de \
     --output-src train_lang_filtered.en \
     --output-tgt train_lang_filtered.de \
-    --removed-src train_garbage.en \
-    --removed-tgt train_garbage.de \
+    --removed-src train_removed.en \
+    --removed-tgt train_removed.de \
     --min_length 1 \
     --max_length 512 \
     --ratio 1.3
