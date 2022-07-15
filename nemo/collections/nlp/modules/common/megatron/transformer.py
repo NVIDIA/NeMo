@@ -354,7 +354,7 @@ class ParallelAttention(MegatronModule):
             fused_fp16,
             fused_bf16,
             self.attn_mask_type,
-            masked_softmax_fusion,
+            False,
             attention_mask_func,
             self.attention_softmax_in_fp32,
             coeff,
