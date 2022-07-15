@@ -140,7 +140,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.pseudo_tokens = get_pseudo_tokens(self.max_virtual_tokens)
         self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0]
+        self.pseudo_token_ids_start = "pst" #self.pseudo_token_ids[0]
         self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
 
         # Prompt tuning stores virtual prompts in the prompt table and tunes their weight directly
@@ -348,16 +348,33 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         to be passed around in pipeline parallel models. The prompt-encoder 
         and/or prompt table will use the learning rate set by the user. 
         """
-        virtual_prompt_params = {'params': []}
-        frozen_model_params = {'params': [param for param in self.frozen_model.parameters()], 'lr': 0.0}
+        # Freeze frozen model
+        for param in self.frozen_model.parameters():
+            param.requires_grad = False
 
-        if self.frozen_model.model.pre_process:
-            virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
+        # Need to handle frozen model freezing differently when pp > 1
+        if self.pipeline_parallel:
+            virtual_prompt_params = {'params': []}
+            frozen_model_params = {'params': [], 'lr': 0.0}
 
-            if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
-                virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+            if self.frozen_model.model.pre_process:
+                virtual_prompt_params['params'].extend([param for param in self.prompt_table.parameters()])
 
-        self._optimizer_param_groups = virtual_prompt_params, frozen_model_params
+                if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
+                    virtual_prompt_params['params'].extend([param for param in self.prompt_encoder.parameters()])
+
+            # Unfreeze one part of each transformer layer setting lr to 0.0 so DDP
+            # and AMP won't complain but model still remains frozen
+            for layer in self.frozen_model.model.language_model.encoder.layers:
+                for param in layer.input_layernorm.parameters():
+                    param.requires_grad = True
+
+            frozen_model_params['params'].extend([param for param in self.frozen_model.parameters()])
+
+            self._optimizer_param_groups = virtual_prompt_params, frozen_model_params
+
+        else:
+            super().setup_optimizer_param_groups()
 
     def forward(
         self,

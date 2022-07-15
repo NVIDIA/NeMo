@@ -163,7 +163,7 @@ class GPTPromptLearningDataset(Dataset):
         doc,
     ):
         # Sanity check amount of virtual token
-        assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
+        # assert total_virtual_tokens > 0, "There should be at least one virtual prompt token"
         assert (
             total_virtual_tokens < self.max_seq_length
         ), "virtual prompt tokens should not exceed max sequence length"
