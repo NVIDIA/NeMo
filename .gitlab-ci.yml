@@ -53,7 +53,6 @@ before_script:
     # Push to NGC
     - docker tag ${BUILD_IMAGE_NAME} ${NVCR_IMAGE_NAME}
     - docker push ${NVCR_IMAGE_NAME}
-
   allow_failure: false
   tags:
     - vm-builder
@@ -152,7 +151,7 @@ build-BigNLP:
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/${RUN_MODEL}/test_${RUN_JOB_NAME}.py
     - echo "Finished pytest job"
-  allow_failure: false
+  allow_failure: true
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER
