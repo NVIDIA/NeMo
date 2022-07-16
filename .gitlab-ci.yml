@@ -198,7 +198,7 @@ build-BigNLP:
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/test_train_pipeline_metrics.py
     - echo "Finished pytest job"
-    rules:
+  rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN || $CI_JOB_NAME =~ $TESTS_TO_RUN || $CI_JOB_NAME =~ $TEST_REGEX
       when: always
   allow_failure: false
