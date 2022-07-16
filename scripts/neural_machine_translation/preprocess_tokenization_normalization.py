@@ -14,6 +14,7 @@
 
 import logging
 from argparse import ArgumentParser
+
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 
 """
@@ -26,6 +27,7 @@ python preprocess_tokenization_normalization.py --input-src train.en \
 """
 
 logging.basicConfig(level=logging.INFO)
+
 
 def tokenize_normalize(file, wfile, processor):
     rptr = open(file)
@@ -53,11 +55,12 @@ def main():
 
     args = parser.parse_args()
 
-    src_processor, tgt_processor = MTEncDecModel.setup_pre_and_post_processing_utils(args.source_lang, args.target_lang, "bpe-placeholder", "bpe-placeholder")
+    src_processor, tgt_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
+        args.source_lang, args.target_lang, "bpe-placeholder", "bpe-placeholder"
+    )
     tokenize_normalize(args.input_src, args.output_src, src_processor)
     tokenize_normalize(args.input_tgt, args.output_tgt, tgt_processor)
 
 
 if __name__ == '__main__':
     main()
-
