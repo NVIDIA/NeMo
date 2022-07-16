@@ -9,13 +9,17 @@ fi
 
 JOBID="$1"
 
+if [[ $JOBID -eq "" ]]; then
+  exit 1
+fi
+
 while true; do
     export STATE=$(bash jobstate.sh "${JOBID}")
     case "${STATE}" in
         PENDING|RUNNING|REQUEUED)
             sleep 15s
             ;;
-        *) 
+        *)
             sleep 30s
             echo "Exiting with SLURM job status '${STATE}'"
             exit 0
