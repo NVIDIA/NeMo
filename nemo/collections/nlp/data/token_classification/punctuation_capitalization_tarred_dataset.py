@@ -871,6 +871,17 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             be used in the current process.
         shuffle_n (:obj:`int`, `optional`, defaults to :obj:`1`): a number of shuffled batches in a buffer.
             ``shuffle_n`` batches are loaded into memory, shuffled, and then yielded by a dataset instance.
+        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
+            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+                a unique set of shards, which are permanently pre-allocated and never changed at runtime.
+            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+                available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
+                The benefit of replication is that it allows each node to sample data points from the entire
+                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
+                and therefore more than one node may sample the same tarfile, and even sample the same
+                data points! As such, there is no assured guarantee that all samples in the dataset will be
+                sampled at least once during 1 epoch.
     """
 
     @property
