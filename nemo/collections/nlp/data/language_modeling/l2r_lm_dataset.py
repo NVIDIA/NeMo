@@ -31,7 +31,7 @@ __all__ = ['L2RLanguageModelingDataset', 'TarredL2RLanguageModelingDataset']
 class L2RLanguageModelingDataset(Dataset):
     """
     Dataset for training and evaluating left-to-right language models.
-    
+
     Args:
         tokenizer: tokenizer, such as WordTokenizer or CharTokenizer
         dataset: path to data
@@ -73,7 +73,7 @@ class L2RLanguageModelingDataset(Dataset):
 class TarredL2RLanguageModelingDataset(IterableDataset):
     """
     A similar Dataset to the L2RLanguageModelingDataset, but which loads tarred tokenized numpy files.
-    Accepts a single JSON metadata manifest file as well as the path(s) to the tarball(s) containing the wav files. 
+    Accepts a single JSON metadata manifest file as well as the path(s) to the tarball(s) containing the wav files.
     The manifest should contain information such as the number of shards, the number of tokens in the corpus,
     and the number of tokens contained within each shard of the tarfile(s).
 
@@ -142,7 +142,11 @@ class TarredL2RLanguageModelingDataset(IterableDataset):
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
-            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy of type {type(shard_strategy)} "
+                f"{repr(shard_strategy) if len(repr(shard_strategy)) < 100 else repr(shard_strategy)[:100] + '...'}! "
+                f"Allowed values are: {valid_shard_strategies}."
+            )
 
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)

@@ -198,7 +198,11 @@ class TarredSentenceDataset(IterableDataset):
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
-            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy of type {type(shard_strategy)} "
+                f"{repr(shard_strategy) if len(repr(shard_strategy)) < 100 else repr(shard_strategy)[:100] + '...'}! "
+                f"Allowed values are: {valid_shard_strategies}."
+            )
 
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
