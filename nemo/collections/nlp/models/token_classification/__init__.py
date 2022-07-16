@@ -19,3 +19,4 @@ from nemo.collections.nlp.models.token_classification.punctuation_capitalization
     PunctuationCapitalizationModel,
 )
 from nemo.collections.nlp.models.token_classification.token_classification_model import TokenClassificationModel
+from nemo.collections.nlp.models.token_classification.punct_cap_seg_model import PunctCapSegModel
