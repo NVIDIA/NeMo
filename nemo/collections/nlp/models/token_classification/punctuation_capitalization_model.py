@@ -741,6 +741,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 world_size=self.world_size,
                 global_rank=self.global_rank,
                 shuffle_n=cfg.tar_shuffle_n,
+                shard_strategy=cfg.shard_strategy,
                 label_info_save_dir=cfg.label_info_save_dir,
             )
             dataset.check_for_label_consistency_with_model_config(
