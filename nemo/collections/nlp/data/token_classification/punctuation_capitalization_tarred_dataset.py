@@ -960,7 +960,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             )
             batches_per_tar = self.metadata['num_batches'] // len(self.tar_files)
             self.tar_files = self.tar_files[begin_idx:end_idx]
-            self.length = batches_per_tar * len(self.tar_files) * world_size
+            self.length = batches_per_tar * len(self.tar_files)
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
