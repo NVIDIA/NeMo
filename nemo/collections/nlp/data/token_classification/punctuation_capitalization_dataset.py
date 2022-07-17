@@ -148,7 +148,7 @@ class PunctuationCapitalizationDataConfigBase:
     pre-allocated and never changed at runtime. `replicate` is an optional shard strategy, where each node gets all of the set of shards
     available in the tarred dataset, which are permanently pre-allocated and never changed at runtime. The benefit of replication is that
     it allows each node to sample data points from the entire dataset independently of other nodes, and reduces dependence on value of
-    `tar_shuffle_n`. Note: Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than
+    ``tar_shuffle_n``. Note: Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than
     one node may sample the same tarfile, and even sample the same data points! As such, there is no assured guarantee that all samples
     in the dataset will be sampled at least once during 1 epoch.
     """

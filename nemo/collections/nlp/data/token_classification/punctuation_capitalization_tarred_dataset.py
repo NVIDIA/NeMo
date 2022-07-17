@@ -871,13 +871,14 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             be used in the current process.
         shuffle_n (:obj:`int`, `optional`, defaults to :obj:`1`): a number of shuffled batches in a buffer.
             ``shuffle_n`` batches are loaded into memory, shuffled, and then yielded by a dataset instance.
-        shard_strategy (str): Tarred dataset shard distribution strategy chosen as a str value during ddp.
-            -   `scatter`: The default shard strategy applied by WebDataset, where each node gets
+        shard_strategy (:obj:`str`, defaults to :obj:``'scatter'``): Tarred dataset shard distribution strategy chosen as
+            a str value during ddp.
+            -   ``'scatter'``: The default shard strategy applied by WebDataset, where each node gets
                 a unique set of shards, which are permanently pre-allocated and never changed at runtime.
-            -   `replicate`: Optional shard strategy, where each node gets all of the set of shards
+            -   ``'replicate'``: Optional shard strategy, where each node gets all of the set of shards
                 available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
                 The benefit of replication is that it allows each node to sample data points from the entire
-                dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
+                dataset independently of other nodes, and reduces dependence on value of :param:`shuffle_n`.
                 Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
                 and therefore more than one node may sample the same tarfile, and even sample the same
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
@@ -959,7 +960,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             )
             batches_per_tar = self.metadata['num_batches'] // len(self.tar_files)
             self.tar_files = self.tar_files[begin_idx:end_idx]
-            self.length = batches_per_tar * len(self.tar_files)
+            self.length = batches_per_tar * len(self.tar_files) * world_size
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
