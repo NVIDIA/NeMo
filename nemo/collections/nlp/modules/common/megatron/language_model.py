@@ -540,6 +540,10 @@ class TransformerLanguageModel(MegatronModule):
         else:
             pass
 
+        # encoder_input: [s, b, h]
+
+        # enc_attn_mask: [1, 1, s, s]
+
         # encoder.
         if enc_hidden_states is None:
             encoder_output = self.encoder(

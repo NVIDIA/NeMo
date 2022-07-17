@@ -196,6 +196,9 @@ class GPTModel(MegatronModule):
         set_inference_key_value_memory=False,
         inference_max_sequence_len=None,
     ):
+        # input_ids: [b, s]
+        # position_ids: [b, s]
+        # attention_mask: [1, 1, s, s]
 
         lm_output = self.language_model(
             input_ids,
