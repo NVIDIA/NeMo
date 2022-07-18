@@ -513,7 +513,7 @@ class TarredTextNormalizationDecoderDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
-            self.length = batches_per_tar * len(text_tar_filepaths)
+            self.length = batches_per_tar * len(text_tar_filepaths) * world_size
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
