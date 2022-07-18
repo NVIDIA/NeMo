@@ -88,6 +88,8 @@ class SequenceToSequenceDataset(Dataset):
                 if len(src) <= self.max_src_seq_length and len(tgt) < self.max_tgt_seq_length:
                     self.examples.append({'src': src, 'tgt': tgt})
 
+        logging.info(f'Dataset Length : {len(self.examples)}')
+
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
         dec_input = [item['text_dec'] for item in batch]
@@ -153,6 +155,9 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         )
         self.seed = seed
         self.max_num_samples = max_num_samples
+        logging.info(f'Desired number of samples : {self.max_num_samples}')
+        logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
+        logging.info(f'Target Dataset Length : {len(self.tgt_indexed_dataset)}')
 
     def __len__(self):
         if self.max_num_samples is None:
@@ -187,7 +192,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
-            # TODO: This means max src and max tgt sequence length need to be the same
+            # This means max src and max tgt sequence length need to be the same
             if self.max_src_seq_length != self.max_tgt_seq_length:
                 raise ValueError(
                     f"max_src_seq_length ({self.max_src_seq_length}) != max_tgt_seq_length ({self.max_tgt_seq_length}). This is needed for max_samples based training for now."
@@ -272,9 +277,6 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
             seed=seed,
             max_num_samples=max_num_samples,
         )
-        logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
-        logging.info(f'Target Dataset Length : {len(self.tgt_indexed_dataset)}')
-        logging.info(f'Desired number of samples : {self.max_num_samples}')
 
     def _check_files_exist(self):
         if not os.path.exists(self.src_dataset_prefix + ".bin") or not os.path.exists(
