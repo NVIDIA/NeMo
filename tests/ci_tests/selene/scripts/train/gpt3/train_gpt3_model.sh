@@ -1,13 +1,12 @@
-if [[ -z $LOG_EVERY_N_STEPS ]]; then
+
+params=()
+if [[ $MAX_STEPS -le 100 ]]; then # If greater than hundred we use defaults set in the training config file.
   LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
-fi
-
-if [[ -z $VAL_CHECK_INTERVAL ]]; then
   VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
-fi
-
-if [[ -z $LIMIT_VAL_BATCHES ]]; then
   LIMIT_VAL_BATCHES=`expr $MAX_STEPS / 20`
+  params+=(training.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
+  params+=(training.trainer.limit_val_batches=$LIMIT_VAL_BATCHES)
+  params+=(training.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
 fi
 
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
@@ -15,6 +14,7 @@ DATA_PREFIX=[1.0,/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train/my-
 
 set -o xtrace
 
+#TODO : Can add additional parameters (key value pairs from gitlab-ci.yaml file)
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
@@ -36,9 +36,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.run.time_limit=${RUN_TIME_LIMIT} \
     training.trainer.num_nodes=${NUM_NODES} \
     training.trainer.max_steps=${MAX_STEPS} \
-    training.trainer.log_every_n_steps=${LOG_EVERY_N_STEPS} \
-    training.trainer.val_check_interval=${VAL_CHECK_INTERVAL} \
-    training.trainer.limit_val_batches=${LIMIT_VAL_BATCHES} \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
-    training.model.data.data_prefix=${DATA_PREFIX}
+    training.model.data.data_prefix=${DATA_PREFIX} \
+    "${params[@]}"

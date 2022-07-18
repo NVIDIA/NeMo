@@ -14,8 +14,6 @@ class TestType(enum.Enum):
 class TestTrainPipelineMetrics:
 
     margin_loss, margin_time = 0.05, 0.1
-    train_loss_list_size = 100
-    val_loss_list_size = 5
     job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
     file_name = job_name + ".json" #eg train_gpt3_126m_tp1_pp1_1node_100steps.json
     file_directory =  file_name.split("_")[1] #eg gpt3
@@ -47,10 +45,11 @@ class TestTrainPipelineMetrics:
                 return summary_list
         raise FileNotFoundError(f"File not found matching: {path}/events*")
 
-    def test_loss_helper(self, loss_type, loss_list_size, test_type):
+    def test_loss_helper(self, loss_type, test_type):
         expected = self.expected[loss_type]
         expected_loss_list = expected["values"]
         actual_loss_list = self.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
+        loss_list_size = len(expected_loss_list)*expected["step_interval"]
         assert actual_loss_list is not None, f"{self.job_name} : No TensorBoard events file was found in the logs for {loss_type}."
         assert len(actual_loss_list) == loss_list_size, f"{self.job_name} : The events file must have {loss_list_size} {loss_type} values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
@@ -61,19 +60,19 @@ class TestTrainPipelineMetrics:
 
     def test_train_loss_deterministic(self):
         # Expected training loss curve at different global steps.
-        self.test_loss_helper("reduced_train_loss", self.train_loss_list_size, TestType.DETERMINISTIC)
+        self.test_loss_helper("reduced_train_loss", TestType.DETERMINISTIC)
 
     def test__train_loss_approx(self):
         # Expected training loss curve at different global steps.
-        self.test_loss_helper("reduced_train_loss", self.train_loss_list_size, TestType.APPROX)
+        self.test_loss_helper("reduced_train_loss", TestType.APPROX)
 
     def test_val_loss_deterministic(self):
         # Expected validation loss curve at different global steps.
-        self.test_loss_helper("val_loss", self.val_loss_list_size, TestType.DETERMINISTIC)
+        self.test_loss_helper("val_loss", TestType.DETERMINISTIC)
 
     def test_val_loss_approx(self):
         # Expected validation loss curve at different global steps.
-        self.test_loss_helper("val_loss", self.val_loss_list_size, TestType.APPROX)
+        self.test_loss_helper("val_loss", TestType.APPROX)
 
     def test_train_step_timing_1node(self):
         # Expected average training time per global step.
