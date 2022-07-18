@@ -2178,9 +2178,7 @@ class ParallelTransformer(MegatronModule):
                     past = None
                     if layer_past is not None:
                         past = layer_past[index]
-                    # TODO: make flag configurable
-                    use_transformer_engine = True
-                    if use_transformer_engine:
+                    if self.transformer_engine:
                         # TODO: inference with TE
                         # inference_params = {
                         #     'get_key_value': get_key_value,
