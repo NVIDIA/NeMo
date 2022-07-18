@@ -66,8 +66,11 @@ class S2SQAModel(BaseQAModel):
     def training_step(self, batch, batch_idx):
         input_ids, input_attn_mask, unique_ids, labels = batch
         loss, _ = self.forward(input_ids, input_attn_mask, labels)
+        lr = self._optimizer.param_groups[0]['lr']
 
+        self.log('lr', lr, prog_bar=True)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
@@ -217,6 +220,7 @@ class S2SQAModel(BaseQAModel):
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,
             max_answer_length=self._cfg.dataset.max_answer_length,
+            check_if_answer_in_context=self._cfg.dataset.check_if_answer_in_context,
             num_samples=cfg.num_samples,
             mode=mode,
             use_cache=self._cfg.dataset.use_cache,

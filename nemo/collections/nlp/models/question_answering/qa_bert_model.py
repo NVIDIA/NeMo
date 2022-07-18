@@ -38,8 +38,7 @@ class BERTQAModel(BaseQAModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
-        super().__init__(cfg=cfg, trainer=trainer)
-
+        super().__init__(cfg=cfg, trainer=trainer, no_lm_init=False)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
             num_classes=cfg.token_classifier.num_classes,
@@ -57,8 +56,9 @@ class BERTQAModel(BaseQAModel):
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
         lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', loss)
+
         self.log('lr', lr, prog_bar=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         return {'loss': loss, 'lr': lr}
 
