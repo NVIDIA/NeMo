@@ -222,9 +222,9 @@ class GPTQADataset(QADataset):
             _, training_mask_end = self._get_truncated_sentence_and_len(input_without_answer, self.max_seq_length)
 
             is_answer_in_context_check = (
-                self.check_if_answer_in_context # checks if the flag for this check is set
-                and example.answer_text # checks if answer text is valid, i.e. question is not unanswerable
-                and example.answer_text not in context_span_text # checks if answer text is a substring of context
+                self.check_if_answer_in_context  # checks if the flag for this check is set
+                and example.answer_text  # checks if answer text is valid, i.e. question is not unanswerable
+                and example.answer_text not in context_span_text  # checks if answer text is a substring of context
             )
 
             if self.mode == INFERENCE_MODE:

@@ -20,12 +20,14 @@ from typing import List
 class QAExample(object):
     """ A single training/test example for a QA dataset, as loaded from disk """
 
-    qas_id: str # The example's unique identifier
+    qas_id: str  # The example's unique identifier
     question_text: str
     context_text: str
     context_id: int
     answer_text: str
-    start_position_character: int # The character position of the start of the answer, 0 indexed
+    start_position_character: int  # The character position of the start of the answer, 0 indexed
     title: str
-    answers: List[str] = None # None by default, this is used during evaluation. Holds answers as well as their start positions
-    is_impossible: bool = False # False by default, set to True if the example has no possible answer
+    answers: List[
+        str
+    ] = None  # None by default, this is used during evaluation. Holds answers as well as their start positions
+    is_impossible: bool = False  # False by default, set to True if the example has no possible answer
