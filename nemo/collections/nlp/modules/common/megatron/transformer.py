@@ -518,7 +518,7 @@ class ParallelAttention(MegatronModule):
         attention_dropout=0.1,
         megatron_legacy=False,
         bias=True,
-        headscale=True,
+        headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
