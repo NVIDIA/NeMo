@@ -220,8 +220,7 @@ class TransformerLMModel(ModelPT):
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
             if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
-                    self._trainer.limit_train_batches
-                    * math.ceil(len(self._train_dl.dataset) / self.world_size)
+                    self._trainer.limit_train_batches * math.ceil(len(self._train_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -241,8 +240,7 @@ class TransformerLMModel(ModelPT):
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
             if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
                 self._trainer.limit_val_batches = int(
-                    self._trainer.limit_val_batches
-                    * math.ceil(len(self._validation_dl.dataset) / self.world_size)
+                    self._trainer.limit_val_batches * math.ceil(len(self._validation_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
