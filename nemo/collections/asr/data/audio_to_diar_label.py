@@ -100,7 +100,7 @@ def extract_seg_info_from_rttm(uniq_id, rttm_lines, mapping_dict=None, target_sp
     rttm_tup = (stt_list, end_list, speaker_list)
     return rttm_tup
 
-def assign_frame_level_spk_vector(rttm_timestamps, max_spks, round_digits, frame_per_sec, target_spks, min_spks=2):
+def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, target_spks, min_spks=2):
     """
     Create a multi-dimensional vector sequence containing speaker timestamp information in RTTM.
     The unit-length is the frame shift length of the acoustic feature. The feature-level annotations
@@ -110,9 +110,6 @@ def assign_frame_level_spk_vector(rttm_timestamps, max_spks, round_digits, frame
         rttm_timestamps (list):
             List containing start and end time for each speaker segment label.
             stt_list, end_list and speaker_list are contained.
-        max_spks(int):
-            The maximum number of speakers that the diariziation model can handle. max_spks limits the number of speakers in the
-            ground-truth label.
         frame_per_sec (int):
             Number of feature frames per second. This quantity is determined by window_stride variable in preprocessing module.
         target_spks (tuple):
