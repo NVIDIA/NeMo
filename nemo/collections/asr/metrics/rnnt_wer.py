@@ -464,7 +464,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         big_blank_id = len(vocabulary) + 1
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id, big_blank_duration=2)
+        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id, big_blank_duration=3)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
