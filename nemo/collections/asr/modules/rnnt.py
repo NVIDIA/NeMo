@@ -59,7 +59,8 @@ class StatelessNet(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
         self.norm = torch.nn.Identity()
         if normalization_mode == 'layer':
-            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
+            self.norm = torch.nn.LayerNorm(emb_dim)
+#            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
 
         assert(blank_as_pad)
         embeds = []
