@@ -1,7 +1,8 @@
 pipeline {
   agent {
         docker {
-      image 'nvcr.io/nvidia/pytorch:22.05-py3'
+      //image 'nvcr.io/nvidia/pytorch:22.05-py3'
+      image 'gitlab-master.nvidia.com:5005/eharper/nemo_containers:megatron_gpt_all_gather_reduce_scatter_base'
       args '--device=/dev/nvidia0 --gpus all -e TRANSFORMERS_OFFLINE=1 --user 0:128 -v /home/TestData:/home/TestData -v $HOME/.cache:/root/.cache --shm-size=8g'
         }
   }
