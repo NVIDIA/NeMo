@@ -304,9 +304,11 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # For timestep t in X_t
         blank_optimization = True
+#        blank_optimization = False
+        self._big_blank_duration = 3
         big_blank_duration = self._big_blank_duration
+#        print("DURATION is", big_blank_duration)
 
-        blank_optimization = False
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 0:
                 big_blank_duration -= 1
@@ -357,7 +359,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 del logp
 
                 # If blank token is predicted, exit inner loop, move onto next timestep t
-                if k == self._blank_index:
+                if k == self._blank_index or k == self._big_blank_index:
                     not_blank = False
 
                     if self.preserve_alignments:
