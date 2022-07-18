@@ -1612,14 +1612,85 @@ class ParallelTransformerLayer_(MegatronModule):
 
 
 class ParallelTransformerLayer(ParallelTransformerLayer_):
-    def __init__(self, **kwargs):
-        super(ParallelTransformerLayer, self).__init__()
+    def __init__(
+        self,
+        init_method,
+        output_layer_init_method,
+        layer_number,
+        hidden_size,
+        ffn_hidden_size,
+        num_attention_heads,
+        layer_type=LayerType.encoder,
+        self_attn_mask_type=AttnMaskType.padding,
+        fp32_residual_connection=False,
+        precision=16,
+        apply_query_key_layer_scaling=True,
+        kv_channels=None,
+        layernorm_epsilon=1e-5,
+        hidden_dropout=0.1,
+        bias_dropout_fusion=True,
+        persist_layer_norm=False,
+        use_cpu_initialization=False,
+        bias_activation_fusion=True,
+        openai_gelu=False,
+        onnx_safe=False,
+        masked_softmax_fusion=True,
+        attention_dropout=0.1,
+        position_embedding_type='learned_absolute',
+        relative_attention_num_buckets=32,
+        relative_attention_max_distance=128,
+        activation='gelu',
+        megatron_legacy=False,
+        bias=True,
+        chunk_size=64,
+        normalization='layernorm',
+        transformer_block_type='pre_ln',
+        headscale=False,
+        activations_checkpoint_granularity=None,
+        sequence_parallel=False,
+    ):
+        super(ParallelTransformerLayer, self).__init__(
+            init_method=init_method,
+            output_layer_init_method=output_layer_init_method,
+            layer_number=layer_number,
+            hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
+            num_attention_heads=num_attention_heads,
+            layer_type=layer_type,
+            self_attn_mask_type=self_attn_mask_type,
+            fp32_residual_connection=fp32_residual_connection,
+            precision=precision,
+            apply_query_key_layer_scaling=apply_query_key_layer_scaling,
+            kv_channels=kv_channels,
+            layernorm_epsilon=layernorm_epsilon,
+            hidden_dropout=hidden_dropout,
+            bias_dropout_fusion=bias_dropout_fusion,
+            persist_layer_norm=persist_layer_norm,
+            use_cpu_initialization=use_cpu_initialization,
+            bias_activation_fusion=bias_activation_fusion,
+            openai_gelu=openai_gelu,
+            onnx_safe=onnx_safe,
+            masked_softmax_fusion=masked_softmax_fusion,
+            attention_dropout=attention_dropout,
+            position_embedding_type=position_embedding_type,
+            relative_attention_num_buckets=relative_attention_num_buckets,
+            relative_attention_max_distance=relative_attention_max_distance,
+            activation=activation,
+            megatron_legacy=megatron_legacy,
+            bias=bias,
+            chunk_size=chunk_size,
+            normalization=normalization,
+            transformer_block_type=transformer_block_type,
+            headscale=headscale,
+            activations_checkpoint_granularity=activations_checkpoint_granularity,
+            sequence_parallel=sequence_parallel,
+        )
 
-        if kwargs['precision'] == 32:
+        if precision == 32:
             self.dtype = torch.float32
-        elif kwargs['precision'] == 16:
+        elif precision == 16:
             self.dtype = torch.float16
-        elif kwargs['precision'] == 'bf16':
+        elif precision == 'bf16':
             self.dtype = torch.bfloat16
         else:
             raise ValueError
