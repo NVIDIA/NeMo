@@ -1812,6 +1812,7 @@ class ParallelTransformer(MegatronModule):
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        transformer_engine=False,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1861,6 +1862,7 @@ class ParallelTransformer(MegatronModule):
                 raise ValueError(f'activations_checkpoint_granularity should be "selective" or "full".')
 
         self.sequence_parallel = sequence_parallel
+        self.transformer_engine = transformer_engine
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1876,11 +1878,9 @@ class ParallelTransformer(MegatronModule):
                 lt = layer_type[layer_number - 1]
             else:
                 lt = layer_type
-            # TODO: Make configurable
-            use_transformer_engine = True
-            if use_transformer_engine:
+
+            if self.transformer_engine:
                 checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
-                params_dtype = torch.float32  # initialize weights in fp32
 
                 return AutocastTransformerLayer(
                     hidden_size=hidden_size,
@@ -1895,10 +1895,10 @@ class ParallelTransformer(MegatronModule):
                     kv_channels=kv_channels,
                     self_attn_mask_type=self_attn_mask_type.name,
                     tp_size=parallel_state.get_tensor_model_parallel_world_size(),
-                    params_dtype=params_dtype,
+                    params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
-                    fuse_wgrad_accumulation=False,
+                    fuse_wgrad_accumulation=False,  # TODO: make this configurable
                     bias_dropout_fusion=bias_dropout_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,

@@ -124,6 +124,7 @@ class GPTModel(MegatronModule):
         onnx_safe=False,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        transformer_engine=False,
     ):
 
         super(GPTModel, self).__init__()
@@ -172,6 +173,7 @@ class GPTModel(MegatronModule):
             onnx_safe=onnx_safe,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            transformer_engine=transformer_engine,
         )
 
         self.initialize_word_embeddings(

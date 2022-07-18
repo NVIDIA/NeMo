@@ -167,6 +167,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             persist_layer_norm=self.cfg.get('persist_layer_norm', False),
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
+            transformer_engine=self.cfg.get('transformer_engine', False),
         )
 
         return model
