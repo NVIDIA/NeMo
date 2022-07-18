@@ -4,7 +4,7 @@ import subprocess
 
 
 def append_triton_parameters(config, tensor_para_size, pipeline_para_size, data_type, all_reduce, model_type, ckpt_path):
-
+    parameter_model_type = "GPT" if model_type == "gpt3" else "T5"
     parameter_str = f"""
         parameters {{
           key: "tensor_para_size"
@@ -33,7 +33,7 @@ def append_triton_parameters(config, tensor_para_size, pipeline_para_size, data_
         parameters {{
           key: "model_type"
           value: {{
-            string_value: "{model_type}"
+            string_value: "{parameter_model_type}"
           }}
         }}
         parameters {{
@@ -96,7 +96,7 @@ def create_slurm_file(
 def run_benchmark():
 
     # Configuration
-    model_type = "t5"
+    model_type = "mt5"
     model_size = "23b"
     tensor_para_size = 4
     pipeline_para_size = 1
@@ -110,6 +110,21 @@ def run_benchmark():
     triton_wait_time = 30
 
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
+
+    if model_type == "t5":
+        input_len_name = "sequence_length"
+        output_len_name = "max_output_len"
+        vocab_size = 29184
+    elif model_type == "mt5":
+        input_len_name = "sequence_length"
+        output_len_name = "max_output_len"
+        vocab_size = 250112
+    elif model_type == "gpt3":
+        input_len_name = "input_lengths"
+        output_len_name = "request_output_len"
+        vocab_size = 51200
+    else:
+        raise Exception(f"Model type: {model_type} not supported")
 
     # Cluster configuration
     partition = "luna"
@@ -149,7 +164,7 @@ def run_benchmark():
     triton_template_config = f"{bignlp_scripts_path}/bignlp/inference_scripts/triton_config/{model_type}/config.pbtxt"
     triton_config = f"{triton_path}/config.pbtxt" 
     shutil.copyfile(triton_template_config, triton_config)
-    append_triton_parameters(triton_config, tensor_para_size, pipeline_para_size, "fp16", 0, "T5", model_path)
+    append_triton_parameters(triton_config, tensor_para_size, pipeline_para_size, "fp16", 0, model_type, model_path)
 
     # Start Triton Server
     gpus = ','.join([str(i) for i in range(0, tensor_para_size)])
@@ -165,6 +180,9 @@ def run_benchmark():
         f"{results_dir} \\\n"
         f"{input_len} \\\n"
         f"{output_len} \\\n"
+        f"{input_len_name} \\\n"
+        f"{output_len_name} \\\n"
+        f"{vocab_size} \\\n"
         f"{tensor_para_size} \\\n"
         f"{pipeline_para_size} \\\n"
         f"{batch_sizes_str}"
@@ -196,7 +214,7 @@ def run_benchmark():
 
     job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     job_id = job_id.decode("utf-8")
-    print(f"Submitted Training script with job id: {job_id}")
+    print(f"Submitted Inference script with job id: {job_id}")
 
 
 if __name__=="__main__":

@@ -26,7 +26,6 @@
 
 name: "fastertransformer"
 backend: "fastertransformer"
-default_model_filename: "gpt3_345M"
 max_batch_size: 1024
 
 model_transaction_policy {

@@ -46,17 +46,6 @@ FIXED_START_IDS = np.array([
     [6601, 4237, 345, 460, 779, 284, 787, 257]
 ], np.uint32)
 
-# FIXED_START_IDS = np.array([
-#    [818, 262, 938, 3155, 286, 1528, 11, 257],
-#    [198, 464, 968, 8221, 2732, 286, 15198, 318],
-#    [464, 968, 1971, 12056, 423, 257, 649, 1182],
-#    [464, 968, 1971, 3782, 468, 3199, 663, 5079],
-#    [818, 257, 1445, 326, 481, 1884, 787, 340],
-#    [464, 968, 1971, 12056, 6, 5859, 41683, 423],
-#    [198, 198, 464, 5398, 4332, 628, 628, 198],
-#    [464, 717, 640, 314, 2497, 262, 3807, 11],
-# ], np.uint32)
-
 
 def prepare_tensor(name, input):
     t = client_util.InferInput(
@@ -65,7 +54,7 @@ def prepare_tensor(name, input):
     return t
 
 
-def send_requests(url, batch_size, input_start_ids, input_len, output_len, verbose, flags, request_parallelism=10):
+def send_requests(url, batch_size, input_start_ids, input_len, output_len, input_len_name, output_len_name, verbose, flags, request_parallelism=10):
     model_name = "fastertransformer"
     with client_util.InferenceServerClient(url,
                                            concurrency=request_parallelism,
@@ -103,8 +92,8 @@ def send_requests(url, batch_size, input_start_ids, input_len, output_len, verbo
             input_data = input_start_ids
             inputs = [
                 prepare_tensor("input_ids", input_data),
-                prepare_tensor("sequence_length", input_len),
-                prepare_tensor("max_output_len", output_len),
+                prepare_tensor(input_len_name, input_len),
+                prepare_tensor(output_len_name, output_len),
                 prepare_tensor("runtime_top_k", runtime_top_k),
                 prepare_tensor("runtime_top_p", runtime_top_p),
                 prepare_tensor("beam_search_diversity_rate",
@@ -227,6 +216,18 @@ if __name__ == '__main__':
                         required=False,
                         help="Spedifty number of runs to get the average latency"
                         )
+    parser.add_argument('--input_len_name',
+                        type=str,
+                        default="input_lengths",
+                        required=False,
+                        help="Input length tensor name"
+                        )
+    parser.add_argument('--output_len_name',
+                        type=str,
+                        default="request_output_len",
+                        required=False,
+                        help="Output length tensor name"
+                        )
 
     FLAGS = parser.parse_args()
     if (FLAGS.protocol != "http") and (FLAGS.protocol != "grpc"):
@@ -259,7 +260,8 @@ if __name__ == '__main__':
     if FLAGS.protocol == "http" and FLAGS.warm_up:
         print("[INFO] sending requests to warm up")
         send_requests(FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
-                      output_len, FLAGS.verbose, FLAGS, request_parallelism=2)
+                      output_len, FLAGS.input_len_name, FLAGS.output_len_name,
+                      FLAGS.verbose, FLAGS, request_parallelism=2)
     import time
     time.sleep(5)  # TODO: Not sure if this is necessary
     from datetime import datetime
@@ -268,8 +270,9 @@ if __name__ == '__main__':
     for i in range(FLAGS.num_runs):
         start_time = datetime.now()
         if FLAGS.protocol == "http":
-            send_requests(FLAGS.url, FLAGS.batch_size, input_start_ids,
-                          input_len, output_len, FLAGS.verbose, FLAGS, request_parallelism)
+            send_requests(FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
+                         output_len, FLAGS.input_len_name, FLAGS.output_len_name,
+                         FLAGS.verbose, FLAGS, request_parallelism)
         stop_time = datetime.now()
         latencies.append((stop_time - start_time).total_seconds()
                          * 1000.0 / request_parallelism)
