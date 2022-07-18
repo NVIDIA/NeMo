@@ -18,7 +18,9 @@ import re
 import string
 import torch
 
+from tqdm import tqdm
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
+from nemo.utils import logging
 
 
 class QAMetrics(object):
@@ -169,8 +171,10 @@ class QAMetrics(object):
 
     @staticmethod
     def dump_predicted_answers_to_file(output_filename, examples, predictions):
+        logging.info(f"Writing predictions to {output_filename}")
+        
         with open(output_filename, "w") as writer:
-            for ex in examples:
+            for ex in tqdm(examples):
                 output_item = {
                     "id": ex.qas_id,
                     "context": ex.context_text,
@@ -181,8 +185,10 @@ class QAMetrics(object):
 
     @staticmethod
     def dump_nbest_predictions_to_file(output_filename, examples, nbest_predictions, keys_to_dump=[]):
+        logging.info(f"Writing nbest predictions to {output_filename}")
+        
         with open(output_filename, "w") as writer:
-            for ex in examples:
+            for ex in tqdm(examples):
                 output_item = {
                     "id": ex.qas_id,
                     "context": ex.context_text,
