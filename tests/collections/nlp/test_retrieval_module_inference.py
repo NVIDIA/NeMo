@@ -83,6 +83,7 @@ class TestRetrievalModuleInference:
         trainer.strategy.setup_environment()
         torch.distributed.barrier()
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_retrieval_encoder_inference(self):
 
@@ -415,6 +416,7 @@ class TestRetrievalModuleInference:
         )
         assert (out[i] - out_4[0]).abs().max().item() < 1e-2
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_retrieval_decoder_inference(self):
 
@@ -540,6 +542,7 @@ class TestRetrievalModuleInference:
             )
             assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
 
+    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_encoder_decoder_module_inference(self):
         # rotary pos emb dim
