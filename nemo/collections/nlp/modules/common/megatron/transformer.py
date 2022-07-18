@@ -62,6 +62,15 @@ try:
 except:
     HAVE_TE = False
 
+    # fake missing class
+    class TransformerLayer(ApexGuardDefaults):
+        def __init__(self):
+            super().__init__()
+
+            logging.warning(
+                "Transformer Engine was not found. transformer_engine.pytorch.transformer.TransformerLayer will not work. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
+            )
+
 
 """ We use the following notation throughout this file:
      h: hidden size
@@ -1093,7 +1102,6 @@ class ParallelTransformerLayer_(MegatronModule):
             )
 
         self.fp32_residual_connection = fp32_residual_connection  # if true move residual connections to fp32
-
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
         self.bias_dropout_fusion = bias_dropout_fusion  # if true, enable bias dropout fusion
