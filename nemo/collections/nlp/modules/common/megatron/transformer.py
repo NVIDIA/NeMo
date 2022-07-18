@@ -516,13 +516,13 @@ class ParallelAttention(MegatronModule):
         use_cpu_initialization=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        layer_type=None,
         megatron_legacy=False,
         bias=True,
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
-        layer_type=None,
     ):
         super(ParallelAttention, self).__init__()
 
