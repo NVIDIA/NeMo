@@ -17,6 +17,7 @@ from typing import Optional
 
 from omegaconf import OmegaConf
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.seed import seed_everything
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -95,6 +96,7 @@ class MTEncDecConfig(NemoConfig):
     name: Optional[str] = 'MTEncDec'
     do_training: bool = True
     do_testing: bool = False
+    seed: Optional[int] = None
     model: MTEncDecModelConfig = MTEncDecModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
@@ -105,6 +107,8 @@ def main(cfg: MTEncDecConfig) -> None:
     # merge default config with user specified config
     default_cfg = MTEncDecConfig()
     cfg = update_model_config(default_cfg, cfg)
+    if cfg.seed is not None:
+        seed_everything(cfg.seed)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 

@@ -25,6 +25,7 @@ name: AttentionIsAllYouNeedBottleneck
 
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
+seed: null
 
 model:
   model_type: 'nll' # learning (i.e., loss) type: nll (i.e., cross-entropy/auto-encoder), mim, vae (see description above)

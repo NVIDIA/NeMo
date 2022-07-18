@@ -18,6 +18,7 @@ from typing import Optional
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import MISSING
 from pytorch_lightning import Trainer
+from pytorch_lightning.utilities.seed import seed_everything
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
@@ -61,6 +62,7 @@ class MTFineTuneConfig(NemoConfig):
     model_path: str = MISSING
     do_training: bool = True
     do_testing: bool = False
+    seed: Optional[int] = None
     model: MTEncDecModelConfig = MTEncDecModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
     exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
@@ -73,6 +75,8 @@ def main(cfg: MTFineTuneConfig) -> None:
     default_cfg.model = MTEncDecModel.restore_from(restore_path=cfg.model_path, return_config=True)
     del default_cfg.model.optim, default_cfg.model.train_ds, default_cfg.model.validation_ds, default_cfg.model.test_ds
     cfg = update_model_config(default_cfg, cfg, drop_missing_subconfigs=False)
+    if cfg.seed is not None:
+        seed_everything(cfg.seed)
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
 
