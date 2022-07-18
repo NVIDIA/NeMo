@@ -211,8 +211,7 @@ class ConformerConvolution(nn.Module):
         return x
 
     def reset_parameters_conv(self):
-        pw1_max = self.d_model ** -0.5
-        pw2_max = self.d_model ** -0.5
+        pw1_max = pw2_max = self.d_model ** -0.5
         dw_max = self.kernel_size ** -0.5
 
         with torch.no_grad():

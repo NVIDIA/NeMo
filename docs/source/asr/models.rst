@@ -150,12 +150,11 @@ You may find the example config file of LSTM-CTC model with wordpiece encoding a
 
 .. _Squeezeformer-CTC_model:
 
+Squeezeformer-CTC
+-----------------
+
 Squeezeformer-CTC is a CTC-based variant of the Squeezeformer model introduced in :cite:`asr-models-kim2022squeezeformer`. Squeezeformer-CTC has a
-similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model.
-We also drop the LSTM decoder and instead use a linear decoder on the top of the encoder. This model uses the combination of
-self-attention and convolution modules to achieve the best of the two approaches, the self-attention layers can learn the global
-interaction while the convolutions efficiently capture the local correlations. The self-attention modules support both regular
-self-attention with absolute positional encoding, and also Transformer-XL's self-attention with relative positional encodings.
+similar encoder as the original Squeezeformer but uses CTC loss and decoding instead of RNNT/Transducer loss, which makes it a non-autoregressive model. The vast majority of the architecture is similar to Conformer model, so please refer to `Conformer-CTC <./models.html#conformer-ctc>`.
 
 The model primarily differs from Conformer in the following ways :
 

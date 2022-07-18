@@ -90,7 +90,7 @@ model:
     time_recovery_idx: null
 
     # Sub-sampling params
-    subsampling: dw_striding # vggnet, striding or dw_striding, vggnet may give better results but needs more memory
+    subsampling: dw_striding # dw_striding, vggnet, striding or stacking, vggnet may give better results but needs more memory
     subsampling_factor: 4 # must be power of 2
     subsampling_conv_channels: -1 # -1 sets it to d_model
 

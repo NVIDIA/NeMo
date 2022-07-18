@@ -28,7 +28,6 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
-from nemo.utils import logging
 from nemo.utils.decorators import experimental
 
 __all__ = ['SqueezeformerEncoder']

@@ -507,6 +507,24 @@ class NoamHoldAnnealing(WarmupHoldPolicy):
         """
         Implementation of the Noam Hold Annealing policy from the SqueezeFormer paper.
 
+        Unlike NoamAnnealing, the peak learning rate can be explicitly set for this scheduler.
+        The schedule first performs linear warmup, then holds the peak LR, then decays with some schedule for
+        the remainder of the steps. Therefore the min-lr is still dependent on the hyper parameters selected.
+
+        It's schedule is determined by three factors-
+
+        Warmup Steps: Initial stage, where linear warmup occurs uptil the peak LR is reached. Unlike NoamAnnealing,
+            the peak LR is explicitly stated here instead of a scaling factor.
+
+        Hold Steps: Intermediate stage, where the peak LR is maintained for some number of steps. In this region,
+            the high peak LR allows the model to converge faster if training is stable. However the high LR
+            may also cause instability during training. Should usually be a significant fraction of training
+            steps (around 30-40% of the entire training steps).
+
+        Decay Steps: Final stage, where the LR rapidly decays with some scaling rate (set by decay rate).
+            To attain Noam decay, use 0.5, for Squeezeformer recommended decay, use 1.0. The fast decay after
+            prolonged high LR during hold phase allows for rapid convergence.
+
         References:
             - [Squeezeformer: An Efficient Transformer for Automatic Speech Recognition](https://arxiv.org/abs/2206.00888)
 

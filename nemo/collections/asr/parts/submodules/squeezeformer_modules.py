@@ -21,10 +21,8 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
-from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
-from nemo.utils import logging
 
 __all__ = ['SqueezeformerLayer', 'ConformerFeedForward', 'SqueezeformerLayer']
 
