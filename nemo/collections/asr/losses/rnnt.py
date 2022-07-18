@@ -403,8 +403,8 @@ class RNNTLoss(Loss):
 
 if __name__ == "__main__":
     B, T, U, V = 2, 32, 16, 256
-    B, T, U, V = 3, 11, 7, 5 
-    B, T, U, V = 3, 3, 3, 3
+#    B, T, U, V = 3, 11, 7, 5 
+#    B, T, U, V = 3, 3, 3, 3
 
     duration=4
 

@@ -110,6 +110,7 @@ class _GreedyRNNTInfer(Typing):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         big_blank_index: int,
+        big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -119,6 +120,7 @@ class _GreedyRNNTInfer(Typing):
 
         self._blank_index = blank_index
         self._big_blank_index = big_blank_index
+        self._big_blank_duration = big_blank_duration
         self._SOS = blank_index  # Start of single index
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
@@ -216,6 +218,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         decoder_model: rnnt_abstract.AbstractRNNTDecoder,
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
+        big_blank_index: int,
+        big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -223,6 +227,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             decoder_model=decoder_model,
             joint_model=joint_model,
             blank_index=blank_index,
+            big_blank_index=big_blank_index,
+            big_blank_duration=big_blank_duration,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
@@ -297,7 +303,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             hypothesis.alignments = [[]]
 
         # For timestep t in X_t
+        blank_optimization = True
+        big_blank_duration = self._big_blank_duration
+
+#        blank_optimization = False
         for time_idx in range(out_len):
+            if blank_optimization and big_blank_duration > 0:
+                big_blank_duration -= 1
+                continue
             # Extract encoder embedding at timestep t
             # f = x[time_idx, :, :].unsqueeze(0)  # [1, 1, D]
             f = x.narrow(dim=0, start=time_idx, length=1)
@@ -328,6 +341,14 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # get index k, of max prob
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
+                if k == logp.shape[0] - 1:
+                    big_blank_duration = self._big_blank_duration
+#                    print("BIG BLANK")
+#                elif k == logp.shape[0] - 2:
+#                    big_blank_chosen = True
+#                    print("SMALL BLANK")
+#                else:
+#                    print("NON BLANK")
 
                 if self.preserve_alignments:
                     # insert logits into last timestep
@@ -391,6 +412,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         big_blank_index: int,
+        big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
     ):
@@ -399,6 +421,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             joint_model=joint_model,
             blank_index=blank_index,
             big_blank_index=big_blank_index,
+            big_blank_duration=big_blank_duration,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
         )
