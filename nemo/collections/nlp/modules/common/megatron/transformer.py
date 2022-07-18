@@ -1636,9 +1636,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        position_embedding_type='learned_absolute',
-        relative_attention_num_buckets=32,
-        relative_attention_max_distance=128,
         activation='gelu',
         megatron_legacy=False,
         bias=True,
@@ -1648,6 +1645,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
+        gradient_accumulation_fusion=False,
     ):
         super(ParallelTransformerLayer, self).__init__(
             init_method=init_method,
@@ -1672,9 +1670,6 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             onnx_safe=onnx_safe,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
-            position_embedding_type=position_embedding_type,
-            relative_attention_num_buckets=relative_attention_num_buckets,
-            relative_attention_max_distance=relative_attention_max_distance,
             activation=activation,
             megatron_legacy=megatron_legacy,
             bias=bias,
@@ -1684,6 +1679,7 @@ class ParallelTransformerLayer(ParallelTransformerLayer_):
             headscale=headscale,
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             sequence_parallel=sequence_parallel,
+            gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
         if precision == 32:
@@ -1973,7 +1969,6 @@ class ParallelTransformer(MegatronModule):
                     bias_dropout_fusion=bias_dropout_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
-                    attention_softmax_in_fp32=self.attention_softmax_in_fp32,
                     seq_length=None,  # used for jit warmup
                     micro_batch_size=None,  # used for jit warmup
                     sequence_parallel=sequence_parallel,
