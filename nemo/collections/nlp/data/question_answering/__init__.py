@@ -11,3 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
+from nemo.collections.nlp.data.question_answering.dataset import (
+    QADataset,
+    BERTQADataset,
+    S2SQADataset,
+    GPTQADataset,
+)
+from nemo.collections.nlp.data.question_answering.input_example import (
+    QAExample,
+    BERTQAInputExample,
+    S2SQAInputExample,
+    GPTQAInputExample,
+)

@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.question_answering.qa_model import QAModel
-from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
-from nemo.collections.nlp.models.question_answering.qa_bert_model import BERTQAModel
-from nemo.collections.nlp.models.question_answering.qa_s2s_model import S2SQAModel
-from nemo.collections.nlp.models.question_answering.qa_gpt_model import GPTQAModel
+from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import BERTQADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import S2SQADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import GPTQADataset
