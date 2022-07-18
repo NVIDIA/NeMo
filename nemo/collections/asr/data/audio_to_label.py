@@ -700,7 +700,9 @@ class TarredAudioToClassificationLabelDataset(_TarredAudioLabelDataset):
                 Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
                 and therefore more than one node may sample the same tarfile, and even sample the same
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                the entire dataset.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         is_regression_task (bool): Whether it is a regression task. Defualts to False.
@@ -774,7 +776,9 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
                 Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
                 and therefore more than one node may sample the same tarfile, and even sample the same
                 data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+                sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                the entire dataset.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
     """
