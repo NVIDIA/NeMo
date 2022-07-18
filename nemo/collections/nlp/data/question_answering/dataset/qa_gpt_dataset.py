@@ -244,9 +244,7 @@ class GPTQADataset(QADataset):
             input_ids = torch.squeeze(encoded_input_dict["input_ids"])
             input_attn_mask = torch.squeeze(encoded_input_dict["attention_mask"])
 
-            labels = GPTQADataset.update_labels_for_no_pad_loss(
-                input_ids, training_mask_end, input_attn_mask, self.tokenizer.tokenizer,
-            )
+            labels = GPTQADataset.update_labels_for_no_pad_loss(input_ids, training_mask_end, input_attn_mask)
 
             # create dictionary features
             feature = {
@@ -275,7 +273,7 @@ class GPTQADataset(QADataset):
         return seq_length, tokens, trunc_sentence
 
     @classmethod
-    def update_labels_for_no_pad_loss(cls, input_ids, training_mask_end, input_attn_mask, tokenizer):
+    def update_labels_for_no_pad_loss(cls, input_ids, training_mask_end, input_attn_mask):
         """
         Loss mask for GPT is constructed to ignore loss for padding tokens
         GPT eos token is same as pas token and needs to be excluded from loss mask

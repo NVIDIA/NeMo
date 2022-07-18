@@ -296,9 +296,7 @@ class GPTQAModel(BaseQAModel):
         input_ids, input_attn_mask = (
             tensor.to(device) for tensor in [encoded_dict["input_ids"], encoded_dict["attention_mask"]]
         )
-        labels = GPTQADataset.update_labels_for_no_pad_loss(
-            input_ids, training_mask_end, input_attn_mask, self.tokenizer.tokenizer,
-        )
+        labels = GPTQADataset.update_labels_for_no_pad_loss(input_ids, training_mask_end, input_attn_mask)
         if len(labels.shape) == 1:
             labels = torch.unsqueeze(labels, 0)
         labels = labels.to(device)
