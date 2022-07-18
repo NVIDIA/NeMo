@@ -14,10 +14,11 @@
 # limitations under the License.
 
 import os
+
 import numpy as np
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import BERTQAInputExample
 from nemo.utils import logging
@@ -41,11 +42,7 @@ class BERTQADataset(QADataset):
         use_cache: bool = False,
     ):
         super().__init__(
-            data_file=data_file,
-            processor=processor,
-            tokenizer=tokenizer,
-            mode=mode,
-            num_samples=num_samples
+            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
         )
 
         self.keep_doc_spans = keep_doc_spans

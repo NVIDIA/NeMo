@@ -16,9 +16,10 @@ import collections
 import json
 import re
 import string
-import torch
 
+import torch
 from tqdm import tqdm
+
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.utils import logging
 
@@ -122,8 +123,8 @@ class QAMetrics(object):
         total = len(exact_scores)
         return collections.OrderedDict(
             [
-                (f"{prefix}exact", (100.0 * sum(exact_scores.values()) / total) if total != 0 else 0.),
-                (f"{prefix}f1", (100.0 * sum(f1_scores.values()) / total) if total != 0 else 0.),
+                (f"{prefix}exact", (100.0 * sum(exact_scores.values()) / total) if total != 0 else 0.0),
+                (f"{prefix}f1", (100.0 * sum(f1_scores.values()) / total) if total != 0 else 0.0),
                 (f"{prefix}total", float(total)),
             ]
         )
@@ -156,7 +157,7 @@ class QAMetrics(object):
         filters_and_prefixes = [
             (list(qas_id_to_has_answer), ""),
             (has_answer_qids, "HasAns_"),
-            (no_answer_qids, "NoAns_")
+            (no_answer_qids, "NoAns_"),
         ]
 
         eval_dicts = []
@@ -172,7 +173,7 @@ class QAMetrics(object):
     @staticmethod
     def dump_predicted_answers_to_file(output_filename, examples, predictions):
         logging.info(f"Writing predictions to {output_filename}")
-        
+
         with open(output_filename, "w") as writer:
             for ex in tqdm(examples):
                 output_item = {
@@ -181,12 +182,12 @@ class QAMetrics(object):
                     "question": ex.question_text,
                     "predicted_answer": predictions[ex.qas_id],
                 }
-                writer.write(json.dumps(output_item)+"\n")
+                writer.write(json.dumps(output_item) + "\n")
 
     @staticmethod
     def dump_nbest_predictions_to_file(output_filename, examples, nbest_predictions, keys_to_dump=[]):
         logging.info(f"Writing nbest predictions to {output_filename}")
-        
+
         with open(output_filename, "w") as writer:
             for ex in tqdm(examples):
                 output_item = {
@@ -196,6 +197,6 @@ class QAMetrics(object):
                     "nbest_predictions": [],
                 }
                 for pred in nbest_predictions[ex.qas_id]:
-                    output_item["nbest_predictions"].append({ key: pred[key] for key in keys_to_dump })
+                    output_item["nbest_predictions"].append({key: pred[key] for key in keys_to_dump})
 
-                writer.write(json.dumps(output_item)+"\n")
+                writer.write(json.dumps(output_item) + "\n")

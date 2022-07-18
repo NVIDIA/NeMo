@@ -14,11 +14,12 @@
 # limitations under the License.
 
 import os
+
 import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_example import S2SQAInputExample
 from nemo.utils import logging
@@ -43,11 +44,7 @@ class S2SQADataset(QADataset):
         use_cache: bool = False,
     ):
         super().__init__(
-            data_file=data_file,
-            processor=processor,
-            tokenizer=tokenizer,
-            mode=mode,
-            num_samples=num_samples
+            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
         )
 
         self.keep_doc_spans = keep_doc_spans
@@ -207,27 +204,23 @@ class S2SQADataset(QADataset):
                 and the check flag is set to true, else
             - formatted answer
         """
-        
+
         # check for whether answer is present in context span and if check flag is true
         answer_not_in_context_check = (
-            self.check_if_answer_in_context and
-            example.answer_text and
-            example.answer_text not in context_span_text
+            self.check_if_answer_in_context and example.answer_text and example.answer_text not in context_span_text
         )
-        
-        if (self.mode == INFERENCE_MODE or
-            example.is_impossible or # question not answerable given context
-            answer_not_in_context_check):
+
+        if (
+            self.mode == INFERENCE_MODE
+            or example.is_impossible
+            or answer_not_in_context_check  # question not answerable given context
+        ):
             target = ""
         else:
             target = example.answer_text
 
         encoded_output_dict = self.tokenizer.tokenizer(
-            target,
-            truncation=True,
-            max_length=self.max_answer_length,
-            padding="max_length",
-            return_tensors="pt",
+            target, truncation=True, max_length=self.max_answer_length, padding="max_length", return_tensors="pt",
         )
         labels = torch.squeeze(encoded_output_dict["input_ids"])
         labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100

@@ -229,9 +229,7 @@ class BERTQAModel(BaseQAModel):
 
             if output_prediction_file:
                 QAMetrics.dump_predicted_answers_to_file(
-                    output_prediction_file,
-                    infer_datalayer.dataset.examples,
-                    all_predictions,
+                    output_prediction_file, infer_datalayer.dataset.examples, all_predictions,
                 )
 
             if output_nbest_file:

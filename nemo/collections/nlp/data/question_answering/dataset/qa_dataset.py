@@ -20,12 +20,12 @@ from typing import List
 import psutil
 import torch
 
+from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
     EVALUATION_MODE,
     INFERENCE_MODE,
     TRAINING_MODE,
 )
-from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -46,7 +46,7 @@ class QADataset(Dataset):
             raise ValueError(
                 f"mode should be either {TRAINING_MODE}, {EVALUATION_MODE}, {INFERENCE_MODE} but got {self.mode}"
             )
-        
+
         # get examples from processor and keep according to limit
         self.examples = self.processor.get_examples()
         if num_samples == 0:

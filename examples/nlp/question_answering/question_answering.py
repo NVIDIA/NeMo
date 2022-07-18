@@ -17,9 +17,9 @@ import os
 import pytorch_lightning as pl
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.nlp.models.question_answering.qa_bert_model import BERTQAModel
 from nemo.collections.nlp.models.question_answering.qa_gpt_model import GPTQAModel
 from nemo.collections.nlp.models.question_answering.qa_s2s_model import S2SQAModel
-from nemo.collections.nlp.models.question_answering.qa_bert_model import BERTQAModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -38,8 +38,8 @@ def main(cfg: DictConfig) -> None:
     elif "gpt" in cfg.model.language_model.pretrained_model_name.lower():
         model_class = GPTQAModel
     elif (
-        "bart" in cfg.model.language_model.pretrained_model_name.lower() or
-        "t5" in cfg.model.language_model.pretrained_model_name.lower()
+        "bart" in cfg.model.language_model.pretrained_model_name.lower()
+        or "t5" in cfg.model.language_model.pretrained_model_name.lower()
     ):
         model_class = S2SQAModel
 
@@ -83,6 +83,7 @@ def main(cfg: DictConfig) -> None:
 
     for question_id in all_preds:
         print(all_preds[question_id])
+
 
 if __name__ == "__main__":
     main()

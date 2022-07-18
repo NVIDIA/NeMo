@@ -70,7 +70,7 @@ class S2SQAModel(BaseQAModel):
 
         self.log('lr', lr, prog_bar=True)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
+
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
@@ -174,9 +174,7 @@ class S2SQAModel(BaseQAModel):
 
                 if output_prediction_file:
                     QAMetrics.dump_predicted_answers_to_file(
-                        output_prediction_file,
-                        inference_dl.dataset.examples,
-                        all_predictions
+                        output_prediction_file, inference_dl.dataset.examples, all_predictions
                     )
 
                 if output_nbest_file:

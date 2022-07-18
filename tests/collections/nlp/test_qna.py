@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import collections
+
 import pytest
 import torch
 
-from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import GPTQADataset
+from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
 
 
 @pytest.mark.unit
@@ -29,11 +30,7 @@ def test_remove_articles():
         "this is a fruit",
     ]
 
-    expected_article_removed_sents = [
-        "this is   apple",
-        "this is   apple",
-        "this is   fruit"
-    ]
+    expected_article_removed_sents = ["this is   apple", "this is   apple", "this is   fruit"]
 
     article_removed_sents = [QAMetrics.remove_articles(sent) for sent in sentences]
 

@@ -12,23 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
+from typing import Optional
 
+import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
-from typing import Optional
 
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
     EVALUATION_MODE,
-    TRAINING_MODE,
     INFERENCE_MODE,
+    TRAINING_MODE,
 )
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.utils import logging
 
 
 class BaseQAModel(NLPModel):
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init = True):
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None, no_lm_init=True):
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=no_lm_init)
 

@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import GPTQAInputExample
 from nemo.utils import logging
@@ -45,11 +45,7 @@ class GPTQADataset(QADataset):
         use_cache: bool = False,
     ):
         super().__init__(
-            data_file=data_file,
-            processor=processor,
-            tokenizer=tokenizer,
-            mode=mode,
-            num_samples=num_samples
+            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
         )
 
         self.keep_doc_spans = keep_doc_spans
@@ -163,8 +159,8 @@ class GPTQADataset(QADataset):
         """
 
         if self.mode == INFERENCE_MODE:
-            target = ""      
-        elif example.is_impossible: # example is impossible to answer given context
+            target = ""
+        elif example.is_impossible:  # example is impossible to answer given context
             target = self.tokenizer.tokenizer.eos_token
         else:
             target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
@@ -221,14 +217,16 @@ class GPTQADataset(QADataset):
             context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
 
             input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
-            training_mask_end, _, _ = self._truncate_sentence_and_return_len_and_tokens(input_without_answer, self.max_seq_length)
+            training_mask_end, _, _ = self._truncate_sentence_and_return_len_and_tokens(
+                input_without_answer, self.max_seq_length
+            )
 
             if self.mode == INFERENCE_MODE:
                 input_to_encode = input_without_answer
             elif (
-                self.check_if_answer_in_context and
-                example.answer_text and
-                example.answer_text not in context_span_text
+                self.check_if_answer_in_context
+                and example.answer_text
+                and example.answer_text not in context_span_text
             ):
                 input_to_encode = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
             else:

@@ -53,7 +53,7 @@ class GPTQAModel(BaseQAModel):
 
         self.log('lr', lr, prog_bar=True)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        
+
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
@@ -106,7 +106,7 @@ class GPTQAModel(BaseQAModel):
             output = self.language_model(input_ids=input_ids, attention_mask=input_attn_mask, labels=labels)
             loss, lm_logits = output['loss'], output['logits']
             shift_logits = lm_logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous() 
+            shift_labels = labels[..., 1:].contiguous()
             per_sample_perplexity = self._get_per_sample_perplexity(shift_logits, shift_labels)
 
         elif self.cfg.library == "megatron":
@@ -149,9 +149,7 @@ class GPTQAModel(BaseQAModel):
 
                 if output_prediction_file:
                     QAMetrics.dump_predicted_answers_to_file(
-                        output_prediction_file,
-                        inference_dl.dataset.examples,
-                        all_predictions
+                        output_prediction_file, inference_dl.dataset.examples, all_predictions
                     )
 
                 if output_nbest_file:
