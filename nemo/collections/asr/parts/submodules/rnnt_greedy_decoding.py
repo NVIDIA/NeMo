@@ -306,7 +306,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         blank_optimization = True
         big_blank_duration = self._big_blank_duration
 
-#        blank_optimization = False
+        blank_optimization = False
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 0:
                 big_blank_duration -= 1
