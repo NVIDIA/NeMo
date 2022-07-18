@@ -17,7 +17,7 @@ import os
 import numpy as np
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import BERTQAInputExample
 from nemo.utils import logging

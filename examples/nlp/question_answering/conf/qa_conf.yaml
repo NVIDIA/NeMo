@@ -17,7 +17,7 @@ do_training: true # true for training mode, false for testing
 trainer:
   devices: [0] # 0 for CPU, or list of the GPUs to use e.g. [0, 1] or [0]
   num_nodes: 1
-  max_epochs: 2
+  max_epochs: 5
   max_steps: -1 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 1.0
@@ -47,11 +47,21 @@ model:
     use_cache: false
     do_lower_case: true
 
+    # if true, context spans/chunks that do not contain answer are treated as unanswerable,
+    #   useful for extractive datasets like SQuAD
+    # if false, all context spans/chunks are treated as relevant for answering given query,
+    #   useful for generative datasets where answer is not necessarily in the context
+    # used by S2SQAModel and GPTQAModel   
+    check_if_answer_in_context: true
+
     # if all, keep all doc spans
     # if only_positive, keep doc spans containing answer only
     # if limited_negative, keep 10 doc spans closest to answer per question
     # used by BERTQAModel
-    keep_doc_spans: limited_negative # [all, only_positive, limited_negative]
+    keep_doc_spans: all # [all, only_positive, limited_negative]
+
+    null_score_diff_threshold: 0.0 # If null_score - best_non_null is greater than the threshold predict null.
+    n_best_size: 20
 
     num_workers: 1
     pin_memory: false
@@ -91,14 +101,14 @@ model:
     pin_memory: ${model.dataset.pin_memory}
 
   language_model:
-    pretrained_model_name: gpt2 # main config to select model (between bert, gpt2, t5/bart based models)
+    pretrained_model_name: roberta-base # main config to select model (between bert, gpt2, t5/bart based models)
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
 
   token_classifier: # used only by BERTQAModel for defining the extractive QA head
     num_layers: 1
-    dropout: 0.3
+    dropout: 0.
     num_classes: 2
     activation: relu
     log_softmax: false
@@ -115,15 +125,15 @@ model:
 
   optim:
     name: adamw
-    lr: 3e-5
+    lr: 5e-5
 
     # optimizer arguments
     betas: [0.9, 0.999]
-    weight_decay: 0.01
+    weight_decay: 0.
 
     # scheduler setup
     sched:
-      name: PolynomialDecayAnnealing
+      name: SquareRootAnnealing
 
       # scheduler params
       warmup_steps: null
@@ -136,11 +146,11 @@ model:
 
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
-  name: "QA"  # the name of your model
+  name: "QnA"  # the name of your model
   create_wandb_logger: False
   wandb_logger_kwargs:
     name: ???
-    project: QA
+    project: QnA
   create_tensorboard_logger: True  # whether you want exp_manger to create a tb logger
   create_checkpoint_callback: True  # whether you want exp_manager to create a modelcheckpoint callback
   resume_if_exists: false

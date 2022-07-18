@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import GPTQAInputExample
 from nemo.utils import logging
@@ -39,6 +39,7 @@ class GPTQADataset(QADataset):
         max_query_length: int = 64,
         max_seq_length: int = 512,
         max_answer_length: int = 64,
+        check_if_answer_in_context: bool = False,
         num_samples: int = -1,
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
@@ -56,6 +57,7 @@ class GPTQADataset(QADataset):
         self.max_query_length = max_query_length
         self.max_seq_length = max_seq_length
         self.max_answer_length = max_answer_length
+        self.check_if_answer_in_context = check_if_answer_in_context
         self.num_samples = num_samples
         self.mode = mode
         self.use_cache = use_cache
@@ -96,18 +98,17 @@ class GPTQADataset(QADataset):
     def _convert_examples_to_features(self):
         """
         Iterates through each QA example, formats into template and encodes
-        Template: `context: <context text> question: <question text> answer: <answer text>`
+        Template: `context: <context text> question: <question text> answer:<answer text>`
         """
 
         logging.info(f"Preprocessing data into features.")
 
-        has_groundtruth = self.mode != INFERENCE_MODE
         unique_id = 1000000000
         self.features = []
 
         context_prefix = "context: "
-        answer_prefix = " answer:"
         query_prefix = " question: "
+        answer_prefix = " answer:"
 
         context_prefix_tokens = self.tokenizer.tokenizer.tokenize(context_prefix)
         answer_prefix_tokens = self.tokenizer.tokenizer.tokenize(answer_prefix)
@@ -118,8 +119,8 @@ class GPTQADataset(QADataset):
 
             example = self.examples[example_index]
 
-            query_tokens_length, query_tokens, formatted_query = self._prep_query(query_prefix, example)
-            answer_tokens_length, answer_tokens, formatted_answer = self._prep_answer(example, has_groundtruth)
+            query_tokens_length, _, formatted_query = self._prep_query(query_prefix, example)
+            answer_tokens_length, _, formatted_answer = self._prep_answer(example)
             context_tokens, context_spans = self._prep_context(
                 example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
             )
@@ -134,7 +135,6 @@ class GPTQADataset(QADataset):
                 formatted_answer,
                 example,
                 example_index,
-                has_groundtruth,
             )
 
         # delete self.examples during training mode to save memory
@@ -145,37 +145,31 @@ class GPTQADataset(QADataset):
     def _prep_query(self, query_prefix, example):
         """
         Formats a question into input format: ` question: <question text>`
-        The space at the start allows concatention with the context and answer for input
+            The space at the start allows concatention with the context and answer for input
+        Returns formatted query, query tokens, and length of query tokens
         """
 
         formatted_query = f"{query_prefix}{example.question_text}"
-        query_tokens_length, query_tokens, formatted_query = self._get_n_tokens_in_sentence(
-            formatted_query, self.max_query_length
-        )
 
-        return query_tokens_length, query_tokens, formatted_query
+        return self._truncate_sentence_and_return_len_and_tokens(formatted_query, self.max_query_length)
 
-    def _prep_answer(self, example, has_groundtruth):
+    def _prep_answer(self, example):
         """
-        Appends EOS token to answer or sets EOS token as answer if blank answer case
-        In inference mode, answer is returned as an empty string
+        Formats an answer into suitable model input:
+            - In inference mode, answer is returned as an empty string, else
+            - Sets EOS token as answer if question is impossible to answer, else
+            - Appends answer with EOS token as the final answer
+        Returns formatted answer string, answer tokens, and length of answer tokens
         """
 
-        if has_groundtruth:
-            if not example.is_impossible:
-                target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
-            else:
-                target = self.tokenizer.tokenizer.eos_token
+        if self.mode == INFERENCE_MODE:
+            target = ""      
+        elif example.is_impossible: # example is impossible to answer given context
+            target = self.tokenizer.tokenizer.eos_token
         else:
-            target = ""
+            target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
 
-        if target:
-            answer_tokens_length, answer_tokens, formatted_answer = \
-                self._get_n_tokens_in_sentence(target, self.max_answer_length)
-        else:
-            answer_tokens_length, answer_tokens, formatted_answer = 0, [], ""
-
-        return answer_tokens_length, answer_tokens, formatted_answer
+        return self._truncate_sentence_and_return_len_and_tokens(target, self.max_answer_length)
 
     def _prep_context(
         self, example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
@@ -211,13 +205,15 @@ class GPTQADataset(QADataset):
         formatted_answer,
         example,
         example_index,
-        has_groundtruth,
     ):
         """
         Formats all spans extracted from a single context as:
-            `context: <context span text> question: <question text> answer: <answer text>`
-        If the answer text (example.answer_text) is not present in a given context span,
-            the answer is converted to EOS token
+            `context: <context span text> question: <question text> answer:<answer text>`
+        <answer text> is set as:
+            - blank if in inference mode, else
+            - EOS token if answer text is not present in context span
+                and the check flag is set to true, else
+            - formatted answer
         """
 
         for context_span_idx, context_span in enumerate(context_spans):
@@ -225,16 +221,21 @@ class GPTQADataset(QADataset):
             context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
 
             input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
-            training_mask_end, _, _ = self._get_n_tokens_in_sentence(input_without_answer, self.max_seq_length)
+            training_mask_end, _, _ = self._truncate_sentence_and_return_len_and_tokens(input_without_answer, self.max_seq_length)
 
-            # mark as a negative sample if answer not present in context
-            if has_groundtruth:
-                input_with_answer = f"{input_without_answer}{formatted_answer}"
+            if self.mode == INFERENCE_MODE:
+                input_to_encode = input_without_answer
+            elif (
+                self.check_if_answer_in_context and
+                example.answer_text and
+                example.answer_text not in context_span_text
+            ):
+                input_to_encode = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
             else:
-                input_with_answer = input_without_answer
+                input_to_encode = f"{input_without_answer}{formatted_answer}"
 
             encoded_input_dict = self.tokenizer.tokenizer(
-                input_with_answer,
+                input_to_encode,
                 truncation=True,
                 max_length=self.max_seq_length,
                 padding="max_length",
@@ -264,7 +265,9 @@ class GPTQADataset(QADataset):
 
         return unique_id
 
-    def _get_n_tokens_in_sentence(self, sentence, max_length):
+    def _truncate_sentence_and_return_len_and_tokens(self, sentence, max_length):
+        if not sentence:
+            return 0, [], ""
         tokens = self.tokenizer.tokenizer.tokenize(sentence)[:max_length]
         trunc_sentence = self.tokenizer.tokenizer.convert_tokens_to_string(tokens)
         seq_length = len(tokens)

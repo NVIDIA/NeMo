@@ -42,7 +42,7 @@ class QAExample(object):
     title: str
 
     # None by default, this is used during evaluation. Holds answers as well as their start positions
-    answers: List[str] = []
+    answers: List[str] = None
 
     # False by default, set to True if the example has no possible answer
     is_impossible: bool = False

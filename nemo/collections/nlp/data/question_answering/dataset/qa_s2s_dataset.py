@@ -18,7 +18,7 @@ import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import TRAINING_MODE, INFERENCE_MODE
 from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
 from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_example import S2SQAInputExample
 from nemo.utils import logging
@@ -37,6 +37,7 @@ class S2SQADataset(QADataset):
         max_query_length: int = 64,
         max_seq_length: int = 512,
         max_answer_length: int = 64,
+        check_if_answer_in_context: bool = False,
         num_samples: int = -1,
         mode: str = TRAINING_MODE,
         use_cache: bool = False,
@@ -54,6 +55,7 @@ class S2SQADataset(QADataset):
         self.max_query_length = max_query_length
         self.max_seq_length = max_seq_length
         self.max_answer_length = max_answer_length
+        self.check_if_answer_in_context = check_if_answer_in_context
         self.num_samples = num_samples
         self.mode = mode
         self.use_cache = use_cache
@@ -101,7 +103,6 @@ class S2SQADataset(QADataset):
 
         logging.info(f"Preprocessing data into features.")
 
-        has_groundtruth = self.mode != INFERENCE_MODE
         unique_id = 1000000000
         self.features = []
         context_prefix = "context: "
@@ -117,7 +118,7 @@ class S2SQADataset(QADataset):
             context_tokens, context_spans = self._prep_context(example, query_tokens, context_prefix_tokens)
 
             unique_id = self._encode_all_context_spans(
-                unique_id, context_spans, context_tokens, formatted_query, example, example_index, has_groundtruth,
+                unique_id, context_spans, context_tokens, formatted_query, example, example_index,
             )
 
         # delete self.examples during training mode to save memory
@@ -155,7 +156,7 @@ class S2SQADataset(QADataset):
         return context_tokens, context_spans
 
     def _encode_all_context_spans(
-        self, unique_id, context_spans, context_tokens, formatted_query, example, example_index, has_groundtruth,
+        self, unique_id, context_spans, context_tokens, formatted_query, example, example_index,
     ):
         """
         Fromats all spans extracted from a single context as:
@@ -178,8 +179,8 @@ class S2SQADataset(QADataset):
             input_ids = torch.squeeze(encoded_input_dict["input_ids"])
             input_attn_mask = torch.squeeze(encoded_input_dict["attention_mask"])
 
-            # encode output based on if answer present in context
-            labels = self._encode_answer(has_groundtruth, example, context_span_text)
+            # encode output based on mode and is question answerable given context
+            labels = self._encode_answer(example, context_span_text)
 
             # create dictionary features
             feature = {
@@ -197,18 +198,36 @@ class S2SQADataset(QADataset):
 
         return unique_id
 
-    def _encode_answer(self, has_groundtruth, example, context_span_text):
+    def _encode_answer(self, example, context_span_text):
         """
-        Marks answer as blank if given answer is not present in context, and encodes
+        Answer is set and encoded as:
+            - blank if in inference mode, else
+            - blank if question is unanswerable given context, else
+            - blank if answer text is not present in context span
+                and the check flag is set to true, else
+            - formatted answer
         """
-
-        if has_groundtruth and not example.is_impossible:
-            target = example.answer_text
-        else:
+        
+        # check for whether answer is present in context span and if check flag is true
+        answer_not_in_context_check = (
+            self.check_if_answer_in_context and
+            example.answer_text and
+            example.answer_text not in context_span_text
+        )
+        
+        if (self.mode == INFERENCE_MODE or
+            example.is_impossible or # question not answerable given context
+            answer_not_in_context_check):
             target = ""
+        else:
+            target = example.answer_text
 
         encoded_output_dict = self.tokenizer.tokenizer(
-            target, truncation=True, max_length=self.max_answer_length, padding="max_length", return_tensors="pt",
+            target,
+            truncation=True,
+            max_length=self.max_answer_length,
+            padding="max_length",
+            return_tensors="pt",
         )
         labels = torch.squeeze(encoded_output_dict["input_ids"])
         labels[labels == self.tokenizer.tokenizer.pad_token_id] = -100
