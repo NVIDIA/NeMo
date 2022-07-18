@@ -69,11 +69,9 @@ def main(cfg: DictConfig) -> None:
         model.setup_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(model)
 
-    # change to path if you want results to be written to file e.g. os.path.join(exp_dir, "output_nbest_file.txt")
-    output_nbest_file = os.path.join(exp_dir, "nbest.json")
-    # change to path if you want results to be written to file e.g.  os.path.join(exp_dir, "output_prediction_file.txt")
-    output_prediction_file = os.path.join(exp_dir, "predictions.json")
-    inference_samples = -1  # for test purposes. To use entire inference dataset set to -1
+    output_nbest_file = None # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_nbest_file.json")
+    output_prediction_file = None # c# specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_prediction_file.json")
+    inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
     all_preds, all_nbest = model.inference(
         cfg.model.test_ds.file,
         output_prediction_file=output_prediction_file,
