@@ -632,9 +632,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.model.sync_initial_word_embeddings()
 
-        # if self.cfg.get('use_transformer_engine', False):
-        #     for layer in self.layers:
-        #         layer.set_tensor_parallel_group(transformer_engine.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
+        if self.cfg.get('transformer_engine', False) and self.cfg.get('tensor_model_parallel_size', 1) > 1:
+            logging.info(f'Setting up transformer engine modules for tensor parallelism.')
+            if self.cfg.get('megatron_amp_O2', 'False'):
+                # when using O2 additional module key is added that casts the weights
+                for layer in self.model.module.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
+
+            else:
+                for layer in self.model.language_model.encoder.layers:
+                    layer.set_tensor_parallel_group(parallel_state.get_tensor_model_parallel_group())
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
