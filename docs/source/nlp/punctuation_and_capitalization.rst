@@ -592,13 +592,15 @@ For convenience, items of data config are described in 4 tables:
      - string
      - ``scatter``
      - Tarred dataset shard distribution strategy chosen as a str value during ddp. Accepted values are ``scatter`` and ``replicate``.
-    ``scatter``: Each node gets a unique set of shards, which are permanently pre-allocated and never changed at runtime.
-    ``replicate``: Each node gets the entire set of shards available in the tarred dataset, which are permanently pre-allocated and never
-    changed at runtime. The benefit of replication is that it allows each node to sample data points from the entire dataset independently
-    of other nodes, and reduces dependence on value of ``tar_shuffle_n``.
-    Note: Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than one node may sample
-    the same tarfile, and even sample the same data points! As such, there is no assured guarantee that all samples in the dataset will be
-    sampled at least once during 1 epoch.
+       ``scatter``: Each node gets a unique set of shards, which are permanently pre-allocated and never changed at runtime, when the total
+       number of shards is not divisible with ``world_size``, some shards (at max ``world_size-1``) will not be used.
+       ``replicate``: Each node gets the entire set of shards available in the tarred dataset, which are permanently pre-allocated and never
+       changed at runtime. The benefit of replication is that it allows each node to sample data points from the entire dataset independently
+       of other nodes, and reduces dependence on value of ``tar_shuffle_n``.
+       Note: Replicated strategy allows every node to sample the entire set of available tarfiles, and therefore more than one node may sample
+       the same tarfile, and even sample the same data points! As such, there is no assured guarantee that all samples in the dataset will be
+       sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific occasions (when the number of shards is not
+       divisible with ``world_size``), will not sample the entire dataset.
 
 .. _pytorch-dataloader-parameters-label:
 
