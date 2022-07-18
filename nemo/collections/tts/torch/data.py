@@ -51,6 +51,7 @@ from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishChar
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
+
 EPSILON = 1e-9
 WINDOW_FN_SUPPORTED = {
     'hann': torch.hann_window,
