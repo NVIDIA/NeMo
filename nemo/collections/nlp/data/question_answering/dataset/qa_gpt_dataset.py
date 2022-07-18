@@ -60,6 +60,8 @@ class GPTQADataset(QADataset):
 
         self._set_cached_features_filename()
         if use_cache and os.path.exists(self.cached_features_file):
+
+            # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
                 del self.examples
                 del self.processor
@@ -115,8 +117,8 @@ class GPTQADataset(QADataset):
 
             example = self.examples[example_index]
 
-            query_tokens_length, _, formatted_query = self._prep_query(query_prefix, example)
-            answer_tokens_length, _, formatted_answer = self._prep_answer(example)
+            formatted_query, query_tokens_length = self._prep_query(query_prefix, example)
+            formatted_answer, answer_tokens_length = self._prep_answer(example)
             context_tokens, context_spans = self._prep_context(
                 example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
             )
@@ -147,7 +149,7 @@ class GPTQADataset(QADataset):
 
         formatted_query = f"{query_prefix}{example.question_text}"
 
-        return self._truncate_sentence_and_return_len_and_tokens(formatted_query, self.max_query_length)
+        return self._get_truncated_sentence_and_len(formatted_query, self.max_query_length)
 
     def _prep_answer(self, example):
         """
@@ -165,7 +167,7 @@ class GPTQADataset(QADataset):
         else:
             target = f"{example.answer_text}{self.tokenizer.tokenizer.eos_token}"
 
-        return self._truncate_sentence_and_return_len_and_tokens(target, self.max_answer_length)
+        return self._get_truncated_sentence_and_len(target, self.max_answer_length)
 
     def _prep_context(
         self, example, query_tokens_length, answer_tokens_length, context_prefix_tokens, answer_prefix_tokens,
@@ -217,17 +219,17 @@ class GPTQADataset(QADataset):
             context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
 
             input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
-            training_mask_end, _, _ = self._truncate_sentence_and_return_len_and_tokens(
-                input_without_answer, self.max_seq_length
+            _, training_mask_end = self._get_truncated_sentence_and_len(input_without_answer, self.max_seq_length)
+
+            is_answer_in_context_check = (
+                self.check_if_answer_in_context # checks if the flag for this check is set
+                and example.answer_text # checks if answer text is valid, i.e. question is not unanswerable
+                and example.answer_text not in context_span_text # checks if answer text is a substring of context
             )
 
             if self.mode == INFERENCE_MODE:
                 input_to_encode = input_without_answer
-            elif (
-                self.check_if_answer_in_context
-                and example.answer_text
-                and example.answer_text not in context_span_text
-            ):
+            elif is_answer_in_context_check:
                 input_to_encode = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
             else:
                 input_to_encode = f"{input_without_answer}{formatted_answer}"
@@ -261,14 +263,14 @@ class GPTQADataset(QADataset):
 
         return unique_id
 
-    def _truncate_sentence_and_return_len_and_tokens(self, sentence, max_length):
+    def _get_truncated_sentence_and_len(self, sentence, max_length):
         if not sentence:
-            return 0, [], ""
+            return "", 0
         tokens = self.tokenizer.tokenizer.tokenize(sentence)[:max_length]
         trunc_sentence = self.tokenizer.tokenizer.convert_tokens_to_string(tokens)
         seq_length = len(tokens)
 
-        return seq_length, tokens, trunc_sentence
+        return trunc_sentence, seq_length
 
     @classmethod
     def update_labels_for_no_pad_loss(cls, input_ids, training_mask_end, input_attn_mask):

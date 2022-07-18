@@ -59,6 +59,8 @@ class S2SQADataset(QADataset):
 
         self._set_cached_features_filename()
         if use_cache and os.path.exists(self.cached_features_file):
+
+            # delete self.examples during training mode to save memory
             if self.mode == TRAINING_MODE:
                 del self.examples
                 del self.processor
@@ -205,15 +207,16 @@ class S2SQADataset(QADataset):
             - formatted answer
         """
 
-        # check for whether answer is present in context span and if check flag is true
-        answer_not_in_context_check = (
-            self.check_if_answer_in_context and example.answer_text and example.answer_text not in context_span_text
+        is_answer_in_context_check = (
+            self.check_if_answer_in_context # checks if the flag for this check is set
+            and example.answer_text # checks if answer text is valid, i.e. question is not unanswerable
+            and example.answer_text not in context_span_text # checks if answer text is a substring of context
         )
 
         if (
             self.mode == INFERENCE_MODE
-            or example.is_impossible
-            or answer_not_in_context_check  # question not answerable given context
+            or example.is_impossible # question not answerable given context
+            or is_answer_in_context_check
         ):
             target = ""
         else:
