@@ -17,7 +17,7 @@ do_training: true # true for training mode, false for testing
 trainer:
   devices: [0] # 0 for CPU, or list of the GPUs to use e.g. [0, 1] or [0]
   num_nodes: 1
-  max_epochs: 5
+  max_epochs: 3
   max_steps: -1 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 1.0
@@ -101,7 +101,7 @@ model:
     pin_memory: ${model.dataset.pin_memory}
 
   language_model:
-    pretrained_model_name: roberta-base # main config to select model (between bert, gpt2, t5/bart based models)
+    pretrained_model_name: bert-base-uncased # main config to select model (between bert, gpt2, t5/bart based models)
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
