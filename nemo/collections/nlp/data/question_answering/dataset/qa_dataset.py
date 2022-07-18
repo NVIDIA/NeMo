@@ -31,7 +31,7 @@ from nemo.utils import logging
 
 
 class QADataset(Dataset):
-    ''' Base class for QA Datasets '''
+    ''' Abstract base class for QA Datasets with common utility methods '''
 
     def __init__(
         self, data_file: str, processor: object, tokenizer: object, mode: str, num_samples: int, **kwargs,
