@@ -1247,7 +1247,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
+    stage('L2: Parallel BERT Question-Answering SQUAD v1.1 / v2.0') {
       when {
         anyOf {
           branch 'main'
@@ -1306,7 +1306,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel BART SQUAD v1.1 / v2.0') {
+    stage('L2: Parallel BART Question-Answering SQUAD v1.1 / v2.0') {
       when {
         anyOf {
           branch 'main'
@@ -1367,7 +1367,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel GPT2 SQUAD v1.1 / v2.0') {
+    stage('L2: Parallel GPT2 Question-Answering SQUAD v1.1 / v2.0') {
       when {
         anyOf {
           branch 'main'
