@@ -3,13 +3,39 @@ import sys
 import json
 
 from tensorboard.backend.event_processing import event_accumulator
-from CITestHelper import CITestHelper
 
-def collect_val_test_metrics(ci_job_results_dir):
+
+CI_JOB_RESULTS = os.environ.get("RESULTS_DIR")
+RUN_TASK = os.environ.get("RUN_TASK")
+RUN_MODEL = os.environ.get("RUN_MODEL")
+
+def _read_tb_logs_as_list(path, summary_name):
+    """Reads a TensorBoard Events file from the input path, and returns the
+    summary specified as input as a list.
+
+    Arguments:
+        path: str, path to the dir where the events file is located.
+        summary_name: str, name of the summary to read from the TB logs.
+    Output:
+        summary_list: list, the values in the read summary list, formatted as a list.
+    """
+    files = os.listdir(path)
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
+    for f in files:
+        if f[:6] == "events":
+            event_file = os.path.join(path, f)
+            ea = event_accumulator.EventAccumulator(event_file)
+            ea.Reload()
+            summary = ea.Scalars(summary_name)
+            summary_list = [round(x.value, 5) for x in summary]
+            return summary_list
+    raise FileNotFoundError(f"File not found matching: {path}/events* \nFiles: {files}")
+
+def collect_val_test_metrics(pytest_file):
     # TODO: Fetch current baseline
 
     # val loss
-    val_loss_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "val_loss")
+    val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
     val_metrics = {
         "val_loss": {
@@ -20,23 +46,22 @@ def collect_val_test_metrics(ci_job_results_dir):
         }
     }
 
-    output_file_name = ci_job_results_dir.rsplit("/",1)[1]+".json"
-    val_metrics_file = os.path.join(ci_job_results_dir, output_file_name)
+    val_metrics_file = os.path.join(CI_JOB_RESULTS, "ci_val_metrics.json")
     with open(val_metrics_file, "w") as out_file:
         json.dump(val_metrics, out_file)
     print(f" ****** CI val metrics logged in {val_metrics_file}", flush=True)
 
-def collect_train_test_metrics(ci_job_results_dir):
+def collect_train_test_metrics(pytest_file):
     # TODO: Fetch current baseline
 
     # train loss
-    train_loss_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "reduced_train_loss")
+    train_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "reduced_train_loss")
 
     # val loss
-    val_loss_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "val_loss")
+    val_loss_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "val_loss")
 
     # step timing
-    train_time_list = CITestHelper.read_tb_logs_as_list(ci_job_results_dir, "train_step_timing")
+    train_time_list = _read_tb_logs_as_list(CI_JOB_RESULTS, "train_step_timing")
     train_time_list = train_time_list[len(train_time_list) // 2:]  # Discard the first half.
     train_time_avg = sum(train_time_list) / len(train_time_list)
 
@@ -55,8 +80,7 @@ def collect_train_test_metrics(ci_job_results_dir):
         },
         "train_step_timing_avg": train_time_avg,
     }
-    output_file_name = ci_job_results_dir.rsplit("/",1)[1]+".json"
-    train_metrics_file = os.path.join(ci_job_results_dir, output_file_name)
+    train_metrics_file = os.path.join(CI_JOB_RESULTS, "ci_train_metrics.json")
     with open(train_metrics_file, "w") as out_file:
         json.dump(train_metrics, out_file)
     print(f" ****** CI train metrics logged in {train_metrics_file}", flush=True)
@@ -65,12 +89,10 @@ def collect_train_test_metrics(ci_job_results_dir):
 
 if __name__ == '__main__':
     args = sys.argv[1:]
-    ci_job_results_dir = args[0] # eg. '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
-    run_task = args[1] # eg. train
-    run_model = args[2] # eg. gpt3
+    pytest_file = args[0]
 
-    if run_task in ["train", "finetune", "prompt_learn"]:
-        collect_train_test_metrics(ci_job_results_dir)
+    if RUN_TASK in ["train", "finetune", "prompt_learn"]:
+        collect_train_test_metrics(pytest_file)
 
-    if run_task in ["eval"] and run_model in ["t5", "mt5"]:
-        collect_val_test_metrics(ci_job_results_dir)
+    if RUN_TASK in ["eval"] and RUN_MODEL in ["t5", "mt5"]:
+        collect_val_test_metrics(pytest_file)
