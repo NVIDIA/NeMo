@@ -10,12 +10,9 @@ tensor_para=${7}
 pipeline_para=${8}
 request_batch_sizes=${@:9}
 
-all_log=${log_dir}/all-${input_length}-${output_length}.log
+all_log=${log_dir}/infer_benchmark_all_tp${tensor_para}_pp${pipeline_para}_i${input_length}_o${output_length}.log
 
-# vocab_size=29184
-# vocab_size=51200
-
-echo -e "| Batch Size | Input length | Output length | FT latency (ms) | Throughput per GPU (sentence/s) |" > $all_log
+echo -e "Batch Size,Tensor Parallel,Pipeline Parallel,Input length,Output length,FT latency (ms),Throughput per GPU (sentence/s)" > $all_log
 
 for request_batch_size in ${request_batch_sizes[@]}; do
     tmp_log=${log_dir}/bs-${request_batch_size}-${input_length}-${output_length}.log
@@ -28,5 +25,6 @@ for request_batch_size in ${request_batch_sizes[@]}; do
                 -v throughput_s=$throughput_s \
                 -v request_batch_size=$request_batch_size \
                 -v input_length=$input_length -v output_length=$output_length \
-                '{printf "%3d, %4d, %4d, %7.2f, %7.2f\n", request_batch_size, input_length, output_length, ft_latency, throughput_s}' >> $all_log
+                -v tensor_para=$tensor_para -v pipeline_para=$pipeline_para \
+                '{printf "%d,%d,%d,%d,%d,%f,%f\n", request_batch_size, tensor_para, pipeline_para, input_length, output_length, ft_latency, throughput_s}' >> $all_log
 done

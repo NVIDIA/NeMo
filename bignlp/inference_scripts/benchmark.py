@@ -89,7 +89,7 @@ def create_slurm_file(
         if overcommit:
             f.writelines("#SBATCH --overcommit\n")
         f.writelines(f"#SBATCH --time={time}\n\n")
-        f.writelines(f'srun {flags} sh -c "{train_cmd}"\n\n')
+        f.writelines(f'srun {flags} sh -c \'{train_cmd}\'\n\n')
         f.writelines("set +x\n")
 
 
@@ -102,12 +102,13 @@ def run_benchmark():
     pipeline_para_size = 1
     input_len = 60
     output_len = 20
-    batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    # batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    batch_sizes = [1]
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
     model_path = None
     bignlp_scripts_path = "/lustre/fsw/joc/donghyukc/bignlp-scripts"
     container = "gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base"
-    triton_wait_time = 30
+    triton_wait_time = 100
 
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
 
@@ -133,7 +134,7 @@ def run_benchmark():
     exclusive = True
     job_name_prefix = "joc-bignlp_inference:"
     job_name = job_name_prefix + task_name
-    nodes = 1
+    nodes = pipeline_para_size
     ntasks_per_node = 1
     gpus_per_task = None
     dependency = None
@@ -141,8 +142,8 @@ def run_benchmark():
     # Log and results dir
     benchmark_path = f"{bignlp_scripts_path}/bignlp/inference_scripts/benchmark_sweep.sh"
 
-    results_dir = f"{bignlp_scripts_path}/results/inference/benchmark/{model_type}"
-    logs_dir = f"{bignlp_scripts_path}/bignlp/inference_scripts/benchmark"
+    results_dir = f"{bignlp_scripts_path}/results/infer_benchmark_{model_type}_{model_size}"
+    logs_dir = f"{bignlp_scripts_path}/bignlp/inference_scripts/benchmark_sbatch"
 
     os.makedirs(results_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
@@ -168,13 +169,15 @@ def run_benchmark():
 
     # Start Triton Server
     gpus = ','.join([str(i) for i in range(0, tensor_para_size)])
-    triton_cmd = (f"CUDA_VISIBLE_DEVICES={gpus} \\\n"
-        f"mpirun -n {pipeline_para_size} --allow-run-as-root \\\n" 
+
+    # Benchmark command
+    conditional_if_cmd = " if [ $PMIX_RANK = 0 ] && [ \"$PMIX_HOSTNAME\" = \"$SLURMD_NODENAME\" ]; then"
+
+    triton_cmd = conditional_if_cmd + (f" CUDA_VISIBLE_DEVICES={gpus} \\\n"
         "/opt/tritonserver/bin/tritonserver \\\n" 
         f"--model-repository={results_dir}/triton & \\\n"
     )
 
-    # Run benchmark command
     benchmark_cmd = triton_cmd + (f"sleep {triton_wait_time} && \\\n"
         f"bash {benchmark_path} \\\n"
         f"{results_dir} \\\n"
@@ -185,12 +188,18 @@ def run_benchmark():
         f"{vocab_size} \\\n"
         f"{tensor_para_size} \\\n"
         f"{pipeline_para_size} \\\n"
-        f"{batch_sizes_str}"
+        f"{batch_sizes_str}; \\\n"
+    )
+
+    conditional_benchmark_cmd = benchmark_cmd + (f"else CUDA_VISIBLE_DEVICES={gpus} \\\n"
+        "/opt/tritonserver/bin/tritonserver \\\n"
+        f"--model-repository={results_dir}/triton; fi"
     )
 
     # Set Slurm flags
     mounts_str = f"{bignlp_scripts_path}:{bignlp_scripts_path},{results_dir}:{results_dir}"
     flags = (
+        "--mpi=pmix "
         f"--container-image {container} "
         f"--container-mounts {mounts_str} "
         f"-o {results_dir}/{task_name}-%j.log "
@@ -199,7 +208,7 @@ def run_benchmark():
 
     create_slurm_file(
         new_script_path=new_script_path,
-        train_cmd=benchmark_cmd,
+        train_cmd=conditional_benchmark_cmd,
         job_name=job_name,
         flags=flags,
         dependency=dependency,
