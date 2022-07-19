@@ -298,7 +298,7 @@ class GPTPromptLearningDataset(Dataset):
         elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
             taskname_ids = torch.tensor(taskname_ids)
 
-        elif self._virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+        elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
             taskname_ids = torch.tensor(taskname_ids)
         else:
             raise ValueError(f"Unknown virtual prompt source: {self.virtual_prompt_source}")
