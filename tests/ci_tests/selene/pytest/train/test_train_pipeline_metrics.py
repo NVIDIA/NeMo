@@ -22,7 +22,7 @@ class TestTrainPipelineMetrics:
         expected = json.load(f)
 
     #TODO : Should be importing this from CITestHelper
-    def read_tb_logs_as_list(path, summary_name):
+    def _read_tb_logs_as_list(self, path, summary_name):
         """Reads a TensorBoard Events file from the input path, and returns the
         summary specified as input as a list.
 
@@ -48,7 +48,7 @@ class TestTrainPipelineMetrics:
     def test_loss_helper(self, loss_type, test_type):
         expected = self.expected[loss_type]
         expected_loss_list = expected["values"]
-        actual_loss_list = self.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
+        actual_loss_list = self._read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
         loss_list_size = len(expected_loss_list)*expected["step_interval"]
         assert actual_loss_list is not None, f"{self.job_name} : No TensorBoard events file was found in the logs for {loss_type}."
         assert len(actual_loss_list) == loss_list_size, f"{self.job_name} : The events file must have {loss_list_size} {loss_type} values, one per training iteration."
@@ -77,7 +77,7 @@ class TestTrainPipelineMetrics:
     def test_train_step_timing_1node(self):
         # Expected average training time per global step.
         expected_avg = self.expected["train_step_timing_avg"]
-        train_time_list = self.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, "train_step_timing")
+        train_time_list = self._read_tb_logs_as_list(CI_JOB_RESULTS_DIR, "train_step_timing")
         train_time_list = train_time_list[len(train_time_list)//2:] # Discard the first half.
         train_time_avg = sum(train_time_list) / len(train_time_list)
 
