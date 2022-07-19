@@ -132,10 +132,10 @@ def run_export(cfg, dependency=None):
 
     try:
         convert_cmds_fn = {
-            "gpt": _get_gpt_conversion_cmds,
+            "gpt3": _get_gpt_conversion_cmds,
             "t5": _get_t5_conversion_cmds,
             "mt5": _get_t5_conversion_cmds,
-        }[model_cfg.model_type]
+        }[run_cfg.model_type]
     except KeyError:
         print(f"{model_cfg.model_type} model_type is not supported yet in export stage")
         return
