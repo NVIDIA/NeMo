@@ -15,8 +15,8 @@ model:
   checkpoint_folder: ${conversion.run.train_dir}/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
   hparams_file: ${conversion.run.train_dir}/hparams.yaml
-  tensor_model_parallel_size: 1 # 1 for 220m, 2 for 3b
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: ${training.model.tensor_model_parallel_size} # 1 for 220m, 2 for 3b
+  pipeline_model_parallel_size: ${training.model.pipeline_model_parallel_size}
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   vocab_file: ${data_dir}/bpe/vocab.txt
   merge_file: null

@@ -14,11 +14,52 @@
 # limitations under the License.
 import argparse
 import configparser
+import logging
 import pathlib
+import sys
 
 import google.protobuf.json_format
 import google.protobuf.text_format
 import tritonclient.grpc
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _get_model_parameters(config_ini):
+    excluded_section_names = ["ft_instance_hyperparameter", "structure"]
+    sections_names_with_model_parameters = [s for s in config_ini.sections() if s not in excluded_section_names]
+
+    if not sections_names_with_model_parameters:
+        LOGGER.error(
+            "Could not find section with model parameters in model config.ini while it is required to fill templates"
+        )
+        sys.exit(-1)
+
+    params_from_model_config = {
+        section_name: {
+            # TODO: add to nemo_ckpt_convert script
+            "model_type": config_ini.get(section_name, "model_type", fallback="GPT"),
+            "model_name": config_ini.get(
+                section_name, "model_name", fallback=config_ini.get(section_name, "_name_or_path")
+            ),
+            "tensor_para_size": config_ini.getint(section_name, "tensor_para_size"),
+        }
+        for section_name in sections_names_with_model_parameters
+    }
+
+    # ensure that for all models it is obtained same parameters
+    parameters_from_all_sections = list(set(map(lambda x: tuple(x.items()), params_from_model_config.values())))[0]
+    if len(parameters_from_all_sections) != len(list(params_from_model_config.values())[0]):
+        LOGGER.error(
+            "Found no consistency between model parameters: %s (%d != %d)",
+            params_from_model_config,
+            len(parameters_from_all_sections),
+            len(list(params_from_model_config.values())[0]),
+        )
+        sys.exit(-1)
+
+    params_from_model_config = list(params_from_model_config.values())[0]
+    return params_from_model_config
 
 
 def _update_template(
@@ -39,6 +80,9 @@ def _update_template(
 
 
 def main():
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
     parser = argparse.ArgumentParser(description="Generate Triton model config file")
     parser.add_argument("--template-path", help="Path to template of Triton model config file", required=True)
     parser.add_argument("--config-path", help="Path to output Triton model config file", required=True)
@@ -73,24 +117,18 @@ def main():
     )
 
     # update template
-
-    triton_model_config_path = pathlib.Path(args.config_path)
-    model_name = triton_model_config_path.parent.name
-
-    sections_without_instance_hyperparameter = [s for s in config_ini.sections() if s != "ft_instance_hyperparameter"]
-    assert len(sections_without_instance_hyperparameter) == 1
-    section_with_model_parameters = config_ini.sections()[0]
-    model_config = config_ini[section_with_model_parameters]
+    params_from_model_config = _get_model_parameters(config_ini)
     parameters = {
-        "model_type": model_config.get("model_type", "GPT"),  # TODO: add to nemo_ckpt_convert script
-        "model_name": section_with_model_parameters,
-        "tensor_para_size": model_config["tensor_para_size"],
-        "data_type": args.data_type.lower(),
-        "pipeline_para_size": args.pipeline_model_parallel_size,
-        "model_checkpoint_path": ft_checkpoint_path.as_posix(),
-        "int8_mode": int(args.int8_mode),
-        "enable_custom_all_reduce": int(args.enable_custom_all_reduce),
+        **{
+            "data_type": args.data_type.lower(),
+            "pipeline_para_size": args.pipeline_model_parallel_size,
+            "model_checkpoint_path": ft_checkpoint_path.as_posix(),
+            "int8_mode": int(args.int8_mode),
+            "enable_custom_all_reduce": int(args.enable_custom_all_reduce),
+        },
+        **params_from_model_config,
     }
+    model_name = params_from_model_config["model_name"]
     updated_triton_model_config = _update_template(
         triton_model_config_template, model_name, ft_checkpoint_path.name, args.max_batch_size, parameters
     )
@@ -106,6 +144,8 @@ def main():
 
     with config_path.open("wb") as config_file:
         config_file.write(updated_triton_model_config_payload)
+
+    LOGGER.info("Config file successfully generated and written to: %s", config_path)
 
 
 if __name__ == "__main__":

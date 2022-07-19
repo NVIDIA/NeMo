@@ -7,7 +7,7 @@ defaults:
   - finetuning: null
   - prompt_learning: null
   - evaluation: gpt3/evaluate_all
-  - export: export
+  - export: gpt3
   - override hydra/job_logging: stdout
 
 hydra:

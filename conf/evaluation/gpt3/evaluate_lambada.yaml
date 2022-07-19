@@ -14,8 +14,8 @@ model:
   checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
   checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
   hparams_file: ${evaluation.run.train_dir}/hparams.yaml
-  tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
-  pipeline_model_parallel_size: 1
+  tensor_model_parallel_size: ${training.model.tensor_model_parallel_size} #1 for 126m, 2 for 5b, 8 for 20b
+  pipeline_model_parallel_size: ${training.model.pipeline_model_parallel_size}
   model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
   precision: ${training.trainer.precision}  # must match training precision - 32, 16 or bf16
   eval_batch_size: 4

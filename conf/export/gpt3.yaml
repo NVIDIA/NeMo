@@ -21,9 +21,9 @@ triton_deployment:
 
 accuracy:
   ntasks_per_node: 8  # usually should be number of available gpus per node
-  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
-  lambada_path: ${export.run.results_dir}/lambada_test.jsonl
-  output_path: ${export.run.results_dir}/lambada_output.json
+  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini   # TODO: do not require - use cli parameters
+  test_data: ${export.run.results_dir}/lambada_test.jsonl
+  output_path: ${export.run.results_dir}/eval_output.json
   batch_size: 64
   runtime:
     max_seq_len: 512
