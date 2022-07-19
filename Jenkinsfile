@@ -1247,7 +1247,7 @@ pipeline {
       }
     }
 
-    stage('L2: Parallel SQUAD v1.1 BERT/BART/GPT2 Question-Answering') {
+    stage('L2: Parallel BERT/BART/GPT2 Question-Answering SQUAD v1.1 & v2.0') {
       when {
         anyOf {
           branch 'main'
@@ -1259,7 +1259,7 @@ pipeline {
         stage('BERT SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1278,13 +1278,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
         stage('BART SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1304,13 +1304,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
         stage('GPT2 SQUAD 1.1') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
             model.dataset.use_cache=false \
@@ -1330,25 +1330,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[0] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
-      }
-    }
-
-    stage('L2: Parallel SQUAD v2.0 BERT/BART/GPT2 Question-Answering') {
-      when {
-        anyOf {
-          branch 'main'
-          changeRequest target: 'main'
-        }
-      }
-      failFast true
-      parallel {
         stage('BERT SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1364,13 +1352,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
         stage('BART SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1387,13 +1375,13 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
         stage('GPT2 SQUAD 2.0') {
           // Cannot do fast_dev_run because squad needs whole dev dataset
           steps {
-            sh 'cd examples/nlp/question_answering && \
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
             python question_answering.py \
             model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
             model.dataset.use_cache=false \
@@ -1410,7 +1398,7 @@ pipeline {
             trainer.precision=16 \
             trainer.devices=[1] \
             trainer.accelerator="gpu" \
-            exp_manager=null'
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
       }
