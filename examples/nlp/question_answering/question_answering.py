@@ -69,20 +69,20 @@ def main(cfg: DictConfig) -> None:
         model.setup_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(model)
 
-    # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_nbest_file.json")
-    output_nbest_file = None
-    # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_prediction_file.json")
-    output_prediction_file = None
-    inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
-    all_preds, all_nbest = model.inference(
-        cfg.model.test_ds.file,
-        output_prediction_file=output_prediction_file,
-        output_nbest_file=output_nbest_file,
-        num_samples=inference_samples,
-    )
+        # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_nbest_file.json")
+        output_nbest_file = None
+        # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_prediction_file.json")
+        output_prediction_file = None
+        inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
+        all_preds, all_nbest = model.inference(
+            cfg.model.test_ds.file,
+            output_prediction_file=output_prediction_file,
+            output_nbest_file=output_nbest_file,
+            num_samples=inference_samples,
+        )
 
-    for question_id in all_preds:
-        print(all_preds[question_id])
+        for question_id in all_preds:
+            print(all_preds[question_id])
 
 
 if __name__ == "__main__":
