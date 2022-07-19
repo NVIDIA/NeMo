@@ -295,7 +295,7 @@ def main(cfg) -> None:
     else:
         collate_fn = None
         ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-        
+
     request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
