@@ -44,19 +44,20 @@ def main(cfg):
     code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_gpt_pretraining.py"
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
 
-    # Write command to launch training.
-    if cfg.get("profile", False):
+    nsys_cfg = model_cfg.get("nsys_profile", None)
+    if nsys_cfg is not None and nsys_cfg.get("enabled", False):
         slurm_node = os.environ.get("SLURM_NODEID", "0")
         slurm_rank = os.environ.get("SLURM_PROCID", "0")
         slurm_jobid = os.environ.get("SLURM_JOB_ID", "0")
         profile_out_path = os.path.join(results_dir, "profile_logs")
         os.makedirs(profile_out_path, exist_ok=True)
-        nsys = f"nsys profile -s none -t cuda,nvtx " \
+        nsys = f"nsys profile -s none -t {','.join(nsys_cfg.trace)} " \
                f"-o {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} " \
                f"--force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop"
     else:
         nsys = ""
 
+    # Write command to launch training.
     if cfg.cluster_type == "bcm":
         cmd = f"{cmd_prefix} {cuda_visible_devices} {set_gpu_queue_sw} {nsys} python3 {code_path} {hydra_train_args} {flags}"
     elif cfg.cluster_type == "bcp":
