@@ -1,0 +1,1 @@
+{"reduced_train_loss": {"start_step": 0, "end_step": 100, "step_interval": 5, "values": [11.01865, 14.70272, 10.8539, 8.90153, 8.36176, 7.91889, 7.67451, 7.52088, 7.41411, 7.29735]}, "val_loss": {"start_step": 0, "end_step": 5, "step_interval": 1, "values": [10.25988, 7.92307, 7.22897, 7.03459, 6.81978]}, "train_step_timing_avg": 157.073368}
