@@ -542,7 +542,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         logp_ids = logp_vals.max(1)[1]
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].alignments[-1].append((logp_vals[batch_idx], logp_ids[batch_idx]))
+                                hypotheses[batch_idx].alignments[-1].append(
+                                    (logp_vals[batch_idx], logp_ids[batch_idx])
+                                )
                         del logp_vals
                     del logp
 
@@ -714,7 +716,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         logp_ids = logp_vals.max(1)[1]
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].alignments[-1].append((logp_vals[batch_idx], logp_ids[batch_idx]))
+                                hypotheses[batch_idx].alignments[-1].append(
+                                    (logp_vals[batch_idx], logp_ids[batch_idx])
+                                )
                         del logp_vals
                     del logp
 
