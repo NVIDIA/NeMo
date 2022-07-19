@@ -35,13 +35,16 @@ def _get_model_parameters(config_ini):
         )
         sys.exit(-1)
 
+    def _get_model_name(section_name_):
+        model_name = config_ini.get(section_name_, "model_name", fallback=None)
+        if model_name is None:
+            model_name = config_ini.get(section_name_, "_name_or_path", fallback="unknown")
+        return model_name
+
     params_from_model_config = {
         section_name: {
-            # TODO: add to nemo_ckpt_convert script
             "model_type": config_ini.get(section_name, "model_type", fallback="GPT"),
-            "model_name": config_ini.get(
-                section_name, "model_name", fallback=config_ini.get(section_name, "_name_or_path")
-            ),
+            "model_name": _get_model_name(section_name),
             "tensor_para_size": config_ini.getint(section_name, "tensor_para_size"),
         }
         for section_name in sections_names_with_model_parameters
