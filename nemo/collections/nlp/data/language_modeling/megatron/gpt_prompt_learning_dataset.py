@@ -66,6 +66,9 @@ class GPTPromptLearningDataset(Dataset):
         if isinstance(datasets[0], dict):
             self.load_data(datasets)
 
+        elif isinstance(datasets[0], str) and "taskname" in datasets[0]:
+            self.load_data(datasets)
+
         # Datasets are a list of file path strings to .json or .jsonl files
         elif isinstance(datasets[0], str):
             for path in datasets:

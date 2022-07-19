@@ -182,9 +182,16 @@ if not torch.cuda.is_available():
 
 
 class RequestDataSet(Dataset):
-    def __init__(self, sentences):
+    def __init__(self, sentences, prompt_learning_inference=False):
         super().__init__()
-        self.sentences = sentences
+        if prompt_learning_inference:
+            self.sentences = []
+
+            for dataset in sentences:
+                for line in open(dataset, 'r', encoding='utf-8').readlines():
+                    self.sentences.append(line)
+        else:
+            self.sentences = sentences
 
     def __len__(self,):
         return len(self.sentences)
@@ -282,13 +289,14 @@ def main(cfg) -> None:
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
-    collate_fn = None
-    if cfg.get('virtual_prompt_model', False):
+    if cfg.get('virtual_prompt_model_file', None):
         collate_fn = lambda x: list(x)
-
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+        ds = RequestDataSet(OmegaConf.to_container(cfg.prompts), prompt_learning_inference=True)
+    else:
+        collate_fn = None
+        ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
+        
     request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
-
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
