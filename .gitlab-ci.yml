@@ -4,7 +4,7 @@ variables: &VARS
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
-  TESTS_TO_RUN: L0  # Can specify Levels, ci job names etc as a space seperated list
+  TESTS_TO_RUN: L0 L1 # Can specify Levels, ci job names etc as a space seperated list
   TEST_REGEX: NULL #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
@@ -233,9 +233,6 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
-  only:
-    - master
-    - merge_requests
   needs:
     - build-BigNLP
 
@@ -252,9 +249,6 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
-  only:
-    - master
-    - merge_requests
   needs:
     - build-BigNLP
 
@@ -271,9 +265,6 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
-  only:
-    - master
-    - merge_requests
   needs:
     - build-BigNLP
 
@@ -290,11 +281,6 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
@@ -311,11 +297,6 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L1
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
@@ -332,11 +313,6 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L1
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
@@ -353,11 +329,6 @@ train.gpt3.20b_tp8_pp2_4node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "3:00:00"
     TEST_LEVEL: L2
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
@@ -374,11 +345,6 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L2
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
@@ -395,11 +361,6 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     MAX_STEPS: 50
     RUN_TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L2
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
-      when: manual
-      allow_failure: true
-    - when: never
   needs:
     - build-BigNLP
 
