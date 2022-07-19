@@ -95,19 +95,7 @@ class T5Dataset(Dataset):
         )
 
         self.tokenizer = tokenizer
-        self.tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
-        if isinstance(self.tokenizer, YouTokenToMeTokenizer):
-            raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
-
-        if isinstance(self.tokenizer, SentencePieceTokenizer):
-            if not self.tokenizer.legacy:
-                raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
-            self.tokenizer_type = 'sentencepiece'
-            if whole_word_masking:
-                raise ValueError(
-                    "Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False."
-                )
-
+        self.tokenizer_type = T5Dataset._determine_tokenizer_type(tokenizer, whole_word_masking=whole_word_masking)
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
         self.mask_id = tokenizer.mask_id
@@ -143,8 +131,8 @@ class T5Dataset(Dataset):
             sample=sample,
             target_seq_length=seq_length,
             np_rng=np_rng,
-            max_length=self.max_seq_length,
-            max_length_dec=self.max_seq_length_dec,
+            max_seq_length=self.max_seq_length,
+            max_seq_length_dec=self.max_seq_length_dec,
             masked_lm_prob=self.masked_lm_prob,
             vocab_id_list=self.vocab_id_list,
             vocab_id_to_token_dict=self.vocab_id_to_token_dict,
@@ -164,6 +152,23 @@ class T5Dataset(Dataset):
             pad_id=self.pad_id,
         )
         return training_sample
+
+    @classmethod
+    def _determine_tokenizer_type(cls, tokenizer, whole_word_masking=False):
+        tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
+        if isinstance(tokenizer, YouTokenToMeTokenizer):
+            raise ValueError(f"YTTM does not support special tokens and cannot be used with T5 datasets.")
+
+        if isinstance(tokenizer, SentencePieceTokenizer):
+            if not tokenizer.legacy:
+                raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
+            tokenizer_type = 'sentencepiece'
+            if whole_word_masking:
+                raise ValueError(
+                    "Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False."
+                )
+
+        return tokenizer_type
 
     @classmethod
     def build_training_sample(
@@ -190,6 +195,7 @@ class T5Dataset(Dataset):
         bos_id,
         eos_id,
         pad_id,
+        skip_masking_id=None
     ):
         """Build training sample.
         Arguments:
@@ -217,6 +223,7 @@ class T5Dataset(Dataset):
             permutation: Permutes the ngrams.
             whole_word_masking: Always masks entire words instead of individual sub-word tokens.
             favor_long_ngrams: Favor longer ngrams over shorter ones.
+            skip_masking_id: An id that will not be masked. TODO: Add supported for a list of IDs.
         """
         assert target_seq_length <= max_seq_length
 
@@ -247,6 +254,7 @@ class T5Dataset(Dataset):
             geometric_dist=geometric_dist,
             masking_style="t5",
             tokenizer_type=tokenizer_type,
+            skip_masking_id=skip_masking_id
         )
 
         if masked_lm_prob == 0:

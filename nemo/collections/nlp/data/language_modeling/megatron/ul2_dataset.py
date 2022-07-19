@@ -136,6 +136,7 @@ class UL2Dataset(T5Dataset):
                 extreme_masked_lm_prob=self.extreme_masked_lm_prob,
                 mask_id=self.mask_id,
                 max_ngram_size=self.max_ngram_size,
+                min_ngram_size=self.min_ngram_size,
                 extreme_max_ngram_size=self.extreme_max_ngram_size,
                 extreme_mean_ngram_size=self.extreme_mean_ngram_size,
                 extreme_min_ngram_size=self.extreme_min_ngram_size,
@@ -183,15 +184,17 @@ class UL2Dataset(T5Dataset):
         extreme_masked_lm_prob,
         mask_id,
         max_ngram_size,
+        min_ngram_size,
+        mean_ngram_size,
         extreme_max_ngram_size,
         extreme_mean_ngram_size,
         extreme_min_ngram_size,
         extreme_ngram_span_length_distribution,
-        mean_ngram_size,
         sentinel_tokens,
         bos_id,
         eos_id,
         pad_id,
+        skip_masking_id,
     ):
         """Build training sample.
         Arguments:
@@ -219,6 +222,7 @@ class UL2Dataset(T5Dataset):
             permutation: Permutes the ngrams.
             whole_word_masking: Always masks entire words instead of individual sub-word tokens.
             favor_long_ngrams: Favor longer ngrams over shorter ones.
+            skip_masking_id: id of the token to that will never be masked.
         """
         assert target_seq_length <= max_seq_length
 
@@ -272,6 +276,7 @@ class UL2Dataset(T5Dataset):
             min_ngram_size=min_ngram_size,
             mean_ngram_size=mean_ngram_size,
             span_length_distribution=extreme_ngram_span_length_distribution,
+            skip_masking_id=skip_masking_id
         )
 
         if masked_lm_prob == 0:

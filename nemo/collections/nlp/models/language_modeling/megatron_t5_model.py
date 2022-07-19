@@ -81,7 +81,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
         MegatronT5Model.add_special_tokens_to_tokenizer(
             tokenizer=self.tokenizer,
             library=self._cfg.tokenizer.library,
-            num_sentinent_tokens=self.num_sentinel_tokens,
+            num_sentinel_tokens=self.num_sentinel_tokens,
             dataset_type=self._cfg.data.get("dataset_type", "t5")
         )
         super()._build_vocab()
