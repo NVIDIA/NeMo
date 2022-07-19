@@ -3,6 +3,7 @@ import json
 import pytest
 import enum
 import sys
+from tensorboard.backend.event_processing import event_accumulator
 
 CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR") #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
 

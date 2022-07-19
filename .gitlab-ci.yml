@@ -4,8 +4,8 @@ variables: &VARS
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
-  TESTS_TO_RUN: L1 train.gpt3.126m_tp1_pp1_1node_100steps # Can specify Levels, ci job names etc as a space seperated list
-  TEST_REGEX: /.*gpt3.*/ #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec)
+  TESTS_TO_RUN: L0  # Can specify Levels, ci job names etc as a space seperated list
+  TEST_REGEX: NULL #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
 
@@ -216,17 +216,23 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
     NUM_NODES: 1
     MAX_STEPS: 100
     RUN_TIME_LIMIT: "20:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
 train.gpt3.126m_tp2_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp1_1node_100steps
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 2
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   only:
     - master
     - merge_requests
@@ -234,12 +240,18 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     - build-BigNLP
 
 train.gpt3.126m_tp1_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp2_2node_100steps
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 1
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   only:
     - master
     - merge_requests
@@ -247,12 +259,18 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     - build-BigNLP
 
 train.gpt3.126m_tp2_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp2_2node_100steps
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
   only:
     - master
     - merge_requests
@@ -260,12 +278,18 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     - build-BigNLP
 
 train.gpt3.126m_tp4_pp4_4node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp4_pp4_4node_100steps
+    RUN_MODEL_SIZE: 126m
+    TP_SIZE: 4
+    PP_SIZE: 4
+    NUM_NODES: 4
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -275,12 +299,18 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
     - build-BigNLP
 
 train.gpt3.5b_tp2_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 5b_tp2_pp1_1node_100steps
+    RUN_MODEL_SIZE: 5b
+    TP_SIZE: 2
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "4:00:00"
+    TEST_LEVEL: L1
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -290,12 +320,18 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
     - build-BigNLP
 
 train.gpt3.5b_tp2_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 5b_tp2_pp2_2node_100steps
+    RUN_MODEL_SIZE: 5b
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "4:00:00"
+    TEST_LEVEL: L1
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -305,12 +341,18 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
     - build-BigNLP
 
 train.gpt3.20b_tp8_pp2_4node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 20b_tp8_pp2_4node_100steps
+    RUN_MODEL_SIZE: 20b
+    TP_SIZE: 8
+    PP_SIZE: 2
+    NUM_NODES: 4
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "3:00:00"
+    TEST_LEVEL: L2
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -325,7 +367,13 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 40b_tp8_pp4_8node_100steps
+    RUN_MODEL_SIZE: 40b
+    TP_SIZE: 8
+    PP_SIZE: 4
+    NUM_NODES: 8
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "4:00:00"
+    TEST_LEVEL: L2
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -335,12 +383,18 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     - build-BigNLP
 
 train.gpt3.175b_tp8_pp16_16node_50steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 175b_tp8_pp16_16node_50steps
+    RUN_MODEL_SIZE: 175b
+    TP_SIZE: 8
+    PP_SIZE: 16
+    NUM_NODES: 16
+    MAX_STEPS: 50
+    RUN_TIME_LIMIT: "4:00:00"
+    TEST_LEVEL: L2
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
@@ -350,7 +404,7 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     - build-BigNLP
 
 train.t5.220m_tp1_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
