@@ -19,7 +19,6 @@ from pytorch_lightning.callbacks import ModelSummary
 from pytorch_lightning.callbacks.timer import Timer
 from pytorch_lightning.plugins.environments.torchelastic_environment import TorchElasticEnvironment
 from pytorch_lightning.trainer.connectors.checkpoint_connector import CheckpointConnector
-from pytorch_lightning.utilities.seed import seed_everything
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
@@ -41,8 +40,6 @@ from nemo.utils.exp_manager import StatelessTimer, exp_manager
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
-    if cfg.seed is not None:
-        seed_everything(cfg.seed)
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = [

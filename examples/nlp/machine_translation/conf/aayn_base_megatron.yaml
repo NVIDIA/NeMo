@@ -1,7 +1,6 @@
 name: MegatronNMT
 do_training: True # set to False if only preprocessing data
 do_testing: False # set to True to run evaluation on test data after training
-seed: null
 
 trainer:
   devices: 1
