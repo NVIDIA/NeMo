@@ -310,7 +310,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 #        print("DURATION is", big_blank_duration)
 
         for time_idx in range(out_len):
-            if blank_optimization and big_blank_duration > 0:
+            if blank_optimization and big_blank_duration > 1:
                 big_blank_duration -= 1
                 continue
             # Extract encoder embedding at timestep t
