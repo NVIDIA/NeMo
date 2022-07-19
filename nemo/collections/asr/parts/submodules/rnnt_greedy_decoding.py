@@ -305,7 +305,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         # For timestep t in X_t
         blank_optimization = True
 #        blank_optimization = False
-        self._big_blank_duration = 3
+        self._big_blank_duration = 1
         big_blank_duration = self._big_blank_duration
 #        print("DURATION is", big_blank_duration)
 
