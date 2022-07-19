@@ -35,7 +35,7 @@ class TestType(enum.Enum):
     APPROX = 1
     DETERMINISTIC = 2
 
-# If we require a subtle variation of tests for any of the other pipelines we can just inherit this class.
+# If we require a variation of tests for any of the other pipelines we can just inherit this class.
 class TestTrainPipelineMetrics:
 
     margin_loss, margin_time = 0.05, 0.1
