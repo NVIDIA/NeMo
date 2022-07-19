@@ -15,6 +15,7 @@ hydra:
   output_subdir: null
 
 debug: False
+profile: True
 
 run_data_preparation: True
 run_training: True
