@@ -2177,7 +2177,7 @@ run:
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
     convert_name: convert_nemo
-    model_train_name: ${training.run.name}
+    model_train_name: gpt3_5b
     train_dir: ${base_results_dir}/${.model_train_name}
     results_dir: ${.train_dir}/${.convert_name}
     output_path: ${.train_dir}/${.convert_name}
@@ -2275,7 +2275,7 @@ run:
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
     convert_name: convert_nemo
-    model_train_name: ${training.run.name}
+    model_train_name: t5_220m
     train_dir: ${base_results_dir}/${.model_train_name}
     results_dir: ${.train_dir}/${.convert_name}
     output_path: ${.train_dir}/${.convert_name}
@@ -2376,7 +2376,7 @@ run:
   time_limit: "2:00:00"
   ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
   convert_name: convert_nemo
-  model_train_name: ${training.run.name}
+  model_train_name: mt5_390m
   train_dir: ${base_results_dir}/${.model_train_name}
   results_dir: ${.train_dir}/${.convert_name}
   output_path: ${.train_dir}/${.convert_name}
@@ -2472,7 +2472,7 @@ run:
     time_limit: "04:00:00"
     dependency: "singleton"
     convert_name: convert_nemo
-    model_train_name: ${training.run.name}
+    model_train_name: t5_220m
     task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
@@ -2566,7 +2566,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   convert_name: convert_nemo
-  model_train_name: ${training.run.name}
+  model_train_name: mt5_220m
   task_name: "xnli"
   results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
 ```
@@ -2710,7 +2710,7 @@ run:
   time_limit: "04:00:00"
   dependency: "singleton"
   convert_name: convert_nemo
-  model_train_name: ${training.run.name}
+  model_train_name: gpt3_5b
   task_name: "squad"
   results_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_${.task_name}
 ```
@@ -2814,7 +2814,7 @@ run:
     nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
     ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
     eval_name: eval_all
-    model_train_name: ${training.run.name}
+    model_train_name: gpt3_5b
     train_dir: ${base_results_dir}/${.model_train_name}
     tasks: all_tasks    # supported: lambada, boolq, race, piqa, hellaswag, winogrande, wikitext2, wikitext103 OR all_tasks
     results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
@@ -2925,7 +2925,7 @@ run:
     name: eval_${.task_name}_${.model_train_name}
     time_limit: "04:00:00"
     dependency: "singleton"
-    model_train_name: ${training.run.name}
+    model_train_name: t5_220m
     task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "qqp", "mnli", "qnli", "rte"
     finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
@@ -3026,7 +3026,7 @@ run:
     name: eval_${.task_name}_${.model_train_name}
     time_limit: "04:00:00"
     dependency: "singleton"
-    model_train_name: ${training.run.name}
+    model_train_name: mt5_390m
     task_name: "xnli"
     finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
     results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
@@ -3125,7 +3125,7 @@ run:
   nodes: ${divide_ceil:${evaluation.model.model_parallel_size}, 8} # 8 gpus per node
   ntasks_per_node: ${divide_ceil:${evaluation.model.model_parallel_size}, ${.nodes}}
   eval_name: eval_prompt_squad
-  model_train_name: ${training.run.name}
+  model_train_name: gpt3_5b
   tasks: "prompt" # general prompt task
   prompt_learn_dir: ${base_results_dir}/${.model_train_name}/prompt_learning_squad # assume prompt learning was on squad task
   results_dir: ${base_results_dir}/${.model_train_name}/${.eval_name}
