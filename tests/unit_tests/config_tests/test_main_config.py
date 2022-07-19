@@ -14,7 +14,7 @@ class TestConfig:
           - finetuning: null
           - prompt_learning: null
           - evaluation: gpt3/evaluate_all
-          - export: export
+          - export: gpt3
           - override hydra/job_logging: stdout
         
         hydra:
@@ -39,16 +39,16 @@ class TestConfig:
         container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
           - null
         container: gitlab-master.nvidia.com#dl/dgx/bignlp/train:infer_refactor-py3-base
-                
+        
         wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
-
+        
         env_vars:
           NCCL_TOPO_FILE: null # Should be a path to an XML file describing the topology
           UCX_IB_PCI_RELAXED_ORDERING: null # Needed to improve Azure performance
           NCCL_IB_PCI_RELAXED_ORDERING: null # Needed to improve Azure performance
           NCCL_IB_TIMEOUT: null # InfiniBand Verbs Timeout. Set to 22 for Azure
           NCCL_DEBUG: null # Logging level for NCCL. Set to "INFO" for debug information
-
+        
         # GPU Mapping
         numa_mapping:
           enable: True  # Set to False to disable all mapping (performance will suffer).

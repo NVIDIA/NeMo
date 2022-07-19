@@ -72,15 +72,18 @@ def convert_to_cli(cfg, root=True):
             v = v.replace("=", "\=")
             result.append(f"{k}=\'{v}\'")
         else:
-            result.append(f"{k}={convert_to_null(v)}")
+            result.append(f'{k}={convert_to_null_or_quote_if_needed(v)}')
 
     return " \\\n  ".join(result) if root else result
 
 
-def convert_to_null(val):
+def convert_to_null_or_quote_if_needed(val):
     if val is None:
         return "null"
-    return val
+    elif isinstance(val, str) and " " in val:
+        return f"\'{val}\'"
+    else:
+        return val
 
 
 def fake_submit(*args, **kwargs):

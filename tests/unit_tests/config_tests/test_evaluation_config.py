@@ -9,7 +9,7 @@ class TestEvaluationT5Config:
           name: eval_${.task_name}_${.model_train_name}
           time_limit: "04:00:00"
           dependency: "singleton"
-          model_train_name: t5_220m
+          model_train_name: ${training.run.name}
           task_name: "mnli" # Supported task names: "cola", "sst-2", "mrpc", "sts-b", "qqp", "mnli", "qnli", "rte"
           finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
           results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_eval
@@ -80,8 +80,8 @@ class TestEvaluationGPT3Config:
           checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
           checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
           hparams_file: ${evaluation.run.train_dir}/hparams.yaml
-          tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
-          pipeline_model_parallel_size: 1
+          tensor_model_parallel_size: ${training.model.tensor_model_parallel_size} #1 for 126m, 2 for 5b, 8 for 20b
+          pipeline_model_parallel_size: ${training.model.pipeline_model_parallel_size}
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           precision: ${training.trainer.precision}  # must match training precision - 32, 16 or bf16
           eval_batch_size: 4
@@ -112,14 +112,14 @@ class TestEvaluationGPT3Config:
           checkpoint_folder: ${evaluation.run.train_dir}/checkpoints
           checkpoint_name: latest # latest OR name pattern of a checkpoint (e.g. megatron_gpt-*last.ckpt)
           hparams_file: ${evaluation.run.train_dir}/hparams.yaml
-          tensor_model_parallel_size: 2 #1 for 126m, 2 for 5b, 8 for 20b
-          pipeline_model_parallel_size: 1
+          tensor_model_parallel_size: ${training.model.tensor_model_parallel_size} #1 for 126m, 2 for 5b, 8 for 20b
+          pipeline_model_parallel_size: ${training.model.pipeline_model_parallel_size}
           model_parallel_size: ${multiply:${.tensor_model_parallel_size}, ${.pipeline_model_parallel_size}}
           precision: ${training.trainer.precision}  # must match training precision - 32, 16 or bf16
           eval_batch_size: 4
           vocab_file: ${data_dir}/bpe/vocab.json
           merge_file: ${data_dir}/bpe/merges.txt
-"""
+        """
         expected = OmegaConf.create(s)
         assert (
             expected == conf
