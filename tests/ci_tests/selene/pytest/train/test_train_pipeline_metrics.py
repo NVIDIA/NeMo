@@ -41,7 +41,7 @@ class TestTrainPipelineMetrics:
     margin_loss, margin_time = 0.05, 0.1
     job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
     file_name = job_name + ".json" #eg train_gpt3_126m_tp1_pp1_1node_100steps.json
-    file_directory =  file_name.split("_")[1] #eg gpt3
+    file_directory =  file_name.split("_")[1] + "_results" #eg gpt3_results
     expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/train", file_directory, file_name)
     with open(expected_metrics_file) as f:
         expected = json.load(f)

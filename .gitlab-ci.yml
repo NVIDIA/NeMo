@@ -367,105 +367,131 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     - build-BigNLP
 
 train.t5.220m_tp1_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps
-  rules:
-    - when: always
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
 train.t5.220m_tp2_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp1_1node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 2
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 train.t5.220m_tp1_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp2_2node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 1
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 train.t5.220m_tp2_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 
 train.mt5.170m_tp1_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp1_1node_100steps
-  rules:
-    - when: always
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
 train.mt5.170m_tp2_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp1_1node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 2
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 train.mt5.170m_tp1_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp2_2node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 1
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L1
   needs:
     - build-BigNLP
 
 train.mt5.170m_tp2_pp2_2node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    NUM_NODES: 2
+    MAX_STEPS: 100
+    RUN_TIME_LIMIT: "20:00"
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
