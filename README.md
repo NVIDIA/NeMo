@@ -1405,16 +1405,14 @@ recommend a model size that can be trained with the specified hardware and time 
 
 For example, if the user has 20 NVIDIA DGX nodes available (80GB GPU memory), and wants to train a 
 GPT-3 model for a maximum of 5 days, the tool will recommend using a 5B parameter GPT-3 model. 
-The tool will perform a best effort guess using heuristics.
+The tool will perform an optimized estimate using heuristics.
 
 
 ##### 5.3.1.2. Base Config Generation
 <a id="markdown-base-config-generation" name="base-config-generation"></a>
 
 If the model size is provided by the user, or after the model size is suggested, 
-the tool will generate a base configuration for the given model. This configuration will be a valid, 
-runnable configuration in YAML format, which can be trained using NeMo-Megatron. At this stage, the base config 
-will not yet be optimized. The optimization will happen at the next stage.
+the tool will generate a base configuration for the target model. This configuration will be a valid configuration in YAML format, which can be trained using NeMo-Megatron. The optimization will happen at the next step.
 
 
 ##### 5.3.1.3. Training HP Search
@@ -1508,7 +1506,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -3305,7 +3303,7 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -3332,7 +3330,7 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -4580,6 +4578,12 @@ The table and chart below show the performance results.
 
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
+
+**NeMo Megatron 22.06-hotfix.01**
+* Fix: Hyperparameter tool for T5 and mT5
+* Fix: Evaluation harness in GPT-3
+* Fix: Prompt learning in GPT-3
+* Fix: Out of memory when pretraining GPT-3 with Sequence Parallelism
 
 **NeMo Megatron 22.06**
 * Sequence Parallelism and Selective Activation Checkpointing for GPT-3
