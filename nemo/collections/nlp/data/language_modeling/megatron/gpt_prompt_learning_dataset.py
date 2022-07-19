@@ -139,6 +139,11 @@ class GPTPromptLearningDataset(Dataset):
 
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
+                
+                elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+                    taskname_id = []
+                else:
+                    raise ValueError("Invalid virtual prompt source specified")
 
                 # Find answer field indices if training and answer_only_loss is True
                 answer_start_idx = None
@@ -293,6 +298,11 @@ class GPTPromptLearningDataset(Dataset):
         elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
             taskname_ids = torch.tensor(taskname_ids)
 
+        elif self._virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
+            taskname_ids = torch.tensor(taskname_ids)
+        else:
+            raise ValueError(f"Unknown virtual prompt source: {self.virtual_prompt_source}")
+
         batch_max = max(len(ids) for ids in input_ids)
         input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
 
@@ -313,7 +323,6 @@ class GPTPromptLearningDataset(Dataset):
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
-
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
