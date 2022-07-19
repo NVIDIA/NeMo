@@ -38,7 +38,6 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 try:
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer import tensor_parallel
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

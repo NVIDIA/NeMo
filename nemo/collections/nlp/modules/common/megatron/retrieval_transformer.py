@@ -244,7 +244,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
         if inference_max_sequence_len is not None and not set_inference_key_value_memory:
             cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
-            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=pos_beg + 1, r=r)
+            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> n (b k r) d', n=pos_beg + 1, r=r)
             context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg + 1, r=r)
         else:
             embed_as_context = repeat(
