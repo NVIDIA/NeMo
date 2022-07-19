@@ -122,7 +122,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=hidden_dropout,
                 position_embedding_type='learned_absolute' if add_position_embedding else '',
-                transpose_batch_sequence=False
+                transpose_batch_sequence=False,
             )
             self._embedding_key = "embedding"
 
