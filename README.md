@@ -1405,7 +1405,7 @@ recommend a model size that can be trained with the specified hardware and time 
 
 For example, if the user has 20 NVIDIA DGX nodes available (80GB GPU memory), and wants to train a 
 GPT-3 model for a maximum of 5 days, the tool will recommend using a 5B parameter GPT-3 model. 
-The tool will perform a best effort guess using heuristics, so the results might not be exact.
+The tool will perform a best effort guess using heuristics.
 
 
 ##### 5.3.1.2. Base Config Generation
@@ -1413,8 +1413,8 @@ The tool will perform a best effort guess using heuristics, so the results might
 
 If the model size is provided by the user, or after the model size is suggested, 
 the tool will generate a base configuration for the given model. This configuration will be a valid, 
-runnable configuration in YAML format, which can be trained using NeMo-Megatron. However, this config 
-will not be optimized at this stage.
+runnable configuration in YAML format, which can be trained using NeMo-Megatron. At this stage, the base config 
+will not yet be optimized. The optimization will happen at the next stage.
 
 
 ##### 5.3.1.3. Training HP Search

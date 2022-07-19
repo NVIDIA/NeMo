@@ -13,6 +13,8 @@ class TestClusterConfig:
         mem: 0
         overcommit: False
         job_name_prefix: "bignlp-"
+        exclude: null
+        srun_flags: null
         """
         expected = OmegaConf.create(s)
         assert (

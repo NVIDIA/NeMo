@@ -1,6 +1,6 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.08-py"
+  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.10-py"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
@@ -126,7 +126,7 @@ build-BigNLP:
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_JOB_NAME}.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(cat "${RESULTS_DIR}/launcher.log")
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
@@ -212,7 +212,7 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp4_pp4_4node_100steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -227,7 +227,7 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 5b_tp2_pp1_1node_100steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -242,7 +242,7 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 5b_tp2_pp2_2node_100steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -257,7 +257,7 @@ train.gpt3.20b_tp8_pp2_4node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 20b_tp8_pp2_4node_100steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -272,7 +272,7 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 40b_tp8_pp4_8node_100steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -287,7 +287,7 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 175b_tp8_pp16_16node_50steps
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -722,7 +722,7 @@ data_prep.gpt3.the_pile_prepare_shard00:
     RUN_MODEL: gpt3
     RUN_JOB_NAME: the_pile_prepare_shard00
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -738,7 +738,7 @@ data_prep.t5.the_pile_prepare_shard00:
     RUN_MODEL: t5
     RUN_JOB_NAME: the_pile_prepare_shard00
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never
@@ -754,7 +754,7 @@ data_prep.mt5.mc4_prepare_lang_mt:
     RUN_MODEL: mt5
     RUN_JOB_NAME: mc4_prepare_lang_mt
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" || $CI_COMMIT_REF_NAME == "master"'
       when: manual
       allow_failure: true
     - when: never

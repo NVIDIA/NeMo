@@ -286,7 +286,7 @@ def run_data_preparation(cfg, hydra_args="", dependency=None):
                 job_name=f"{job_name_prefix}preprocess",
             )
             if cfg.get("ci_test"):
-                job_id = subprocess.check_output([f'sbatch {preprocess_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
+                job_id = subprocess.check_output([f'sbatch --parsable {preprocess_script_path} | tee "{log_dir}/launcher.log" '], shell=True)
             else:
                 job_id = subprocess.check_output([f"sbatch --parsable {preprocess_script_path}"], shell=True)
             dependency = job_id.decode("utf-8")
