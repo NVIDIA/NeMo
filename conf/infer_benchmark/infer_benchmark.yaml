@@ -1,0 +1,11 @@
+model_type: t5
+model_size: 41b
+tensor_parallel_size: 8
+pipeline_parallel_size: 2
+input_len: 60
+output_len: 20
+batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+checkpoint_path: null
+bignlp_scripts_path: /lustre/fsw/joc/donghyukc/bignlp-scripts
+inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
+triton_wait_time: 300

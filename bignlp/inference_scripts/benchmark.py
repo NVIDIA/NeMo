@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import yaml
 
 
 def append_triton_parameters(config, tensor_para_size, pipeline_para_size, data_type, all_reduce, model_type, ckpt_path):
@@ -93,22 +94,21 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark():
+def run_benchmark(conf):
 
     # Configuration
-    model_type = "mt5"
-    model_size = "23b"
-    tensor_para_size = 4
-    pipeline_para_size = 1
-    input_len = 60
-    output_len = 20
-    # batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
-    batch_sizes = [1]
+    model_type = conf["model_type"]
+    model_size = conf["model_size"]
+    tensor_para_size = conf["tensor_parallel_size"]
+    pipeline_para_size = conf["pipeline_parallel_size"]
+    input_len = conf["input_len"]
+    output_len = conf["output_len"]
+    batch_sizes = conf["batch_sizes"]
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
-    model_path = None
-    bignlp_scripts_path = "/lustre/fsw/joc/donghyukc/bignlp-scripts"
-    container = "gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base"
-    triton_wait_time = 100
+    model_path = conf["checkpoint_path"]
+    bignlp_scripts_path = conf["bignlp_scripts_path"]
+    container = conf["inference_container"]
+    triton_wait_time = conf["triton_wait_time"]
 
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
 
@@ -227,4 +227,7 @@ def run_benchmark():
 
 
 if __name__=="__main__":
-    run_benchmark()
+    config_path = "/lustre/fsw/joc/donghyukc/bignlp-scripts/conf/infer_benchmark/infer_benchmark.yaml"
+    with open(config_path, 'r') as file:
+        conf = yaml.safe_load(file)
+    run_benchmark(conf)
