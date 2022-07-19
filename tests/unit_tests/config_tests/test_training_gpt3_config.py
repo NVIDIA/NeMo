@@ -125,6 +125,7 @@ class TestTrainingGPT3Config:
 
           nsys_profile:
             enabled: False
+            trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
@@ -330,6 +331,7 @@ class TestTrainingGPT3Config:
 
           nsys_profile:
             enabled: False
+            trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
@@ -538,6 +540,7 @@ class TestTrainingGPT3Config:
 
           nsys_profile:
             enabled: False
+            trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
@@ -743,6 +746,7 @@ class TestTrainingGPT3Config:
 
           nsys_profile:
             enabled: False
+            trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile
@@ -948,6 +952,7 @@ class TestTrainingGPT3Config:
 
           nsys_profile:
             enabled: False
+            trace: [nvtx,cuda]
             start_step: 10  # Global batch to start profiling
             end_step: 10 # Global batch to end profiling
             ranks: [0] # Global rank IDs to profile

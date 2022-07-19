@@ -128,7 +128,14 @@ class TestTrainingmT5Config:
         
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+          
+        nsys_profile:
+          enabled: False
+          trace: [nvtx,cuda]
+          start_step: 10  # Global batch to start profiling
+          end_step: 10 # Global batch to end profiling
+          ranks: [0] # Global rank IDs to profile
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -293,7 +300,14 @@ class TestTrainingmT5Config:
         
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+          
+        nsys_profile:
+          enabled: False
+          trace: [nvtx,cuda]
+          start_step: 10  # Global batch to start profiling
+          end_step: 10 # Global batch to end profiling
+          ranks: [0] # Global rank IDs to profile
+
           optim:
             name: fused_adam
             lr: 0.0001
@@ -458,7 +472,14 @@ class TestTrainingmT5Config:
         
           activations_checkpoint_method: block # 'uniform', 'block'
           activations_checkpoint_num_layers: 0
-        
+          
+        nsys_profile:
+          enabled: False
+          trace: [nvtx,cuda]
+          start_step: 10  # Global batch to start profiling
+          end_step: 10 # Global batch to end profiling
+          ranks: [0] # Global rank IDs to profile
+
           optim:
             name: fused_adam
             lr: 0.0001
