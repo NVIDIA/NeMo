@@ -168,6 +168,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             sequence_parallel=self.cfg.get('sequence_parallel', False),
             gradient_accumulation_fusion=self.cfg.get('gradient_accumulation_fusion', False),
             transformer_engine=self.cfg.get('transformer_engine', False),
+            fp8=self.cfg.get('fp8', False),
+            fp8_e4m3=self.cfg.get('fp8_e4m3', False),
+            fp8_hybrid=self.cfg.get('fp8_hybrid', False),
+            fp8_margin=self.cfg.get('fp8_margin', 0),
+            fp8_interval=self.cfg.get('fp8_interval', 1),
         )
 
         return model

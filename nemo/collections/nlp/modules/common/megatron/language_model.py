@@ -74,6 +74,11 @@ def get_language_model(
     sequence_parallel=False,
     gradient_accumulation_fusion=False,
     transformer_engine=False,
+    fp8=False,
+    fp8_e4m3=False,
+    fp8_hybrid=False,
+    fp8_margin=0,
+    fp8_interval=1,
 ):
     """Build language model and return along with the key to save."""
 
@@ -125,6 +130,11 @@ def get_language_model(
         sequence_parallel=sequence_parallel,
         gradient_accumulation_fusion=gradient_accumulation_fusion,
         transformer_engine=transformer_engine,
+        fp8=fp8,
+        fp8_e4m3=fp8_e4m3,
+        fp8_hybrid=fp8_hybrid,
+        fp8_margin=fp8_margin,
+        fp8_interval=fp8_interval,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -397,6 +407,11 @@ class TransformerLanguageModel(MegatronModule):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         transformer_engine=False,
+        fp8=False,
+        fp8_e4m3=False,
+        fp8_hybrid=False,
+        fp8_margin=0,
+        fp8_interval=1,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -467,6 +482,11 @@ class TransformerLanguageModel(MegatronModule):
             activations_checkpoint_granularity=activations_checkpoint_granularity,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             transformer_engine=transformer_engine,
+            fp8=fp8,
+            fp8_e4m3=fp8_e4m3,
+            fp8_hybrid=fp8_hybrid,
+            fp8_margin=fp8_margin,
+            fp8_interval=fp8_interval,
         )
         self._encoder_key = 'encoder'
 

@@ -125,6 +125,11 @@ class GPTModel(MegatronModule):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         transformer_engine=False,
+        fp8=False,
+        fp8_e4m3=False,
+        fp8_hybrid=False,
+        fp8_margin=0,
+        fp8_interval=1,
     ):
 
         super(GPTModel, self).__init__()
@@ -174,6 +179,11 @@ class GPTModel(MegatronModule):
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
             transformer_engine=transformer_engine,
+            fp8=fp8,
+            fp8_e4m3=fp8_e4m3,
+            fp8_hybrid=fp8_hybrid,
+            fp8_margin=fp8_margin,
+            fp8_interval=fp8_interval,
         )
 
         self.initialize_word_embeddings(

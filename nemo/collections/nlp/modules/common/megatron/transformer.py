@@ -55,7 +55,8 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from transformer_engine.pytorch.transformer import TransformerLayer
+    from transformer_engine.pytorch import TransformerLayer, fp8_autocast
+    from transformer_engine.common import recipe
 
     HAVE_TE = True
 
@@ -1706,6 +1707,11 @@ class ParallelTransformer(MegatronModule):
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
         transformer_engine=False,
+        fp8=False,
+        fp8_e4m3=False,
+        fp8_hybrid=False,
+        fp8_margin=0,
+        fp8_interval=1,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1756,6 +1762,26 @@ class ParallelTransformer(MegatronModule):
 
         self.sequence_parallel = sequence_parallel
         self.transformer_engine = transformer_engine
+        self.fp8 = fp8
+        self.fp8_e4m3 = fp8_e4m3
+        self.fp8_hybrid = fp8_hybrid
+        self.fp8_margin = fp8_hybrid
+        self.fp8_interval = fp8_interval
+
+        self.fp8_recipe = None
+
+        if self.fp8:
+            if self.fp8_e4m3:
+                fp8_format = recipe.Format.E4M3
+            elif self.fp8_hybrid:
+                fp8_format = recipe.Format.HYBRID
+            self.fp8_recipe = recipe.DelayedScaling(
+                margin=self.fp8_margin,
+                interval=self.fp8_interval,
+                fp8_format=fp8_format,
+                amax_history_len=1,
+                amax_compute_algo="most_recent",
+            )
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1791,7 +1817,7 @@ class ParallelTransformer(MegatronModule):
                     params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
-                    fuse_wgrad_accumulation=False,  # TODO: make this configurable
+                    fuse_wgrad_accumulation=gradient_accumulation_fusion,
                     bias_dropout_fusion=bias_dropout_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
@@ -2068,8 +2094,10 @@ class ParallelTransformer(MegatronModule):
                 for index in range(self.num_layers):
                     layer = self._get_layer(index)
                     past = None
+
                     if layer_past is not None:
                         past = layer_past[index]
+
                     if self.transformer_engine:
                         # TODO: inference with TE
                         # inference_params = {
@@ -2078,13 +2106,21 @@ class ParallelTransformer(MegatronModule):
                         #     'inference_max_sequence_len': inference_max_sequence_len,
                         # }
                         inference_params = None
-                        hidden_states = layer(
-                            hidden_states,
-                            attention_mask,
-                            encoder_output=encoder_output,
-                            enc_dec_attn_mask=enc_dec_attn_mask,
-                            inference_params=inference_params,
-                        )
+
+                        # fp8_autocast will not do anything if fp8 isn't used
+                        with fp8_autocast(
+                            enabled=self.fp8,
+                            fp8_recipe=self.fp8_recipe,
+                            fp8_group=parallel_state.get_data_parallel_group(),
+                        ):
+                            hidden_states = layer(
+                                hidden_states,
+                                attention_mask,
+                                encoder_output=encoder_output,
+                                enc_dec_attn_mask=enc_dec_attn_mask,
+                                inference_params=inference_params,
+                            )
+
                     else:
                         hidden_states = layer(
                             hidden_states,
