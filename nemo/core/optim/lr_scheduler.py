@@ -681,11 +681,6 @@ def prepare_lr_scheduler(
 
             # Remove extra parameters from scheduler_args nest
             # Assume all other parameters are to be passed into scheduler constructor
-
-            if 'name' in scheduler_args and scheduler_args['name'] == 'ReduceLROnPlateau':
-                add_max_args_flag = False
-                interval = 'epoch'
-
             scheduler_args.pop('name', None)
             scheduler_args.pop('t_max_epochs', None)
             scheduler_args.pop('t_accumulate_grad_batches', None)
@@ -693,6 +688,12 @@ def prepare_lr_scheduler(
             scheduler_args.pop('t_num_workers', None)
             scheduler_args.pop('monitor', None)
             scheduler_args.pop('reduce_on_plateau', None)
+        
+        if 'name' in scheduler_config and scheduler_config['name'] in NO_MAX_STEP_SCHEDULERS:
+            add_max_args_flag = False
+            
+        if 'name' in scheduler_config and scheduler_config['name'] in EPOCH_SCHEDULERS:
+            interval = 'epoch'
 
     else:
         # Return gracefully in case `sched` was not supplied; inform user
@@ -822,11 +823,8 @@ def prepare_lr_scheduler(
         return None
 
     # Inject max_steps (effective or provided) into the scheduler config
-    if add_max_args_flag and scheduler_config.get('name', '') != "ExponentialLR":
+    if add_max_args_flag:
         scheduler_args['max_steps'] = max_steps
-
-    if scheduler_config.get('name', '') == "CyclicLR":
-        del scheduler_args['max_steps']
 
     # Get the scheduler class from the config
     scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
@@ -898,4 +896,15 @@ AVAILABLE_SCHEDULERS = {
     'ExponentialLR': pt_scheduler.ExponentialLR,
     'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
     'CyclicLR': pt_scheduler.CyclicLR,
+}
+
+NO_MAX_STEP_SCHEDULERS = {
+    'StepLR': pt_scheduler.StepLR,
+    'ExponentialLR': pt_scheduler.ExponentialLR,
+    'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
+    'CyclicLR': pt_scheduler.CyclicLR,
+}
+
+EPOCH_SCHEDULERS = {
+    'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
 }
