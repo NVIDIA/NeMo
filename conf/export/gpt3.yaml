@@ -1,11 +1,15 @@
 run:
-  name: export_${training.run.name}
+  name: export_${.model_train_name}
   time_limit: "2:00:00"
-  results_dir: ${training.run.results_dir}/export
-  triton_model_dir: ${.results_dir}/model_repo/${training.run.name}
+  model_train_name: "gpt3_5b"
+  training_dir: ${base_results_dir}/${.model_train_name}
+  config_summary: tp${export.conversion.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.conversion.weight_data_type}_${export.triton_deployment.data_type}
+  results_dir: ${base_results_dir}/${.model_train_name}/export_${.config_summary}
+  triton_model_dir: ${.results_dir}/model_repo/${.model_train_name}
+  model_type: "gpt3"
 
 conversion:
-  checkpoint_path: ${training.run.results_dir}/checkpoints
+  checkpoint_path: ${export.run.training_dir}/checkpoints
   # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
   tensor_model_parallel_size: 8
   weight_data_type: fp16   # fp32|fp16
@@ -21,7 +25,7 @@ triton_deployment:
 
 accuracy:
   ntasks_per_node: 8  # usually should be number of available gpus per node
-  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini   # TODO: do not require - use cli parameters
+  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
   test_data: ${export.run.results_dir}/lambada_test.jsonl
   output_path: ${export.run.results_dir}/eval_output.json
   batch_size: 64
@@ -30,4 +34,3 @@ accuracy:
     beam_width: 1
     sampling_top_k: 1
     sampling_top_p: 0
-    data_type: ${export.triton_deployment.data_type}  # fp32|fp16|bf16

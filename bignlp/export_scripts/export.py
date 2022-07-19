@@ -119,12 +119,9 @@ def create_bcp_file(
 
 
 def run_export(cfg, dependency=None):
-    train_cfg = cfg.training
-    model_cfg = train_cfg.model
-
     accuracy_cfg = cfg.export.accuracy
     convert_cfg = cfg.export.conversion
-    deploy_cfg = cfg.export.triton_deployment
+    triton_cfg = cfg.export.triton_deployment
     run_cfg = cfg.export.run
 
     checkpoint_path = convert_cfg.checkpoint_path
@@ -137,7 +134,7 @@ def run_export(cfg, dependency=None):
             "mt5": _get_t5_conversion_cmds,
         }[run_cfg.model_type]
     except KeyError:
-        print(f"{model_cfg.model_type} model_type is not supported yet in export stage")
+        print(f"{run_cfg.model_type} model_type is not supported yet in export stage")
         return
 
     convert_cmds = convert_cmds_fn(cfg, checkpoint_path, triton_model_dir)
@@ -174,16 +171,16 @@ def run_export(cfg, dependency=None):
     print(f"Submitted Triton model store preparation script with job id: {conversion_job_id}")
 
     accuracy_cmds_fn = {
-        "gpt": _get_gpt_accuracy_cmds,
+        "gpt3": _get_gpt_accuracy_cmds,
         "t5": _get_t5_accuracy_cmds,
         "mt5": _get_mt5_accuracy_cmds,
-    }[model_cfg.model_type]
+    }[run_cfg.model_type]
     accuracy_cmds = accuracy_cmds_fn(cfg)
 
     job_name = f"{job_base_name}_accuracy"
     new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
 
-    gpus_required = convert_cfg.tensor_model_parallel_size * deploy_cfg.pipeline_model_parallel_size
+    gpus_required = convert_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
     num_tasks = gpus_required
     num_nodes = int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
     submit_cmd = _get_submission_cmd_fn(
@@ -303,7 +300,7 @@ def _get_bcm_submission_cmd(
 
 def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     convert_cfg = cfg.export.conversion
-    deploy_cfg = cfg.export.triton_deployment
+    triton_cfg = cfg.export.triton_deployment
     model_cfg = cfg.training.model
 
     bignlp_scripts_path = pathlib.Path(cfg.bignlp_path)
@@ -330,13 +327,13 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{convert_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
-        f" --max-batch-size {deploy_cfg.max_batch_size} \\\n"
-        f" --pipeline-model-parallel-size {deploy_cfg.pipeline_model_parallel_size} \\\n"
-        f" --data-type {deploy_cfg.data_type}"
+        f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
+        f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --data-type {triton_cfg.data_type}"
     )
-    if deploy_cfg.int8_mode:
+    if triton_cfg.int8_mode:
         triton_prepare_model_config_cmd += " \\\n --int8-mode"
-    if deploy_cfg.enable_custom_all_reduce:
+    if triton_cfg.enable_custom_all_reduce:
         triton_prepare_model_config_cmd += " \\\n --enable-custom-all-reduce"
     return [
         (
@@ -347,9 +344,9 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
 
 
 def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
+    run_cfg = cfg.export.run
     convert_cfg = cfg.export.conversion
-    deploy_cfg = cfg.export.triton_deployment
-    model_cfg = cfg.training.model
+    triton_cfg = cfg.export.triton_deployment
 
     bignlp_scripts_path = pathlib.Path(cfg.bignlp_path)
     converter_path = FT_PATH / "examples/pytorch/t5/utils/nemo_t5_ckpt_convert.py"
@@ -363,7 +360,7 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
         f"python -u {converter_path} \\\n"
         f" --in-file {checkpoint_path} \\\n"
         f" --saved-dir {triton_model_version_dir} \\\n"
-        f" --model-name {cfg.training.run.name} \\\n"
+        f" --model-name {run_cfg.model_train_name} \\\n"
         f" --infer-gpu-num {convert_cfg.tensor_model_parallel_size} \\\n"
         f" --weight-data-type {convert_cfg.weight_data_type} \\\n"
         f" --processes {convert_cfg.processes}"
@@ -373,13 +370,13 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{convert_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
-        f" --max-batch-size {deploy_cfg.max_batch_size} \\\n"
-        f" --pipeline-model-parallel-size {deploy_cfg.pipeline_model_parallel_size} \\\n"
-        f" --data-type {deploy_cfg.data_type}"
+        f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
+        f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --data-type {triton_cfg.data_type}"
     )
-    if deploy_cfg.int8_mode:
+    if triton_cfg.int8_mode:
         triton_prepare_model_config_cmd += " \\\n --int8-mode"
-    if deploy_cfg.enable_custom_all_reduce:
+    if triton_cfg.enable_custom_all_reduce:
         triton_prepare_model_config_cmd += " \\\n --enable-custom-all-reduce"
     return [
         (
@@ -401,7 +398,7 @@ def _get_gpt_accuracy_cmds(cfg):
     update_config_script_path = FT_PATH / "examples/pytorch/gpt/utils/update_gpt_config.py"
     lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_parallel_gpt.so"
 
-    lambada_path = accuracy_cfg.test_data.lambada_path
+    lambada_path = accuracy_cfg.test_data
     create_config_ini_cmd = (
         f"mkdir -p $(dirname {accuracy_cfg.runtime_config_ini_path}) && \\\n"
         f"cp {checkpoint_path}/config.ini {accuracy_cfg.runtime_config_ini_path} && \\\n"
@@ -415,7 +412,7 @@ def _get_gpt_accuracy_cmds(cfg):
         f" --beam-width {accuracy_cfg.runtime.beam_width} \\\n"
         f" --sampling-top-k {accuracy_cfg.runtime.sampling_top_k} \\\n"
         f" --sampling-top-p {accuracy_cfg.runtime.sampling_top_p} \\\n"
-        f" --data-type {accuracy_cfg.runtime.data_type} && \\\n"
+        f" --data-type {triton_cfg.data_type} && \\\n"
         f"mkdir -p $(dirname {lambada_path}) && \\\n"
         f"wget https://github.com/cybertronai/bflm/raw/master/lambada_test.jsonl -O {lambada_path}"
     )
@@ -467,7 +464,7 @@ def _get_t5_accuracy_cmds(cfg):
         f" --beam_width {accuracy_cfg.runtime.beam_width} \\\n"
         f" --sampling_topk {accuracy_cfg.runtime.sampling_top_k} \\\n"
         f" --sampling_topp {accuracy_cfg.runtime.sampling_top_p} \\\n"
-        f" --data_type {accuracy_cfg.runtime.data_type} \\\n"
+        f" --data_type {triton_cfg.data_type} \\\n"
         f" --tensor_para_size {convert_cfg.tensor_model_parallel_size} \\\n"
         f" --pipeline_para_size {triton_cfg.pipeline_model_parallel_size}"
     )
@@ -500,7 +497,7 @@ def _get_mt5_accuracy_cmds(cfg):
         f" --beam_width {accuracy_cfg.runtime.beam_width} \\\n"
         f" --sampling_topk {accuracy_cfg.runtime.sampling_top_k} \\\n"
         f" --sampling_topp {accuracy_cfg.runtime.sampling_top_p} \\\n"
-        f" --data_type {accuracy_cfg.runtime.data_type} \\\n"
+        f" --data_type {triton_cfg.data_type} \\\n"
         f" --tensor_para_size {convert_cfg.tensor_model_parallel_size} \\\n"
         f" --pipeline_para_size {triton_cfg.pipeline_model_parallel_size}"
     )
