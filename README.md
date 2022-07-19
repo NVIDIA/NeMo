@@ -189,6 +189,15 @@ are adopted. Tensor model parallelism partitions individual transformer layers o
 model parallelism stripes layers of a model over multiple devices. For more details, refer to
 [this paper](https://arxiv.org/pdf/2104.04473.pdf).
 
+Our latest techniques, sequence parallelism and selective activation recomputation, bring up to `~30%` faster 
+training time for GPT-3 models ranging from 20B to 1T parameters.
+Sequence parallelism expands tensor-level model parallelism, by 
+noticing that the regions of a transformer layer that have not previously been parallelized are independent 
+along the sequence dimension. By splitting these layers along the sequence dimension we can distribute 
+the compute and, most importantly, the activation memory for these regions across the tensor parallel devices.
+Selective activation recomputation improves cases where memory constraints force us to recompute some, 
+but not all, of the activations. For more details, refer to [this paper](https://arxiv.org/abs/2205.05198).
+
 **GPT-3 architecture**
 
 <img src="img/model_overview.png"/>
@@ -206,6 +215,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Data parallelism                | Yes                    | N/A                                                                                                                                                                  |
 | Tensor parallelism              | Yes                    | Yes                                                                                                                                                               |
 | Pipeline parallelism            | Yes                     | Yes (Megatron-LM checkpoints)                                                                                                                          |
+| Sequence parallelism            | Yes                     | No                                                                                                                       |
+| Selective activation checkpointing | Yes                     | No                                                                                                                       |
 | Gradient checkpointing          | Yes                    | N/A                                                                                                                                                                  |
 | Partial gradient checkpointing  | Yes                    | N/A                                                                                                                                                                  |
 | FP32/TF32                       | Yes                    | Yes (FP16 enabled by default)                                                                                                                                     |
@@ -217,7 +228,7 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | SW stack support                | Slurm DeepOps/Base Command Manager/Base Command Platform          | Slurm DeepOps/Base Command Manager/Base Command Platform                                                                                                                                                     |
 | Distributed data preprocessing | Yes (the Pile only)       | N/A                                                                                                                                                                  |
 | NVfuser                         | No             | N/A                                                                                                                                                                  |
-| P-Tuning and Prompt Tuning                | Yes (Tensor Parallelism only)             | N/A                                                                                                                                                                  |
+| P-Tuning and Prompt Tuning                | Yes             | N/A                                                                                                                                                                  |
 
 ### 2.2. T5/mT5 Models
 <a id="markdown-t5-mt5-models" name="t5-mt5-models"></a>
@@ -227,6 +238,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | Data parallelism                 | Yes                                                      |    N/A    |
 | Tensor parallelism               | Yes                                                      |    No     |
 | Pipeline parallelism             | Yes                                                      |    No     |
+| Sequence parallelism            | No                     | No                                                                                                                       |
+| Selective activation checkpointing | No                     | No                                                                                                                       |
 | Gradient checkpointing           | Yes                                                      |    N/A    |
 | Partial gradient checkpointing   | Yes                                                      |    N/A    |
 | FP32/TF32                        | Yes                                                      |    No     |
@@ -252,8 +265,8 @@ Figure 1: The GPT-3 family architecture. The 5B variant includes 24 transformer 
 | NVIDIA Triton           | 2.21.0           |
 | FasterTransformer       | V5               |
 | PyTorch                 | 1.12.0a0+8a1a93a |
-| NeMo                    | 1.10.0           |
-| PyTorch Lightning       | 1.6.4            |
+| NeMo                    | 1.10.0+aadcd1c   |
+| PyTorch Lightning       | 1.6.5            |
 | Hydra                   | 1.1.1            |
 | CUDA                    | NVIDIA CUDA 11.7 |
 | cuBLAS                  | 11.10.1.25       |
@@ -291,12 +304,6 @@ Once your cluster is up and running, continue with the cluster validation steps.
 <a id="markdown-cluster-validation" name="cluster-validation"></a>
 
 Before running the cluster validation script, ensure your NGC credentials have been added to `~/.config/enroot/.credentials` on all nodes.
-Also make sure to download this benchmarking repo to `/shared/data`:
-```
-cd /shared/data
-git clone https://github.com/JonShelley/azure.git
-```
-**NOTE:** If you choose to download this repo to another path, please change the `AZURE_NCCL_PATH` variable at the top of `cluster_validation.sh`.
 
 The cluster validation script at `csp/azure/cluster_validation.sh` will run GPU diagnostics and test NCCL node-to-node bus bandwidth.
 The logs from these tests will be stored at `results/cluster_validation`. The script will list any nodes that fail these tests.
@@ -334,9 +341,9 @@ Before launching jobs, the NCCL topology file needs to be created, and some chan
 ##### 4.1.3.1 Generate NCCL Topology
 <a id="markdown-generate-nccl-topology" name="generate-nccl-topology"></a>
 
-To generate the NCCL topology file, run the following (use path for wherever `JonShelley/azure` was downloaded):
+To generate the NCCL topology file, run the following:
 ```
-sbatch -N 1 -o ndv4-topo.xml /shared/data/azure/benchmarking/NDv4/cc-slurm-ngc/nccl/scripts/gentopo.sh
+sbatch -N 1 -o ndv4-topo.xml csp/azure/gentopo.sh
 mv ndv4-topo.xml /opt/microsoft/ndv4-topo.xml
 ```
 
@@ -945,7 +952,7 @@ For Base Command Platform, all jobs must be launched in multi-node mode.
 
 **5B configuration:**
 
-The 5B model uses the bf16 data type. It can be trained in about 7 days using 20 nodes with 8 GPUs per node. The model includes 24
+The 5B model uses the bf16 data type. It can be trained in about 5 days using 20 nodes with 8 GPUs per node. The model includes 24
 transformer layers, a hidden size of 4096, and 32 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
 parallelism of 2. For the details on all the parameters, see the 5b.yaml
@@ -977,10 +984,10 @@ creating the job (number of replicas).
 
 **20B configuration:**
 
-The 20B model uses the bf16 data type. It can be trained in about 7 days using 80 nodes with 8 GPUs per node. The model includes 44
+The 20B model uses the bf16 data type. It can be trained in about 6 days using 80 nodes with 8 GPUs per node. The model includes 44
 transformer layers, a hidden size of 6144, and 48 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8. For the details on all the parameters, see the 20b.yaml
+parallelism of 2 and pipeline parallelism of 4. For the details on all the parameters, see the 20b.yaml
 config file.
 
 To train a 20B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1008,10 +1015,10 @@ creating the job (number of replicas).
 
 **40B configuration:**
 
-The 40B model uses the bf16 data type. It can be trained in about 12 days using 80 nodes with 8 GPUs per node. The model includes 48
+The 40B model uses the bf16 data type. It can be trained in about 10.3 days using 80 nodes with 8 GPUs per node. The model includes 48
 transformer layers, a hidden size of 8192, and 64 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 4. 
+parallelism of 4 and pipeline parallelism of 4. 
 For the details on all the parameters, see the 40b.yaml config file.
 
 To train a 40B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1039,10 +1046,10 @@ creating the job (number of replicas).
 
 **175B configuration:**
 
-The 175B model uses the bf16 data type. It can be trained in about 35 days using 128 nodes with 8 GPUs per node. The model includes 96
+The 175B model uses the bf16 data type. It can be trained in about 27 days using 128 nodes with 8 GPUs per node. The model includes 96
 transformer layers, a hidden size of 12288, and 96 attention heads. The
 sequence length is 2048, and the optimizer is Adam. This model uses tensor
-parallelism of 8 and pipeline parallelism of 16. 
+parallelism of 8 and pipeline parallelism of 8. 
 For the details on all the parameters, see the 175b.yaml config file.
 
 To train a 175B GPT-3 model, modify the `conf/config.yaml` file to set:
@@ -1398,7 +1405,7 @@ recommend a model size that can be trained with the specified hardware and time 
 
 For example, if the user has 20 NVIDIA DGX nodes available (80GB GPU memory), and wants to train a 
 GPT-3 model for a maximum of 5 days, the tool will recommend using a 5B parameter GPT-3 model. 
-The tool will perform a best effort guess using heuristics, so the results might not be exact.
+The tool will perform a best effort guess using heuristics.
 
 
 ##### 5.3.1.2. Base Config Generation
@@ -1406,8 +1413,8 @@ The tool will perform a best effort guess using heuristics, so the results might
 
 If the model size is provided by the user, or after the model size is suggested, 
 the tool will generate a base configuration for the given model. This configuration will be a valid, 
-runnable configuration in YAML format, which can be trained using NeMo-Megatron. However, this config 
-will not be optimized at this stage.
+runnable configuration in YAML format, which can be trained using NeMo-Megatron. At this stage, the base config 
+will not yet be optimized. The optimization will happen at the next stage.
 
 
 ##### 5.3.1.3. Training HP Search
@@ -1501,7 +1508,7 @@ bignlp_scripts_path: ${bignlp_hp_tool_path}/../bignlp-scripts  # Path to the loc
 data_dir: ${bignlp_scripts_path}/data
 base_results_dir: ${bignlp_hp_tool_path}/results
 
-training_container: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+training_container: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
 inference_container: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 container_mounts:
     - null
@@ -1554,11 +1561,11 @@ train_settings:
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: null  # null to use the minimum required number of nodes
-  tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
-  micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
+  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
+  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
  
 inference_settings:
   vocab_size: 51200
@@ -1609,11 +1616,11 @@ train_settings:
   num_tokens_in_b: 300  # Unit in billions, typically 300B for GPT3 models.
   vocab_size: 51200
   logs: ${base_results_dir}/${search_config_value}_${.gpu_memory_gb}gb  # Example base_results_dir/gpt3/126m
-  override_search_num_nodes: null  # null to use the minimum required number of nodes
-  tensor_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8]
-  pipeline_parallel_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
-  micro_batch_sizes: null  # null to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
-  act_ckpt_layers: null  # null to use our recommendation, or a list, such as [0, 1, 2, 3]
+  override_search_num_nodes: auto  # auto to use the minimum required number of nodes
+  tensor_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8]
+  pipeline_parallel_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 10]
+  micro_batch_sizes: auto  # auto to use our recommendation, or a list, such as [1, 2, 4, 8, 16]
+  act_ckpt_layers: auto  # auto to use our recommendation, or a list, such as [0, 1, 2, 3]
 ```
 
 The `model_size_in_b` parameter indicates how many billion parameters the model should contain, and 
@@ -1647,14 +1654,14 @@ when estimating how long it will take to train the model, to the desired number 
 parameter can be used to configure where the result logs will be saved. By default, this directory 
 will be created inside the `base_results_dir` indicated in the `conf/config.yaml` file. The 
 `override_search_num_nodes` parameter can be used to override the number of nodes that will be 
-used for each training run in the HP grid search. By default, leaving this as `null` will run the tool 
+used for each training run in the HP grid search. By default, leaving this as `auto` will run the tool 
 with the smallest possible node count, to save compute. Finally, 
 the `tensor_parallel_sizes`, `pipeline_parallel_sizes`, `micro_batch_sizes`, and `act_ckpt_layers` 
 parameters can be used to override the heuristics that choose the grid search space for these 
-four parameters. If these are left as `null`, our tool will select appropriate values. However, 
+four parameters. If these are left as `auto`, our tool will select appropriate values. However, 
 if you wish to override them, you can use these parameters. For example, if you only wish to search 
 for configurations with Tensor Parallelism (TP) values of 1 and 2, you can set 
-`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `null`.  
+`tensor_parallel_sizes: [1, 2]` and leave the other parameters as `auto`.  
 
 ###### 5.3.2.2.4. Inference HP Search
 <a id="markdown-inference-hp-search" name="inference-hp-search"></a>
@@ -1753,7 +1760,7 @@ Notes:
  - Since the HP search tool uses the minimum number of nodes necessary to save compute and time, 
 the result might vary slightly when increasing the node count for these models. This value can be 
 overriden using the `override_search_num_nodes` parameter, but increasing the node count will make 
-the search slower and more costly.
+the search somewhat more costly.
  - If one of the optimal configs is very close to 100% GPU memory utilization, it is possible that 
 the full training job will crash due to a memory spike. We recommend using a config that keeps the 
 memory usage under 98% to avoid this issue. To save some memory, the recommendation is to try 
@@ -3298,7 +3305,7 @@ cluster:                                # example config for enterprise cluster
     enable_gpus_allocation: true
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -3325,7 +3332,7 @@ cluster:                                # example config for enterprise cluster
     instance_without_gpu: dgxa100.40g.1.norm
 env:
   job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/ea-participants-kt/bignlp-training:22.06.rc2-py3
+  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-py3
   inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
 ```
 
@@ -4166,12 +4173,15 @@ given Global Batch Size (GBS).
 
 #### 7.1.2. Training Performance Results
 <a id="markdown-training-performance-results" name="training-performance-results"></a>
-Training performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+Training performance: 
+ - NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 5B GPT-3 model)
+ - NVIDIA DGX SuperPODs (128 x 8 x A100 80GB for 175B GPT-3 model)
 
-We measured the throughput of training a 5B parameter GPT-3 model on a DGX
-SuperPOD using a different number of nodes, and we achieved near-linear
-scaling. For example, when scaling from 1 node to 20 nodes, we achieve 18.51x
-speedup. The table and chart below show the performance results.
+We measured the throughput of training 5B and 175B parameter GPT-3 models on 
+different numbers of DGX nodes, and we achieved near-linear
+scaling. For example, when scaling from 1 node to 20 nodes with a 5B model, we achieve 18.51x
+speed-up. When scaling from 16 nodes to 128 nodes with a 175B model, we achieve 6.85x speed-up.
+The tables and charts below show the performance results.
 
 |      |                                 |        |        |        | Nodes  |        |        |        |
 | ---- | ------------------------------- | ------ | ------ | ------ | ------ | ------ | ------ | ------ |
@@ -4181,6 +4191,15 @@ speedup. The table and chart below show the performance results.
 |      | Speed-up                        | 1x     | 2x     | 4.93x  | 8.71x  | 9.7x   | 16.95x | 18.51x |
 
 <img src="img/5B_GPT_3_throughput.svg"/>
+
+|      |                                 |        | Nodes  |        |
+| ---- | ------------------------------- | ------ | ------ | ------ |
+|      |                                 | 16     | 32     | 128    |
+|      | Tokens per Second               | 20642  | 38025  | 141306 |
+| 175B | Perfect Linear Scaling (Tokens) | 20642  | 41285  | 165140 |
+|      | Speed-up                        | 1x     | 1.84x  | 6.85x  |
+
+<img src="img/175B_GPT_3_throughput.svg"/>
 
 #### 7.1.3. Inference Performance
 <a id="markdown-inference-performance" name="inference-performance"></a>
@@ -4465,7 +4484,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B T5 Model)
 
 We measured the throughput of training a 3B parameter T5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 16.38x
-speedup. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
+speed-up. We are actively working on improving the scaling performance for T5 models. The table and chart below show the performance results.
 
 
 |         |                                        |        |                |                | Nodes    |                |                 |
@@ -4545,7 +4564,7 @@ Training Performance: NVIDIA DGX SuperPOD (20 x 8 x A100 80GB for 3B mT5 Model)
 
 We measured the throughput of training a 3B parameter mT5 model on NVIDIA DGX
 SuperPOD using a different number of nodes. When scaling from 1 node to 20 nodes, we achieve 14.87x
-speedup. We are actively working on improving the scaling performance for mT5 models. 
+speed-up. We are actively working on improving the scaling performance for mT5 models. 
 The table and chart below show the performance results.
 
 
@@ -4562,16 +4581,15 @@ The table and chart below show the performance results.
 ## 8. Changelog
 <a id="markdown-changelog" name="changelog"></a>
 
-**NeMo Megatron 22.06.RC2**
-* Evaluation fix for P-Tuned and Prompt Tuned GPT-3 models
-* Fix for T5 & mT5 fine-tuning for pipeline parallel size greater than 1
-
-**NeMo Megatron 22.06.RC1**
-* Relative Position Embedding for T5 - early access
-  - **Disclaimer:** We have confirmed that the loss curves for the two Relative Position Embeddings implementations (Megatron-LM and NeMo Megatron) are matching based on a partial convergence run. However, we observed lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings. NVIDIA engineers are now conducting additional verification of Relative Position Embeddings.
-* Hyperparameter tool: support for DGX A100 40GB configurations
+**NeMo Megatron 22.06**
+* Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Relative Position Embeddings for T5
+  * We used mC4 dataset (24 Languages) for pretraining the mT5 and verified our results on KNLI, KorQuAD, KLUE-STS, and XNLI tasks
+* Hyperparameter tool update with Sequence Parallelism and Selective Activation Checkpointing for GPT-3
+* Hyperparameter tool: support for DGX A100 40GB configurations for GPT-3, T5, and mT5
 * P-Tuning and Prompt Tuning for GPT-3 with pipeline parallelism (training only)
-* Operation fusions for higher training throughput
+* Operation fusions for higher training throughput (2%-7% speed-up)
+* Default GPT-3 configurations changed to include Sequence Parallelism and Selective Activation Checkpointing: 20B (speed-up: 14%), 40B (speed-up: 9%), 175B (speed-up: 15%) 
 
 **NeMo Megatron 22.05.01**
 * Cloud service providers: support for Microsoft Azure (performance validated up to 36 `Standard_ND96amsr_A100_v4` instances)
@@ -4611,7 +4629,6 @@ The table and chart below show the performance results.
 
 ## 9. Known Issues
 <a id="markdown-known-issues" name="known-issues"></a>
-* We observe lower accuracy results for Relative Position Embeddings compared to Absolute Position Embeddings
 * The 22.05 inference container provides better performance for large models like 530B, but can be slower for 5B model for some configurations
 * The inference profiling scripts can fail to produce final summary of results due to the division by zero error. The results are still present in CSV files
 * For customers looking to do inference on BCP please use a previous inference container

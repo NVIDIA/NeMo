@@ -128,9 +128,9 @@ def run_training(cfg, hydra_args="", dependency=None):
             flags += f"-o {results_dir}/slurm_%j.log "
         else:
             flags += f"-o {results_dir}/{name}-%j.log -e {results_dir}/{name}-%j.error "
-            
+
         train_cmd = f"PYTHONPATH={bignlp_path}:${{PYTHONPATH}} \\\n {base_cmd}"
-        
+
         create_slurm_file(
             new_script_path=new_script_path,
             train_cmd=train_cmd,

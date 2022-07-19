@@ -24,6 +24,11 @@ def main(cfg):
     devices = trainer_cfg.get("devices")
     numa_cfg = cfg.get("numa_mapping")
 
+    # Run parameters
+    model_cfg = train_cfg.get("model")
+    run_cfg = train_cfg.get("run")
+    results_dir = run_cfg.get("results_dir")
+
     rank = int(os.environ.get("LOCAL_RANK"))
 
     training_config = cfg.get("training_config").rsplit("/", 1)[1]
@@ -34,7 +39,6 @@ def main(cfg):
 
     # Re-build the hydra args to add dataset blend
     if "mt5" in cfg.get("training_config"):
-        model_cfg = train_cfg.get("model")
         model_data_cfg = model_cfg.get("data")
         if model_data_cfg.get("data_prefix") is None:
             cfg.get("training").model.data.data_prefix = generate_mt5_data_blend(cfg)
@@ -42,16 +46,31 @@ def main(cfg):
             hydra_train_args = convert_args_to_hydra_train_args(hydra_args.split())
 
     cuda_visible_devices = numa_mapping(local_rank=rank, devices=devices, numa_cfg=numa_cfg)
+    set_gpu_queue_sw = "CUDA_DEVICE_MAX_CONNECTIONS=1" if \
+        model_cfg.get("tensor_model_parallel_size", 0) > 1 else ""
 
     code_dir = "/opt/bignlp/NeMo"
     code_path = f"{code_dir}/examples/nlp/language_modeling/megatron_t5_pretraining.py"
     cmd_prefix = generate_cmd_prefix(cfg, code_dir)
+
     # Write command to launch training.
+    if cfg.get("profile", False):
+        slurm_node = os.environ.get("SLURM_NODEID", "0")
+        slurm_rank = os.environ.get("SLURM_PROCID", "0")
+        slurm_jobid = os.environ.get("SLURM_JOB_ID", "0")
+        profile_out_path = os.path.join(results_dir, "profile_logs")
+        os.makedirs(profile_out_path, exist_ok=True)
+        nsys = f"nsys profile -s none -t cuda,nvtx " \
+               f"-o {profile_out_path}/profile_{slurm_jobid}_node{slurm_node}_rank{slurm_rank} " \
+               f"--force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop"
+    else:
+        nsys = ""
+
     if cfg.get("cluster_type") == "bcm":
-        cmd = f"{cmd_prefix} {cuda_visible_devices} python3 {code_path} {hydra_train_args} {flags}"
+        cmd = f"{cmd_prefix} {cuda_visible_devices} {set_gpu_queue_sw} {nsys} python3 {code_path} {hydra_train_args} {flags}"
     elif cfg.get("cluster_type") == "bcp":
         pause_and_prime_dns_connections()
-        cmd = f'{cmd_prefix} {cuda_visible_devices} python3 {code_path} +cluster_type=BCP +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
+        cmd = f'{cmd_prefix} {cuda_visible_devices} {set_gpu_queue_sw} python3 {code_path} +cluster_type=bcp +rank={os.environ.get("RANK")}  {hydra_train_args} {flags}'
     os.system(f"{cmd}")
 
 

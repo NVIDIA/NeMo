@@ -136,9 +136,6 @@ if __name__ == "__main__":
         if tokenizer_model is not None:
             conf.cfg.tokenizer.model = tokenizer_model
 
-        # Force activations_checkpoint_method to be None
-        conf.cfg.activations_checkpoint_method = None
-
         if is_global_rank_zero():
             with open(hparams_override_file, "w") as f:
                 OmegaConf.save(config=conf, f=f)

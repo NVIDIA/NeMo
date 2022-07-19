@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Path for azure scripts. Can be modified if the repo
-# specified in the README is cloned somewhere else
-# besides /shared/data
-AZURE_NCCL_PATH="/shared/data/azure"
-
 usage() {
 cat <<EOF
 
@@ -141,19 +136,34 @@ if [[ $RUN_DCGMI == 1 ]]; then
 fi
 
 if [[ $RUN_NCCL == 1 ]]; then
+    # Build the nccl-tests
+    NCCL_TEST_PATH=./nccl-tests/build/all_reduce_perf
+    if [[ ! -f $NCCL_TEST_PATH ]]; then
+        echo "Building the NCCL tests..."
+        sbatch -N 1 -W build-nccl-tests.sh > /dev/null 2> /dev/null
+        if [[ -f $NCCL_TEST_PATH ]]; then
+            echo "NCCL tests built successfully!"
+        else
+            error_exit "Failed to build NCCL tests." 2
+        fi
+    fi
+
     echo "Starting NCCL all_reduce_perf..."
     # Get list of nodes from sinfo to iterate over
     # and create pairwise all_reduce_perf tests
     NODES=$(sinfo --Node -h --partition=${PARTITION} --state=idle --nodes=${NODES})
     NODES_ARR=($NODES)
     ARR_LEN=${#NODES_ARR[@]}
-    NCCL_TEST="${AZURE_NCCL_PATH}/benchmarking/NDv4/cc-slurm-ngc/nccl/nccl.sub"
 
     declare -a slurm_ids # ids for all the jobs launched, should be $NODES / 2
     for (( i = 0; i < $ARR_LEN - 1; i+=8 ))
     do
         j=$((i + 4))
-        id=$(sbatch -N 2 --parsable -o $RESULTS_DIR/%x_%j.log -w ${NODES_ARR[$i]},${NODES_ARR[$j]} $NCCL_TEST)
+        id=$(sbatch -N 2 \
+                    -w ${NODES_ARR[$i]},${NODES_ARR[$j]} \
+                    --parsable \
+                    -o $RESULTS_DIR/%x_%j.log \
+                    ./nccl.sh)
         slurm_ids+=($id)
     done
     all_ids=$(join , "${slurm_ids[@]}")
@@ -162,24 +172,26 @@ if [[ $RUN_NCCL == 1 ]]; then
     srun -p ${PARTITION} -N 1 --dependency=$all_ids true > /dev/null 2> /dev/null
 
     nccl_pass=1
-    for i in $slurm_ids; do
-        CURR_NODES=$(sed -n 2p $RESULTS_DIR/nccl.sub_${i}.log | cut -d"=" -f2) # Get the nodes in this test
-        LARGE_TEST_LINE=$(tail -4 $RESULTS_DIR/nccl.sub_${i}.log | head -1) # Get the results of the 8 GiB size test
+    for i in ${slurm_ids[*]}; do
+        CURR_NODES=$(sed -n 2p $RESULTS_DIR/nccl.sh_${i}.log | cut -d"=" -f2) # Get the nodes in this test
+        LARGE_TEST_LINE=$(tail -4 $RESULTS_DIR/nccl.sh_${i}.log | head -1) # Get the results of the 8 GiB size test
         LARGE_TEST_ARR=($LARGE_TEST_LINE)
         CURR_BUSBW=${LARGE_TEST_ARR[6]%.*} # Find the out-of-place bus bandwidth
 
         # Check CURR_BUSBW is a number
         re='^[0-9]+$'
         if ! [[ $CURR_BUSBW =~ $re ]]; then
-            error_exit "NCCL failed to run properly..." 1
+            echo "NCCL failed to run properly on $CURR_NODES ..."
+            echo "See results/cluster_validation/nccl.sh_${i}.log for more details"
+            nccl_pass=0
         elif [[ $CURR_BUSBW -lt 180 ]]; then
             echo "Insufficient bus bandwidth on nodes $CURR_NODES"
-            echo "See results/cluster_validation/nccl.sub_${i}.log for more details"
+            echo "See results/cluster_validation/nccl.sh_${i}.log for more details"
             nccl_pass=0
         fi
     done
     if [[ $nccl_pass == 0 ]]; then
-        # Fail if any nodes had insufficient busbw
+        # Fail if any nodes had insufficient busbw or did not complete the test
         exit 2
     else
         echo "NCCL test passing on all nodes!"
