@@ -190,6 +190,7 @@ class Embedding(MegatronModule):
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
+        transpose_batch_sequence=True,
     ):
         super(Embedding, self).__init__()
 
@@ -197,6 +198,7 @@ class Embedding(MegatronModule):
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
         self.position_embedding_type = position_embedding_type
+        self.transpose_batch_sequence = transpose_batch_sequence
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
@@ -269,7 +271,8 @@ class Embedding(MegatronModule):
             assert self.tokentype_embeddings is None
 
         # Data format change to avoid explicit tranposes : [b s h] --> [s b h].
-        embeddings = embeddings.transpose(0, 1).contiguous()
+        if self.transpose_batch_sequence:
+            embeddings = embeddings.transpose(0, 1).contiguous()
 
         # If the input flag for fp32 residual connection is set, convert for float.
         if self.fp32_residual_connection:

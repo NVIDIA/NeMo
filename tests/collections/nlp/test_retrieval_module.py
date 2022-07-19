@@ -38,6 +38,7 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 
 try:
     from apex.transformer.enums import AttnMaskType
+    from apex.transformer import tensor_parallel
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -148,7 +149,6 @@ class TestRetrievalModule:
         assert out.shape == torch.Size([input_length, batch, dim])
         assert bias.shape == torch.Size([dim])
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_retrieval_encoder(self):
 
@@ -197,7 +197,6 @@ class TestRetrievalModule:
         out = encoder(retrieved_emb, context_mask, context_attn_mask=hidden_mask, encoder_output=hidden_emb)
         assert out.shape == torch.Size([batch, chunks, neighbors, 2 * text_chunk_size, dim])
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_retrieval_decoder(self):
 
@@ -251,9 +250,8 @@ class TestRetrievalModule:
             .half()
         )
         out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
-        assert out.shape == torch.Size([batch, input_length, dim])
+        assert out.shape == torch.Size([input_length, batch, dim])
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     def test_encoder_decoder_module(self):
         # rotary pos emb dim
