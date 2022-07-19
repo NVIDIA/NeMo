@@ -365,7 +365,7 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     - build-BigNLP
 
 train.t5.220m_tp1_pp1_1node_100steps:
-  <<: *bignlp-LUNA-test-LAUNCHER-refactored
+  <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: train
