@@ -98,12 +98,14 @@ def run_benchmark(model_type,
     model_size,
     model_path,
     bignlp_scripts_path,
+    container,
     tensor_para_size,
     pipeline_para_size,
     input_len,
     output_len,
     batch_sizes,
-    triton_wait_time):
+    triton_wait_time,
+    cluster_cfg):
 
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
@@ -124,10 +126,10 @@ def run_benchmark(model_type,
         raise Exception(f"Model type: {model_type} not supported")
 
     # Cluster configuration
-    partition = "luna"
-    account = "joc"
-    time_limit = "0:30:00"
-    exclusive = True
+    partition = cluster_cfg.get("partition")
+    account = cluster_cfg.get("account")
+    time_limit = cluster_cfg.get("time_limit")
+    exclusive = cluster_cfg.get("exclusive")
     job_name_prefix = "joc-bignlp_inference:"
     job_name = job_name_prefix + task_name
     nodes = pipeline_para_size
@@ -217,6 +219,7 @@ def run_benchmark(model_type,
         account=account,
     )
 
-    job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
-    job_id = job_id.decode("utf-8")
-    print(f"Submitted Inference script with job id: {job_id}")
+    return new_script_path
+    # job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
+    # job_id = job_id.decode("utf-8")
+    # print(f"Submitted Inference benchmark script with job id: {job_id}")
