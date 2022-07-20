@@ -94,22 +94,18 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark(conf):
+def run_benchmark(model_type,
+    model_size,
+    model_path,
+    bignlp_scripts_path,
+    tensor_para_size,
+    pipeline_para_size,
+    input_len,
+    output_len,
+    batch_sizes,
+    triton_wait_time):
 
-    # Configuration
-    model_type = conf["model_type"]
-    model_size = conf["model_size"]
-    tensor_para_size = conf["tensor_parallel_size"]
-    pipeline_para_size = conf["pipeline_parallel_size"]
-    input_len = conf["input_len"]
-    output_len = conf["output_len"]
-    batch_sizes = conf["batch_sizes"]
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
-    model_path = conf["checkpoint_path"]
-    bignlp_scripts_path = conf["bignlp_scripts_path"]
-    container = conf["inference_container"]
-    triton_wait_time = conf["triton_wait_time"]
-
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
 
     if model_type == "t5":
@@ -224,10 +220,3 @@ def run_benchmark(conf):
     job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
     job_id = job_id.decode("utf-8")
     print(f"Submitted Inference script with job id: {job_id}")
-
-
-if __name__=="__main__":
-    config_path = "/lustre/fsw/joc/donghyukc/bignlp-scripts/conf/infer_benchmark/infer_benchmark.yaml"
-    with open(config_path, 'r') as file:
-        conf = yaml.safe_load(file)
-    run_benchmark(conf)
