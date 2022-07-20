@@ -301,7 +301,7 @@ class _AudioMSDDTrainDataset(Dataset):
         base_clus_label = torch.tensor(base_clus_label)
         return seg_target, base_clus_label
 
-    def parse_rttm_for_ms_targets(self, sample):  # , target_spks=None):
+    def parse_rttm_for_ms_targets(self, sample):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
         This function converts (start, end, speaker_id) format into base-scale (the finest scale) segment level
@@ -329,7 +329,7 @@ class _AudioMSDDTrainDataset(Dataset):
         """
         rttm_lines = open(sample.rttm_file).readlines()
         uniq_id = self.get_uniq_id_with_range(sample)
-        rttm_timestamps = extract_seg_info_from_rttm(uniq_id, rttm_lines)  # , mapping_dict)
+        rttm_timestamps = extract_seg_info_from_rttm(uniq_id, rttm_lines)
         fr_level_target = assign_frame_level_spk_vector(
             rttm_timestamps, self.round_digits, self.frame_per_sec, target_spks=sample.target_spks
         )
@@ -589,7 +589,7 @@ class _AudioMSDDInferDataset(Dataset):
         feats_len = feats_out.shape[0]
 
         if self.seq_eval_mode:
-            targets = self.parse_rttm_multiscale(sample)  # , self.collection[index].target_spks)
+            targets = self.parse_rttm_multiscale(sample)
         else:
             targets = torch.zeros(feats_len, 2).float()
 
