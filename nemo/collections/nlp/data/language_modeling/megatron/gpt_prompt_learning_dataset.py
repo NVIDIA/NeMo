@@ -294,11 +294,9 @@ class GPTPromptLearningDataset(Dataset):
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
-        elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
+        elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
             taskname_ids = torch.tensor(taskname_ids)
-
-        elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
-            taskname_ids = torch.tensor(taskname_ids)
+        
         else:
             raise ValueError(f"Unknown virtual prompt source: {self.virtual_prompt_source}")
 
