@@ -1,3 +1,4 @@
+import configparser
 import os
 import shutil
 import subprocess
@@ -94,7 +95,7 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, model_path);
+def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, dependency, model_path);
 
     model_type = run_cfg.model_type
     model_size = benchmark_cfg.model_size
@@ -116,17 +117,18 @@ def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, model_path);
     if model_type == "t5":
         input_len_name = "sequence_length"
         output_len_name = "max_output_len"
-        vocab_size = 29184
     elif model_type == "mt5":
         input_len_name = "sequence_length"
         output_len_name = "max_output_len"
-        vocab_size = 250112
     elif model_type == "gpt3":
         input_len_name = "input_lengths"
         output_len_name = "request_output_len"
-        vocab_size = 51200
     else:
         raise Exception(f"Model type: {model_type} not supported")
+
+    config = configparser.ConfigParser()
+    config.read(f"{model_path}/config.ini")
+    vocab_size = config[model_type]['vocab_size']
 
     # Cluster configuration
     partition = cluster_cfg.get("partition")
@@ -138,7 +140,6 @@ def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, model_path);
     nodes = pipeline_para_size
     ntasks_per_node = 1
     gpus_per_task = None
-    dependency = None
 
     # Log and results dir
     benchmark_path = f"{bignlp_scripts_path}/bignlp/inference_scripts/benchmark_sweep.sh"

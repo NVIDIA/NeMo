@@ -18,6 +18,7 @@ import subprocess
 import typing
 
 from bignlp.bignlp_utils import add_container_mounts
+from bignlp.inference_scripts.benchmark import run_benchmark
 
 FT_PATH = pathlib.Path("/opt/bignlp/FasterTransformer")
 FT_BACKEND_PATH = pathlib.Path("/opt/bignlp/fastertransformer_backend")
@@ -204,6 +205,20 @@ def run_export(cfg, dependency=None):
     print(f"Submitted accuracy for FT checkpoint script with job id: {accuracy_job_id}")
 
     dependency = ":".join([accuracy_job_id])
+
+    # Run benchmark
+    benchmark_script = run_benchmark(
+        cfg=cfg,
+        run_cfg=cfg.export.run,
+        benchmark_cfg=cfg.export.benchmark,
+        cluster_cfg=cfg.cluster,
+        dependency=conversion_job_id,
+        model_path=f"{cfg.export.run.triton_model_dir}/1/{cfg.export.conversion.tensor_model_parallel_size}-gpu"
+    )
+
+    job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
+    job_id = job_id.decode("utf-8")
+    print(f"Submitted Inference benchmark script with job id: {job_id}")
 
     return dependency
 
