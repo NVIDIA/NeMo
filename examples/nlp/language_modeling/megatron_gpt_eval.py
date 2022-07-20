@@ -197,7 +197,7 @@ class RequestDataSet(Dataset):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
-    # trainer required fqor restoring model parallel models
+    # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
