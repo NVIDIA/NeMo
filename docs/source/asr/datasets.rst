@@ -221,8 +221,8 @@ of the manifest after filtering is the correct size of the dataset for reporting
 The ``tarred_shard_strategy`` field of the config file can be set if you have multiple shards and are running an experiment with
 multiple workers. It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime.
 Note that this strategy, on specific occasions (when the number of shards is not divisible with ``world_size``), will not sample
-the entire dataset. As an alternative the ``replicate`` strategy, will prealocat the entire set of shards to every worker and not
-change during runtime. The benefit of this strategy is that it allows each worker to sample data points from the entire dataset
+the entire dataset. As an alternative the ``replicate`` strategy, will preallocate the entire set of shards to every worker and not
+change it during runtime. The benefit of this strategy is that it allows each worker to sample data points from the entire dataset
 independently of others. Note, though, that more than one worker may sample the same shard, and even sample the same data points!
 As such, there is no assured guarantee that all samples in the dataset will be sampled at least once during 1 epoch. Note that
 for these reasons it is not advisable to use tarred datasets as validation and test datasets.
