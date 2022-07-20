@@ -215,24 +215,8 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
 def make_text_memmap_bin_compatibility(text_memmap_ds):
     """Make a TextMemMapDataset compatible with binary memmap."""
-        # indexed_dataset.doc_idx,
-        # indexed_dataset.sizes,
-        # self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
-        # self._bin_buffer = memoryview(self._bin_buffer_mmap)
-        # logging.info("    reading sizes...")
-        # self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
-        # logging.info("    reading pointers...")
-        # self._pointers = np.frombuffer(
-        #     self._bin_buffer, dtype=np.int64, count=self._len, offset=offset + self._sizes.nbytes
-        # )
-        # logging.info("    reading document index...")
-        # self._doc_idx = np.frombuffer(
-        #     self._bin_buffer,
-        #     dtype=np.int64,
-        #     count=self._doc_count,
-        #     offset=offset + self._sizes.nbytes + self._pointers.nbytes,
-        # )
-
+    text_memmap_ds.doc_idx = np.arange(range(len(text_memmap_ds)), dtype=np.int64)
+    text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
 
 class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates on raw text files and tokenizes the text on-the-fly."""
