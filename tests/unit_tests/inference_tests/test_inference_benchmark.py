@@ -20,7 +20,7 @@ class TestGpt3InferenceBenchmark:
                                 model_type="gpt3",
                                 model_size="530b",
                                 bignlp_scripts_path=BASE_DIR,
-                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base"
+                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base",
                                 tensor_para_size=8,
                                 pipeline_para_size=3,
                                 input_len=60,
@@ -39,7 +39,7 @@ class TestT5InferenceBenchmark:
                                 model_type="t5",
                                 model_size="41b",
                                 bignlp_scripts_path=BASE_DIR,
-                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base"
+                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base",
                                 tensor_para_size=8,
                                 pipeline_para_size=1,
                                 input_len=60,
@@ -58,7 +58,7 @@ class TestMt5InferenceBenchmark:
                                 model_type="mt5",
                                 model_size="23b",
                                 bignlp_scripts_path=BASE_DIR,
-                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base"
+                                container="gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base",
                                 tensor_para_size=8,
                                 pipeline_para_size=1,
                                 input_len=60,
