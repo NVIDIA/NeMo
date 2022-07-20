@@ -213,6 +213,27 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
             self.samples_mapping = None
 
 
+def make_text_memmap_bin_compatibility(text_memmap_ds):
+    """Make a TextMemMapDataset compatible with binary memmap."""
+        # indexed_dataset.doc_idx,
+        # indexed_dataset.sizes,
+        # self._bin_buffer_mmap = np.memmap(path, mode='r', order='C')
+        # self._bin_buffer = memoryview(self._bin_buffer_mmap)
+        # logging.info("    reading sizes...")
+        # self._sizes = np.frombuffer(self._bin_buffer, dtype=np.int32, count=self._len, offset=offset)
+        # logging.info("    reading pointers...")
+        # self._pointers = np.frombuffer(
+        #     self._bin_buffer, dtype=np.int64, count=self._len, offset=offset + self._sizes.nbytes
+        # )
+        # logging.info("    reading document index...")
+        # self._doc_idx = np.frombuffer(
+        #     self._bin_buffer,
+        #     dtype=np.int64,
+        #     count=self._doc_count,
+        #     offset=offset + self._sizes.nbytes + self._pointers.nbytes,
+        # )
+
+
 class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates on raw text files and tokenizes the text on-the-fly."""
 
@@ -243,6 +264,12 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     def _get_examples(self):
         self.src_indexed_dataset = TextMemMapDataset(dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer)
         self.tgt_indexed_dataset = TextMemMapDataset(dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer)
+
+        # Create compatibility with Megatron samples mapping
+        if self.max_num_samples is not None:
+            make_text_memmap_bin_compatibility(self.src_indexed_dataset)
+            make_text_memmap_bin_compatibility(self.tgt_indexed_dataset)
+
         assert len(self.src_indexed_dataset) == len(
             self.tgt_indexed_dataset
         ), "src and tgt has different number of lines"
