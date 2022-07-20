@@ -367,7 +367,6 @@ def get_rttm_speaker_index(rttm_labels):
     for rttm_line in rttm_labels:
         spk_str = rttm_line.split()[-1]
         speaker_set.add(spk_str)
-    num_of_spks = len(speaker_set)
     speaker_list = sorted(list(speaker_set))
     speaker_mapping_dict = {key: val for key, val in enumerate(speaker_list)}
     return speaker_mapping_dict
