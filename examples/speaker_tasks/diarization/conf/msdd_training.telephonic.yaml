@@ -4,51 +4,29 @@ repeat: &rep 2
 dropout: &drop 0.5
 separable: &separable True
 num_workers: &num_workers 20
-batch_size: &global_bs 640
+batch_size: &global_bs 15
 
 diarizer: &diarizer
   manifest_filepath: null
   out_dir: null
   oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
-  collar: 0.25 # Collar value for scoring
-  ignore_overlap: True # Consider or ignore overlap segments while scoring
-
-  vad:
-    model_path: null # .nemo local model path or pretrained model name or none
-    external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
-
-    parameters: # Tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
-      window_length_in_sec: 0.15  # Window length in sec for VAD context input 
-      shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
-      smoothing: "median" # False or type of smoothing method (eg: median)
-      overlap: 0.875 # Overlap ratio for overlapped mean/median smoothing filter
-      onset: 0.4 # Onset threshold for detecting the beginning and end of a speech 
-      offset: 0.7 # Offset threshold for detecting the end of a speech
-      pad_onset: 0.05 # Adding durations before each speech segment 
-      pad_offset: -0.1 # Adding durations after each speech segment 
-      min_duration_on: 0.2 # Threshold for small non_speech deletion
-      min_duration_off: 0.2 # Threshold for short speech segment deletion
-      filter_speech_first: True 
 
   speaker_embeddings:
-    model_path: "/home/taejinp/Downloads/titanet-m.nemo"  # .nemo local model path or pretrained model name (titanet_large, ecapa_tdnn or speakerverification_speakernet)
+    model_path: null # .nemo local model path or pretrained model name (titanet_large is recommended)
     parameters:
-      window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
-      shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
-      multiscale_weights: [0.1,0.1,0.1,0.1,0.1] # weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
+      window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
+      multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
       save_embeddings: True # Save embeddings as pickle file for each audio input.
-      save_session_embs_ts: True # Save embeddings as pickle file for each audio input.
-      #window_length_in_sec: [3.0,1.5,1.0] # window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
-      #shift_length_in_sec: [1.5,0.75,0.5] # shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
-      #multiscale_weights: [0.1,0.1,0.1] # weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
-  
+
   clustering:
     parameters:
-      oracle_num_speakers: True  # If True, use num of speakers value provided in manifest file.
-      max_num_speakers: 2 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
+      max_num_speakers: &max_num_speakers 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
       enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
       max_rp_threshold: 0.15 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
       sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
+      maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
 
 msdd_model: 
   base:
@@ -61,6 +39,7 @@ msdd_model:
     batch_size: *global_bs
     diarizer: *diarizer
     soft_label_thres: &soft_label_thres 0.5
+  
   max_num_of_spks: &max_num_of_spks 2
   scale_n: &scale_n 
   subsample_rate: &subsample_rate 1
@@ -92,8 +71,8 @@ msdd_model:
     shuffle: False
   
   test_ds:
-    manifest_filepath: ???
-    emb_dir: ???
+    manifest_filepath: null
+    emb_dir: null
     sample_rate: 16000
     num_spks: *max_num_of_spks
     soft_label_thres: *soft_label_thres
@@ -112,18 +91,7 @@ msdd_model:
     n_fft: 512
     frame_splicing: 1
     dither: 0.00001
-  #preprocessor:
-    #_target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-    #normalize: "per_feature"
-    #window_size: 0.02
-    #sample_rate: *sample_rate
-    #window_stride: 0.01
-    #window: "hann"
-    #features: &n_mels 64
-    #n_fft: 512
-    #frame_splicing: 1
-    #dither: 0.00001
-  
+
   msdd_module:
     _target_: nemo.collections.asr.modules.msdd_diarizer.MSDD_module
     num_spks: *max_num_of_spks
@@ -131,8 +99,11 @@ msdd_model:
     num_lstm_layers: 2
     dropout_rate: 0.5
     cnn_output_ch: 16
+    conv_repeat: 1
     emb_sizes: 192
     scale_n: *scale_n
+    weighting_scheme: 'conv_scale_weight'
+    use_cos_sim_input: True
 
   loss:
     scale: 30
@@ -140,7 +111,7 @@ msdd_model:
 
   optim:
     name: adam
-    lr: .005
+    lr: .001
     weight_decay: 0.001
 
     sched:
@@ -166,6 +137,11 @@ exp_manager:
   create_tensorboard_logger: True
   create_checkpoint_callback: True
   create_wandb_logger: False
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 15
+    every_n_epochs: 1
   wandb_logger_kwargs:
     name: null
     project: null

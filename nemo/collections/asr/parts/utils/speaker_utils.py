@@ -358,6 +358,7 @@ def rttm_to_labels(rttm_filename):
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
 
+
 def get_rttm_speaker_index(rttm_labels):
     """
     Generate speaker mapping between integer index to RTTM speaker label names.
@@ -368,8 +369,9 @@ def get_rttm_speaker_index(rttm_labels):
         speaker_set.add(spk_str)
     num_of_spks = len(speaker_set)
     speaker_list = sorted(list(speaker_set))
-    speaker_mapping_dict = { key: val for key, val in enumerate(speaker_list) }
+    speaker_mapping_dict = {key: val for key, val in enumerate(speaker_list)}
     return speaker_mapping_dict
+
 
 def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
     """
@@ -627,9 +629,9 @@ def isOverlap(rangeA, rangeB):
 
 def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
     """
-    This function will check the valid speech segments in the manifest file which is either 
-    generated from NeMo voice activity detection(VAD) or oracle VAD. 
-    If an audio file does not contain any valid speech segments, we ignore the audio file 
+    This function will check the valid speech segments in the manifest file which is either
+    generated from NeMo voice activity detection(VAD) or oracle VAD.
+    If an audio file does not contain any valid speech segments, we ignore the audio file
     (indexed by uniq_id) for the rest of the processing steps.
     """
     vad_uniq_ids = set()
