@@ -604,6 +604,9 @@ def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler
         )
 
     scheduler_cls = AVAILABLE_SCHEDULERS[name]
+    # Pop 'max_steps' if it's not required by the scheduler
+    if 'max_steps' in kwargs and 'max_steps' not in inspect.signature(scheduler_cls).parameters:
+        kwargs.pop('max_steps')
     scheduler = partial(scheduler_cls, **kwargs)
     return scheduler
 
