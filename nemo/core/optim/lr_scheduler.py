@@ -14,6 +14,7 @@
 
 import copy
 import dataclasses
+import inspect
 import math
 import warnings
 from functools import partial
@@ -670,8 +671,6 @@ def prepare_lr_scheduler(
         scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
 
     # Test to see if config follows above schema
-
-    add_max_args_flag = True
     interval = 'step'
     if scheduler_config is not None:
         if 'args' in scheduler_config:
@@ -688,10 +687,7 @@ def prepare_lr_scheduler(
             scheduler_args.pop('t_num_workers', None)
             scheduler_args.pop('monitor', None)
             scheduler_args.pop('reduce_on_plateau', None)
-        
-        if 'name' in scheduler_config and scheduler_config['name'] in NO_MAX_STEP_SCHEDULERS:
-            add_max_args_flag = False
-            
+
         if 'name' in scheduler_config and scheduler_config['name'] in EPOCH_SCHEDULERS:
             interval = 'epoch'
 
@@ -823,11 +819,14 @@ def prepare_lr_scheduler(
         return None
 
     # Inject max_steps (effective or provided) into the scheduler config
-    if add_max_args_flag:
-        scheduler_args['max_steps'] = max_steps
+    scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config
     scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
+
+    # Pop 'max_steps' if it's not required by the scheduler
+    if 'max_steps' not in inspect.signature(scheduler_cls).parameters:
+        scheduler_args.pop('max_steps')
 
     # Instantiate the LR schedule
     schedule = scheduler_cls(optimizer, **scheduler_args)
@@ -892,13 +891,6 @@ AVAILABLE_SCHEDULERS = {
     'SquareRootAnnealing': SquareRootAnnealing,
     'PolynomialDecayAnnealing': PolynomialDecayAnnealing,
     'PolynomialHoldDecayAnnealing': PolynomialHoldDecayAnnealing,
-    'StepLR': pt_scheduler.StepLR,
-    'ExponentialLR': pt_scheduler.ExponentialLR,
-    'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
-    'CyclicLR': pt_scheduler.CyclicLR,
-}
-
-NO_MAX_STEP_SCHEDULERS = {
     'StepLR': pt_scheduler.StepLR,
     'ExponentialLR': pt_scheduler.ExponentialLR,
     'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
