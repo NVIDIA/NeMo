@@ -215,7 +215,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
 def make_text_memmap_bin_compatibility(text_memmap_ds):
     """Make a TextMemMapDataset compatible with binary memmap."""
-    text_memmap_ds.doc_idx = np.arange(range(len(text_memmap_ds)), dtype=np.int64)
+    text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds), dtype=np.int64)
     text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
 
 class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
