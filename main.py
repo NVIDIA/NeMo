@@ -87,10 +87,7 @@ def main(cfg):
         cfg_copy._content.pop("evaluation", None)
 
     if run_export:
-        dependency_export = export.run_export(cfg, dependency=dependency)
-        # dependency_accuracy = export.run_accuracy(cfg, dependency=dependency_export)
-        # dependency_performance = export.run_performance(cfg, dependency=dependency_export)
-        dependency = dependency_export
+        export.run_export(cfg, dependency=dependency)
 
     # print(omegaconf.OmegaConf.to_yaml(cfg_copy))
 
