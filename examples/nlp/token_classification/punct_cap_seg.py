@@ -16,7 +16,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="punct_cap_seg")
 def main(cfg: DictConfig) -> None:
-    torch.manual_seed(42)
+    # torch.manual_seed(42)
     print(cfg)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))

@@ -21,7 +21,8 @@ from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import (
     PunctCapSegDataset,
-    CharTokenizerOverlay
+    CharTokenizerOverlay,
+    TextPunctCapSegDataset
 )
 
 
@@ -239,7 +240,7 @@ class PunctCapSegModel(NLPModel):
             batch_size=cfg.get("batch_size", 128),
             num_workers=cfg.get("num_workers", 8),
             pin_memory=cfg.get("pin_memory", False),
-            drop_last=cfg.get("drop_last", False),
+            drop_last=cfg.get("drop_last", False)
         )
         return dataloader
 
@@ -457,7 +458,7 @@ class PunctCapSegModel(NLPModel):
                     pred_id = self.tokenizer.token_to_id(self._punct_post_labels[batch_post_preds[i]])
                     out_ids.append(pred_id)
             # output_texts.append(self.tokenizer.ids_to_text(out_ids))
-            output_texts.append(self.tokenizer.tokenizer.decode(out_ids, skip_special_tokens=True))
+            output_texts.append(self.tokenizer.tokenizer.decode(out_ids))
         return output_texts
 
     def infer_segmentation(self, texts: List[str], threshold: float = 0.5) -> List[List[str]]:
@@ -497,13 +498,11 @@ class PunctCapSegModel(NLPModel):
             stop = 0
             for stop, score in enumerate(scores):
                 if score > threshold:
-                    text = self.tokenizer.tokenizer.decode(ids[start:stop + 1], skip_special_tokens=True)
-                    # text = self.tokenizer.ids_to_text(ids[start:stop + 1])
+                    text = self.tokenizer.ids_to_text(ids[start:stop + 1])
                     segmented_texts.append(text)
                     start = stop + 1
             if stop >= start:
-                text = self.tokenizer.tokenizer.decode(ids[start:stop + 1], skip_special_tokens=True)
-                # text = self.tokenizer.ids_to_text(ids[start:stop + 1])
+                text = self.tokenizer.ids_to_text(ids[start:stop + 1])
                 segmented_texts.append(text)
             output_texts.append(segmented_texts)
         return output_texts

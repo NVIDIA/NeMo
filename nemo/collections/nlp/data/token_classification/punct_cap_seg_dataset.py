@@ -1,14 +1,42 @@
 
 import abc
 import re
-from typing import Optional, Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple, Any
 
 import torch
 import numpy as np
+from omegaconf import OmegaConf, MISSING
 
 from nemo.core import Dataset, typecheck
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec, SentencePieceTokenizer
 from nemo.core.neural_types import NeuralType, TokenIndex, LengthsType
+
+
+@dataclass
+class YamlDatasetEntry:
+    punct_input_ids: List[int] = MISSING
+    punct_input_tokens: Any = None
+    punct_pre_target_ids: List[int] = MISSING
+    punct_pre_target_tokens: Any = None  # Optional[List[str]]
+    punct_post_target_ids: List[int] = MISSING
+    punct_post_target_tokens: Any = None  # Optional[List[str]]
+    cap_input_ids: List[int] = MISSING
+    cap_input_tokens: Any = None
+    cap_target_ids: List[int] = MISSING
+    cap_target_tokens: Any = None
+    seg_input_ids: List[int] = MISSING
+    seg_input_tokens: Any = None
+    seg_target_ids: List[int] = MISSING
+    seg_target_tokens: Any = None
+
+
+@dataclass
+class YamlDatasetConfig:
+    entries: List[YamlDatasetEntry] = MISSING
+    is_continuous: bool = False
+    language: str = "unk"
+    target_pad_value: int = -100
 
 
 class CharTokenizerOverlay(TokenizerSpec):
@@ -100,7 +128,8 @@ class PunctCapSegDataset(Dataset):
             language: str = "unk",
             is_continuous: bool = None,
             tokenizer: Optional[TokenizerSpec] = None,
-            target_pad_value: int = -100
+            target_pad_value: int = -100,
+            rng_seed: Optional[int] = None
     ) -> None:
         super().__init__()
         self._language = language
@@ -109,7 +138,7 @@ class PunctCapSegDataset(Dataset):
         self._char_tokenizer: Optional[CharTokenizerOverlay] = None
         # If not explicitly set, make the inference.
         self._is_continuous = is_continuous if (is_continuous is not None) else (language in {"zh", "ja", "my"})
-
+        self._rng_seed = rng_seed
         if self._tokenizer is not None:
             self._char_tokenizer = CharTokenizerOverlay(self._tokenizer)
 
@@ -358,7 +387,7 @@ class PuncTargetsGenerator(abc.ABC):
             pre_labels: List[str],
             null_label: str = "<NULL>",
             p_drop: float = 0.9,
-            rng_seed: int = 123456
+            rng_seed: Optional[int] = None
     ) -> None:
         self._p_drop = p_drop
         self._null_label = null_label
@@ -391,7 +420,14 @@ class PuncTargetsGenerator(abc.ABC):
         raise NotImplementedError()
 
     @classmethod
-    def from_lang_code(cls, lang_code: str, pre_labels: List[str], post_labels: List[str], p_drop: float):
+    def from_lang_code(
+            cls,
+            lang_code: str,
+            pre_labels: List[str],
+            post_labels: List[str],
+            p_drop: float,
+            rng_seed: int
+    ):
         """Instantiates a derived class which is applicable to the given language.
 
         This is a convenience function for instantiating a derived class for a particular language.
@@ -401,6 +437,7 @@ class PuncTargetsGenerator(abc.ABC):
             pre_labels: Punctuation tokens that can appear before a subword.
             post_labels: Punctuation tokens that can appear after a subword.
             p_drop: The probability of dropping each punctuation token in the examples.
+            rng_seed: Seed for any PRNGs
 
         """
         lang_code = lang_code.lower()
@@ -409,16 +446,22 @@ class PuncTargetsGenerator(abc.ABC):
         # Catch all the special languages, and default to the English-like punctuation processor.
         if lang_code in {"es", "ast"}:
             # Spanish and Asturian use inverted ?!
-            return SpanishPuncTargetsGenerator(pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop)
+            return SpanishPuncTargetsGenerator(
+                pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop, rng_seed=rng_seed
+            )
         elif lang_code in {"zh", "ja", "my"}:
             # Continuous-script languages. The "basic" class seems to work, so nothing special is implemented yet.
-            return BasicPuncTargetsGenerator(pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop)
+            return BasicPuncTargetsGenerator(
+                pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop, rng_seed=rng_seed
+            )
         elif lang_code in {"th"}:
             # Thai -- uses space as punctuation
             raise ValueError(f"Language not supported: {lang_code}")
         else:
             # Assume all other languages use English-like punctuation ruless.
-            return BasicPuncTargetsGenerator(pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop)
+            return BasicPuncTargetsGenerator(
+                pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop, rng_seed=rng_seed
+            )
 
 
 class BasicPuncTargetsGenerator(PuncTargetsGenerator):
@@ -500,7 +543,7 @@ class CapTargetsGenerator:
             prob_char_lower: float = 0.9,
             prob_char_upper: float = 0.05,
             ignore_idx: int = -100,
-            rng_seed: int = 123456
+            rng_seed: Optional[int] = None
     ) -> None:
         self._prob_all_lower = prob_all_lower
         self._prob_all_upper = prob_all_upper
@@ -509,7 +552,7 @@ class CapTargetsGenerator:
         self._ignore_idx = ignore_idx
         self._whitespace_regex = re.compile(r"\s+")
         self._rng_seed = rng_seed
-        self._rng = np.random.default_rng(seed=rng_seed)
+        self._rng = np.random.default_rng(seed=rng_seed) if rng_seed is not None else None
 
     def reseed_rng(self):
         self._rng = np.random.default_rng(seed=self._rng_seed)
@@ -524,8 +567,9 @@ class CapTargetsGenerator:
         """
 
         """
+        rng = self._rng if self._rng is not None else np.random.default_rng()
         # Determine if the whole input should be upper- or lower-cased. Else will be char-by-char.
-        val = self._rng.random()
+        val = rng.random()
         lowercase_all = val < self._prob_all_lower
         uppercase_all = self._prob_all_lower < val < (self._prob_all_lower + self._prob_all_upper)
         # Copy chars, re-case as needed
@@ -538,7 +582,7 @@ class CapTargetsGenerator:
             # Targets match the original input
             targets[i] = 0 if char.islower() else 1
             # Maybe transform case of input char
-            val = self._rng.random()
+            val = rng.random()
             if lowercase_all or val < self._prob_char_lower:
                 # Some rare chars, e.g., 'İ', convert to 2 chars when lower-cased; take index 0 just in case
                 # TODO does this properly handle those characters? Does it matter?
@@ -577,6 +621,53 @@ class TarredPunctCapSegDataset(PunctCapSegDataset):
 
     def __getitem__(self, index):
         pass
+
+
+class YamlPunctCapSegDataset(PunctCapSegDataset):
+
+    def __init__(
+            self,
+            yaml_file: str
+    ):
+        """
+        TODO define yaml structure in dataclass
+        """
+        self._cfg = OmegaConf.load(yaml_file)
+        super().__init__(
+            language=self._cfg.language,
+            is_continuous=self._cfg.is_continuous,
+            tokenizer=None,
+            target_pad_value=self._cfg.target_pad_value
+        )
+
+    @classmethod
+    def from_text_dataset(cls, text_dataset: 'TextPunctCapSegDataset'):
+        entries: List[YamlDatasetEntry] = []
+        for item in iter(text_dataset):
+            pass
+        cfg: YamlDatasetConfig = YamlDatasetConfig(
+            entries=entries,
+            language="",
+            is_continuous=False,
+            target_pad_value=-100
+        )
+
+    def __len__(self):
+        return len(self._cfg.data)
+
+    def __getitem__(self, index):
+        entry = self._cfg.data[index]
+        punct_input_tensor = torch.tensor(entry.punct_input_ids, dtype=torch.long)
+        cap_input_tensor = torch.tensor(entry.cap_input_ids, dtype=torch.long)
+        seg_input_tensor = torch.tensor(entry.seg_input_ids, dtype=torch.long)
+        punct_pre_targets_tensor = torch.tensor(entry.punct_pre_target_ids, dtype=torch.long)
+        punct_post_targets_tensor = torch.tensor(entry.punct_post_target_ids, dtype=torch.long)
+        cap_targets_tensor = torch.tensor(entry.cap_target_ids, dtype=torch.long)
+        seg_targets_tensor = torch.tensor(entry.seg_target_ids, dtype=torch.long)
+        return (
+            punct_input_tensor, cap_input_tensor, seg_input_tensor,
+            punct_pre_targets_tensor, punct_post_targets_tensor, cap_targets_tensor, seg_targets_tensor
+        )
 
 
 class TextPunctCapSegDataset(PunctCapSegDataset):
@@ -618,7 +709,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         unused_punctuation: List of legitimate punctuation characters that are not used as targets. Useful when dropping
             examples that do not end in punctuation, but we are omitting some punctuation labels (e.g., '!') so that we
             retain input sentences with this token and let the model see it.
-        rng_seed: Seed for the PRNG.
+        rng_seed: Seed for the PRNG. For training, keep at None to prevent the data loader works from using the same
+            extra indices each step.
     """
     def __init__(
             self,
@@ -633,6 +725,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             max_length: int = 512,
             prob_drop_punct: float = 0.9,
             prob_lower_case: float = 0.9,
+            min_lines_per_eg: int = 1,
             max_lines_per_eg: int = 4,
             prob_truncate: float = 0.2,
             truncate_max_tokens: int = 5,
@@ -647,7 +740,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             min_input_length_chars: int = None,
             max_lines_per_input_file: Optional[int] = None,
             unused_punctuation: Optional[List[str]] = None,
-            rng_seed: int = 12345
+            rng_seed: Optional[int] = None
     ):
         super().__init__(
             language=language,
@@ -665,6 +758,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._prob_drop_punct = prob_drop_punct
         self._prob_lower_case = prob_lower_case
         self._max_lines_per_eg = max_lines_per_eg
+        self._min_lines_per_eg = min_lines_per_eg
         self._prob_truncate = prob_truncate
         self._truncate_max_tokens = truncate_max_tokens
         self._truncate_percentage = truncate_percentage
@@ -676,8 +770,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         self._max_input_length_chars = max_input_length_chars
         self._min_input_length_chars = min_input_length_chars
         self._max_line_per_input_file = max_lines_per_input_file
+
         self._rng_seed = rng_seed
-        self._rng = np.random.default_rng(seed=self._rng_seed)
+        self._rng = np.random.default_rng(seed=self._rng_seed) if self._rng_seed is not None else None
         self._unused_punctuation = unused_punctuation if unused_punctuation is not None else []
 
         if self._max_lines_per_eg < 2:
@@ -689,7 +784,8 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             lang_code=self._language,
             pre_labels=self._punct_pre_labels,
             post_labels=self._punct_post_labels,
-            p_drop=self._prob_drop_punct
+            p_drop=self._prob_drop_punct,
+            rng_seed=self._rng_seed
         )
 
         self._cap_targets_gen: CapTargetsGenerator = CapTargetsGenerator()
@@ -700,7 +796,11 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         )
 
     def reseed_rng(self):
-        self._rng = np.random.default_rng(seed=self._rng_seed)
+        worker_info = torch.utils.data.get_worker_info()
+        seed = self._rng_seed
+        if worker_info is not None:
+            seed = worker_info.id + (seed if seed is not None else 0)
+        self._rng = np.random.default_rng(seed=seed) if seed is not None else None
         self._punct_targets_gen.reseed_rng()
         self._cap_targets_gen.reseed_rng()
 
@@ -715,8 +815,12 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         data: List[str] = []
         for text_file in text_files:
             with open(text_file) as f:
+                num_lines_from_file = 0
                 for i, line in enumerate(f):
-                    if self._max_line_per_input_file is not None and i > self._max_line_per_input_file:
+                    if (
+                            self._max_line_per_input_file is not None and
+                            num_lines_from_file >= self._max_line_per_input_file
+                    ):
                         break
                     line = line.strip()
                     if self._cleaners is not None:
@@ -752,7 +856,12 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                     if self._drop_if_all_caps and line.isupper():
                         continue
                     data.append(line)
-            print(f"Dataset for '{self.language}' collected {len(data)} lines from '{text_file}'")
+                    num_lines_from_file += 1
+            print(f"Dataset for '{self.language}' collected {num_lines_from_file} lines from '{text_file}'")
+        print(
+            f"Dataset for '{self.language}' collected {len(data)} lines from {len(text_files)} "
+            f"file{'s' if len(text_files) > 1 else ''}."
+        )
         return data
 
     def _verify_punct_labels_in_vocab(self):
@@ -766,15 +875,16 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         return len(self._data)
 
     def __getitem__(self, idx):
+        rng = self._rng if self._rng is not None else np.random.default_rng()
         # Each sequence starts with BOS and targets ignore first index
         bos = self._tokenizer.bos_id
         eos = self._tokenizer.eos_id
         pad = self._target_pad_value
 
         # Randomly choose how many additional lines to use
-        num_lines_to_concat = self._rng.integers(0, self._max_lines_per_eg)
+        num_lines_to_concat = rng.integers(self._min_lines_per_eg - 1, self._max_lines_per_eg)
         # Randomly select additional indices to use
-        indices_to_use = [idx] + list(self._rng.integers(0, len(self), num_lines_to_concat))
+        indices_to_use = [idx] + list(rng.integers(0, len(self), num_lines_to_concat))
         texts_to_use: List[str] = [self._data[x] for x in indices_to_use]
         # Concat all texts
         full_text = ("" if self._is_continuous else " ").join(texts_to_use)
@@ -788,7 +898,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         cap_targets = [pad] + cap_targets + [pad]
 
         # For segmentation and punctuation, we use lower-case text for most examples
-        if self._rng.random() < self._prob_lower_case:
+        if rng.random() < self._prob_lower_case:
             full_text = full_text.lower()
 
         # Make punctuation targets
@@ -810,7 +920,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         seg_targets: List[int] = []
         for i, text in enumerate(texts_to_use):
             # For segmentation and punctuation, we use lower-case text for most examples
-            if self._rng.random() < self._prob_lower_case:
+            if rng.random() < self._prob_lower_case:
                 text = text.lower()
             if self._is_continuous and i > 0:
                 # For continuous languages, if we're concatenating this sentence, hide the information that implies
@@ -830,13 +940,13 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         seg_targets = [pad] + seg_targets + [pad]
 
         # Maybe truncate punctuation example to avoid learning to always predict punctuation at the end of a sequence
-        if self._truncate_max_tokens > 0 and self._rng.random() < self._truncate_percentage:
+        if self._truncate_max_tokens > 0 and rng.random() < self._truncate_percentage:
             # Always leave at least two tokens: BOS and the first true token in the sequence
             max_truncate = min(self._truncate_max_tokens, len(punct_input_ids) - 2)
             # Always truncate at least two tokens. If we truncate one, it will be the punctuation after a complete
             # sentence (and the opposite of what we want).
             if max_truncate > 1:
-                truncate_num_tokens = self._rng.integers(low=2, high=max_truncate)
+                truncate_num_tokens = rng.integers(low=2, high=max_truncate)
                 punct_input_ids = punct_input_ids[:-truncate_num_tokens]
                 punct_pre_targets = punct_pre_targets[:-truncate_num_tokens]
                 punct_post_targets = punct_post_targets[:-truncate_num_tokens]
