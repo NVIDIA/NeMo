@@ -34,3 +34,11 @@ accuracy:
     beam_width: 1
     sampling_top_k: 1
     sampling_top_p: 0
+
+benchmark:
+  tensor_model_parallel_size: 8
+  pipeline_model_parallel_size: 1
+  input_len: 60
+  output_len: 20
+  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  triton_wait_time: 300

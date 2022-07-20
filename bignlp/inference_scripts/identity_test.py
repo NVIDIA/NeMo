@@ -54,8 +54,7 @@ def prepare_tensor(name, input):
     return t
 
 
-def send_requests(url, batch_size, input_start_ids, input_len, output_len, input_len_name, output_len_name, verbose, flags, request_parallelism=10):
-    model_name = "fastertransformer"
+def send_requests(model_name, url, batch_size, input_start_ids, input_len, output_len, input_len_name, output_len_name, verbose, flags, request_parallelism=10):
     with client_util.InferenceServerClient(url,
                                            concurrency=request_parallelism,
                                            verbose=verbose) as client:
@@ -137,6 +136,12 @@ def send_requests(url, batch_size, input_start_ids, input_len, output_len, input
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-n',
+                        '--name',
+                        type=str,
+                        required=False,
+                        default="fastertransformer",
+                        help='Name of the model')
     parser.add_argument('-v',
                         '--verbose',
                         action="store_true",
@@ -259,7 +264,7 @@ if __name__ == '__main__':
     # warm up
     if FLAGS.protocol == "http" and FLAGS.warm_up:
         print("[INFO] sending requests to warm up")
-        send_requests(FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
+        send_requests(FLAGS.name, FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
                       output_len, FLAGS.input_len_name, FLAGS.output_len_name,
                       FLAGS.verbose, FLAGS, request_parallelism=2)
     import time
@@ -270,7 +275,7 @@ if __name__ == '__main__':
     for i in range(FLAGS.num_runs):
         start_time = datetime.now()
         if FLAGS.protocol == "http":
-            send_requests(FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
+            send_requests(FLAGS.name, FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
                          output_len, FLAGS.input_len_name, FLAGS.output_len_name,
                          FLAGS.verbose, FLAGS, request_parallelism)
         stop_time = datetime.now()

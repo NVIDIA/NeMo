@@ -94,18 +94,21 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark(model_type,
-    model_size,
-    model_path,
-    bignlp_scripts_path,
-    container,
-    tensor_para_size,
-    pipeline_para_size,
-    input_len,
-    output_len,
-    batch_sizes,
-    triton_wait_time,
-    cluster_cfg):
+def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, model_path);
+
+    model_type = run_cfg.model_type
+    model_size = benchmark_cfg.model_size
+    model_train_name = run_cfg.model_train_name
+    triton_dir = f"{run_cfg.results_dir}/model_repo"
+
+    bignlp_scripts_path = pathlib.Path(cfg.bignlp_path)
+    container = benchmark_cfg.inference_container
+    tensor_para_size = benchmark_cfg.tensor_model_parallel_size
+    pipeline_para_size = benchmark_cfg.pipeline_model_parallel_size
+    input_len = benchmark_cfg.input_len
+    output_len = benchmark_cfg.output_len
+    batch_sizes = benchmark_cfg.batch_sizes
+    triton_wait_time = benchmark_cfg.triton_wait_time
 
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
     task_name = f"inference_benchmark_{model_type}_{model_size}_tp{tensor_para_size}_pp{pipeline_para_size}"
@@ -130,7 +133,7 @@ def run_benchmark(model_type,
     account = cluster_cfg.get("account")
     time_limit = cluster_cfg.get("time_limit")
     exclusive = cluster_cfg.get("exclusive")
-    job_name_prefix = "joc-bignlp_inference:"
+    job_name_prefix = cluster_cfg.get("joc_name_prefix")
     job_name = job_name_prefix + task_name
     nodes = pipeline_para_size
     ntasks_per_node = 1
@@ -152,18 +155,18 @@ def run_benchmark(model_type,
     new_script_path = os.path.join(logs_dir, f"{task_name}.sh")
 
     # Check if model path exists
-    if model_path is None:
-        model_path = f"{triton_path}/1/8-gpu"
-        os.makedirs(model_path, exist_ok=True)
+    # if model_path is None:
+    #     model_path = f"{triton_path}/1/8-gpu"
+    #     os.makedirs(model_path, exist_ok=True)
 
-        model_config = f"{bignlp_scripts_path}/bignlp/inference_scripts/model_config/{model_type}/config_{model_size}.ini"
-        shutil.copyfile(model_config, f"{model_path}/config.ini")
+        # model_config = f"{bignlp_scripts_path}/bignlp/inference_scripts/model_config/{model_type}/config_{model_size}.ini"
+        # shutil.copyfile(model_config, f"{model_path}/config.ini")
 
     # Generate triton configuration
-    triton_template_config = f"{bignlp_scripts_path}/bignlp/inference_scripts/triton_config/{model_type}/config.pbtxt"
-    triton_config = f"{triton_path}/config.pbtxt" 
-    shutil.copyfile(triton_template_config, triton_config)
-    append_triton_parameters(triton_config, tensor_para_size, pipeline_para_size, "fp16", 0, model_type, model_path)
+    # triton_template_config = f"{bignlp_scripts_path}/bignlp/inference_scripts/triton_config/{model_type}/config.pbtxt"
+    # triton_config = f"{triton_path}/config.pbtxt"
+    # shutil.copyfile(triton_template_config, triton_config)
+    # append_triton_parameters(triton_config, tensor_para_size, pipeline_para_size, "fp16", 0, model_type, model_path)
 
     # Start Triton Server
     gpus = ','.join([str(i) for i in range(0, tensor_para_size)])
@@ -173,11 +176,12 @@ def run_benchmark(model_type,
 
     triton_cmd = conditional_if_cmd + (f" CUDA_VISIBLE_DEVICES={gpus} \\\n"
         "/opt/tritonserver/bin/tritonserver \\\n" 
-        f"--model-repository={results_dir}/triton & \\\n"
+        f"--model-repository={triton_dir} & \\\n"
     )
 
     benchmark_cmd = triton_cmd + (f"sleep {triton_wait_time} && \\\n"
         f"bash {benchmark_path} \\\n"
+        f"{model_train_name} \\\n"
         f"{results_dir} \\\n"
         f"{input_len} \\\n"
         f"{output_len} \\\n"
@@ -191,7 +195,7 @@ def run_benchmark(model_type,
 
     conditional_benchmark_cmd = benchmark_cmd + (f"else CUDA_VISIBLE_DEVICES={gpus} \\\n"
         "/opt/tritonserver/bin/tritonserver \\\n"
-        f"--model-repository={results_dir}/triton; fi"
+        f"--model-repository={triton_dir}; fi"
     )
 
     # Set Slurm flags
@@ -220,6 +224,3 @@ def run_benchmark(model_type,
     )
 
     return new_script_path
-    # job_id = subprocess.check_output([f"sbatch --parsable {new_script_path}"], shell=True)
-    # job_id = job_id.decode("utf-8")
-    # print(f"Submitted Inference benchmark script with job id: {job_id}")
