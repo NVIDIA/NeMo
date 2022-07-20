@@ -122,7 +122,7 @@ def assign_frame_level_spk_vector(rttm_timestamps, round_digits, frame_per_sec, 
         return None
     else:
         sorted_speakers = sorted(list(set(speaker_list)))
-        total_fr_len = int(max(end_list) * (10 ** round_digits))
+        total_fr_len = int(max(end_list) * (10**round_digits))
         spk_num = max(len(sorted_speakers), min_spks)
         speaker_mapping_dict = {rttm_key: x_int for x_int, rttm_key in enumerate(sorted_speakers)}
         fr_level_target = torch.zeros(total_fr_len, spk_num)
@@ -211,7 +211,7 @@ class _AudioMSDDTrainDataset(Dataset):
         self.multiscale_args_dict = multiscale_args_dict
         self.multiscale_timestamp_dict = multiscale_timestamp_dict
         self.round_digits = 2
-        self.decim = 10 ** self.round_digits
+        self.decim = 10**self.round_digits
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
         self.max_spks = 2
@@ -487,7 +487,7 @@ class _AudioMSDDInferDataset(Dataset):
         self.emb_seq = emb_seq
         self.clus_label_dict = clus_label_dict
         self.round_digits = 2
-        self.decim = 10 ** self.round_digits
+        self.decim = 10**self.round_digits
         self.frame_per_sec = int(1 / window_stride)
         self.soft_label_thres = soft_label_thres
         self.pairwise_infer = pairwise_infer
