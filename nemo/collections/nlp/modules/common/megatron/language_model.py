@@ -156,7 +156,7 @@ class Pooler(MegatronModule):
         if self.sequence_parallel:
             hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
 
-        pooled = hidden_states[:, sequence_index, :]
+        pooled = hidden_states[sequence_index, :, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)
         return pooled
