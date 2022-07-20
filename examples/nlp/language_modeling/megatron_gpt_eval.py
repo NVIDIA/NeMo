@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prefix_tuning_model import PrefixTuningModel
 
 import torch
 from omegaconf import OmegaConf
@@ -196,7 +197,7 @@ class RequestDataSet(Dataset):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_inference")
 def main(cfg) -> None:
 
-    # trainer required for restoring model parallel models
+    # trainer required fqor restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
@@ -216,6 +217,19 @@ def main(cfg) -> None:
         # Now load prompt learning model with frozen gpt model base
         model = MegatronGPTPromptLearningModel.restore_from(
             restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
+        )
+    
+    elif cfg.get("prefix_tuned_model_file", None) is not None:
+        # Update frozen GPT model path in case it has changed
+        prefix_tuning_cfg = PrefixTuningModel.restore_from(
+            cfg.prefix_tuned_model_file, trainer=trainer, return_config=True
+        )
+        with open_dict(prefix_tuning_cfg):
+            prefix_tuning_cfg.language_model_path = cfg.gpt_model_file
+
+        # Now load prompt learning model with frozen gpt model base
+        model = PrefixTuningModel.restore_from(
+            restore_path=cfg.prefix_tuned_model_file, trainer=trainer, override_config_path=prefix_tuning_cfg
         )
 
     # Or load regular GPT model
@@ -279,6 +293,9 @@ def main(cfg) -> None:
 
     print("***************************")
     print(response)
+    with open(cfg.output_prefix + ".method1.txt", "w") as f:
+        for sent in response["sentences"]:
+            f.write(sent+ "\n")
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
@@ -295,6 +312,9 @@ def main(cfg) -> None:
 
     print("***************************")
     print(response)
+    with open(cfg.output_prefix + ".method2.txt", "w") as f:
+        for sent in response[0]["sentences"]:
+            f.write(sent+ "\n")
     print("***************************")
 
     # Third method of running text generation, use inference server

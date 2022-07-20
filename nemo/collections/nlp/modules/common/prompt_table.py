@@ -35,11 +35,13 @@ class VirtualPromptStyle(enum.Enum):
     P_TUNING = 'p-tuning'
     PROMPT_TUNING = 'prompt-tuning'
     INFERENCE = 'inference'
+    PREFIX_TUNING = 'prefix-tuning'
 
 
 class VirtualPromptSource(enum.Enum):
     PROMPT_TABLE = 'prompt_table'
     PROMPT_ENCODER = 'prompt_encoder'
+    NO_PROMPT = 'no_prompt'
 
 
 class VirtualPromptPlaceholderToken(enum.Enum):

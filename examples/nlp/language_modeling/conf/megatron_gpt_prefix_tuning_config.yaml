@@ -8,7 +8,7 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 20
+  max_epochs: 5
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
   val_check_interval: 1.0
@@ -41,7 +41,7 @@ exp_manager:
 model:
   seed: 1234
   nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
-  virtual_prompt_style: 'p-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
+  virtual_prompt_style: 'prefix-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   encoder_seq_length: 2048 
   tensor_model_parallel_size: 1 # intra-layer model parallelism
   pipeline_model_parallel_size: 1 # inter-layer model parallelism
@@ -49,7 +49,7 @@ model:
   micro_batch_size: 4
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: /home/adithyare/pretrained_models/megatron_gpt_345m.nemo # Path to the GPT language model .nemo file, always required
+  language_model_path: /home/adithyare/pretrained_models/megatron_gpt_125m/megatron_gpt.nemo # Path to the GPT language model .nemo file, always required
   existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ['rte'] # List of new tasknames to be prompt-tuned
 
