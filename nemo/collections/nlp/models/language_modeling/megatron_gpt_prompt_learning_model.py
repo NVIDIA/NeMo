@@ -112,7 +112,6 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         self.existing_tasks = list(self.cfg.get('existing_tasks', []))
         self.new_tasks = list(self.cfg.get('new_tasks', []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
-
         if self.pipeline_parallel:
             assert (
                 self.cfg.optim.sched.get("min_lr", 0.0) == 0.0
@@ -121,7 +120,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         # Load templates for assigning virtual prompt token positions
         self.load_task_templates(self.cfg.task_templates)
 
-        if self.frozen_model.model.pre_process:
+        if self.frozen_model.model.pre_process and self.virtual_prompt_style in  [VirtualPromptStyle.P_TUNING, VirtualPromptStyle.PROMPT_TUNING, VirtualPromptStyle.INFERENCE]:
             self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
 
             # Prompt table stores all task embeddings, p-tuning virtual prompts get added to the table after training
@@ -275,17 +274,19 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         """Freeze params of existing virtual prompts that should not be tuned further
         """
         # Only want new prompt tags to be tunable, leave existing prompt tags alone
-        for taskname in self.prompt_table.prompt_table.keys():
-            if taskname in set(self.new_tasks):
-                for params in self.prompt_table.prompt_table[taskname].parameters():
-                    params.requires_grad = True
-            else:
-                for params in self.prompt_table.prompt_table[taskname].parameters():
-                    params.requires_grad = False
+        if hasattr(self, 'prompt_table'): # TODO: (@adithyare) prompt tuning should ideally subclass fine-tuning to avoid these checks.
+            for taskname in self.prompt_table.prompt_table.keys():
+                if taskname in set(self.new_tasks):
+                    for params in self.prompt_table.prompt_table[taskname].parameters():
+                        params.requires_grad = True
+                else:
+                    for params in self.prompt_table.prompt_table[taskname].parameters():
+                        params.requires_grad = False
 
         # Make sure word embeddings are frozen
-        for params in self.word_embeddings.parameters():
-            params.requires_grad = False
+        if hasattr(self, 'word_embeddings'): # TODO: (@adithyare) prompt tuning should ideally subclass full-finetuning to avoid these checks.
+            for params in self.word_embeddings.parameters():
+                params.requires_grad = False
 
     def get_model_tasks(self):
         """
