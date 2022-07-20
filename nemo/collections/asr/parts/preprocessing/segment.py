@@ -184,6 +184,7 @@ class AudioSegment(object):
 
         Note that audio_file can be either the file path, or a file-like object.
         """
+        is_segmented = False
         try:
             with sf.SoundFile(audio_file, 'r') as f:
                 sample_rate = f.samplerate
@@ -197,6 +198,12 @@ class AudioSegment(object):
                     audio_start = random.randint(0, max_audio_start)
                     f.seek(audio_start)
                     samples = f.read(n_segments_at_original_sr, dtype='float32')
+                    is_segmented = True
+                elif n_segments_at_original_sr >= len(f):
+                    logging.warning(
+                        f"Number of segments is greater than the length of the audio file {audio_file}. This may lead to shape mismatch errors."
+                    )
+                    samples = f.read(dtype='float32')
                 else:
                     samples = f.read(dtype='float32')
             samples = samples.transpose()
@@ -205,7 +212,9 @@ class AudioSegment(object):
 
         samples = samples.transpose()
         features = cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
-        features._samples = features._samples[:n_segments]
+
+        if is_segmented:
+            features._samples = features._samples[:n_segments]
 
         return features
 
