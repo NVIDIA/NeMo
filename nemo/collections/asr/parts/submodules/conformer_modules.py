@@ -24,9 +24,20 @@ from nemo.collections.asr.parts.utils.activations import Swish
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
+from nemo.utils.precision_utils import is_bfloat16_available, get_current_precision
+from contextlib import nullcontext
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
+mhsa_ctx = nullcontext()
+if get_current_precision() is not None and get_current_precision() == torch.float16:
+    print("16 bit precision detected")
+    if is_bfloat16_available():
+        print("bfloat available")
+        mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.bfloat16)
+    else:
+        print("bfloat not available, using float32")
+        mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.float32)
 
 class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
@@ -105,7 +116,8 @@ class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
 
         x = self.norm_self_att(residual)
         if self.self_attention_model == 'rel_pos':
-            x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
+            with mhsa_ctx:
+                x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
