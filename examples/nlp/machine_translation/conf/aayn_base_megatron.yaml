@@ -1,6 +1,6 @@
 defaults:
-  - .@model.encoder: ../../language_modeling/megatron_model_base_config
-  - .@model.decoder: ../../language_modeling/megatron_model_base_config
+  - ../../language_modeling/conf@model.encoder: megatron_model_base_config
+  - ../../language_modeling/conf@model.decoder: megatron_model_base_config
 
 name: megatron_nmt
 restore_from_path: null # used when starting from a .nemo file
@@ -19,7 +19,6 @@ trainer:
   val_check_interval: 1000
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  benchmark: False
 
 exp_manager:
   explicit_log_dir: null
@@ -89,8 +88,8 @@ model:
   train_ds:
     src_file_name: null
     tgt_file_name: null
-    dataset_type: 'tarred' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
-    sampler: 'distributed' # Options ['distributed', 'megatron']. Note megatron samplers do not shuffle across epochs.
+    dataset_type: 'bin_memmap' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
+    sampler: 'megatron' # Options ['distributed', 'megatron']. Note megatron samplers do not shuffle across epochs.
     micro_batch_size: ${model.micro_batch_size}
     global_batch_size: ${model.global_batch_size}
     # config for preprocessing training data and creating a tarred datset automatically
