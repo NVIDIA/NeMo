@@ -293,9 +293,6 @@ def main(cfg) -> None:
 
     print("***************************")
     print(response)
-    with open(cfg.output_prefix + ".method1.txt", "w") as f:
-        for sent in response["sentences"]:
-            f.write(sent+ "\n")
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
@@ -309,12 +306,8 @@ def main(cfg) -> None:
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, request_dl)
-
     print("***************************")
     print(response)
-    with open(cfg.output_prefix + ".method2.txt", "w") as f:
-        for sent in response[0]["sentences"]:
-            f.write(sent+ "\n")
     print("***************************")
 
     # Third method of running text generation, use inference server
