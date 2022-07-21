@@ -14,9 +14,9 @@
 
 import re
 from typing import Any, Dict, Optional
-from omegaconf import OmegaConf, open_dict
 
 import torch
+from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
@@ -157,7 +157,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
         if not hasattr(self.cfg, 'encoder') or not hasattr(self.cfg, 'decoder'):
-            logging.warning('Could not find encoder or decoder in config. This is probably because of restoring an old checkpoint. Copying shared model configs to encoder and decoder configs.')
+            logging.warning(
+                'Could not find encoder or decoder in config. This is probably because of restoring an old checkpoint. Copying shared model configs to encoder and decoder configs.'
+            )
             # After the call below, self.cfg.encoder and self.cfg.decoder will be populated with the cfg.model configs from old checkpoints.
             self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
 
@@ -168,7 +170,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             embedding_init_method_std = self.cfg.encoder.init_method_std
         else:
             embedding_init_method_std = self.cfg.embedding_init_method_std
-        
+
         if not hasattr(self.cfg, 'embedding_dropout'):
             embedding_dropout = self.cfg.encoder.hidden_dropout
         else:

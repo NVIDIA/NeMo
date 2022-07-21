@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from omegaconf import OmegaConf, DictConfig
 import torch
+from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
@@ -76,7 +76,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self,
         encoder_cfg: DictConfig,
         decoder_cfg: DictConfig,
-        vocab_size: int, # TODO: This should eventually go inside encoder_cfg and decoder_cfg when separate enc/dec tokenizers are supported.
+        vocab_size: int,  # TODO: This should eventually go inside encoder_cfg and decoder_cfg when separate enc/dec tokenizers are supported.
         max_position_embeddings,
         num_tokentypes=0,
         parallel_output=True,
@@ -153,7 +153,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 persist_layer_norm=encoder_cfg.get('persist_layer_norm', True),
                 openai_gelu=encoder_cfg.get('openai_gelu', False),
                 onnx_safe=encoder_cfg.get('onnx_safe', False),
-                hidden_steps=encoder_cfg.get('hidden_steps', -1), 
+                hidden_steps=encoder_cfg.get('hidden_steps', -1),
                 activation=encoder_cfg.get('activation', 'gelu'),
                 bias=encoder_cfg.get('bias', True),
                 normalization=encoder_cfg.get('normalization', 'layernorm'),
@@ -218,7 +218,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 persist_layer_norm=decoder_cfg.get('persist_layer_norm', True),
                 openai_gelu=decoder_cfg.get('openai_gelu', False),
                 onnx_safe=decoder_cfg.get('onnx_safe', False),
-                hidden_steps=decoder_cfg.get('hidden_steps', -1), 
+                hidden_steps=decoder_cfg.get('hidden_steps', -1),
                 activation=decoder_cfg.get('activation', 'gelu'),
                 bias=decoder_cfg.get('bias', True),
                 normalization=decoder_cfg.get('normalization', 'layernorm'),
@@ -233,7 +233,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self._enc_dec_model_key = "enc_dec_model"
 
         self.initialize_word_embeddings(
-            init_method=init_method_normal(embedding_init_method_std), vocab_size=vocab_size, hidden_size=encoder_cfg.hidden_size
+            init_method=init_method_normal(embedding_init_method_std),
+            vocab_size=vocab_size,
+            hidden_size=encoder_cfg.hidden_size,
         )
 
         if add_decoder and post_process:
@@ -252,18 +254,28 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
     def _validate_enc_dec_hidden_size(self, encoder_cfg, decoder_cfg):
         if encoder_cfg.hidden_size != decoder_cfg.hidden_size:
-            raise ValueError(f"Encoder and decoder hidden_size must be equal, but got encoder: {encoder_cfg.hidden_size} and decoder: {decoder_cfg.hidden_size}")
+            raise ValueError(
+                f"Encoder and decoder hidden_size must be equal, but got encoder: {encoder_cfg.hidden_size} and decoder: {decoder_cfg.hidden_size}"
+            )
 
     # TODO: (sandeepsub) - this can be removed one we rebase to sequence parallel that contains the RPE refactor.
     def _validate_position_embedding_type(self, encoder_cfg, decoder_cfg):
-        if encoder_cfg.get('position_embedding_type', 'learned_absolute') != decoder_cfg.get('position_embedding_type', 'learned_absolute'):
-            raise ValueError(f"Encoder and decoder position_embedding_type must be the same, but got encoder: {encoder_cfg.position_embedding_type} and decoder: {decoder_cfg.position_embedding_type}")
-        
+        if encoder_cfg.get('position_embedding_type', 'learned_absolute') != decoder_cfg.get(
+            'position_embedding_type', 'learned_absolute'
+        ):
+            raise ValueError(
+                f"Encoder and decoder position_embedding_type must be the same, but got encoder: {encoder_cfg.position_embedding_type} and decoder: {decoder_cfg.position_embedding_type}"
+            )
+
         if encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
             if encoder_cfg.relative_attention_num_buckets != decoder_cfg.relative_attention_num_buckets:
-                raise ValueError(f"Encoder and decoder relative_attention_num_buckets must be equal, but got encoder: {encoder_cfg.relative_attention_num_buckets} and decoder: {decoder_cfg.relative_attention_num_buckets}")
+                raise ValueError(
+                    f"Encoder and decoder relative_attention_num_buckets must be equal, but got encoder: {encoder_cfg.relative_attention_num_buckets} and decoder: {decoder_cfg.relative_attention_num_buckets}"
+                )
             if encoder_cfg.relative_attention_max_distance != decoder_cfg.relative_attention_max_distance:
-                raise ValueError(f"Encoder and decoder relative_attention_max_distance must be equal, but got encoder: {encoder_cfg.relative_attention_max_distance} and decoder: {decoder_cfg.relative_attention_max_distance}")
+                raise ValueError(
+                    f"Encoder and decoder relative_attention_max_distance must be equal, but got encoder: {encoder_cfg.relative_attention_max_distance} and decoder: {decoder_cfg.relative_attention_max_distance}"
+                )
 
     def _validate_config(self):
         encoder_kv_channels = self._validate_kv_channels(self.encoder_cfg)
@@ -271,7 +283,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self._validate_enc_dec_hidden_size(self.encoder_cfg, self.decoder_cfg)
         self._validate_position_embedding_type(self.encoder_cfg, self.decoder_cfg)
         return encoder_kv_channels, decoder_kv_channels
-        
+
     def set_input_tensor(self, input_tensor):
         """ See megatron.model.transformer.set_input_tensor()"""
         # This is usually handled in schedules.py but some inference code still
