@@ -1867,13 +1867,13 @@ class ParallelTransformer(MegatronModule):
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                     )
 
+        output = hidden_states
         # Final layer norm.
         if self.post_process:
             # only apply the final_layernorm for pre-ln
             if self.transformer_block_type != 'post_ln':
                 output = self.final_layernorm(hidden_states)
-        else:
-            output = hidden_states
+
         if get_key_value:
             output = [output, presents]
 
