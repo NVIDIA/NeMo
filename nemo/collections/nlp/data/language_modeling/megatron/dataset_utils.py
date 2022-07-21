@@ -528,12 +528,14 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
     return tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np
 
+
 def make_text_memmap_bin_compatibility(text_memmap_ds):
     """Make a TextMemMapDataset compatible with binary memmap."""
     text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds), dtype=np.int64)
     text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
 
     return text_memmap_ds
+
 
 def build_train_valid_test_datasets(
     cfg,

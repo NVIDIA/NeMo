@@ -213,6 +213,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         else:
             self.samples_mapping = None
 
+
 class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates on raw text files and tokenizes the text on-the-fly."""
 

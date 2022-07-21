@@ -40,7 +40,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
 )
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset, CSVMemMapDataset
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import CSVMemMapDataset, TextMemMapDataset
 from nemo.utils import logging
 
 

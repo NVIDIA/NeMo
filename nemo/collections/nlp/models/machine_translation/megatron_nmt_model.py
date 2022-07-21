@@ -23,7 +23,6 @@ from omegaconf.listconfig import ListConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from sacrebleu import corpus_bleu
 
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
     TextMemmapSequenceToSequenceDataset,
@@ -38,6 +37,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
@@ -179,8 +179,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if hasattr(self.cfg, "data"):
             if hasattr(self.cfg.data, "dataset_type"):
                 # This happens only when restoring a pre-trained model. We need to add all of the special tokens that were added while pre-training to avoid a checkpoint shape mismatch while restoring.
-                MegatronT5Model.add_special_tokens_to_tokenizer(self.encoder_tokenizer, self.cfg.encoder_tokenizer, self.cfg.data.dataset_type)
-                MegatronT5Model.add_special_tokens_to_tokenizer(self.decoder_tokenizer, self.cfg.decoder_tokenizer, self.cfg.data.dataset_type)
+                MegatronT5Model.add_special_tokens_to_tokenizer(
+                    self.encoder_tokenizer, self.cfg.encoder_tokenizer, self.cfg.data.dataset_type
+                )
+                MegatronT5Model.add_special_tokens_to_tokenizer(
+                    self.decoder_tokenizer, self.cfg.decoder_tokenizer, self.cfg.data.dataset_type
+                )
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.encoder_tokenizer.vocab_size,
             make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
