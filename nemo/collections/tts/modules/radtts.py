@@ -23,11 +23,11 @@ from nemo.collections.tts.modules.attribute_prediction_model import get_attribut
 from nemo.collections.tts.modules.common import (
     AffineTransformationLayer,
     ConvAttention,
-    Encoder,
     ExponentialClass,
     Invertible1x1Conv,
     Invertible1x1ConvLUS,
     LinearNorm,
+    RadTTSEncoder,
     get_mask_from_lengths,
 )
 from nemo.core.classes import Exportable, NeuralModule
@@ -65,7 +65,6 @@ def pad_energy_avg_and_f0(energy_avg, f0, out_lens):
     return energy_avg, f0
 
 
-@torch.jit.script
 def adjust_f0(f0, f0_mean, f0_std, vmask_bool):
     if f0_mean > 0.0:
         f0_mu, f0_sigma = f0[vmask_bool].mean(), f0[vmask_bool].std()
@@ -173,7 +172,7 @@ class RadTTSModule(NeuralModule, Exportable):
         self.speaker_embedding = torch.nn.Embedding(n_speakers, self.n_speaker_dim)
         self.embedding = torch.nn.Embedding(n_text, n_text_dim)
         self.flows = torch.nn.ModuleList()
-        self.encoder = Encoder(
+        self.encoder = RadTTSEncoder(
             encoder_embedding_dim=n_text_dim, norm_fn=nn.InstanceNorm1d, lstm_norm_fn=text_encoder_lstm_norm
         )
         self.dummy_speaker_embedding = dummy_speaker_embedding

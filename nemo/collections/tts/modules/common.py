@@ -176,8 +176,8 @@ class ConvLSTMLinear(nn.Module):
         return x_hat
 
 
-class Encoder(nn.Module):
-    """Encoder module:
+class RadTTSEncoder(nn.Module):
+    """RadTTSEncoder module:
         - Three 1-d convolution banks
         - Bidirectional LSTM
     """
@@ -190,7 +190,7 @@ class Encoder(nn.Module):
         norm_fn=nn.BatchNorm1d,
         lstm_norm_fn=None,
     ):
-        super(Encoder, self).__init__()
+        super(RadTTSEncoder, self).__init__()
 
         convolutions = []
         for _ in range(encoder_n_convolutions):

@@ -68,7 +68,7 @@ model:
       sample_rate: ${sample_rate}
       sup_data_path: ${sup_data_path}
       sup_data_types: ${sup_data_types}
-      n_fft: ${n_fft} #hmmmmmmmm
+      n_fft: ${n_fft} 
       win_length: ${n_window_size}
       hop_length: ${n_window_stride}
       window: ${window}
@@ -163,8 +163,8 @@ model:
     sched:
       name: exp_decay
       warmup_steps: 40000
-      last_epoch: -1 #dddddddddddddddddddddd
-      d_model: 1  # Disable scaling based on model dim #ddddddddddddd
+      last_epoch: -1 
+      d_model: 1  # Disable scaling based on model dim 
   trainerConfig:
     sigma: 1
     iters_per_checkpoint: 3000
