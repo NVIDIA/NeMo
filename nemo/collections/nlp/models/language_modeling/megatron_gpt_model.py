@@ -114,6 +114,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         else:
             raise ValueError('precision must be in [32, 16, "bf16"]')
 
+        self.transformer_engine = cfg.get('transformer_engine', False)
+
         # configuration used for inference
         self._inference_config = None
 
@@ -345,7 +347,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """
         grads = []
         for param in self.model.parameters():
-            if getattr(param, 'sequence_parallel_enabled', False):
+            if getattr(self, 'transformer_engine', False):
+                sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            else:
+                sequence_parallel_param = getattr(param, 'sequence_parallel_enabled', False)
+            if sequence_parallel_param:
                 if self.megatron_amp_o2:
                     grad = param.main_grad
                 else:
