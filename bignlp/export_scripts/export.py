@@ -14,6 +14,7 @@
 import math
 import os
 import pathlib
+import shutil
 import subprocess
 import typing
 
@@ -335,6 +336,7 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     return [
         (
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
+            + f"rm -rf {triton_model_dir} && \\\n"  # to not mix old and newly generated FT checkpoint files
             + f"{convert_cmd} && \\\n"
             + triton_prepare_model_config_cmd
         )
@@ -378,6 +380,7 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     return [
         (
             f"export PYTHONPATH={FT_PATH}:${{PYTHONPATH}} && \\\n"
+            + f"rm -rf {triton_model_dir} && \\\n"  # to not mix old and newly generated FT checkpoint files
             + f"{convert_cmd} && \\\n"
             + triton_prepare_model_config_cmd
         )
