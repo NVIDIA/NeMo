@@ -801,7 +801,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self, window: float, shift: float, _speaker_dir: str, _speaker_manifest_path: str, scale_tag: str = ''
     ):
 
-        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}.json')
+        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json')
         logging.info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
         )
