@@ -176,6 +176,20 @@ Usage:
 
         Similarly for other senarios, just add virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE if you're using a 
         p-tuned/prompt-tuned model. 
+
+        g. Run Greedy Inference from a prefix tuned nemo model:
+        Note: before you can run inference from a prefix tuned model you must first train it. The training script is `examples/nlp/language_modeling/megatron_gpt_prefix_tuning.py`:
+
+        python megatron_gpt_eval.py \
+            prefix_tuned_model_file=<PATH_.nemo_FILE_GENERATED_AT_END_OF_TRAINING> \
+            gpt_model_file=<PATH_TO_.nemo_FILE_WITH_PRETRAINED_GPT_MODEL> \
+            inference.greedy=True \
+            inference.add_BOS=False \
+            trainer.devices=1 \
+            trainer.num_nodes=1 \
+            tensor_model_parallel_size=1 \
+            pipeline_model_parallel_size=1 \
+            prompts=["<PATH_TO_.jsonl_FILE_TO_EVALUATE>"]
 """
 
 if not torch.cuda.is_available():
