@@ -320,6 +320,7 @@ class GPTPromptLearningDataset(Dataset):
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
+        
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
