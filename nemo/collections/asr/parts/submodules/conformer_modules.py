@@ -31,12 +31,9 @@ __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
 mhsa_ctx = nullcontext()
 if get_current_precision() is not None and get_current_precision() == torch.float16:
-    print("16 bit precision detected")
     if is_bfloat16_available():
-        print("bfloat available")
         mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.bfloat16)
     else:
-        print("bfloat not available, using float32")
         mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.float32)
 
 class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
