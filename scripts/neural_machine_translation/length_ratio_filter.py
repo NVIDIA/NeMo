@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,38 +21,28 @@ import warnings
 from pathlib import Path
 from time import sleep
 
-import fasttext
 from tqdm import tqdm
 
 """
 Usage:
-python filter_langs_nmt.py --input-src train.en \
+python length_ratio_filter.py --input-src train.en \
     --input-tgt train.de \
     --output-src train_lang_filtered.en \
     --output-tgt train_lang_filtered.de \
-    --source-lang en \
-    --target-lang de \
-    --removed-src train_garbage.en \
-    --removed-tgt train_garbage.de \
-    --fasttext-model lid.176.bin
+    --removed-src train_removed.en \
+    --removed-tgt train_removed.de \
+    --min_length 1 \
+    --max_length 512 \
+    --ratio 1.3
 """
 
-
 logging.basicConfig(level=logging.INFO)
-# temp fix for the warning: "Warning : 'load_model' does not return WordVectorModel or SupervisedModel any more, but a 'FastText' object which is very similar."
-fasttext.FastText.eprint = lambda x: None
 
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description="It is a script for verifying language in machine translation data sets. If the script is used on "
-        "a parallel corpus, it verifies both a source and a target language. If number of jobs `--num-jobs` is bigger "
-        "than 1 than lines in an input file (or files if parallel corpus is checked) split equally between workers. "
-        "If `num_jobs > 1` is used, the best performance is achieved if dataset is shuffled and lines with different "
-        "lengths are distributed evenly in the input file. Filtered data is stored into `output_src`[, `--output-tgt`]"
-        " and removed lines are put into `removed_src`[, `--removed-tgt`] files. If language cannot be detected "
-        "(e.g. date), the line is removed. Working time on en-de wikimatrix (6.23M pairs: 700 MB German and 625 MB "
-        "English) from wmt20 on machine with 20 CPU cores: less than 1 minute."
+        description="""A multi-processed script for filtering a parallel corpus to remove sentences that are less than a minimum length
+        or longer than a maximum length. Also filters based on the length ratio between source and target sentences"""
     )
     parser.add_argument(
         "--input-src",
@@ -79,17 +69,6 @@ def get_args():
         "--output-tgt", "-T", help="Path to the output target file", type=Path,
     )
     parser.add_argument(
-        "--source-lang",
-        "-l",
-        required=True,
-        help="Input language. For options see https://fasttext.cc/docs/en/language-identification.html.",
-    )
-    parser.add_argument(
-        "--target-lang",
-        "-L",
-        help="Output language. For options see https://fasttext.cc/docs/en/language-identification.html.",
-    )
-    parser.add_argument(
         "--removed-src", "-r", required=True, help="Path to file where removed source lines will be saved", type=Path,
     )
     parser.add_argument(
@@ -102,29 +81,19 @@ def get_args():
         help="Number of jobs. By default, the number of jobs is equal to the number of CPU cores.",
     )
     parser.add_argument(
-        "--fasttext-model",
-        "-m",
-        help="Path to fasttext model. The description and download links are here "
-        "https://fasttext.cc/docs/en/language-identification.html",
-        type=Path,
+        "--min-length", "-m", type=int, default=1, help="Minimum sequence length (after .split())",
+    )
+    parser.add_argument(
+        "--max-length", "-M", type=int, default=512, help="Maximum sequence length (after .split())",
+    )
+    parser.add_argument(
+        "--ratio",
+        "-z",
+        type=float,
+        default=1.3,
+        help="Ratio of the length of the source sentence to the length of the target sentence.",
     )
     args = parser.parse_args()
-    if not (
-        args.output_tgt is None
-        and args.input_tgt is None
-        and args.target_lang is None
-        and args.removed_tgt is None
-        or args.output_tgt is not None
-        and args.input_tgt is not None
-        and args.target_lang is not None
-        and args.removed_tgt is not None
-    ):
-        raise ValueError(
-            f"Arguments `input_tgt`, `output_tgt`, `target_lang`, `removed_tgt` have to be either `None` "
-            f"simultaneously or not `None` simultaneously. Given "
-            f"input_tgt={args.input_tgt}, output_tgt={args.output_tgt}, target_lang={args.target_lang}, "
-            f"removed_tgt={args.removed_tgt}"
-        )
     args.input_src = args.input_src.expanduser()
     if args.input_tgt is not None:
         args.input_tgt = args.input_tgt.expanduser()
@@ -134,14 +103,7 @@ def get_args():
     args.removed_src = args.removed_src.expanduser()
     if args.removed_tgt is not None:
         args.removed_tgt = args.removed_tgt.expanduser()
-    args.fasttext_model = args.fasttext_model.expanduser()
     return args
-
-
-def get_lang(line, fasttext_model):
-    labels, _ = fasttext_model.predict(line, k=1)
-    lang = labels[0].split('__')[-1]
-    return lang
 
 
 def get_edges_in_1_file(fn, num_parts):
@@ -168,7 +130,6 @@ def get_edges_and_num_lines(src_fn, tgt_fn, num_parts):
                 f"Source {repr(src_fn)} and target {repr(tgt_fn)} files have different number of lines "
                 f"{src_num_lines} and {tgt_num_lines} correspondingly."
             )
-
     else:
         tgt_edges = [None] * num_parts
     assert len(src_edges) == num_parts
@@ -184,13 +145,12 @@ def filter_pairs(
     filtered_dir_tgt,
     removed_dir_src,
     removed_dir_tgt,
-    source_lang,
-    target_lang,
-    fasttext_model,
+    min_length,
+    max_length,
+    length_ratio,
     rank,
 ):
     global counter
-    fasttext_model = fasttext.load_model(str(fasttext_model))
     output_src = filtered_dir_src / Path(f"rank{rank}")
     output_src_removed = removed_dir_src / Path(f"rank{rank}")
     output_tgt = filtered_dir_tgt / Path(f"rank{rank}")
@@ -208,12 +168,18 @@ def filter_pairs(
                 counter.value += 1
             src_l = src_l.strip()
             tgt_l = tgt_l.strip()
-            src_lang = get_lang(src_l, fasttext_model)
-            if src_lang is not None:
-                tgt_lang = get_lang(tgt_l, fasttext_model)
-            if src_lang is None or tgt_lang is None or src_lang != source_lang or tgt_lang != target_lang:
-                out_r_src.write(src_l + '\n')
-                out_r_tgt.write(tgt_l + '\n')
+            src_l_len = len(src_l.split())
+            tgt_l_len = len(tgt_l.split())
+            # Length filtering
+            if (src_l_len < min_length or src_l_len > max_length) or (
+                tgt_l_len < min_length or tgt_l_len > max_length
+            ):
+                out_r_src.write(src_l + "\n")
+                out_r_tgt.write(tgt_l + "\n")
+            # Ratio filtering
+            elif src_l_len / tgt_l_len > length_ratio or tgt_l_len / src_l_len > length_ratio:
+                out_r_src.write(src_l + "\n")
+                out_r_tgt.write(tgt_l + "\n")
             else:
                 out_src.write(src_l + '\n')
                 out_tgt.write(tgt_l + '\n')
@@ -236,36 +202,7 @@ def filter_pairs(
             counter.value += 1
 
 
-def filter_singles(
-    src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
-):
-    logging.debug("filter singles")
-    global counter
-    fasttext_model = fasttext.load_model(str(fasttext_model))
-    output_src = filtered_dir_src / Path(f"rank{rank}")
-    output_src_removed = removed_dir_src / Path(f"rank{rank}")
-    with open(input_src) as in_f, open(output_src, 'w') as out_f, open(output_src_removed, 'w') as out_r_f:
-        in_f.seek(src_edges[0])
-        i, line = 0, in_f.readline()
-        if in_f.tell() > src_edges[1]:
-            return
-        while line:
-            with counter.get_lock():
-                counter.value += 1
-            line = line.strip()
-            in_lang = get_lang(line, fasttext_model)
-            if in_lang is None or in_lang != source_lang:
-                out_r_f.write(line + '\n')
-            else:
-                out_f.write(line + '\n')
-            if in_f.tell() >= src_edges[1]:
-                break
-            i, line = i + 1, in_f.readline()
-        with counter.get_lock():
-            counter.value += 1
-
-
-def filter_by_lang(args):
+def filter_by_length_and_ratio(args):
     (
         src_edges,
         tgt_edges,
@@ -275,33 +212,26 @@ def filter_by_lang(args):
         filtered_dir_tgt,
         removed_dir_src,
         removed_dir_tgt,
-        source_lang,
-        target_lang,
-        fasttext_model,
+        min_length,
+        max_length,
+        length_ratio,
         rank,
     ) = args
-    logging.debug(f"filter by lang input_tgt: {input_tgt}")
-    if input_tgt is None:
-        if tgt_edges is not None:
-            warnings.warn("If input target is not provided `tgt_edges` argument is expected to be `None`")
-        filter_singles(
-            src_edges, input_src, filtered_dir_src, removed_dir_src, source_lang, fasttext_model, rank,
-        )
-    else:
-        filter_pairs(
-            src_edges,
-            tgt_edges,
-            input_src,
-            input_tgt,
-            filtered_dir_src,
-            filtered_dir_tgt,
-            removed_dir_src,
-            removed_dir_tgt,
-            source_lang,
-            target_lang,
-            fasttext_model,
-            rank,
-        )
+    logging.debug(f"filter by args: {min_length}, {max_length}, {length_ratio}")
+    filter_pairs(
+        src_edges,
+        tgt_edges,
+        input_src,
+        input_tgt,
+        filtered_dir_src,
+        filtered_dir_tgt,
+        removed_dir_src,
+        removed_dir_tgt,
+        min_length,
+        max_length,
+        length_ratio,
+        rank,
+    )
 
 
 def _cat_results(out_file, tmp_dir):
@@ -365,10 +295,10 @@ def main():
     src_edges, tgt_edges, num_lines = get_edges_and_num_lines(args.input_src, args.input_tgt, num_jobs)
     global counter
     counter = mp.Value('i', 0)
-    t = tqdm(total=num_lines, desc="processed lines / total number of lines")
+    t = tqdm(total=num_lines, desc="Length Ratio Filtering")
     with mp.Pool(num_jobs, initializer=init, initargs=(counter,)) as pool:
         async_result = pool.map_async(
-            filter_by_lang,
+            filter_by_length_and_ratio,
             [
                 (
                     se,
@@ -379,9 +309,9 @@ def main():
                     tmp_filtered_tgt,
                     tmp_removed_src,
                     tmp_removed_tgt,
-                    args.source_lang,
-                    args.target_lang,
-                    args.fasttext_model,
+                    args.min_length,
+                    args.max_length,
+                    args.ratio,
                     rank,
                 )
                 for rank, (se, te) in enumerate(zip(src_edges, tgt_edges))
