@@ -1,6 +1,6 @@
 defaults:
-  - .@model.encoder: megatron_model_defaults
-  - .@model.decoder: megatron_model_defaults
+  - .@model.encoder: megatron_model_base_config
+  - .@model.decoder: megatron_model_base_config
 
 name: megatron_t5
 restore_from_path: null # used when starting from a .nemo file
