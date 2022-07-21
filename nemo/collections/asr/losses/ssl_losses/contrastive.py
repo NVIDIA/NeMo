@@ -62,6 +62,7 @@ class ContrastiveLoss(Loss):
         sample_from_codebook: bool = False,
         group_loss: bool = False,
         num_groups: int = 2,
+        combine_groups: bool = True,
         quantizer_temp_start: float = 2,
         quantizer_temp_min: float = 0.5,
         quantizer_temp_decay: float = 0.999995,
@@ -111,7 +112,7 @@ class ContrastiveLoss(Loss):
                 "num_vars": codebook_size,
                 "groups": num_groups,
                 "temp": quantizer_temp,
-                "combine_groups": True,
+                "combine_groups": combine_groups,
                 "time_first": True,
             }
             self.quantizer = ContrastiveLoss.from_config_dict(quantizer_cfg)
@@ -274,7 +275,7 @@ class ContrastiveLoss(Loss):
         batch_size = spectrograms.shape[0]
         loss *= self.multiplier / batch_size
 
-        return loss
+        return loss, targets
 
     def _calculate_similarity(self, logits, negatives, targets):
         neg_is_pos = (targets == negatives).all(-1)

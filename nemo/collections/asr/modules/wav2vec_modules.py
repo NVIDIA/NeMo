@@ -101,7 +101,6 @@ class ConvFeatureEncoder(NeuralModule):
         conv_bias: bool = False,
         feature_grad_mult=1.0,
         normalize_audio=True,
-        embedding_dim=768,
     ):
         super().__init__()
 
@@ -152,10 +151,7 @@ class ConvFeatureEncoder(NeuralModule):
 
         # Model Layers
         final_conv_dim = self.layer_cfg[-1]["emb_dim"]  # Select last conv output layer dimension
-        self.post_extract_proj = (  # To project feature encodings to transformer
-            nn.Linear(final_conv_dim, embedding_dim) if final_conv_dim != embedding_dim else None
-        )
-        self.layer_norm = nn.LayerNorm(embedding_dim)
+        self.layer_norm = nn.LayerNorm(final_conv_dim)
 
     def apply_layers(self, x):
         for conv in self.conv_layers:
@@ -187,14 +183,9 @@ class ConvFeatureEncoder(NeuralModule):
                 processed_signal = self.apply_layers(processed_signal)
 
         processed_signal = processed_signal.transpose(1, 2)  # B,T,C
-        # Project to embedding
-        if self.post_extract_proj is not None:
-            processed_signal = self.post_extract_proj(processed_signal)
 
         # Adding normalization for output
-        if self.mode == "layer_norm":
-            processed_signal = self.layer_norm(processed_signal)
-
+        processed_signal = self.layer_norm(processed_signal)
         processed_signal = processed_signal.transpose(1, 2)  # B,C,T
 
         # Feature lengths will have been changed through convolutions
@@ -245,8 +236,15 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 					hidden_act: Activation function for hidden layers
     """
 
-    def __init__(self, pos_embed: DictConfig, transformer: DictConfig, layer_drop: float = 0.0):
+    def __init__(
+        self, pos_embed: DictConfig, transformer: DictConfig, projection: DictConfig = None, layer_drop: float = 0.0
+    ):
         super().__init__(**transformer)  # see nlp.collections
+
+        # projection input for features
+        self.post_extract_proj = (  # To project feature encodings to transformer
+            nn.Linear(projection.input_dim, projection.output_dim) if projection else None
+        )
 
         # positional convolutional embeddings
         emb_dim = pos_embed.embedding_dim
@@ -304,6 +302,12 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
         }
 
     def forward(self, audio_signal, length):
+
+        # Project to embedding
+        if self.post_extract_proj is not None:
+            processed_signal = audio_signal.transpose(1, 2)  # B, C, T -> B, T, C
+            processed_signal = self.embedding_proj(processed_signal)
+            processed_signal = processed_signal.transpose(1, 2)  # B, T, C -> B, C, T
 
         # Padding mask needed for transformer
         padding_mask = self.create_padding_mask(length)

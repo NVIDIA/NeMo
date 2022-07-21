@@ -156,7 +156,6 @@ class GumbelVectorQuantizer(NeuralModule):
 
         _, k = x.max(-1)
         hard_x = x.new_zeros(*x.shape).scatter_(-1, k.view(-1, 1), 1.0).view(bsz * tsz, self.groups, -1)
-
         # Calculate quantize prob perplexity
         num_vars = self.num_vars * self.groups
         avg_probs = torch.softmax(x.view(bsz * tsz, self.groups, -1).float(), dim=-1).mean(dim=0)
@@ -167,7 +166,6 @@ class GumbelVectorQuantizer(NeuralModule):
             x = F.gumbel_softmax(x.float(), tau=self.curr_temp, hard=True).type_as(x)
         else:
             x = hard_x
-
         x = x.view(bsz * tsz, -1)
 
         vars = self.vars

@@ -40,11 +40,10 @@ model:
 
   preprocessor:
     _target_: nemo.collections.asr.modules.wav2vec_modules.ConvFeatureEncoder
-    extractor_mode: layer_norm # Mode for feature extractor. [group_norm, layer_norm]
+    extractor_mode: group_norm # Mode for feature extractor. [group_norm, layer_norm]
     conv_bias: False # Include bias in convolution feature extractor model
     feature_grad_mult: 1.0 # Multiply extracted feature gradients
     normalize_audio: true
-    embedding_dim: *emb_dim # projected final depth of feature embeddings
     conv_layers:
       - emb_dim: 512
         kernel_size: 10
@@ -78,6 +77,9 @@ model:
   encoder:
     _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecTransformerEncoder
     layer_drop: 0.05
+    projection: # To project preprocessor embeddings to desired dimension
+      input_dim: 512 # should be size of last convolution in preprocessor
+      output_dim: *emb_dim
     pos_embed: # Config for convolutional model that generates positional embeddings required for attention layer
       embedding_dim: *emb_dim
       conv_pos: 128 # Number of filters for convolutional positional embeddings
@@ -101,8 +103,9 @@ model:
 
   loss:
     _target_: nemo.collections.asr.losses.ContrastiveLoss
-    in_dim: *emb_dim
+    in_dim: 512 # should be size of last convolution in preprocessor
     proj_dim: *final_dim
+    combine_groups: false
     quantized_targets: true # should quantizer or linear layer be used
     sample_from_same_utterance_only: true # should negatives be sampled only from the same utterance
     sample_from_non_masked: false # should negatives be sampled from non-masked steps
