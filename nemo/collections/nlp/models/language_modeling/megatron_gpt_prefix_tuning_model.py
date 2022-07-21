@@ -16,7 +16,6 @@
 # This code has been adapted from the following private repo: https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/tree/prompt-learning/prefix_tuning_v2
 # Adapted by: @adithyare
 
-from tkinter.tix import Tree
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -69,9 +68,7 @@ class Prefix(MegatronModule):
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
-        self.prefix_layer_projection = ColumnLinear(
-            prefix_projection_size, num_layers * hidden_size * 2, bias=False, gather_output=False
-        )
+        self.prefix_layer_projection = ColumnLinear(prefix_projection_size, num_layers * hidden_size * 2)
         nn.init.normal_(self.prefix_embeddings.weight)
         nn.init.xavier_uniform_(self.prefix_projection.weight)
         nn.init.constant_(self.prefix_projection.bias, 0)
