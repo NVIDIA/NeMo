@@ -211,7 +211,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-
         # we prepare the micro batches for the apex fwd/bwd function
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
