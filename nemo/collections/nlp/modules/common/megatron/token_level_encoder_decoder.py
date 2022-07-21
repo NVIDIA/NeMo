@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
