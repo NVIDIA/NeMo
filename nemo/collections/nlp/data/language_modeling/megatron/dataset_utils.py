@@ -37,6 +37,8 @@ import time
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf, open_dict
+from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -565,6 +567,9 @@ def build_train_valid_test_datasets(
     # for VSC and text memmap we need to provide a tokenizer, if not given
     if data_impl in ["text_mmap", "csv_mmap"]:
         if "tokenizer" not in data_impl_kwargs:
+            if isinstance(data_impl_kwargs, DictConfig):
+                data_impl_kwargs = OmegaConf.to_object(data_impl_kwargs)
+
             data_impl_kwargs["tokenizer"] = tokenizer
 
     if len(data_prefix) == 1:
@@ -880,6 +885,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
+    make_text_memmap_bin_compatibility(indexed_dataset)
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
 
