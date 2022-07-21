@@ -88,6 +88,16 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                     words.append(written.casefold())
                     tags.append("<SELF>")
                     continue
+                # In TN leave abbreviations as is: e.g. "LETTERS     ATM     a t m"
+                if tn and cls == "LETTERS" and written.isalpha():
+                    words.append(written.casefold())
+                    tags.append("<SELF>")
+                    continue
+                # Leave plain orphovariants as is: e.g. PLAIN   popularised     popularized
+                if tn and cls == "PLAIN" and written.isalpha():
+                    words.append(written.casefold())
+                    tags.append("<SELF>")
+                    continue
                 src, dst, same_begin, same_end = get_src_and_dst_for_alignment(
                     cls.casefold(), written, spoken, args.lang
                 )
@@ -111,6 +121,9 @@ def process_file(inputname: str, out: TextIO, keys2replacements: Dict[str, str],
                                 tags.append("<SELF>")
                             else:
                                 tags.append(r)
+                        if tn and cls == "TELEPHONE":  # correct google corpus issue
+                            if r == "sil":
+                                tags.append("<DELETE>")
                         elif w == r.replace("_", ""):
                             tags.append("<SELF>")
                         else:
@@ -159,6 +172,16 @@ def process_file_tn_tokenizer(inputname: str, out: TextIO, keys2replacements: Di
                 if spoken == "sil":
                     continue
                 if spoken == "<self>":
+                    words.append(written.casefold())
+                    labels.append("SPACE")
+                    continue
+                # Leave abbreviations as is: e.g. "LETTERS     ATM     a t m"
+                if cls == "LETTERS" and written.isalpha():
+                    words.append(written.casefold())
+                    labels.append("SPACE")
+                    continue
+                # Leave plain orphovariants as is e.g. PLAIN   popularised     popularized
+                if cls == "PLAIN" and written.isalpha():
                     words.append(written.casefold())
                     labels.append("SPACE")
                     continue

@@ -137,6 +137,8 @@ def process_file(
                         references.add(written)  # there are cases in English corpus like colours/colors
                         reference_fragments.append(written)
                     else:
+                        if cls == "TELEPHONE":  # correct google corpus issue
+                            spoken = spoken.replace(" sil ", "")
                         reference_fragments.append(spoken)
                     semiotic_info.append(
                         cls

@@ -57,6 +57,8 @@ if __name__ == "__main__":
                     continue
                 if len(spoken.split(" ")) >= 100:
                     continue
+                if semiotic_class == "TELEPHONE":  # correct google corpus issue
+                    spoken = spoken.replace(" sil ", "")
 
                 src, dst = spoken, written
                 if args.tn_direction:
