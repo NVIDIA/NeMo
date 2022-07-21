@@ -1659,8 +1659,8 @@ class ParallelTransformer(MegatronModule):
                         encoder_output,
                         enc_dec_attn_mask,
                         rotary_pos_emb,
-                        position_bias,
-                        encoder_decoder_position_bias,
+                        position_bias=position_bias,
+                        encoder_decoder_position_bias=encoder_decoder_position_bias,
                         prefix_tuning_key_values=prefix_tuning_key_values[:, :, index, :, :, :]
                         if prefix_tuning_key_values is not None
                         else None,  # We're splitting up the prefix tuning representaiton per layer. @adithyare
