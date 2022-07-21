@@ -21,6 +21,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
     get_indexed_dataset_,
     get_samples_mapping,
+    make_text_memmap_bin_compatibility,
 )
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
 from nemo.core.classes import Dataset
@@ -211,12 +212,6 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
             )
         else:
             self.samples_mapping = None
-
-
-def make_text_memmap_bin_compatibility(text_memmap_ds):
-    """Make a TextMemMapDataset compatible with binary memmap."""
-    text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds), dtype=np.int64)
-    text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
 
 class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
     """Memory-mapped text sequence to sequence dataset. Operates on raw text files and tokenizes the text on-the-fly."""

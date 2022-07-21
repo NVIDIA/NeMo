@@ -528,6 +528,12 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
 
     return tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np
 
+def make_text_memmap_bin_compatibility(text_memmap_ds):
+    """Make a TextMemMapDataset compatible with binary memmap."""
+    text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds), dtype=np.int64)
+    text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
+
+    return text_memmap_ds
 
 def build_train_valid_test_datasets(
     cfg,
@@ -552,7 +558,12 @@ def build_train_valid_test_datasets(
     whole_word_masking=True,
     favor_long_ngrams=False,
     delete_mask_prob=0,
+    data_impl_kwargs={},
 ):
+    # for VSC and text memmap we need to provide a tokenizer, if not given
+    if data_impl in ["text_mmap", "csv_mmap"]:
+        if "tokenizer" not in data_impl_kwargs:
+            data_impl_kwargs["tokenizer"] = tokenizer
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
@@ -578,6 +589,7 @@ def build_train_valid_test_datasets(
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
+            data_impl_kwargs=data_impl_kwargs,
         )
     # Blending dataset.
     # Parse the values.
@@ -613,6 +625,7 @@ def build_train_valid_test_datasets(
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
+            data_impl_kwargs=data_impl_kwargs,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -658,16 +671,17 @@ def _build_train_valid_test_datasets(
     whole_word_masking=True,
     favor_long_ngrams=False,
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
+    data_impl_kwargs={},
 ):
 
     if dataset_type not in DSET_TYPES:
         raise ValueError("Invalid dataset_type: ", dataset_type)
 
     # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
+    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs)
 
-    if dataset_type == DSET_TYPE_ICT:
-        title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
+    # if dataset_type == DSET_TYPE_ICT:
+    #     title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
     # Note that doc-idx is desinged to be num-docs + 1 so we can
@@ -858,12 +872,12 @@ def _build_train_valid_test_datasets(
     return (train_dataset, valid_dataset, test_dataset)
 
 
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
+def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={}):
 
     logging.info(' > building dataset index ...')
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
 

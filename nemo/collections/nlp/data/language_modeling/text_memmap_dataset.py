@@ -41,6 +41,10 @@ class TextMemMapDataset(Dataset):
     ):
         super().__init__()
 
+        # Make a single string into a list
+        if isinstance(dataset_paths, str):
+            dataset_paths = [dataset_paths]
+
         if len(dataset_paths) < 1:
             raise ValueError("files_list must contain at leat one file name")
 
