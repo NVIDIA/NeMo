@@ -1057,13 +1057,14 @@ class ParallelTransformerLayer_(MegatronModule):
         kv_channels=None,
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
-        bias_dropout_fusion=True,
         persist_layer_norm=False,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
+        bias_dropout_fusion=True,
+        masked_softmax_fusion=True,
+        gradient_accumulation_fusion=False,
         openai_gelu=False,
         onnx_safe=False,
-        masked_softmax_fusion=True,
         attention_dropout=0.1,
         activation='gelu',
         megatron_legacy=False,
@@ -1074,7 +1075,6 @@ class ParallelTransformerLayer_(MegatronModule):
         headscale=False,
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1594,6 +1594,7 @@ class AutocastTransformerLayer(TransformerLayer):
         output_layernorm: bool = False,
         layer_type: str = "encoder",
         drop_path_rate: float = 0,
+        bias_gelu_nvfusion: bool = False,
         autocast_dtype: Any = 16,
     ) -> None:
         super().__init__(
@@ -1626,6 +1627,7 @@ class AutocastTransformerLayer(TransformerLayer):
             output_layernorm=output_layernorm,
             layer_type=layer_type,
             drop_path_rate=drop_path_rate,
+            bias_gelu_nvfusion=bias_gelu_nvfusion,
         )
 
         if autocast_dtype == 32:
@@ -1689,8 +1691,9 @@ class ParallelTransformer(MegatronModule):
         attention_dropout=0.1,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
-        bias_dropout_fusion=True,
+        bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
+        gradient_accumulation_fusion=False,
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
@@ -1705,7 +1708,6 @@ class ParallelTransformer(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
         sequence_parallel=False,
-        gradient_accumulation_fusion=False,
         transformer_engine=False,
         fp8=False,
         fp8_e4m3=False,
@@ -1765,7 +1767,7 @@ class ParallelTransformer(MegatronModule):
         self.fp8 = fp8
         self.fp8_e4m3 = fp8_e4m3
         self.fp8_hybrid = fp8_hybrid
-        self.fp8_margin = fp8_hybrid
+        self.fp8_margin = fp8_margin
         self.fp8_interval = fp8_interval
 
         self.fp8_recipe = None
@@ -1817,9 +1819,10 @@ class ParallelTransformer(MegatronModule):
                     params_dtype=torch.float32,  # dtype params are initialized in
                     get_rng_state_tracker=tensor_parallel.random.get_cuda_rng_tracker,
                     checkpoint_core_attention=checkpoint_core_attention,
-                    fuse_wgrad_accumulation=gradient_accumulation_fusion,
-                    bias_dropout_fusion=bias_dropout_fusion,
+                    bias_gelu_nvfusion=bias_activation_fusion,
+                    bias_dropout_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
+                    fuse_wgrad_accumulation=gradient_accumulation_fusion,
                     apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                     seq_length=None,  # used for jit warmup
                     micro_batch_size=None,  # used for jit warmup
@@ -1846,8 +1849,9 @@ class ParallelTransformer(MegatronModule):
                     attention_dropout=attention_dropout,
                     use_cpu_initialization=use_cpu_initialization,
                     bias_activation_fusion=bias_activation_fusion,
-                    bias_dropout_fusion=bias_dropout_fusion,
+                    bias_dropout_fusion=bias_dropout_add_fusion,
                     masked_softmax_fusion=masked_softmax_fusion,
+                    gradient_accumulation_fusion=gradient_accumulation_fusion,
                     persist_layer_norm=persist_layer_norm,
                     openai_gelu=openai_gelu,
                     onnx_safe=onnx_safe,
@@ -1860,7 +1864,6 @@ class ParallelTransformer(MegatronModule):
                     headscale=headscale,
                     activations_checkpoint_granularity=activations_checkpoint_granularity,
                     sequence_parallel=sequence_parallel,
-                    gradient_accumulation_fusion=gradient_accumulation_fusion,
                 )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
