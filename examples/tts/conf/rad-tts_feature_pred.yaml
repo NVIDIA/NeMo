@@ -99,7 +99,8 @@ model:
           _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
-          #adlr_symbol_id_mapper: ${adlr_symbol_id_mapper_path}
+          phoneme_probability: 0.5
+
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -145,7 +146,7 @@ model:
           _target_: "nemo.collections.tts.torch.g2ps.EnglishG2p"
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
-          #adlr_symbol_id_mapper: ${adlr_symbol_id_mapper_path}
+          phoneme_probability: 0.5
 
     dataloader_params:
       drop_last: false
@@ -336,4 +337,3 @@ exp_manager:
     mode: min
     filepath: ${export_dir}
     filename: model_checkpoint
-_checkpoint
