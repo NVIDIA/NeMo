@@ -92,16 +92,18 @@ class PromptTable(NeuralModule, Exportable):
 
     def init_prompt_from_random(self, taskname, total_virtual_tokens):
         """Add new virtual prompt to be tuned.
-           Intialize prompt weights using pytorch init method
+        Intialize prompt weights using pytorch init method
         """
         # Initalize prompt embeddings from a pytorch random init method
         self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=total_virtual_tokens,
+            init_from_prompt_text=False,
+            hidden_size=self.hidden_size,
+            total_virtual_tokens=total_virtual_tokens,
         )
 
     def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings, total_virtual_tokens):
         """Add new virtual prompt to be tuned.
-           Intialize prompt weights from existing embeddings from specific vocab tokens.
+        Intialize prompt weights from existing embeddings from specific vocab tokens.
 
         """
         # Trim or iterate until num_text_tokens matches total_virtual_tokens
@@ -136,7 +138,7 @@ class PromptTable(NeuralModule, Exportable):
 
     def add_prompt_from_p_tuning_encoder(self, taskname, virtual_prompt_embeddings, total_virtual_tokens):
         """
-        Add virtual prompts that have already been tuned using p-tuning. 
+        Add virtual prompts that have already been tuned using p-tuning.
         """
         self.prompt_table[taskname] = PromptEmbedding(
             init_from_prompt_text=True,

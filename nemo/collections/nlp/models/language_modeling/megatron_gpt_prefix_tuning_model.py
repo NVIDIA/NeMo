@@ -23,16 +23,15 @@ from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
 from torch import nn
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
-    MegatronGPTPromptLearningModel
-from nemo.collections.nlp.modules.common import (VirtualPromptStyle)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+    MegatronGPTPromptLearningModel,
+)
+from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import \
-    ColumnLinear
+from nemo.collections.nlp.modules.common.megatron.transformer import ColumnLinear
 
 try:
-    from apex.transformer.parallel_state import \
-        get_tensor_model_parallel_world_size
+    from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -72,7 +71,7 @@ class Prefix(MegatronModule):
         self.prefix_nonlinearity = nn.Tanh()
         self.prefix_layer_projection = ColumnLinear(
             prefix_projection_size, num_layers * hidden_size * 2, bias=False, gather_output=False
-        ) 
+        )
         nn.init.normal_(self.prefix_embeddings.weight)
         nn.init.xavier_uniform_(self.prefix_projection.weight)
         nn.init.constant_(self.prefix_projection.bias, 0)
@@ -83,16 +82,10 @@ class Prefix(MegatronModule):
         Args:
             bsz: an integer representing the batch size
         """
-        prefix_reps = self.prefix_embeddings(
-            self.prefix_idx.expand(bsz, -1)
-        )  # (bsz, seqlen, hidden_size)
-        prefix_reps = self.prefix_projection(
-            prefix_reps
-        )  # (bsz, seqlen, prefix_projection_size)
+        prefix_reps = self.prefix_embeddings(self.prefix_idx.expand(bsz, -1))  # (bsz, seqlen, hidden_size)
+        prefix_reps = self.prefix_projection(prefix_reps)  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
-        prefix_reps, _ = self.prefix_layer_projection(
-            prefix_reps
-        )  # (bsz, seqlen, num_layers * hidden_size * 2)
+        prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
         prefix_reps = self.dropout(prefix_reps)
         prefix_reps = prefix_reps.view(
             bsz,
@@ -200,9 +193,7 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         assert (
             self.prefix_generator_key in state_dict
         ), f"Prefix generator key {self.prefix_generator_key} not found in state dict: {state_dict}"
-        self.prefix_generator.load_state_dict(
-            state_dict[self.prefix_generator_key], strict=strict
-        )
+        self.prefix_generator.load_state_dict(state_dict[self.prefix_generator_key], strict=strict)
 
     def on_train_end(self):
         # Save the best nemo model

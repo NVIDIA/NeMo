@@ -175,10 +175,10 @@ def tab_logits(logits, min_id, max_id, filter_value=-float('Inf')):
 
 
 def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
-    """ This function has been mostly taken from huggingface conversational
-     ai code at
-         https://medium.com/huggingface/how-to-build-a-state-of-the-art-
-              conversational-ai-with-transfer-learning-2d818ac26313 """
+    """This function has been mostly taken from huggingface conversational
+    ai code at
+        https://medium.com/huggingface/how-to-build-a-state-of-the-art-
+             conversational-ai-with-transfer-learning-2d818ac26313"""
 
     if top_k > 0:
         # Remove all tokens with a probability less than the
@@ -205,7 +205,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
 
 
 def repetition_penalty(logits, repetition_penalty, used_tokens):
-    """ Implement the repetition penalty, check paper 
+    """Implement the repetition penalty, check paper
     https://arxiv.org/pdf/1909.05858.pdf
     """
     if used_tokens is not None and repetition_penalty != 1.0:
@@ -693,7 +693,9 @@ def sample_sequence_batch(
 
                 # Replace special soft prompt token ids with unk token ids
                 if isinstance(model, MegatronGPTPromptLearningModel):
-                    if model.pseudo_token_ids_start is not None: # TODO: (@adithyare) prompt learning logic can be greatly simplified by removing data preparation logic from model logic.
+                    if (
+                        model.pseudo_token_ids_start is not None
+                    ):  # TODO: (@adithyare) prompt learning logic can be greatly simplified by removing data preparation logic from model logic.
                         pseudo_token_ids_start = model.pseudo_token_ids_start
                         new_tokens[(new_tokens >= pseudo_token_ids_start)] = tokenizer.unk_id
                         tokens[:, :context_length][

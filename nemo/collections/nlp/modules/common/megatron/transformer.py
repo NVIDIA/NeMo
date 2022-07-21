@@ -86,7 +86,6 @@ if HAVE_APEX:
 
             return output, output_bias
 
-
 else:
 
     class ColumnLinear(ApexGuardDefaults):
@@ -354,7 +353,7 @@ class ParallelAttention(MegatronModule):
             fused_fp16,
             fused_bf16,
             self.attn_mask_type,
-            False, # (@adithyare) had to make this false to make apex use the non-optimized masked_fused_softmax.
+            False,  # (@adithyare) had to make this false to make apex use the non-optimized masked_fused_softmax.
             attention_mask_func,
             self.attention_softmax_in_fp32,
             coeff,
@@ -407,7 +406,7 @@ class ParallelAttention(MegatronModule):
             """[s, b, num_splits * np * hn]
             -->(view) [s, b, num_splits, np, hn]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 num_splits,
@@ -421,7 +420,7 @@ class ParallelAttention(MegatronModule):
             """[s, b, np * hn * num_splits]
             -->(view) [s, b, np, hn, num_splits]
             -->(tranpose) [s, b, np, num_splits, hn]
-            -->(view) [s, b, np * num_splits * hn] """
+            -->(view) [s, b, np * num_splits * hn]"""
 
             intermediate_shape = input_shape[:-1] + (
                 self.num_attention_heads_per_partition,
@@ -621,7 +620,6 @@ class ParallelAttention(MegatronModule):
         real_seq_length = hidden_states.shape[0]
         key_length = key_layer.shape[0]
 
-        # TODO: (@adithyare) I'm not sure if this the correct place insert the prefix_tuning key,values into the key_layer and value_layer.
         if prefix_tuning_key_values is not None:
             key, value = prefix_tuning_key_values[0], prefix_tuning_key_values[1]
             key_layer = torch.cat((key, key_layer), dim=0)
@@ -1663,9 +1661,7 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb,
                         position_bias,
                         encoder_decoder_position_bias,
-                        prefix_tuning_key_values=prefix_tuning_key_values[
-                            :, :, index, :, :, :
-                        ]
+                        prefix_tuning_key_values=prefix_tuning_key_values[:, :, index, :, :, :]
                         if prefix_tuning_key_values is not None
                         else None,  # We're splitting up the prefix tuning representaiton per layer. @adithyare
                     )
@@ -1830,9 +1826,7 @@ class ParallelTransformer(MegatronModule):
                     rotary_pos_emb=rotary_pos_emb,
                     position_bias=position_bias,
                     encoder_decoder_position_bias=encoder_decoder_position_bias,
-                    prefix_tuning_key_values=prefix_tuning_key_values[
-                        :, :, index, :, :, :
-                    ]
+                    prefix_tuning_key_values=prefix_tuning_key_values[:, :, index, :, :, :]
                     if prefix_tuning_key_values is not None
                     else None,
                 )

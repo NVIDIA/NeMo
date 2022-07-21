@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prefix_tuning_model import PrefixTuningModel
 
 import torch
 from omegaconf import OmegaConf
@@ -22,6 +21,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prefix_tuning_model import PrefixTuningModel
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
@@ -201,7 +201,9 @@ class RequestDataSet(Dataset):
         super().__init__()
         self.sentences = sentences
 
-    def __len__(self,):
+    def __len__(
+        self,
+    ):
         return len(self.sentences)
 
     def __getitem__(self, idx):
@@ -232,7 +234,7 @@ def main(cfg) -> None:
         model = MegatronGPTPromptLearningModel.restore_from(
             restore_path=cfg.virtual_prompt_model_file, trainer=trainer, override_config_path=prompt_learning_cfg
         )
-    
+
     elif cfg.get("prefix_tuned_model_file", None) is not None:
         # Update frozen GPT model path in case it has changed
         prefix_tuning_cfg = PrefixTuningModel.restore_from(
