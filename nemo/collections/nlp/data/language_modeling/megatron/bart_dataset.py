@@ -21,7 +21,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Da
 
 class BARTDataset(T5Dataset):
     # account for added tokens
-    MAX_SEQ_LENGTH_DELTA = 1
+    MAX_SEQ_LENGTH_DELTA = 2
 
     def __init__(
         self,
