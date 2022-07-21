@@ -150,7 +150,7 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
             cfg.prefix_tuning.prefix_dropout,
         )
         self.prefix_generator_key = "prefix_tuning_generator"
-        self.prefix_generator_learning_rate = 0.0001
+        self.prefix_generator_learning_rate = cfg.prefix_tuning.prefix_learning_rate
         self.prefix_generator.to(self.frozen_model.device)
 
     @classmethod

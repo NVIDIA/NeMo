@@ -1,4 +1,4 @@
-name: megatron_gpt_prefix_tuning
+name: megatron_gpt_prefix_tuning_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}
 
 trainer:
   devices: 1
@@ -8,10 +8,10 @@ trainer:
   logger: False # logger provided by exp_manager
   enable_checkpointing: False
   replace_sampler_ddp: False
-  max_epochs: 5
+  max_epochs: 10
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 1.0
+  val_check_interval: 0.33
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
@@ -78,9 +78,10 @@ model:
     answer_field: "answer"
 
   prefix_tuning:
-    prefix_len: 10
+    prefix_len: 50
     prefix_projection_size: 800
     prefix_dropout: 0.1
+    prefix_learning_rate: 1e-4
     
   prompt_tuning: # Prompt tunin specific params
     new_prompt_init_methods: ['text'] # List of 'text' or 'random', should correspond to tasks listed in new tasks
