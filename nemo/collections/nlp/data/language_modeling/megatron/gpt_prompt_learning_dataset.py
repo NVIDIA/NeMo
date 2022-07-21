@@ -77,9 +77,9 @@ class GPTPromptLearningDataset(Dataset):
     def load_data(self, dataset):
         """
         Loads a dataset by filling in the task templates specified in the config file
-        with the information from each training/inference example. Converts all input 
-        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in 
-        the task templates with the actual virtual prompt token ids. 
+        with the information from each training/inference example. Converts all input
+        text into token ids. Also replaces the <|VIRTUAL_PROMPT_#|> placeholders in
+        the task templates with the actual virtual prompt token ids.
 
         params:
             dataset: A list of json objects or a dictionary objects each
@@ -139,7 +139,7 @@ class GPTPromptLearningDataset(Dataset):
 
                 elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
                     taskname_id = self.task_templates[taskname]["task_id_num"]
-                
+
                 elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
                     taskname_id = []
                 else:
@@ -202,7 +202,7 @@ class GPTPromptLearningDataset(Dataset):
             assert prompt_template[placeholder_start:] == answer_placeholder, "Answer field must be at prompt end"
 
     def _insert_text_in_template(self, input_example, prompt_template_fields, doc):
-        """ Format the input example according to the template """
+        """Format the input example according to the template"""
         for field in prompt_template_fields:
             if field in doc.keys():
                 field_text = doc[field]
@@ -217,7 +217,7 @@ class GPTPromptLearningDataset(Dataset):
         return input_example
 
     def _insert_virtual_token_placeholders(self, input_example, virtual_token_splits):
-        """ Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers """
+        """Insert the correct number of pseudo tokens at the <|VIRTUAL_PROMPT_n|> markers"""
         total_inserted_tokens = 0
 
         for idx in range(len(virtual_token_splits)):
@@ -230,7 +230,7 @@ class GPTPromptLearningDataset(Dataset):
         return input_example
 
     def _truncate_input(self, truncation_field, input_ids, taskname, doc):
-        """ Try to truncate input text to fit into the max sequence length """
+        """Try to truncate input text to fit into the max sequence length"""
         logging.info(
             f"Input greater than max sequence length. Attempting to truncate: '{truncation_field}' in task: '{taskname}'"
         )
@@ -252,8 +252,8 @@ class GPTPromptLearningDataset(Dataset):
         return input_ids
 
     def _find_answer_start(self, taskname, input_ids, answer_field, doc):
-        """ Find the token ids corresponding to the answer start, for loss masking purposes.
-            Assumes the answer is always at the end of the prompt.
+        """Find the token ids corresponding to the answer start, for loss masking purposes.
+        Assumes the answer is always at the end of the prompt.
         """
         answer_text = doc[answer_field]
         answer_text = self._add_leading_space(taskname, answer_field, answer_text)
@@ -268,7 +268,7 @@ class GPTPromptLearningDataset(Dataset):
         return answer_start_idx
 
     def _add_leading_space(self, taskname, field_name, field_text):
-        """ Add leading space to text if there is a space before it in the template """
+        """Add leading space to text if there is a space before it in the template"""
         prompt_template = self.task_templates[taskname]["prompt_template"]
         field_text_start = prompt_template.find("{" + field_name + "}")
         if field_text_start != 0 and prompt_template[field_text_start - 1] == " ":
@@ -283,7 +283,7 @@ class GPTPromptLearningDataset(Dataset):
         return self.examples[idx]
 
     def collate_fn(self, batch):
-        """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        """Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch"""
         # Get max sequence length of batch
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
@@ -296,7 +296,7 @@ class GPTPromptLearningDataset(Dataset):
         # Task ids are just used for a look up embeddings for prompt-table
         elif self.virtual_prompt_source in [VirtualPromptSource.PROMPT_TABLE, VirtualPromptSource.NO_PROMPT]:
             taskname_ids = torch.tensor(taskname_ids)
-        
+
         else:
             raise ValueError(f"Unknown virtual prompt source: {self.virtual_prompt_source}")
 
@@ -320,11 +320,11 @@ class GPTPromptLearningDataset(Dataset):
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
         position_ids = build_position_ids(input_ids)
-        
+
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         batch_loss_masks = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):
             if answer_start_idx is not None:
@@ -351,7 +351,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def get_all_examples(self, tokens_to_generate):
         """
-        Used for loading inference data. 
+        Used for loading inference data.
         """
         task_id_nums, input_ids, answer_starts = zip(*self.examples)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
@@ -367,11 +367,11 @@ class GPTPromptLearningDataset(Dataset):
 
 
 def find_subsequence_location(sequence, subsequence):
-    """ Finds the start and end index of the first occurance 
-        of a given subsequence within a larger list. Returns 
-        the two indices corresponding to the postition of 
-        the first and last token of the subseqeunce.
-        Assumes subsequence is known to be in sequence. 
+    """Finds the start and end index of the first occurance
+    of a given subsequence within a larger list. Returns
+    the two indices corresponding to the postition of
+    the first and last token of the subseqeunce.
+    Assumes subsequence is known to be in sequence.
     """
     assert len(sequence) >= len(subsequence), "subsequence too long"
 
