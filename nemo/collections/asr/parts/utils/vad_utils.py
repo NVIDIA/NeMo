@@ -1021,8 +1021,8 @@ def extract_labels(path2ground_truth_label: str, time: list) -> list:
 
 
 def generate_vad_frame_pred(
-    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str
-) -> str:
+    vad_model, window_length_in_sec: float, shift_length_in_sec: float, manifest_vad_input: str, out_dir: str,
+save_artifacts: bool = False) -> str:
     """
     Generate VAD frame level prediction and write to out_dir
     """
@@ -1059,6 +1059,13 @@ def generate_vad_frame_pred(
             with open(outpath, "a", encoding='utf-8') as fout:
                 for f in range(len(to_save)):
                     fout.write('{0:0.4f}\n'.format(to_save[f]))
+
+            if save_artifacts:
+                filename = outpath.replace(".frame", "_vad_input.pt")
+                torch.save(test_batch[0].cpu().to(torch.float), filename)
+
+                filename = outpath.replace(".frame", "_vad_output.pt")
+                torch.save(log_probs.cpu().to(torch.float), filename)
 
         del test_batch
         if status[i] == 'end' or status[i] == 'single':

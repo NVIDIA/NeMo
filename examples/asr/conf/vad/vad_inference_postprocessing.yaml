@@ -36,6 +36,7 @@ frame_out_dir: "vad_frame"
 smoothing_out_dir: null # if not specify, it will automatically generated be frame_out_dir + "/overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
 table_out_dir: null # if not specify, it will automatically be frame_out_dir + "/table_output_tmp_" + key and value in postprocessing params
 out_manifest_filepath: null # if not specify it will automatically be "vad_out.json"
+save_artifacts: False # save input and output tensors for the model to the frame_out_dir
 
 # json manifest line example
 # {"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, "label": "infer", "text": "-"}

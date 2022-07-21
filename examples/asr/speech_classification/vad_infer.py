@@ -118,6 +118,7 @@ def main(cfg):
         shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
         manifest_vad_input=manifest_vad_input,
         out_dir=cfg.frame_out_dir,
+        save_artifacts=cfg.save_artifacts,
     )
     logging.info(
         f"Finish generating VAD frame level prediction with window_length_in_sec={cfg.vad.parameters.window_length_in_sec} and shift_length_in_sec={cfg.vad.parameters.shift_length_in_sec}"
