@@ -21,7 +21,6 @@ import pathlib
 import omegaconf
 import torch
 import wget
-from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.utils import logging
