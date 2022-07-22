@@ -184,10 +184,7 @@ class Embedding(MegatronModule):
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
-            vocab_size,
-            self.hidden_size,
-            init_method=self.init_method,
-            use_cpu_initialization=use_cpu_initialization,
+            vocab_size, self.hidden_size, init_method=self.init_method, use_cpu_initialization=use_cpu_initialization,
         )
         self._word_embeddings_key = 'word_embeddings'
 

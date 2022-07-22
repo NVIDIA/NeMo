@@ -43,13 +43,7 @@ class Prefix(MegatronModule):
     """
 
     def __init__(
-        self,
-        hidden_size,
-        num_layers,
-        num_heads,
-        prefix_len,
-        prefix_projection_size,
-        prefix_dropout,
+        self, hidden_size, num_layers, num_heads, prefix_len, prefix_projection_size, prefix_dropout,
     ):
 
         super(Prefix, self).__init__()
@@ -85,12 +79,7 @@ class Prefix(MegatronModule):
         prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
         prefix_reps = self.dropout(prefix_reps)
         prefix_reps = prefix_reps.view(
-            bsz,
-            self.prefix_len,
-            2,
-            self.num_layers,
-            self.num_attention_heads_per_partition,
-            self.num_emb_per_head,
+            bsz, self.prefix_len, 2, self.num_layers, self.num_attention_heads_per_partition, self.num_emb_per_head,
         )
         prefix_reps = prefix_reps.permute([2, 1, 3, 0, 4, 5])
         return prefix_reps

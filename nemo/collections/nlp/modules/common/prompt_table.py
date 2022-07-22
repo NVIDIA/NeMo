@@ -96,9 +96,7 @@ class PromptTable(NeuralModule, Exportable):
         """
         # Initalize prompt embeddings from a pytorch random init method
         self.prompt_table[taskname] = PromptEmbedding(
-            init_from_prompt_text=False,
-            hidden_size=self.hidden_size,
-            total_virtual_tokens=total_virtual_tokens,
+            init_from_prompt_text=False, hidden_size=self.hidden_size, total_virtual_tokens=total_virtual_tokens,
         )
 
     def init_prompt_from_text(self, taskname, init_token_ids, word_embeddings, total_virtual_tokens):

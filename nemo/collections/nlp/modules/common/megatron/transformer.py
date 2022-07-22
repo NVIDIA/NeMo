@@ -86,6 +86,7 @@ if HAVE_APEX:
 
             return output, output_bias
 
+
 else:
 
     class ColumnLinear(ApexGuardDefaults):
