@@ -15,7 +15,6 @@
 import re
 from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
