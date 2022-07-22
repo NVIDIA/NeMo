@@ -28,7 +28,6 @@ from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
-# from nemo.collections.asr.parts.utils.nmesc_clustering_export import COSclustering
 from nemo.collections.asr.parts.utils.nmesc_clustering_export import SpeakerClustering
 from nemo.utils import logging
 
@@ -204,9 +203,13 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
             A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
     """
     embs_and_timestamps = {
-        uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
+        uniq_id: {}
         for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
     }
+    # embs_and_timestamps = {
+        # uniq_id: {'multiscale_weights': [], 'scale_dict': {}}
+        # for uniq_id in multiscale_embeddings_and_timestamps[0][0].keys()
+    # }
     if multiscale_args_dict['use_single_scale_clustering']:
         _multiscale_args_dict = deepcopy(multiscale_args_dict)
         _multiscale_args_dict['scale_dict'] = {0: multiscale_args_dict['scale_dict'][0]}
@@ -214,19 +217,43 @@ def get_embs_and_timestamps(multiscale_embeddings_and_timestamps, multiscale_arg
     else:
         _multiscale_args_dict = multiscale_args_dict
 
-    for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
-        embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
-        for uniq_id in embeddings.keys():
-            embs_and_timestamps[uniq_id]['multiscale_weights'] = (
-                torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
-            )
+    embeddings, time_stamps = multiscale_embeddings_and_timestamps[0]
+    for uniq_id in embeddings.keys():
+        embeddings_dict, time_stamps_dict = {}, {}
+        embeddings_list, time_stamps_list, segment_index_list = [], [], []
+        for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
+            embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
             assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
             time_stamps_tensor= torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]])
-            embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
-                'embeddings': embeddings[uniq_id],
-                'time_stamps': time_stamps_tensor
-                # 'time_stamps': time_stamps[uniq_id],
-            }
+            # embeddings_dict[scale_idx] = embeddings[uniq_id]
+            # time_stamps_dict[scale_idx] = time_stamps_tensor
+            embeddings_list.append(embeddings[uniq_id])
+            segment_index_list.append(embeddings[uniq_id].shape[0])
+            time_stamps_list.append(time_stamps_tensor)
+
+        embs_and_timestamps[uniq_id]['multiscale_weights'] = (
+            torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+        )
+        # embs_and_timestamps[uniq_id]['embeddings'] = embeddings_dict
+        # embs_and_timestamps[uniq_id]['time_stamps'] = time_stamps_dict
+        embs_and_timestamps[uniq_id]['embeddings'] = torch.cat(embeddings_list, dim=0)
+        embs_and_timestamps[uniq_id]['time_stamps'] = torch.cat(time_stamps_list, dim=0)
+        embs_and_timestamps[uniq_id]['multiscale_segment_counts'] = torch.tensor(segment_index_list)
+
+
+    # for scale_idx in sorted(_multiscale_args_dict['scale_dict'].keys()):
+        # embeddings, time_stamps = multiscale_embeddings_and_timestamps[scale_idx]
+        # embeddings_dict, time_stamps_dict = {}, {}
+        # for uniq_id in embeddings.keys():
+            # embs_and_timestamps[uniq_id]['multiscale_weights'] = (
+                # torch.tensor(_multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
+            # )
+            # assert len(embeddings[uniq_id]) == len(time_stamps[uniq_id])
+            # time_stamps_tensor= torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamps[uniq_id]])
+            # embs_and_timestamps[uniq_id]['scale_dict'][scale_idx] = {
+                # 'embeddings': embeddings[uniq_id],
+                # 'time_stamps': time_stamps_tensor
+            # }
 
     return embs_and_timestamps
 
@@ -416,9 +443,11 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         else:
             num_speakers = None
         uniq_embs_and_timestamps=embs_and_timestamps[uniq_id]
-        
+        # import ipdb; ipdb.set_trace() 
         multiscale_weights = uniq_embs_and_timestamps['multiscale_weights'].float()
-        uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
+        embeddings_in_scales = uniq_embs_and_timestamps['embeddings']
+        timestamps_in_scales = uniq_embs_and_timestamps['time_stamps']
+        multiscale_segment_counts = uniq_embs_and_timestamps['multiscale_segment_counts']
         num_speakers = -1 if num_speakers is None else num_speakers 
         
         speaker_clustering = SpeakerClustering(
@@ -432,10 +461,12 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         speaker_clustering = torch.jit.script(speaker_clustering)
         
         cluster_labels = speaker_clustering.forward(
-            uniq_scale_dict,
+            embeddings_in_scales,
+            timestamps_in_scales,
+            multiscale_segment_counts,
             oracle_num_speakers=num_speakers,
             )
-        
+         
         # cluster_labels = COSclustering(
             # uniq_embs_and_timestamps=embs_and_timestamps[uniq_id],
             # oracle_num_speakers=num_speakers,
@@ -446,13 +477,12 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             # cuda=cuda,
         # )
 
-        base_scale_idx = max(embs_and_timestamps[uniq_id]['scale_dict'].keys())
-        timestamps = embs_and_timestamps[uniq_id]['scale_dict'][base_scale_idx]['time_stamps']
+        # base_scale_idx = max(embeddings_in_scales.keys())
+        base_scale_idx = multiscale_segment_counts.shape[0] - 1
+        timestamps = speaker_clustering.timestamps_in_scales[base_scale_idx]
         cluster_labels = cluster_labels.cpu().numpy()
         assert len(cluster_labels) == timestamps.shape[0]
-        # for idx, label in enumerate(cluster_labels):
-            # tag = 'speaker_' + str(label)
-            # lines[idx] += tag
+        
         lines = []
         for idx, label in enumerate(cluster_labels):
             tag = 'speaker_' + str(label)

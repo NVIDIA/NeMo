@@ -426,7 +426,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
 
         embs_and_timestamps = get_embs_and_timestamps(
-            self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
+            self.multiscale_embeddings_and_timestamps, 
+            self.multiscale_args_dict
         )
 
         # Clustering
