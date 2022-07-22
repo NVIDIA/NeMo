@@ -1,17 +1,20 @@
 import argparse
 import json
-
 from ast import literal_eval
+
 from tqdm import tqdm
+
 
 def load_json(filepath):
     with open(filepath, "r") as f:
         data = json.load(f)
     return data
 
+
 def dump_json(filepath, data):
     with open(filepath, "w") as f:
         json.dump(data, f)
+
 
 def get_context_from_passages(passages, keep_only_relevant_passages):
     contexts = []
@@ -24,6 +27,7 @@ def get_context_from_passages(passages, keep_only_relevant_passages):
 
     return " ".join(contexts)
 
+
 def format_answers_into_squad_format(answers):
     is_impossible = True if "No Answer Present." in answers else False
     if is_impossible:
@@ -33,9 +37,10 @@ def format_answers_into_squad_format(answers):
 
     return answers
 
+
 def convert_msmarco_to_squad_format(msmarco_data, args):
     ids = list(msmarco_data["query"])
-    squad_data = { "data": [{"title": "MSMARCO", "paragraphs": []}], "version": "v2.1" }
+    squad_data = {"data": [{"title": "MSMARCO", "paragraphs": []}], "version": "v2.1"}
     for index, _id in enumerate(tqdm(ids)):
 
         context = get_context_from_passages(msmarco_data["passages"][_id], args.keep_only_relevant_passages)
@@ -54,17 +59,17 @@ def convert_msmarco_to_squad_format(msmarco_data, args):
         if args.exclude_negative_samples and (not answers):
             continue
 
-        squad_data["data"][0]["paragraphs"].append({
-            "context": context,
-            "qas": [{
-                "id": index,
-                "question": query,
-                "answers": answers,
-                "is_impossible": False if answers else True,
-            }]
-        })
-    
+        squad_data["data"][0]["paragraphs"].append(
+            {
+                "context": context,
+                "qas": [
+                    {"id": index, "question": query, "answers": answers, "is_impossible": False if answers else True,}
+                ],
+            }
+        )
+
     return squad_data
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -72,8 +77,20 @@ def main():
     parser.add_argument("--msmarco_dev_input_filepath", default=None, type=str, required=True)
     parser.add_argument("--converted_train_save_path", default=None, type=str, required=True)
     parser.add_argument("--converted_dev_save_path", default=None, type=str, required=True)
-    parser.add_argument("--exclude_negative_samples", default=False, type=bool, help="whether to keep No Answer samples in the dataset", required=False)
-    parser.add_argument("--keep_only_relevant_passages", default=False, type=bool, help="if True, will only use passages with is_selected=True for context", required=False)
+    parser.add_argument(
+        "--exclude_negative_samples",
+        default=False,
+        type=bool,
+        help="whether to keep No Answer samples in the dataset",
+        required=False,
+    )
+    parser.add_argument(
+        "--keep_only_relevant_passages",
+        default=False,
+        type=bool,
+        help="if True, will only use passages with is_selected=True for context",
+        required=False,
+    )
     args = parser.parse_args()
 
     print("converting MS-MARCO train dataset...")
@@ -85,6 +102,7 @@ def main():
     msmarco_dev_data = load_json(args.msmarco_dev_input_filepath)
     squad_dev_data = convert_msmarco_to_squad_format(msmarco_dev_data, args)
     dump_json(args.converted_dev_save_path, squad_dev_data)
+
 
 if __name__ == "__main__":
     """
