@@ -36,7 +36,7 @@ class TestType(enum.Enum):
     DETERMINISTIC = 2
 
 # If we require a variation of tests for any of the other pipelines we can just inherit this class.
-class TestTrainPipelineMetrics:
+class TestTrainPipeline:
 
     margin_loss, margin_time = 0.05, 0.1
     job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
