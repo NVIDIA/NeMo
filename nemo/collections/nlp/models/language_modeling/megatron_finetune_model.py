@@ -288,8 +288,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         return texts
 
     def _determine_log_key(self, data_config, dataloader_idx, metric_name, mode):
-        if "loss" not in metric_name:
-            import ipdb; ipdb.set_trace()
         # Function that determines whether to log based on the user provided name of the dataset or the dataloader index.
         base_key = f"{mode}_{metric_name}_" if metric_name is not None else f"{mode}_"
         # If the user provided names for each validation/test dataset, use those.
