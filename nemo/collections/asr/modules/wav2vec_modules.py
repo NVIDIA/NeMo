@@ -305,9 +305,9 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 
         # Project to embedding
         if self.post_extract_proj is not None:
-            processed_signal = audio_signal.transpose(1, 2)  # B, C, T -> B, T, C
-            processed_signal = self.embedding_proj(processed_signal)
-            processed_signal = processed_signal.transpose(1, 2)  # B, T, C -> B, C, T
+            audio_signal = audio_signal.transpose(1, 2)  # B, C, T -> B, T, C
+            audio_signal = self.post_extract_proj(audio_signal)
+            audio_signal = audio_signal.transpose(1, 2)  # B, T, C -> B, C, T
 
         # Padding mask needed for transformer
         padding_mask = self.create_padding_mask(length)
