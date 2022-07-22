@@ -136,8 +136,7 @@ def send_requests(model_name, url, batch_size, input_start_ids, input_len, outpu
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n',
-                        '--name',
+    parser.add_argument('--name',
                         type=str,
                         required=False,
                         default="fastertransformer",

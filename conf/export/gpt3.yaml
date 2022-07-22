@@ -1,6 +1,6 @@
 run:
   name: export_${.model_train_name}
-  time_limit: "2:00:00"
+  time_limit: "0:30:00"
   model_train_name: "gpt3_5b"
   training_dir: ${base_results_dir}/${.model_train_name}
   config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
@@ -38,6 +38,7 @@ accuracy:
 benchmark:
   tensor_model_parallel_size: 8
   pipeline_model_parallel_size: 1
+  inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
   input_len: 60
   output_len: 20
   batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]

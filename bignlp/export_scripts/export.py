@@ -214,7 +214,7 @@ def run_export(cfg, dependency=None):
         benchmark_cfg=cfg.export.benchmark,
         cluster_cfg=cfg.cluster,
         dependency=conversion_job_id,
-        model_path=f"{cfg.export.run.triton_model_dir}/1/{cfg.export.conversion.tensor_model_parallel_size}-gpu"
+        model_path=f"{cfg.export.run.triton_model_dir}/1/{cfg.export.model.tensor_model_parallel_size}-gpu"
     )
 
     job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
@@ -313,6 +313,7 @@ def _get_bcm_submission_cmd(
 
 
 def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
+    run_cfg = cfg.export.run
     ft_model_cfg = cfg.export.model
     triton_cfg = cfg.export.triton_deployment
     tokenizer_cfg = cfg.training.model.tokenizer
@@ -337,6 +338,7 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     )
     triton_prepare_model_config_cmd = (
         f"python -u {prepare_model_config_script_path} \\\n"
+        f" --model-train-name {run_cfg.model_train_name} \\\n"
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{ft_model_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
@@ -381,6 +383,7 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     )
     triton_prepare_model_config_cmd = (
         f"python -u {prepare_model_config_script_path} \\\n"
+        f" --model-train-name {run_cfg.model_train_name} \\\n"
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{ft_model_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
