@@ -473,4 +473,3 @@ class CrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceData
             tokenizer_type=self.tokenizer_type,
             masking_type=task
         )
- 
