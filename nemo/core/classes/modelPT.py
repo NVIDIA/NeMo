@@ -19,7 +19,7 @@ import uuid
 from abc import abstractmethod
 from os import path
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import hydra
 import torch
@@ -35,14 +35,7 @@ from nemo.core.optim import prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
-from nemo.utils.get_rank import is_global_rank_zero
-
-try:
-    from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
-
-    HAVE_NLPPLUGIN = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_NLPPLUGIN = False
+from nemo.utils.get_rank import get_rank, is_global_rank_zero
 
 __all__ = ['ModelPT']
 
@@ -167,6 +160,9 @@ class ModelPT(LightningModule, Model):
 
         # ModelPT wrappers over subclass implementations
         self.training_step = model_utils.wrap_training_step(self.training_step)
+
+        # Setup nsys profiling if it has been enabled in the model config
+        self._setup_nsys_profiling()
 
     def __init_subclass__(cls) -> None:
         cls._save_restore_connector = SaveRestoreConnector()
@@ -492,10 +488,16 @@ class ModelPT(LightningModule, Model):
                 optim_config['sched']['t_max_epochs'] = self._trainer.max_epochs
                 optim_config['sched']['t_accumulate_grad_batches'] = self._trainer.accumulate_grad_batches
                 optim_config['sched']['t_limit_train_batches'] = self._trainer.limit_train_batches
-                optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
-                if HAVE_NLPPLUGIN and isinstance(self._trainer.accelerator.training_type_plugin, NLPDDPPlugin):
-                    app = AppState()
-                    optim_config['sched']['t_num_workers'] = app.data_parallel_size
+
+                app_state = AppState()
+                if app_state.data_parallel_size is not None:
+                    optim_config['sched']['t_num_workers'] = app_state.data_parallel_size
+                elif app_state.model_parallel_size is None:
+                    optim_config['sched']['t_num_workers'] = self._trainer.num_devices * self._trainer.num_nodes
+                else:
+                    optim_config['sched']['t_num_workers'] = (
+                        self._trainer.num_devices * self._trainer.num_nodes
+                    ) / app_state.model_parallel_size
             else:
                 optim_config['sched']['max_steps'] = self._trainer.max_steps
 
@@ -606,10 +608,54 @@ class ModelPT(LightningModule, Model):
             See https://pytorch.org/docs/stable/optim.html for more information.
             By default, ModelPT will use self.parameters().
             Override this method to add custom param groups.
-    """
-        param_groups = None
-        if hasattr(self, 'parameters'):
-            param_groups = [{'params': self.parameters()}]
+            In the config file, add 'optim_param_groups' to support different LRs 
+            for different components (unspecified params will use the default LR):
+            model:
+                optim_param_groups:
+                    encoder: 
+                        lr: 1e-4
+                        momentum: 0.8
+                    decoder: 
+                        lr: 1e-3
+                optim:
+                    lr: 3e-3
+                    momentum: 0.9   
+        """
+        if not hasattr(self, "parameters"):
+            self._optimizer_param_groups = None
+            return
+
+        known_groups = []
+        param_groups = []
+        if "optim_param_groups" in self.cfg:
+            param_groups_cfg = self.cfg.optim_param_groups
+            for group, group_cfg in param_groups_cfg.items():
+                module = getattr(self, group, None)
+                if module is None:
+                    raise ValueError(f"{group} not found in model.")
+                elif hasattr(module, "parameters"):
+                    known_groups.append(group)
+                    new_group = {"params": module.parameters()}
+                    for k, v in group_cfg.items():
+                        new_group[k] = v
+                    param_groups.append(new_group)
+                else:
+                    raise ValueError(f"{group} does not have parameters.")
+
+            other_params = []
+            for n, p in self.named_parameters():
+                is_unknown = True
+                for group in known_groups:
+                    if n.startswith(group):
+                        is_unknown = False
+                if is_unknown:
+                    other_params.append(p)
+
+            if len(other_params):
+                param_groups = [{"params": other_params}] + param_groups
+        else:
+            param_groups = [{"params": self.parameters()}]
+
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
@@ -1061,7 +1107,7 @@ class ModelPT(LightningModule, Model):
                             restored_model.state_dict(),
                             include,
                             exclude,
-                            f'pretrained chackpoint with name `{model_name}`',
+                            f'pretrained checkpoint with name `{model_name}`',
                         )
 
                         del restored_model
@@ -1356,3 +1402,70 @@ class ModelPT(LightningModule, Model):
             cls._save_restore_connector = save_restore_connector
         else:
             setattr(cls, '_save_restore_connector', save_restore_connector)
+
+    def _setup_nsys_profiling(self):
+        """ Enables nsys profiling
+            To use, add the following optoins to the model config:
+            ## Nsys profiling options
+            nsys_profile: False
+                start_step: 10  # Global batch to start profiling
+                end_step: 10 # Global batch to end profiling
+                ranks: [0] # Global rank IDs to profile
+                gen_shape: False # Generate model and kernel details including input shapes
+            And then wrap the model training script with:
+            nsys profile -s none -o <profile filepath>  -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+            See more options at: https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling
+        """
+        if self.cfg.get('nsys_profile', None) is not None:
+            if self.cfg.nsys_profile.get('enabled', False):
+                # Nsys profiling options
+                self._nsys_profile_enabled = True
+                self._nsys_profile_start_step = self.cfg.nsys_profile.get('start_step', 0)
+                self._nsys_profile_end_step = self.cfg.nsys_profile.get('end_step', 0)
+                self._nsys_profile_ranks = self.cfg.nsys_profile.get('ranks', [0])
+                self._nsys_profile_gen_shape = self.cfg.nsys_profile.get('gen_shape', False)
+
+                if type(self._nsys_profile_start_step) == int:
+                    logging.info(f'Nsys profiling setup with start_step: {self._nsys_profile_start_step}')
+                else:
+                    raise ValueError(
+                        f'Nsys start_step must be of type int. Found: {type(self._nsys_profile_start_step)}'
+                    )
+
+                if type(self._nsys_profile_end_step) == int:
+                    logging.info(f'Nsys profiling setup with end_step: {self._nsys_profile_end_step}')
+                else:
+                    raise ValueError(f'Nsys end_step must be of type int. Found: {type(self._nsys_profile_end_step)}')
+
+                if self._nsys_profile_end_step >= self._nsys_profile_start_step:
+                    pass
+                else:
+                    raise ValueError(f'Nsys end_step must be greater than or equal to nsys start_step')
+
+    def on_train_batch_start(self, batch: Any, batch_idx: int, unused: int = 0) -> Optional[int]:
+        """ PyTorch Lightning hook: 
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-start
+            We use it here to enable nsys profiling.
+        """
+
+        if self.device.type == 'cuda':
+            if hasattr(self, '_nsys_profile_enabled'):
+                if self._nsys_profile_enabled:
+                    if batch_idx == self._nsys_profile_start_step and get_rank() in self._nsys_profile_ranks:
+                        logging.info("====== Start nsys profiling ======")
+                        torch.cuda.cudart().cudaProfilerStart()
+                        if self._nsys_profile_gen_shape:
+                            torch.autograd.profiler.emit_nvtx(record_shapes=True).__enter__()
+
+    def on_train_batch_end(self, outputs, batch: Any, batch_idx: int, unused: int = 0) -> None:
+        """ PyTorch Lightning hook: 
+            https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#on-train-batch-end
+            We use it here to enable nsys profiling.
+        """
+
+        if self.device.type == 'cuda':
+            if hasattr(self, '_nsys_profile_enabled'):
+                if self._nsys_profile_enabled:
+                    if batch_idx == self._nsys_profile_end_step and get_rank() in self._nsys_profile_ranks:
+                        logging.info("====== End nsys profiling ======")
+                        torch.cuda.cudart().cudaProfilerStop()
