@@ -71,7 +71,7 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                     # We pass average and num_classes to the metric constructor via kwargs even if they don't exist for each metric.
                     metric = [
                         metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
-                        for _ in range(len(self.cfg.data.test_ds.src_file_name))
+                        for _ in range(len(data_cfg.src_file_name))
                     ]
                 else:
                     metric = [metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)]
