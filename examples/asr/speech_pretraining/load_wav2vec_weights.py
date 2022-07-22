@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import argparse
 import logging
 import os
@@ -20,6 +21,11 @@ import pathlib
 import omegaconf
 import torch
 import wget
+
+try:
+	import fairseq
+except (ModuleNotFoundError, ImportError):
+    raise ModuleNotFoundError("This script requires fairseq to be installed to load Wav2Vec modules. Please see https://github.com/facebookresearch/fairseq for installation instructions.")
 
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.utils import logging
@@ -96,7 +102,7 @@ parser.add_argument(
     '--modules',
     type=str,
     nargs='+',
-    default='all',
+    default=['all'],
     choices=['feature_extractor', 'encoder', 'quantizer', 'all'],
     help='desired modules to transfer fairseq weights from into their NeMo equivalents',
 )
