@@ -48,13 +48,15 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, dependency, model_path):
+def run_benchmark(run_cfg, benchmark_cfg, cluster_cfg, dependency, bignlp_scripts_path, model_path):
 
-    # Benchmark configuration
+    # Run configuration
     model_type = run_cfg.model_type
     model_train_name = run_cfg.model_train_name
     triton_dir = f"{run_cfg.results_dir}/model_repo"
-    bignlp_scripts_path = pathlib.Path(cfg.bignlp_path)
+    time_limit = run_cfg.get("time_limit")
+
+    # Benchmark configuration
     container = benchmark_cfg.inference_container
     tensor_para_size = benchmark_cfg.tensor_model_parallel_size
     pipeline_para_size = benchmark_cfg.pipeline_model_parallel_size
@@ -81,9 +83,9 @@ def run_benchmark(cfg, run_cfg, benchmark_cfg, cluster_cfg, dependency, model_pa
     # Cluster configuration
     partition = cluster_cfg.get("partition")
     account = cluster_cfg.get("account")
-    time_limit = run_cfg.get("time_limit")
     exclusive = cluster_cfg.get("exclusive")
     job_name_prefix = cluster_cfg.get("job_name_prefix")
+
     job_name = job_name_prefix + task_name
     nodes = pipeline_para_size
     ntasks_per_node = 1

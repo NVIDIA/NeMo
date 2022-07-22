@@ -209,11 +209,11 @@ def run_export(cfg, dependency=None):
 
     # Run benchmark
     benchmark_script = run_benchmark(
-        cfg=cfg,
         run_cfg=cfg.export.run,
         benchmark_cfg=cfg.export.benchmark,
         cluster_cfg=cfg.cluster,
         dependency=conversion_job_id,
+        bignlp_scripts_path=pathlib.Path(cfg.bignlp_scripts_path),
         model_path=f"{cfg.export.run.triton_model_dir}/1/{cfg.export.model.tensor_model_parallel_size}-gpu"
     )
 
