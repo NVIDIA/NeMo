@@ -123,6 +123,14 @@ class TestTrainingGPT3Config:
               constant_steps: 100000
               min_lr: 6e-5
 
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+
           data:
             data_impl: mmap
             splits_string: "99990,8,2"
@@ -320,6 +328,14 @@ class TestTrainingGPT3Config:
               warmup_steps: 190
               constant_steps: 20000
               min_lr: 1.2e-5
+
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
 
           data:
             data_impl: mmap
@@ -522,6 +538,14 @@ class TestTrainingGPT3Config:
               constant_steps: 20000
               min_lr: 1e-5
 
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+
           data:
             data_impl: mmap
             splits_string: "99990,8,2"
@@ -720,6 +744,14 @@ class TestTrainingGPT3Config:
               constant_steps: 20000
               min_lr: 0.8e-5
 
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
+
           data:
             data_impl: mmap
             splits_string: "99990,8,2"
@@ -917,6 +949,14 @@ class TestTrainingGPT3Config:
               warmup_steps: 265
               constant_steps: 20000
               min_lr: 0.6e-5
+
+          nsys_profile:
+            enabled: False
+            trace: [nvtx,cuda]
+            start_step: 10  # Global batch to start profiling
+            end_step: 10 # Global batch to end profiling
+            ranks: [0] # Global rank IDs to profile
+            gen_shape: False # Generate model and kernel details including input shapes
 
           data:
             data_impl: mmap
