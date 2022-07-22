@@ -132,7 +132,9 @@ def main(cfg) -> None:
             # Old pre-trained checkpoints do not have separate encoder/decoder configurations, so replicate the config to encoder/decoder.
             if not hasattr(pretrained_cfg, 'encoder'):
                 assert not hasattr(pretrained_cfg, 'decoder')
-                logging.warning("No separate configuration for encoder, found in pretrained model, using encoder dropout settings everywhere.")
+                logging.warning(
+                    "No separate configuration for encoder, found in pretrained model, using encoder dropout settings everywhere."
+                )
                 pretrained_cfg.hidden_dropout = cfg.model.encoder.hidden_dropout
                 pretrained_cfg.attention_dropout = cfg.model.encoder.attention_dropout
             else:
@@ -178,6 +180,7 @@ def main(cfg) -> None:
 
     trainer.fit(model)
     trainer.validate(model)
+
 
 if __name__ == '__main__':
     main()
