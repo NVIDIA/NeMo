@@ -615,11 +615,11 @@ class MegatronT5FinetuneModel(MegatronT5Model):
         if stage != 'test':
             self._validation_ds = self._build_eval_dataset(self.cfg.data.validation_ds)
 
-        if stage != 'validation':
+        if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 self._test_ds = self._build_eval_dataset(self.cfg.data.test_ds)
 
-        if stage == 'validation' or stage == 'test':
+        if stage == 'validate' or stage == 'test':
             return
         self._train_ds = self._build_train_dataset(self.cfg.data.train_ds)
         logging.info(f'Finished building datasets ...')
