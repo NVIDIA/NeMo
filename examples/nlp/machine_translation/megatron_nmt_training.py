@@ -175,12 +175,9 @@ def main(cfg) -> None:
         )
     else:
         model = MegatronNMTModel(cfg.model, trainer)
-    if cfg.do_training:
-        trainer.fit(model)
 
-    if cfg.do_testing:
-        trainer.test(model)
-
+    trainer.fit(model)
+    trainer.validate(model)
 
 if __name__ == '__main__':
     main()
