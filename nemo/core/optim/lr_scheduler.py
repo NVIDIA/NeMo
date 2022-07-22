@@ -472,9 +472,6 @@ class NoamAnnealing(_LRScheduler):
 
         step = max(1, self.last_epoch)
 
-        if step > self.max_steps:
-            return [self.min_lr for _ in self.base_lrs]
-
         for initial_lr in self.base_lrs:
             if initial_lr < self.min_lr:
                 raise ValueError(
@@ -485,7 +482,11 @@ class NoamAnnealing(_LRScheduler):
         return new_lrs
 
     def _noam_annealing(self, initial_lr, step):
-        mult = self._normalize * min(step ** (-0.5), step * (self.warmup_steps ** (-1.5)))
+        if self.warmup_steps > 0:
+            mult = self._normalize * min(step ** (-0.5), step * (self.warmup_steps ** (-1.5)))
+        else:
+            mult = self._normalize * step ** (-0.5)
+
         out_lr = initial_lr * mult
         if step > self.warmup_steps:
             out_lr = max(out_lr, self.min_lr)
@@ -824,6 +825,9 @@ def prepare_lr_scheduler(
     if add_max_args_flag and scheduler_config.get('name', '') != "ExponentialLR":
         scheduler_args['max_steps'] = max_steps
 
+    if scheduler_config.get('name', '') == "CyclicLR":
+        del scheduler_args['max_steps']
+
     # Get the scheduler class from the config
     scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
 
@@ -865,7 +869,7 @@ def compute_max_steps(
         logging.warning(
             "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
-        # TODO: Master verion, not in pytorch 1.6.0
+        # TODO: Master version, not in pytorch 1.6.0
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)

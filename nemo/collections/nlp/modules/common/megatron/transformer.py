@@ -159,19 +159,20 @@ class ParallelMLP(MegatronModule):
                 bias=bias,
             )
 
-        glu_activation_family = activation in ['reglu', 'swiglu']
+        self.glu_activation_family = activation in ['geglu', 'reglu', 'swiglu']
+        bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
 
-        if glu_activation_family and bias_activation_fusion:
+        if bias_activation_fusion_unavailable and bias_activation_fusion:
             raise ValueError(
                 f"Cannot use bias_activation_fusion with {activation} activation. Please turn bias gelu fusion off."
             )
 
-        if glu_activation_family and openai_gelu:
+        if self.glu_activation_family and openai_gelu:
             raise ValueError(
                 f"Cannot use openai_gelu with specificed activation function : {activation} Please turn openai gelu off."
             )
 
-        if glu_activation_family and onnx_safe:
+        if self.glu_activation_family and onnx_safe:
             raise ValueError(
                 f"Cannot use onnx_safe with specificed activation function : {activation} Please turn onnx safe off."
             )
@@ -180,8 +181,6 @@ class ParallelMLP(MegatronModule):
             raise ValueError(
                 f"Cannot use bias_activation_fusion without bias terms. Please set bias=True or bias_activation_fusion=False."
             )
-        else:
-            glu_activation_family = False
 
         self.bias_activation_fusion = bias_activation_fusion
 
@@ -224,18 +223,20 @@ class ParallelMLP(MegatronModule):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
 
-        if self.activation in ['geglu', 'reglu', 'swiglu']:
+        if self.glu_activation_family:
             intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
 
         if self.bias_activation_fusion:
             if self.activation == 'gelu':
                 intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
-            else:
+            elif self.activation == 'geglu':
                 intermediate_parallel = fused_bias_geglu(
                     intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
                 )
 
-        elif self.activation in ['geglu', 'reglu', 'swiglu']:
+        elif self.activation in ['reglu', 'swiglu'] or (
+            self.glu_activation_family and not self.bias_activation_fusion
+        ):
             if bias_parallel is not None:
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
                     intermediate_parallel_2 + bias_parallel_2
@@ -287,6 +288,7 @@ class ParallelAttention(MegatronModule):
         megatron_legacy=False,
         bias=True,
         headscale=False,
+        has_relative_attention_bias=False,
     ):
         super(ParallelAttention, self).__init__()
 
@@ -299,6 +301,7 @@ class ParallelAttention(MegatronModule):
         self.attn_mask_type = attn_mask_type
         self.megatron_legacy = megatron_legacy
         self.headscale = headscale
+        self.has_relative_attention_bias = has_relative_attention_bias
 
         if kv_channels is None:
             assert (
@@ -382,7 +385,7 @@ class ParallelAttention(MegatronModule):
         self.position_embedding_type = position_embedding_type
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
-        if self.position_embedding_type == 'relative':
+        if self.position_embedding_type == 'relative' and self.has_relative_attention_bias:
             self.relative_attention_bias = torch.nn.Embedding(
                 relative_attention_num_buckets, self.num_attention_heads_per_partition
             ).to(torch.cuda.current_device())
@@ -498,7 +501,7 @@ class ParallelAttention(MegatronModule):
         relative_position = memory_position - context_position  # shape (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(
             relative_position,  # shape (query_length, key_length)
-            bidirectional=(self.layer_type != LayerType.decoder),  # (not self.is_decoder),
+            bidirectional=(self.attention_type != AttnMaskType.causal),  # self.is_decoder and self_attention.
             num_buckets=self.relative_attention_num_buckets,
             max_distance=self.relative_attention_max_distance,
         )
@@ -683,9 +686,12 @@ class ParallelAttention(MegatronModule):
 
         if position_bias is None:
             if self.position_embedding_type == 'relative':
-                position_bias = self.compute_bias(real_seq_length, key_length)
-            else:
-                pass  # HuggingFace implementation initialize position_bias to zero when not using
+                if self.has_relative_attention_bias:
+                    position_bias = self.compute_bias(real_seq_length, key_length)
+                elif attention_mask is not None:
+                    position_bias = torch.zeros_like(attention_mask).to(torch.cuda.current_device())
+                else:
+                    position_bias = torch.zeros(1, key_length, key_length).to(torch.cuda.current_device())
 
             # if key and values are already calculated
             # we want only the last query position bias
@@ -790,6 +796,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
         megatron_legacy=False,
         chunk_size=64,  # each chunk, how many tokens
         bias=True,
+        headscale=False,
     ):
         super(ParallelChunkedCrossAttention, self).__init__()
         self.cross_attention = ParallelAttention(
@@ -811,6 +818,7 @@ class ParallelChunkedCrossAttention(MegatronModule):
             relative_attention_max_distance=relative_attention_max_distance,
             megatron_legacy=megatron_legacy,
             bias=bias,
+            headscale=headscale,
         )
         self.chunk_size = chunk_size
 
@@ -975,6 +983,7 @@ class ParallelTransformerLayer_(MegatronModule):
         normalization='layernorm',
         transformer_block_type='pre_ln',
         headscale=False,
+        has_relative_attention_bias=False,
     ):
         super(ParallelTransformerLayer_, self).__init__()
 
@@ -1038,6 +1047,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
+                has_relative_attention_bias=has_relative_attention_bias,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1048,15 +1058,26 @@ class ParallelTransformerLayer_(MegatronModule):
                 else:
                     self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
+            if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
+                #  the post_attention_layernorm is used for layermorm after mlp
+                # don't need it for decoder_pre_mlp and post_ln
+                if normalization == 'layernorm':
+                    self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+                else:
+                    self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
+        if self.layer_type == LayerType.decoder_pre_mlp:
+            # skip MLP and cross attention
+            return
+
+        # the post_attention_layernorm is used for layermorm after mlp
+        # need it for post_ln
+        if self.layer_type == LayerType.retrieval_decoder_after_self_attn and self.transformer_block_type == 'post_ln':
             # Layernorm on the attention output
             if normalization == 'layernorm':
                 self.post_attention_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
             else:
                 self.post_attention_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
-
-        if self.layer_type == LayerType.decoder_pre_mlp:
-            # skip MLP and cross attention
-            return
 
         if self.layer_type == LayerType.decoder or self.layer_type == LayerType.retrieval_encoder:
             self.inter_attention = ParallelAttention(
@@ -1079,6 +1100,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 bias=bias,
                 headscale=headscale,
+                has_relative_attention_bias=False,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1118,6 +1140,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 megatron_legacy=megatron_legacy,
                 chunk_size=chunk_size,
                 bias=bias,
+                headscale=headscale,
             )
             # Normformer normalization
             if transformer_block_type == 'normformer':
@@ -1207,14 +1230,6 @@ class ParallelTransformerLayer_(MegatronModule):
             # Post-LN: x -> MHA -> Residual -> LN -> MLP -> Residual -> LN
             # Normformer: x -> LN -> MHA -> LN -> Residual -> MLP (w/LN) -> Residual
 
-            if type(hidden_states) is tuple:
-                if len(hidden_states) == 2:
-                    hidden_states, position_bias = hidden_states
-                elif len(hidden_states) == 3:
-                    hidden_states, position_bias, encoder_decoder_position_bias = hidden_states
-                else:
-                    raise IndexError('Hidden_states needs to be tuple containing 2 or 3 elements.')
-
             residual = hidden_states
             # Layer norm at the beginning of the transformer layer.
             if self.transformer_block_type in ['pre_ln', 'normformer']:
@@ -1228,6 +1243,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 rotary_pos_emb=self_attention_pos_emb,
+                position_bias=position_bias,
             )
 
             if get_key_value:
@@ -1253,6 +1269,8 @@ class ParallelTransformerLayer_(MegatronModule):
             bias_dropout_add_func = self._get_bias_droput_add_func(
                 transformer_block_type=self.transformer_block_type, position_after='attention'
             )
+            if attention_bias is not None:
+                attention_bias = attention_bias.expand_as(residual)
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
 
@@ -1475,7 +1493,7 @@ class ParallelTransformer(MegatronModule):
 
         self.num_layers = self.get_num_layers(num_layers)
         # Transformer layers.
-        def build_layer(layer_number):
+        def build_layer(layer_number, has_relative_attention_bias=False):
             if isinstance(layer_type, list):
                 lt = layer_type[layer_number - 1]
             else:
@@ -1513,6 +1531,7 @@ class ParallelTransformer(MegatronModule):
                 normalization=normalization,
                 transformer_block_type=transformer_block_type,
                 headscale=headscale,
+                has_relative_attention_bias=has_relative_attention_bias,
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -1549,9 +1568,16 @@ class ParallelTransformer(MegatronModule):
             else:
                 offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
 
-        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
+        self.layers = torch.nn.ModuleList(
+            [
+                build_layer(
+                    i + 1 + offset, has_relative_attention_bias=(i == 0) and parallel_state.is_pipeline_first_stage()
+                )
+                for i in range(self.num_layers)
+            ]
+        )
 
-        if self.post_process:
+        if self.post_process and self.transformer_block_type != 'post_ln':
             # Final layer norm before output.
             if normalization == 'layernorm':
                 self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
@@ -1615,9 +1641,16 @@ class ParallelTransformer(MegatronModule):
                         encoder_output,
                         enc_dec_attn_mask,
                         rotary_pos_emb,
-                        position_bias,
-                        encoder_decoder_position_bias,
+                        position_bias=position_bias,
+                        encoder_decoder_position_bias=encoder_decoder_position_bias,
                     )
+                    if type(x_) is tuple:
+                        if len(x_) == 2:
+                            x_, position_bias = x_
+                        elif len(x_) == 3:
+                            x_, position_bias, encoder_decoder_position_bias = x_
+                        else:
+                            raise IndexError('Hidden_states (x_) needs to be tuple containing 2 or 3 elements.')
                 return x_
 
             return custom_forward
@@ -1695,9 +1728,10 @@ class ParallelTransformer(MegatronModule):
         inference_max_sequence_len=None,
         rotary_pos_emb=None,  # list of positional embedding tensors, first one self attention, second one and third one are for cross attention (q, k)
         retrieved_emb=None,  # tensor of retrieved embedding of shape [b, k, r, n, d]
-        position_bias=None,
-        encoder_decoder_position_bias=None,
     ):
+        position_bias = None
+        encoder_decoder_position_bias = None
+
         # Checks.
         if inference_max_sequence_len:
             assert self.activations_checkpoint_method is None, 'inference does not work with activation checkpointing'
@@ -1781,8 +1815,10 @@ class ParallelTransformer(MegatronModule):
         # Final layer norm.
         if self.post_process:
             # Reverting data format change [s b h] --> [b s h].
-            hidden_states = hidden_states.transpose(0, 1).contiguous()
-            output = self.final_layernorm(hidden_states)
+            output = hidden_states.transpose(0, 1).contiguous()
+            # only apply the final_layernorm for pre-ln
+            if self.transformer_block_type != 'post_ln':
+                output = self.final_layernorm(output)
         else:
             output = hidden_states
         if get_key_value:
