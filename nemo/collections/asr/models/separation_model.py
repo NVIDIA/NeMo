@@ -26,9 +26,12 @@ __all__ = ['ASRModel']
 
 class SeparationModel(ModelPT, ABC):
     @abstractmethod
-    def separate_sources(self, paths2audio_files: List[str], batch_size: int = 1) -> torch.Tensor:
+    def extract_sources(
+        self,
+        paths2audio_files: List[str],
+    ) -> None:
         """
-        Takes paths to audio files and returns separated sources
+        Takes paths to audio files and saves separated sources
         Args:
             paths2audio_files: paths to audio fragment to be separated
 

@@ -82,7 +82,9 @@ class _AudioDataset(Dataset):
             orig_sr=self.orig_sr,
         ) * sample.scale_factor[i] for i in range(self.num_sources) ]
 
-        return features_list
+        return {
+            'features_list':features_list,
+        }
 
 
 class AudioToSourceDataset(_AudioDataset):
@@ -115,7 +117,8 @@ class AudioToSourceDataset(_AudioDataset):
         self.num_sources = num_sources
 
     def __getitem__(self, index):
-        features_list = super().__getitem__(index)
+        data_pt = super().__getitem__(index)
+        features_list = data_pt['features_list']
         features_lengths = [torch.tensor(x.shape[0]).long() for x in features_list]
 
         min_l = torch.min(torch.stack(features_lengths)).item()
@@ -123,11 +126,14 @@ class AudioToSourceDataset(_AudioDataset):
         if self.num_sources == 2:
             t1, t2 = [x[:min_l] for x in features_list]
             mix = t1 + t1
-            output = mix, torch.tensor(min_l).long(), t1, t2
+            output = [mix, torch.tensor(min_l).long(), t1, t2]
         elif self.num_sources == 3:
             t1, t2, t3  = [x[:min_l] for x in features_list]
             mix = t1 + t2 + t3
-            output = mix, torch.tensor(min_l).long(), t1, t2, t3
+            output = [mix, torch.tensor(min_l).long(), t1, t2, t3]
+
+        # add index 
+        output.append(index)
 
         return output
 
@@ -144,14 +150,16 @@ def _audio_to_audio_collate_fn(batch):
         This collate func assumes the signals are 1d torch tensors (i.e. mono audio).
     """
     packed_batch = list(zip(*batch))
-    if len(packed_batch) == 4:
-        _, audio_lengths, _, _ = packed_batch
-    elif len(packed_batch) == 5:
-        sample_ids = None
-        _, audio_lengths, _, _, _  = packed_batch
+    if len(packed_batch) == 5:
+        _, audio_lengths, _, _, sample_ids = packed_batch
+    elif len(packed_batch) == 6:
+        _, audio_lengths, _, _, _, sample_ids  = packed_batch
     else:
-        raise ValueError("Expects 4 or 5 tensors in the batch!")
+        raise ValueError("Expects 5 or 6 tensors in the batch!")
     
+    # convert sample_ids to torch
+    sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
+
     max_audio_len = 0
     has_audio = audio_lengths[0] is not None
     if has_audio:
@@ -159,10 +167,10 @@ def _audio_to_audio_collate_fn(batch):
 
     audio_signal, target1, target2, target3 = [], [], [], []
     for b in batch:
-        if len(b) == 4:
-            sig, sig_len, t1, t2 = b
+        if len(b) == 5:
+            sig, sig_len, t1, t2, _ = b
         else:
-            sig, sig_len, t1, t2, t3 = b
+            sig, sig_len, t1, t2, t3, _ = b
         if has_audio:
             sig_len = sig_len.item()
             if sig_len < max_audio_len:
@@ -170,30 +178,30 @@ def _audio_to_audio_collate_fn(batch):
                 sig = torch.nn.functional.pad(sig, pad)
                 t1 = torch.nn.functional.pad(t1, pad)
                 t2 = torch.nn.functional.pad(t2, pad)
-                if len(b) == 5: 
+                if len(b) == 6: 
                     t3 = torch.nn.functional.pad(t3, pad)
 
 
             audio_signal.append(sig)
             target1.append(t1)
             target2.append(t2)
-            if len(b) == 5:
+            if len(b) == 6:
                 target3.append(t3)
 
     if has_audio:
         audio_signal = torch.stack(audio_signal)
         target1 = torch.stack(target1)
         target2 = torch.stack(target2)
-        if len(b) == 5:
+        if len(b) == 6:
             target3 = torch.stack(target3)
         audio_lengths = torch.stack(audio_lengths)
     else:
-        audio_signal, target1, target2, target3, audio_lengths = None, None, None, None, None
+        audio_signal, target1, target2, target3, audio_lengths, sample_ids = None, None, None, None, None, None
     
-    if len(packed_batch) == 4:
-        return audio_signal, audio_lengths, target1, target2
+    if len(packed_batch) == 5:
+        return audio_signal, audio_lengths, target1, target2, sample_ids
     else:
-        return audio_signal, audio_lengths, target1, target2, target3
+        return audio_signal, audio_lengths, target1, target2, target3, sample_ids
 
 
 def test_AudioToSourceDataset():
@@ -204,8 +212,8 @@ def test_AudioToSourceDataset():
         featurizer=featurizer,
     )
 
-    item = dataset.__getitem__(0)
-    print([x.shape for x in item])
+    item = dataset.__getitem__(1)
+    print([x for x in item])
 
 if __name__=='__main__':
     import nemo

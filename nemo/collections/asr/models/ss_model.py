@@ -11,11 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import copy
+import json
+import os
+import tempfile
+import tqdm
 from math import ceil
-from typing import Dict, Optional, Union
+from random import sample
+from typing import Dict, List, Optional, Union
 
 import torch
 import torch.nn.functional as F
+import torchaudio
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
@@ -268,10 +276,10 @@ class EncDecSpeechSeparationModel(SeparationModel):
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         if self.num_sources == 2:
-            input, input_len, target1, target2 = batch
+            input, input_len, target1, target2, sample_ids = batch
         else:
-            logging.info(f"current support is only for {self.num_sources} sources")
-
+            logging.info(f"current support is only for 2 sources")
+        
         target_estimate = self.forward(input)
         target = [target1, target2]
         target = torch.cat(
@@ -287,9 +295,9 @@ class EncDecSpeechSeparationModel(SeparationModel):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         if self.num_sources == 2:
-            input, input_len, target1, target2 = batch
+            input, input_len, target1, target2, sample_ids = batch
         else:
-            logging.info(f"current support is only for {self.num_sources} sources")
+            logging.info(f"current support is only for 2 sources")
         target_estimate = self.forward(input)
         target = [target1, target2]
         target = torch.cat(
@@ -302,17 +310,146 @@ class EncDecSpeechSeparationModel(SeparationModel):
         return {
             'val_loss': loss_value,
         }
-    
+        
+
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': val_loss_mean}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
     
-    def separate_sources(self):
+    
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
+        test_logs = {
+            'test_loss': logs['val_loss']
+        }
+
+        return test_logs
+
+
+    def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
+        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'test_loss': test_loss_mean}
+        return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
+    
+
+    @torch.no_grad()
+    def extract_sources(
+        self,
+        paths2audio_files: List[str],
+        save_dir: str = None,
+        orig_sr: int = 16000,
+        num_sources: int = 2,
+        batch_size: int = 1,
+        num_workers: int = 0,
+    ) -> None:
+        """
+        Takes paths to audio files and saves separated sources
+        Args:
+            paths2audio_files: paths to audio fragment to be separated
+            save_dir: where to save the sources
+        """
+
+        if paths2audio_files is None or len(paths2audio_files) == 0:
+            raise ValueError(f"zero files received in extract_sources fn") 
+
+        if not self.num_sources == num_sources:
+            raise ValueError(f"model trained for {self.num_sources} sources, but got {num_sources} sources")
+
+        if save_dir is None: 
+            raise ValueError(f"save_dir is not specified")
+
+        # Models mode and device
+        mode = self.training
+        device = next(self.parameters()).device
+
+        # create save_dir
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        if num_workers is None:
+            num_workers = min(batch_size, os.cpu_count()-1)
+
+        try:
+            # switch to eval mode
+            self.eval()
+
+            # freeze modules
+            self.preprocessor.freeze()
+            self.encoder.freeze()
+            self.decoder.freeze()
+            logging_level = logging.get_verbosity()
+            logging.set_verbosity(logging.WARNING)
+
+            # work in temp directory for manifest creation
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with open(os.path.join(tmp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                    for audio_file in paths2audio_files:
+                        entry = {
+                            'audio_filepath': [audio_file, audio_file],
+                            'duration': [10000, 10000],
+                            }
+                        fp.write(json.dumps(entry) +  '\n')
+
+                config = {
+                    'manifest_filepath': os.path.join(tmp_dir, 'manifest.json'),
+                    'batch_size' : batch_size,
+                    'shuffle' : False,
+                    'num_workers' : num_workers,
+                    'num_sources' : self.num_sources,
+                    'orig_sr' : orig_sr,
+                    'sample_rate' :self._cfg.sample_rate
+                }
+
+                extract_dataloader = self._setup_dataloader_from_config(config)
+                for batch in tqdm.tqdm(extract_dataloader, desc="Extracting sources"):
+                    target_estimate = self.forward(
+                        batch[0].to(device)
+                    )
+
+                    self._save_audio(
+                        id=batch[-1].cpu().item(),
+                        mixture=batch[0].cpu(),
+                        target_estimate=target_estimate.cpu(),
+                        save_dir=save_dir,
+                        sample_rate=self._cfg.sample_rate,
+                    )
+
+        finally:
+            # set modes
+            self.train(mode=mode)
+            
+            logging.set_verbosity(logging_level)
+            if mode is True:
+                self.preprocessor.unfreeze()
+                self.encoder.unfreeze()
+                self.decoder.unfreeze()
+        
         return 
 
 
+    def _save_audio(self, id, mixture, target_estimate, save_dir, sample_rate):
+        """
+        Saves the test audio (mixture and estimates)
+        """
 
+        # save mixture
+        samples = mixture[0, :]
+        samples = samples / samples.abs().max()
+        save_path = os.path.join(save_dir, f"item{id}_mix.wav")
+        torchaudio.save(
+            save_path,
+            samples.unsqueeze(0),
+            sample_rate, 
+        )
 
-
-
+        # save estimated sources
+        for n_src in range(self.num_sources):
+            samples = target_estimate[0, :, n_src]
+            samples = samples / samples.abs().max()
+            save_path = os.path.join(save_dir, f"item{id}_source{n_src+1}hat.wav")
+            torchaudio.save(
+                save_path,
+                samples.unsqueeze(0),
+                sample_rate,
+            )
