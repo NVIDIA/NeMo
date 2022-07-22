@@ -275,7 +275,7 @@ class ContrastiveLoss(Loss):
         batch_size = spectrograms.shape[0]
         loss *= self.multiplier / batch_size
 
-        return loss, targets
+        return loss
 
     def _calculate_similarity(self, logits, negatives, targets):
         neg_is_pos = (targets == negatives).all(-1)
