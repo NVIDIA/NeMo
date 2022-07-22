@@ -22,13 +22,16 @@ import omegaconf
 import torch
 import wget
 
-try:
-	import fairseq
-except (ModuleNotFoundError, ImportError):
-    raise ModuleNotFoundError("This script requires fairseq to be installed to load Wav2Vec modules. Please see https://github.com/facebookresearch/fairseq for installation instructions.")
-
 from nemo.collections.asr.models.ssl_models import SpeechEncDecSelfSupervisedModel
 from nemo.utils import logging
+
+try:
+    import fairseq
+except (ModuleNotFoundError, ImportError):
+    raise ModuleNotFoundError(
+        "This script requires fairseq to be installed to load Wav2Vec modules. Please see https://github.com/facebookresearch/fairseq for installation instructions."
+    )
+
 
 """
 Script to load Fairseq Wav2Vec2.0 style pretrained model weights into NeMo models. Requires Fairseq installation.
