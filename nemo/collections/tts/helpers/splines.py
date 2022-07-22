@@ -22,8 +22,6 @@
 import torch
 import torch.nn.functional as F
 
-third_dimension_softmax = torch.nn.Softmax(dim=2)
-
 
 def piecewise_linear_transform(x, q_tilde, compute_jacobian=True, outlier_passthru=True):
     """Apply an element-wise piecewise-linear transformation to some variables
@@ -52,6 +50,8 @@ def piecewise_linear_transform(x, q_tilde, compute_jacobian=True, outlier_passth
         - `j` is the jacobian of the transformation with shape (N,) if compute_jacobian==True, else None.
     """
     logj = None
+
+    third_dimension_softmax = torch.nn.Softmax(dim=2)
 
     # TODO bottom-up assesment of handling the differentiability of variables
     # Compute the bin width w
@@ -139,7 +139,7 @@ def piecewise_linear_inverse_transform(y, q_tilde, compute_jacobian=True, outlie
     """
 
     # TODO bottom-up assesment of handling the differentiability of variables
-
+    third_dimension_softmax = torch.nn.Softmax(dim=2)
     # Compute the bin width w
     N, k, b = q_tilde.shape
     Ny, ky = y.shape

@@ -117,11 +117,29 @@ class RadTTSModule(NeuralModule, Exportable):
     """
     Takes model parameters (modelConfig) from config file to intialize radtts module. 
     Specifiy the type of training in the include_modules parameter. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training 
-    It also has DAP (deterministic attribute prediction) module for feature prediction:
-        v_model_config 
-        dur_model_config - DAP
-        f0_model_config - DAP
-        energy_model_config - DAP 
+    n_speakers (int): Number of speakers 
+    n_speaker_dim (int): number of speakers dimention
+    n_text (int): Symbols embedding size
+    n_text_dim (int):
+    n_flows (int):
+    n_conv_layers_per_step (int): number of convultion layers per step 
+    dummy_speaker_embedding (bool): 
+    include_modules (string): A string that describes what to train. "decatnvpred" for decoder training. and "decatnunvbiasdpmvpredapm" for feature training. 
+    scaling_fn (string): scaling function 
+    decoder_use_partial_padding (Bool): Set this to True to add partial padding
+    learn_alignments (Bool): set this to true to learn alignments
+    attn_use_CTC (Bool): set True to use CTC
+    n_f0_dims (int): number of Pitch dimention
+    n_early_size (int):
+    n_early_every (int):
+    n_group_size (int):
+    decoder_use_unvoiced_bias (bool):
+    context_lstm_w_f0_and_energ (bool):
+    use_first_order_features (bool):
+    ap_pred_log_f0 (bool):
+    dur_model_config: model configuration for duration
+    f0_model_config: model configuration for Pitch
+    energy_model_config: model configuration for energy
     """
 
     def __init__(
