@@ -1,6 +1,6 @@
 variables: &VARS
   BIGNLP_REGISTRY: "gitlab-master.nvidia.com:5005/dl/joc/bignlp-scripts"
-  BIGNLP_BASE_IMAGE: "nvcr.io/nvidian/bignlp-training:22.06.10-py"
+  BIGNLP_BASE_IMAGE: "gitlab-master.nvidia.com:5005/dl/dgx/bignlp/train:infer_refactor-py3-base"
   SELENE_BIGNLP_CI_PATH: "/lustre/fsw/joc/big_nlp/bignlp_ci"
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
@@ -452,6 +452,60 @@ eval.gpt3.126m_tp2_pp2_lambada:
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
+export.gpt3.126m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp1-split_tp2_pp2_fp32_bf16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.gpt3.126m_tp1_pp1_lambada
+
+export.gpt3.126m_tp1_pp2_split:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp1_pp2-split_tp2_pp2_fp16_fp16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.gpt3.126m_tp1_pp2_lambada
+
+export.gpt3.126m_tp2_pp1_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp1-merge_tp1_pp2_fp32_bf16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.gpt3.126m_tp2_pp1_lambada
+
+
+export.gpt3.126m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: gpt3
+    RUN_JOB_NAME: 126m_tp2_pp2-merge_tp1_pp1_fp16_fp16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.gpt3.126m_tp2_pp2_lambada
+
+
 
 convert.gpt3.126m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
@@ -586,6 +640,32 @@ eval.t5.220m_tp2_pp2:
   needs:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
 
+export.t5.220m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp1_pp1-split_tp2_pp2_fp16_fp16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.t5.220m_tp1_pp1
+
+export.t5.220m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: t5
+    RUN_JOB_NAME: 220m_tp2_pp2-merge_tp1_pp1_fp32_bf16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.t5.220m_tp2_pp2
+
 convert.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
@@ -663,6 +743,32 @@ eval.mt5.170m_tp2_pp2:
     - merge_requests
   needs:
     - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
+
+export.mt5.170m_tp1_pp1_split:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp1_pp1-split_tp2_pp2_fp32_bf16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.mt5.170m_tp1_pp1
+
+export.mt5.170m_tp2_pp2_merge:
+  <<: *bignlp-LUNA-test-LAUNCHER
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+    RUN_TASK: export
+    RUN_MODEL: mt5
+    RUN_JOB_NAME: 170m_tp2_pp2-merge_tp1_pp1_fp16_fp16
+  only:
+    - master
+    - merge_requests
+  needs:
+    - eval.mt5.170m_tp2_pp2
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER
