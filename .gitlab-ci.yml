@@ -167,7 +167,8 @@ build-BigNLP:
     - set -x
     - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
-    - if [ "$RUN_TASK" -eq "train" ]; then export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}node_${MAX_STEPS}steps; else export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}; fi
+    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
+    - if [[ "$RUN_TASK" -eq "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_TASK}_${RUN_MODEL}_model.sh
