@@ -7,6 +7,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     run_finetuning=False \
     run_prompt_learning=True \
     run_evaluation=False \
+    run_export=False \
     bignlp_path=${GIT_CLONE_PATH} \
     data_dir=${BASE_RESULTS_DIR}/data \
     base_results_dir=${BASE_RESULTS_DIR} \
