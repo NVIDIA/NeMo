@@ -113,11 +113,12 @@ class AbstractRNNTDecoding(ABC):
         blank_id: The id of the RNNT blank token.
     """
 
-    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id: int, big_blank_duration: int):
+    def __init__(self, decoding_cfg, decoder, joint, blank_id: int, big_blank_id: int, huge_blank_id: int, big_blank_duration: int):
         super(AbstractRNNTDecoding, self).__init__()
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.big_blank_id = big_blank_id
+        self.huge_blank_id = huge_blank_id
         self.big_blank_duration = big_blank_duration
         self.compute_hypothesis_token_set = self.cfg.get("compute_hypothesis_token_set", False)
         self.preserve_alignments = self.cfg.get('preserve_alignments', None)
@@ -142,6 +143,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 big_blank_index=self.big_blank_id,
+                huge_blank_index=self.huge_blank_id,
                 big_blank_duration=self.big_blank_duration,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -156,6 +158,7 @@ class AbstractRNNTDecoding(ABC):
                 joint_model=joint,
                 blank_index=self.blank_id,
                 big_blank_index=self.big_blank_id,
+                huge_blank_index=self.huge_blank_id,
                 big_blank_duration=self.big_blank_duration,
                 max_symbols_per_step=(
                     self.cfg.greedy.get('max_symbols', None) or self.cfg.greedy.get('max_symbols_per_step', None)
@@ -309,7 +312,7 @@ class AbstractRNNTDecoding(ABC):
 
             # RNN-T sample level is already preprocessed by implicit CTC decoding
             # Simply remove any blank tokens
-            prediction = [p for p in prediction if p != self.blank_id and p != self.big_blank_id]
+            prediction = [p for p in prediction if p != self.blank_id and p != self.big_blank_id and p != self.huge_blank_id]
 
             # De-tokenize the integer tokens
             hypothesis = self.decode_tokens_to_str(prediction)
@@ -462,9 +465,10 @@ class RNNTDecoding(AbstractRNNTDecoding):
     ):
         blank_id = len(vocabulary)
         big_blank_id = len(vocabulary) + 1
+        huge_blank_id = len(vocabulary) + 2
         self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
 
-        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id, big_blank_duration=3)
+        super(RNNTDecoding, self).__init__(decoding_cfg=decoding_cfg, decoder=decoder, joint=joint, blank_id=blank_id, big_blank_id=big_blank_id, huge_blank_id=huge_blank_id, big_blank_duration=3)
 
     def decode_tokens_to_str(self, tokens: List[int]) -> str:
         """
@@ -490,7 +494,7 @@ class RNNTDecoding(AbstractRNNTDecoding):
         Returns:
             A list of decoded tokens.
         """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c != self.big_blank_id]
+        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id and c != self.big_blank_id and c != self.huge_blank_id]
         return token_list
 
 
@@ -538,6 +542,7 @@ class RNNTWER(Metric):
         self.log_prediction = log_prediction
         self.blank_id = self.decoding.blank_id
         self.big_blank_id = self.decoding.big_blank_id
+        self.huge_blank_id = self.decoding.huge_blank_id
         self.labels_map = self.decoding.labels_map
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
