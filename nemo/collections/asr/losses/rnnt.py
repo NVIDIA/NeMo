@@ -112,7 +112,7 @@ def resolve_rnnt_default_loss_name() -> str:
     return RNNT_LOSS_RESOLVER['default'].loss_name
 
 
-def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx: int, blank_duration: int, loss_kwargs: dict = None) -> torch.nn.Module:
+def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx: int, huge_blank_idx, blank_duration: int, loss_kwargs: dict = None) -> torch.nn.Module:
     loss_function_names = list(RNNT_LOSS_RESOLVER.keys())
 
     if loss_name not in loss_function_names:
@@ -169,11 +169,11 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, big_blank_idx: int, blank_
     elif loss_name == 'warprnnt_numba':
         fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
         clamp = loss_kwargs.pop('clamp', -1.0)
-        loss_func = RNNTLossNumba(blank=blank_idx, big_blank=big_blank_idx, blank_duration=blank_duration, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
+        loss_func = RNNTLossNumba(blank=blank_idx, big_blank=big_blank_idx, huge_blank=huge_blank_idx, blank_duration=blank_duration, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank=big_blank_idx, reduction='none')
+        loss_func = RNNTLossPytorch(blank=blank_idx, big_blank=big_blank_idx, huge_blank=huge_blank_idx, reduction='none')
 
     else:
         raise ValueError(
@@ -206,6 +206,7 @@ class RNNTLossPytorch(Loss):
         super().__init__()
         self.blank = blank
         self.big_blank = 1 + blank
+        self.huge_blank = 2 + blank
         self.blank_duration = blank_duration
         self.reduction = reduction
 
@@ -229,7 +230,13 @@ class RNNTLossPytorch(Loss):
                         tmp = log_alpha[:, t-1, u] + acts[:, t-1, 0, self.blank] 
                         if t >= self.blank_duration:
                             tt = log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, 0, self.big_blank]
-                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
+                            tmp2 = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
+#                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp, tt]), dim=0)
+                            if t >= 2 * self.blank_duration:
+                                tt = log_alpha[:, t-2 * self.blank_duration, u] + acts[:, t-2*self.blank_duration, 0, self.huge_blank]
+                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([tmp2, tt]), dim=0)
+                            else:
+                                log_alpha[:, t, u] = tmp2
 
                         else:
                             log_alpha[:, t, u] = tmp
@@ -244,10 +251,17 @@ class RNNTLossPytorch(Loss):
                             log_alpha[:, t, u-1] + torch.gather(acts[:, t, u-1], dim=1, index=labels[:,u-1].view(-1,1).type(torch.int64) ).reshape(-1)
                         ]), dim=0)
                         if t >= self.blank_duration:
-                            log_alpha[:, t, u] = torch.logsumexp(torch.stack([
+                            tmp2 = torch.logsumexp(torch.stack([
                                 tmp,
                                 log_alpha[:, t-self.blank_duration, u] + acts[:, t-self.blank_duration, u, self.big_blank],
                             ]), dim=0)
+                            if t >= 2 * self.blank_duration:
+                                log_alpha[:, t, u] = torch.logsumexp(torch.stack([
+                                    tmp2,
+                                    log_alpha[:, t-2*self.blank_duration, u] + acts[:, t-2*self.blank_duration, u, self.huge_blank],
+                                ]), dim=0)
+                            else:
+                                log_alpha[:, t, u] = tmp2
                         else:
                             log_alpha[:, t, u] = tmp
 
@@ -256,9 +270,16 @@ class RNNTLossPytorch(Loss):
             tt = log_alpha[b, act_lens[b]-1, label_lens[b]] + acts[b, act_lens[b]-1, label_lens[b], self.blank]
             if act_lens[b] >= self.blank_duration:
                 jj = log_alpha[b, act_lens[b]-self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-self.blank_duration, label_lens[b], self.big_blank]
-                to_append = torch.logsumexp(torch.stack([
+                tt = torch.logsumexp(torch.stack([
                       tt, jj
                 ]), dim=0)
+                if act_lens[b] >= 2 * self.blank_duration:
+                    kk = log_alpha[b, act_lens[b]-2 * self.blank_duration, label_lens[b]] + acts[b, act_lens[b]-2 * self.blank_duration, label_lens[b], self.huge_blank]
+                    to_append = torch.logsumexp(torch.stack([
+                          tt, kk
+                    ]), dim=0)
+                else:
+                    to_append = tt
                 
                 log_probs.append(to_append)
             else:
@@ -342,9 +363,10 @@ class RNNTLoss(Loss):
 
         self._blank = num_classes
         self._big_blank = num_classes + 1
+        self._huge_blank = num_classes + 2
         self._blank_duration = blank_duration
         self.reduction = reduction
-        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, big_blank_idx=self._big_blank, blank_duration=self._blank_duration, loss_kwargs=loss_kwargs)
+        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, big_blank_idx=self._big_blank, huge_blank_idx=self._huge_blank, blank_duration=self._blank_duration, loss_kwargs=loss_kwargs)
 
     @typecheck()
     def forward(self, log_probs, targets, input_lengths, target_lengths):
@@ -402,14 +424,14 @@ class RNNTLoss(Loss):
         return loss
 
 if __name__ == "__main__":
-    B, T, U, V = 2, 32, 16, 256
-#    B, T, U, V = 3, 11, 7, 5 
+#    B, T, U, V = 2, 32, 16, 256
+    B, T, U, V = 3, 11, 7, 5 
 #    B, T, U, V = 3, 3, 3, 3
 
-    duration=4
+    duration=2
 
-    Loss = RNNTLossPytorch(V - 2, blank_duration=duration, reduction='mean')
-    Loss2 = RNNTLoss(V - 2, blank_duration=duration, reduction='mean_batch', loss_name='warprnnt_numba')
+    Loss = RNNTLossPytorch(V - 3, blank_duration=duration, reduction='mean')
+    Loss2 = RNNTLoss(V - 3, blank_duration=duration, reduction='mean_batch', loss_name='warprnnt_numba')
 
     for t in range(1000):
         acts = torch.rand([B, T, U, V]) - 0.5

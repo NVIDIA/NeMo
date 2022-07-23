@@ -70,7 +70,7 @@ class StatelessNet(torch.nn.Module):
                 embed_size = emb_dim - (emb_dim // 2 // self.context_size) * (self.context_size - 1)
 
             if blank_as_pad:
-                embed = torch.nn.Embedding(vocab_size + 2, embed_size, padding_idx=blank_idx)
+                embed = torch.nn.Embedding(vocab_size + 3, embed_size, padding_idx=blank_idx)
             else:
                 embed = torch.nn.Embedding(vocab_size, embed_size)
 
@@ -1276,7 +1276,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self.vocabulary = vocabulary
 
         self._vocab_size = num_classes
-        self._num_classes = num_classes + 2  # add 2 for two blank symbols
+        self._num_classes = num_classes + 3  # add 2 for two blank symbols
 
         if experimental_fuse_loss_wer is not None:
             # Override fuse_loss_wer from deprecated argument

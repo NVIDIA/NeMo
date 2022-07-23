@@ -110,6 +110,7 @@ class _GreedyRNNTInfer(Typing):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         big_blank_index: int,
+        huge_blank_index: int,
         big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
@@ -120,6 +121,7 @@ class _GreedyRNNTInfer(Typing):
 
         self._blank_index = blank_index
         self._big_blank_index = big_blank_index
+        self._huge_blank_index = huge_blank_index
         self._big_blank_duration = big_blank_duration
         self._SOS = blank_index  # Start of single index
         self.max_symbols = max_symbols_per_step
@@ -177,17 +179,17 @@ class _GreedyRNNTInfer(Typing):
             log_normalize: Whether to log normalize or not. None will log normalize only for CPU.
 
         Returns:
-             logits of shape (B, T=1, U=1, V + 2)
+             logits of shape (B, T=1, U=1, V + 3)
         """
         with torch.no_grad():
             logits = self.joint.joint(enc, pred)
 
             if log_normalize is None:
                 if not logits.is_cuda:  # Use log softmax only if on CPU
-                    logits = logits.log_softmax(dim=len(logits.shape) - 2)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 3)
             else:
                 if log_normalize:
-                    logits = logits.log_softmax(dim=len(logits.shape) - 2)
+                    logits = logits.log_softmax(dim=len(logits.shape) - 3)
 
         return logits
 
@@ -219,6 +221,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         big_blank_index: int,
+        huge_blank_index: int,
         big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
@@ -228,6 +231,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
             joint_model=joint_model,
             blank_index=blank_index,
             big_blank_index=big_blank_index,
+            huge_blank_index=huge_blank_index,
             big_blank_duration=big_blank_duration,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
@@ -304,10 +308,8 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # For timestep t in X_t
         blank_optimization = True
-#        blank_optimization = False
         self._big_blank_duration = 1
         big_blank_duration = self._big_blank_duration
-#        print("DURATION is", big_blank_duration)
 
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 1:
@@ -414,6 +416,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         big_blank_index: int,
+        huge_blank_index: int,
         big_blank_duration: int,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
@@ -423,6 +426,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
             joint_model=joint_model,
             blank_index=blank_index,
             big_blank_index=big_blank_index,
+            huge_blank_index=huge_blank_index,
             big_blank_duration=big_blank_duration,
             max_symbols_per_step=max_symbols_per_step,
             preserve_alignments=preserve_alignments,
@@ -540,6 +544,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                 # Forcibly mask with "blank" tokens, for all sample where current time step T > seq_len
                 blank_mask = time_idx >= out_len
                 big_blank_mask = time_idx >= out_len
+                huge_blank_mask = time_idx >= out_len
 
                 # Start inner loop
                 while not_blank and (self.max_symbols is None or symbols_added < self.max_symbols):
@@ -566,13 +571,17 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     # This is accumulating blanks over all time steps T and all target steps min(max_symbols, U)
                     k_is_blank = k == self._blank_index
                     k_is_big_blank = k == self._big_blank_index
+                    k_is_huge_blank = k == self._huge_blank_index
                     blank_mask.bitwise_or_(k_is_blank)
                     blank_mask.bitwise_or_(k_is_big_blank)
+                    blank_mask.bitwise_or_(k_is_huge_blank)
 
                     big_blank_mask.bitwise_or_(k_is_big_blank)
+                    big_blank_mask.bitwise_or_(k_is_huge_blank)
 
                     del k_is_blank
                     del k_is_big_blank
+                    del k_is_huge_blank
 
 #                    print("blank mask is", blank_mask)
 
@@ -724,7 +733,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                         # Set a dummy label for the blank value
                         # This value will be overwritten by "blank" again the last label update below
                         # This is done as vocabulary of prediction network does not contain "blank" token of RNNT
-                        last_label_without_blank_mask = last_label == self._blank_index or last_label == self._big_blank_index
+                        last_label_without_blank_mask = last_label == self._blank_index or last_label == self._big_blank_index or last_label == self._huge_blank_index
                         last_label_without_blank[last_label_without_blank_mask] = 0  # temp change of label
                         last_label_without_blank[~last_label_without_blank_mask] = last_label[
                             ~last_label_without_blank_mask

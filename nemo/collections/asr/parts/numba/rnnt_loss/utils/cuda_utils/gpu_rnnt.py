@@ -47,6 +47,7 @@ class GPURNNT:
         workspace,
         blank: int,
         big_blank: int,
+        huge_blank: int,
         blank_duration: int,
         fastemit_lambda: float,
         clamp: float,
@@ -79,6 +80,7 @@ class GPURNNT:
         )  # a flat vector of floatX numbers that represents allocated memory slices
         self.blank_ = blank
         self.big_blank_ = big_blank
+        self.huge_blank_ = huge_blank
         self.blank_duration_ = blank_duration
 
         self.fastemit_lambda_ = fastemit_lambda
@@ -177,6 +179,7 @@ class GPURNNT:
             self.alphabet_size_,
             self.blank_,
             self.big_blank_,
+            self.huge_blank_,
             self.blank_duration_,
         )
 
@@ -196,6 +199,7 @@ class GPURNNT:
                 self.alphabet_size_,
                 self.blank_,
                 self.big_blank_,
+                self.huge_blank_,
                 self.blank_duration_,
             )
 
@@ -218,6 +222,7 @@ class GPURNNT:
                 self.alphabet_size_,
                 self.blank_,
                 self.big_blank_,
+                self.huge_blank_,
                 self.blank_duration_,
                 self.fastemit_lambda_,
                 self.clamp_,
