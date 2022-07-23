@@ -19,6 +19,7 @@ from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_d
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
     MegatronTransformerEncoderDecoderModule,
 )
+from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -115,6 +116,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_encoder=True,
         add_decoder=True,
         num_self_attention_per_cross_attention=1,
+        label_smoothing=0.0,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -129,6 +131,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.position_embedding_type = position_embedding_type
         self.relative_attention_num_buckets = relative_attention_num_buckets
         self.relative_attention_max_distance = relative_attention_max_distance
+        self.label_smoothing = label_smoothing
 
         if self.position_embedding_type == 'learned_absolute':
             add_position_embedding = True
@@ -362,9 +365,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, self.label_smoothing)
                     else:
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, self.label_smoothing)
                     return tokens_loss
                 else:
                     return token_logits
