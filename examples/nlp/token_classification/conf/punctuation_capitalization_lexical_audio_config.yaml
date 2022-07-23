@@ -28,19 +28,26 @@ trainer:
   strategy: "ddp"
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
-  log_every_n_steps: 1  # Interval of logging.
   #  check_val_every_n_epoch: 1
-  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  val_check_interval: 0.25 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step,
   # LR schedulers, apex, etc.
   resume_from_checkpoint: null
-#  sync_batchnorm: true
+  #  sync_batchnorm: true
+  flush_logs_every_n_steps: 500
+  log_every_n_steps: 500
+#  limit_train_batches: 500
 
 exp_manager:
   exp_dir: /results  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
   name: Punctuation_and_Capitalization  # The name of your model
   create_tensorboard_logger: true  # Whether you want exp_manger to create a tb logger
   create_checkpoint_callback: true  # Whether you want exp_manager to create a model checkpoint callback
+  checkpoint_callback_params:
+    save_top_k: 3
+    monitor: "val_loss"
+    mode: "min"
+    save_best_model: true
   create_wandb_logger: true
   wandb_logger_kwargs:
     name: exp
@@ -48,7 +55,15 @@ exp_manager:
 
 model:
   pretrained_audio_encoder: stt_en_conformer_ctc_medium
+
   freeze_audio_encoder: false
+
+  use_adapters: false
+
+  adapter_config:
+    dim: 32
+    in_features: -1
+
   class_labels:
     punct_labels_file: punct_label_ids.txt
     capit_labels_file: capit_label_ids.txt
@@ -67,10 +82,10 @@ model:
     # creation.
     use_tarred_dataset: false
     # A path to directory where `tar_metadata_file` or `text_file` and `labels_file` are stored.
-    ds_item: fisher_data/data
+    ds_item: ../LibriTTS_data
 
-    text_file: text_nemo_corpa_train.txt
-    labels_file: labels_nemo_corpa_train.txt
+    text_file: text_nemo_corpa_train_f_l.txt
+    labels_file: labels_nemo_corpa_train_f_l.txt
     # Permutes batches every epoch
     shuffle: true
     num_samples: -1
@@ -84,7 +99,7 @@ model:
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    n_jobs: 0
+    n_jobs: null
 
     # Path to tarred dataset metadata file. Required if tarred dataset is used. Metadata file is a JSON file which
     # contains total number of batches in the dataset, a list of paths to tar files and paths to label vocabularies.
@@ -96,8 +111,8 @@ model:
     # regular dataset.
     tar_shuffle_n: 1
 
-    audio_manifest_filepath: fisher_data/data/audio_manifest_train.json
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_train_f_l.json
+    sample_rate: 16000
     num_workers: 24
 
   validation_ds:
@@ -107,7 +122,7 @@ model:
     use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: fisher_data/data
+    ds_item: [fisher_data/data,../LibriTTS_data]
 
     text_file: text_nemo_corpa_valid.txt
     labels_file: labels_nemo_corpa_valid.txt
@@ -120,13 +135,13 @@ model:
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    n_jobs: 0
+    n_jobs: null
 
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: fisher_data/data/audio_manifest_valid.json
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_valid.json
+    sample_rate: 16000
     num_workers: 24
 
   test_ds:
@@ -136,7 +151,7 @@ model:
     use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: fisher_data/data
+    ds_item: [fisher_data/data,../LibriTTS_data]
 
     text_file: text_nemo_corpa_test.txt
     labels_file: labels_nemo_corpa_test.txt
@@ -150,13 +165,13 @@ model:
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
-    n_jobs: 0
+    n_jobs: null
 
     # For more details see `train_ds` section.
     tar_metadata_file: null
 
-    audio_manifest_filepath: fisher_data/data/audio_manifest_test.json
-    sample_rate: 8000
+    audio_manifest_filepath: audio_manifest_test.json
+    sample_rate: 16000
     num_workers: 24
 
   tokenizer:

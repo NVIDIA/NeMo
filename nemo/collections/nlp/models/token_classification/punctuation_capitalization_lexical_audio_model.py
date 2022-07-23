@@ -2,10 +2,15 @@ from pathlib import Path
 from typing import Optional, Union, Dict, Any, Tuple, List
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
+
+from nemo.core.classes.mixins import adapter_mixins
+from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
-from torch.nn import Linear, LSTM
+from torch.nn import Linear
 
 import nemo.collections.asr as nemo_asr
 
@@ -24,14 +29,32 @@ from nemo.utils import logging
 __all__ = ['PunctuationCapitalizationLexicalAudioModel']
 
 
+def update_model_config_to_support_adapter(model_cfg):
+    with open_dict(model_cfg):
+        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        if adapter_metadata is not None:
+            model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
+
+    return model_cfg
+
+
 class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg, trainer)
-        self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder)  # Only CTC models?
+        audio_cfg = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder, return_config=True)
 
-        del self.audio_encoder.decoder
-        del self.audio_encoder._wer
-        del self.audio_encoder.loss
+        if cfg.get('use_adapters', False):
+            audio_cfg = update_model_config_to_support_adapter(audio_cfg)
+
+        self.audio_encoder = nemo_asr.models.ASRModel.from_pretrained(cfg.pretrained_audio_encoder,
+                                                                      override_config_path=audio_cfg)
+        if cfg.get('use_adapters', False):
+            with open_dict(cfg):
+                cfg.adapter_config.in_features = self.audio_encoder.cfg.encoder.d_model
+            self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.adapter_config)
+            self.audio_encoder.set_enabled_adapters(enabled=True)
+            self.audio_encoder.freeze()
+            self.audio_encoder.unfreeze_enabled_adapters()
 
         self.fusion = TransformerDecoder(num_layers=cfg.fusion_num_layers,
                                          hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1],
@@ -39,18 +62,38 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                                          num_attention_heads=cfg.fusion_num_attention_heads)
         self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
                                  self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
-        if cfg.freeze_audio_encoder:
+
+        if cfg.get('freeze_audio_encoder', False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
-            self.audio_encoder.add_module('lstm_encoder',
-                                          LSTM(input_size=self.audio_encoder.cfg.encoder.d_model,
-                                               hidden_size=cfg.lstm_hidden_size,
-                                               num_layers=cfg.lstm_num_layers))
+            for i in range(cfg.get('frozen_conf_num_layers')):
+                self.audio_encoder.add_module(f'conf_encoder_{i}',
+                                              ConformerLayer(d_model=cfg.get('frozen_conf_d_model'),
+                                                             d_ff=cfg.get('frozen_conf_d_ff')))
 
-        if cfg.restore_lexical_encoder_from:
+        if cfg.get('restore_lexical_encoder_from', None):
             model = PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from).to(self.device)
             self.bert_model.load_state_dict(model.bert_model.state_dict())
             del model
+
+        del self.audio_encoder.decoder
+        del self.audio_encoder._wer
+        del self.audio_encoder.loss
+
+        if cfg.get('use_weighted_loss', False):
+            punct_freq = torch.tensor(list(self.train_dataloader().dataset.punct_label_frequencies.values()),
+                                      dtype=torch.float)
+            punct_weight = 1 - (punct_freq - punct_freq.min()) / punct_freq.max()
+
+            capit_freq = torch.tensor(list(self.train_dataloader().dataset.capit_label_frequencies.values()),
+                                      dtype=torch.float)
+            capit_weight = 1 - (capit_freq - capit_freq.min()) / capit_freq.max()
+
+            self.loss_punct = CrossEntropyLoss(logits_ndim=3, weight=punct_weight)
+            self.loss_capit = CrossEntropyLoss(logits_ndim=3, weight=capit_weight)
+        else:
+            self.loss_punct = self.loss
+            self.loss_capit = self.loss
 
     def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
@@ -58,8 +101,8 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             features=batch['features'], features_length=batch['features_length']
         )
 
-        punct_loss = self.loss(logits=punct_logits, labels=batch['punct_labels'], loss_mask=batch['loss_mask'])
-        capit_loss = self.loss(logits=capit_logits, labels=batch['capit_labels'], loss_mask=batch['loss_mask'])
+        punct_loss = self.loss_punct(logits=punct_logits, labels=batch['punct_labels'], loss_mask=batch['loss_mask'])
+        capit_loss = self.loss_capit(logits=capit_logits, labels=batch['capit_labels'], loss_mask=batch['loss_mask'])
         loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
         return loss, punct_logits, capit_logits
 
@@ -276,7 +319,7 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
-                manifest_filepath=cfg.audio_manifest_filepath,
+                manifest_filepath=(Path(cfg.ds_item) / cfg.audio_manifest_filepath).__str__(),
                 sample_rate=cfg.sample_rate
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
