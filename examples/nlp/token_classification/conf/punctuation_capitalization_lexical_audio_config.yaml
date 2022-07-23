@@ -181,7 +181,7 @@ model:
     special_tokens: null
 
   language_model:
-    pretrained_model_name: bert-base-uncased
+    pretrained_model_name: distilbert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null

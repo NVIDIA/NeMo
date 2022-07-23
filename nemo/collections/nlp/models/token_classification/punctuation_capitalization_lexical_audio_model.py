@@ -57,11 +57,11 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             self.audio_encoder.unfreeze_enabled_adapters()
 
         self.fusion = TransformerDecoder(num_layers=cfg.fusion_num_layers,
-                                         hidden_size=self.bert_model(**self.bert_model.dummy_inputs).size()[-1],
+                                         hidden_size=self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
                                          inner_size=cfg.fusion_inner_size,
                                          num_attention_heads=cfg.fusion_num_attention_heads)
         self.audio_proj = Linear(self.audio_encoder.cfg.encoder.d_model,
-                                 self.bert_model(**self.bert_model.dummy_inputs).size()[-1])
+                                 self.bert_model(**self.bert_model.input_example()[0]).size()[-1])
 
         if cfg.get('freeze_audio_encoder', False):
             for param in self.audio_encoder.parameters():
