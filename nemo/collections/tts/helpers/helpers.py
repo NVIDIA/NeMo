@@ -123,7 +123,7 @@ def binarize_attention(attn, in_len, out_len):
 
 def binarize_attention_parallel(attn, in_lens, out_lens):
     """For training purposes only. Binarizes attention with MAS.
-           These will no longer recieve a gradient.
+           These will no longer receive a gradient.
 
         Args:
             attn: B x 1 x max_mel_len x max_text_len
@@ -131,7 +131,7 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     with torch.no_grad():
         attn_cpu = attn.data.cpu().numpy()
         attn_out = b_mas(attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
-    return torch.from_numpy(attn_out).to(attn.get_device())
+    return torch.from_numpy(attn_out).to(attn.device)
 
 
 def get_mask_from_lengths(lengths, max_len: Optional[int] = None):
@@ -367,9 +367,13 @@ def tacotron2_log_to_wandb_func(
             swriter.log({"audios": audios})
 
 
-def plot_alignment_to_numpy(alignment, info=None):
-    fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none')
+def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
+    if phoneme_seq:
+        fig, ax = plt.subplots(figsize=(15, 10))
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    ax.set_title(title)
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
     if info is not None:
@@ -377,6 +381,12 @@ def plot_alignment_to_numpy(alignment, info=None):
     plt.xlabel(xlabel)
     plt.ylabel('Encoder timestep')
     plt.tight_layout()
+
+    if phoneme_seq != None:
+        # for debugging of phonemes and durs in maps. Not used by def in training code
+        ax.set_yticks(np.arange(len(phoneme_seq)))
+        ax.set_yticklabels(phoneme_seq)
+        ax.hlines(np.arange(len(phoneme_seq)), xmin=0.0, xmax=max(ax.get_xticks()))
 
     fig.canvas.draw()
     data = save_figure_to_numpy(fig)
