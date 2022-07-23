@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 from omegaconf import MISSING
 
 import nemo.core.classes.dataset
+from nemo.collections.asr.metrics.wer import CTCDecodingConfig
 from nemo.collections.asr.modules.audio_preprocessing import (
     AudioToMelSpectrogramPreprocessorConfig,
     SpectrogramAugmentationConfig,
@@ -59,6 +60,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     # bucketing params
     bucketing_strategy: str = "synced_randomized"
     bucketing_batch_size: Optional[Any] = None
+    bucketing_weights: Optional[List[int]] = None
 
 
 @dataclass
@@ -83,6 +85,7 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
     encoder: ConvASREncoderConfig = ConvASREncoderConfig()
     decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
+    decoding: CTCDecodingConfig = CTCDecodingConfig()
 
 
 @dataclass

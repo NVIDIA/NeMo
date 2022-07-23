@@ -232,7 +232,6 @@ def exp_manager(trainer: 'pytorch_lightning.Trainer', cfg: Optional[Union[DictCo
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     global_rank = trainer.node_rank * trainer.num_devices + local_rank
     logging.rank = global_rank
-    world_size = trainer.world_size
 
     if cfg is None:
         logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
@@ -665,7 +664,12 @@ def configure_loggers(
             wandb_kwargs = {}
         if "name" not in wandb_kwargs and "project" not in wandb_kwargs:
             raise ValueError("name and project are required for wandb_logger")
-        wandb_logger = WandbLogger(save_dir=exp_dir, version=version, **wandb_kwargs)
+
+        # Update the wandb save_dir
+        if wandb_kwargs.get('save_dir', None) is None:
+            wandb_kwargs['save_dir'] = exp_dir
+        os.makedirs(wandb_kwargs['save_dir'], exist_ok=True)
+        wandb_logger = WandbLogger(version=version, **wandb_kwargs)
 
         logger_list.append(wandb_logger)
         logging.info("WandBLogger has been set up")

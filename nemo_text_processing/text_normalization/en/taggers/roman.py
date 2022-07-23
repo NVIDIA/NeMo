@@ -13,16 +13,10 @@
 # limitations under the License.
 
 
+import pynini
 from nemo_text_processing.text_normalization.en.graph_utils import NEMO_ALPHA, NEMO_SIGMA, GraphFst
 from nemo_text_processing.text_normalization.en.utils import get_abs_path, load_labels
-
-try:
-    import pynini
-    from pynini.lib import pynutil
-
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from pynini.lib import pynutil
 
 
 class RomanFst(GraphFst):
@@ -67,7 +61,7 @@ class RomanFst(GraphFst):
             pynutil.insert("key_cardinal: \"") + key_words + pynutil.insert("\"") + pynini.accep(" ") + default_graph
         ).optimize()
 
-        if deterministic:
+        if deterministic or lm:
             # two digit roman numerals up to 49
             roman_to_cardinal = pynini.compose(
                 pynini.closure(NEMO_ALPHA, 2),

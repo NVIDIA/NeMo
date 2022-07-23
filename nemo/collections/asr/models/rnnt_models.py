@@ -34,6 +34,7 @@ from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
@@ -660,6 +661,10 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
         signal, signal_len, transcript, transcript_len = batch
 
         # forward() only performs encoder forward
@@ -687,7 +692,18 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
             )
 
-            tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
+
+            tensorboard_logs = {
+                'train_loss': loss_value,
+                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                'global_step': self.trainer.global_step,
+            }
 
             if (sample_id + 1) % log_every_n_steps == 0:
                 self.wer.update(encoded, encoded_len, transcript, transcript_len)
@@ -711,6 +727,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
                 transcript_lengths=transcript_len,
                 compute_wer=compute_wer,
             )
+
+            # Add auxiliary losses, if registered
+            loss_value = self.add_auxiliary_losses(loss_value)
+
+            # Reset access registry
+            if AccessMixin.is_access_enabled():
+                AccessMixin.reset_registry(self)
 
             tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
 

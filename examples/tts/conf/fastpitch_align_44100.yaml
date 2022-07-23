@@ -27,7 +27,7 @@ lowfreq: 0
 highfreq: null
 window: hann
 
-phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.01"
+phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921"
 whitelist_path: "nemo_text_processing/text_normalization/en/data/whitelist/lj_speech.tsv"
 
@@ -108,6 +108,7 @@ model:
       shuffle: true
       batch_size: 32
       num_workers: 12
+      pin_memory: true
 
 
   validation_ds:
@@ -140,6 +141,7 @@ model:
       shuffle: false
       batch_size: 32
       num_workers: 8
+      pin_memory: true
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
