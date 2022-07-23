@@ -1208,57 +1208,6 @@ pipeline {
       }
       failFast true
       parallel {
-        // TODO: use megatron bert when supported again
-        stage('SQUAD v2.0 with DistilBERT Uncased') {
-        // stage('SQUAD v2.0 with Megatron with ckpt & config') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          // model.language_model.pretrained_model_name=megatron-bert-uncased  \
-          // model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-          // model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=1 \
-            model.train_ds.num_samples=1 \
-            model.validation_ds.batch_size=1 \
-            model.validation_ds.num_samples=1 \
-            trainer.accelerator=gpu \
-            trainer.strategy=ddp \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=distilbert-base-uncased  \
-            model.dataset.version_2_with_negative=true \
-            trainer.precision=16 \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
-        stage('RoBERTa SQUAD 1.1') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.train_ds.num_samples=2 \
-            model.validation_ds.batch_size=2 \
-            model.validation_ds.num_samples=2 \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.pretrained_model_name=roberta-base \
-            model.dataset.version_2_with_negative=false \
-            trainer.precision=16 \
-            trainer.devices=[0] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
         stage ('Text Classification with BERT Test') {
           steps {
             sh 'cd examples/nlp/text_classification && \
