@@ -13,10 +13,7 @@
 # limitations under the License.
 
 import pytest
-import scaled_masked_softmax_cuda_new
 import torch
-
-import nemo.collections.nlp.modules.common.megatron.fused_kernels
 
 
 def attention_mask_func(attention_scores, attention_mask):
@@ -36,8 +33,15 @@ def forward_torch_softmax(input, mask, scale):
 
 @pytest.mark.run_only_on('GPU')
 class TestFusedSoftmaxKernel:
+
+    @classmethod
+    def setup_class(cls):
+        # this line will trigger building the kernels
+        import nemo.collections.nlp.modules.common.megatron.fused_kernels
+
     @pytest.mark.unit
     def test_forward(self):
+        import scaled_masked_softmax_cuda_new
         batch = 2
         attn = 16
         qlen = 2348
@@ -54,6 +58,7 @@ class TestFusedSoftmaxKernel:
 
     @pytest.mark.unit
     def test_backward(self):
+        import scaled_masked_softmax_cuda_new
         batch = 2
         attn = 16
         qlen = 2348
@@ -75,6 +80,7 @@ class TestFusedSoftmaxKernel:
 
     @pytest.mark.unit
     def test_allmasked(self):
+        import scaled_masked_softmax_cuda_new
         batch = 2
         attn = 16
         qlen = 2348
