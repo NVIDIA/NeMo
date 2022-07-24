@@ -113,7 +113,7 @@ model:
 
     audio_manifest_filepath: audio_manifest_train_f_l.json
     sample_rate: 16000
-    num_workers: 24
+    num_workers: 8
 
   validation_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -142,7 +142,7 @@ model:
 
     audio_manifest_filepath: audio_manifest_valid.json
     sample_rate: 16000
-    num_workers: 24
+    num_workers: 8
 
   test_ds:
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
@@ -172,7 +172,7 @@ model:
 
     audio_manifest_filepath: audio_manifest_test.json
     sample_rate: 16000
-    num_workers: 24
+    num_workers: 8
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
@@ -181,7 +181,7 @@ model:
     special_tokens: null
 
   language_model:
-    pretrained_model_name: distilbert-base-uncased
+    pretrained_model_name: bert-base-uncased
     lm_checkpoint: null
     config_file: null # json file, precedence over config
     config: null
