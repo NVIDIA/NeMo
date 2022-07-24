@@ -615,7 +615,7 @@ convert.gpt3.126m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
-    PREV_JOB: train_gpt3_126m_tp2_pp1_2node_100steps
+    PREV_JOB: train_gpt3_126m_tp2_pp2_2node_100steps
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
