@@ -26,10 +26,7 @@ __all__ = ['ASRModel']
 
 class SeparationModel(ModelPT, ABC):
     @abstractmethod
-    def extract_sources(
-        self,
-        paths2audio_files: List[str],
-    ) -> None:
+    def extract_sources(self, paths2audio_files: List[str],) -> None:
         """
         Takes paths to audio files and saves separated sources
         Args:

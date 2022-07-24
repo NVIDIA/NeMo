@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import math
 from collections import OrderedDict
 
@@ -19,15 +20,15 @@ import torch
 import torch.distributed
 import torch.nn as nn
 from torch.nn import LayerNorm
-from nemo.collections.asr.models.ss_model import EPS
-import copy
 
+from nemo.collections.asr.models.ss_model import EPS
 from nemo.collections.asr.modules.transformer_encoder import TransformerEncoder
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
 
 __all__ = ['DualPathModel', 'DualBlock']
+
 
 class DualBlock(NeuralModule, Exportable):
     """
@@ -41,13 +42,9 @@ class DualBlock(NeuralModule, Exportable):
         linear_layer_after_inter_intra (bool) : whether to use linear layer after intra/inter
 
     """
+
     def __init__(
-        self,
-        intra_model,
-        inter_model,
-        feat_out,
-        skip_around_intra=True,
-        linear_layer_after_inter_intra=False,
+        self, intra_model, inter_model, feat_out, skip_around_intra=True, linear_layer_after_inter_intra=False,
     ):
         super().__init__()
         self.intra_model = intra_model
@@ -65,7 +62,6 @@ class DualBlock(NeuralModule, Exportable):
             self.intra_linear = nn.Linear(feat_out, feat_out)
             self.inter_linear = nn.Linear(feat_out, feat_out)
 
-        
     def forward(self, x):
         """
         x : torch.Tensor
@@ -78,9 +74,9 @@ class DualBlock(NeuralModule, Exportable):
         B, F, C, Nc = x.shape
 
         # intra model
-        intra  = x.permute(0, 3, 2, 1).contiguous().view(B * Nc, C, F)
+        intra = x.permute(0, 3, 2, 1).contiguous().view(B * Nc, C, F)
         # [B*Nc, C, F]
-        
+
         intra = self.intra_model(intra)
 
         if self.linear_layerafter_inter_intra:
@@ -92,13 +88,12 @@ class DualBlock(NeuralModule, Exportable):
         intra = intra.permute(0, 3, 2, 1).contiguous()
         # [B, F, C, Nc]
 
-        if self.norm is not None: 
+        if self.norm is not None:
             intra = self.intra_norm(intra)
 
         if self.skip_around_intra:
             intra = intra + x
 
-        
         # inter model
         inter = intra.permute(0, 2, 3, 1).contiguous().view(B * C, Nc, F)
         # [B*C, Nc, F]
@@ -122,6 +117,7 @@ class DualBlock(NeuralModule, Exportable):
 
         return out
 
+
 class DualPathModel(NeuralModule, Exportable):
     """
     implementation of dual path model for speech separation
@@ -139,8 +135,6 @@ class DualPathModel(NeuralModule, Exportable):
         max_seq_length (int) : maximum sequence length
     """
 
-
-
     def __init__(
         self,
         feat_in,
@@ -152,12 +146,12 @@ class DualPathModel(NeuralModule, Exportable):
         chunk_len=250,
         skip_around_intra=True,
         linear_layer_after_inter_intra=False,
-        max_seq_length=20000,
+        max_seq_length=5000,
         *args,
         **kwargs,
     ):
         super().__init__()
-        
+
         self.num_speakers = num_speakers
         self.chunk_len = chunk_len
         self.num_layers = num_layers
@@ -165,15 +159,18 @@ class DualPathModel(NeuralModule, Exportable):
         self.norm = nn.GroupNorm(1, feat_in, eps=EPS)
         self.conv1d = nn.Conv1d(feat_in, feat_out, 1, bias=False)
 
-        
         if intra_model.get('model_type', None) == 'transformer':
             intra_model = TransformerEncoder(
                 n_layers=intra_model['num_layers'],
                 d_model=intra_model['d_model'],
                 ff_expansion_factor=intra_model['ff_expansion_factor'],
                 self_attention_model=intra_model['pos_encoding'],
+                xscaling=intra_model['x_scaling'],
                 n_heads=intra_model['n_heads'],
-                pre_norm=intra_model['norm_before'],
+                pre_norm=intra_model['pre_norm'],
+                dropout=intra_model['dropout'],
+                dropout_emb=intra_model['dropout_emb'],
+                dropout_att=intra_model['dropout_att'],
             )
         else:
             raise ValueError(f"{intra_model.get('model_type')} is not valid for intra_model")
@@ -184,12 +181,15 @@ class DualPathModel(NeuralModule, Exportable):
                 d_model=inter_model['d_model'],
                 ff_expansion_factor=inter_model['ff_expansion_factor'],
                 self_attention_model=inter_model['pos_encoding'],
+                xscaling=inter_model['x_scaling'],
                 n_heads=inter_model['n_heads'],
-                pre_norm=inter_model['norm_before'],
+                pre_norm=inter_model['pre_norm'],
+                dropout=inter_model['dropout'],
+                dropout_emb=inter_model['dropout_emb'],
+                dropout_att=inter_model['dropout_att'],
             )
         else:
             raise ValueError(f"{inter_model.get('model_type')} is not valid for inter_model")
-
 
         self.layers = nn.ModuleList([])
         for i in range(num_layers):
@@ -204,21 +204,15 @@ class DualPathModel(NeuralModule, Exportable):
             )
             self.layers.append(layer)
 
-        
-        self.conv2d = nn.Conv2d(feat_out, feat_out*num_speakers, kernel_size=1)
-        self.end_conv1x1  = nn.Conv1d(feat_out, feat_in, 1, bias=False)
+        self.conv2d = nn.Conv2d(feat_out, feat_out * num_speakers, kernel_size=1)
+        self.end_conv1x1 = nn.Conv1d(feat_out, feat_in, 1, bias=False)
         self.prelu = nn.PReLU()
         self.activation = nn.ReLU()
 
         # gated output layeddr
-        self.output = nn.Sequential(
-            nn.Conv1d(feat_out, feat_out, 1), nn.Tanh()
-        )
-        self.output_gate = nn.Sequential(
-            nn.Conv1d(feat_out, feat_out, 1), nn.Sigmoid()
-        )
+        self.output = nn.Sequential(nn.Conv1d(feat_out, feat_out, 1), nn.Tanh())
+        self.output_gate = nn.Sequential(nn.Conv1d(feat_out, feat_out, 1), nn.Sigmoid())
 
-    
     def forward(self, x):
         """
         Return output tensor
@@ -235,13 +229,13 @@ class DualPathModel(NeuralModule, Exportable):
                 [spks, B, F, N]
         """
         # norm+ linear
-        x = self.norm(x)    # make sure that norm is acting on correct dimension.
+        x = self.norm(x)
         x = self.conv1d(x)
 
         # chunk
         hop = self.chunk_len // 2
         x, pad_len = self._chunk(x, self.chunk_len, hop)
-        
+
         for i, layer in enumerate(self.layers):
             x = layer(x)
         x = self.prelu(x)
@@ -267,8 +261,7 @@ class DualPathModel(NeuralModule, Exportable):
         x = x.transpose(0, 1)
         # [num_speakers, B, F, N]
 
-        return x 
-
+        return x
 
     def _overlap_add(self, x, pad_len, hop):
         """
@@ -286,8 +279,7 @@ class DualPathModel(NeuralModule, Exportable):
         if pad_len > 0:
             x = x[:, :, :-pad_len]
 
-        return x 
-
+        return x
 
     def _chunk(self, x, chunk_len, hop):
         """
@@ -309,16 +301,15 @@ class DualPathModel(NeuralModule, Exportable):
         x, pad_len = self._padding(x, chunk_len, hop)
         x1 = x[:, :, :-hop].contiguous().view(B, F, -1, chunk_len)
         x2 = x[:, :, hop:].contiguous().view(B, F, -1, chunk_len)
-        x = torch.cat([x1, x2], dim=3).view(B, F, -1, chunk_len).transpose(2,3)
+        x = torch.cat([x1, x2], dim=3).view(B, F, -1, chunk_len).transpose(2, 3)
         return x.contiguous(), pad_len
-
 
     def _padding(self, x, chunk_len, hop):
         """
         pad for whole number of chunks
         """
         B, F, N = x.shape
-        pad_len = chunk_len  - (hop + N % chunk_len) % chunk_len
+        pad_len = chunk_len - (hop + N % chunk_len) % chunk_len
         if pad_len > 0:
             pad = torch.Tensor(torch.zeros(B, F, pad_len)).type(x.type())
             x = torch.cat([x, pad], dim=2)
@@ -328,5 +319,3 @@ class DualPathModel(NeuralModule, Exportable):
         x = torch.cat([_pad, x, _pad], dim=2)
 
         return x, pad_len
-
-

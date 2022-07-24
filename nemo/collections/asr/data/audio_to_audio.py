@@ -34,6 +34,7 @@ __all__ = [
     'AudioToAudioDataset',
 ]
 
+
 class _AudioDataset(Dataset):
     """
     """
@@ -52,7 +53,7 @@ class _AudioDataset(Dataset):
         super().__init__()
         if type(manifest_filepath) == str:
             manifest_filepath = manifest_filepath.split(',')
-        
+
         self.collection = collections.SpeechSeparationAudio(
             manifest_files=manifest_filepath,
             num_sources=num_sources,
@@ -65,25 +66,25 @@ class _AudioDataset(Dataset):
         self.featurizer = featurizer
         self.orig_sr = kwargs.get('orig_sr', None)
 
-    
     def get_manifest_sample(self, sample_id):
         return self.collection[sample_id]
-    
+
     def __len__(self):
         return len(self.collection)
 
     def __getitem__(self, index):
         sample = self.collection[index]
 
-        features_list = [ self.featurizer.process(
-            sample.audio_file[i],
-            offset=sample.offset[i],
-            duration=sample.duration[i],
-            orig_sr=self.orig_sr,
-        ) * sample.scale_factor[i] for i in range(self.num_sources) ]
+        features_list = [
+            self.featurizer.process(
+                sample.audio_file[i], offset=sample.offset[i], duration=sample.duration[i], orig_sr=self.orig_sr,
+            )
+            * sample.scale_factor[i]
+            for i in range(self.num_sources)
+        ]
 
         return {
-            'features_list':features_list,
+            'features_list': features_list,
         }
 
 
@@ -103,7 +104,7 @@ class AudioToSourceDataset(_AudioDataset):
         max_utts: Optional[int] = None,
         *args,
         **kwargs,
-    ):        
+    ):
         super().__init__(
             manifest_filepath=manifest_filepath,
             num_sources=num_sources,
@@ -125,22 +126,20 @@ class AudioToSourceDataset(_AudioDataset):
 
         if self.num_sources == 2:
             t1, t2 = [x[:min_l] for x in features_list]
-            mix = t1 + t1
+            mix = t1 + t2
             output = [mix, torch.tensor(min_l).long(), t1, t2]
         elif self.num_sources == 3:
-            t1, t2, t3  = [x[:min_l] for x in features_list]
+            t1, t2, t3 = [x[:min_l] for x in features_list]
             mix = t1 + t2 + t3
             output = [mix, torch.tensor(min_l).long(), t1, t2, t3]
 
-        # add index 
+        # add index
         output.append(index)
 
         return output
 
-
     def _collate_fn(self, batch):
         return _audio_to_audio_collate_fn(batch)
-
 
 
 def _audio_to_audio_collate_fn(batch):
@@ -153,10 +152,10 @@ def _audio_to_audio_collate_fn(batch):
     if len(packed_batch) == 5:
         _, audio_lengths, _, _, sample_ids = packed_batch
     elif len(packed_batch) == 6:
-        _, audio_lengths, _, _, _, sample_ids  = packed_batch
+        _, audio_lengths, _, _, _, sample_ids = packed_batch
     else:
         raise ValueError("Expects 5 or 6 tensors in the batch!")
-    
+
     # convert sample_ids to torch
     sample_ids = torch.tensor(sample_ids, dtype=torch.int32)
 
@@ -178,9 +177,8 @@ def _audio_to_audio_collate_fn(batch):
                 sig = torch.nn.functional.pad(sig, pad)
                 t1 = torch.nn.functional.pad(t1, pad)
                 t2 = torch.nn.functional.pad(t2, pad)
-                if len(b) == 6: 
+                if len(b) == 6:
                     t3 = torch.nn.functional.pad(t3, pad)
-
 
             audio_signal.append(sig)
             target1.append(t1)
@@ -197,7 +195,7 @@ def _audio_to_audio_collate_fn(batch):
         audio_lengths = torch.stack(audio_lengths)
     else:
         audio_signal, target1, target2, target3, audio_lengths, sample_ids = None, None, None, None, None, None
-    
+
     if len(packed_batch) == 5:
         return audio_signal, audio_lengths, target1, target2, sample_ids
     else:
@@ -205,7 +203,7 @@ def _audio_to_audio_collate_fn(batch):
 
 
 def test_AudioToSourceDataset():
-    featurizer=WaveformFeaturizer(sample_rate=16000)
+    featurizer = WaveformFeaturizer(sample_rate=16000)
     dataset = AudioToSourceDataset(
         manifest_filepath='/media/kpuvvada/data/datasets/data/wsj0-2mix/manifests/test.json',
         num_sources=2,
@@ -215,6 +213,8 @@ def test_AudioToSourceDataset():
     item = dataset.__getitem__(1)
     print([x for x in item])
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     import nemo
+
     test_AudioToSourceDataset()

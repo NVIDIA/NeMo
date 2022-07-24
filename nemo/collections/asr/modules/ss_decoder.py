@@ -48,14 +48,11 @@ class ConvSSDecoder(NeuralModule, Exportable):
         stride (int):
         bias (bool): 
     """
+
     def __init__(self, in_channels, out_channels, kernel_size, stride, bias=True):
         super().__init__()
         self.decoder = nn.ConvTranspose1d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            bias=bias,
+            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, bias=bias,
         )
 
     def forward(self, x):
@@ -67,13 +64,11 @@ class ConvSSDecoder(NeuralModule, Exportable):
         if not x.dim() == 3:
             print(f"x shape in decoder is {x.shape}")
             raise RuntimeError(f"Expecting a 3-dim tensor but got {x.dim()} dims")
-        
+
         x = self.decoder(x)
-        if torch.squeeze(x).dim()==1:
+        if torch.squeeze(x).dim() == 1:
             x = torch.squeeze(x, dim=1)
         else:
             x = torch.squeeze(x)
 
         return x
-    
-

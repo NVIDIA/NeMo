@@ -729,10 +729,7 @@ class Audio(_Collection):
     List of audio's with pre-processing for speech tasks (e.g. separation, enhancement)
     """
 
-    OUTPUT_TYPE = collections.namedtuple(
-        typename='Audio',
-        field_names='audio_file duration offset scale_factor',
-    )
+    OUTPUT_TYPE = collections.namedtuple(typename='Audio', field_names='audio_file duration offset scale_factor',)
 
     def __init__(
         self,
@@ -751,19 +748,16 @@ class Audio(_Collection):
 
         """
         output_type = self.OUTPUT_TYPE
-        data, duration_filtered = [], 0.
+        data, duration_filtered = [], 0.0
 
         for audio_files, durations, offsets, scale_factors in zip(
-            audio_files_list,
-            durations_list, 
-            offsets_list,
-            scale_factors_list
+            audio_files_list, durations_list, offsets_list, scale_factors_list
         ):
             # duration filters
             if min_duration is not None and min(durations) < min_duration:
                 duration_filtered += min(durations)
                 continue
-            
+
             if max_duration is not None and min(durations) > max_duration:
                 duration_filtered += min(durations)
                 continue
@@ -774,22 +768,18 @@ class Audio(_Collection):
             if len(data) == max_utts:
                 break
 
-        logging.info(
-            f"Filtered duration for loading collection is {duration_filtered}"
-        )
+        logging.info(f"Filtered duration for loading collection is {duration_filtered}")
 
-        logging.info(
-            f"# {len(data)} files loaded"
-        )
+        logging.info(f"# {len(data)} files loaded")
 
         super().__init__(data)
 
 
 class SpeechSeparationAudio(Audio):
     """
-    `Audio` collector from json files
+    `Audio` collector from json files for speech separation
     """
-    
+
     def __init__(
         self,
         manifest_files: Union[str, List[str]],
@@ -808,7 +798,7 @@ class SpeechSeparationAudio(Audio):
 
         self.num_sources = num_sources
         audio_files_list, durations_list, offsets_list, scale_factors_list = [], [], [], []
-        
+
         for item in manifest.item_iter(manifest_files, parse_func=self.__parse_item):
             audio_files_list.append(item['audio_file'])
             durations_list.append(item['duration'])
@@ -816,35 +806,32 @@ class SpeechSeparationAudio(Audio):
             scale_factors_list.append(item['scale_factor'])
 
         super().__init__(
-            audio_files_list, 
-            durations_list, 
-            offsets_list, 
-            scale_factors_list, 
+            audio_files_list,
+            durations_list,
+            offsets_list,
+            scale_factors_list,
             min_duration=min_duration,
             max_duration=max_duration,
-            max_utts=max_utts
+            max_utts=max_utts,
         )
 
-    
     def __parse_item(self, line: str, manifest_file: str) -> Dict[str, Any]:
         item = json.loads(line)
 
         # fill offset and scale_factor with default values if not present
         if item.get('offset', None) is None:
-            item['offset'] = tuple([0.] * self.num_sources)
+            item['offset'] = tuple([0.0] * self.num_sources)
 
         if item.get('scale_factor', None) is None:
-            item['scale_factor'] = tuple([1.] * self.num_sources)
-        
+            item['scale_factor'] = tuple([1.0] * self.num_sources)
+
         # Audio file
         if 'audio_filename' in item:
             item['audio_file'] = item.pop('audio_filename')
         elif 'audio_filepath' in item:
             item['audio_file'] = item.pop('audio_filepath')
         else:
-            raise ValueError(
-                f"Manifest file has invalid json line structure: {line} without proper audio file key."
-            )
+            raise ValueError(f"Manifest file has invalid json line structure: {line} without proper audio file key.")
         item['audio_file'] = tuple([os.path.expanduser(x) for x in item['audio_file']])
 
         # Duration
@@ -857,17 +844,17 @@ class SpeechSeparationAudio(Audio):
                 f"Manifest file has invalid json line: {line}.  Number of audio files: {len(item['audio_file'])} not equal to num_sources: {self.num_sources}"
             )
 
-        if not(self.num_sources == len(item['duration'])):
+        if not (self.num_sources == len(item['duration'])):
             raise ValueError(
                 f"Manifest file has invalid json line: {line}.  Number of durations: {len(item['duration'])} not equal to num_sources: {self.num_sources}"
             )
 
-        if not(self.num_sources == len(item['offset'])):
+        if not (self.num_sources == len(item['offset'])):
             raise ValueError(
                 f"Manifest file has invalid json line: {line}.  Number of offsets: {len(item['offset'])} not equal to num_sources: {self.num_sources}"
             )
 
-        if not(self.num_sources == len(item['scale_factor'])):
+        if not (self.num_sources == len(item['scale_factor'])):
             raise ValueError(
                 f"Manifest file has invalid json line: {line}.  Number of scalefactors: {len(item['scale_factor'])} not equal to num_sources: {self.num_sources}"
             )
@@ -878,5 +865,5 @@ class SpeechSeparationAudio(Audio):
             offset=item.get('offset', None),
             scale_factor=item.get('scale_factor', None),
         )
-        
+
         return item

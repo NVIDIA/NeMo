@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from itertools import permutations
+
 import torch
 import torch.nn.functional as F
 from torch import nn
-from itertools import permutations
 
 from nemo.core import Loss, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, LossType, NeuralType, SpectrogramType
 
-
 __all__ = ["SiSNR"]
+
 
 class SiSNR(Loss):
     """
     Calculate Scale-Invariant SNR
     """
+
     def __init__(self):
         super().__init__()
 
@@ -45,9 +47,7 @@ class SiSNR(Loss):
         device = estimate.device
 
         # look for a replacement of torch.tensor
-        target_lengths = torch.tensor(
-            [estimate.shape[0]]* estimate.shape[1], device=device
-        )
+        target_lengths = torch.tensor([estimate.shape[0]] * estimate.shape[1], device=device)
 
         mask = get_mask(target, target_lengths)
         estimate *= mask
@@ -69,16 +69,12 @@ class SiSNR(Loss):
         s_estimate = zero_mean_estimate  # [T, B, C]
         # s_target = <s', s>s / ||s||^2
         dot = torch.sum(s_estimate * s_target, dim=0, keepdim=True)  # [1, B, C]
-        s_target_energy = (
-            torch.sum(s_target ** 2, dim=0, keepdim=True) + EPS
-        )  # [1, B, C]
+        s_target_energy = torch.sum(s_target ** 2, dim=0, keepdim=True) + EPS  # [1, B, C]
         proj = dot * s_target / s_target_energy  # [T, B, C]
         # e_noise = s' - s_target
         e_noise = s_estimate - proj  # [T, B, C]
         # SI-SNR = 10 * log_10(||s_target||^2 / ||e_noise||^2)
-        si_snr_beforelog = torch.sum(proj ** 2, dim=0) / (
-            torch.sum(e_noise ** 2, dim=0) + EPS
-        )
+        si_snr_beforelog = torch.sum(proj ** 2, dim=0) / (torch.sum(e_noise ** 2, dim=0) + EPS)
         si_snr = 10 * torch.log10(si_snr_beforelog + EPS)  # [B, C]
 
         return -si_snr.unsqueeze(0)
@@ -96,8 +92,9 @@ def get_mask(target, target_lengths):
     T, B, _ = target.size()
     mask = target.new_ones((T, B, 1))
     for i in range(B):
-        mask[target_lengths[i]:, i , :] = 0 
+        mask[target_lengths[i] :, i, :] = 0
     return mask
+
 
 class PermuationInvarianceWrapper(Loss):
     """
@@ -151,7 +148,6 @@ class PermuationInvarianceWrapper(Loss):
         pi_loss = torch.stack(losses)
         return pi_loss, optimal_perm
 
-    
     def _optimal_permutation_loss(self, pred, target):
         """
         Args:
@@ -168,24 +164,23 @@ class PermuationInvarianceWrapper(Loss):
             assignment_order: tuple
                 which targets are assigned to which sources
         """
-        
+
         num_sources = target.size(-1)
 
         # expand pred and target tensor
-        pred  = pred.unsqueeze(-2).repeat(*[1 for x in range(len(pred.shape)-1)], num_sources, 1)
-        target = target.unsqueeze(-1).repeat(1, *[1 for x in range(len(target.shape)-1)], num_sources)
+        pred = pred.unsqueeze(-2).repeat(*[1 for x in range(len(pred.shape) - 1)], num_sources, 1)
+        target = target.unsqueeze(-1).repeat(1, *[1 for x in range(len(target.shape) - 1)], num_sources)
 
         # loss for all possible permutations
         loss_matrix = self.base_loss(pred, target)
 
         # mean over all dims except last two
-        mean_over_dims = [x for x in range(len(loss_matrix.shape) -2 )]
+        mean_over_dims = [x for x in range(len(loss_matrix.shape) - 2)]
 
-        loss_matrix  = loss_matrix.mean(dim=mean_over_dims)
-        
+        loss_matrix = loss_matrix.mean(dim=mean_over_dims)
+
         loss, optimal_perm = self._optimal_perm_assigment(loss_matrix)
         return loss, optimal_perm
-
 
     def _optimal_perm_assigment(self, loss_matrix):
         """

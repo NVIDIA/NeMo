@@ -16,7 +16,6 @@ import copy
 import json
 import os
 import tempfile
-import tqdm
 from math import ceil
 from random import sample
 from typing import Dict, List, Optional, Union
@@ -24,18 +23,19 @@ from typing import Dict, List, Optional, Union
 import torch
 import torch.nn.functional as F
 import torchaudio
+import tqdm
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
 
 from nemo.collections.asr.data import audio_to_audio_dataset
+from nemo.collections.asr.losses.ss_losses.si_snr import PermuationInvarianceWrapper
+from nemo.collections.asr.models.separation_model import SeparationModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType, VoidType
 from nemo.utils import logging
-from nemo.collections.asr.models.separation_model import SeparationModel
-from nemo.collections.asr.losses.ss_losses.si_snr import PermuationInvarianceWrapper
 
 EPS = 1e-8
 
@@ -66,18 +66,18 @@ class EncDecSpeechSeparationModel(SeparationModel):
         self.preprocessor = EncDecSpeechSeparationModel.from_config_dict(self._cfg.preprocessor)
         self.encoder = EncDecSpeechSeparationModel.from_config_dict(self._cfg.encoder)
         self.decoder = EncDecSpeechSeparationModel.from_config_dict(self._cfg.decoder)
-        
+
         base_loss = EncDecSpeechSeparationModel.from_config_dict(self._cfg.loss.base_loss)
         if self._cfg.loss.loss_wrapper is not None:
             if self._cfg.loss.loss_wrapper == 'permutation_invariance':
                 self.loss = PermuationInvarianceWrapper(base_loss)
         else:
             self.loss = base_loss
-        
+
         self.num_sources = self._cfg.train_ds.num_sources
+
         # for future purposes
         # self.spec_augmentation = EncDecSpeechSeparationModel.from_config_dict(self._cfg.spec_augment)
-
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
@@ -86,9 +86,7 @@ class EncDecSpeechSeparationModel(SeparationModel):
             augmentor = None
 
         featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
-            augmentor=augmentor,
+            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor,
         )
 
         shuffle = config['shuffle']
@@ -102,9 +100,7 @@ class EncDecSpeechSeparationModel(SeparationModel):
             logging.warning("Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
             return None
 
-        dataset = audio_to_audio_dataset.get_audio_to_source_dataset(
-            config=config, featurizer=featurizer,
-        )
+        dataset = audio_to_audio_dataset.get_audio_to_source_dataset(config=config, featurizer=featurizer,)
 
         if hasattr(dataset, 'collate_fn'):
             collate_fn = dataset.collate_fn
@@ -122,7 +118,6 @@ class EncDecSpeechSeparationModel(SeparationModel):
         )
 
         return loader
-
 
     def setup_training_data(self, train_data_config):
 
@@ -200,7 +195,6 @@ class EncDecSpeechSeparationModel(SeparationModel):
                     "validation batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
-
     def setup_test_data(self, test_data_config):
 
         """
@@ -237,7 +231,6 @@ class EncDecSpeechSeparationModel(SeparationModel):
                     "test batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
-
     def forward(self, mix_audio):
         """
         Forward pass of the model.
@@ -253,13 +246,9 @@ class EncDecSpeechSeparationModel(SeparationModel):
         mix_feat = torch.stack([mix_feat] * self.num_sources)
         sep_feat = mix_feat * mask_estimate
 
-
         # decode
         target_estimate = torch.cat(
-            [
-                self.decoder(sep_feat[i]).unsqueeze(-1) for i in range(self.num_sources)
-            ],
-            dim=-1,
+            [self.decoder(sep_feat[i]).unsqueeze(-1) for i in range(self.num_sources)], dim=-1,
         )
 
         T_original = mix_audio.size(1)
@@ -272,26 +261,22 @@ class EncDecSpeechSeparationModel(SeparationModel):
 
         return target_estimate
 
-
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
         if self.num_sources == 2:
             input, input_len, target1, target2, sample_ids = batch
         else:
             logging.info(f"current support is only for 2 sources")
-        
+
         target_estimate = self.forward(input)
         target = [target1, target2]
-        target = torch.cat(
-            [target[i].unsqueeze(-1) for i in range(self.num_sources)],
-            dim=-1,
-        )
-        
-        loss_value, _  = self.loss(preds=target_estimate, targets=target)
+        target = torch.cat([target[i].unsqueeze(-1) for i in range(self.num_sources)], dim=-1,)
 
-        tensorboard_logs = {'train_loss': loss_value, 'learning_rate': self._optimizer.param_groups[0]['lr']}
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        loss, _ = self.loss(preds=target_estimate, targets=target)
+        loss = loss.mean()
 
+        tensorboard_logs = {'train_loss': loss, 'learning_rate': self._optimizer.param_groups[0]['lr']}
+        return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         if self.num_sources == 2:
@@ -300,38 +285,30 @@ class EncDecSpeechSeparationModel(SeparationModel):
             logging.info(f"current support is only for 2 sources")
         target_estimate = self.forward(input)
         target = [target1, target2]
-        target = torch.cat(
-            [target[i].unsqueeze(-1) for i in range(self.num_sources)],
-            dim=-1,
-        )
+        target = torch.cat([target[i].unsqueeze(-1) for i in range(self.num_sources)], dim=-1,)
 
-        loss_value, _ = self.loss(preds=target_estimate, targets=target)
+        loss, _ = self.loss(preds=target_estimate, targets=target)
+        loss = loss.mean()
 
         return {
-            'val_loss': loss_value,
+            'val_loss': loss,
         }
-        
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': val_loss_mean}
         return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
-    
-    
+
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {
-            'test_loss': logs['val_loss']
-        }
+        test_logs = {'test_loss': logs['val_loss']}
 
         return test_logs
-
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         tensorboard_logs = {'test_loss': test_loss_mean}
         return {'test_loss': test_loss_mean, 'log': tensorboard_logs}
-    
 
     @torch.no_grad()
     def extract_sources(
@@ -351,12 +328,12 @@ class EncDecSpeechSeparationModel(SeparationModel):
         """
 
         if paths2audio_files is None or len(paths2audio_files) == 0:
-            raise ValueError(f"zero files received in extract_sources fn") 
+            raise ValueError(f"zero files received in extract_sources fn")
 
         if not self.num_sources == num_sources:
             raise ValueError(f"model trained for {self.num_sources} sources, but got {num_sources} sources")
 
-        if save_dir is None: 
+        if save_dir is None:
             raise ValueError(f"save_dir is not specified")
 
         # Models mode and device
@@ -368,7 +345,7 @@ class EncDecSpeechSeparationModel(SeparationModel):
             os.makedirs(save_dir)
 
         if num_workers is None:
-            num_workers = min(batch_size, os.cpu_count()-1)
+            num_workers = min(batch_size, os.cpu_count() - 1)
 
         try:
             # switch to eval mode
@@ -388,24 +365,22 @@ class EncDecSpeechSeparationModel(SeparationModel):
                         entry = {
                             'audio_filepath': [audio_file, audio_file],
                             'duration': [10000, 10000],
-                            }
-                        fp.write(json.dumps(entry) +  '\n')
+                        }
+                        fp.write(json.dumps(entry) + '\n')
 
                 config = {
                     'manifest_filepath': os.path.join(tmp_dir, 'manifest.json'),
-                    'batch_size' : batch_size,
-                    'shuffle' : False,
-                    'num_workers' : num_workers,
-                    'num_sources' : self.num_sources,
-                    'orig_sr' : orig_sr,
-                    'sample_rate' :self._cfg.sample_rate
+                    'batch_size': batch_size,
+                    'shuffle': False,
+                    'num_workers': num_workers,
+                    'num_sources': self.num_sources,
+                    'orig_sr': orig_sr,
+                    'sample_rate': self._cfg.sample_rate,
                 }
 
                 extract_dataloader = self._setup_dataloader_from_config(config)
                 for batch in tqdm.tqdm(extract_dataloader, desc="Extracting sources"):
-                    target_estimate = self.forward(
-                        batch[0].to(device)
-                    )
+                    target_estimate = self.forward(batch[0].to(device))
 
                     self._save_audio(
                         id=batch[-1].cpu().item(),
@@ -418,15 +393,14 @@ class EncDecSpeechSeparationModel(SeparationModel):
         finally:
             # set modes
             self.train(mode=mode)
-            
+
             logging.set_verbosity(logging_level)
             if mode is True:
                 self.preprocessor.unfreeze()
                 self.encoder.unfreeze()
                 self.decoder.unfreeze()
-        
-        return 
 
+        return
 
     def _save_audio(self, id, mixture, target_estimate, save_dir, sample_rate):
         """
@@ -438,9 +412,7 @@ class EncDecSpeechSeparationModel(SeparationModel):
         samples = samples / samples.abs().max()
         save_path = os.path.join(save_dir, f"item{id}_mix.wav")
         torchaudio.save(
-            save_path,
-            samples.unsqueeze(0),
-            sample_rate, 
+            save_path, samples.unsqueeze(0), sample_rate,
         )
 
         # save estimated sources
@@ -449,7 +421,5 @@ class EncDecSpeechSeparationModel(SeparationModel):
             samples = samples / samples.abs().max()
             save_path = os.path.join(save_dir, f"item{id}_source{n_src+1}hat.wav")
             torchaudio.save(
-                save_path,
-                samples.unsqueeze(0),
-                sample_rate,
+                save_path, samples.unsqueeze(0), sample_rate,
             )

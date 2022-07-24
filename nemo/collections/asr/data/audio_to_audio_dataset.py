@@ -26,10 +26,7 @@ from nemo.collections.asr.data import audio_to_audio
 from nemo.utils import logging
 
 
-def get_audio_to_source_dataset(
-    config: dict,
-    featurizer,
-) -> audio_to_audio.AudioToSourceDataset:
+def get_audio_to_source_dataset(config: dict, featurizer,) -> audio_to_audio.AudioToSourceDataset:
     """
     Instantiates an audio to source(s) dataset.
     Args:
@@ -49,4 +46,3 @@ def get_audio_to_source_dataset(
         orig_sr=config.get('orig_sr', None),
     )
     return dataset
-

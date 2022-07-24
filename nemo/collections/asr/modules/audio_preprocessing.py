@@ -676,6 +676,7 @@ class AudioToFeaturesConvPreprocessor(NeuralModule):
         in_channels (int):
         out_channels (int):
     """
+
     def __init__(self, out_channels=64, in_channels=1, kernel_size=2):
         super(AudioToFeaturesConvPreprocessor, self).__init__()
         self.conv1d = torch.nn.Conv1d(
@@ -688,7 +689,6 @@ class AudioToFeaturesConvPreprocessor(NeuralModule):
         self.in_channels = in_channels
         self.activation = torch.nn.ReLU()
 
-
     def forward(self, x):
         """
         Args:
@@ -699,9 +699,9 @@ class AudioToFeaturesConvPreprocessor(NeuralModule):
             x: torch.Tensor
                 [B, F, N]
         """
-        if self.in_channels == 1: 
+        if self.in_channels == 1:
             x = torch.unsqueeze(x, dim=1)
-        
+
         x = self.conv1d(x)
         x = self.activation(x)
 

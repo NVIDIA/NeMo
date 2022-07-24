@@ -19,9 +19,9 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
-from nemo.collections.asr.parts.submodules.transformer_modules import TransformerEncoderLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
+from nemo.collections.asr.parts.submodules.transformer_modules import TransformerEncoderLayer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
@@ -45,7 +45,7 @@ class TransformerEncoder(NeuralModule, Exportable):
             'abs_pos': absolute positional embedding and Transformer
             default is rel_pos.
         pos_emb_max_len (int): the maximum length of positional embeddings
-            Defaults to 5000
+            Defaults to 20000
         n_heads (int): number of heads in multi-headed attention layers
             Defaults to 1.
         xscaling (bool): enables scaling the inputs to the multi-headed attention layers by sqrt(d_model)
@@ -53,14 +53,12 @@ class TransformerEncoder(NeuralModule, Exportable):
         untie_biases (bool): whether to not share (untie) the bias weights between layers of Transformer-XL
             Defaults to True.
         dropout (float): the dropout rate used in all layers except the attention layers
-            Defaults to 0.1.
+            Defaults to 0.0.
         dropout_emb (float): the dropout rate used for the positional embeddings
-            Defaults to 0.1.
+            Defaults to 0.0.
         dropout_att (float): the dropout rate used for the attention layer
             Defaults to 0.0.
     """
-
-
 
     def __init__(
         self,
@@ -83,10 +81,9 @@ class TransformerEncoder(NeuralModule, Exportable):
         super().__init__()
 
         if pre_norm and pre_norm_final_layer_norm:
-            self.final_layer_norm = nn.LayerNorm(d_model, eps=1e-5)
+            self.final_layer_norm = nn.LayerNorm(d_model)
         else:
             self.final_layer_norm = None
-        
 
         d_ff = d_model * ff_expansion_factor
         self.d_model = d_model
@@ -147,7 +144,6 @@ class TransformerEncoder(NeuralModule, Exportable):
         self.set_max_audio_length(self.pos_emb_max_len)
         self.use_pad_mask = True
 
-    
     def set_max_audio_length(self, max_audio_length):
         """
         Sets maximum input length
@@ -161,7 +157,6 @@ class TransformerEncoder(NeuralModule, Exportable):
             self.register_buffer('seq_range', seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device)
 
-
     def update_max_seq_length(self, seq_length, device):
         # Find global max audio length across all nodes
         if torch.distributed.is_initialized():
@@ -174,7 +169,6 @@ class TransformerEncoder(NeuralModule, Exportable):
         if seq_length > self.max_audio_length:
             self.set_max_audio_length(seq_length)
 
-
     def forward(self, x, x_mask=None):
         """
         Args:
@@ -184,8 +178,7 @@ class TransformerEncoder(NeuralModule, Exportable):
         """
         # update seq lengths across nodes
         self.update_max_seq_length(seq_length=x.size(1), device=x.device)
-        
-        
+
         if x_mask is None:
             x_mask = torch.ones((x.shape[0], x.shape[1]), dtype=x.dtype, layout=x.layout, device=x.device)
         att_mask = self.form_attention_mask(x_mask)
@@ -194,10 +187,12 @@ class TransformerEncoder(NeuralModule, Exportable):
 
         for lth, layer in enumerate(self.layers):
             x = layer(x=x, att_mask=att_mask)
-        
+
+        # final norm after encoder layers
+        if self.final_layer_norm is not None:
+            x = self.final_layer_norm(x)
+
         return x
-
-
 
     def form_attention_mask(self, input_mask, diagonal=None):
         """
@@ -219,7 +214,7 @@ class TransformerEncoder(NeuralModule, Exportable):
         if input_mask is None:
             return None
         att_mask = input_mask.to(dtype=bool).unsqueeze(1).repeat([1, input_mask.shape[1], 1])
-        att_mask = torch.logical_and(att_mask, att_mask.transpose(1,2))
+        att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
 
         # negate the att_mask for using in masked_fill
         att_mask = ~att_mask

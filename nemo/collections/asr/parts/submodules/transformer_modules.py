@@ -16,12 +16,12 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
+from nemo.collections.asr.parts.submodules.conformer_modules import ConformerFeedForward
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention,
     RelPositionMultiHeadAttention,
 )
 from nemo.collections.asr.parts.utils.activations import Swish
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerFeedForward
 
 __all__ = ['TransformerEncoderLayer']
 
@@ -49,14 +49,14 @@ class TransformerEncoderLayer(torch.nn.Module):
         dropout_att=0.0,
         pos_bias_u=None,
         pos_bias_v=None,
-        pre_norm = False,
-        activation_ff = nn.ReLU(),
+        pre_norm=False,
+        activation_ff=nn.ReLU(),
     ):
         super(TransformerEncoderLayer, self).__init__()
 
         self.pre_norm = pre_norm
-        self.norm_self_att = LayerNorm(d_model, eps=1e-5)
-       
+        self.norm_self_att = LayerNorm(d_model)
+
         # multi-headed self-attention module
         self.self_attention_model = self_attention_model
         self.n_heads = n_heads
@@ -72,10 +72,12 @@ class TransformerEncoderLayer(torch.nn.Module):
                 f"valid values can be from ['rel_pos', 'abs_pos']"
             )
 
-        self.norm_feed_forward = LayerNorm(d_model, eps=1e-5)
+        self.norm_feed_forward = LayerNorm(d_model)
 
         # feed forward module
-        self.feed_forward = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout_ff, activation=activation_ff)
+        self.feed_forward = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout_ff, activation=activation_ff
+        )
 
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
@@ -90,20 +92,20 @@ class TransformerEncoderLayer(torch.nn.Module):
         Returns:
             x (torch.Tensor): (B, L, H)
         """
-        
+
         # MHA block
         if self.pre_norm:
             x1 = self.norm_self_att(x)
         else:
             x1 = x
-        
+
         if self.self_attention_model == 'rel_pos':
             x1 = self.self_attn(query=x1, key=x1, value=x1, mask=att_mask, pos_emb=pos_emb)
         elif self.self_attention_model == 'abs_pos':
             x1 = self.self_attn(query=x1, key=x1, value=x1, mask=att_mask)
         else:
             x1 = None
-        
+
         # add and norm
         x = x + self.dropout1(x1)
         if not self.pre_norm:
@@ -114,7 +116,7 @@ class TransformerEncoderLayer(torch.nn.Module):
             x1 = self.norm_feed_forward(x)
         else:
             x1 = x
-        
+
         x1 = self.feed_forward(x1)
 
         # add and norm
