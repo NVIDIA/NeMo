@@ -171,6 +171,11 @@ build-BigNLP:
     - if [[ "$RUN_TASK" -eq "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
+    - echo "RUN_MODEL=${RUN_MODEL}" >> build.env # So that they can be passed on to the next job.
+    - echo "TP_SIZE=${TP_SIZE}" >> build.env
+    - echo "PP_SIZE=${PP_SIZE}" >> build.env
+    - echo "RUN_MODEL_SIZE=${RUN_MODEL_SIZE}" >> build.env
+    - echo "PREV_JOB=${RUN_NAME}" >> build.env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_TASK}_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
@@ -199,19 +204,14 @@ build-BigNLP:
     - pip3 install pytest
     - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/test_${RUN_TASK}_pipeline.py
     - echo "Finished pytest job"
-    - echo "RUN_MODEL=${RUN_MODEL}" >> build.env # So that they can be passed on to the next job.
-    - echo "TP_SIZE=${TP_SIZE}" >> build.env
-    - echo "PP_SIZE=${PP_SIZE}" >> build.env
-    - echo "RUN_MODEL_SIZE=${RUN_MODEL_SIZE}" >> build.env
-    - echo "PREV_JOB=${RUN_NAME}" >> build.env
-  artifacts:
-    reports:
-      dotenv: build.env
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
       when: always
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $TEST_LEVEL =~ $TESTS_TO_RUN_ON_MERGE_REQ'
       when: always
+  artifacts:
+    reports:
+      dotenv: build.env      
   allow_failure: false
 
 
@@ -569,7 +569,7 @@ convert.gpt3.126m_tp1_pp1:
     RUN_MODEL_SIZE: 126m
     PREV_JOB: train_gpt3_126m_tp1_pp1_1node_100steps
     TP_SIZE: 1
-    PP_SIZE: 1     
+    PP_SIZE: 1
     TIME_LIMIT: "30:00"
     TEST_LEVEL: L1
   needs:
