@@ -1,5 +1,7 @@
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 
+set -o xtrace
+
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     conversion=convert_${RUN_MODEL} \
