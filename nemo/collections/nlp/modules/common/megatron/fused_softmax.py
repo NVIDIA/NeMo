@@ -1,3 +1,17 @@
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 from apex._autocast_utils import _cast_if_autocast_enabled
 
@@ -70,26 +84,13 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
     def forward(self, input, mask):
         # [b, np, sq, sk]
         assert input.dim() == 4
-
         if self.is_kernel_available(mask, *input.size()):
-            res = self.forward_fused_softmax(input, mask)
-            control = self.forward_torch_softmax(input, mask).detach()
-            all_k_masked = mask.all(axis=-1)
-            zero_attention_mask = (1.0 - all_k_masked.float())[:, :, :, None]
-            control = zero_attention_mask * control
-            if (res - control).abs().max() > 1e-2:
-                torch.save(input, '/results/input.pth')
-                torch.save(mask, '/results/mask.pth')
-                torch.save(self.scale, '/results/scale.pth')
-                import sys
-
-                sys.exit(0)
             return self.forward_fused_softmax(input, mask)
         else:
             return self.forward_torch_softmax(input, mask)
 
     def is_kernel_available(self, mask, b, np, sq, sk):
-        if self.scaled_masked_softmax_fusion and 16 < sk <= 4096:  # user want to fuse  # sk must be 16 ~ 2048
+        if self.scaled_masked_softmax_fusion and 0 < sk <= 4096:  # user want to fuse  # sk must be 1 ~ 4096
             return True
         return False
 
