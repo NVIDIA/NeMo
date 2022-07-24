@@ -1,13 +1,15 @@
 import torch
 from apex._autocast_utils import _cast_if_autocast_enabled
+
 # this triggers kernel compiling
-import nemo.collections.nlp.modules.common.megatron.fused_kernels 
+import nemo.collections.nlp.modules.common.megatron.fused_kernels
 
 
 class ScaledMaskedSoftmax(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inputs, mask, scale):
         import scaled_masked_softmax_cuda_new
+
         scale_t = torch.tensor([scale])
         softmax_results = scaled_masked_softmax_cuda_new.forward(inputs, mask, scale_t[0])
         ctx.save_for_backward(softmax_results, scale_t)
@@ -19,9 +21,7 @@ class ScaledMaskedSoftmax(torch.autograd.Function):
 
         softmax_results, scale_t = ctx.saved_tensors
 
-        input_grads = scaled_masked_softmax_cuda_new.backward(
-            output_grads, softmax_results, scale_t[0]
-        )
+        input_grads = scaled_masked_softmax_cuda_new.backward(output_grads, softmax_results, scale_t[0])
         return input_grads, None, None
 
 
@@ -50,21 +50,13 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
     """
 
     def __init__(
-        self,
-        input_in_fp16,
-        input_in_bf16,
-        scaled_masked_softmax_fusion,
-        mask_func,
-        softmax_in_fp32,
-        scale,
+        self, input_in_fp16, input_in_bf16, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale,
     ):
         super().__init__()
         self.input_in_fp16 = input_in_fp16
         self.input_in_bf16 = input_in_bf16
         if self.input_in_fp16 and self.input_in_bf16:
-            raise RuntimeError(
-                "both fp16 and bf16 flags cannot be active at the same time."
-            )
+            raise RuntimeError("both fp16 and bf16 flags cannot be active at the same time.")
         self.input_in_float16 = self.input_in_fp16 or self.input_in_bf16
         self.mask_func = mask_func
         self.softmax_in_fp32 = softmax_in_fp32
@@ -90,16 +82,14 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
                 torch.save(mask, '/results/mask.pth')
                 torch.save(self.scale, '/results/scale.pth')
                 import sys
+
                 sys.exit(0)
             return self.forward_fused_softmax(input, mask)
         else:
             return self.forward_torch_softmax(input, mask)
 
     def is_kernel_available(self, mask, b, np, sq, sk):
-        if (
-            self.scaled_masked_softmax_fusion  # user want to fuse
-            and 16 < sk <= 4096  # sk must be 16 ~ 2048
-        ):
+        if self.scaled_masked_softmax_fusion and 16 < sk <= 4096:  # user want to fuse  # sk must be 16 ~ 2048
             return True
         return False
 
