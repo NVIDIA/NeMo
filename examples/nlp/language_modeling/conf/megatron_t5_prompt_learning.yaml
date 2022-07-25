@@ -1,4 +1,4 @@
-name: p_tuning_sent_t5
+name: p_tuning_squad_t5
 
 trainer:
   devices: 1
@@ -20,7 +20,7 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: ${name}
-  create_wandb_logger: True
+  create_wandb_logger: False
   wandb_logger_kwargs:
     project: PromptLearning-T5
     name: ${name}
@@ -31,7 +31,7 @@ exp_manager:
     monitor: val_loss
     save_top_k: 2
     mode: min
-    save_nemo_on_train_end: False
+    save_nemo_on_train_end: False # Should be false, correct prompt learning model file is saved at model.virtual_prompt_save_path set below
     filename: "megatron_t5_prompt_tune--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}"
     model_parallel_size: ${model.tensor_model_parallel_size}
     save_best_model: True
@@ -49,16 +49,15 @@ model:
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
   pretrained_language_model_path: ??? # Path to the pretrained T5 language model .nemo file, always required
   existing_tasks: []
-  new_tasks: ["rte"] 
+  new_tasks: ["squad"] 
 
   task_templates: 
-  - taskname: "rte" 
-    prompt_template: "<|VIRTUAL_PROMPT_0|>{premise}\n{hypothesis}\nAnswer: {answer}" 
-    total_virtual_tokens: 9 
-    virtual_token_splits: [9] 
-    truncate_field: null
-    answer_only_loss: True
-    answer_field: "answer"
+  - taskname: "squad" 
+    prompt_template: "<|VIRTUAL_PROMPT_0|> {context} {question} {answer}" 
+    total_virtual_tokens: 100
+    virtual_token_splits: [100] 
+    truncate_field: context
+    answer_field: answer
 
 
   p_tuning:
@@ -70,8 +69,8 @@ model:
     new_prompt_init_text: ['some init text goes here'] # some init text if init method is text, or None if init method is random
 
   data:
-    train_ds: ["data/rte_train.jsonl"]
-    validation_ds: ["data/rte_val.jsonl"]
+    train_ds: ["data/squad_train.jsonl"]
+    validation_ds: ["data/squad_val.jsonl"]
     add_eos: True
     shuffle: True
     num_workers: 8
@@ -80,7 +79,7 @@ model:
 
   optim:
     name: fused_adam
-    lr: 1e-4
+    lr: 1e-3
     weight_decay: 0.01 
     betas: 
     - 0.9
