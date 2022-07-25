@@ -1,7 +1,7 @@
 Prompt Learning
 -------------
 
-Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoid cartographic forgetting issues often encountered when fine-tuning models. 
+Within NeMo we refer to **p-tuning** and **prompt tuning** methods collectively as prompt learning. Both methods are parameter efficient alternatives to fine-tuning pretrained language models. Our NeMo implementation makes it possible to use one pretrained GPT model on many downstream tasks without needing to tune the model's full set of parameters. It also allows for adding new tasks to your model without overwriting or disrupting previous tasks for which the model has already been p-tuned/prompt-tuned. Because the original model parameters are frozen and never altered by either method, p-tuning/prompt-tuning also avoids catastrophic forgetting issues often encountered when fine-tuning models. 
 
 Instead of selecting discrete text prompts in a manual or automated fashion, prompt tuning and p-tuning utilize virtual prompt embeddings that can be optimized via gradient decent. The only difference between prompt tuning and p-tuning within NeMo-Megatron is the architecture used to tune the soft prompt tokens during training.
 
@@ -345,7 +345,7 @@ The inference file can contain a mix of prompts from all the tasks the model has
 
 .. code::
 
-    python megatron_gpt_eval.py \
+    python megatron_gpt_prompt_learning_eval.py \
             virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
             model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
             inference.greedy=True \
@@ -382,9 +382,7 @@ And the dataset class will automatically format your input to have the form:
       '<|VIRTUAL_PROMPT_0|> Context: some paragraph Question: question related to paragraph Answer: ',
       '<|VIRTUAL_PROMPT_0|> Context: another paragraph Question: a different question related to paragraph Answer: '
   ]
-        
-Generally prompt learning inference is just like running inference with a GPT model. The only difference is you need to add ``virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE`` to your command if you're using a p-tuned/prompt-tuned model. 
 
 Example prompt learning script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning.py>`__.
 
-Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_eval.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_eval.py>`__.
+Example prompt tuned inference script: `NeMo/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py <https://github.com/NVIDIA/NeMo/blob/main/examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py>`__.

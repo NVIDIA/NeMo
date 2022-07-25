@@ -2865,7 +2865,7 @@ pipeline {
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl'] \
                 model.global_batch_size=4"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp"
-            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp2_pp1.nemo' \
                 inference.greedy=True \
@@ -2892,7 +2892,7 @@ pipeline {
                 model.data.validation_ds=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl'] \
                 model.global_batch_size=4"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp"
-            sh "python examples/nlp/language_modeling/megatron_gpt_eval.py \
+            sh "python examples/nlp/language_modeling/megatron_gpt_prompt_learning_eval.py \
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo' \
                 gpt_model_file='/home/TestData/nlp/megatron_gpt/tiny/megatron_14m_gpt_tp1_pp2.nemo' \
                 inference.greedy=True \

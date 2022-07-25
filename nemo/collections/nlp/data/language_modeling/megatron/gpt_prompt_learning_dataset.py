@@ -28,6 +28,19 @@ __all__ = ['GPTPromptLearningDataset']
 class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
+    
+    Args:
+        datasets (list[strings], list[dict]): A list of either (1) dictionary/json objects, (2) json objects as strings, or (3) paths to .jsonl or .json files 
+        tokenizer (tokenizer): Tokenizer from frozen language model
+        virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
+        task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
+        pseudo_tokens (list[strings]): A list of virtual prompt token placeholders e.g [<prompt_1>, <prompt_2>, ...] up to max num virtual tokens
+        pad_token_id (int): ID of pad token from tokenizer
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        add_bos (bool): Whether to add a beginning of sentence token to each data example
+        add_eos (bool): Whether to add an end of sentence token to each data example
+        for_train (bool): Whether you're creating a dataset for training or inference
     """
 
     def __init__(
@@ -37,7 +50,7 @@ class GPTPromptLearningDataset(Dataset):
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
         pseudo_tokens,
-        pad_token_id: str,
+        pad_token_id: int,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos: bool = False,
@@ -66,6 +79,7 @@ class GPTPromptLearningDataset(Dataset):
         if isinstance(datasets[0], dict):
             self.load_data(datasets)
 
+        # Dataset is a list of json dicts as strings
         elif isinstance(datasets[0], str) and "taskname" in datasets[0]:
             self.load_data(datasets)
 
