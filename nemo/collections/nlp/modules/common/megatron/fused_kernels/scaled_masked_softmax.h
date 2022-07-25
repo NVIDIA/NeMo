@@ -23,7 +23,6 @@
 #include <stdint.h>
 #include <cuda_fp16.h>
 #include <c10/macros/Macros.h>
-#include <stdio.h>
 
 namespace {
 
@@ -120,9 +119,10 @@ __global__ void scaled_masked_softmax_warp_backward_new(
 
     // final shared reduction
 
-    int shared_mem_len = 128;
+    int shared_mem_len = (element_count - 1) / C10_WARP_SIZE + 1;
     int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
+        #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
                 val = shared[local_idx];
@@ -139,27 +139,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
         num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
         __syncthreads();
     }
-//     if (local_idx < 128) {
-//         val = shared[local_idx];
-//         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-//         if (lane==0) {
-//             shared[wid] = val;
-//         }
-//     }
-// 
-//     __syncthreads();
-// 
-//     if (local_idx < C10_WARP_SIZE) {
-//         val = shared[local_idx];
-//         val = warp_reduce_new<acc_t, 4, Add>(val);
-//         if (lane==0) {
-//             shared[wid] = val;
-//         }
-//     }
-//     __syncthreads();
     val = shared[0];
-
-    //acc_t reduced_val = (shared[0] + shared[1]) + (shared[2] + shared[3]);
 
     #pragma unroll
     for (int i = local_idx; i < element_count; i += threads_per_block){
@@ -190,11 +170,12 @@ void dispatch_scaled_masked_softmax_backward_new(
         int batch_count = batches * attn_heads * query_seq_len;
         // use 128 threads per block to maximimize gpu utilization
         constexpr int threads_per_block = 128;
+        int num_warps = (key_seq_len - 1) / C10_WARP_SIZE + 1;
         dim3 blocks(batch_count, 1, 1);
         dim3 threads(threads_per_block, 1, 1);
 
         scaled_masked_softmax_warp_backward_new<input_t, output_t, acc_t, 12>
-            <<<blocks, threads, sizeof(input_t)*key_seq_len*2 + sizeof(acc_t)*128, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, key_seq_len);
+            <<<blocks, threads, sizeof(input_t)*key_seq_len*2 + sizeof(acc_t)*num_warps, at::cuda::getCurrentCUDAStream()>>>(grad_input, grad, output, scale, key_seq_len);
     }
 }
 
@@ -278,9 +259,10 @@ __global__ void scaled_masked_softmax_warp_forward_new(
     }
 
     // final shared reduction
-    int shared_mem_len = 128;
+    int shared_mem_len = (element_count - 1) / C10_WARP_SIZE + 1;
     int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
+        #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
                 val = shared[local_idx];
@@ -297,26 +279,8 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
         __syncthreads();
     }
-    // // final shared reduction
-    // if (local_idx < 128) {
-    //     val = shared[local_idx];
-    //     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
-    //     if (lane==0) {
-    //         shared[wid] = val;
-    //     }
-    // }
-    // __syncthreads();
 
-    // if (local_idx < C10_WARP_SIZE) {
-    //     val = shared[local_idx];
-    //     val = warp_reduce_new<acc_t, 4, Max>(val);
-    //     if (lane==0) {
-    //         shared[wid] = val;
-    //     }
-    // }
-    // __syncthreads();
     acc_t reduced_val = shared[0];
-
     if (reduced_val < -10000.0 + 0.1){
         // if everything is masked, pay attention to nothing
         #pragma unroll
@@ -353,9 +317,10 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         __syncthreads();
     }
 
-    shared_mem_len = 128;
+    shared_mem_len = (element_count - 1) / C10_WARP_SIZE + 1;
     num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
+        #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
                 val = shared[local_idx];
@@ -373,29 +338,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         __syncthreads();
     }
 
-    // // final shared reduction
-    // if (local_idx < 128) {
-    //     val = shared[local_idx];
-    //     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-    //     if (lane==0) {
-    //         shared[wid] = val;
-    //     }
-    // }
-
-    // __syncthreads();
-
-    // if (local_idx < C10_WARP_SIZE) {
-    //     val = shared[local_idx];
-    //     val = warp_reduce_new<acc_t, 4, Add>(val);
-    //     if (lane==0) {
-    //         shared[wid] = val;
-    //     }
-    // }
-    // __syncthreads();
     reduced_val = shared[0];
-    //if (local_idx<32){
-    //    printf("bid %d, lid %d, offset %d, blocks %d, v: %f, mask_offset %d\n", blockIdx.x, local_idx, offset, gridDim.x, reduced_val, mask_offset);
-    //}
 
     #pragma unroll
     for (int i = local_idx; i < element_count; i += threads_per_block){
@@ -416,7 +359,7 @@ void dispatch_scaled_masked_softmax_forward_new(
     int attn_heads,
     int pad_batches)
 {
-    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 4096 );
+    TORCH_INTERNAL_ASSERT(key_seq_len >= 0);
     if (key_seq_len == 0) {
         return;
     } else {
@@ -425,9 +368,12 @@ void dispatch_scaled_masked_softmax_forward_new(
         // use 128 threads per block to maximimize gpu utilization
         constexpr int threads_per_block = 128;
 
+        // calculate the needed shared memory
+        int num_warps = (key_seq_len - 1) / C10_WARP_SIZE + 1;
+
         dim3 blocks(batch_count, 1, 1);
         dim3 threads(threads_per_block, 1, 1);
         scaled_masked_softmax_warp_forward_new<input_t, output_t, acc_t>
-            <<<blocks, threads, sizeof(acc_t) * (key_seq_len + 128), at::cuda::getCurrentCUDAStream()>>>(dst, src, mask, scale, query_seq_len, attn_heads, key_seq_len, pad_batches);
+            <<<blocks, threads, sizeof(acc_t) * (key_seq_len + num_warps), at::cuda::getCurrentCUDAStream()>>>(dst, src, mask, scale, query_seq_len, attn_heads, key_seq_len, pad_batches);
     }
 }
