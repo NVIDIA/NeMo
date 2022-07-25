@@ -37,7 +37,7 @@ import time
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
@@ -569,7 +569,10 @@ def build_train_valid_test_datasets(
         if "tokenizer" not in data_impl_kwargs:
             if isinstance(data_impl_kwargs, DictConfig):
                 data_impl_kwargs = OmegaConf.to_object(data_impl_kwargs)
-
+            else:
+                # prevent updating the default
+                data_impl_kwargs = data_impl_kwargs.copy()
+                
             data_impl_kwargs["tokenizer"] = tokenizer
 
     if len(data_prefix) == 1:
