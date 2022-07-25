@@ -96,5 +96,3 @@ if __name__ == '__main__':
 
     if RUN_TASK in ["eval"] and RUN_MODEL in ["t5", "mt5"]:
         collect_val_test_metrics(pytest_file)
-
-

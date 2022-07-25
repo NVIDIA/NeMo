@@ -107,6 +107,15 @@ model:
   onnx_safe: False # Use work-arounds for known problems with Torch ONNX exporter.
   apex_transformer_log_level: 30 # Python logging level displays logs with severity greater than or equal to this
 
+  # Nsys profiling options
+  nsys_profile:
+    enabled: False
+    trace: [nvtx,cuda]
+    start_step: 10  # Global batch to start profiling
+    end_step: 10 # Global batch to end profiling
+    ranks: [0] # Global rank IDs to profile
+    gen_shape: False # Generate model and kernel details including input shapes
+
   optim:
     name: fused_adam
     lr: 1e-4
