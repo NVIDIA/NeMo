@@ -119,24 +119,44 @@ __global__ void scaled_masked_softmax_warp_backward_new(
     }
 
     // final shared reduction
-    if (local_idx < 128) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-        if (lane==0) {
-            shared[wid] = val;
-        }
-    }
 
-    __syncthreads();
-
-    if (local_idx < C10_WARP_SIZE) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, 4, Add>(val);
-        if (lane==0) {
-            shared[wid] = val;
+    int shared_mem_len = 128;
+    int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+    while ( shared_mem_len > 1 ){
+        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
+            if (i < shared_mem_len){
+                val = shared[local_idx];
+            }
+            else{
+                val = 0.0;
+            }
+            val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
+            if (lane==0) {
+                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+            }
         }
+        shared_mem_len = num_warps;
+        num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+        __syncthreads();
     }
-    __syncthreads();
+//     if (local_idx < 128) {
+//         val = shared[local_idx];
+//         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
+//         if (lane==0) {
+//             shared[wid] = val;
+//         }
+//     }
+// 
+//     __syncthreads();
+// 
+//     if (local_idx < C10_WARP_SIZE) {
+//         val = shared[local_idx];
+//         val = warp_reduce_new<acc_t, 4, Add>(val);
+//         if (lane==0) {
+//             shared[wid] = val;
+//         }
+//     }
+//     __syncthreads();
     val = shared[0];
 
     //acc_t reduced_val = (shared[0] + shared[1]) + (shared[2] + shared[3]);
@@ -256,24 +276,45 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         }
         __syncthreads();
     }
-    // final shared reduction
-    if (local_idx < 128) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
-        if (lane==0) {
-            shared[wid] = val;
-        }
-    }
-    __syncthreads();
 
-    if (local_idx < C10_WARP_SIZE) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, 4, Max>(val);
-        if (lane==0) {
-            shared[wid] = val;
+    // final shared reduction
+    int shared_mem_len = 128;
+    int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+    while ( shared_mem_len > 1 ){
+        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
+            if (i < shared_mem_len){
+                val = shared[local_idx];
+            }
+            else{
+                val = -10000.0;
+            }
+            val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
+            if (lane==0) {
+                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+            }
         }
+        shared_mem_len = num_warps;
+        num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+        __syncthreads();
     }
-    __syncthreads();
+    // // final shared reduction
+    // if (local_idx < 128) {
+    //     val = shared[local_idx];
+    //     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
+    //     if (lane==0) {
+    //         shared[wid] = val;
+    //     }
+    // }
+    // __syncthreads();
+
+    // if (local_idx < C10_WARP_SIZE) {
+    //     val = shared[local_idx];
+    //     val = warp_reduce_new<acc_t, 4, Max>(val);
+    //     if (lane==0) {
+    //         shared[wid] = val;
+    //     }
+    // }
+    // __syncthreads();
     acc_t reduced_val = shared[0];
 
     if (reduced_val < -10000.0 + 0.1){
@@ -311,25 +352,46 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         }
         __syncthreads();
     }
-    // final shared reduction
-    if (local_idx < 128) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-        if (lane==0) {
-            shared[wid] = val;
+
+    shared_mem_len = 128;
+    num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+    while ( shared_mem_len > 1 ){
+        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
+            if (i < shared_mem_len){
+                val = shared[local_idx];
+            }
+            else{
+                val = 0.0;
+            }
+            val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
+            if (lane==0) {
+                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+            }
         }
+        shared_mem_len = num_warps;
+        num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
+        __syncthreads();
     }
 
-    __syncthreads();
+    // // final shared reduction
+    // if (local_idx < 128) {
+    //     val = shared[local_idx];
+    //     val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
+    //     if (lane==0) {
+    //         shared[wid] = val;
+    //     }
+    // }
 
-    if (local_idx < C10_WARP_SIZE) {
-        val = shared[local_idx];
-        val = warp_reduce_new<acc_t, 4, Add>(val);
-        if (lane==0) {
-            shared[wid] = val;
-        }
-    }
-    __syncthreads();
+    // __syncthreads();
+
+    // if (local_idx < C10_WARP_SIZE) {
+    //     val = shared[local_idx];
+    //     val = warp_reduce_new<acc_t, 4, Add>(val);
+    //     if (lane==0) {
+    //         shared[wid] = val;
+    //     }
+    // }
+    // __syncthreads();
     reduced_val = shared[0];
     //if (local_idx<32){
     //    printf("bid %d, lid %d, offset %d, blocks %d, v: %f, mask_offset %d\n", blockIdx.x, local_idx, offset, gridDim.x, reduced_val, mask_offset);
