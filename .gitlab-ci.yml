@@ -168,7 +168,7 @@ build-BigNLP:
     - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
-    - if [[ "$RUN_TASK" -eq "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
+    - if [[ "$RUN_TASK" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - echo "RUN_MODEL=${RUN_MODEL}" >> build.env # So that they can be passed on to the next job.
