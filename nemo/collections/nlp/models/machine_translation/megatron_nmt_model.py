@@ -36,10 +36,9 @@ from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_m
     MegatronLMEncoderDecoderModel,
 )
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.modules.common.megatron.megatron_export import DecEmb, EncEmb, TokensHeadEmb
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.nlp.modules.common.megatron.megatron_export import TokensHeadEmb, EncEmb, DecEmb
-
 from nemo.utils import AppState, logging, timers
 
 try:
@@ -803,4 +802,3 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_test_start(self) -> None:
         self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
-        

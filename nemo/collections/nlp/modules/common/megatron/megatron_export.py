@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 import random
-
-from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, MaskType, NeuralType
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
 from typing import Dict, List, Optional
 
+import torch
+
+from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.core.classes.exportable import Exportable
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
+
 __all__ = []
+
 
 class TokensHeadEmb(torch.nn.Module, Exportable):
     """
