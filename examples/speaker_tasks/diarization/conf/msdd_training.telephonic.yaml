@@ -39,7 +39,8 @@ msdd_model:
     batch_size: *global_bs
     diarizer: *diarizer
     soft_label_thres: &soft_label_thres 0.5
-  
+
+  model_path: null
   max_num_of_spks: &max_num_of_spks 2
   scale_n: &scale_n 
   subsample_rate: &subsample_rate 1
@@ -140,7 +141,7 @@ exp_manager:
   checkpoint_callback_params:
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 15
+    save_top_k: 30
     every_n_epochs: 1
   wandb_logger_kwargs:
     name: null

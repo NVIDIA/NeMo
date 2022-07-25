@@ -93,6 +93,77 @@ except ImportError:
     def autocast(enabled=None):
         yield
 
+def generate_diar_timestamps(clus_labels, preds, max_overlap=2, **params):
+    '''
+    old, works
+    '''
+    preds.squeeze(0)
+    main_speaker_lines = []
+    overlap_speaker_list = [[] for _ in range(params['max_num_of_spks'])]
+    limit = min(len(clus_labels), preds.shape[0])
+    for seg_idx, cluster_label in enumerate(clus_labels[:limit]):
+        preds.squeeze(0)
+        spk_for_seg = (preds[0, seg_idx] > params['threshold']).int().cpu().numpy().tolist()
+        sm_for_seg = preds[0, seg_idx].cpu().numpy()
+
+        if params['use_dec']:
+            main_spk_idx = np.argsort(preds[0, seg_idx].cpu().numpy())[::-1][0]
+        elif params['use_clus'] or sum(spk_for_seg) == 0:
+            main_spk_idx = int(cluster_label[2])
+        else:
+            main_spk_idx = np.argsort(preds[0, seg_idx].cpu().numpy())[::-1][0]
+
+        if sum(spk_for_seg) > 1:
+            max_idx = np.argmax(sm_for_seg)
+            idx_arr = np.argsort(sm_for_seg)[::-1]
+            for ovl_spk_idx in idx_arr[:max_overlap].tolist():
+                if ovl_spk_idx != int(main_spk_idx):
+                    overlap_speaker_list[ovl_spk_idx].append(seg_idx)
+        main_speaker_lines.append(f"{cluster_label[0]} {cluster_label[1]} speaker_{main_spk_idx}")
+    cont_stamps = get_contiguous_stamps(main_speaker_lines)
+    maj_labels = merge_stamps(cont_stamps)
+    ovl_labels = get_overlap_stamps(cont_stamps, overlap_speaker_list)
+    return maj_labels, ovl_labels
+
+
+def diar_eval(msdd_model, hyp, **params):
+    manifest_file, clus_label_dict = msdd_model.cfg.test_ds.manifest_filepath, msdd_model.clus_test_label_dict
+    params['max_num_of_spks'] = msdd_model._cfg.base.diarizer.clustering.parameters.max_num_speakers
+
+    AUDIO_RTTM_MAP = audio_rttm_map(manifest_file)
+    manifest_file_lengths_list = []
+    all_hypothesis, all_reference = [], []
+    no_references = False
+    with open(manifest_file, 'r', encoding='utf-8') as manifest:
+        for i, line in enumerate(manifest.readlines()):
+            uniq_id = get_uniq_id_from_manifest_line(line)
+            manifest_dic = AUDIO_RTTM_MAP[uniq_id]
+            clus_labels = clus_label_dict[uniq_id]
+            manifest_file_lengths_list.append(len(clus_labels))
+            maj_labels, ovl_labels = generate_diar_timestamps(clus_labels, hyp[i], **params)
+            if params['infer_overlap']:
+                hyp_labels = maj_labels + ovl_labels
+            else:
+                hyp_labels = maj_labels
+            hypothesis = labels_to_pyannote_object(hyp_labels, uniq_name=uniq_id)
+            all_hypothesis.append([uniq_id, hypothesis])
+            rttm_file = manifest_dic.get('rttm_filepath', None)
+            if rttm_file is not None and os.path.exists(rttm_file) and not no_references:
+                ref_labels = rttm_to_labels(rttm_file)
+                reference = labels_to_pyannote_object(ref_labels, uniq_name=uniq_id)
+                all_reference.append([uniq_id, reference])
+            else:
+                no_references = True
+                all_reference = []
+    score = score_labels(
+        AUDIO_RTTM_MAP,
+        all_reference,
+        all_hypothesis,
+        collar=params['collar'],
+        ignore_overlap=params['ignore_overlap'],
+    )
+    return score
+
 
 def sprint(*args):
     if False:
@@ -192,9 +263,9 @@ def get_overlap_stamps(cont_stamps, ovl_spk_idx):
     return total_ovl_cont_list
 
 
-def generate_diar_timestamps(clus_labels, preds, max_overlap=2, **params):
+def generate_speaker_timestamps(clus_labels, preds, max_overlap=2, **params):
     '''
-    old, works
+    Generate timestamps from the predicted sigmoid values
     '''
     preds.squeeze(0)
     main_speaker_lines = []
@@ -262,10 +333,8 @@ def get_uniq_id_from_manifest_line(line):
     return uniq_id
 
 
-def diar_eval(msdd_model, hyp, **params):
-    manifest_file, clus_label_dict = msdd_model.cfg.test_ds.manifest_filepath, msdd_model.clus_test_label_dict
-    params['max_num_of_spks'] = msdd_model._cfg.base.diarizer.clustering.parameters.max_num_speakers
-
+def make_rttm_with_overlap(manifest_file, clus_label_dict, hyp, **params):
+    params['max_num_of_spks'] = 8
     AUDIO_RTTM_MAP = audio_rttm_map(manifest_file)
     manifest_file_lengths_list = []
     all_hypothesis, all_reference = [], []
@@ -276,7 +345,7 @@ def diar_eval(msdd_model, hyp, **params):
             manifest_dic = AUDIO_RTTM_MAP[uniq_id]
             clus_labels = clus_label_dict[uniq_id]
             manifest_file_lengths_list.append(len(clus_labels))
-            maj_labels, ovl_labels = generate_diar_timestamps(clus_labels, hyp[i], **params)
+            maj_labels, ovl_labels = generate_speaker_timestamps(clus_labels, hyp[i], **params)
             if params['infer_overlap']:
                 hyp_labels = maj_labels + ovl_labels
             else:
@@ -312,7 +381,6 @@ class ClusterEmbeddingTest:
         self.multiscale_weights_list = self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.multiscale_weights
         self.clusdiar_model = None
         self.msdd_model = None
-        # self.embs_filtering_thres = 0.7
         self.embs_filtering_thres = None
         self.run_clus_from_loaded_emb = False
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
@@ -326,12 +394,10 @@ class ClusterEmbeddingTest:
 
     def assign_labels_to_shorter_segs(self, base_clus_label_dict, session_scale_mapping_dict):
         new_clus_label_dict = {scale_index: {} for scale_index in range(self.scale_n)}
-        lim_scale_n = self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering
         for uniq_id, uniq_scale_mapping_dict in session_scale_mapping_dict.items():
             base_scale_clus_label = np.array([x[-1] for x in base_clus_label_dict[uniq_id]])
             new_clus_label_dict[self.base_scale_index][uniq_id] = base_scale_clus_label
             for scale_index in range(self.scale_n):
-                # for scale_index in range(lim_scale_n-1, self.scale_n):
                 new_clus_label = []
                 seq_length = max(uniq_scale_mapping_dict[scale_index])
                 for seg_idx in range(seq_length + 1):
@@ -395,7 +461,6 @@ class ClusterEmbeddingTest:
             spk_label_list = all_scale_clus_label_dict[label_scale][uniq_id]
             base_clus_label_dict[uniq_id] = []
             for k, line in enumerate(stt_end_lines):
-                # uniq_id = line.split()[0]
                 label = spk_label_list[k]
                 stt, end = [round(float(x), 2) for x in line.split()[:2]]
                 base_clus_label_dict[uniq_id].append([stt, end, label])
@@ -412,8 +477,7 @@ class ClusterEmbeddingTest:
             for scale_index in emb_scale_seq_dict.keys()
         }
         output_clus_label_dict, emb_dim = self.get_base_clus_label_dict(clus_labels, emb_scale_seq_dict)
-        # if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
-        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering is not False:
+        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
             # The longest scale has output labels therefore assign the labels to shorter ones.
             all_scale_clus_label_dict = self.assign_labels_to_shorter_segs(
                 output_clus_label_dict, session_scale_mapping_dict
@@ -587,11 +651,6 @@ class ClusterEmbeddingTest:
         logging.info(f"Multiscale Weights: {self.clusdiar_model.multiscale_args_dict['multiscale_weights']}")
         logging.info(f"Clustering Parameters: {clustering_params_str}")
 
-        # if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
-        # self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = True
-        # if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering is not None:
-        # # self.clusdiar_model.multiscale_args_dict['use_single_scale_clustering'] = True
-        # self.base_scale_index = 0
         if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering is not False:
             self.clusdiar_model.multiscale_args_dict[
                 'use_single_scale_clustering'
@@ -930,7 +989,8 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         return None
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.pairwise_infer = True
+        self.trainer = trainer
+        self.pairwise_infer = False
         self.cfg_msdd_model = cfg
         self.cfg_msdd_model.msdd_module.num_spks = self.cfg_msdd_model.max_num_of_spks
 
@@ -941,12 +1001,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
             if self.cfg_msdd_model.end_to_end_train:
                 self._init_segmentation_info()
                 self.prepare_train_split()
-        super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
-        self.world_size = 1
-        if trainer is not None:
+
             self.world_size = trainer.num_nodes * trainer.num_devices
             self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
-            self.pairwise_infer = False
+        else:
+            self.world_size = 1
+            self.pairwise_infer = True
+        super().__init__(cfg=self.cfg_msdd_model, trainer=trainer)
 
         if type(self.cfg_msdd_model.base.diarizer.speaker_embeddings.parameters.window_length_in_sec) == int:
             raise ValueError("window_length_in_sec should be a list containing multiple segment (window) lengths")
@@ -955,11 +1016,18 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
                 self.cfg_msdd_model.base.diarizer.speaker_embeddings.parameters.window_length_in_sec
             )
             self.cfg_msdd_model.msdd_module.scale_n = self.cfg_msdd_model.scale_n
+            self.scale_n = self.cfg_msdd_model.scale_n
+
         self.preprocessor = EncDecSpeakerLabelModel.from_config_dict(self.cfg_msdd_model.preprocessor)
         self.frame_per_sec = int(1 / self.preprocessor._cfg.window_stride)
         self.msdd = EncDecDiarLabelModel.from_config_dict(self.cfg_msdd_model.msdd_module)
         if trainer is not None:
             self._init_speaker_model()
+            # if self.cfg_msdd_model.model_path is not None:
+                # rank_id = torch.device(self.trainer.global_rank)
+                # ckpt_path = self.cfg_msdd_model.model_path
+                # ckpt = torch.load(ckpt_path, map_location=rank_id)
+                # self.msdd.load_state_dict(ckpt['state_dict'], strict=False)
         torch.cuda.empty_cache()
         self.loss = BCELoss(weight=None)
         self.task = None
@@ -1033,7 +1101,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection part
-        _speaker_manifest_path = os.path.join(_speaker_dir, 'oracle_vad_manifest.json')
+        _speaker_manifest_path = os.path.join(_speaker_dir, f'oracle_vad_manifest_rank{self.trainer.global_rank}.json')
         _speaker_manifest_path = write_rttm2manifest(
             split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
         )
@@ -1043,7 +1111,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
 
             # Segmentation for the current scale (scale_idx)
-            subsegments_manifest_path = self._run_segmentation(
+            subsegments_manifest_path = self.run_segmentation(
                 window, shift, _speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
             )
             multiscale_timestamps = self._extract_timestamps(subsegments_manifest_path)
@@ -1163,9 +1231,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         self.data_collection = dataset.collection
         collate_ds = dataset
         collate_fn = collate_ds.msdd_infer_collate_fn
+        batch_size = config['batch_size']
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=self._cfg.test_ds.batch_size,
+            batch_size=batch_size,
             collate_fn=collate_fn,
             drop_last=config.get('drop_last', False),
             shuffle=shuffle,
@@ -1173,11 +1242,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
             pin_memory=config.get('pin_memory', False),
         )
 
-    def _run_segmentation(
+    def run_segmentation(
         self, window: float, shift: float, _speaker_dir: str, _speaker_manifest_path: str, scale_tag: str = ''
     ):
 
-        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}.json')
+        subsegments_manifest_path = os.path.join(_speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json')
         logging.info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
         )
@@ -1201,13 +1270,14 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         )
 
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
-        self._test_dl = self.__setup_dataloader_from_config_infer(
-            config=test_data_config,
-            emb_dict=self.emb_sess_test_dict,
-            emb_seq=self.emb_seq_test,
-            clus_label_dict=self.clus_test_label_dict,
-            pairwise_infer=self.pairwise_infer,
-        )
+        if self.pairwise_infer:
+            self._test_dl = self.__setup_dataloader_from_config_infer(
+                config=test_data_config,
+                emb_dict=self.emb_sess_test_dict,
+                emb_seq=self.emb_seq_test,
+                clus_label_dict=self.clus_test_label_dict,
+                pairwise_infer=self.pairwise_infer,
+            )
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -1290,12 +1360,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         device = torch.cuda.current_device()
         batch_size = scale_mapping.shape[0]
         self.scale_n_total = scale_mapping[0].shape[0]
-        if self._cfg_msdd.interpolate_finest_scale:
-            scale_n = self.scale_n_total - 1
-            split_emb_tup = list(torch.split(embs, ms_seg_counts[:, :scale_n].reshape(-1).tolist(), dim=0))
-        else:
-            scale_n = self.scale_n_total
-            split_emb_tup = torch.split(embs, ms_seg_counts.reshape(-1).tolist(), dim=0)
         batch_emb_list = [split_emb_tup[i : i + scale_n] for i in range(0, len(split_emb_tup), scale_n)]
         ms_emb_seq_list, total_embs = [], []
         for batch_idx in range(batch_size):
@@ -1303,47 +1367,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
             for scale_index in range(self.scale_n_total):
                 if self.cfg_msdd_model.interpolate_finest_scale and scale_index == self.scale_n_total - 1:
                     emb_t = feats_list[-1]
-                    emb_len = ms_seg_counts[batch_idx][scale_index].item()
-                    itp_emb = self.interpolate_embs(emb_t, ms_seg_timestamps[batch_idx], emb_len)
-                    batch_emb_list[batch_idx].append(itp_emb[:emb_len, :])
-                    feats_list.append(itp_emb)
-                else:
-                    repeat_mat = scale_mapping[batch_idx][scale_index]
-                    feats_list.append(batch_emb_list[batch_idx][scale_index][repeat_mat, :])
             repp = torch.stack(feats_list).permute(1, 0, 2)
             ms_emb_seq_list.append(repp)
             total_embs.append(torch.cat(batch_emb_list[batch_idx], dim=0))
 
         ms_emb_seq = torch.stack(ms_emb_seq_list)
-        if self.cfg_msdd_model.interpolate_finest_scale:
-            embs = torch.cat(total_embs)
-        return ms_emb_seq, embs
+        return ms_emb_seq
 
-    # def get_ms_emb_seq(self, embs, scale_mapping, ms_seg_counts):
-    # """
-    # Reshape the given tensor and organize the embedding sequence based on the original sequence counts.
-    # Repeat the embeddings according to the scale_mapping information so that the final embedding sequence has
-    # the identical length for all scales.
-
-    # Args:
-
-    # Returns:
-
-    # """
-    # device = torch.cuda.current_device()
-    # scale_n, batch_size = scale_mapping[0].shape[0], scale_mapping.shape[0]
-    # split_emb_tup = torch.split(embs, ms_seg_counts.view(-1).cpu().numpy().tolist(), dim=0)
-    # batch_emb_list = [split_emb_tup[i : i + scale_n] for i in range(0, len(split_emb_tup), scale_n)]
-    # ms_emb_seq_list = []
-    # for batch_idx in range(batch_size):
-    # feats_list = []
-    # for scale_index in range(scale_n):
-    # repeat_mat = scale_mapping[batch_idx][scale_index]
-    # feats_list.append(batch_emb_list[batch_idx][scale_index][repeat_mat, :])
-    # repp  = torch.stack(feats_list).permute(1, 0, 2)
-    # ms_emb_seq_list.append(repp)
-    # ms_emb_seq = torch.stack(ms_emb_seq_list)
-    # return ms_emb_seq
 
     @torch.no_grad()
     def get_cluster_avg_embs_model(self, embs, clus_label_index, ms_seg_counts, scale_mapping):
@@ -1393,10 +1423,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         """
         device = torch.cuda.current_device()
         _emb_batch_size = min(self.emb_batch_size, ms_seg_counts.sum().item() - self.min_detached_embs)
-        total_seg_count = torch.sum(ms_seg_counts)
         feat_dim = self.preprocessor._cfg.features
         max_sample_count = int(self.multiscale_args_dict["scale_dict"][0][0] * self.frame_per_sec)
         ms_mel_feat_len_list, sequence_lengths_list, ms_mel_feat_list = [], [], []
+        total_seg_count = torch.sum(ms_seg_counts)
         scale_n = ms_seg_counts[0].shape[0]
         batch_size = processed_signal.shape[0]
         for batch_idx in range(batch_size):
@@ -1422,6 +1452,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
         else:
             attached = torch.randperm(total_seg_count)[:_emb_batch_size]
             detached = torch.randperm(total_seg_count)[_emb_batch_size:]
+        detach_ids = (attached, detached)
         return ms_mel_feat, ms_mel_feat_len, seq_len, (attached, detached)
 
     def forward_infer(self, input_signal, input_signal_length, emb_vectors, targets):
@@ -1477,9 +1508,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbeddingTest)
                 processed_signal=audio_signal[detach_ids[0]], processed_signal_len=audio_signal_len[detach_ids[0]]
             )
             embs[detach_ids[0], :] = embs_a
-        # ms_emb_seq = self.get_ms_emb_seq(embs, scale_mapping, ms_seg_counts)
+        # ms_emb_seq, embs = self.get_ms_emb_seq(embs, scale_mapping, ms_seg_counts, ms_seg_timestamps)
         # ms_avg_embs = self.get_cluster_avg_embs_model(embs, clus_label_index, ms_seg_counts, scale_mapping)
-        ms_emb_seq, embs = self.get_ms_emb_seq(embs, scale_mapping, ms_seg_counts, ms_seg_timestamps)
+        ms_emb_seq = self.get_ms_emb_seq(embs, scale_mapping, ms_seg_counts)
         ms_avg_embs = self.get_cluster_avg_embs_model(embs, clus_label_index, ms_seg_counts, scale_mapping)
 
         print("Inferencing msdd device:", torch.cuda.current_device())
@@ -1585,11 +1616,11 @@ class NeuralDiarizer:
         pretrained_dict = self.msdd_model.state_dict()
         pretrained_dict.update(msdd_dict)
         self.msdd_model.load_state_dict(pretrained_dict)
-        with open_dict(self.msdd_model.cfg):
-            self.msdd_model.cfg.test_ds = cfg.msdd_model.test_ds
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
         self.msdd_model.run_clus_from_loaded_emb = True
+        self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
+        self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
         self.clustering_embedding = ClusterEmbeddingTest(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
@@ -1600,10 +1631,9 @@ class NeuralDiarizer:
         self.eps = 10e-5
 
     def transfer_diar_params_to_model_params(self, msdd_model, cfg):
+        msdd_model.cfg.base.diarizer.out_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
         msdd_model.cfg.test_ds.emb_dir = cfg.diarizer.out_dir
-        msdd_model.cfg.test_ds.num_spks = cfg.msdd_model.max_num_of_spks
-        msdd_model.cfg.base.diarizer.out_dir = cfg.msdd_model.test_ds.emb_dir
         msdd_model.cfg_base = cfg
         msdd_model._cfg.base.diarizer.clustering.parameters.max_num_speakers = (
             cfg.diarizer.clustering.parameters.max_num_speakers
@@ -1700,14 +1730,25 @@ class NeuralDiarizer:
                 )
                 target_clus_label_bool = target_clus_label_tensor == test_data_collection.target_spks[spk_idx]
                 # There are cases where there is no corresponding speaker in split range, so any(target_clus_label_bool) could be False.
+                # if target_clus_label_bool.shape[0] != emb_seq.shape[0]:
+                    # limit = min(emb_seq.shape[0], target_clus_label_bool.shape[0])
+                    # target_emb_seq = emb_seq[:limit, : ,:]
+                    # target_clus_label_bool = target_clus_label_bool[:limit]
+                # else:
+                    # target_emb_seq = emb_seq
+                target_emb_seq = emb_seq
+
                 if any(target_clus_label_bool) == True:
-                    emb_vectors_split[:, :, spk_idx] = torch.mean(emb_seq[target_clus_label_bool], dim=0)
+                    try:
+                        emb_vectors_split[:, :, spk_idx] = torch.mean(target_emb_seq[target_clus_label_bool], dim=0)
+                    except:
+                        import ipdb; ipdb.set_trace()
                 # In case when the loop reaches the end of the sequence
-                if seq_len < self.diar_window_length:
+                if emb_seq.shape[0] < self.diar_window_length:
                     emb_seq = torch.cat(
                         [
                             emb_seq,
-                            torch.zeros(self.diar_window_length - seq_len, emb_seq.shape[1], emb_seq.shape[2]).to(
+                            torch.zeros(self.diar_window_length - emb_seq.shape[0], emb_seq.shape[1], emb_seq.shape[2]).to(
                                 self.device
                             ),
                         ],
@@ -1720,7 +1761,7 @@ class NeuralDiarizer:
                 seq_len = 0
         return emb_vectors_split, emb_seq, seq_len
 
-    def get_range_clus_avg_emb(self, test_batch, _test_data_collection, split_count):
+    def _get_range_clus_avg_emb(self, test_batch, _test_data_collection, split_count):
         _signals, signal_lengths, _targets, _emb_vectors = test_batch
         sess_emb_vectors, sess_emb_seq, sess_sig_lengths = [], [], []
         split_count = torch.ceil(torch.tensor(_signals.shape[1] / self.diar_window_length)).int()
@@ -1769,7 +1810,14 @@ class NeuralDiarizer:
                         target_clus_label_bool = target_clus_label_tensor == test_data_collection.target_spks[spk_idx]
                         # There are cases where there is no corresponding speaker in split range, so any(target_clus_label_bool) could be False.
                         if any(target_clus_label_bool) == True:
+                            if target_clus_label_bool.shape[0] != emb_seq.shape[0]:
+                                limit = min(emb_seq.shape[0], target_clus_label_bool.shape[0])
+                                target_emb_seq = emb_seq[:limit, : ,:]
+                                target_clus_label_bool = target_clus_label_bool[:limit]
+                            # try:
                             emb_vectors_split[:, :, spk_idx] = torch.mean(emb_seq[target_clus_label_bool], dim=0)
+                            # except:
+                                # import ipdb; ipdb.set_trace()
                         # In case when the loop reaches the end of the sequence
                         if seq_len < self.diar_window_length:
                             emb_seq = torch.cat(
@@ -1795,13 +1843,22 @@ class NeuralDiarizer:
         return sess_emb_vectors, sess_emb_seq, sess_sig_lengths
 
     def diar_infer(self, test_batch, test_data_collection):
+        """
+
+        Args:
+            test_batch:
+
+            test_data_collection:
+
+
+        """
         signals, signal_lengths, _targets, emb_vectors = test_batch
         if self._cfg.diarizer.msdd_model.parameters.split_infer:
             split_count = torch.ceil(torch.tensor(signals.shape[1] / self.diar_window_length)).int()
             sess_emb_vectors, sess_emb_seq, sess_sig_lengths = self.get_range_clus_avg_emb(
                 test_batch, test_data_collection, split_count
             )
-            if self._cfg.msdd_model.use_longest_scale_clus_avg_emb:
+            if self._cfg.diarizer.msdd_model.parameters.use_longest_scale_clus_avg_emb:
                 sess_emb_vectors = self.msdd_model.get_longest_scale_clus_avg_emb(sess_emb_vectors)
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
@@ -1813,7 +1870,7 @@ class NeuralDiarizer:
             _preds = _preds.reshape(len(signal_lengths), split_count * self.diar_window_length, -1)
             _preds = _preds[:, : signals.shape[1], :]
         else:
-            if self._cfg.msdd_model.use_longest_scale_clus_avg_emb:
+            if self._cfg.diarizer.msdd_model.parameters.use_longest_scale_clus_avg_emb:
                 sess_emb_vectors = self.msdd_model.get_longest_scale_clus_avg_emb(sess_emb_vectors)
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
@@ -1832,7 +1889,7 @@ class NeuralDiarizer:
         self.msdd_model.eval()
         torch.set_grad_enabled(False)
         preds_list, targets_list, signal_lengths_list = [], [], []
-        uniq_id_list = get_uniq_id_list_from_manifest(test_cfg.manifest_filepath)
+        uniq_id_list = get_uniq_id_list_from_manifest(self.manifest_filepath)
         test_data_collection = [d for d in self.msdd_model.data_collection]
         sample_count = [0]
         for sidx, test_batch in enumerate(tqdm(self.msdd_model.test_dataloader())):
@@ -1854,7 +1911,7 @@ class NeuralDiarizer:
             logging.info(f"Test Inference F1 score. {f1_score:.4f}, simple Acc. {simple_acc:.4f}")
         integrated_preds_list = self.get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, targets_list, signal_lengths_list
-
+    
     def run_overlap_aware_eval(self, preds_list, targets_list, signal_lengths_list):
 
         print("\n\n")

@@ -969,7 +969,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                     ms_mel_feat_list.append(_features)
                     ms_mel_feat_len_list.append(end - stt)
             sequence_lengths_list.append(ms_seg_counts[batch_idx][-1])
-        # ms_mel_feat = torch.tensor(torch.stack(ms_mel_feat_list)).to(device)
         ms_mel_feat = torch.stack(ms_mel_feat_list).to(device)
         ms_mel_feat_len = torch.tensor(ms_mel_feat_len_list).to(device)
         seq_len = torch.tensor(sequence_lengths_list).to(device)
@@ -1055,7 +1054,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets = batch
         sequence_lengths = torch.tensor([x[-1] for x in ms_seg_counts])
-        # print(f"------ Runing Valid Step batch_idx: {batch_idx}")
         preds, _ = self.forward(
             features=features,
             feature_length=feature_length,
@@ -1080,7 +1078,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
         self.log('val_loss', val_loss_mean)
         self.log('val_f1_acc', f1_acc)
-        print('val_f1_acc', f1_acc)
         return {
             'val_loss': val_loss_mean,
             'val_f1_acc': f1_acc,
@@ -1124,6 +1121,8 @@ class NeuralDiarizer:
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
         self.msdd_model.run_clus_from_loaded_emb = True
         self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
+        self.use_clus = False
+        self.use_dec = True
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
@@ -1157,7 +1156,6 @@ class NeuralDiarizer:
             msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
         elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
             msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=cfg.diarizer.msdd_model.model_path)
-        # msdd_model.cfg = self.transfer_diar_params_to_model_params(msdd_model, cfg)
         return msdd_model
 
     def get_pred_mat(self, data_list):
@@ -1195,12 +1193,17 @@ class NeuralDiarizer:
         return output_list
 
     def diarize(self):
+        """
+        Launch diarization pipeline which starts from VAD (or a oracle VAD stamp generation), initialization clustering and
+        multiscale diarization decoder (MSDD). Note that the result of MSDD can include multiple speakers at the same time.
+        Therefore, RTTM output of MSDD needs to be based on make_rttm_with_overlap() function that can generate overlapping
+        timestamps.
+        """
         torch.set_grad_enabled(False)
 
         self.clustering_embedding.prepare_cluster_embs_infer()
         self.msdd_model.pairwise_infer = True
         self.msdd_model.get_emb_clus_infer(self.clustering_embedding)
-
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
             self.run_overlap_aware_eval(preds_list, threshold)
@@ -1225,9 +1228,11 @@ class NeuralDiarizer:
                     ),
                 )
                 target_clus_label_bool = target_clus_label_tensor == test_data_collection.target_spks[spk_idx]
+                
                 # There are cases where there is no corresponding speaker in split range, so any(target_clus_label_bool) could be False.
                 if any(target_clus_label_bool) == True:
                     emb_vectors_split[:, :, spk_idx] = torch.mean(emb_seq[target_clus_label_bool], dim=0)
+                
                 # In case when the loop reaches the end of the sequence
                 if seq_len < self.diar_window_length:
                     emb_seq = torch.cat(
@@ -1247,6 +1252,12 @@ class NeuralDiarizer:
         return emb_vectors_split, emb_seq, seq_len
 
     def get_range_clus_avg_emb(self, test_batch, _test_data_collection, split_count):
+        """
+        
+
+        split_count
+
+        """
         _signals, signal_lengths, _targets, _emb_vectors = test_batch
         sess_emb_vectors, sess_emb_seq, sess_sig_lengths = [], [], []
         split_count = torch.ceil(torch.tensor(_signals.shape[1] / self.diar_window_length)).int()
@@ -1270,6 +1281,20 @@ class NeuralDiarizer:
         Launch forward_infer() function by feeding the session-wise embedding sequences to get pairwise speaker prediction values.
         If split_infer is True, the input audio clips are broken into short sequences then cluster average embeddings are calculated
         for inference.
+
+        If split_infer is True, the input embedding sequence is broken down into short sequences to calculate the cluster-average vectors.
+        Split-infer might result in an improved results if calculating clustering average on the shorter timespan can help speaker assignment.
+
+        Args:
+            test_batch: (list)
+                List containing embedding sequences, length of embedding sequences, ground truth labels (if exists) and initializing embedding vectors.
+            test_data_collection: (list)
+                List containing test-set dataloader contents. test_data_collection includes wav file path, RTTM file path, clustered speaker indices.
+
+        Returns:
+            preds: (torch.Tensor)
+            targets: (torch.Tensor)
+            signal_lengths: (torch.Tensor)
         """
         signals, signal_lengths, _targets, emb_vectors = test_batch
         if self._cfg.diarizer.msdd_model.parameters.split_infer:
@@ -1289,7 +1314,7 @@ class NeuralDiarizer:
             _preds = _preds.reshape(len(signal_lengths), split_count * self.diar_window_length, -1)
             _preds = _preds[:, : signals.shape[1], :]
         else:
-            if self._cfg.msdd_model.use_longest_scale_clus_avg_emb:
+            if self._cfg.diarizer.msdd_model.parameters.use_longest_scale_clus_avg_emb:
                 sess_emb_vectors = self.msdd_model.get_longest_scale_clus_avg_emb(sess_emb_vectors)
             with autocast():
                 _preds, scale_weights = self.msdd_model.forward_infer(
@@ -1349,10 +1374,21 @@ class NeuralDiarizer:
         integrated_preds_list = self.get_integrated_preds_list(uniq_id_list, test_data_collection, preds_list)
         return integrated_preds_list, targets_list, signal_lengths_list
 
-    def run_overlap_aware_eval(self, preds_list, threshold):
+    def run_overlap_aware_eval(self, preds_list: List[torch.Tensor], threshold: float):
+        """
+        Based on the predicted sigmoid values, render RTTM files then evaluate the overlap-aware diarization results.
+
+        Args:
+            preds_list: (list)
+                List containing predicted pairwise speaker labels.
+            threshold: (float)
+                A floating-point threshold value that determines overlapped speech detection.
+                    - If threshold is 1.0, no overlap speech is detected and only detect major speaker.
+                    - If threshold is 0.0, all speakers are considered active at any time step.
+        """
         for k, (collar, ignore_overlap) in enumerate([(0.25, True), (0.0, False)]):
             logging.info(
-                f"     [Threshold: {threshold:.4f}]   [infer_overlap={not ignore_overlap}]   [use_clus={False}]    [use_dec={True}]"
+                f"     [Threshold: {threshold:.4f}]   [infer_overlap={not ignore_overlap}]   [use_clus={self.use_clus}]    [use_dec={self.use_dec}]"
             )
             all_reference, all_hypothesis = make_rttm_with_overlap(
                 self.manifest_filepath,
@@ -1360,8 +1396,8 @@ class NeuralDiarizer:
                 preds_list,
                 threshold=threshold,
                 infer_overlap=(not ignore_overlap),
-                use_clus=False,
-                use_dec=True,
+                use_clus=self.use_clus,
+                use_dec=self.use_dec,
             )
             score = score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,

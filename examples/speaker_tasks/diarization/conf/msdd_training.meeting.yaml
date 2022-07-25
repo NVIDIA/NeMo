@@ -40,6 +40,7 @@ msdd_model:
     diarizer: *diarizer
     soft_label_thres: &soft_label_thres 0.5
   
+  model_path: null
   max_num_of_spks: &max_num_of_spks 2
   scale_n: &scale_n 
   subsample_rate: &subsample_rate 1
@@ -95,11 +96,11 @@ msdd_model:
   msdd_module:
     _target_: nemo.collections.asr.modules.msdd_diarizer.MSDD_module
     num_spks: *max_num_of_spks
-    hidden_size: 256
-    num_lstm_layers: 2
+    hidden_size: 512
+    num_lstm_layers: 3
     dropout_rate: 0.5
-    cnn_output_ch: 16
-    conv_repeat: 1
+    cnn_output_ch: 32
+    conv_repeat: 2
     emb_sizes: 192
     scale_n: *scale_n
     weighting_scheme: 'conv_scale_weight'
@@ -140,7 +141,7 @@ exp_manager:
   checkpoint_callback_params:
     monitor: "val_loss"
     mode: "min"
-    save_top_k: 15
+    save_top_k: 30
     every_n_epochs: 1
   wandb_logger_kwargs:
     name: null
