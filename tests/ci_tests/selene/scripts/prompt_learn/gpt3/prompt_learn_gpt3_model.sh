@@ -1,13 +1,12 @@
 params=()
 
-# Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
-if [[ -n $MAX_STEPS ]]; then
+
+if [[ "$TEST_TYPE" = "squad_real" ]]; then
+  # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
   params+=(container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data])
   LANGUAGE_MODEL_PATH=/lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/gpt3_126m_bf16_O2_tp1_pp1.nemo
-fi
-
-# Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
-if [[ -n $MAX_STEPS && $MAX_STEPS -le 100 ]]; then # When max steps is not set, we run to completeion
+else
+  # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
   LOG_EVERY_N_STEPS=`expr $MAX_STEPS / 100`
   VAL_CHECK_INTERVAL=`expr $MAX_STEPS / 5`
   params+=(prompt_learning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
