@@ -426,11 +426,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
 
-            # args = self._build_forward_args_from_kwargs(
-            #     args_name=('enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'labels'),
-            #     args=(encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask, lm_labels)
-            #     )
-            # output = model(*args)
             output = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask
@@ -498,10 +493,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return forward_args
 
-    def get_forward_output_only_func_encode(self, arg_names, **kwargs):
+    def get_forward_output_only_func(self, arg_names, output_name, **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
+        output_name - name of output (hiddens for encode, logits for decode)
         kwargs - shared arguments (non tensors)
         """
 
@@ -510,38 +506,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             # map batch and shared args into forward args
             args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-
-            # print(f"args = {args}")
-
             output = model(*args)
 
             def id_func(output_tensor):
-                return output_tensor, {'hiddens': output_tensor}
-
-            return output, id_func
-
-        return fwd_output_only_func
-
-    def get_forward_output_only_func_decode(self, arg_names, **kwargs):
-        """
-        args_idx - maps batch into index of args (with None filling gaps)
-        arg_names - corresponding names for a friendly error message
-        kwargs - shared arguments (non tensors)
-        """
-
-        def fwd_output_only_func(batch, model):
-            batch = [x.cuda(non_blocking=True) for x in batch]
-
-            # map batch and shared args into forward args
-            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
-
-            # print(f"args = {args}")
-
-            output = model(*args)
-
-            def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
-
+                return output_tensor, {output_name: output_tensor}
+    
             return output, id_func
 
         return fwd_output_only_func
@@ -567,7 +536,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
         arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-        forward_step_func = self.get_forward_output_only_func_decode(arg_names=arg_names)
+        forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="logits")
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
@@ -933,7 +902,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
-        # TODO: reconfigure back to how things were before decode?
+        # reconfigure back to how things were before encode
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -941,7 +910,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        # tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
 
         # build input arguments description
@@ -959,7 +927,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
-        forward_step_func = self.get_forward_output_only_func_encode(arg_names=arg_names, output_enc_hidden_only=True)
+        forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
                 forward_step_func=forward_step_func,
@@ -1051,7 +1019,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
-        # TODO: reconfigure back to how things were before decode?
+        # reconfigure back to how things were before decode
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -1079,7 +1047,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-            forward_step_func = self.get_forward_output_only_func_decode(arg_names=arg_names)
+            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=forward_step_func,
