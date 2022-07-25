@@ -609,24 +609,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
-
-        # # FIXME: finish this
-        # micro_batch_size = batch_for_pipeline[0].shape[0]
-        # if get_micro_batch_size() != micro_batch_size:
-        #     prev_micro_batch_size = get_micro_batch_size()
-        #     _reconfigure_microbatch_calculator(
-        #         rank=app_state.global_rank,
-        #         rampup_batch_size=None,
-        #         global_batch_size=micro_batch_size
-        #         * parallel_state.get_data_parallel_world_size()
-        #         * get_num_microbatches(), # get_valid_num_microbatches
-        #         micro_batch_size=micro_batch_size,
-        #         data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        #     )
-        # # FIXME: pad batch_for_pipeline on the fly
-        # # FIXME: restore prev_micro_batch_size
-        # # FIXME: add warning
-
         tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:

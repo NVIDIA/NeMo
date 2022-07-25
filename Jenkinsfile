@@ -137,18 +137,23 @@ pipeline {
       parallel {
         stage('En TN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize.py --text="1" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
           }
         }
         stage('En ITN grammars') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/inverse_text_normalization/inverse_normalize.py --language en --text="twenty" --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
           }
         }
         stage('Test En non-deterministic TN & Run all En TN/ITN tests (restore grammars from cache)') {
           steps {
-            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
-            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/text_normalization/normalize_with_audio.py --text "\$.01" --n_tagged 2 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
+            sh 'CUDA_VISIBLE_DEVICES="" pytest tests/nemo_text_processing/en/ -m "not pleasefixme" --cpu --tn_cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
+          }
+        }
+        stage('Test En Hybrid TN') {
+          steps {
+            sh 'CUDA_VISIBLE_DEVICES="" python nemo_text_processing/hybrid/wfst_lm_rescoring.py --data /home/TestData/nlp/text_norm/hybrid_tn/test.txt --regenerate_pkl --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 | grep "all_correct: True" || exit 1'
           }
         }
       }
@@ -165,7 +170,7 @@ pipeline {
       parallel {
         stage('L2: Eng TN') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_norm/output/ --grammars=tn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 --language=en && ls -R /home/TestData/nlp/text_norm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/text_normalization/ &&  python normalize.py --input_file=/home/TestData/nlp/text_norm/ci/test.txt --input_case="lower_cased" --language=en --output_file=/home/TestData/nlp/text_norm/output/test.pynini.txt --verbose'
             sh 'cat /home/TestData/nlp/text_norm/output/test.pynini.txt'
             sh 'cmp --silent /home/TestData/nlp/text_norm/output/test.pynini.txt /home/TestData/nlp/text_norm/ci/test_goal_py_05-25.txt || exit 1'
@@ -175,7 +180,7 @@ pipeline {
 
         stage('L2: Eng ITN export') {
           steps {
-            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
+            sh 'cd tools/text_processing_deployment && python pynini_export.py --output=/home/TestData/nlp/text_denorm/output/ --grammars=itn_grammars --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 --language=en && ls -R /home/TestData/nlp/text_denorm/output/ && echo ".far files created "|| exit 1'
             sh 'cd nemo_text_processing/inverse_text_normalization/ &&  python inverse_normalize.py --input_file=/home/TestData/nlp/text_denorm/ci/test.txt --language=en --output_file=/home/TestData/nlp/text_denorm/output/test.pynini.txt --verbose'
             sh 'cmp --silent /home/TestData/nlp/text_denorm/output/test.pynini.txt /home/TestData/nlp/text_denorm/ci/test_goal_py.txt || exit 1'
             sh 'rm -rf /home/TestData/nlp/text_denorm/output/*'
@@ -184,7 +189,7 @@ pipeline {
         stage('L2: TN with Audio (audio and raw text)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --text "The total amounts to \\$4.76." \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 --text "The total amounts to \\$4.76." \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_raw.txt 2>&1 && \
             cmp --silent /tmp/out_raw.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -192,7 +197,7 @@ pipeline {
         stage('L2: TN with Audio (audio and text file)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
+            python normalize_with_audio.py --language=en --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22 --text /home/TestData/nlp/text_norm/audio_based/text.txt \
             --audio_data /home/TestData/nlp/text_norm/audio_based/audio.wav | tail -n2 | head -n1 > /tmp/out_file.txt 2>&1 && \
             cmp --silent /tmp/out_file.txt /home/TestData/nlp/text_norm/audio_based/result.txt || exit 1'
           }
@@ -200,7 +205,7 @@ pipeline {
         stage('L2: TN with Audio (manifest)') {
           steps {
             sh 'cd nemo_text_processing/text_normalization && \
-            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/6-28-22'
+            python normalize_with_audio.py --language=en --audio_data /home/TestData/nlp/text_norm/audio_based/manifest.json --n_tagged=120 --cache_dir /home/TestData/nlp/text_norm/ci/grammars/7-14-22'
           }
         }
       }
@@ -1023,7 +1028,37 @@ pipeline {
         }
       }
     }
-    stage('L2: Dialogue Generation Part 2') {
+//     stage('L2: Dialogue Generation Part 2') {
+//       when {
+//         anyOf {
+//           branch 'main'
+//           changeRequest target: 'main'
+//         }
+//       }
+//       failFast true
+//       parallel {
+//         stage('Dialogue: Answer Extender using DialogueGPTGenerationModel') {
+//           steps {
+//             sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/dialogue && \
+//             python dialogue.py \
+//             do_training=False \
+//             model.dataset.data_dir=/home/TestData/nlp/ms-marco-qa \
+//             model.dataset.dialogues_example_dir=answer_extender \
+//             model.library=huggingface \
+//             model.dataset.task=ms_marco \
+//             model.dataset.debug_mode=True \
+//             trainer.val_check_interval=0.0 \
+//             trainer.devices=[0] \
+//             model.dataset.use_cache=false \
+//             model.language_model.pretrained_model_name=gpt2 \
+//             trainer.accelerator=gpu \
+//             exp_manager=null  && \
+//             rm -rf answer_extender'
+//           }
+//         }
+//       }
+//     }
+    stage('L2: COPY') {
       when {
         anyOf {
           branch 'main'
@@ -1053,7 +1088,7 @@ pipeline {
         }
       }
     }
-    stage('L2: Parallel BERT SQUAD v1.1 / v2.0') {
+    stage('L2: Duplex Text Normalization') {
       when {
         anyOf {
           branch 'main'
@@ -1062,53 +1097,6 @@ pipeline {
       }
       failFast true
       parallel {
-        stage('BERT SQUAD 1.1') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.dataset.use_cache=false \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.train_ds.batch_size=2 \
-            model.train_ds.num_samples=2 \
-            model.validation_ds.batch_size=2 \
-            model.validation_ds.num_samples=2 \
-            model.test_ds.num_samples=2 \
-            model.test_ds.batch_size=2 \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.language_model.pretrained_model_name=bert-base-uncased \
-            model.dataset.version_2_with_negative=false \
-            trainer.precision=16 \
-            trainer.devices=[0] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
-        stage('BERT SQUAD 2.0') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.train_ds.num_samples=2 \
-            model.validation_ds.batch_size=2 \
-            model.validation_ds.num_samples=2 \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=bert-base-uncased \
-            model.dataset.version_2_with_negative=true \
-            trainer.precision=16 \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
         stage('Duplex Text Normalization with Tarred dataset') {
           steps {
             sh 'cd examples/nlp/duplex_text_normalization && \
@@ -1134,29 +1122,6 @@ pipeline {
             data.test_ds.data_path=/home/TestData/nlp/duplex_text_norm/small_test.tsv'
           }
         }
-        //this is a new test by @aleksandraa
-        //cannot run it in a fork, Jenkins doesn't see it
-        //need to uncomment, when given writing permissions to NeMo
-        //stage('Text normalization as tagging (Thutmose Tagger)') {
-        //  steps {
-        //    sh 'cd examples/nlp/normalization_as_tagging && \
-	    //    python normalization_as_tagging_train.py \
-	    //    lang="en" \
-        //    data.validation_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/valid.tsv \
-        //    data.train_ds.data_path=/home/TestData/nlp/text_normalization_as_tagging/en_mini/train.tsv \
-        //    data.train_ds.batch_size=2 \
-        //    data.train_ds.num_workers=2 \
-        //    model.language_model.pretrained_model_name=bert-base-uncased \
-        //    model.label_map=/home/TestData/nlp/text_normalization_as_tagging/en_mini/label_map.txt \
-        //    model.semiotic_classes=/home/TestData/nlp/text_normalization_as_tagging/en_mini/semiotic_classes.txt \
-        //    exp_manager.create_checkpoint_callback=false \
-        //    trainer.devices=1 \
-        //    trainer.num_nodes=1 \
-        //    trainer.accelerator=gpu \
-        //    trainer.strategy=ddp \
-        //    +trainer.fast_dev_run=true'
-        //  }
-        //}
       }
     }
     // Runs out of memory on the 12G TITAN V (GPU 0 on main CI)
@@ -1187,7 +1152,7 @@ pipeline {
     //   }
     // }
 
-    stage('L2: Parallel SQUAD v1.1 & v2.0') {
+    stage('L2: BERT Text Classification') {
       when {
         anyOf {
           branch 'main'
@@ -1196,57 +1161,6 @@ pipeline {
       }
       failFast true
       parallel {
-        // TODO: use megatron bert when supported again
-        stage('SQUAD v2.0 with DistilBERT Uncased') {
-        // stage('SQUAD v2.0 with Megatron with ckpt & config') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          // model.language_model.pretrained_model_name=megatron-bert-uncased  \
-          // model.language_model.lm_checkpoint=/home/TestData/nlp/megatron_345m_uncased/model_optim_rng.pt \
-          // model.language_model.config_file=/home/TestData/nlp/megatron_345m_uncased/345m_config.json \
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=1 \
-            model.train_ds.num_samples=1 \
-            model.validation_ds.batch_size=1 \
-            model.validation_ds.num_samples=1 \
-            trainer.accelerator=gpu \
-            trainer.strategy=ddp \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
-            model.language_model.pretrained_model_name=distilbert-base-uncased  \
-            model.dataset.version_2_with_negative=true \
-            trainer.precision=16 \
-            trainer.devices=[1] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
-        stage('RoBERTa SQUAD 1.1') {
-          // Cannot do fast_dev_run because squad needs whole dev dataset
-          steps {
-            sh 'cd examples/nlp/question_answering && \
-            python question_answering_squad.py \
-            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
-            model.dataset.use_cache=false \
-            model.train_ds.batch_size=2 \
-            model.train_ds.num_samples=2 \
-            model.validation_ds.batch_size=2 \
-            model.validation_ds.num_samples=2 \
-            trainer.max_epochs=1 \
-            +trainer.max_steps=1 \
-            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
-            model.language_model.pretrained_model_name=roberta-base \
-            model.dataset.version_2_with_negative=false \
-            trainer.precision=16 \
-            trainer.devices=[0] \
-            trainer.accelerator="gpu" \
-            exp_manager=null'
-          }
-        }
         stage ('Text Classification with BERT Test') {
           steps {
             sh 'cd examples/nlp/text_classification && \
@@ -1262,6 +1176,163 @@ pipeline {
             trainer.accelerator="gpu" \
             +trainer.fast_dev_run=true \
             exp_manager=null'
+          }
+        }
+      }
+    }
+
+    stage('L2: Parallel BERT/BART/GPT2 Question-Answering SQUAD v1.1 & v2.0') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('BERT SQUAD 1.1') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.dataset.use_cache=false \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            model.test_ds.num_samples=2 \
+            model.test_ds.batch_size=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.dataset.version_2_with_negative=false \
+            trainer.precision=16 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('BART SQUAD 1.1') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.dataset.use_cache=false \
+            model.dataset.check_if_answer_in_context=false \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            model.test_ds.num_samples=2 \
+            model.test_ds.batch_size=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.language_model.pretrained_model_name=facebook/bart-base \
+            model.dataset.version_2_with_negative=false \
+            trainer.precision=16 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('GPT2 SQUAD 1.1') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v1.1/train-v1.1.json \
+            model.dataset.use_cache=false \
+            model.dataset.check_if_answer_in_context=false \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.test_ds.file=/home/TestData/nlp/squad_mini/v1.1/dev-v1.1.json \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            model.test_ds.num_samples=2 \
+            model.test_ds.batch_size=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.language_model.pretrained_model_name=gpt2 \
+            model.dataset.version_2_with_negative=false \
+            trainer.precision=16 \
+            trainer.devices=[0] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('BERT SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.dataset.use_cache=false \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=bert-base-uncased \
+            model.dataset.version_2_with_negative=true \
+            trainer.precision=16 \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('BART SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.dataset.use_cache=false \
+            model.dataset.check_if_answer_in_context=false \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=facebook/bart-base \
+            model.dataset.version_2_with_negative=true \
+            trainer.precision=16 \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
+          }
+        }
+        stage('GPT2 SQUAD 2.0') {
+          // Cannot do fast_dev_run because squad needs whole dev dataset
+          steps {
+            sh 'TRANSFORMERS_OFFLINE=0 && cd examples/nlp/question_answering && \
+            python question_answering.py \
+            model.train_ds.file=/home/TestData/nlp/squad_mini/v2.0/train-v2.0.json \
+            model.dataset.use_cache=false \
+            model.dataset.check_if_answer_in_context=false \
+            model.train_ds.batch_size=2 \
+            model.train_ds.num_samples=2 \
+            model.validation_ds.batch_size=2 \
+            model.validation_ds.num_samples=2 \
+            trainer.max_epochs=1 \
+            trainer.max_steps=1 \
+            model.validation_ds.file=/home/TestData/nlp/squad_mini/v2.0/dev-v2.0.json \
+            model.language_model.pretrained_model_name=gpt2 \
+            model.dataset.version_2_with_negative=true \
+            trainer.precision=16 \
+            trainer.devices=[1] \
+            trainer.accelerator="gpu" \
+            exp_manager=null && TRANSFORMERS_OFFLINE=1'
           }
         }
       }
@@ -1882,6 +1953,7 @@ pipeline {
               +exp_manager.create_checkpoint_callback=true \
               +exp_manager.resume_if_exists=True \
               '
+              sh 'rm -rf examples/nlp/machine_translation/nmt_results'
             }
         }
 
@@ -1971,6 +2043,41 @@ pipeline {
         }
       }
     }
+
+    stage('L2: NMT Attention is All You Need Finetuning') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      steps {
+        sh "cd examples/nlp/machine_translation && \
+        python enc_dec_nmt_finetune.py \
+        model_path=/home/TestData/nlp/nmt/toy_data/en_de_24x6_preln.nemo \
+        trainer.devices=[0] \
+        ~trainer.max_epochs \
+        model.train_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.train_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref \
+        model.validation_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.validation_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.src_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        model.test_ds.tgt_file_name=/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src \
+        +trainer.val_check_interval=10 \
+        +trainer.limit_val_batches=1 \
+        +trainer.limit_test_batches=1 \
+        +trainer.max_steps=10 \
+        +exp_manager.exp_dir=examples/nlp/machine_translation/nmt_finetune \
+        +exp_manager.create_checkpoint_callback=True \
+        +exp_manager.checkpoint_callback_params.monitor=val_sacreBLEU \
+        +exp_manager.checkpoint_callback_params.mode=max \
+        +exp_manager.checkpoint_callback_params.save_best_model=true \
+        "
+        sh "rm -rf examples/nlp/machine_translation/nmt_finetune"
+      }
+    }
+
     stage('L2: NMT with HuggingFace') {
       when {
         anyOf {
@@ -2900,6 +3007,7 @@ pipeline {
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.respect_document_boundaries=False \
         model.share_word_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
@@ -2927,6 +3035,7 @@ pipeline {
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.respect_document_boundaries=False \
         model.share_word_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
@@ -3157,6 +3266,7 @@ pipeline {
         model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
+        model.data.respect_document_boundaries=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
         sh "python examples/nlp/language_modeling/megatron_bart_pretraining.py \
         trainer.devices=2 \
@@ -3180,6 +3290,7 @@ pipeline {
         model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
+        model.data.respect_document_boundaries=False \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document]"
         sh "rm -rf examples/nlp/language_modeling/bart_pretrain_results"
       }
