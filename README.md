@@ -3233,927 +3233,441 @@ The command above assumes you mounted the data workspace in `/mount/data`, and t
 The stdout and stderr outputs will also be redirected to the `/results/eval_prompt_gpt3_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
 
+### 5.12. Model Export
+<a id="markdown-model-export" name="model-export"></a>
 
+We also provide a tool to enable deployment of the BigNLP model on the NVIDIA Triton
+Inference Server with FasterTransformer Backend.
 
-## 6. Deploying the BigNLP Model
+Exported FasterTransformer model is then evaluated locally in the FasterTransformer Runtime 
+and at the same time, tool measure the model performance on the NVIDIA Triton Inference Server. 
 
-This section describes the deployment of the BigNLP model on the NVIDIA Triton
-Inference Server with FasterTransformer Backend on both single and multiple
-node environments.    NVIDIA Triton Inference Server supports many inference
-scenarios, of which two most important are:
-* Offline inference    scenario - with a goal to maximize throughput regardless
-    of the latency, usually achieved with increasing batch size and using server
-    static batching feature.
-* Online inference scenario - with a goal to maximize throughput within a given
-    latency budget, usually achieved with small batch sizes and increasing
-    concurrency requests to the server, using dynamic batching feature.
+#### 5.12.1. GPT-3 Export
+<a id="markdown-gpt-3-export" name="gpt-3-export"></a>
 
-[NVIDIA Triton Model Navigator](https://github.com/triton-inference-server/model_navigator)
-helps with conversion and setting up a deployment environment to do inference
-for models from BigNLP training scripts. Use scripts to convert models to a new
-format, then use NVIDIA Triton Inference Server to process inference requests. 
-Unfortunately, deployment scripts currently are not supported for T5 models.
+GPT-3 model is evaluated with `lambada` task which results can be compared with results from evaluation stage.
 
-NeMo Megatron supports the training of GPT-3 models with pipeline parallelism > 1. 
-However, deployment scripts currently only support checkpoints with pipeline parallelism = 1.
+The configuration used for the export needs to be specified in the
+`conf/config.yaml` file, specifying the `export` parameter, which specifies the
+file to use for export purposes. The `run_export` parameter must be set
+to `True` to run the training pipeline export stage. The default value is set to
+`gpt3`, which can be found in `conf/export/gpt3.yaml`. The
+parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
+For Base Command Platform, all these parameters should be overridden from the command line.
 
-The inference scripts execute at a Slurm or Base Command Platform cluster in several steps:
-* Megatron/NeMo checkpoint conversion to FasterTransformer format.
-* Preparation of model repository for NVIDIA Triton Inference Server.
-* Profiling and selecting the best inference model and NVIDIA
-    Triton Inference Server configuration.
-* Accuracy verification.
-* Profiling of deployed models.
-
-The inference container is pulled from a Docker registry. You must ensure that
-your cluster configuration allows access to your registry. NVIDIA provides the
-container with all components necessary for inference at the
-[NGC Docker registry](https://ngc.nvidia.com/catalog/containers).
-Inference scripts use the [pyxis slurm plug-in](https://github.com/NVIDIA/pyxis)
-to pull and run the container in a Slurm node.
-
-
-The navigator script converts a checkpoint from a training format to the
-[FasterTransformer](https://github.com/triton-inference-server/fastertransformer_backend)
-format. The NVIDIA Triton Model Navigator looks for a trained
-checkpoint in the workspace passed as an argument and creates a navigator
-workspace with all output files, which can be used for production inference
-deployment.
-
-The NVIDIA Triton Model Navigator script generates many NVIDIA Triton model
-repositories and manages them to conduct optimization of configuration
-parameters. This optimizes GPU memory and makes inference a lot faster. NVIDIA
-Triton Inference Server’s optimization tool Model Analyzer helps to find the
-best configuration, taking into account constraints defined in the navigator’s
-configuration. It is possible to set constraints for latency, number of GPUs
-and [NVIDIA DGX A100](https://www.nvidia.com/en-us/data-center/dgx-a100/)
-systems. All generated models are profiled to report latency and throughput.
-Once the model is optimized, you can deploy it to your inference infrastructure
-and use it in production.
-
-
-### 6.1. Model Inference Deployment Process
-<a id="markdown-model-inference-deployment-process" name="model-inference-deployment-process"></a>
-
-<img src="img/inference_deployment_flow.png"/>
-
-### 6.2. Prepare Environment
-<a id="markdown-prepare-environment" name="prepare-environment"></a>
-
-The whole solution uses a set of Docker containers executed at Slurm or Base Command Platform cluster.
-The training container also includes conversion
-scripts and NVIDIA Triton Model Navigator. The inference container is just the
-NVIDIA Triton Inference Server with the FasterTransformer backend installed.
-Install the BigNLP scripts dependencies on the:
-    - Head node of your Slurm cluster.
-    - Your workstation if running them on Base Command Platform cluster.
-
-```
-pip install -r requirements.txt
+##### 5.12.1.1. Common
+<a id="markdown-common" name="common"></a>
+Also the other `run` parameters might be used to define the job specific config:
+```yaml
+run:
+  name: export_${.model_train_name}
+  time_limit: "2:00:00"
+  model_train_name: "gpt3_5b"
+  training_dir: ${base_results_dir}/${.model_train_name}
+  config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
+  results_dir: ${base_results_dir}/${.model_train_name}/export_${.config_summary}
+  model_type: "gpt3"
 ```
 
-You can use `virtualenv` to prevent polluting your
-head node environment for other Python projects. If your Slurm configuration
-lacks pip, then you can use [get\_pip.py](https://github.com/pypa/get-pip)
-with just `python3`.
+To specify which trained model checkpoint to use as source model
+and parameters of conversion to the FasterTransformer format, use the `model` parameter:
 
-You must set your configuration for a cluster in YAML file.
+```yaml
+model:
+  checkpoint_path: ${export.run.training_dir}/checkpoints
+  # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
+  tensor_model_parallel_size: 8
+  weight_data_type: fp16   # fp32|fp16
+  processes: 16
+  load_checkpoints_to_cpu: False
+```
 
-#### 6.2.1. Slurm
+To specify the NVIDIA Triton Inference Server 
+[model directory](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md#repository-layout) and
+[FasterTransformer backend](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/docs/gpt_guide.md#how-to-set-the-model-configuration) parameters, 
+use the `triton_deployment` parameter.
+
+```yaml
+triton_deployment:
+  triton_model_dir: ${export.run.results_dir}/model_repo/${export.run.model_train_name}
+  max_batch_size: 1
+  pipeline_model_parallel_size: 1
+  int8_mode: False
+  enable_custom_all_reduce: False
+  data_type: fp16  # fp32|fp16|bf16
+```
+
+To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
+
+```yaml
+accuracy:
+  enabled: True  # enable accuracy test
+  ntasks_per_node: 8  # usually should be number of available gpus per node
+  runtime_config_ini_path: ${export.run.results_dir}/ft_runtime.ini
+  test_data: ${export.run.results_dir}/lambada_test.jsonl
+  output_path: ${export.run.results_dir}/eval_output.json
+  batch_size: 64
+  runtime:
+    max_seq_len: 512
+    beam_width: 1
+    sampling_top_k: 1
+    sampling_top_p: 0
+```
+
+To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
+
+```yaml
+benchmark:
+  enabled: True
+  input_len: 60
+  output_len: 20
+  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  triton_wait_time: 300
+```
+
+##### 5.12.1.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
-Sample Slurm cluster configuration file:
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
 
 ```yaml
-cluster:                                # example config for enterprise cluster
-    type: pyxis                     # type of job executor to be used
-    sbatch_parameters:        # this overwrites sbatch parameters generated by submitit
-        account: null             # slurm account
-        partition: "batch"    # slurm partition
-        exclude: null             # slurm nodes, which should be excluded from jobs
-    srun_args: ["--mpi", "pmix"] # additional slurm arguments list
-    enable_gpus_allocation: true
-env:
-  job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
+partition: null
+account: null
+exclusive: True
+gpus_per_task: null
+gpus_per_node: 8
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
 ```
 
-The `cluster` section configures Slurm cluster parameters. The `srun_args`
-should contain [--mpi](https://slurm.schedmd.com/mpi_guide.html) parameter
-valid for your cluster. `enable_gpus_allocation` parameters controls
-sbatch/srun `--gpus[-n]` parameters and should be disabled on cluster where
-allocation of GPUs is not supported.
+**Example:**
 
-The `env` section sets development environment parameters:
- * `job_name_prefix`: Prefix which will be prepended to the name of each queued job.
- * `training_container_image`: NGC training container for BigNLP.
- * `inference_container_image`: NGC inference container for BigNLP.
+To run only the export pipeline, enable `run_export` flag, simultaneously disabling the `run_` flags 
+in the `conf/config.yaml`:
 
-#### 6.2.2. Base Command Platform
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: False
+run_evaluation: False
+run_export: True
+```
+
+then run:
+```
+python3 main.py
+```
+
+##### 5.12.1.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the export stage on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The export scripts must be launched in a multi-node job.
 
-Sample Base Command Platform cluster configuration file:
+To run the export pipeline to evaluate a 126M GPT-3 model checkpoint stored in 
+`/mount/results/gpt3_126m/checkpoints`, run:
+```
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False    \
+run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data/the_pile_gpt3 \
+base_results_dir=/mount/results \
+
+export.run.model_train_name=gpt3_126m \
+export.model.tensor_model_parallel_size=2 \
+export.triton_deployment.pipeline_model_parallel_size=1 \
+>> /results/export_gpt3_log.txt 2>&1
+```
+
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/export_gpt3_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
+
+#### 5.12.2. T5 Export
+<a id="markdown-t5-export" name="t5-export"></a>
+
+T5 model is evaluated with `mnli` task which results can be compared with results from evaluation stage.
+
+The configuration used for the export needs to be specified in the
+`conf/config.yaml` file, specifying the `export` parameter, which specifies the
+file to use for export purposes. The `run_export` parameter must be set
+to `True` to run the training pipeline export stage. `export` parameter should be changed to
+`t5`, which maps to `conf/export/t5.yaml` configuration file. The
+parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
+For Base Command Platform, all these parameters should be overridden from the command line.
+
+##### 5.12.2.1. Common
+<a id="markdown-common" name="common"></a>
+Also the other `run` parameters might be used to define the job specific config:
+```yaml
+run:
+  name: export_${.model_train_name}
+  time_limit: "2:00:00"
+  model_train_name: "t5_220m"
+  task_name: "mnli"
+  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
+  model_type: "t5"
+```
+
+To specify which trained model checkpoint to use as source model
+and parameters of conversion to the FasterTransformer format, use the `model` parameter:
 
 ```yaml
-cluster:                                # example config for enterprise cluster
-    type: base_command        # type of job executor to be used
-    instance_with_gpu: dgxa100.40g.8.norm
-    instance_without_gpu: dgxa100.40g.1.norm
-env:
-  job_name_prefix: "bignlp-"
-  training_container_image: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
-  inference_container_image: nvcr.io/ea-bignlp/bignlp-inference:22.05-py3
+model:
+  checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_t5_glue.nemo
+  # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
+  tensor_model_parallel_size: 8
+  weight_data_type: fp16   # fp32|fp16
+  processes: 16
+  load_checkpoints_to_cpu: False
 ```
 
-The `cluster` section set Base Command Platform parameters:
- * `instance_with_gpu`: Instance to be used when Job to be submitted will require GPUs
- * `instance_without_gpu`: Instance to be used when Job to be submitted will not require GPUs
-
-The `env` section sets development environment parameters:
- * `job_name_prefix`: Prefix which will be prepended to the name of each queued job.
- * `training_container_image`: NGC training container for BigNLP.
- * `inference_container_image`: NGC inference container for BigNLP.
-
-When using Base Command Platforms clusters [workspaces](https://docs.nvidia.com/base-command-platform/user-guide/index.html#managing-workspaces)
-are used to share with Jobs executed on computation node
-input data (checkpoints and datasets) and result files (Triton Model Repositories, result files, etc).
-Sample structure of workspace:
-
-```
-/5b-pile-all-optimize-checkpoint    # directory with Megatron checkpoints
-/5b.nemo                                                    # or Nemo checkpoint file
-/lambada                                                    # dataset of accuracy testing
-/infer_workspace-20211201_000000    # workspace with results which will be created on each execution of Inference Scripts
-```
-
-During the execution of Inference Scripts, the paths to input and output files
-are placed inside the directory where the NGC workspace is mounted. The
-exception is for Model Navigator and cluster config files - they are not needed
-to be shared with the Job container or are copied on the workspace by scripts.
-Also, the user needs to define the Inference Scripts workspace inside the NGC
-workspace. Example Inference Script call:
-
-```sh
-        python3 ./bignlp/infer_scripts/prepare_model_repository.py \
-        --cluster-config-path ./conf/inference/cluster_bcp.yaml \
-        --navigator-config-path ./conf/inference/medium_mbs_128-pp_1-tp_8-io_60_20.yaml \
-        --model-path /<path_to_mounted_workspace>/5b-pile-all-optimize-checkpoint/release \
-        --model-name test_5b \
-        --model-repository-path /<path_to_mounted_workspace>/test_5b \
-        --dataset-dir /<path_to_mounted_workspace>/lambada \
-        --accuracy-tests --performance-tests \
-        --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S) # name of the infer_workspace folder for this run
-```
-
-### 6.3. Provide Model and Inference Configuration
-<a id="markdown-provide-model-and-inference-configurationn" name="provide-model-and-inference-configurationn"></a>
-
-#### 6.3.1. Predefined Configuration for Selected Models
-<a id="markdown-predefined-configuration-for-selected-models" name="predefined-configuration-for-selected-models"></a>
-
-The repository contains the conf/inference folder with predefined NVIDIA Triton
-Model Navigator configurations saved in YAML files. Those configurations are
-prepared for 5B, 20B, 175B and 530B GPT3 models for two input/output
-configurations 200/200 and 60/20. The configurations cover inference with
-several GPUs in a single node. The files are present in the
-`conf/inference/optimal_configurations` folder.
-
-The configuration changes for different input sequence lengths and output
-sequence lengths used in inference tasks. An application like chatbot can work
-with an input of 60 tokens and an output of 20 tokens. Scenarios like text
-translation require much longer lengths closer to 200 for input tokens and 200
-for output tokens. The RAM usage for a bigger batch size with longer sequence
-lengths increases significantly, so optimal configurations set different
-maximum batch size values for different sequence lengths. The predefined
-configuration files can be used with the `prepare_model_repository.py` script
-described later. The files are marked with a number of parameters in model
-architecture like 5B, which means 5 billion parameters.
-
-Input sequence lengths 60 and output 20:
-* **5B GPT3**: `5b_io_60_20.yaml`
-* **20B GPT3**: `20b_io_60_20.yaml`
-* **175B GPT3**: `175b_io_60_20.yaml`
-* **530B GPT3**: `530b_io_60_20.yaml`
-
-Input sequence lengths 200 and output 200:
-* **5B GPT3**: `5b_io_200_200.yaml`
-* **20B GPT3**: `20b_io_200_200.yaml`
-* **175B GPT3**: `175b_io_200_200.yaml`
-* **530B GPT3**: `530b_io_200_200.yaml`
-
-The configuration folder also contains configuration for random
-FasterTransformer checkpoints. It is possible to start FasterTransformer
-inference without weight files because the engine just initializes them to
-random values. This model cannot deliver any valid accuracy, but it is possible
-to benchmark inference constraints like latency before the expensive training
-of a large model is finished. The folder `conf/inference/model_specs` contains a
-folder with predefined random model configuration, which cover range of example
-GPT3 configurations, where each folder is marked with a number of model
-parameters:
-* **5B**: `5b.ft`
-* **20B**: `20b.ft`
-* **89B**: `89b.ft`
-* **175B**: `175b.ft`
-* **310B**: `310b.ft`
-* **530B**: `530b.ft`
-
-
-#### 6.3.2. Optimal Configuration Search
-<a id="markdown-optimal-configuration-search" name="optimal-configuration-search"></a>
-
-##### 6.3.2.1. Random Weights Checkpoint Benchmark
-<a id="markdown-random-weights-checkpoint-benchmark" name="random-weights-checkpoint-benchmark"></a>
-
-NVIDIA Triton Model Navigator can benchmark inference before training is
-finished and verify inference constraints ahead of time; for example maximum
-latency budget or number of GPUs, thus cost of inference. For performance
-reasons, if you already know model size and parameters, you can use the
-FasterTransformer NVIDIA Triton backend to generate a checkpoint with random
-weights inside the NVIDIA Triton Inference Server.
-
-The first step in the benchmark script generates a random checkpoint based on
-your configuration. The second step configures model repositories. The third
-step starts a set of NVIDIA Triton Inference Servers and executes the
-performance measurements for each.
-
-The inputs:
-* Random model configuration - For example, `conf/inference/model_specs/5b.ft`
-* Docker image with training and profiling scripts.
-* Docker image with NVIDIA Triton and FasterTransformer backend.
-* Performance profile configuration YAML file.
-
-The outputs:
-* Performance report.
-* Performance results.
-* Optimal configurations.
-* NVIDIA Triton model stores with a placeholder for the trained model checkpoint.
-
-You can benchmark a model using
-`bignlp/infer_scripts/profile_model_with_random_weights.py` script:
-
-```
-python3 ./bignlp/infer_scripts/profile_model_with_random_weights.py \
-        --cluster-config-path <Your cluster config>.yaml \
-        --navigator-config-path ./conf/inference/profile_offline.yaml \
-        --model-path conf/inference/model_specs/5b.ft \
-        --model-name ft_5B \
-        --tensor-parallel-sizes 1 8 \
-        --pipeline-parallel-sizes 1 \
-        --input-output-lengths 60,20 200,200 \
-        --max-batch-sizes 128 \
-        --max-latency-ms 4000 \
-        --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S)
-```
-
-The parameters:
-* `cluster-config-path`: Cluster configuration YAML file.
-* `navigator-config-path`: Navigator configuration YAML;
-     for example,`./conf/inference/profile_offline.yaml`
-* `model-path`: This model path contains a YAML file with
-     random checkpoint configuration.
-* `model-name`: Your model name for NVIDIA Triton repository.
-* `tensor-parallel-sizes`: Tensor parallel factor (Number of GPUs per node); for example, `1 2 4 8`
-* `pipeline-parallel-sizes`: Pipeline parallel factor (Number of nodes); for example, `1 2 3 4`
-* `input-output-lengths`: Analyzed input and output lengths in format of
-     `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
-     for example, `60,20 200,200`
-* `max-batch-sizes`: Maximum batch sizes used for optimization;
-     for example, `1 2 4 8 16 256`
-* `max-latency-ms`: Maximum p99 latency valid for your scenario.
-* `top-n-configs`: Number of optimal configurations to save.
-
-The parameters `tensor-parallel-sizes`, `pipeline-parallel-sizes`,
-`input-output-lengths`, and `max-batch-sizes` are used to generate combinations of
-possible configurations for FasterTransformer and performance measurement
-scripts. The profile script compares throughput normalized to 1 GPU of all
-generated configurations and prints N-best configurations taking into account a
-maximum latency constraint. If you request very small maximum latency, then the
-script will not be able to find any valid configurations.
-
-The repository contains two profile configurations for Model Navigator:
-* `conf/inference/profile_offline.yaml` - Configuration for offline scenario
-     focusing on changing batch sizes but not user request concurrency.
-* `conf/inference/profile_online.yaml` - Configuration for online scenario
-     focusing on changing user request concurrency.
-
-
-The random model configuration for the model-path parameter is in YAML file:
+To specify the NVIDIA Triton Inference Server 
+[model directory](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md#repository-layout) and
+[FasterTransformer backend](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/docs/t5_guide.md#how-to-set-the-model-configuration) parameters, 
+use the `triton_deployment` parameter.
 
 ```yaml
-decoder_layers: 105    # Number of decoder layers
-head_num: 128                # Number of heads in layer
-size_per_head: 160     # Size per head
-inter_size: 81920        # It can be: inter_size = size_per_head * head_num * 4
-tensor_para_size: 8    # Default tensor parallel configuration (ignored)
-vocab_size: 51200        # Vocabulary size based on vocabulary file
-start_id: 50256            # id of start token in vocabulary
-end_id: 50256                # id of end token in vocabulary
+triton_deployment:
+  triton_model_dir: ${.results_dir}/model_repo/${.model_train_name}
+  max_batch_size: 1
+  pipeline_model_parallel_size: 1
+  int8_mode: False
+  enable_custom_all_reduce: False
+  data_type: fp16  # fp32|fp16|bf16
 ```
 
-The output files are saved in the `current_folder/infer_workspace_<YYYYmmdd_HHMMSS>`.
-The N best configurations are printed to the terminal.
-The `infer_workspace_<YYYYmmdd_HHMMSS>` folder contains CSV file with all
-measurements combined:
+To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
 
-```
-navigator_workspace/analyzer/results/metrics-model-inference.csv
-```
-
-The best configuration is selected based on the throughput normalized for one
-GPU. It is possible to deploy the same model at a number of GPUs, so the cost
-of model deployment is not constant for all configurations. The script
-normalizes this cost by dividing throughput of a model instance by the number
-of GPUs used for computation.
-
-##### 6.3.2.2. Trained Checkpoint Benchmark
-<a id="markdown-trained-checkpoint-benchmark" name="trained-checkpoint-benchmark"></a>
-
-As an alternative to generating checkpoints randomly, you can use a trained
-checkpoint to look for optimal configuration; however, for larger models that
-might take a significant amount of time and might not be feasible.
-
-The inputs:
-* Megatron/NeMo trained checkpoint.
-* Docker image with training and profiling scripts.
-* Docker image with NVIDIA Triton and FasterTransformer backend.
-* Performance profile configuration YAML file.
-
-The outputs:
-* Performance report.
-* Performance results.
-* Optimal configurations.
-* NVIDIA Triton model stores with trained FasterTransformer model checkpoint.
-
-Model repository preparation for the NVIDIA Triton Inference Server:
-
-```sh
-python3 ./bignlp/infer_scripts/profile_model.py \
-        --cluster-config-path <Your cluster config>.yaml \
-        --navigator-config-path ./conf/inference/profile_offline.yaml \
-        --model-path <Your path to training checkpoint> \
-        --model-name model_name \
-        --tensor-parallel-sizes 1 \
-        --pipeline-parallel-sizes 1 \
-        --input-output-lengths 60,20 \
-        --max-batch-sizes 1 \
-        --max-latency-ms 4000 \
-        --workspace-path /<path_to_mounted_workspace>/infer_workspace-$(date +%Y%m%d_%H%M%S)
+```yaml
+accuracy:
+  enabled: True  # enable accuracy test
+  ntasks_per_node: 8  # usually should be number of available gpus per node
+  test_data: ${data_dir}/glue_data/mnli/dev_matched.tsv
+  output_path: ${export.run.results_dir}/eval_output.json
+  batch_size: 64
+  max_output_len: 512
+  runtime:
+    beam_width: 1
+    sampling_top_k: 1
+    sampling_top_p: 0
 ```
 
-The parameters:
-* `cluster-config-path`: Cluster configuration YAML file.
-* `navigator-config-path`: Navigator configuration YAML;
-     for example,`./conf/inference/profile_offline.yaml`
-* `model-path`: This model path contains a trained Megatron/NeMo checkpoint.
-   A NeMo checkpoint must be passed as a file with `.nemo` extension,
-   but a Megatron checkpoint must be passed as a folder.
-* `model-name`: Your model name for NVIDIA Triton repository.
-* `tensor-parallel-sizes`: Tensor parallel factor (Number of GPUs per node); for example, `1 2 4 8`
-* `pipeline-parallel-sizes`: Pipeline parallel factor (Number of nodes); for example, `1 2 3 4`
-* `input-output-lengths`: Analyzed input and output lengths in format of
-     `<input_len>,<output_len>[ <input_len>,<output_len> …]`;
-     for example, `60,20 200,200`
-* `max-batch-sizes`: Maximum batch sizes used for optimization;
-     for example, `1 2 4 8 16 256`
-* `max-latency-ms`: Maximum p99 latency valid for your scenario.
-* `top-n-configs`: Number of optimal configurations to save.
+To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
 
-Megatron checkpoint must have embedded vocabulary in PyTorch checkpoint file
-or vocabulary file stored in `<model-path>/vocab.json`. Vocabulary embedding can
-be performed with `./bignlp/infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
-
-The parameters `tensor-parallel-sizes`, `pipeline-parallel-sizes`,
-`input-output-lengths`, and `max-batch-sizes` are used to generate combinations of
-possible configurations for FasterTransformer and performance measurement
-scripts. The profile script compares throughput normalized to 1 GPU of all
-generated configurations and prints N-best configurations taking into account a
-maximum latency constraint. If you request very small maximum latency, then the
-script won’t be able to find any valid configurations.
-
-### 6.4. Review Deployment Search Results
-<a id="markdown-review-deployment-search-results" name="review-deployment-search-results"></a>
-
-The `profile_model_with_random_weights.py` and
-`profile_model.py` scripts create a folder
-`infer_workspace_<YYYYmmdd_HHMMSS>` with a timestamp at the end.
-
-It contains the following folders:
-* `model_name-ft_gpu_counts_8-converted.ft`: Folders with converted
-     FasterTransformer checkpoints.
-* `logs`: Logs.
-* `model_repo_model_name-io_60_20-half_1-pp_1-tp_8-mbs_256`:
-     NVIDIA Triton model repository for input sequence length 60
-     and output length 20 for pipeline parallel 2 and tensor parallel 8
-     and maximum batch size 256.
-*    `model_repo_model_name-io_60_20-half_1-pp_1-tp_8-mbs_256`:
-     NVIDIA Triton model repository for input sequence length 60
-     and output length 20 for pipeline parallel 1 and tensor parallel 8 and
-     maximum batch size 256.
-* `navigator_workspace`: Folder to NVIDIA Triton Model Navigator configurations.
-* `cluster_workspace`: Folder with cluster logs and submission scripts.
-
-Both profile scripts print a list of the best models with the name
-of the NVIDIA Triton model repository with the best results and performance metrics.
-
-Results from `profile_model.py` and `profile_model_with_random_weights.py`
-scripts are saved for review under:
-`./infer_workspace-<YYYYmmdd_HHMMSS>/navigator_workspace/analyzer/results/metrics-model-inference.csv`
-
-The CSV file contains several columns:
-* `Model` - NVIDIA Triton model name.
-* `Batch` - Batch size.
-* `Concurrency` - User request concurrency.
-* `Model Config Path` - Path to model configuration.
-* `Backend Parameters` - Measurement and backend parameters (PP - pipeline
-    parallel, TP - tensor parallel, and half - FP16 used for some computations),
-    `max_input` - maximum sequence input length, `max_sec` - maximum sequence input
-    length plus maximum sequence output length.
-* `Preferred Batch Sizes` - List of preferred batch sizes used in NVIDIA Triton configuration.
-* `Satisfies Constraints` - “Yes” if a model satisfies the p99 latency constraint, set as the max-latency-ms parameter.
-* `Throughput (inder/sec)` - Throughput not normalized for the number of GPUs but just measured for one model instance.
-* `p95 Latency(ms)`.
-* `p99 Latency(ms)`.
-
-Best configurations are mentioned from the top,
-To review configurations, check the directory with all generated configs:
-`infer_workspace-<YYYYmmdd_HHMMSS>/navigator_workspace/top_configs`
-
-NVIDIA Triton model repositories contain symbolic links to folders with weights.
-You should copy final folder with model to expand links into files.
-
-```
-    cp -rL <NVIDIA Triton store from script> <destination>
+```yaml
+benchmark:
+  enabled: True
+  input_len: 60
+  output_len: 20
+  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  triton_wait_time: 300
 ```
 
-### 6.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests
-<a
-id="markdown-prepare-nvidia-triton-model-repository-and-run-accuracy%2Fperformance-tests"
-name="prepare-nvidia-triton-model-repository-and-run-accuracy%2Fperformance-tests"></a>
+##### 5.12.2.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
 
-Having the best config and trained checkpoint. A trained model checkpoint is
-required as this is final model deployment and verification. For large models,
-loading a checkpoint from storage can take a significant amount of time.
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
 
-The inputs:
-* Trained model checkpoint.
-* Docker image with NVIDIA Triton and FasterTransformer backend.
-* Lambada dataset.
-* Model vocabulary.
-* Model merges file.
-
-The English data for accuracy experiments can be downloaded from open resources.
-
-The Lambada dataset can be downloaded from GITHUB:
-
-```
-wget https://raw.githubusercontent.com/cybertronai/bflm/master/lambada_test.jsonl
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: null
+gpus_per_node: 8
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
 ```
 
-The vocabulary and merge files can be downloaded from the Huggingface project:
+**Example:**
 
-```
-wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-vocab.json
-wget https://s3.amazonaws.com/models.huggingface.co/bert/gpt2-merges.txt
-```
+To run only the export pipeline, enable `run_export` flag, simultaneously disabling the `run_` flags 
+in the `conf/config.yaml`:
 
-It’s recommended that you put all files in one folder used for accuracy
-verification of your model.
-
-The outputs:
-* NVIDIA Triton Model Repository with a converted model in FasterTransformer format.
-* Accuracy measurement report.
-* Performance measurement report.
-
-The accuracy report is stored in the current directory in the file `lambada_metrics.csv`.
-You can verify your model running in NVIDIA Triton by using the Lambada dataset:
-
-```sh
-python3 ./bignlp/infer_scripts/prepare_model_repository.py \
-        --cluster-config-path <Your cluster config>.yaml \
-        --navigator-config-path ./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml \
-        --model-path <Your path to training checkpoint> \
-        --model-name model_name \
-        --dataset-dir <Your lambada folder> \
-        --model-repository-path <Your output path for NVIDIA Triton model repository> \
-        --accuracy-tests \
-        --performance-tests
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: False
+run_evaluation: False
+run_export: True
 ```
 
-Parameters:
-* `cluster-config-path`: Cluster configuration YAML file.
-* `navigator-config-path`: Navigator configuration to set up NVIDIA Triton.
-* `model-path`: This model path contains a trained Megatron/NeMo checkpoint.
-   A NeMo checkpoint must be passed as a file with `.nemo` extension,
-   but a Megatron checkpoint must be passed as a folder.
-* `model-name`: Model name.
-* `dataset-dir`: Folder with downloaded lambada dataset, merges and vocabulary files.
-* `model-repository-path`: Path to result NVIDIA Triton Model Repository.
-* `accuracy-tests`: Run accuracy tests.
-* `performance-tests`: Run performance offline and online tests.
-
-Megatron checkpoint must have embedded vocabulary in PyTorch checkpoint file
-or vocabulary file stored in `<model-path>/vocab.json`. Vocabulary embedding can
-be performed with `./bignlp/infer_scripts/embed_vocab_in_megatron_checkpoint.py` script.
-
-The parameter `navigator-config-path` contains the Navigator configuration to
-convert a model, set up a NVIDIA Triton, and parameters to perform performance
-tests. You must set some basic parameters to have a working model to verify
-accuracy. You can use a predefined configuration for this task, which sets
-basic values for a tiny model:
-
+then run:
 ```
-./conf/inference/small_mbs_256-pp_1-tp_1-io_60_20.yaml
+python3 main.py
 ```
 
-You must check your model size and look for optimal configuration to run
-accuracy for your model. The larger models must be run with many GPUs and nodes
-to work. The predefined configurations for some GPT3 architectures and
-inference tasks are described in the _Predefined configurations_ section above.
+##### 5.12.2.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the export stage on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The export scripts must be launched in a multi-node job.
 
-### 6.6. Run NVIDIA Triton Server with Selected Model Repository
-<a id="markdown-run-nvidia-triton-server-with-selected-model-repository"
-name="run-nvidia-triton-server-with-selected-model-repository"></a>
-
-The inputs:
-* NVIDIA Triton model repository with FasterTransformer checkpoint
-     ready for inference at production.
-* Docker image with NVIDIA Triton and FasterTransformer backend.
-
-The outputs:
-* Running NVIDIA Triton model instance serving model in cluster.
-
-To run the NVIDIA Triton Model Navigator, do the following:
-```sh
-python3 ./bignlp/infer_scripts/run_tritonserver.py \
-        --cluster-config-path <Your cluster config>.yaml \
-        --model-repository-path <Your output path for NVIDIA Triton model repository>
-```
-
-The parameters:
-* `cluster-config-path`: Cluster configuration YAML file.
-* `model-repository-path`: NVIDIA Triton model repository path from folder
-     generated by `prepare_model_repository.py` script.
-
-The NVIDIA Triton model repository created in scripts above contains symbolic
-links. You need to expand links for `run_tritonserver.py` to
-be able to access files when they are mounted in job containers.
-
-The script saves NVIDIA Triton logs so you can verify what happens when
-FasterTransformer loads a checkpoint. The command above starts the server, so
-that users can test it with other tools created later. You can use this
-script to demo inference. The job does not stop on its own, if you don't stop it
-manually, it will stop when the time limit is reached on the cluster.
-
-FasterTransformer backend ignores missing files for weights and uses random
-tensors in such a scenario. You should make sure that your NVIDIA Triton
-instance is serving requests with real weights by inspecting logs.
-
-
-If you notice warning about missing files, you should double check your model:
+To run the export pipeline to evaluate a 220m T5 model checkpoint stored in 
+`/mount/results/t5_220m/mnli/checkpoints`, run:
 
 ```
-[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.wpe.bin cannot be opened, loading model fails!
-[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.wte.bin cannot be opened, loading model fails!
-[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.bias.bin cannot be opened, loading model fails!
-[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False \
+run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results \
+export.run.model_train_name=t5_220m \
+export.model.tensor_model_parallel_size=2 \
+export.triton_deployment.pipeline_model_parallel_size=1 \
+>> /results/export_t5_log.txt 2>&1
 ```
 
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/export_t5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
 
-### 6.7. Text generation
 
-#### 6.7.1. Setup
+#### 5.12.3. mT5 Export
+<a id="markdown-mt5-export" name="mt5-export"></a>
 
-You must start BigNLP training container with interactive session at your cluster.
-You can do it with `srun` at slurm:
+mT5 model is evaluated with `xnli` task which results can be compared with results from evaluation stage.
 
-```
-srun --partition=<SLURM PARTITION> \
-        --container-workdir /bignlp_workdir \
-        --container-image <TRAINING CONTAINER DOCKER IMAGE> \
-        --container-mounts <FOLDER WITH BIGNLP SCRIPTS>:/bignlp_workdir \
-        --pty bash
-```
+The configuration used for the export needs to be specified in the
+`conf/config.yaml` file, specifying the `export` parameter, which specifies the
+file to use for export purposes. The `run_export` parameter must be set
+to `True` to run the training pipeline export stage. `export` parameter should be changed to
+`mt5`, which maps to `conf/export/mt5.yaml` configuration file. The
+parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
+For Base Command Platform, all these parameters should be overridden from the command line.
 
-You must ensure that a vocabulary (`vocab.json`) and merge (`merges.txt`) files are accessible at a compute
-node so you can pass the folder with those files as parameter for
-scripts described below.
-
-You need working instance of Triton Inference Server with loaded
-FasterTransformer model converted from real checkpoint. You can use
-`run_tritonserver.py` script described above to start an inference machine.
-
-#### 6.7.2. Basic Text Generation
-
-The simple implementation of text input script was prepared
-as Python command line client script `bignlp/infer_scripts/chatbot.py`.
-You can run it to send a simple request:
-```sh
-python3    bignlp/infer_scripts/chatbot.py \
-        --url <TRITON CLUSTER NODE>:<PORT> \
-        --protocol <PROTOCOL> \
-        --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
-        --model-name <MODEL NAME> \
-        --output-len <REQUESTED OUTPUT LEN> \
-        --query "<TEXT QUERY>"
+##### 5.12.2.1. Common
+<a id="markdown-common" name="common"></a>
+Also the other `run` parameters might be used to define the job specific config:
+```yaml
+run:
+  name: export_${.model_train_name}
+  time_limit: "2:00:00"
+  model_train_name: "mt5_390m"
+  task_name: "xnli"
+  finetuning_results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}
+  config_summary: tp${export.model.tensor_model_parallel_size}_pp${export.triton_deployment.pipeline_model_parallel_size}_${export.model.weight_data_type}_${export.triton_deployment.data_type}
+  results_dir: ${base_results_dir}/${.model_train_name}/${.task_name}_export_${.config_summary}
+  model_type: "mt5"
 ```
 
-Parameters:
-* `url`: Triton URL. It is printed by `run_tritonserver.py` script.
-* `protocol`: Communication protocol (for example GRPC, HTTP).
-* `dataset-dir`: Folder with downloaded merges and vocabulary files.
-* `model-name`: Model name.
-* `output-len`: Token sequence output length.
-* `query`: Text sent to model as a query.
+To specify which trained model checkpoint to use as source model
+and parameters of conversion to the FasterTransformer format, use the `model` parameter:
 
-The additional inference parameters can be used to improve results of inference computation:
-* `beam-width`: `uint32`, beam size for beam search, using sampling if set to 1.
-* `top-k`: `unit32`, candidate number for sampling.
-* `top-p`: `float`, candidate threshould for sampling.
-* `temperature`: `float`, temperature for logit.
-* `repetition-penalty`: `float`, repetition penalty for logit.
-
-See all model
-[parameters](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/docs/gpt_guide.md#how-to-set-the-model-configuration)
-in FasterTransformer repository.
-
-The script will print out FasterTransformer output:
-```sh
-python3    bignlp/infer_scripts/chatbot.py --url triton-node:8001 --protocol grpc \
-        --datasets-dir /bignlp_workdir/data/ \
-        --temperature 1.0 \
-        --top-k 1 \
-        --top-p 0.9 \
-        --repetition-penalty 1.0 \
-        --model-name 20B_mega_real --output-len 40 \
-        --query "A car is"
- a vehicle that can be driven by one person.
-
-The word "car" comes from the French word for chariot, which was used to describe the first cars in the late 19th century. The first
-
+```yaml
+model:
+  checkpoint_path: ${export.run.finetuning_results_dir}/checkpoints/megatron_mt5_glue_xnli.nemo
+  # FT checkpoint will be saved in ${.triton_model_dir}/1/${.tensor_model_parallel_size}-gpu
+  tensor_model_parallel_size: 8
+  weight_data_type: fp16   # fp32|fp16
+  processes: 16
+  load_checkpoints_to_cpu: False
 ```
 
-You can change `output-len` to generate longer sequences, but a quality of output
-from a small checkpoint degrades significantly when length is increased.
+To specify the NVIDIA Triton Inference Server 
+[model directory](https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md#repository-layout) and
+[FasterTransformer backend](https://github.com/triton-inference-server/fastertransformer_backend/blob/main/docs/t5_guide.md#how-to-set-the-model-configuration) parameters, 
+use the `triton_deployment` parameter.
 
-#### 6.7.3. Longer Text Generation
-
-The script `author.py` was created to generate longer texts. It passes
-an output from a previous inference to model again and asks FasterTransformer to generate more text.
-The issue with this approach, is that a context of previous requests is lost quite fast and a model
-forgets, what it outputted before.
-
-
-```sh
-python3    bignlp/infer_scripts/author.py \
-        --url <TRITON CLUSTER NODE>:<PORT> \
-        --protocol <PROTOCOL> \
-        --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
-        --model-name <MODEL NAME> \
-        --output-len <REQUESTED OUTPUT LEN> \
-        --query "<TEXT QUERY>"
+```yaml
+triton_deployment:
+  triton_model_dir: ${.results_dir}/model_repo/${.model_train_name}
+  max_batch_size: 1
+  pipeline_model_parallel_size: 1
+  int8_mode: False
+  enable_custom_all_reduce: False
+  data_type: fp16  # fp32|fp16|bf16
 ```
 
-Parameters:
-* `url`: Triton URL. It is printed by `run_tritonserver.py` script
-* `protocol`: Communication protocol (for example grpc, http)
-* `dataset-dir`: Folder with downloaded dataset, merges and vocabulary files.
-* `model-name`: Model name.
-* `output-len`: Token sequence output length.
-* `query`: Text sent to model as a query.
+To configure accuracy test performed locally on converted FasterTransformer model use `accuracy` parameter:
 
-Additional inference parameters can also be used with this script.
-
-<details>
-
-<summary>
-Example below shows text generation.
-</summary>
-
-You can pass the text _AI is like a new steam engine_ to `author.py` to generate few paragraphs of text:
-
-```sh
-python3    bignlp/infer_scripts/author.py --url triton-node:8001 --protocol grpc \
-        --datasets-dir /bignlp_workdir/data/ \
-        --model-name 20B_mega_real \
-        --output-len 40 \
-        --query "AI is like a new steam engine."
- It’s not just about the technology, it’s also about how we can use AI to solve problems that are important for society and our economy.
-
-The first thing I want to do is talk a little bit about what we mean by artificial intelligence (AI).
-
-What is Artificial Intelligence?
-
-Artificial intelligence is defined as “the ability of machines to perform tasks that normally require human intelligence.” This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example, a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes^CKeyboard handler detected with signal
-
-```
-You can interrupt text generation by using `Ctrl+C`.
-
-</details>
-
-The `author.py` script uses output from previous query to generate more text.
-The table below shows examples of input and output used for text generated above.
-
-<details>
-
-<summary>
-The table below shows examples of input and output used for text generated above.
-</summary>
-
-| Input len | Input text | Output len | Output text |
-| --------- | ---------- | ---------- | ----------- |
-| 8 | 'AI is like a new steam engine.' | 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' |
-| 40 | 'It's not just about the technology, it's also about how we can use AI to solve problems that are important for society and our economy. The first thing I want' | 40 | ' to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence?Artificial intelligence is defined as 'the ability of machines to perform' |
-| 40 | 'to do is talk a little bit about what we mean by artificial intelligence (AI). What is Artificial Intelligence? Artificial intelligence is defined as 'the ability of machines to perform' | 40 | ' tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' |
-| 41 | 'tasks that normally require human intelligence.' This definition is broad and can be applied in many different ways, but it does not necessarily mean that the machine will actually think like a person. For example' | 40 | ', a computer program may have been trained to recognize images of cats or dogs by analyzing millions of pictures. The program has learned how to identify these animals based on their features, such as ears, eyes' |
-
-</details>
-
-
-#### 6.7.4. Dialogue Text Generation
-
-The `dialogue.py` script was created to showcase text generation for a simple
-support chatbot dialogue scenario:
-
-```sh
-python3    bignlp/infer_scripts/dialogue.py \
-        --url <TRITON CLUSTER NODE>:<PORT> \
-        --protocol <PROTOCOL> \
-        --datasets-dir <FOLDER WITH MERGES AND VOCABULARY> \
-        --model-name <MODEL NAME> \
-        --output-len <REQUESTED OUTPUT LEN> \
-        --customer "<TEXT CONTEXT FOR CUSTOMER ROLE>" \
-        --support "<TEXT CONTEXT FOR SUPPORT ROLE>"
+```yaml
+accuracy:
+  enabled: True  # enable accuracy test
+  ntasks_per_node: 8  # usually should be number of available gpus per node
+  test_data: ${data_dir}/glue_data/xnli/xnli.test.tsv
+  output_path: ${export.run.results_dir}/eval_output.json
+  batch_size: 64
+  max_output_len: 512
+  runtime:
+    beam_width: 1
+    sampling_top_k: 1
+    sampling_top_p: 0
 ```
 
-Parameters:
-* `url`: Triton URL. It is printed by `run_tritonserver.py` script
-* `protocol`: Communication protocol (for example grpc, http)
-* `dataset-dir`: Folder with downloaded dataset, merges and vocabulary files.
-* `model-name`: Model name.
-* `output-len`: Token sequence output length.
-* `customer`: Text used to generate prompt for a customer role.
-* `support`: Text used to generate prompt for a support role.
+To configure benchmark test performed on model deployed on NVIDIA Triton Inference Server use `benchmark` parameter:
 
-Additional inference parameters can also be used with this script.
-
-A model needs prompt to be able to generate text useful for chatbot application.
-You must tell a machine, that it is working in a support team in your company and
-answering questions from customers.
-
-<details>
-
-<summary>
-Example below shows text generation.
-</summary>
-
-
-```sh
-python3 bignlp/infer_scripts/dialogue.py --url triton-node:8001 --protocol grpc \
-        --datasets-dir /bignlp_workdir/data/ \
-        --model-name 20B_mega_real \
-        --output-len 40 \
-        --customer "NVIDIA customer:" \
-        --support "NVIDIA machine learning expert:"
-NVIDIA customer:What is machine learning?
-NVIDIA machine learning expert: It's a way to make computers do things that they couldn't before.
-NVIDIA customer: (END to FINISH): What I need to start experiments with machine learning?
-NVIDIA machine learning expert: We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we'll be happy to show you how it works.
-NVIDIA customer: (END to FINISH): Can AI recognize cats?
-NVIDIA machine learning expert: Sure! Let's try that!
-NVIDIA customer: (END to FINISH): Can AI generate text?
-NVIDIA machine learning expert: Yes, it can. It will take a few minutes to train the model.
-NVIDIA customer: (END to FINISH): Is AI dangerous?
-NVIDIA machine learning expert: No, not at all! We're just trying to help you make better decisions.
-NVIDIA customer: (END to FINISH): END
-
-
+```yaml
+benchmark:
+  enabled: True
+  input_len: 60
+  output_len: 20
+  batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  triton_wait_time: 300
 ```
 
-</details>
+##### 5.12.2.2. Slurm
+<a id="markdown-slurm" name="slurm"></a>
 
-The `dialogue.py` script reads an input from console, so you can just type
-and press Enter to send a question to a model. It is extended with a prompt to
-provide context. When you type _What is machine learning?_ then script sends text query:
+Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
 
-```
-NVIDIA customer: "What is machine learning?"
-NVIDIA machine learning expert:
-
-```
-
-The model generates answer much longer than necessary:
-
-```
-
-
-"It\'s a way to make computers do things that they couldn\'t before."
-
-
-------
-\jamesblonde
-I'm not sure what the point of this article was. It seems
+```yaml
+partition: null
+account: null
+exclusive: True
+gpus_per_task: null
+gpus_per_node: 8
+mem: 0
+overcommit: False
+job_name_prefix: "bignlp-"
 ```
 
+**Example:**
 
-A model can recognize from this prompt that quote characters should mark an expected
-answer. It generates an answer but with more text because it was asked for 40 output
-tokens here. Not all training datasets are good with teaching a model, when text
-generation should stop, but they contain many dialogues from books and
-support forums. The `author.py` script uses quote characters to wrap input
-from user and later uses them to extract answer from a text generated by
-a model. You must consider similar output cleaning and post processing
-routines to use this solution.
+To run only the export pipeline, enable `run_export` flag, simultaneously disabling the `run_` flags 
+in the `conf/config.yaml`:
 
+```yaml
+run_data_preparation: False
+run_training: False
+run_conversion: False
+run_finetuning: False
+run_prompt_learning: False
+run_evaluation: False
+run_export: True
+```
 
-<details>
+then run:
+```
+python3 main.py
+```
 
-<summary>
-The table below shows examples of input and output used for text generated above.
-</summary>
+##### 5.12.2.3. Base Command Platform
+<a id="markdown-base-command-platform" name="base-command-platform"></a>
+In order to run the export stage on Base Command Platform, set the
+`cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
+from the command line, using hydra. The export scripts must be launched in a multi-node job.
 
-| Input len | Input text | Output len | Output text |
-| --------- | ---------- | ---------- | ----------- |
-| 15 | 'NVIDIA customer: "What is machine learning?" NVIDIA machine learning expert: ' | 40 | '"It's a way to make computers do things that they couldn\'t before."-jamesblonde. I\'m not sure what the point of this article was. It seems' |
-| 41 | 'NVIDIA machine learning expert: "It's a way to make computers do things that they couldn\'t before." NVIDIA customer: "What I need to start experiments with machine learning?" NVIDIA machine learning expert: ' | 40 | '"We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we'll be happy to show you how it works."The' |
-| 56 | 'NVIDIA machine learning expert: "We can help you get started. We have a free trial of our GPU-accelerated deep learning platform, and we\'ll be happy to show you how it works." NVIDIA customer: "Can AI recognize cats?" NVIDIA machine learning expert: ' | 40 | '"Sure! Let's try that!"A: I think the best way is to use a library like Googlec or tens.net has is is moreing with a a' |
-| 28 | 'NVIDIA machine learning expert: "Sure! Let's try that!" NVIDIA customer: "Can AI generate text?" NVIDIA machine learning expert: ' | 40 | '"Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Great! I\'ll wait here for you to finish training your model."A:' |
-| 36 | 'NVIDIA machine learning expert: "Yes, it can. It will take a few minutes to train the model." NVIDIA customer: "Is AI dangerous?" NVIDIA machine learning expert: ' | 40 | '"No, not at all! We\'re just trying to help you make better decisions."A: I think this is an interesting question and I\'m going to try my hand' |
-
-</details>
-
-#### 6.7.5. Inference Parameters
-
-Inference related parameters like `temperature`, `top_k`, and `top_p` are stored in
-`config.pbtxt` file inside the Triton model repository.
-
-The parameters are set like this:
+To run the export pipeline to evaluate a 390m mT5 model checkpoint stored in 
+`/mount/results/mt5_390m/xnli/checkpoints`, run:
 
 ```
-parameters {
-    key: "top_k"
-    value {                                                                                                                                                
-        string_value: "1"
-    }
-}
-parameters {
-    key: "top_p"
-    value {
-        string_value: "0.0"
-    }
-}
+python3 /opt/bignlp/bignlp-scripts/main.py run_data_preparation=False run_training=False run_conversion=False run_finetuning=False \
+run_evaluation=False run_export=True cluster_type=bcp bignlp_path=/opt/bignlp/bignlp-scripts data_dir=/mount/data \
+base_results_dir=/mount/results \
+export.run.model_train_name=mt5_390m \
+export.model.tensor_model_parallel_size=2 \
+export.triton_deployment.pipeline_model_parallel_size=1 \
+>> /results/export_mt5_log.txt 2>&1
 ```
-You can modify them using text editor. Since the FasterTransformer backend reads the
-parameters when the model is loaded, the compute node with the new configuration must
-be started again to apply the change. The FasterTransformer
-cannot be restarted in the same compute job due to MPI limitations.
 
-The C++ inference engine reads parameters from the Triton configuration and runs inference
-using weight files. Some parameters are determined by weights created during
-training but other parameters can be adjusted to improve inference results
-for different tasks.
-
-There are three main types of parameters:
-* Parameters derived from training configurations.
-    These cannot be changed later, you must train
-     a new model to modify them. The weight files structure depends on them.    Example: `decoder_layers`.
-* Parameters decided during the conversion from PyTorch to
-     FasterTransformer. Example: `tensor_para_size`.
-* Parameters adjustable for inference. These can be changed after training to
-     improve the accuracy of your inference task. Example `top_k`.
-
-
-<details>
-
-<summary>
-Triton parameters table
-</summary>
-
-| Parameter Name                             | Example Value | Determined by Weights | Comment                                                                                                                                                                                                                |
-|------------------------------|---------------|-----------------------|----------------------------------------------------------------------------------------------------------------|
-| `beam_search_diversity_rate` | 0.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `beam_width`                                 | 1                         | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `decoder_layers`                         | 44                        | Yes                                     | Decided during training                                                                                                                                                                                |
-| `end_id`                                         | 50256                 | Yes                                     | Derived from vocabulary used during training                                                                                                                                     |
-| `head_num`                                     | 48                        | Yes                                     | Decided during training                                                                                                                                                                                |
-| `inter_size`                                 | 24576                 | Yes                                     | Decided during training                                                                                                                                                                                |
-| `is_half`                                        | 1                         | No                                        | Do not change                                                                                                                                                                                                    |
-| `len_penalty`                                | 1                         | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `max_input_len`                            | 60                        | No                                        | Can be used for optimization                                                                                                                                                                    |
-| `max_seq_len`                                | 80                        | No                                        | The maximum output sequence length we can serve. Parameter is used for buffer allocation                                            |
-| `model_name`                                 | model_name    | No                                        | Name                                                                                                                                                                                                                     |
-| `pipeline_para_size`                 | 1                         | No                                        | Can be modified but number of nodes used to run a model must match. It must divide the number of layers             |
-| `repetition_penalty`                 | 1.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `size_per_head`                            | 128                     | Yes                                     | Decided during training                                                                                                                                                                                |
-| `start_id`                                     | 50256                 | Yes                                     | Derived from vocabulary used during training                                                                                                                                     |
-| `temperature`                                | 1.0                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `tensor_para_size`                     | 4                         | Yes                                     | Decided during conversion to FasterTransformer checkpoint. It must be equal to number of used GPUs                        |
-| `top_k`                                            | 1                       | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `top_p`                                            | 0.9                     | No                                        | Adjust to improve inference results                                                                                                                                                        |
-| `vocab_size`                                 | 51200                 | Yes                                     | Derived from vocabulary used during training                                                                                                                                     |
-
-
-</details>
+The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
+The stdout and stderr outputs will also be redirected to the `/results/export_mt5_log.txt` file, to be able to download the logs from NGC.
+Any other parameter can also be added to the command to modify its behavior.
 
 ## 7. Performance
 <a id="markdown-performance" name="performance"></a>
