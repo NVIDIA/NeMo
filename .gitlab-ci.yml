@@ -161,6 +161,7 @@ build-BigNLP:
   tags: *LUNA_TAGS
   stage: test
   script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
+    - sudo gitlab-runner status
     - chmod 774 ./* -R
     - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
@@ -175,7 +176,7 @@ build-BigNLP:
     - echo "TP_SIZE=${TP_SIZE}" >> build.env
     - echo "PP_SIZE=${PP_SIZE}" >> build.env
     - echo "RUN_MODEL_SIZE=${RUN_MODEL_SIZE}" >> build.env
-    - echo "PREV_JOB=${RUN_NAME}" >> build.env
+    - echo "UPSTREAM_RUN_NAME=${RUN_NAME}" >> build.env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_TASK}_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
