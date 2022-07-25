@@ -32,7 +32,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
 
 try:
     from apex.transformer import tensor_parallel, parallel_state
-    from apex.transformer.enums import AttnMaskType, ModelType, LayerType
+    from apex.transformer.enums import AttnMaskType, ModelType
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

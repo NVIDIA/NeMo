@@ -18,7 +18,6 @@ import math
 from typing import Dict, List, Union
 
 import torch
-import torch.nn.functional as F
 
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
