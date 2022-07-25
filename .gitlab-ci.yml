@@ -167,10 +167,16 @@ build-BigNLP:
     - set -x
     - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
-    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}node_${MAX_STEPS}steps
+    - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
+    - if [[ "$RUN_TASK" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
-    - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
+    - echo "RUN_MODEL=${RUN_MODEL}" >> build.env # So that they can be passed on to the next job.
+    - echo "TP_SIZE=${TP_SIZE}" >> build.env
+    - echo "PP_SIZE=${PP_SIZE}" >> build.env
+    - echo "RUN_MODEL_SIZE=${RUN_MODEL_SIZE}" >> build.env
+    - echo "PREV_JOB=${RUN_NAME}" >> build.env
+    - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_TASK}_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
@@ -196,13 +202,16 @@ build-BigNLP:
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json_new.py $RESULTS_DIR $RUN_TASK $RUN_MODEL
     # Run Pytest
     - pip3 install pytest
-    - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/test_train_pipeline_metrics.py
+    - pytest tests/ci_tests/selene/pytest/${RUN_TASK}/test_${RUN_TASK}_pipeline.py
     - echo "Finished pytest job"
   rules:
     - if: $TEST_LEVEL =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TESTS_TO_RUN_ON_THIS_COMMIT || $CI_JOB_NAME =~ $TEST_REGEX_ON_THIS_COMMIT
       when: always
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $TEST_LEVEL =~ $TESTS_TO_RUN_ON_MERGE_REQ'
       when: always
+  artifacts:
+    reports:
+      dotenv: build.env
   allow_failure: false
 
 
@@ -552,83 +561,95 @@ eval.gpt3.126m_tp2_pp2_lambada:
 
 
 convert.gpt3.126m_tp1_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    PREV_JOB: train_gpt3_126m_tp1_pp1_1node_100steps
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
 
 convert.gpt3.126m_tp2_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp1
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    PREV_JOB: train_gpt3_126m_tp2_pp1_1node_100steps
+    TP_SIZE: 2
+    PP_SIZE: 1
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp1_1node_100steps
 
 
 convert.gpt3.126m_tp1_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp2
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    PREV_JOB: train_gpt3_126m_tp1_pp2_2node_100steps
+    TP_SIZE: 1
+    PP_SIZE: 2
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp1_pp2_2node_100steps
 
 
 convert.gpt3.126m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp2_pp2
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    PREV_JOB: train_gpt3_126m_tp2_pp2_2node_100steps
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
 convert.t5.220m_tp1_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp1
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    PREV_JOB: train_t5_220m_tp1_pp1_1node_100steps
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.t5.220m_tp1_pp1_1node_100steps
 
 convert.t5.220m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    PREV_JOB: train_t5_220m_tp2_pp2_2node_100steps
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.t5.220m_tp2_pp2_2node_100steps
 
@@ -685,28 +706,32 @@ eval.t5.220m_tp2_pp2:
     - finetune.t5.220m_tp2_pp2_2node_100steps_mnli
 
 convert.mt5.170m_tp1_pp1:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp1
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    PREV_JOB: train_mt5_170m_tp1_pp1_1node_100steps
+    TP_SIZE: 1
+    PP_SIZE: 1
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.mt5.170m_tp1_pp1_1node_100steps
 
 convert.mt5.170m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: convert
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp2
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    PREV_JOB: train_mt5_170m_tp2_pp2_2node_100steps
+    TP_SIZE: 2
+    PP_SIZE: 2
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
   needs:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
