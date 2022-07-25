@@ -1124,6 +1124,14 @@ class ParallelTransformerLayer_(MegatronModule):
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
 
+            if transformer_block_type == 'normformer':
+                if normalization == 'layernorm':
+                    self.post_attention_normformer_norm = get_layer_norm(
+                        hidden_size, layernorm_epsilon, persist_layer_norm
+                    )
+                else:
+                    self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
+
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
                 #  the post_attention_layernorm is used for layermorm after mlp
                 # don't need it for decoder_pre_mlp and post_ln
