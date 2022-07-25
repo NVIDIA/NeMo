@@ -160,7 +160,6 @@ void dispatch_scaled_masked_softmax_backward_new(
     int batches,
     int attn_heads)
 {
-    TORCH_INTERNAL_ASSERT(key_seq_len >= 0 && key_seq_len <= 4096);
     if (key_seq_len == 0)
     {
         return;
@@ -359,7 +358,6 @@ void dispatch_scaled_masked_softmax_forward_new(
     int attn_heads,
     int pad_batches)
 {
-    TORCH_INTERNAL_ASSERT(key_seq_len >= 0);
     if (key_seq_len == 0) {
         return;
     } else {

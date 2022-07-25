@@ -13,7 +13,12 @@
 # limitations under the License.
 
 import torch
-from apex._autocast_utils import _cast_if_autocast_enabled
+
+try:
+    from apex._autocast_utils import _cast_if_autocast_enabled
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
 
 # this triggers kernel compiling
 import nemo.collections.nlp.modules.common.megatron.fused_kernels
@@ -90,7 +95,7 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
             return self.forward_torch_softmax(input, mask)
 
     def is_kernel_available(self, mask, b, np, sq, sk):
-        if self.scaled_masked_softmax_fusion and 0 < sk <= 4096:  # user want to fuse  # sk must be 1 ~ 4096
+        if self.scaled_masked_softmax_fusion and 0 < sk:  # user want to fuse  # sk must be 1 ~
             return True
         return False
 

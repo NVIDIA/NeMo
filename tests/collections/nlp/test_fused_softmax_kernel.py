@@ -48,7 +48,7 @@ class TestFusedSoftmaxKernel:
         klen = 3123
         scale_t = torch.tensor([1.0])
         for qlen in [2348, 2322, 1234, 1, 2]:
-            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096]:
+            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096, 7234, 8192, 10232]:
                 inputs = torch.rand((batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
                 masks = torch.randint(0, 2, (batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
                 softmax_results = scaled_masked_softmax_cuda_new.forward(inputs, masks, scale_t[0].item())
@@ -66,7 +66,7 @@ class TestFusedSoftmaxKernel:
         klen = 3123
         scale_t = torch.tensor([1.0])
         for qlen in [2348, 2322, 1234, 1, 2]:
-            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096]:
+            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096, 7234, 8192, 10232]:
                 inputs = torch.rand((batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
                 backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
                 masks = torch.randint(0, 2, (batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
@@ -89,7 +89,7 @@ class TestFusedSoftmaxKernel:
         klen = 3123
         scale_t = torch.tensor([1.0])
         for qlen in [2348, 2322, 1234, 1, 2]:
-            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096]:
+            for klen in [3123, 1234, 2, 4, 8, 3, 1, 5, 10, 11, 13, 128, 256, 1200, 2048, 4096, 7234, 8192, 10232]:
                 inputs = torch.rand((batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
                 masks = torch.ones((batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
                 softmax_results = scaled_masked_softmax_cuda_new.forward(inputs, masks, scale_t[0].item())
