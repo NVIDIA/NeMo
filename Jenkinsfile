@@ -3008,7 +3008,7 @@ pipeline {
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
         model.data.respect_document_boundaries=False \
-        model.share_word_embeddings=False \
+        model.share_token_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.devices=2 \
@@ -3036,7 +3036,7 @@ pipeline {
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
         model.data.respect_document_boundaries=False \
-        model.share_word_embeddings=False \
+        model.share_token_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/t5_index_mappings"
