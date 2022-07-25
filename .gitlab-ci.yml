@@ -5,7 +5,7 @@ variables: &VARS
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: train.gpt3.126m_tp1_pp1_1node_100steps convert.gpt3.126m_tp1_pp1 # Can specify levels, ci job names etc as a space seperated list to run during this commit
+  TESTS_TO_RUN_ON_THIS_COMMIT: L0 # Can specify levels, ci job names etc as a space seperated list to run during this commit
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
@@ -571,7 +571,7 @@ convert.gpt3.126m_tp1_pp1:
     TP_SIZE: 1
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - train.gpt3.126m_tp1_pp1_1node_100steps
 
@@ -619,7 +619,7 @@ convert.gpt3.126m_tp2_pp2:
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - train.gpt3.126m_tp2_pp2_2node_100steps
 
@@ -634,7 +634,7 @@ convert.t5.220m_tp1_pp1:
     TP_SIZE: 1
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - train.t5.220m_tp1_pp1_1node_100steps
 
@@ -716,7 +716,7 @@ convert.mt5.170m_tp1_pp1:
     TP_SIZE: 1
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - train.mt5.170m_tp1_pp1_1node_100steps
 
@@ -731,7 +731,7 @@ convert.mt5.170m_tp2_pp2:
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
-    TEST_LEVEL: L1
+    TEST_LEVEL: L0
   needs:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
