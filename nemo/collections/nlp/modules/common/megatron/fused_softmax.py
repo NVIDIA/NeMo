@@ -14,14 +14,15 @@
 
 import torch
 
+# this triggers kernel compiling
+import nemo.collections.nlp.modules.common.megatron.fused_kernels
+
 try:
     from apex._autocast_utils import _cast_if_autocast_enabled
+
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
-
-# this triggers kernel compiling
-import nemo.collections.nlp.modules.common.megatron.fused_kernels
 
 
 class ScaledMaskedSoftmax(torch.autograd.Function):
