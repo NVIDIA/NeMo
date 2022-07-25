@@ -24,6 +24,7 @@ python aligner_g2p.py \
     --model=<model_path> \
     --manifest=<manifest_path> \
     --out=<output_json_path> \
+    --confidence=0.02 \
     --verbose
 """
 
