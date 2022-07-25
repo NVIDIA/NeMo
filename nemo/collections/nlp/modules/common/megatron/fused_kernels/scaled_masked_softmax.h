@@ -97,7 +97,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
     }
 
     // find the sum 
-    for (int i = local_idx; i < 128; i += threads_per_block){
+    for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block){
         shared[i] = 0.0;
     }
     __syncthreads();
@@ -125,7 +125,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
         #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
-                val = shared[local_idx];
+                val = shared[i];
             }
             else{
                 val = 0.0;
@@ -235,7 +235,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
     }
 
     // first find the max value
-    for (int i = local_idx; i < 128; i += threads_per_block){
+    for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block){
         shared[i] = -10000.0;
     }
     __syncthreads();
@@ -264,7 +264,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
-                val = shared[local_idx];
+                val = shared[i];
             }
             else{
                 val = -10000.0;
@@ -296,7 +296,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
     }
 
     // find the sum 
-    for (int i = local_idx; i < 128; i += threads_per_block){
+    for (int i = local_idx; i < (element_count - 1) / C10_WARP_SIZE + 1; i += threads_per_block){
         shared[i] = 0.0;
     }
     __syncthreads();
@@ -322,7 +322,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         #pragma unroll
         for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
             if (i < shared_mem_len){
-                val = shared[local_idx];
+                val = shared[i];
             }
             else{
                 val = 0.0;
