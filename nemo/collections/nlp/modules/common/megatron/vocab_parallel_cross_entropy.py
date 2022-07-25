@@ -125,8 +125,6 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         else:
             grad_2d[arange_1d, masked_target_1d] -= softmax_update
 
-        grad_2d[arange_1d, masked_target_1d] -= 1.0 - target_mask.view(-1).float()
-
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
 
