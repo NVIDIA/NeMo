@@ -563,7 +563,6 @@ class AbstractCTCDecoding(ABC):
         # Note: The start offset of this token is the start time of the first token inside build_token.
         # Note: The end offset of this token is the end time of the last token inside build_token
         if len(built_token) > 0:
-            print("last token :: ", built_token, decode_tokens_to_str(built_token))
             word_offsets.append(
                 {
                     "word": decode_tokens_to_str(built_token),
