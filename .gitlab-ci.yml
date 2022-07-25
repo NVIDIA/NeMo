@@ -161,7 +161,6 @@ build-BigNLP:
   tags: *LUNA_TAGS
   stage: test
   script: &bignlp-LUNA-test-LAUNCHER-SCRIPT
-    - sudo gitlab-runner status
     - chmod 774 ./* -R
     - umask 0007
     - source /lustre/fsw/joc/big_nlp/nemo_gpt3/my_venv/bin/activate
