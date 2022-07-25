@@ -909,7 +909,10 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={
 
     start_time = time.time()
     indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
-    make_text_memmap_bin_compatibility(indexed_dataset)
+    if data_impl in ['text_mmap', 'csv_mmap']:
+        # make csv/text memmap compatible with Megatron sampling
+        make_text_memmap_bin_compatibility(indexed_dataset)
+
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
 
