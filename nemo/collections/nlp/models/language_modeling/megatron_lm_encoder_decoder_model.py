@@ -493,7 +493,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return forward_args
 
-    def get_forward_output_only_func(self, arg_names, output_name, **kwargs):
+    def _get_forward_output_only_func(self, arg_names, output_name, **kwargs):
         """
         args_idx - maps batch into index of args (with None filling gaps)
         arg_names - corresponding names for a friendly error message
@@ -536,7 +536,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
         arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-        forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
@@ -927,7 +927,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
-        forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True)
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True)
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
                 forward_step_func=forward_step_func,
@@ -1047,7 +1047,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
             arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
 
-            forward_step_func = self.get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
                     forward_step_func=forward_step_func,
