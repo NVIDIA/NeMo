@@ -103,18 +103,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
-        self.normalization = normalization
-        self.position_embedding_type = position_embedding_type
-        self.relative_attention_num_buckets = relative_attention_num_buckets
-        self.relative_attention_max_distance = relative_attention_max_distance
         self.label_smoothing = label_smoothing
-
-        if self.position_embedding_type == 'learned_absolute':
-            add_position_embedding = True
-        elif self.position_embedding_type == 'relative':
-            add_position_embedding = False
-        else:
-            raise ValueError('Unknown position embeeding type. Options: ' '[learned_absolute | relative]')
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 

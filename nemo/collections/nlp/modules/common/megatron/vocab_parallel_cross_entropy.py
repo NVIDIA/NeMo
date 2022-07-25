@@ -92,11 +92,12 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             assert 1.0 > label_smoothing > 0.0
             smoothing = label_smoothing * vocab_size / (vocab_size - 1)
 
+            # Exp logits at this point are normalized probabilities. So we can just take the log to get log-probs.
             log_probs = torch.log(exp_logits)
             mean_log_probs = log_probs.mean(dim=-1)
             loss = (1.0 - smoothing) * loss - smoothing * mean_log_probs
 
-        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d, label_smoothing, vocab_size)
+        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d, torch.Tensor([label_smoothing]), torch.LongTensor([vocab_size]))
 
         return loss
 
@@ -105,6 +106,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
 
         # Retreive tensors from the forward path.
         softmax, target_mask, masked_target_1d, label_smoothing, vocab_size = ctx.saved_tensors
+
+        label_smoothing = label_smoothing.item()
+        vocab_size = vocab_size.item()
 
         # All the inputs have softmax as thier gradient.
         grad_input = softmax
@@ -128,9 +132,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
         # Finally elementwise multiplication with the output gradients.
         grad_input.mul_(grad_output.unsqueeze(dim=-1))
 
-        return grad_input, None
+        return grad_input, None, None
 
 
-def vocab_parallel_cross_entropy(vocab_parallel_logits, target):
+def vocab_parallel_cross_entropy(vocab_parallel_logits, target, label_smoothing):
     """Helper function for the cross entropy."""
-    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target)
+    return _VocabParallelCrossEntropy.apply(vocab_parallel_logits, target, label_smoothing)
