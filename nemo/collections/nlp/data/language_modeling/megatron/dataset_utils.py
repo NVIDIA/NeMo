@@ -575,9 +575,11 @@ def build_train_valid_test_datasets(
                 data_impl_kwargs = data_impl_kwargs.copy()
 
             data_impl_kwargs["tokenizer"] = tokenizer
-    
+
     if not respect_document_boundaries and data_impl_kwargs != {}:
-        raise ValueError("respect_document_boundaries=False is not compatible with text_memmap and csv_memmap (data_impl_kwargs != {})")
+        raise ValueError(
+            "respect_document_boundaries=False is not compatible with text_memmap and csv_memmap (data_impl_kwargs != {})"
+        )
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
