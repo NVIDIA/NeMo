@@ -126,7 +126,7 @@ def run_export(cfg, dependency=None):
     run_cfg = cfg.export.run
 
     checkpoint_path = ft_model_cfg.checkpoint_path
-    triton_model_dir = run_cfg.triton_model_dir
+    triton_model_dir = triton_cfg.triton_model_dir
 
     try:
         convert_cmds_fn = {
@@ -398,7 +398,7 @@ def _get_gpt_accuracy_cmds(cfg):
     triton_cfg = cfg.export.triton_deployment
     accuracy_cfg = cfg.export.accuracy
 
-    checkpoint_path = f"{run_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
+    checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
 
     lambada_script_path = FT_PATH / "examples/pytorch/gpt/lambada_task_example.py"
     update_config_script_path = FT_PATH / "examples/pytorch/gpt/utils/update_gpt_config.py"
@@ -452,7 +452,7 @@ def _get_t5_accuracy_cmds(cfg):
     triton_cfg = cfg.export.triton_deployment
     accuracy_cfg = cfg.export.accuracy
 
-    checkpoint_path = f"{run_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
+    checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
 
     mnli_script_path = FT_PATH / "examples/pytorch/t5/mnli_task_example.py"
     lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_t5.so"
@@ -485,7 +485,7 @@ def _get_mt5_accuracy_cmds(cfg):
     triton_cfg = cfg.export.triton_deployment
     accuracy_cfg = cfg.export.accuracy
 
-    checkpoint_path = f"{run_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
+    checkpoint_path = f"{triton_cfg.triton_model_dir}/1/{ft_model_cfg.tensor_model_parallel_size}-gpu"
 
     xnli_script_path = FT_PATH / "examples/pytorch/t5/xnli_task_example.py"
     lib_path = FT_PATH_WITH_BUILD / "build/lib/libth_t5.so"
