@@ -408,11 +408,21 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+                "lengths": NeuralType(tuple('B'), LengthsType()),
+            }
+        )
 
     @property
     def output_types(self):
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
+        return OrderedDict(
+            {
+                "logprobs": NeuralType(('B', 'T', 'D'), LogprobsType()),
+                "lengths" : NeuralType(('B'), LengthsType()),
+            }
+        )
 
     def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None):
         super().__init__()
@@ -442,23 +452,28 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     @typecheck()
-    def forward(self, encoder_output):
+    def forward(self, encoder_output, lengths):
         # Adapter module forward step
         if self.is_adapter_available():
+            
             encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
             encoder_output = self.forward_enabled_adapters(encoder_output)
             encoder_output = encoder_output.transpose(1, 2)  # [B, C, T]
+            
+        output = torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-        return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+        return output, lengths
 
-    def input_example(self, max_batch=1, max_dim=256):
+    def input_example(self, max_batch=4, max_dim=1089):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
+        
         input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
-        return tuple([input_example])
+        len_example = torch.tensor([48.0000, 278.5000,  51.2500, 362.0000]).to(next(self.parameters()).device)
+        return tuple([input_example, len_example])
 
     def _prepare_for_export(self, **kwargs):
         m_count = 0

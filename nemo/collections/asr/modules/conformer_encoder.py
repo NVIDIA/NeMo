@@ -34,6 +34,7 @@ from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, N
 __all__ = ['ConformerEncoder']
 
 
+# +
 class ConformerEncoder(NeuralModule, Exportable):
     """
     The encoder for ASR model of Conformer.
@@ -79,30 +80,40 @@ class ConformerEncoder(NeuralModule, Exportable):
             Defaults to 0.0.
     """
 
-    def input_example(self, max_batch=1, max_dim=256):
+    def input_example(self, max_batch=4, max_dim=1089):
         """
         Generates input examples for tracing etc.
         Returns:
             A tuple of input examples.
         """
         dev = next(self.parameters()).device
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(dev)
-        input_example_length = torch.randint(1, max_dim, (max_batch,)).to(dev)
+#         input_example = torch.randn(max_batch, self._feat_in, max_dim)
+        input_example = torch.randn(236720).to(dev)
+        prepend = [0, 15360, 104480, 120880, 236720]
+#         for b in input_example:
+#             prepend.append(prepend[-1]+b.size(1)*80)
+        
+#         input_example = torch.flatten(input_example).to(dev)
+
+        input_example_length = torch.tensor(prepend, dtype=torch.int32).to(dev)
+
         return tuple([input_example, input_example_length])
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports."""
+        """Returns definitions of module input ports.
+        """
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(('B'), AudioSignal()),
+                "length": NeuralType(('B'), LengthsType()),
             }
         )
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports."""
+        """Returns definitions of module output ports.
+        """
         return OrderedDict(
             {
                 "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -223,9 +234,8 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.use_pad_mask = True
 
     def set_max_audio_length(self, max_audio_length):
-        """
-        Sets maximum input length.
-        Pre-calculates internal seq_range mask.
+        """ Sets maximum input length.
+            Pre-calculates internal seq_range mask.
         """
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
@@ -238,12 +248,15 @@ class ConformerEncoder(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, audio_signal, length=None):
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        self.update_max_seq_length(seq_length=int(torch.max(length[1:]-length[:-1])), device=audio_signal.device)
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
     def forward_for_export(self, audio_signal, length):
-        max_audio_length: int = audio_signal.size(-1)
+        audio_signal, length = pad_ragged_tensor(ragged_tensor=audio_signal, batch_lengths=length)
+        pass_length = length/(80*length.size(0))
+
+        max_audio_length: int = max(length, default=0)
 
         if max_audio_length > self.max_audio_length:
             self.set_max_audio_length(max_audio_length)
@@ -252,7 +265,6 @@ class ConformerEncoder(NeuralModule, Exportable):
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
             )
-
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, nn.Linear):
@@ -261,11 +273,13 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal, length = self.pre_encode(audio_signal, length)
 
         audio_signal, pos_emb = self.pos_enc(audio_signal)
+
         # adjust size
         max_audio_length = audio_signal.size(1)
-        # Create the self-attention and padding masks
 
-        pad_mask = self.make_pad_mask(max_audio_length, length)
+        # Create the self-attention and padding masks
+        pad_mask = self.make_pad_mask(max_audio_length, pass_length)
+        print(pad_mask.size())
         att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
         att_mask = torch.logical_and(att_mask, att_mask.transpose(1, 2))
         if self.att_context_size[0] >= 0:
@@ -286,7 +300,8 @@ class ConformerEncoder(NeuralModule, Exportable):
             audio_signal = self.out_proj(audio_signal)
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
-        return audio_signal, length
+    
+        return audio_signal, pass_length
 
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
@@ -312,6 +327,35 @@ class ConformerEncoder(NeuralModule, Exportable):
         self.use_pad_mask = on
         return mask
 
+
+# +
+import torch
+from typing import List
+
+@torch.jit.script
+def pad_ragged_tensor(ragged_tensor: torch.Tensor, batch_lengths: torch.Tensor, padding_value: float=-1):
+    batch_lengths = batch_lengths.to(torch.int64)
+    valid_lengths = batch_lengths[1:]-batch_lengths[:-1]
+    max_len = torch.max(valid_lengths)
+    
+    while (max_len % 80) != 0:
+        max_len += 1
+        
+    padded_tensor = torch.ones(
+        batch_lengths.size(0)-1,
+        max_len.item(), 
+        dtype=ragged_tensor.dtype,
+        device='cuda') * padding_value
+
+    for i, (start, end) in enumerate(zip(batch_lengths[:-1], batch_lengths[1:])):
+        padded_tensor[i,0:(end-start)] = ragged_tensor[start:end]
+        
+    padded_tensor = torch.reshape(padded_tensor, (int(batch_lengths.size(0)-1),80,-1))
+
+    return padded_tensor, valid_lengths
+
+
+# -
 
 class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixin):
 
