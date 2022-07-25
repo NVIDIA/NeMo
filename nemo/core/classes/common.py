@@ -23,12 +23,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 import hydra
 import wrapt
-from huggingface_hub import hf_hub_download
-from huggingface_hub.hf_api import HfFolder
+from huggingface_hub import HfApi, HfFolder, ModelFilter, hf_hub_download
+from huggingface_hub.hf_api import ModelInfo
 from omegaconf import DictConfig, OmegaConf
 
 import nemo
@@ -668,6 +668,46 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
+    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None) -> List[ModelInfo]:
+        """
+        Should list all pre-trained models available via Hugging Face Hub.
+
+        Args:
+            model_filter: Optional ModelFilter (from Hugging Face Hub) that filters the returned list of compatible
+                model cards. Users can then use `model_card.modelId` in `from_pretrained()` to restore a NeMo Model.
+                If no ModelFilter is provided, uses the classes default filter as defined by `get_hf_model_filter()`.
+
+        Returns:
+            A list of ModelInfo entries.
+        """
+        # Resolve model filter if not provided as argument
+        if model_filter is None:
+            model_filter = cls.get_hf_model_filter()
+
+        # Inject `nemo` library filter
+        if isinstance(model_filter.library, str) and model_filter.library != 'nemo':
+            logging.warning(f"Model filter's `library` tag updated be `nemo`. Original value: {model_filter.library}")
+            model_filter.library = "nemo"
+
+        elif isinstance(model_filter, Iterable) and 'nemo' not in model_filter.library:
+            logging.warning(
+                f"Model filter's `library` list updated to include `nemo`. Original value: {model_filter.library}"
+            )
+            model_filter.library = list(model_filter)
+            model_filter.library.append('nemo')
+
+        # Check if api token exists, use if it does
+        is_token_available = HfFolder.get_token() is not None
+
+        # Search for all valid models after filtering
+        api = HfApi()
+        results = api.list_models(
+            filter=model_filter, use_auth_token=is_token_available, sort="lastModified", direction=-1,
+        )  # type: List[ModelInfo]
+
+        return results
+
+    @classmethod
     def get_available_model_names(cls) -> List[str]:
         """
         Returns the list of model names available via NVIDIA NGC cloud,
@@ -679,6 +719,17 @@ class Model(Typing, Serialization, FileIO):
         if cls.list_available_models() is not None:
             model_names = [model.pretrained_model_name for model in cls.list_available_models()]
         return model_names
+
+    @classmethod
+    def get_hf_model_filter(cls) -> ModelFilter:
+        """
+        Generates a filter for HuggingFace models.
+
+        Returns:
+            A Hugging Face Hub ModelFilter object.
+        """
+        model_filter = ModelFilter(library='nemo')
+        return model_filter
 
     @classmethod
     def from_pretrained(
