@@ -74,7 +74,10 @@ before_script:
     GPU_ARCH:      "A100"
   tags: &LUNA_TAGS
     - selene_ssh
-
+  artifacts:
+    reports:
+      dotenv: build.env
+      
 .NGC: &NGC
   variables: &NGC_VARS
     NGC_CLI_FORMAT_TYPE: "json"
