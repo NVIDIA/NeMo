@@ -70,6 +70,9 @@ def get_args():
         help="Heteronyms file to specify which words should be disambiguated. All others will use default pron.",
     )
     parser.add_argument(
+        '--confidence', required=False, type=float, default=0.0, help="Confidence threshold to keep a disambiguation."
+    )
+    parser.add_argument(
         '--verbose',
         action='store_true',
         help="If set to True, logs scores for each disambiguated word in disambiguation_logs.txt.",
@@ -120,7 +123,7 @@ def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):
     return dist_sum / total_frames
 
 
-def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, log_file=None):
+def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, heteronyms, log_file=None):
     """Retrieves and disambiguate all candidate sentences for disambiguation of a given some text.
 
     Assumes that the max number of candidates per word is a reasonable batch size.
@@ -141,9 +144,6 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
     has_heteronym = False
 
     for word in words:
-        if log_file:
-            log_file.write(f"----------------\n{word}\n")
-
         # Retrieve the length of the word in the default G2P conversion
         g2p_default_len = len(aligner_g2p(word))
 
@@ -165,6 +165,13 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
 
             ### Inference ###
             num_candidates = len(word_candidates)
+
+            # If only one candidate, just convert and continue
+            if num_candidates == 1:
+                has_heteronym = False
+                result_g2p.append(f"<{' '.join(candidate_prons_and_lengths[0][0])}>")
+                word_start_idx += g2p_default_len
+                continue
 
             text_len = [len(toks) for toks in word_candidates]
             text_len_in = torch.tensor(text_len, device=device).long()
@@ -194,6 +201,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
 
             # Retrieve average embedding distances
             min_dist = float('inf')
+            max_dist = 0.0
             best_candidate = None
             for i in range(num_candidates):
                 candidate_mean_dist = get_mean_distance_for_word(
@@ -208,9 +216,23 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
                 if candidate_mean_dist < min_dist:
                     min_dist = candidate_mean_dist
                     best_candidate = candidate_prons_and_lengths[i][0]
+                if candidate_mean_dist > max_dist:
+                    max_dist = candidate_mean_dist
 
+            # Calculate confidence score. If below threshold, skip and use graphemes.
+            disamb_conf = (max_dist - min_dist) / ((max_dist + min_dist) / 2.0)
+            if disamb_conf < confidence:
+                if log_file:
+                    log_file.write(f"Below confidence threshold: {best_candidate} ({disamb_conf})\n")
+
+                has_heteronym = False
+                result_g2p.append(f"<{' '.join(aligner_g2p(word))}>")
+                word_start_idx += g2p_default_len
+                continue
+
+            # Otherwise, can write disambiguated word
             if log_file:
-                log_file.write(f"best candidate: {best_candidate}\n")
+                log_file.write(f"best candidate: {best_candidate} (confidence: {disamb_conf})\n")
 
             result_g2p.append(f"<{' '.join(best_candidate)}>")
         else:
@@ -227,13 +249,17 @@ def disambiguate_candidates(aligner, text, spec, spec_len, device, heteronyms, l
         # Advance to phoneme index of next word
         word_start_idx += g2p_default_len
 
-    if log_file:
+    if log_file and has_heteronym:
+        log_file.write(f"{text}\n")
         log_file.write(f"===\n{''.join(result_g2p)}\n===\n")
+        log_file.write(f"===============================\n")
 
     return result_g2p, has_heteronym
 
 
-def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, device, verbose, heteronyms_only=True):
+def disambiguate_dataset(
+    aligner, manifest_path, out_path, sr, heteronyms, confidence, device, verbose, heteronyms_only=True
+):
     """Disambiguates the phonemes for all words with ambiguous pronunciations in the given manifest.
     """
     log_file = open('disambiguation_logs.txt', 'w') if verbose else None
@@ -255,7 +281,7 @@ def disambiguate_dataset(aligner, manifest_path, out_path, sr, heteronyms, devic
 
                 # Get pronunciation candidates and disambiguate
                 disambiguated_text, has_heteronym = disambiguate_candidates(
-                    aligner, text, spec, spec_len, device, heteronyms, log_file
+                    aligner, text, spec, spec_len, confidence, device, heteronyms, log_file
                 )
 
                 # Skip writing entry if user only wants samples with heteronyms
@@ -306,7 +332,7 @@ def main():
     # Disambiguation
     print("Beginning disambiguation...")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, heteronyms, device, args.verbose)
+    disambiguate_dataset(aligner, args.manifest, args.out, args.sr, heteronyms, args.confidence, device, args.verbose)
 
 
 if __name__ == '__main__':
