@@ -171,40 +171,45 @@ def run_export(cfg, dependency=None):
     print(f"Triton model store preparation job submitted with command: \n{submit_cmd}")
     print(f"Submitted Triton model store preparation script with job id: {conversion_job_id}")
 
-    accuracy_cmds_fn = {
-        "gpt3": _get_gpt_accuracy_cmds,
-        "t5": _get_t5_accuracy_cmds,
-        "mt5": _get_mt5_accuracy_cmds,
-    }[run_cfg.model_type]
-    accuracy_cmds = accuracy_cmds_fn(cfg)
+    if accuracy_cfg.enabled:
+        accuracy_cmds_fn = {
+            "gpt3": _get_gpt_accuracy_cmds,
+            "t5": _get_t5_accuracy_cmds,
+            "mt5": _get_mt5_accuracy_cmds,
+        }[run_cfg.model_type]
+        accuracy_cmds = accuracy_cmds_fn(cfg)
 
-    job_name = f"{job_base_name}_accuracy"
-    new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
+        job_name = f"{job_base_name}_accuracy"
+        new_script_path = pathlib.Path(cfg.bignlp_path) / "bignlp/export_scripts" / f"{job_name}.sh"
 
-    gpus_required = ft_model_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
-    num_tasks = gpus_required
-    num_nodes = int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
-    submit_cmd = _get_submission_cmd_fn(
-        cfg=cfg,
-        dependency=conversion_job_id,
-        job_name=job_name,
-        cmds=accuracy_cmds,
-        # assume that checkpoints are in base results dir
-        dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir] + ft_mount,
-        submission_script_path=new_script_path,
-        nodes=num_nodes,
-        ntasks=num_tasks,
-        ntasks_per_node=accuracy_cfg.ntasks_per_node,
-        logs_dir=results_dir,
-        time_limit=run_cfg.time_limit,
-    )
-    job_id = subprocess.check_output([submit_cmd], shell=True)
-    accuracy_job_id = job_id.decode("utf-8")
+        gpus_required = ft_model_cfg.tensor_model_parallel_size * triton_cfg.pipeline_model_parallel_size
+        num_tasks = gpus_required
+        num_nodes = int(math.ceil(num_tasks / accuracy_cfg.ntasks_per_node))
+        submit_cmd = _get_submission_cmd_fn(
+            cfg=cfg,
+            dependency=conversion_job_id,
+            job_name=job_name,
+            cmds=accuracy_cmds,
+            # assume that checkpoints are in base results dir
+            dirs_to_mount=[cfg.bignlp_path, cfg.data_dir, cfg.base_results_dir] + ft_mount,
+            submission_script_path=new_script_path,
+            nodes=num_nodes,
+            ntasks=num_tasks,
+            ntasks_per_node=accuracy_cfg.ntasks_per_node,
+            logs_dir=results_dir,
+            time_limit=run_cfg.time_limit,
+        )
+        job_id = subprocess.check_output([submit_cmd], shell=True)
+        accuracy_job_id = job_id.decode("utf-8")
 
-    print(f"Accuracy for FT checkpoint job submitted with command: \n{submit_cmd}")
-    print(f"Submitted accuracy for FT checkpoint script with job id: {accuracy_job_id}")
+        print(f"Accuracy for FT checkpoint job submitted with command: \n{submit_cmd}")
+        print(f"Submitted accuracy for FT checkpoint script with job id: {accuracy_job_id}")
 
-    dependency = ":".join([accuracy_job_id])
+        dependency = ":".join([accuracy_job_id])
+
+    # if no job run after conversion - return conversion job itself as dependency for following training pipeline stages
+    if not accuracy_cfg.enabled:
+        dependency = ":".join([conversion_job_id])
 
     return dependency
 
