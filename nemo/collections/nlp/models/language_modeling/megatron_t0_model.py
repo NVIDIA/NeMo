@@ -50,7 +50,8 @@ class MegatronT0Model(MegatronT5FinetuneModel):
             raise ValueError(f"T0 train/validation datasets must be provided as a list of individual JSONL files.")
         for file_name in data_cfg.file_names:
             dataset = T0JSONLMemMapDataset(
-                dataset_paths=[file_name], tokenizer=self.tokenizer,
+                dataset_paths=[file_name],
+                tokenizer=self.tokenizer,
                 max_src_seq_length=data_cfg.max_src_seq_length,
                 max_tgt_seq_length=data_cfg.max_tgt_seq_length,
             )
@@ -61,7 +62,9 @@ class MegatronT0Model(MegatronT5FinetuneModel):
                 datasets=datasets,
                 sampling_technique=data_cfg.get('concat_sampling_technique', 'temperature'),
                 sampling_temperature=data_cfg.get('concat_sampling_temperature', 5),
-                sampling_probabilities=data_cfg.get('concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)),
+                sampling_probabilities=data_cfg.get(
+                    'concat_sampling_probabilities', [1 / len(datasets)] * len(datasets)
+                ),
                 consumed_samples=self.compute_consumed_samples(0),
             )
         else:
@@ -71,9 +74,11 @@ class MegatronT0Model(MegatronT5FinetuneModel):
         if stage != 'test':
             logging.info('Building T0 validation datasets.')
             # Wrap this in a list since the general finetuning parent class supports multi-validation.
-            self._validation_ds = self._build_dataset(self.cfg.data.validation_ds, check_implict_grad_acc=True, is_train=False)
+            self._validation_ds = self._build_dataset(
+                self.cfg.data.validation_ds, check_implict_grad_acc=True, is_train=False
+            )
             logging.info(f'Length of val dataset: {len(self._validation_ds[0])}')
-        
+
         if stage != 'validate':
             if hasattr(self.cfg.data, 'test_ds'):
                 logging.info('Building T0 test datasets.')

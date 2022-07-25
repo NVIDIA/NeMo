@@ -16,7 +16,7 @@ from typing import Any, List
 
 import numpy as np
 import torch.utils.data as pt_data
-from torch.utils.data import IterableDataset, Dataset
+from torch.utils.data import Dataset, IterableDataset
 
 __all__ = ['ConcatDataset', 'ConcatMapDataset']
 
@@ -232,13 +232,17 @@ class ConcatMapDataset(Dataset):
 
         elif self.sampling_technique == 'random':
             if not self.sampling_probabilities:
-                raise ValueError("Random generator expects a 'sampling_probabilities' - a list of probability values corresponding to each dataset.")
+                raise ValueError(
+                    "Random generator expects a 'sampling_probabilities' - a list of probability values corresponding to each dataset."
+                )
 
             if len(self.sampling_probabilities) != len(self.datasets):
-                raise ValueError(f"Length of probabilities list must be equal to the number of datasets. Found {len(sampling_probabilities)} probs and {len(self.datasets)} datasets.")
+                raise ValueError(
+                    f"Length of probabilities list must be equal to the number of datasets. Found {len(sampling_probabilities)} probs and {len(self.datasets)} datasets."
+                )
 
             p = np.array(self.sampling_probabilities)
-            self.p = p / np.sum(p) # Ensure probabilities sum to 1
+            self.p = p / np.sum(p)  # Ensure probabilities sum to 1
 
     def __len__(self):
         return self.size

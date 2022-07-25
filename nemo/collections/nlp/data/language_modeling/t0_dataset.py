@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import torch
 import json
+
 import numpy as np
+import torch
 
 from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
 
@@ -24,8 +25,15 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
     """
 
     def __init__(
-        self, dataset_paths, newline_int=10, header_lines=1, workers=None, tokenizer=None, sort_dataset_paths=True,
-        max_src_seq_length=512, max_tgt_seq_length=512
+        self,
+        dataset_paths,
+        newline_int=10,
+        header_lines=1,
+        workers=None,
+        tokenizer=None,
+        sort_dataset_paths=True,
+        max_src_seq_length=512,
+        max_tgt_seq_length=512,
     ):
         super().__init__(
             dataset_paths=dataset_paths,
@@ -47,19 +55,19 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
         tokenized_input = self.tokenizer.text_to_ids(example['input'])
         tokenized_output = self.tokenizer.text_to_ids(example['output'])
         if len(tokenized_input) > self.max_src_seq_length - 2:
-            tokenized_input = tokenized_input[:self.max_src_seq_length - 2]
+            tokenized_input = tokenized_input[: self.max_src_seq_length - 2]
         if len(tokenized_output) > self.max_tgt_seq_length - 2:
-            tokenized_output = tokenized_output[:self.max_tgt_seq_length - 2]
-        text_enc = [self.tokenizer.bos_id] + tokenized_input  + [self.tokenizer.eos_id]
+            tokenized_output = tokenized_output[: self.max_tgt_seq_length - 2]
+        text_enc = [self.tokenizer.bos_id] + tokenized_input + [self.tokenizer.eos_id]
         target = [self.tokenizer.bos_id] + tokenized_output + [self.tokenizer.eos_id]
         original = ""
         template = ""
         for item in example['chunked_idx'].split(', '):
             item = item.split('-')
             if item[0] == "original_text":
-                original += example['input'][int(item[1]):int(item[2])]
+                original += example['input'][int(item[1]) : int(item[2])]
             elif item[0] == "template":
-                template += example['input'][int(item[1]):int(item[2])]
+                template += example['input'][int(item[1]) : int(item[2])]
             else:
                 raise ValueError(f"Unknown chunk type: {item[0]}")
 
@@ -71,12 +79,12 @@ class T0JSONLMemMapDataset(TextMemMapDataset):
             'template': self.tokenizer.text_to_ids(template),
             'prompt': self.tokenizer.text_to_ids(example['prompt']),
         }
-    
+
     def _maybe_cast_to_list(self, x):
         if isinstance(x, np.ndarray):
             return [item.tolist() for item in x]
         return x
-    
+
     def collate_fn(self, batch):
         enc_query = [item['text_enc'] for item in batch]
         dec_input = [item['text_dec'] for item in batch]
