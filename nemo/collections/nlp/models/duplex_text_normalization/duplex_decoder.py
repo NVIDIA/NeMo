@@ -98,6 +98,7 @@ class DuplexDecoderModel(NLPModel):
         input_case = 'cased'  # input_case is cased by default
         if hasattr(self.tokenizer, 'do_lower_case') and self.tokenizer.do_lower_case:
             input_case = 'lower_cased'
+
         self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
     @typecheck()
