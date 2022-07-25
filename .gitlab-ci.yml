@@ -173,7 +173,7 @@ build-BigNLP:
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
-    - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
+    - export SLURM_JOBID=$(cat "${RESULTS_DIR}/launcher.log")
     - echo $SLURM_JOBID
     - export SLURM_OUTPUT=${RESULTS_DIR}/slurm_${SLURM_JOBID}.log
     #export SLURM_OUTPUT=$(scontrol show job "${SLURM_JOBID}" | grep 'StdOut' | awk -F '=' '{ print $2 }')
