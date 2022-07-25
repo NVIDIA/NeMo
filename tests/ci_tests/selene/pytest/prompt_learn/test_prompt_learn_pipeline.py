@@ -6,20 +6,20 @@ import sys
 from tensorboard.backend.event_processing import event_accumulator
 from tests.ci_tests.utils.CITestHelper import CITestHelper
 
-CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR") #eg '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
+CI_JOB_RESULTS_DIR = os.environ.get("RESULTS_DIR") #eg '/home/shanmugamr/bignlp-scripts/results/prompt_learn_gpt3_126m_tp1_pp1_1node_100steps'
 
 class TestType(enum.Enum):
     APPROX = 1
     DETERMINISTIC = 2
 
 # If we require a variation of tests for any of the other pipelines we can just inherit this class.
-class TestTrainPipeline:
+class TestPromptLearnPipeline:
 
     margin_loss, margin_time = 0.05, 0.1
     job_name = CI_JOB_RESULTS_DIR.rsplit("/",1)[1]
-    file_name = job_name + ".json" #eg train_gpt3_126m_tp1_pp1_1node_100steps.json
-    file_directory =  file_name.split("_")[1] + "_result_files" #eg gpt3_result_files
-    expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/train", file_directory, file_name)
+    file_name = job_name + ".json" #eg prompt_learn_gpt3_126m_tp1_pp1_1node_squad.json
+    file_directory =  file_name.split("_")[2] + "_result_files" #eg gpt3_result_files
+    expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/prompt_learn", file_directory, file_name)
     with open(expected_metrics_file) as f:
         expected = json.load(f)
 

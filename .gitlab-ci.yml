@@ -169,13 +169,9 @@ build-BigNLP:
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
     - export RUN_NAME=${RUN_TASK}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
     - if [[ "$RUN_TASK" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
+    - if [[ "$RUN_TASK" = "prompt_learn" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${TEST_TYPE}; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
-    - echo "RUN_MODEL=${RUN_MODEL}" >> build.env # So that they can be passed on to the next job.
-    - echo "TP_SIZE=${TP_SIZE}" >> build.env
-    - echo "PP_SIZE=${PP_SIZE}" >> build.env
-    - echo "RUN_MODEL_SIZE=${RUN_MODEL_SIZE}" >> build.env
-    - echo "UPSTREAM_RUN_NAME=${RUN_NAME}" >> build.env
     - bash tests/ci_tests/selene/scripts/${RUN_TASK}/${RUN_MODEL}/${RUN_TASK}_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
@@ -209,9 +205,6 @@ build-BigNLP:
       when: always
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $TEST_LEVEL =~ $TESTS_TO_RUN_ON_MERGE_REQ'
       when: always
-  artifacts:
-    reports:
-      dotenv: build.env
   allow_failure: false
 
 
@@ -226,7 +219,7 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
@@ -242,7 +235,7 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -258,7 +251,7 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -274,7 +267,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
@@ -290,7 +283,7 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
     PP_SIZE: 4
     NUM_NODES: 4
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -306,7 +299,7 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "4:00:00"
+    TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -322,7 +315,7 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "4:00:00"
+    TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -338,7 +331,7 @@ train.gpt3.20b_tp8_pp2_4node_100steps:
     PP_SIZE: 2
     NUM_NODES: 4
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "3:00:00"
+    TIME_LIMIT: "3:00:00"
     TEST_LEVEL: L2
   needs:
     - build-BigNLP
@@ -354,7 +347,7 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
     PP_SIZE: 4
     NUM_NODES: 8
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "4:00:00"
+    TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L2
   needs:
     - build-BigNLP
@@ -370,7 +363,7 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
     PP_SIZE: 16
     NUM_NODES: 16
     MAX_STEPS: 50
-    RUN_TIME_LIMIT: "4:00:00"
+    TIME_LIMIT: "4:00:00"
     TEST_LEVEL: L2
   needs:
     - build-BigNLP
@@ -386,7 +379,7 @@ train.t5.220m_tp1_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
@@ -402,7 +395,7 @@ train.t5.220m_tp2_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -418,7 +411,7 @@ train.t5.220m_tp1_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -434,7 +427,7 @@ train.t5.220m_tp2_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -451,7 +444,7 @@ train.mt5.170m_tp1_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
@@ -467,7 +460,7 @@ train.mt5.170m_tp2_pp1_1node_100steps:
     PP_SIZE: 1
     NUM_NODES: 1
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -483,7 +476,7 @@ train.mt5.170m_tp1_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L1
   needs:
     - build-BigNLP
@@ -499,7 +492,7 @@ train.mt5.170m_tp2_pp2_2node_100steps:
     PP_SIZE: 2
     NUM_NODES: 2
     MAX_STEPS: 100
-    RUN_TIME_LIMIT: "20:00"
+    TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
   needs:
     - build-BigNLP
@@ -567,7 +560,7 @@ convert.gpt3.126m_tp1_pp1:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
-    PREV_JOB: train_gpt3_126m_tp1_pp1_1node_100steps
+    UPSTREAM_RUN_NAME: train_gpt3_126m_tp1_pp1_1node_100steps
     TP_SIZE: 1
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
@@ -583,7 +576,7 @@ convert.gpt3.126m_tp2_pp1:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
-    PREV_JOB: train_gpt3_126m_tp2_pp1_1node_100steps
+    UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp1_1node_100steps
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
@@ -599,7 +592,7 @@ convert.gpt3.126m_tp1_pp2:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
-    PREV_JOB: train_gpt3_126m_tp1_pp2_2node_100steps
+    UPSTREAM_RUN_NAME: train_gpt3_126m_tp1_pp2_2node_100steps
     TP_SIZE: 1
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
@@ -615,7 +608,7 @@ convert.gpt3.126m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
-    PREV_JOB: train_gpt3_126m_tp2_pp2_2node_100steps
+    UPSTREAM_RUN_NAME: train_gpt3_126m_tp2_pp2_2node_100steps
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
@@ -630,7 +623,7 @@ convert.t5.220m_tp1_pp1:
     RUN_TASK: convert
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
-    PREV_JOB: train_t5_220m_tp1_pp1_1node_100steps
+    UPSTREAM_RUN_NAME: train_t5_220m_tp1_pp1_1node_100steps
     TP_SIZE: 1
     PP_SIZE: 1
     TIME_LIMIT: "30:00"
@@ -645,7 +638,7 @@ convert.t5.220m_tp2_pp2:
     RUN_TASK: convert
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
-    PREV_JOB: train_t5_220m_tp2_pp2_2node_100steps
+    UPSTREAM_RUN_NAME: train_t5_220m_tp2_pp2_2node_100steps
     TP_SIZE: 2
     PP_SIZE: 2
     TIME_LIMIT: "30:00"
@@ -788,27 +781,35 @@ eval.mt5.170m_tp2_pp2:
     - finetune.mt5.170m_tp2_pp2_2node_100steps_xnli
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: prompt_learn
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1_1node_100steps_squad
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 126m
+    TEST_TYPE: squad
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    MAX_STEPS: 100
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L0
   needs:
     - convert.gpt3.126m_tp1_pp1
 
 prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: prompt_learn
     RUN_MODEL: gpt3
-    RUN_JOB_NAME: 126m_tp1_pp1_1node_squad_real
-  rules:
-    - when: always
+    RUN_MODEL_SIZE: 126m
+    TEST_TYPE: squad_real
+    TP_SIZE: 1
+    PP_SIZE: 1
+    NUM_NODES: 1
+    TIME_LIMIT: "04:00:00"
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
