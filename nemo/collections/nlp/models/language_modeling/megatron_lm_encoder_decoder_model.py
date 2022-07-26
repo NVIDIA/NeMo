@@ -510,7 +510,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
             def id_func(output_tensor):
                 return output_tensor, {output_name: output_tensor}
-    
+
             return output, id_func
 
         return fwd_output_only_func
@@ -927,7 +927,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             batch_for_pipeline.append(encoder_input)
             arg_names.append('enc_input')
 
-        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True)
+        forward_step_func = self._get_forward_output_only_func(
+            arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
+        )
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             output_tensor = forward_backward_pipelining_without_interleaving(
                 forward_step_func=forward_step_func,

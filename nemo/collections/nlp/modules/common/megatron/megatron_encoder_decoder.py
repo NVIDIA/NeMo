@@ -21,8 +21,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
 try:
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer.tensor_parallel import scatter_to_tensor_model_parallel_region
-    from apex.transformer import parallel_state
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
