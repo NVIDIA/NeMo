@@ -16,6 +16,7 @@ else
   LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/megatron_gpt.nemo
 fi
 
+set -o xtrace
 
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
