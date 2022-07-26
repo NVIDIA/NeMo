@@ -22,6 +22,7 @@ from time import perf_counter
 from typing import Dict, List, Union
 
 import pynini
+import regex
 from joblib import Parallel, delayed
 from nemo_text_processing.text_normalization.data_loader_utils import (
     load_file,
@@ -251,9 +252,10 @@ class Normalizer:
 
         Returns: spoken form
         """
-        assert (
-            len(text.split()) < 500
-        ), "Your input is too long. Please split up the input into sentences, or strings with fewer than 500 words"
+        assert len(text.split()) < 500, (
+            "Your input is too long. "
+            "Please split up the input into sentences using split_text_into_sentences() and then use normalize_list()"
+        )
 
         original_text = text
         if punct_pre_process:
@@ -298,6 +300,27 @@ class Normalizer:
                 print("NEMO_NLP collection is not available: skipping punctuation post_processing")
 
         return output
+
+    def split_text_into_sentences(self, text=str) -> List[str]:
+        """
+        Split text into sentences.
+
+        Args:
+            text: text
+
+        Returns list of sentences
+        """
+        lower_case_unicode = ''
+        upper_case_unicode = ''
+        if self.lang == "ru":
+            lower_case_unicode = '\u0430-\u04FF'
+            upper_case_unicode = '\u0410-\u042F'
+
+        # Read and split transcript by utterance (roughly, sentences)
+        split_pattern = f"(?<!\w\.\w.)(?<![A-Z{upper_case_unicode}][a-z{lower_case_unicode}]\.)(?<![A-Z{upper_case_unicode}]\.)(?<=\.|\?|\!|\.”|\?”\!”)\s(?![0-9]+[a-z]*\.)"
+
+        sentences = regex.split(split_pattern, text)
+        return sentences
 
     def _permute(self, d: OrderedDict) -> List[str]:
         """
