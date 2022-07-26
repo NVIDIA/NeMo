@@ -668,9 +668,27 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None) -> List[ModelInfo]:
+    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None, resolve_card_data: bool = False) -> List[ModelInfo]:
         """
         Should list all pre-trained models available via Hugging Face Hub.
+
+        Usage:
+            # Get default ModelFilter
+            filt = <ModelSubclass>.get_hf_model_filter()
+
+            # Make any modifications to the filter as necessary
+            filt.language = [...]
+            filt.task = ...
+            filt.tags = [...]
+
+            # Obtain model info
+            model_infos = <ModelSubclass>.list_available_models_on_hf(model_filter=filt)
+
+            # Browse through cards and select an appropriate one
+            card = model_infos[0]
+
+            # Restore model using `modelId` of the card.
+            model = ModelPT.from_pretrained(card.modelId)
 
         Args:
             model_filter: Optional ModelFilter (from Hugging Face Hub) that filters the returned list of compatible
