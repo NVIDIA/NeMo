@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,15 +26,3 @@ def is_bfloat16_available():
             return False
     else:
         return False
-
-def get_current_precision():
-    """ Determine current precision set by the trainer
-    """
-    if torch.cuda.is_available():
-        a = torch.rand((1,1), device="cuda")
-        b = torch.rand((1,1), device="cuda")
-        # if trainer set autocast, this will not be torch.float32
-        test = torch.mm(a,b)
-        return test.dtype
-    else:
-        return None
