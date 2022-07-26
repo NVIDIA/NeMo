@@ -111,7 +111,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
             val = 0.0;
         }
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-        if (lane==0) {
+        if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
             shared[wid + warps_per_thread_block*i] = val;
         }
         __syncthreads();
@@ -251,7 +251,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
 
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
 
-        if (lane==0) {
+        if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
             shared[wid + warps_per_thread_block*i] = val;
         }
         __syncthreads();
@@ -310,7 +310,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
             val = 0.0;
         }
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
-        if (lane==0) {
+        if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
             shared[wid + warps_per_thread_block*i] = val;
         }
         __syncthreads();
