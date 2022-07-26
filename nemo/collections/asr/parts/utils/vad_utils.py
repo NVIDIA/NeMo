@@ -348,6 +348,8 @@ def generate_overlap_vad_seq_per_tensor(
         last_non_nan_pred = preds[~nan_idx][-1]
         preds[nan_idx] = last_non_nan_pred
 
+    elif not smoothing_method:
+        return frame
     else:
         raise ValueError("smoothing_method should be either mean or median")
 
