@@ -20,9 +20,10 @@ from math import ceil
 from random import sample
 from typing import Dict, List, Optional, Union
 
+import numpy as np
+import soundfile as sf
 import torch
 import torch.nn.functional as F
-import torchaudio
 import tqdm
 from omegaconf import DictConfig, open_dict
 from pytorch_lightning import Trainer
@@ -388,8 +389,8 @@ class EncDecSpeechSeparationModel(SeparationModel):
 
                     self._save_audio(
                         id=batch[-1].cpu().item(),
-                        mixture=batch[0].cpu(),
-                        target_estimate=target_estimate.cpu(),
+                        mixture=batch[0].cpu().numpy(),
+                        target_estimate=target_estimate.cpu().numpy(),
                         save_dir=save_dir,
                         sample_rate=self._cfg.sample_rate,
                     )
@@ -413,17 +414,17 @@ class EncDecSpeechSeparationModel(SeparationModel):
 
         # save mixture
         samples = mixture[0, :]
-        samples = samples / samples.abs().max()
+        samples = samples / np.abs(samples).max() * 0.9
         save_path = os.path.join(save_dir, f"item{id}_mix.wav")
-        torchaudio.save(
-            save_path, samples.unsqueeze(0), sample_rate,
+        sf.write(
+            save_path, np.expand_dims(samples, -1), sample_rate, 'PCM_16',
         )
 
         # save estimated sources
         for n_src in range(self.num_sources):
             samples = target_estimate[0, :, n_src]
-            samples = samples / samples.abs().max()
+            samples = samples / np.abs(samples).max() * 0.9  # 0.9 is to avoid boundary value of 1
             save_path = os.path.join(save_dir, f"item{id}_source{n_src+1}hat.wav")
-            torchaudio.save(
-                save_path, samples.unsqueeze(0), sample_rate,
+            sf.write(
+                save_path, np.expand_dims(samples, -1), sample_rate, 'PCM_16',
             )
