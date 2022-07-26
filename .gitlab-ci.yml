@@ -809,7 +809,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
     PP_SIZE: 1
     NUM_NODES: 1
     TIME_LIMIT: "04:00:00"
-    TEST_LEVEL: L2
+    TEST_LEVEL: L0
   needs:
     - build-BigNLP
 
