@@ -1479,6 +1479,7 @@ class ParallelTransformer(MegatronModule):
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
         self.position_embedding_type = position_embedding_type
+        self.layer_type = layer_type
 
         # Store activation checkpointing flag.
         self.activations_checkpoint_method = activations_checkpoint_method
@@ -1594,12 +1595,17 @@ class ParallelTransformer(MegatronModule):
                 assert parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 num_ranks_in_encoder = parallel_state.get_pipeline_model_parallel_split_rank()
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
-                assert (
-                    num_layers % num_ranks_in_encoder == 0
-                ), 'num_layers must be divisible by number of ranks given to encoder'
-                assert (
-                    num_layers % num_ranks_in_decoder == 0
-                ), 'num_layers must be divisible by number of ranks given to decoder'
+                if self.layer_type == LayerType.encoder:
+                    assert (
+                        num_layers % num_ranks_in_encoder == 0
+                    ), 'num_layers must be divisible by number of ranks given to encoder'
+                elif self.layer_type == LayerType.decoder:
+                    assert (
+                        num_layers % num_ranks_in_decoder == 0
+                    ), 'num_layers must be divisible by number of ranks given to decoder'
+                else:
+                    raise ValueError(f"Unknown layer type {self.layer_type}")
+
                 if parallel_state.is_pipeline_stage_before_split():
                     num_layers = num_layers // num_ranks_in_encoder
                 else:
