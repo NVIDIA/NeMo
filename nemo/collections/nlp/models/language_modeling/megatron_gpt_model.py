@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import re
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 from omegaconf.dictconfig import DictConfig
@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_sampler
 )
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.clip_grads import clip_grad_norm_distributed_optimizer
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
@@ -88,6 +89,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # self.setup_optimizer_param_groups()
 
         self.megatron_amp_o2 = cfg.get('megatron_amp_O2', False)
+        self.with_distributed_adam = cfg.optim.get('name') == 'distributed_fused_adam'
+
+        if self.megatron_amp_o2 and self.with_distributed_adam:
+            raise ValueError(
+                "Distributed optimizers are not compatible with O2. Please set megatron_amp_O2 to False in the model config."
+            )
 
         if self.megatron_amp_o2:
 
@@ -95,6 +102,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.model.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
+            self.model = Float16Module(module=self.model, precision=cfg.precision)
+
+        if self.with_distributed_adam:
+            # Convert model to half precision
             self.model = Float16Module(module=self.model, precision=cfg.precision)
 
         if self.trainer.precision == 32:
@@ -167,6 +178,21 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
         self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
 
+    def setup_optimization(
+            self,
+            optim_config: Optional[Union[DictConfig, Dict]] = None,
+            optim_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        optim_kwargs = {} if optim_kwargs is None else optim_kwargs.copy()
+        if self.with_distributed_adam:
+            optim_kwargs['process_group'] = parallel_state.get_data_parallel_group()
+            optim_kwargs['param_sync_dtype'] = self.autocast_dtype
+            optim_kwargs['contiguous_grad_buffer'] = True
+        return super().setup_optimization(
+            optim_config=optim_config,
+            optim_kwargs=optim_kwargs,
+        )
+
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)
         return output_tensor
@@ -208,6 +234,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # no pipeline parallelism so we reduce grads asynchronously if not using sequence parallelism
             if self.megatron_amp_o2 and not self.cfg.get('sequence_parallel', False):
                 custom_sync_context_handler = self._optimizer.no_sync
+            elif self.with_distributed_adam:
+                custom_sync_context_handler = (
+                    lambda: self._optimizer.no_sync(greedy_grad_copy=True)
+                )
             else:
                 # TODO: enable async grad all reduce for O1/autocast mixed precision training
                 custom_sync_context_handler = None
@@ -240,6 +270,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1 or self.cfg.get('sequence_parallel', False):
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
+        elif self.with_distributed_adam:
+            # gradients are reduced internally in distributed optimizer
+            pass
         else:
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
@@ -332,7 +365,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         grads = []
         for param in self.model.parameters():
             if getattr(param, 'sequence_parallel_enabled', False):
-                if self.megatron_amp_o2:
+                if self.megatron_amp_o2 or self.with_distributed_adam:
                     grad = param.main_grad
                 else:
                     grad = param.grad
@@ -354,7 +387,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         ):
             if self.model.share_word_embeddings:
                 word_embeddings_weight = self.model.word_embeddings_weight()
-                if self.megatron_amp_o2:
+                if self.megatron_amp_o2 or self.with_distributed_adam:
                     # O2 recipe stores a "main" copy of weights and grads
                     grad = word_embeddings_weight.main_grad
                 else:
@@ -646,6 +679,40 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
             )
             self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+
+    def configure_optimizers(self):
+        retval = super().configure_optimizers()
+
+        if self.with_distributed_adam:
+
+            # Initialize params in reverse order
+            # Note: Estimate order in which grads are generated in
+            # backward pass
+            self._optimizer.init_params(reversed(list(self.parameters())))
+
+            # Overlapped communication interferes with grad reductions
+            # for pipeline parallelism and sequence parallelism
+            if (self.cfg.get('pipeline_model_parallel_size', 1) > 1
+                or self.cfg.get('sequence_parallel', False)):
+                self._optimizer.overlap_grad_sync = False
+
+        return retval
+
+    def configure_gradient_clipping(self, *args, **kwargs):
+
+        # Check if gradient clipping is disabled
+        clip_val = self.trainer.gradient_clip_val
+        if clip_val is None:
+            return
+        clip_val = float(clip_val)
+        if clip_val <= 0:
+            return
+
+        # Distributed optimizer requires custom gradient clipping
+        if self.with_distributed_adam:
+            return clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
+        else:
+            return super().configure_gradient_clipping(*args, **kwargs)
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
