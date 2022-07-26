@@ -29,7 +29,6 @@ class TestPromptLearnPipeline:
         actual_loss_list = CITestHelper.read_tb_logs_as_list(CI_JOB_RESULTS_DIR, loss_type)
         loss_list_size = len(expected_loss_list)*expected["step_interval"]
         assert actual_loss_list is not None, f"{self.job_name} : No TensorBoard events file was found in the logs for {loss_type}."
-        assert len(actual_loss_list) == loss_list_size, f"{self.job_name} : The events file must have {loss_list_size} {loss_type} values, one per training iteration."
         for i, step in enumerate(range(expected["start_step"], expected["end_step"], expected["step_interval"])):
             if test_type == TestType.APPROX:
                 assert actual_loss_list[step] == pytest.approx(expected=expected_loss_list[i], rel=self.margin_loss), f"{self.job_name} : The loss at step {step} should be approximately {expected_vals[i]} but it is {train_loss_list[step]}."
