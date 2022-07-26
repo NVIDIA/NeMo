@@ -668,9 +668,14 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None, resolve_card_data: bool = False) -> List[ModelInfo]:
+    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None) -> List[ModelInfo]:
         """
         Should list all pre-trained models available via Hugging Face Hub.
+
+        The following metadata can be passed via the `model_filter` for additional results.
+        Metadata:
+            resolve_card_info: Bool flag, if set, returns the model card metadata. Default: False.
+            limit_results: Optional int, limits the number of results returned.
 
         Usage:
             # Get default ModelFilter
@@ -680,6 +685,9 @@ class Model(Typing, Serialization, FileIO):
             filt.language = [...]
             filt.task = ...
             filt.tags = [...]
+
+            # Add any metadata to the filter as needed
+            filt.limit_results = 5
 
             # Obtain model info
             model_infos = <ModelSubclass>.list_available_models_on_hf(model_filter=filt)
@@ -719,8 +727,24 @@ class Model(Typing, Serialization, FileIO):
 
         # Search for all valid models after filtering
         api = HfApi()
+
+        # Setup extra arguments for model filtering
+        cardData = None
+        limit = None
+
+        if hasattr(model_filter, 'resolve_card_info') and model_filter.resolve_card_info is True:
+            cardData = True
+
+        if hasattr(model_filter, 'limit_results') and model_filter.limit_results is not None:
+            limit = model_filter.limit_results
+
         results = api.list_models(
-            filter=model_filter, use_auth_token=is_token_available, sort="lastModified", direction=-1,
+            filter=model_filter,
+            use_auth_token=is_token_available,
+            sort="lastModified",
+            direction=-1,
+            cardData=cardData,
+            limit=limit,
         )  # type: List[ModelInfo]
 
         return results
@@ -743,10 +767,21 @@ class Model(Typing, Serialization, FileIO):
         """
         Generates a filter for HuggingFace models.
 
+        Additionally includes default values of some metadata about results returned by the Hub.
+
+        Metadata:
+            resolve_card_info: Bool flag, if set, returns the model card metadata. Default: False.
+            limit_results: Optional int, limits the number of results returned.
+
         Returns:
             A Hugging Face Hub ModelFilter object.
         """
         model_filter = ModelFilter(library='nemo')
+
+        # Attach some additional info
+        model_filter.resolve_card_info = False
+        model_filter.limit_results = None
+
         return model_filter
 
     @classmethod
