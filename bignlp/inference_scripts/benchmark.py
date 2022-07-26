@@ -72,7 +72,7 @@ def run_benchmark(
     input_len = benchmark_cfg.input_len
     output_len = benchmark_cfg.output_len
     batch_sizes = benchmark_cfg.batch_sizes
-    triton_wait_time = benchmark_cfg.triton_wait_time
+    triton_wait_time = benchmark_cfg.triton_wait_time_s
 
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
     task_name = f"inference_benchmark_{model_train_name}_tp{tensor_para_size}_pp{pipeline_para_size}"
