@@ -3451,9 +3451,9 @@ pipeline {
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=1 \
+            model.train_ds.dataloader_params.num_workers=0 \
             model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.num_workers=0 \
             model.symbols_embedding_dim=64 \
             model.input_fft.d_inner=384 \
             model.input_fft.n_layer=2 \
@@ -3474,9 +3474,9 @@ pipeline {
             +trainer.limit_train_batches=1 +trainer.limit_val_batches=1 trainer.max_epochs=1 \
             trainer.strategy=null \
             model.train_ds.dataloader_params.batch_size=4 \
-            model.train_ds.dataloader_params.num_workers=1 \
+            model.train_ds.dataloader_params.num_workers=0 \
             model.validation_ds.dataloader_params.batch_size=4 \
-            model.validation_ds.dataloader_params.num_workers=1 \
+            model.validation_ds.dataloader_params.num_workers=0 \
             ~trainer.check_val_every_n_epoch \
             ~model.text_normalizer \
             ~model.text_normalizer_call_kwargs'
