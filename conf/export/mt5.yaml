@@ -36,8 +36,6 @@ accuracy:
     sampling_top_p: 0
 
 benchmark:
-  tensor_model_parallel_size: 8
-  pipeline_model_parallel_size: 1
   inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
   input_len: 60
   output_len: 20

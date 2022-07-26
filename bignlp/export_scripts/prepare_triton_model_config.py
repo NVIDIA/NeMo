@@ -44,7 +44,6 @@ def _get_model_parameters(config_ini):
     params_from_model_config = {
         section_name: {
             "model_type": config_ini.get(section_name, "model_type", fallback="GPT"),
-            "tensor_para_size": config_ini.getint(section_name, "tensor_para_size"),
         }
         for section_name in sections_names_with_model_parameters
     }
@@ -92,6 +91,7 @@ def main():
     parser.add_argument("--ft-checkpoint", help="Path to FasterTransformer checkpoint", required=True)
     parser.add_argument("--max-batch-size", type=int, help="Max batch size of Triton batcher", required=True)
     parser.add_argument("--pipeline-model-parallel-size", type=int, help="Pipeline model parallel size", required=True)
+    parser.add_argument("--tensor-model-parallel-size", type=int, help="Tensor model parallel size", required=True)
     parser.add_argument(
         "--data-type", choices=["fp32", "fp16", "bf16"], help="Data type of weights in runtime", required=True
     )
@@ -125,6 +125,7 @@ def main():
         **{
             "data_type": args.data_type.lower(),
             "pipeline_para_size": args.pipeline_model_parallel_size,
+            "tensor_para_size": args.tensor_model_parallel_size,
             "model_checkpoint_path": ft_checkpoint_path.as_posix(),
             "int8_mode": int(args.int8_mode),
             "enable_custom_all_reduce": int(args.enable_custom_all_reduce),

@@ -213,8 +213,12 @@ def run_export(cfg, dependency=None):
         benchmark_cfg=cfg.export.benchmark,
         cluster_cfg=cfg.cluster,
         dependency=conversion_job_id,
-        bignlp_scripts_path=pathlib.Path(cfg.bignlp_scripts_path),
-        model_path=f"{cfg.export.run.triton_model_dir}/1/{cfg.export.model.tensor_model_parallel_size}-gpu"
+        bignlp_scripts_path=pathlib.Path(cfg.bignlp_path),
+        triton_model_dir=cfg.export.run.triton_model_dir,
+        model_name=run_cfg.model_train_name,
+        container=cfg.export.benchmark.inference_container,
+        tensor_parallel_size=cfg.export.model.tensor_model_parallel_size,
+        pipeline_parallel_size=cfg.export.triton_deployment.pipeline_model_parallel_size,
     )
 
     job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
@@ -344,6 +348,7 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
         f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
         f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --tensor-model-parallel-size {ft_model_cfg.tensor_model_parallel_size} \\\n"
         f" --data-type {triton_cfg.data_type}"
     )
     if triton_cfg.int8_mode:
@@ -389,6 +394,7 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
         f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
         f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --tensor-model-parallel-size {ft_model_cfg.tensor_model_parallel_size} \\\n"
         f" --data-type {triton_cfg.data_type}"
     )
     if triton_cfg.int8_mode:

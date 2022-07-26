@@ -48,18 +48,27 @@ def create_slurm_file(
         f.writelines("set +x\n")
 
 
-def run_benchmark(run_cfg, benchmark_cfg, cluster_cfg, dependency, bignlp_scripts_path, model_path):
+def run_benchmark(
+    run_cfg,
+    benchmark_cfg,
+    cluster_cfg,
+    dependency,
+    bignlp_scripts_path,
+    triton_model_dir,
+    model_name,
+    container,
+    tensor_parallel_size,
+    pipeline_parallel_size,
+):
 
     # Run configuration
     model_type = run_cfg.model_type
-    model_train_name = run_cfg.model_train_name
-    triton_dir = f"{run_cfg.results_dir}/model_repo"
+    model_train_name = model_name
     time_limit = run_cfg.get("time_limit")
 
     # Benchmark configuration
-    container = benchmark_cfg.inference_container
-    tensor_para_size = benchmark_cfg.tensor_model_parallel_size
-    pipeline_para_size = benchmark_cfg.pipeline_model_parallel_size
+    tensor_para_size = tensor_parallel_size
+    pipeline_para_size = pipeline_parallel_size
     input_len = benchmark_cfg.input_len
     output_len = benchmark_cfg.output_len
     batch_sizes = benchmark_cfg.batch_sizes
@@ -109,7 +118,7 @@ def run_benchmark(run_cfg, benchmark_cfg, cluster_cfg, dependency, bignlp_script
 
     triton_cmd = conditional_if_cmd + (f" CUDA_VISIBLE_DEVICES={gpus} \\\n"
         "/opt/tritonserver/bin/tritonserver \\\n" 
-        f"--model-repository={triton_dir} & \\\n"
+        f"--model-repository={triton_model_dir} & \\\n"
     )
 
     benchmark_cmd = triton_cmd + (f"sleep {triton_wait_time} && \\\n"
@@ -127,7 +136,7 @@ def run_benchmark(run_cfg, benchmark_cfg, cluster_cfg, dependency, bignlp_script
 
     conditional_benchmark_cmd = benchmark_cmd + (f"else CUDA_VISIBLE_DEVICES={gpus} \\\n"
         "/opt/tritonserver/bin/tritonserver \\\n"
-        f"--model-repository={triton_dir}; fi"
+        f"--model-repository={triton_model_dir}; fi"
     )
 
     # Set Slurm flags
