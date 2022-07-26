@@ -1888,6 +1888,8 @@ pipeline {
       }
     }
 
+    // TODO: remove +model.optim.capturable=True when Pytorch fix: https://github.com/pytorch/pytorch/pull/81858
+    // is in the release container
     stage('L2: NMT Attention is All You Need Training') {
       when {
         anyOf {
@@ -1917,6 +1919,7 @@ pipeline {
               model.decoder.num_layers=1 \
               model.decoder.hidden_size=64 \
               model.decoder.inner_size=256 \
+              +model.optim.capturable=True \
               trainer.devices=[0] \
               trainer.accelerator="gpu" \
               +trainer.val_check_interval=2 \
@@ -1944,6 +1947,7 @@ pipeline {
               model.decoder.num_layers=1 \
               model.decoder.hidden_size=64 \
               model.decoder.inner_size=256 \
+              +model.optim.capturable=True \
               trainer.devices=[0] \
               trainer.accelerator="gpu" \
               +trainer.val_check_interval=10 \
