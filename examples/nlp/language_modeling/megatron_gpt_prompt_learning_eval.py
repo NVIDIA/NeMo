@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 import torch
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
@@ -80,23 +79,6 @@ This is the script to run GPT text generation.
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
-
-class RequestDataSet(Dataset):
-    def __init__(self, dataset_paths):
-        super().__init__()
-        self.json_strings = []
-
-        for dataset in dataset_paths:
-            for line in open(dataset, 'r', encoding='utf-8').readlines():
-                self.sentences.append(line)
-
-    def __len__(self,):
-        return len(self.sentences)
-
-    def __getitem__(self, idx):
-        return self.sentences[idx]
-
-
 @hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_inference")
 def main(cfg) -> None:
 
@@ -145,6 +127,7 @@ def main(cfg) -> None:
     }
 
     # First method of running text generation, call model.generate method
+    # Use for inference on a few examples
     response = model.generate(
         inputs=OmegaConf.to_container(cfg.data_paths), length_params=length_params, sampling_params=sampling_params
     )
@@ -154,13 +137,25 @@ def main(cfg) -> None:
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
-    collate_fn = lambda x: list(x)
-    ds = RequestDataSet(OmegaConf.to_container(cfg.data_paths))
-
-    request_dl = DataLoader(dataset=ds, collate_fn=collate_fn, batch_size=2)
+    # Use for batched inference on larger test sets, can do inference with data parallel > 1
+    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    
+    _, dataloader = model.build_virtual_prompt_dataset(
+        datasets=cfg.data_paths,
+        batch_size=64, 
+        max_seq_length=max_input_length,
+        min_seq_length=model.cfg.data.get('min_seq_length', 1), 
+        add_bos=sampling_params["add_BOS"],
+        add_eos=False,
+        for_train=False, 
+        tokens_to_generate=length_params["max_length"],
+        drop_last=False,
+        shuffle=False,
+    )
+    
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
-    response = trainer.predict(model, request_dl)
+    response = trainer.predict(model, dataloader)
 
     print("***************************")
     print(response)
@@ -168,4 +163,4 @@ def main(cfg) -> None:
 
 
 if __name__ == '__main__':
-    main()  # noqa pylint: disable=no-value-for-parameter
+    main()

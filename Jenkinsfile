@@ -2872,7 +2872,7 @@ pipeline {
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 tensor_model_parallel_size=2 \
-                prompts=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
+                data_paths=['/home/TestData/nlp/prompt_learning/rte_CI_test.jsonl']"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_tp.nemo"
           }
         }
@@ -2899,7 +2899,7 @@ pipeline {
                 inference.add_BOS=False \
                 trainer.devices=2 \
                 pipeline_model_parallel_size=2 \
-                prompts=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
+                data_paths=['/home/TestData/nlp/prompt_learning/boolq_CI_test.jsonl']"
             sh "rm -rf /home/TestData/nlp/prompt_learning/p_tuning_test_pp.nemo"
           }
         }

@@ -41,6 +41,7 @@ class GPTPromptLearningDataset(Dataset):
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         for_train (bool): Whether you're creating a dataset for training or inference
+        tokens_to_generate (int): (inference only) Number of tokens to generate during inference
     """
 
     def __init__(
@@ -56,6 +57,7 @@ class GPTPromptLearningDataset(Dataset):
         add_bos: bool = False,
         add_eos: bool = True,
         for_train: bool = True,
+        tokens_to_generate = None,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -69,6 +71,9 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
+        
+        if not self.for_train:
+            self.tokens_to_generate = tokens_to_generate
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -201,7 +206,7 @@ class GPTPromptLearningDataset(Dataset):
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
-        # Check that answer field checks if answer_only_loss was set to True
+        # Answer field checks
         if answer_only_loss and self.for_train:
             assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
             assert (
@@ -297,9 +302,8 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
-        # Get max sequence length of batch
         taskname_ids, input_ids, answer_starts = zip(*batch)
-
+    
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
@@ -310,6 +314,7 @@ class GPTPromptLearningDataset(Dataset):
         elif self.virtual_prompt_source == VirtualPromptSource.PROMPT_TABLE:
             taskname_ids = torch.tensor(taskname_ids)
 
+        # Get max sequence length of batch
         batch_max = max(len(ids) for ids in input_ids)
         input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
 
@@ -332,7 +337,7 @@ class GPTPromptLearningDataset(Dataset):
         position_ids = build_position_ids(input_ids)
 
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
-
+        
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []
@@ -359,15 +364,15 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_ids, batch_loss_masks
 
-    def get_all_examples(self, tokens_to_generate):
+    def inference_collate_fn(self, batch):
         """
         Used for loading inference data. 
         """
-        task_id_nums, input_ids, answer_starts = zip(*self.examples)
+        task_id_nums, input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
         task_id_nums = torch.cuda.LongTensor(task_id_nums)
         batch_max = input_lengths.max().item()
-        batch_max += tokens_to_generate
+        batch_max += self.tokens_to_generate
 
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         input_ids = input_ids.cuda()
