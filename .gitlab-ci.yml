@@ -5,7 +5,7 @@ variables: &VARS
   NGC_BIGNLP_CI_PATH: "bignlp_ci" # mount at /mount/results
   CONTAINER_NVCR_BASE: nvcr.io/nvidian/bignlp-ci:training
   TESTS_TO_RUN_ON_MERGE_REQ: L0  # Can specify levels, ci job names etc as a space seperated list to run during merge request
-  TESTS_TO_RUN_ON_THIS_COMMIT: L0 # Can specify levels, ci job names etc as a space seperated list to run during this commit
+  TESTS_TO_RUN_ON_THIS_COMMIT: L0 L1 # Can specify levels, ci job names etc as a space seperated list to run during this commit
   TEST_REGEX_ON_THIS_COMMIT: NONE #https://github.com/google/re2/wiki/Syntax (Can define regex as in this spec) e.g /.*gpt3.*/
 
 
@@ -170,6 +170,7 @@ build-BigNLP:
     - export RUN_NAME=${RUN_STAGE}_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
     - if [[ "$RUN_STAGE" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - if [[ "$RUN_STAGE" = "prompt_learn" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${TEST_TASK}; fi
+    - if [[ "$RUN_STAGE" = "finetune" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps_${TEST_TASK}; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_STAGE}/${RUN_MODEL}/${RUN_STAGE}_${RUN_MODEL}_model.sh
@@ -650,12 +651,16 @@ finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: finetune
+    RUN_STAGE: finetune
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp1_pp1_1node_100steps_mnli
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    MAX_STEPS: 100
+    NUM_NODES: 1
+    TIME_LIMIT: "40:00"
+    TEST_LEVEL: L1
+    TEST_TASK: mnli
   needs:
     - convert.t5.220m_tp1_pp1
 
@@ -663,12 +668,16 @@ finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: finetune
+    RUN_STAGE: finetune
     RUN_MODEL: t5
-    RUN_JOB_NAME: 220m_tp2_pp2_2node_100steps_mnli
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 220m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    MAX_STEPS: 100
+    NUM_NODES: 2
+    TIME_LIMIT: "40:00"
+    TEST_LEVEL: L1
+    TEST_TASK: mnli
   needs:
     - convert.t5.220m_tp2_pp2
 
@@ -732,12 +741,16 @@ finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: finetune
+    RUN_STAGE: finetune
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp1_pp1_1node_100steps_xnli
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 1
+    PP_SIZE: 1
+    MAX_STEPS: 100
+    NUM_NODES: 1
+    TIME_LIMIT: "30:00"
+    TEST_LEVEL: L1
+    TEST_TASK: xnli
   needs:
     - convert.mt5.170m_tp1_pp1
 
@@ -745,12 +758,16 @@ finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: finetune
+    RUN_STAGE: finetune
     RUN_MODEL: mt5
-    RUN_JOB_NAME: 170m_tp2_pp2_2node_100steps_xnli
-  only:
-    - master
-    - merge_requests
+    RUN_MODEL_SIZE: 170m
+    TP_SIZE: 2
+    PP_SIZE: 2
+    MAX_STEPS: 100
+    NUM_NODES: 2
+    TIME_LIMIT: "40:00"
+    TEST_LEVEL: L1
+    TEST_TASK: xnli
   needs:
     - convert.mt5.170m_tp2_pp2
 

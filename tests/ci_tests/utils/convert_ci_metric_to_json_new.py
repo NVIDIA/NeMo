@@ -66,11 +66,11 @@ def collect_train_test_metrics(ci_job_results_dir):
 if __name__ == '__main__':
     args = sys.argv[1:]
     ci_job_results_dir = args[0] # eg. '/home/shanmugamr/bignlp-scripts/results/train_gpt3_126m_tp1_pp1_1node_100steps'
-    run_task = args[1] # eg. train
+    run_stage = args[1] # eg. train
     run_model = args[2] # eg. gpt3
 
-    if run_task in ["train", "finetune", "prompt_learn"]:
+    if run_stage in ["train", "finetune", "prompt_learn"]:
         collect_train_test_metrics(ci_job_results_dir)
 
-    if run_task in ["eval"] and run_model in ["t5", "mt5"]:
+    if run_stage in ["eval"] and run_model in ["t5", "mt5"]:
         collect_val_test_metrics(ci_job_results_dir)
