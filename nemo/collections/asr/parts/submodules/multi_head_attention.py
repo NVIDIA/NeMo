@@ -37,7 +37,6 @@ import math
 import torch
 import torch.nn as nn
 from contextlib import nullcontext
-from nemo.utils.precision_utils import is_bfloat16_available
 
 __all__ = [
     'RelPositionMultiHeadAttention',
@@ -182,7 +181,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         # temporary until we solve this more gracefully, via scaling
         mhsa_ctx = nullcontext()
         if query.dtype == torch.float16:
-            if is_bfloat16_available():
+            if torch.cuda.is_bf16_supported():
                 mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.bfloat16)
             else:
                 mhsa_ctx =  torch.cuda.amp.autocast(dtype=torch.float32)
