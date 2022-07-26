@@ -18,6 +18,7 @@ from torch import nn
 
 from nemo.core import Loss, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, LossType, NeuralType, SpectrogramType
+from nemo.utils.exceptions import LossMisconfigurationException
 
 __all__ = ["ContrastiveLoss"]
 
@@ -195,14 +196,18 @@ class ContrastiveLoss(Loss):
             targets_masked_only = targets_masked_only.transpose(0, 1)
             # -> T'xBxC
 
-            if self.sample_from_non_masked:
-                # sample from all steps in utterance
-                negatives, _ = self.sample_negatives(
-                    targets.transpose(0, 1), targets_masked_only.size(0),  # TxBxC  # T'
-                )
-            else:
-                # only sample from masked steps in utterance
-                negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xBxC  # T'
+            try:
+                if self.sample_from_non_masked:
+                    # sample from all steps in utterance
+                    negatives, _ = self.sample_negatives(
+                        targets.transpose(0, 1), targets_masked_only.size(0),  # TxBxC  # T'
+                    )
+                else:
+                    # only sample from masked steps in utterance
+                    negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xBxC  # T'
+            except RuntimeError:
+                raise LossMisconfigurationException(self)
+
             # NxT'xBxC
 
             out_masked_only = out_masked_only.reshape(-1, out_masked_only.shape[-1])

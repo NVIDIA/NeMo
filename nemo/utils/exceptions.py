@@ -35,3 +35,13 @@ class CheckInstall:
 
     def __getattr__(self, *args, **kwargs):
         raise LightningNotInstalledException(self)
+
+
+class LossMisconfigurationException(NeMoBaseException):
+    def __init__(self, obj):
+        message = (
+            f"Error while computing the loss in {obj}. Make sure your loss parameters are configured "
+            "properly to match your dataset setup (ex. making sure `train_ds.min_duration` is long "
+            "enough for `ContrastiveLoss.num_negatives`.)"
+        )
+        super().__init__(message)
