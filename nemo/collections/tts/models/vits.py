@@ -166,7 +166,7 @@ class VitsModel(TextToWaveform):
 
     def configure_optimizers(self):
         optim_g = torch.optim.AdamW(self.net_g.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
-        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.1)
+        optim_d = torch.optim.AdamW(self.net_d.parameters(), self._cfg.lr, betas=self._cfg.betas, eps=self._cfg.eps, weight_decay=0.01)
         
         max_steps=800000
         min_lr = 1e-5
@@ -248,16 +248,17 @@ class VitsModel(TextToWaveform):
         # with autocast(enabled=True):
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         # with autocast(enabled=False):
-        loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+        loss_disc_real, loss_disc_gen, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
         disc_generated_outputs=y_d_hat_g)
-        loss_disc_all = loss_disc
+        loss_disc_all = torch.max(loss_disc_real, loss_disc_gen)
+        # loss_disc_all = loss_disc_real + loss_disc_gen
 
         # if self.global_step <= 180000:
         # train discriminator
-        # optim_d.zero_grad()
-        # self.manual_backward(loss_disc_all)
-        # norm_d = clip_grad_value_(self.net_d.parameters(), None)
-        # optim_d.step()
+        optim_d.zero_grad()
+        self.manual_backward(loss_disc_all)
+        norm_d = clip_grad_value_(self.net_d.parameters(), None)
+        optim_d.step()
             
         # with autocast(enabled=True):
             # Generator
@@ -280,13 +281,6 @@ class VitsModel(TextToWaveform):
         self.manual_backward(loss_gen_all)
         norm_g = clip_grad_value_(self.net_g.parameters(), None)
         optim_g.step()
-        
-        norm_d = None
-        # if loss_disc > loss_gen:
-        #     optim_d.zero_grad()
-        #     self.manual_backward(loss_disc_all)
-        #     norm_d = clip_grad_value_(self.net_d.parameters(), None)
-        #     optim_d.step()
 
         schedulers = self.lr_schedulers()
         if schedulers is not None:# and self.trainer.is_last_batch:
@@ -303,7 +297,7 @@ class VitsModel(TextToWaveform):
             "loss_gen_all": loss_gen_all,
             "loss_disc_all": loss_disc_all,
             "grad_gen": norm_g,
-            # "grad_disc": norm_d,
+            "grad_disc": norm_d,
         }
 
         for i, v in enumerate(losses_gen):
