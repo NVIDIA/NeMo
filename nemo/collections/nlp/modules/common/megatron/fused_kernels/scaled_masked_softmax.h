@@ -89,11 +89,13 @@ __global__ void scaled_masked_softmax_warp_backward_new(
 
     // load the data to local data
     acc_t val = 0.0;
-    for (int i = local_idx; i < element_count; i += threads_per_block)
-    {
-        val = output[offset + i];
-        output_data[i] = val;
-        local_data[i] = val * grad[offset + i];
+    for (int i = 0; i < num_reductions; i++){
+        if (i*threads_per_block + local_idx < element_count){
+            val = output[offset + i*threads_per_block + local_idx];
+            output_data[i*threads_per_block + local_idx] = val;
+            local_data[i*threads_per_block + local_idx] = val * grad[offset + i*threads_per_block + local_idx];
+        }
+        __syncthreads();
     }
 
     // find the sum 
@@ -110,6 +112,7 @@ __global__ void scaled_masked_softmax_warp_backward_new(
         else{
             val = 0.0;
         }
+        __syncthreads();
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
         if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
             shared[wid + warps_per_thread_block*i] = val;
@@ -123,24 +126,24 @@ __global__ void scaled_masked_softmax_warp_backward_new(
     int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
         #pragma unroll
-        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
-            if (i < shared_mem_len){
-                val = shared[i];
+        for (int i = 0; i < num_reductions; i++){
+            if (i*threads_per_block + local_idx < shared_mem_len){
+                val = shared[i*threads_per_block + local_idx];
             }
             else{
                 val = 0.0;
             }
+            __syncthreads();
             val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
             if (lane==0) {
-                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+                shared[wid + warps_per_thread_block * i] = val;
             }
+            __syncthreads();
         }
         shared_mem_len = num_warps;
         num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
-        __syncthreads();
     }
     val = shared[0];
-
     #pragma unroll
     for (int i = local_idx; i < element_count; i += threads_per_block){
         gradInput[offset + i] = (output_t)(scale*(local_data[i] - output_data[i]*val)); 
@@ -248,7 +251,7 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         else{
             val = -10000.0;
         }
-
+        __syncthreads();
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
 
         if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
@@ -262,21 +265,22 @@ __global__ void scaled_masked_softmax_warp_forward_new(
     int num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
         #pragma unroll
-        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
-            if (i < shared_mem_len){
-                val = shared[i];
+        for (int i = 0; i < num_reductions; i++){
+            if (i*threads_per_block + local_idx < shared_mem_len){
+                val = shared[i*threads_per_block + local_idx];
             }
             else{
                 val = -10000.0;
             }
+            __syncthreads();
             val = warp_reduce_new<acc_t, C10_WARP_SIZE, Max>(val);
             if (lane==0) {
-                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+                shared[wid + warps_per_thread_block * i] = val;
             }
+            __syncthreads();
         }
         shared_mem_len = num_warps;
         num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
-        __syncthreads();
     }
 
     acc_t reduced_val = shared[0];
@@ -309,6 +313,8 @@ __global__ void scaled_masked_softmax_warp_forward_new(
         else{
             val = 0.0;
         }
+        __syncthreads();
+
         val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
         if (lane==0 && wid + warps_per_thread_block * i < (element_count - 1) / C10_WARP_SIZE + 1) {
             shared[wid + warps_per_thread_block*i] = val;
@@ -320,21 +326,22 @@ __global__ void scaled_masked_softmax_warp_forward_new(
     num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
     while ( shared_mem_len > 1 ){
         #pragma unroll
-        for(int i = local_idx; i < num_warps * C10_WARP_SIZE; i += threads_per_block){
-            if (i < shared_mem_len){
-                val = shared[i];
+        for (int i = 0; i < num_reductions; i++){
+            if (i*threads_per_block + local_idx < shared_mem_len){
+                val = shared[i*threads_per_block + local_idx];
             }
             else{
                 val = 0.0;
             }
+            __syncthreads();
             val = warp_reduce_new<acc_t, C10_WARP_SIZE, Add>(val);
             if (lane==0) {
-                shared[wid + warps_per_thread_block * (i / threads_per_block)] = val;
+                shared[wid + warps_per_thread_block * i] = val;
             }
+            __syncthreads();
         }
         shared_mem_len = num_warps;
         num_warps = (shared_mem_len - 1) / C10_WARP_SIZE + 1;
-        __syncthreads();
     }
 
     reduced_val = shared[0];
