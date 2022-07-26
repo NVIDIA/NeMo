@@ -52,6 +52,7 @@ before_script:
     - ls
     - env
     - export FROM_IMAGE_ARG="--build-arg FROM_IMAGE_NAME=${FROM_IMAGE_NAME}"
+    - docker pull ${FROM_IMAGE_NAME}
     - docker build -t ${BUILD_IMAGE_NAME} ${FROM_IMAGE_ARG} .
     - docker push ${BUILD_IMAGE_NAME}
     # Push to NGC
