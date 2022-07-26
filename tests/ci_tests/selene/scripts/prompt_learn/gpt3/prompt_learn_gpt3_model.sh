@@ -12,7 +12,7 @@ else
   params+=(prompt_learning.trainer.log_every_n_steps=$LOG_EVERY_N_STEPS)
   params+=(prompt_learning.trainer.val_check_interval=$VAL_CHECK_INTERVAL)
   params+=(prompt_learning.trainer.max_steps=${MAX_STEPS})
-  UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_${TP_SIZE}_${PP_SIZE}
+  UPSTREAM_RUN_NAME=convert_${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}
   LANGUAGE_MODEL_PATH=${BASE_RESULTS_DIR}/${UPSTREAM_RUN_NAME}/megatron_gpt.nemo
 fi
 
