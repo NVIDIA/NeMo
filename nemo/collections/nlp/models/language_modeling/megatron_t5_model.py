@@ -16,7 +16,6 @@ import math
 
 from omegaconf.dictconfig import DictConfig
 from pytorch_lightning.trainer.trainer import Trainer
-from transformers import T5Model
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
 from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
@@ -183,6 +182,7 @@ class MegatronT5Model(MegatronLMEncoderDecoderModel):
             permutation=self._cfg.data.get('permutation', False),
             whole_word_masking=self._cfg.data.get('whole_word_masking', True),
             favor_long_ngrams=self._cfg.data.get('favor_long_ngrams', False),
+            respect_document_boundaries=self._cfg.data.get('respect_document_boundaries', True),
             data_impl_kwargs=self._cfg.data.get('data_impl_kwargs', {}),
             # additional arguments from child classes
             **self._build_train_valid_test_datasets_kwargs,
