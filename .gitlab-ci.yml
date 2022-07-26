@@ -648,7 +648,7 @@ convert.t5.220m_tp2_pp2:
     - train.t5.220m_tp2_pp2_2node_100steps
 
 finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
@@ -665,7 +665,7 @@ finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
     - convert.t5.220m_tp1_pp1
 
 finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
@@ -738,7 +738,7 @@ convert.mt5.170m_tp2_pp2:
     - train.mt5.170m_tp2_pp2_2node_100steps
 
 finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
@@ -755,7 +755,7 @@ finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
     - convert.mt5.170m_tp1_pp1
 
 finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
