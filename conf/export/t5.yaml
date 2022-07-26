@@ -36,7 +36,6 @@ accuracy:
     sampling_top_p: 0
 
 benchmark:
-  inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
   input_len: 60
   output_len: 20
   batch_sizes: [1, 2, 4, 8, 16, 32, 64, 256]

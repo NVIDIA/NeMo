@@ -32,6 +32,7 @@ base_results_dir: ${bignlp_path}/results  # Location to store the results, check
 container_mounts: # List of additional paths to mount to container. They will be mounted to same path.
   - null
 container: nvcr.io/ea-bignlp/bignlp-training:22.06-hotfix.01-py3
+inference_container: gitlab-master.nvidia.com#dl/dgx/bignlp/infer:infer_update-py3-base
 
 wandb_api_key_file: null  # File where the w&B api key is stored. Key must be on the first line.
 

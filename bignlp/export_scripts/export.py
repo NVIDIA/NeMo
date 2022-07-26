@@ -216,7 +216,7 @@ def run_export(cfg, dependency=None):
         bignlp_scripts_path=pathlib.Path(cfg.bignlp_path),
         triton_model_dir=cfg.export.run.triton_model_dir,
         model_name=run_cfg.model_train_name,
-        container=cfg.export.benchmark.inference_container,
+        container=cfg.inference_container,
         tensor_parallel_size=cfg.export.model.tensor_model_parallel_size,
         pipeline_parallel_size=cfg.export.triton_deployment.pipeline_model_parallel_size,
     )
