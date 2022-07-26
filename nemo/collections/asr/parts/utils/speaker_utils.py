@@ -362,6 +362,13 @@ def rttm_to_labels(rttm_filename):
 def get_rttm_speaker_index(rttm_labels):
     """
     Generate speaker mapping between integer index to RTTM speaker label names.
+
+    Args:
+        rttm_labels (list):
+            List containing string type RTTM lines
+    Returns:
+        speaker_mapping_dict (dict):
+            Dictionary containing the mapping between integer index and RTTM speaker labels.
     """
     speaker_set = set()
     for rttm_line in rttm_labels:

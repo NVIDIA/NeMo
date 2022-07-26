@@ -72,7 +72,10 @@ def extract_seg_info_from_rttm(uniq_id, rttm_lines, mapping_dict=None, target_sp
             Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
         rttm_lines (list):
             List containing RTTM lines in str format.
-
+        mapping_dict (dict):
+            Mapping between the estimated speakers and the speakers in the ground-truth annotation.
+            ``mapping_dict`` variable is only provided when the inference mode is running in sequence-eval mode.
+            Sequence eval mode uses the mapping between the estimated speakers and the speakers in ground-truth annotation.
     Returns:
         rttm_tup (tuple):
             Tuple containing lists of start time, end time and speaker labels.
@@ -80,8 +83,6 @@ def extract_seg_info_from_rttm(uniq_id, rttm_lines, mapping_dict=None, target_sp
     """
     stt_list, end_list, speaker_list, pairwise_infer_spks = [], [], [], []
     if target_spks:
-        label_scale_idx = max(emb_dict.keys())
-        mapping_dict = emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
         for spk_idx in target_spks:
             spk_str = f'speaker_{spk_idx}'
@@ -268,6 +269,8 @@ class _AudioMSDDTrainDataset(Dataset):
         Args:
             uniq_id (str):
                 Unique file ID that refers to an input audio file and corresponding RTTM (Annotation) file.
+            sample:
+                ``DiarizationSpeechLabel`` instance containing sample information such as audio filepath and RTTM filepath.
             fr_level_target (torch.tensor):
                 Tensor containing label for each feature-level frame.
 
@@ -312,14 +315,14 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                DiarizationSpeechLabel instance containing sample information such as audio filepath and RTTM filepath.
+                ``DiarizationSpeechLabel`` instance containing sample information such as audio filepath and RTTM filepath.
             target_spks (tuple):
                 Speaker indices that are generated from combinations. If there are only one or two speakers,
                 only a single target_spks tuple is generated.
 
         Returns:
             clus_label_index (torch.tensor):
-                Groundtruth Clustering label (cluster index for each segment) from RTTM files for training purpose.
+                Groundtruth clustering label (cluster index for each segment) from RTTM files for training purpose.
             seg_target  (torch.tensor):
                 Tensor variable containing hard-labels of speaker activity in each base-scale segment.
             scale_mapping (torch.tensor):
@@ -345,7 +348,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                DiarizationSpeechLabel instance from collections.
+                ``DiarizationSpeechLabel`` instance from collections.
 
         Returns:
             uniq_id (str):
@@ -365,7 +368,7 @@ class _AudioMSDDTrainDataset(Dataset):
 
         Args:
             sample:
-                DiarizationSpeechLabel instance from preprocessing.collections
+                ``DiarizationSpeechLabel`` instance from preprocessing.collections
         Returns:
             ms_seg_timestamps (torch.tensor):
                 Tensor containing Multiscale segment timestamps.
@@ -501,8 +504,9 @@ class _AudioMSDDInferDataset(Dataset):
     def parse_rttm_multiscale(self, sample):
         """
         Generate target tensor variable by extracting groundtruth diarization labels from an RTTM file.
-        This function converts (start, end, speaker_id) format into base-scale (the finest scale) segment level
-        diarization label in a matrix form.
+        This function is only used when ``self.seq_eval_mode=True`` and RTTM files are provided. This function converts
+        (start, end, speaker_id) format into base-scale (the finest scale) segment level diarization label in a matrix
+        form to create target matrix.
 
         Args:
             sample:
@@ -588,10 +592,12 @@ class _AudioMSDDInferDataset(Dataset):
         feats_out = torch.stack(feats).permute(1, 0, 2)
         feats_len = feats_out.shape[0]
 
+        # In case F1 accuracy of the sequence out is needed, set seq_eval_mode=True
+        # If seq_eval_mode=False, 
         if self.seq_eval_mode:
             targets = self.parse_rttm_multiscale(sample)
         else:
-            targets = torch.zeros(feats_len, 2).float()
+            targets = torch.zeros(feats_len, 2).float() 
 
         return feats_out, feats_len, targets, avg_embs
 
