@@ -83,7 +83,6 @@ def search_config(cfg, hydra_args=None):
     # Launch grid search for inference constraints
     if cfg.get("run_inference_hp_search"):
         search_inference_config(
-            model_name=model_name,
             base_cfg=base_cfg,
             cfg=cfg,
         )
