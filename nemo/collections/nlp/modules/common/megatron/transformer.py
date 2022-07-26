@@ -354,7 +354,7 @@ class ParallelAttention(MegatronModule):
             fused_fp16,
             fused_bf16,
             self.attn_mask_type,
-            False,  # (@adithyare) had to make this false to make apex use the non-optimized masked_fused_softmax.
+            masked_softmax_fusion, 
             attention_mask_func,
             self.attention_softmax_in_fp32,
             coeff,

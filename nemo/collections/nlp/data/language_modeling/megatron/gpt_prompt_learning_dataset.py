@@ -24,6 +24,20 @@ from nemo.utils import logging
 
 __all__ = ['GPTPromptLearningDataset']
 
+class RequestDataSet(Dataset):
+    def __init__(self, dataset_paths):
+        super().__init__()
+        self.sentences = []
+
+        for dataset in dataset_paths:
+            for line in open(dataset, 'r', encoding='utf-8').readlines():
+                self.sentences.append(line)
+
+    def __len__(self,):
+        return len(self.sentences)
+
+    def __getitem__(self, idx):
+        return self.sentences[idx]
 
 class GPTPromptLearningDataset(Dataset):
     """
@@ -65,9 +79,10 @@ class GPTPromptLearningDataset(Dataset):
         # Datasets is just a list of json dicts
         if isinstance(datasets[0], dict):
             self.load_data(datasets)
-
+        elif isinstance(datasets[0], str) and "taskname" in datasets[0]:
+            self.load_data(datasets)
         # Datasets are a list of file path strings to .json or .jsonl files
-        elif isinstance(datasets[0], str):
+        elif isinstance(datasets[0], str) and (datasets[0].endswith(".json") or datasets[0].endswith(".jsonl")):
             for path in datasets:
                 dataset = open(path, 'r', encoding='utf-8')
                 self.load_data(dataset)

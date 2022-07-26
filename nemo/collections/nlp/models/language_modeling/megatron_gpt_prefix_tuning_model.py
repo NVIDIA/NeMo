@@ -110,6 +110,10 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         self.prefix_generator_learning_rate = cfg.prefix_tuning.prefix_learning_rate
         self.prefix_generator.to(self.frozen_model.device)
 
+        for name, layer in self.frozen_model.named_modules():
+            if hasattr(layer, 'scale_mask_softmax'):
+                layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
+
     @classmethod
     def list_available_models(cls):
         pass

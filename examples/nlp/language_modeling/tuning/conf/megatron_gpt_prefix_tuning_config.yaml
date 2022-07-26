@@ -1,4 +1,4 @@
-name: megatron_gpt_prefix_tuning_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}
+name: megatron_gpt_prefix_tune_${model.new_tasks[0]}_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}_lr${model.prefix_tuning.prefix_learning_rate}
 
 trainer:
   devices: 1
@@ -11,7 +11,7 @@ trainer:
   max_epochs: 10
   max_steps: null # consumed_samples = global_step * micro_batch_size * data_parallel_size * accumulate_grad_batches
   log_every_n_steps: 10
-  val_check_interval: 0.33
+  val_check_interval: 0.2
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
@@ -22,7 +22,7 @@ exp_manager:
   explicit_log_dir: null
   exp_dir: null
   name: ${name}
-  create_wandb_logger: False
+  create_wandb_logger: null
   wandb_logger_kwargs:
     project: null
     name: null
@@ -40,7 +40,7 @@ exp_manager:
 
 model:
   seed: 1234
-  nemo_path: ${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
+  nemo_path: ${exp_manager.exp_dir}/${name}.nemo # .nemo filename/absolute path to where the virtual prompt model parameters will be saved
   virtual_prompt_style: 'prefix-tuning' # one of 'prompt-tuning', 'p-tuning', or 'inference'
   encoder_seq_length: 2048 
   tensor_model_parallel_size: 1 # intra-layer model parallelism
@@ -49,9 +49,9 @@ model:
   micro_batch_size: 4
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: /home/adithyare/pretrained_models/megatron_gpt_125m/megatron_gpt.nemo # Path to the GPT language model .nemo file, always required
+  language_model_path: ??? # Path to the GPT language model .nemo file, always required
   existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
-  new_tasks: ['rte'] # List of new tasknames to be prompt-tuned
+  new_tasks: ??? # List of new tasknames to be prompt-tuned
 
   task_templates: # Add more/replace tasks as needed, these are just examples
   - taskname: "boolq" # The task name
@@ -70,12 +70,28 @@ model:
     truncate_field: null
 
   - taskname: "rte" 
-    prompt_template: "{premise}\n{hypothesis}\nAnswer: {answer}" 
+    prompt_template: "sentence1: {premise} sentence2: {hypothesis} Answer: {answer}" 
     total_virtual_tokens: 0
     virtual_token_splits: []
     truncate_field: null
     answer_only_loss: True
     answer_field: "answer"
+
+  - taskname: "squad" 
+    prompt_template: "context: {context} question: {question} answer: {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "answer"
+
+  - taskname: "xsum" 
+    prompt_template: "{source} Summary: {target}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "target"
 
   prefix_tuning:
     prefix_len: 50
@@ -92,8 +108,8 @@ model:
     num_layers: 2
 
   data:
-    train_ds: [/home/adithyare/datasets/tasks/prompt-learning-data/rte/rte_train.jsonl,]
-    validation_ds: [/home/adithyare/datasets/tasks/prompt-learning-data/rte/rte_val.jsonl,]
+    train_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/${model.new_tasks[0]}/${model.new_tasks[0]}_train.jsonl",]
+    validation_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/${model.new_tasks[0]}/${model.new_tasks[0]}_val.jsonl",]
     add_eos: True
     shuffle: True
     num_workers: 8
