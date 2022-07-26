@@ -252,10 +252,10 @@ class Normalizer:
 
         Returns: spoken form
         """
-        assert len(text.split()) < 500, (
-            "Your input is too long. "
-            "Please split up the input into sentences using split_text_into_sentences() and then use normalize_list()"
-        )
+        # assert len(text.split()) < 500, (
+        #     "Your input is too long. "
+        #     "Please split up the input into sentences using split_text_into_sentences() and then use normalize_list()"
+        # )
 
         original_text = text
         if punct_pre_process:
