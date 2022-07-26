@@ -1,7 +1,7 @@
 params=()
 
 
-if [[ "$TEST_TYPE" = "squad_real" ]]; then
+if [[ "$TEST_TASK" = "squad_real" ]]; then
   # Should come in here for the test prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real
   params+=(container_mounts=[/lustre/fsw/joc/big_nlp/bignlp_ci_resources:/lustre/fsw/joc/big_nlp/bignlp_ci_resources,/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data:/lustre/fsw/joc/yuya/bignlp/bignlp-scripts_gpt3/data])
   LANGUAGE_MODEL_PATH=/lustre/fsw/joc/big_nlp/bignlp_ci_resources/checkpoints/gpt3_126m_bf16_O2_tp1_pp1.nemo
