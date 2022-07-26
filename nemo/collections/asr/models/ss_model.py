@@ -73,6 +73,10 @@ class EncDecSpeechSeparationModel(SeparationModel):
                 self.loss = PermuationInvarianceWrapper(base_loss)
         else:
             self.loss = base_loss
+        if self._cfg.loss.get('loss_clamp', None) is not None:
+            self.loss_clamp = self._cfg.loss.loss_clamp
+        else:
+            self.loss_clamp = [None, None]
 
         self.num_sources = self._cfg.train_ds.num_sources
 
@@ -273,7 +277,7 @@ class EncDecSpeechSeparationModel(SeparationModel):
         target = torch.cat([target[i].unsqueeze(-1) for i in range(self.num_sources)], dim=-1,)
 
         loss, _ = self.loss(preds=target_estimate, targets=target)
-        loss = loss.mean()
+        loss = loss.mean().clamp(*self.loss_clamp)
 
         tensorboard_logs = {'train_loss': loss, 'learning_rate': self._optimizer.param_groups[0]['lr']}
         return {'loss': loss, 'log': tensorboard_logs}

@@ -112,6 +112,7 @@ model:
     base_loss:
       _target_: nemo.collections.asr.losses.SiSNR
     loss_wrapper: permutation_invariance
+    loss_clamp: [-30.0, 999999.0]  # upper limit is arbitrary high number
 
   optim:
     name: adamw
