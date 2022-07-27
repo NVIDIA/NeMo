@@ -85,6 +85,14 @@ model:
     answer_only_loss: True
     answer_field: "answer"
 
+  - taskname: "arc-challenge" 
+    prompt_template: "question: {question} choices: {choices} answer: {answer}" 
+    total_virtual_tokens: 0
+    virtual_token_splits: []
+    truncate_field: null
+    answer_only_loss: True
+    answer_field: "answer"
+
   - taskname: "xsum" 
     prompt_template: "{source} Summary: {target}" 
     total_virtual_tokens: 0
@@ -108,8 +116,8 @@ model:
     num_layers: 2
 
   data:
-    train_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/${model.new_tasks[0]}/${model.new_tasks[0]}_train.jsonl",]
-    validation_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/${model.new_tasks[0]}/${model.new_tasks[0]}_val.jsonl",]
+    train_ds: ??? # expects a list of paths to training data files
+    validation_ds: ??? # expects a paths to validation data files
     add_eos: True
     shuffle: True
     num_workers: 8
