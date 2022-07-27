@@ -74,7 +74,7 @@ def search_inference_config(base_cfg, cfg):
                 f" --model-train-name {benchmark_model_name}"
                 f" --template-path {template_path}"
                 f" --ft-checkpoint {model_dir}"
-                f" --config-path {triton_model_dir}/config.pbtxt"
+                f" --config-path {triton_model_dir}/{benchmark_model_name}/config.pbtxt"
                 f" --max-batch-size {max_batch_size}"
                 f" --pipeline-model-parallel-size {pipeline_parallel_size}"
                 f" --tensor-model-parallel-size {tensor_parallel_size}"
