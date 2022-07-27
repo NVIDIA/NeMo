@@ -8,7 +8,7 @@ fi
 
 set -o xtrace
 
-MICRO_BATH_SIZE=`expr $NUM_NODES * 16`
+MICRO_BATH_SIZE=`expr $NUM_NODES \* 16`
 
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
