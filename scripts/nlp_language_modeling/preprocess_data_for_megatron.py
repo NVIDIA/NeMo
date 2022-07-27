@@ -89,6 +89,7 @@ import multiprocessing
 import os
 import sys
 import time
+import pathlib
 
 import ftfy
 import torch
@@ -269,9 +270,9 @@ def main():
     if args.preproc_folder:
         print('Searching folder for .json or .json.gz files...')
         assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
-        files_in_folder = os.listdir(args.input)
+        json_files = (str(f) for f in pathlib.Path(args.input).glob('**/*.json*'))
         json_files = [
-            os.path.join(args.input, f) for f in files_in_folder if f.endswith('.json') or f.endswith('.json.gz')
+            f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')
         ]
         if len(json_files) == 0:
             raise FileNotFoundError('No .json or .json.gz files found in folder.')
