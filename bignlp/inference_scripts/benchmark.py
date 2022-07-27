@@ -1,3 +1,4 @@
+import math
 import os
 import pathlib
 
@@ -72,6 +73,7 @@ def run_benchmark(
     input_len = benchmark_cfg.input_len
     output_len = benchmark_cfg.output_len
     batch_sizes = benchmark_cfg.batch_sizes
+    vocab_size = benchmark_cfg.vocab_size
     triton_wait_time = benchmark_cfg.triton_wait_time_s
 
     batch_sizes_str = ' '.join([str(i) for i in batch_sizes])
@@ -95,8 +97,9 @@ def run_benchmark(
     exclusive = cluster_cfg.get("exclusive")
     job_name_prefix = cluster_cfg.get("job_name_prefix")
 
+    gpus_required = tensor_para_size * pipeline_para_size
     job_name = job_name_prefix + task_name
-    nodes = pipeline_para_size
+    nodes = int(math.ceil(gpus_required / 8))
     ntasks_per_node = 1
     gpus_per_task = None
 
@@ -111,7 +114,7 @@ def run_benchmark(
     new_script_path = os.path.join(logs_dir, f"{task_name}.sh")
 
     # Start Triton Server
-    gpus = ','.join([str(i) for i in range(0, tensor_para_size)])
+    gpus = ','.join([str(i) for i in range(0, gpus_required if gpus_required <= 8 else 8)])
 
     # Benchmark command
     conditional_if_cmd = " if [ $PMIX_RANK = 0 ] && [ \"$PMIX_HOSTNAME\" = \"$SLURMD_NODENAME\" ]; then"
@@ -131,6 +134,7 @@ def run_benchmark(
         f"{output_len_name} \\\n"
         f"{tensor_para_size} \\\n"
         f"{pipeline_para_size} \\\n"
+        f"{vocab_size} \\\n"
         f"{batch_sizes_str}; \\\n"
     )
 

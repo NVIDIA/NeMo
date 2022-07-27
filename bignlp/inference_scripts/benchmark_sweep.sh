@@ -8,11 +8,10 @@ input_len_name=${5}
 output_len_name=${6}
 tensor_para=${7}
 pipeline_para=${8}
-request_batch_sizes=${@:9}
+vocab_size=${9}
+request_batch_sizes=${@:10}
 
 all_log=${log_dir}/infer_benchmark_all_tp${tensor_para}_pp${pipeline_para}_i${input_length}_o${output_length}.csv
-
-vocab_size=51200
 
 echo -e "Batch Size,Tensor Parallel,Pipeline Parallel,Input length,Output length,FT latency (ms),Throughput per GPU (sentence/s)" > $all_log
 
