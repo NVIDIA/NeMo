@@ -14,9 +14,6 @@
 
 import torch
 
-# this triggers kernel compiling
-import nemo.collections.nlp.modules.common.megatron.fused_kernels
-
 try:
     from apex._autocast_utils import _cast_if_autocast_enabled
 
@@ -73,6 +70,9 @@ class FusedScaleMaskSoftmax(torch.nn.Module):
         self, input_in_fp16, input_in_bf16, scaled_masked_softmax_fusion, mask_func, softmax_in_fp32, scale,
     ):
         super().__init__()
+        if torch.cuda.is_available():
+            # this triggers kernel compiling
+            import nemo.collections.nlp.modules.common.megatron.fused_kernels
         self.input_in_fp16 = input_in_fp16
         self.input_in_bf16 = input_in_bf16
         if self.input_in_fp16 and self.input_in_bf16:
