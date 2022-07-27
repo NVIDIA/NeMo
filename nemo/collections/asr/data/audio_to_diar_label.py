@@ -592,8 +592,6 @@ class _AudioMSDDInferDataset(Dataset):
         feats_out = torch.stack(feats).permute(1, 0, 2)
         feats_len = feats_out.shape[0]
 
-        # In case F1 accuracy of the sequence out is needed, set seq_eval_mode=True
-        # If seq_eval_mode=False,
         if self.seq_eval_mode:
             targets = self.parse_rttm_multiscale(sample)
         else:
