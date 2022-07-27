@@ -36,5 +36,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     finetuning.model.pipeline_model_parallel_size=${PP_SIZE} \
     finetuning.model.data.train_ds.micro_batch_size=${MICRO_BATH_SIZE} \
     finetuning.model.data.validation_ds.micro_batch_size=${MICRO_BATH_SIZE} \
-    finetuning.model.data.test_ds.micro_batch_size=${MICRO_BATH_SIZE} \
     "${params[@]}"

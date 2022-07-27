@@ -728,7 +728,7 @@ convert.mt5.170m_tp2_pp2:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: mt5
-    RUN_MODEL_SIZE: 126m
+    RUN_MODEL_SIZE: 170m
     UPSTREAM_RUN_NAME: train_mt5_170m_tp2_pp2_2node_100steps
     TP_SIZE: 2
     PP_SIZE: 2
