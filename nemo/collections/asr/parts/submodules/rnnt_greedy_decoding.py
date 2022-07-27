@@ -345,14 +345,17 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 # get index k, of max prob
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
-                if k == logp.shape[0] - 1:
-                    big_blank_duration = self._big_blank_duration
+                if k == logp.shape[0] - 2:
 #                    print("BIG BLANK")
-#                elif k == logp.shape[0] - 2:
-#                    big_blank_chosen = True
-#                    print("SMALL BLANK")
+                    big_blank_duration = 3 # self._big_blank_duration
+                elif k == logp.shape[0] - 1:
+#                    print("HUGE BLANK")
+                    big_blank_duration = 6 # self._big_blank_duration
+#                elif k == logp.shape[0] - 3:
+#                    print("REGULAR BLANK")
+#                    big_blank_duration = 1
 #                else:
-#                    print("NON BLANK")
+#                    print("NONE BLANK", k)
 
                 if self.preserve_alignments:
                     # insert logits into last timestep
@@ -361,7 +364,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 del logp
 
                 # If blank token is predicted, exit inner loop, move onto next timestep t
-                if k == self._blank_index or k == self._big_blank_index:
+                if k == self._blank_index or k == self._big_blank_index or k == self._huge_blank_index:
                     not_blank = False
 
                     if self.preserve_alignments:
