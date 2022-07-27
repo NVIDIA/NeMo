@@ -421,7 +421,7 @@ def binarization(sequence, per_args):
 
     speech = False
     speech_segments = set()  # {(start1, end1), (start2, end2)}
-    for i in range(1, len(sequence)):
+    for i in range(0, len(sequence)):
         # Current frame is speech
         if speech:
             # Switch from speech to non-speech

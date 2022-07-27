@@ -88,7 +88,6 @@ def perform_energy_vad(input_manifest, output_manifest="generated_energy_ss_mani
 
 
 def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
-
     lang_model_table = {
         'english-citrinet_2.0':  (False, False, True, ""),
         'english-citrinet_ngc':  (False, False, False, "stt_en_citrinet_1024_gamma_0_25"),
@@ -129,20 +128,22 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = ['clean']
+    db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
     langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ['oracle_vad', 'neural_vad']
-    models = ['citrinet', 'nr_citrinet'] 
+    vad_exps = ['neural_vad']
+    models = ['nr_citrinet'] 
 
+    shift_length_in_sec = 0.08
     # ref="energy_vad"
+    overlap=0.875
     ref='oracle_vad'
     
     subset="dev"
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res{exp}_asr_offline_multiple_fixSNR_tunedClean.csv"
+    res_file = f"res{exp}_asr_offline_multiple_fixSNR_s8_875.csv"
 
     si_ratio = False  #True
 
@@ -153,7 +154,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"final_multiple_fixed_{exp}_tunedClean"
+    final_output_folder = f"final_multiple_fixed_{exp}_s8_875"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True
@@ -179,7 +180,6 @@ def main():
                     continue
 
                 for vad_exp in vad_exps:
-
                     for db in db_list:
 
                         for fixed_silence in fixed_silence_set:
@@ -282,6 +282,8 @@ def main():
                                             vad.model_path={vad_model} \
                                             frame_out_dir={frame_out_dir} \
                                             vad.parameters.window_length_in_sec=0.63 \
+                                            vad.parameters.shift_length_in_sec={shift_length_in_sec} \
+                                            vad.parameters.overlap={overlap} \
                                             vad.parameters.postprocessing.onset={params["onset"]} \
                                             vad.parameters.postprocessing.offset={params["offset"]} \
                                             vad.parameters.postprocessing.min_duration_on={params["min_duration_on"]} \
