@@ -679,8 +679,11 @@ class Model(Typing, Serialization, FileIO):
             resolve_card_info: Bool flag, if set, returns the model card metadata. Default: False.
             limit_results: Optional int, limits the number of results returned.
 
-        Usage:
+        .. code-block:: python
+
             # You can replace <DomainSubclass> with any subclass of ModelPT.
+            from nemo.core import ModelPT
+
             # Get default ModelFilter
             filt = <DomainSubclass>.get_hf_model_filter()
 
