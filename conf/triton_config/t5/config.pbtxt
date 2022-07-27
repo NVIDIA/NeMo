@@ -27,7 +27,7 @@
 name: "fastertransformer"
 backend: "fastertransformer"
 default_model_filename: "t5"
-max_batch_size: 128
+max_batch_size: 1024
 input [
   {
     name: "input_ids"
@@ -84,7 +84,7 @@ input [
   },
   {
     name: "random_seed"
-    data_type: TYPE_INT32
+    data_type: TYPE_UINT64
     dims: [ 1 ]
     reshape: { shape: [ ] }
     optional: true
@@ -167,7 +167,7 @@ instance_group [
 parameters {
   key: "tensor_para_size"
   value: {
-    string_value: "2"
+    string_value: "1"
   }
 }
 parameters {
@@ -177,9 +177,9 @@ parameters {
   }
 }
 parameters {
-  key: "is_half"
+  key: "data_type"
   value: {
-    string_value: "1"
+    string_value: "fp16"
   }
 }
 parameters {

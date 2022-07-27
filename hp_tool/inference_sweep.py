@@ -60,7 +60,7 @@ def search_inference_config(base_cfg, cfg):
             task_name = f"inference_sweep_{benchmark_model_name}"
 
             # Prepare trition configuration
-            triton_model_dir = f"{results_dir}/model_repo_{run}"
+            triton_model_dir = f"{results_dir}/model_repo_{tensor_parallel_size}_{pipeline_parallel_size}"
             model_dir = f"{triton_model_dir}/{benchmark_model_name}/1/{tensor_parallel_size}-gpu"
             os.makedirs(model_dir, exist_ok=True)
 
