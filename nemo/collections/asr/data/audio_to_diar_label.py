@@ -593,11 +593,11 @@ class _AudioMSDDInferDataset(Dataset):
         feats_len = feats_out.shape[0]
 
         # In case F1 accuracy of the sequence out is needed, set seq_eval_mode=True
-        # If seq_eval_mode=False, 
+        # If seq_eval_mode=False,
         if self.seq_eval_mode:
             targets = self.parse_rttm_multiscale(sample)
         else:
-            targets = torch.zeros(feats_len, 2).float() 
+            targets = torch.zeros(feats_len, 2).float()
 
         return feats_out, feats_len, targets, avg_embs
 
