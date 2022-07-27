@@ -235,7 +235,7 @@ def main(cfg) -> None:
     if cfg.output_file is not None:
         with open(cfg.output_file, "w") as f:
             for response in responses:
-                s = response["sentences"][0]
+                s = ' '.join(response["sentences"][0].split('\n'))
                 print(s)
                 f.write(s + "\n")
     else:
