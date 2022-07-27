@@ -18,7 +18,7 @@ class LossTestingPipeline:
     if run_stage == "prompt":
         run_stage = "prompt_learn"
         file_directory =  file_name.split("_")[2] + "_result_files" # Since the file name will be prompt_learn_gpt3_...
-    else
+    else:
         file_directory =  file_name.split("_")[1] + "_result_files" #eg gpt3_result_files
     expected_metrics_file = os.path.join("tests/ci_tests/selene/pytest/", run_stage, file_directory, file_name)
     with open(expected_metrics_file) as f:
