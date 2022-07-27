@@ -97,8 +97,7 @@ class TranscriptionConfig:
     ctc_decoding: CTCDecodingConfig = CTCDecodingConfig()
 
     # Decoding strategy for RNNT models
-#    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1) #, strategy='greedy')
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1, strategy='greedy')
+    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)

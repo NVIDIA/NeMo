@@ -59,12 +59,14 @@ class StatelessNet(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
         self.norm = torch.nn.Identity()
         if normalization_mode == 'layer':
-            self.norm = torch.nn.LayerNorm(emb_dim)
-#            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
+            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
 
-        assert(blank_as_pad)
+        assert(blank_as_pad)  # So far it only supports when it is set True
         embeds = []
         for i in range(self.context_size):
+            # We use different embedding matrices for different context positions.
+            # In this list, a smaller index means more recent history word.
+            # We assign more dimensions for the most recent word in the history.
             if i != 0:
                 embed_size = emb_dim // 2 // self.context_size
             else:
@@ -86,10 +88,10 @@ class StatelessNet(torch.nn.Module):
                 ):
         # Although this is a *stateless* net, we use the "state" parameter to
         # pass in the previous labels, unlike LSTMs where state would represent
-        # hidden activations of the network. 
-        # state is always a list of 1 tensor (to be consistent with the stateful
+        # hidden activations of the network.
+        # "state" is a list of 1 tensor in order to be consistent with the stateful
         # decoder interface, and the element is a tensor of shape [batch, context-length].
-        # out dimension is B x U x D
+        # The out dimension of this function is B x U x D, with D being the total embedding dim.
         outs = []
 
         [B, U] = y.shape
@@ -114,8 +116,7 @@ class StatelessNet(torch.nn.Module):
                 out = self.embeds[i](y)
 
                 if i != 0:
-#                    out = torch.concat([out[:,:i,:] * 0.0, out[:,:-i,:]], dim=1)
-                    out[:,i:,:] = out[:,:-i,:].clone()  # needs clone() here or the following copy might complain about src and dst mem location have overlaps. 
+                    out[:,i:,:] = out[:,:-i,:].clone()  # needs clone() here or it might complain about src and dst mem location have overlaps.
                     out[:,:i,:] *= 0.0
                 outs.append(out)
 
@@ -141,7 +142,9 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         vocab_size: int, specifying the vocabulary size of the embedding layer of the Prediction network,
             excluding the RNNT blank token.
 
-        normalization_mode: Can be either None, 'batch' or 'layer'. By default, is set to None.
+        context_size: int, specifying the size of the history context used for this decoder.
+
+        normalization_mode: Can be either None, 'layer'. By default, is set to None.
             Defines the type of normalization applied to the RNN layer.
 
         blank_as_pad: bool, set to True by default. When set, will add a token to the Embedding layer of this
@@ -159,7 +162,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "targets": NeuralType(('B', 'T'), LabelsType()),
             "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],  # must always be last
+            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
         }
 
     @property
@@ -169,7 +172,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return {
             "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
             "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],  # must always be last
+            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
         }
 
     def input_example(self, max_batch=1, max_dim=1):
@@ -209,11 +212,10 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         super().__init__(vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=blank_as_pad)
 
         # Optional arguments
-        t_max = prednet.get('t_max', None)
         dropout = prednet.get('dropout', 0.0)
 
         self.prediction = self._predict_modules(
-            vocab_size=vocab_size,  # add 1 for blank symbol
+            vocab_size=vocab_size,
             pred_n_hidden=self.pred_hidden,
             norm=normalization_mode,
             dropout=dropout,
@@ -245,45 +247,37 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         batch_size: Optional[int] = None,
     ) -> (torch.Tensor, List[torch.Tensor]):
         """
-        Stateful prediction of scores and state for a (possibly null) tokenset.
-        This method takes various cases into consideration :
-        - No token, no state - used for priming the RNN
-        - No token, state provided - used for blank token scoring
-        - Given token, states - used for scores + new states
+        Stateful prediction of scores and state for a tokenset.
 
         Here:
         B - batch size
         U - label length
-        H - Hidden dimension size of RNN
-        L - Number of RNN layers
+        C - context size for stateless decoder
+        D - total embedding size
 
         Args:
             y: Optional torch tensor of shape [B, U] of dtype long which will be passed to the Embedding.
-                If None, creates a zero tensor of shape [B, 1, H] which mimics output of pad-token on Embedding.
+                If None, creates a zero tensor of shape [B, 1, D] which mimics output of pad-token on Embedding.
 
-            state: An optional list of states for the RNN. Eg: For LSTM, it is the state list length is 2.
-                Each state must be a tensor of shape [L, B, H].
+            state: An optional one-element list of one tensor. The tensor is used to store previous context labels.
+                The tensor uses type long and is of shape [B, C].
 
             add_sos: bool flag, whether a zero vector describing a "start of signal" token should be
-                prepended to the above "y" tensor. When set, output size is (B, U + 1, H).
+                prepended to the above "y" tensor. When set, output size is (B, U + 1, D).
 
             batch_size: An optional int, specifying the batch size of the `y` tensor.
                 Can be infered if `y` and `state` is None. But if both are None, then batch_size cannot be None.
 
         Returns:
-            A tuple  (g, hid) such that -
+            A tuple  (g, state) such that -
 
             If add_sos is False:
-                g: (B, U, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+                g: (B, U, D)
+                state: [(B, C)] storing the history context including the new words in y.
 
             If add_sos is True:
-                g: (B, U + 1, H)
-                hid: (h, c) where h is the final sequence hidden state and c is the final cell state:
-                    h (tensor), shape (L, B, H)
-                    c (tensor), shape (L, B, H)
+                g: (B, U + 1, D)
+                state: [(B, C)] storing the history context including the new words in y.
 
         """
         # Get device and dtype of current module
@@ -299,7 +293,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             y, state = self.prediction(y, state)
 
         else:
-            # Y is not provided, assume zero tensor with shape [B, 1, H] is required
+            # Y is not provided, assume zero tensor with shape [B, 1, D] is required
             # Emulates output of embedding of pad token.
             if batch_size is None:
                 B = 1 if state is None else state[0].size(1)
@@ -310,9 +304,9 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         # Prepend blank "start of sequence" symbol (zero tensor)
         if add_sos:
-            B, U, H = y.shape
-            start = torch.zeros((B, 1, H), device=y.device, dtype=y.dtype)
-            y = torch.cat([start, y], dim=1).contiguous()  # (B, U + 1, H)
+            B, U, D = y.shape
+            start = torch.zeros((B, 1, D), device=y.device, dtype=y.dtype)
+            y = torch.cat([start, y], dim=1).contiguous()  # (B, U + 1, D)
         else:
             start = None  # makes del call later easier
 
@@ -400,20 +394,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return state
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
-        """
-        Create batch of decoder states.
-
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
-
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([L x (B, H)], [L x (B, H)])
-       """
+        # This function is not needed.
         assert(0)
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
@@ -438,23 +419,8 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
-        """Concatenate a batch of decoder state to a packed state.
-
-        Args:
-            batch_states (list): batch of decoder states
-                [1 x [B x (U)]]
-
-        Returns:
-            (single element tuple): decoder states
-                (B x U)
-        """
-
-        assert(False)
-        hs = []
-        for t in batch_states:
-            hs.append(t)
-
-        return torch.concat(hs, dim=0)
+        # This function is not needed.
+        assert(0)
 
     def batch_copy_states(
         self,
@@ -569,7 +535,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         )
 
         return batch_y, batch_states, lm_tokens
-        
 
 
 class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):

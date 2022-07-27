@@ -580,7 +580,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                             # LSTM has 2 states
                             hidden_prime = self.decoder.batch_copy_states(hidden_prime, None, blank_indices, value=0.0)
 
-
                         # Recover prior predicted label for all samples which predicted blank now/past
                         k[blank_indices] = last_label[blank_indices, 0]
 
