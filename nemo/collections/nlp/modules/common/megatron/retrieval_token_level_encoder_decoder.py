@@ -1,4 +1,5 @@
 # Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,7 +81,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         headscale=False,
         transformer_block_type='pre_ln',
         hidden_steps=-1,
-        hidden_blocks=1,
         add_encoder=True,
         add_decoder=True,
         chunk_size=64,
@@ -103,6 +103,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.add_abs_position_embedding = add_position_embedding  # whether use absolute position embedding
         self.tokenizer = tokenizer
         self.eod_id = tokenizer.eos_id
+        self.transformer_block_type = transformer_block_type
+        self.num_chunked_cross_attention = len(dec_cross_attention)
 
         if kv_channels is None:
             assert (
@@ -119,9 +121,17 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_tokentypes=num_tokentypes,
                 use_cpu_initialization=use_cpu_initialization,
                 embedding_dropout_prob=hidden_dropout,
-                add_position_embedding=add_position_embedding,
+                position_embedding_type='learned_absolute' if add_position_embedding else '',
+                transpose_batch_sequence=False,
             )
             self._embedding_key = "embedding"
+
+        encoder_init = init_method_normal(init_method_std)
+        encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        pre_decoder_init = init_method_normal(init_method_std)
+        pre_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        post_decoder_init = init_method_normal(init_method_std)
+        post_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
 
         if add_encoder:
             enc_layer_types = []
@@ -130,6 +140,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_layer_types.append(LayerType.retrieval_encoder)
                 else:
                     enc_layer_types.append(LayerType.encoder)
+
             self.encoder = get_encoder_model(
                 arch="retro",
                 hidden_size=hidden_size,
@@ -138,10 +149,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(
-                    init_method_std, dec_num_layers
-                ),  # since the encoder is not independent of decoder, use decoder num of layers
+                init_method=encoder_init,
+                scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
                 post_process=post_process,
                 init_method_std=init_method_std,
@@ -160,7 +169,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 hidden_steps=hidden_steps,
-                hidden_blocks=hidden_blocks,
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
@@ -201,8 +209,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, dec_num_layers),
+                init_method=pre_decoder_init,
+                scaled_init_method=pre_decoder_scaled_init,
                 pre_process=pre_process,
                 post_process=False,  # no need for post process
                 init_method_std=init_method_std,
@@ -221,7 +229,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 hidden_steps=hidden_steps,
-                hidden_blocks=hidden_blocks,
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
@@ -242,8 +249,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 num_attention_heads=num_attention_heads,
                 apply_query_key_layer_scaling=apply_query_key_layer_scaling,
                 kv_channels=kv_channels,
-                init_method=init_method_normal(init_method_std),
-                scaled_init_method=scaled_init_method_normal(init_method_std, dec_num_layers),
+                init_method=post_decoder_init,
+                scaled_init_method=post_decoder_scaled_init,
                 pre_process=False,  # directly take the pre_decoder output, skip preprocess
                 post_process=post_process,
                 init_method_std=init_method_std,
@@ -262,7 +269,6 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 openai_gelu=openai_gelu,
                 onnx_safe=onnx_safe,
                 hidden_steps=hidden_steps,
-                hidden_blocks=hidden_blocks,
                 activation=activation,
                 bias=bias,
                 normalization=normalization,
@@ -335,7 +341,10 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             )
             # hidden is a tuple, (layernorm_input, layernorm_output)
             self.post_decoder.set_input_tensor(hidden)
-            encoder_input = hidden[1].transpose(0, 1).contiguous()
+            # scale down the pre-decoder output by half
+            # hidden = (hidden[0] * 0.5, hidden[1] * 0.5)
+            # stop passing through the gradients
+            encoder_output = hidden[1].transpose(0, 1).contiguous()
 
         if self.add_encoder:
             if retrieved_emb is not None and neighbors is None:
@@ -344,11 +353,14 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 retrieved_emb,
                 retrieved_attn_mask,
                 context_attn_mask=input_attn_mask,
-                encoder_output=encoder_input,
+                encoder_output=encoder_output,
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
                 neighbors=neighbors,
             )
+            #  scale down the retrieved emb output
+            if retrieved_emb is not None:
+                retrieved_emb = retrieved_emb * (1 / max(1, self.num_chunked_cross_attention))
 
         if self.add_decoder:
             dec_output = self.post_decoder(
@@ -360,6 +372,8 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 set_inference_key_value_memory=set_inference_key_value_memory,
                 inference_max_sequence_len=inference_max_sequence_len,
             )
+            dec_output = dec_output.transpose(0, 1).contiguous()
+            # only transpose it for post_ln
             token_logits = self.tokens_head(dec_output, self.word_embeddings_weight())
 
             if labels is not None:

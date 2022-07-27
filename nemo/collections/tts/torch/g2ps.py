@@ -139,7 +139,7 @@ class EnglishG2p(BaseG2p):
                 f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
                 "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
                 "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
-                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.01."
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.07."
             )
 
             return nltk.corpus.cmudict.dict()
@@ -405,7 +405,7 @@ class IPAG2P(BaseG2p):
         ):
             if word[-3] == 'T':
                 # Case like "airport's"
-                return self.phoneme_dict[word[:-2]][0] + ["t", "s"], True
+                return self.phoneme_dict[word[:-2]][0] + ["s"], True
             elif word[-3] == 'S':
                 # Case like "jones's"
                 return self.phoneme_dict[word[:-2]][0] + ["ɪ", "z"], True
@@ -420,14 +420,11 @@ class IPAG2P(BaseG2p):
             and (word[:-1] in self.phoneme_dict)
             and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-1]))
         ):
-            if word[-3] == 'T':
-                # Case like "airport's"
-                return self.phoneme_dict[word[:-2]][0] + ["t", "s"], True
-            elif word[-3] == 'S':
-                # Case like "jones's"
-                return self.phoneme_dict[word[:-2]][0] + ["ɪ", "z"], True
+            if word[-2] == 'T':
+                # Case like "airports"
+                return self.phoneme_dict[word[:-1]][0] + ["s"], True
             else:
-                return self.phoneme_dict[word[:-2]][0] + ["z"], True
+                return self.phoneme_dict[word[:-1]][0] + ["z"], True
 
         # Phoneme dict lookup for unique words (or default pron if ignore_ambiguous_words=False)
         if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):

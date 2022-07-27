@@ -22,6 +22,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.metrics.wer_bpe import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.common import tokenizers
@@ -265,6 +266,20 @@ class TestEncDecCTCModel:
                 os.rename(old_tokenizer_dir + '.bkp', old_tokenizer_dir)
 
     @pytest.mark.unit
+    def test_decoding_change(self, asr_model):
+        assert asr_model.decoding is not None
+        assert isinstance(asr_model.decoding, CTCBPEDecoding)
+        assert asr_model.decoding.cfg.strategy == "greedy"
+        assert asr_model.decoding.preserve_alignments is False
+        assert asr_model.decoding.compute_timestamps is False
+
+        cfg = CTCBPEDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        asr_model.change_decoding_strategy(cfg)
+
+        assert asr_model.decoding.preserve_alignments is True
+        assert asr_model.decoding.compute_timestamps is True
+
+    @pytest.mark.unit
     def test_ASRDatasetConfig_for_AudioToBPEDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
@@ -286,6 +301,7 @@ class TestEncDecCTCModel:
             'blank_index',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim', 'labels': 'tokenizer'}
@@ -320,6 +336,7 @@ class TestEncDecCTCModel:
             'world_size',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
         ]
 
         REMAP_ARGS = {
