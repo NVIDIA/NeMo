@@ -62,7 +62,7 @@ class Prefix(MegatronModule):
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
-        self.prefix_layer_projection = nn.Linear(prefix_projection_size, num_layers * hidden_size * 2)
+        self.prefix_layer_projection = ColumnLinear(prefix_projection_size, num_layers * hidden_size * 2)
         nn.init.normal_(self.prefix_embeddings.weight)
         nn.init.xavier_uniform_(self.prefix_projection.weight)
         nn.init.constant_(self.prefix_projection.bias, 0)
