@@ -619,11 +619,11 @@ class TestSaveRestore:
         filt = ModelPT.get_hf_model_filter()
 
         # check no override results
-        model_infos = ModelPT.list_available_models_on_hf(model_filter=None)
+        model_infos = ModelPT.search_huggingface_models(model_filter=None)
         assert len(model_infos) > 0
 
         # check with default override results (should match above)
-        default_model_infos = ModelPT.list_available_models_on_hf(model_filter=filt)
+        default_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) == len(default_model_infos)
 
     @pytest.mark.with_downloads()
@@ -632,27 +632,27 @@ class TestSaveRestore:
         filt = ModelPT.get_hf_model_filter()
 
         # check no override results
-        model_infos = ModelPT.list_available_models_on_hf(model_filter=filt)
+        model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) > 0
         assert not hasattr(model_infos[0], 'cardData')
 
         # check overriden defaults
         filt.resolve_card_info = True
-        model_infos = ModelPT.list_available_models_on_hf(model_filter=filt)
+        model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) > 0
         assert hasattr(model_infos[0], 'cardData') and model_infos[0].cardData is not None
 
-    # @pytest.mark.with_downloads()
+    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_hf_model_info_with_limited_results(self):
         filt = ModelPT.get_hf_model_filter()
 
         # check no override results
-        model_infos = ModelPT.list_available_models_on_hf(model_filter=filt)
+        model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(model_infos) > 0
 
         # check overriden defaults
         filt.limit_results = 5
-        new_model_infos = ModelPT.list_available_models_on_hf(model_filter=filt)
+        new_model_infos = ModelPT.search_huggingface_models(model_filter=filt)
         assert len(new_model_infos) <= 5
         assert len(new_model_infos) < len(model_infos)

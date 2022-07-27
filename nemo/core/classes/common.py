@@ -668,7 +668,9 @@ class Model(Typing, Serialization, FileIO):
         pass
 
     @classmethod
-    def list_available_models_on_hf(cls, model_filter: Optional[ModelFilter] = None) -> List[ModelInfo]:
+    def search_huggingface_models(
+        cls, model_filter: Optional[Union[ModelFilter, List[ModelFilter]]] = None
+    ) -> List[ModelInfo]:
         """
         Should list all pre-trained models available via Hugging Face Hub.
 
@@ -678,8 +680,9 @@ class Model(Typing, Serialization, FileIO):
             limit_results: Optional int, limits the number of results returned.
 
         Usage:
+            # You can replace <DomainSubclass> with any subclass of ModelPT.
             # Get default ModelFilter
-            filt = <ModelSubclass>.get_hf_model_filter()
+            filt = <DomainSubclass>.get_hf_model_filter()
 
             # Make any modifications to the filter as necessary
             filt.language = [...]
@@ -690,7 +693,7 @@ class Model(Typing, Serialization, FileIO):
             filt.limit_results = 5
 
             # Obtain model info
-            model_infos = <ModelSubclass>.list_available_models_on_hf(model_filter=filt)
+            model_infos = <DomainSubclass>.search_huggingface_models(model_filter=filt)
 
             # Browse through cards and select an appropriate one
             card = model_infos[0]
@@ -699,8 +702,9 @@ class Model(Typing, Serialization, FileIO):
             model = ModelPT.from_pretrained(card.modelId)
 
         Args:
-            model_filter: Optional ModelFilter (from Hugging Face Hub) that filters the returned list of compatible
-                model cards. Users can then use `model_card.modelId` in `from_pretrained()` to restore a NeMo Model.
+            model_filter: Optional ModelFilter or List[ModelFilter] (from Hugging Face Hub)
+                that filters the returned list of compatible model cards, and selects all results from each filter.
+                Users can then use `model_card.modelId` in `from_pretrained()` to restore a NeMo Model.
                 If no ModelFilter is provided, uses the classes default filter as defined by `get_hf_model_filter()`.
 
         Returns:
@@ -710,17 +714,22 @@ class Model(Typing, Serialization, FileIO):
         if model_filter is None:
             model_filter = cls.get_hf_model_filter()
 
-        # Inject `nemo` library filter
-        if isinstance(model_filter.library, str) and model_filter.library != 'nemo':
-            logging.warning(f"Model filter's `library` tag updated be `nemo`. Original value: {model_filter.library}")
-            model_filter.library = "nemo"
+        # If single model filter, wrap into list
+        if not isinstance(model_filter, Iterable):
+            model_filter = [model_filter]
 
-        elif isinstance(model_filter, Iterable) and 'nemo' not in model_filter.library:
-            logging.warning(
-                f"Model filter's `library` list updated to include `nemo`. Original value: {model_filter.library}"
-            )
-            model_filter.library = list(model_filter)
-            model_filter.library.append('nemo')
+        # Inject `nemo` library filter
+        for mfilter in model_filter:
+            if isinstance(mfilter.library, str) and mfilter.library != 'nemo':
+                logging.warning(f"Model filter's `library` tag updated be `nemo`. Original value: {mfilter.library}")
+                mfilter.library = "nemo"
+
+            elif isinstance(mfilter, Iterable) and 'nemo' not in mfilter.library:
+                logging.warning(
+                    f"Model filter's `library` list updated to include `nemo`. Original value: {mfilter.library}"
+                )
+                mfilter.library = list(mfilter)
+                mfilter.library.append('nemo')
 
         # Check if api token exists, use if it does
         is_token_available = HfFolder.get_token() is not None
@@ -729,25 +738,30 @@ class Model(Typing, Serialization, FileIO):
         api = HfApi()
 
         # Setup extra arguments for model filtering
-        cardData = None
-        limit = None
+        all_results = []  # type: List[ModelInfo]
 
-        if hasattr(model_filter, 'resolve_card_info') and model_filter.resolve_card_info is True:
-            cardData = True
+        for mfilter in model_filter:
+            cardData = None
+            limit = None
 
-        if hasattr(model_filter, 'limit_results') and model_filter.limit_results is not None:
-            limit = model_filter.limit_results
+            if hasattr(mfilter, 'resolve_card_info') and mfilter.resolve_card_info is True:
+                cardData = True
 
-        results = api.list_models(
-            filter=model_filter,
-            use_auth_token=is_token_available,
-            sort="lastModified",
-            direction=-1,
-            cardData=cardData,
-            limit=limit,
-        )  # type: List[ModelInfo]
+            if hasattr(mfilter, 'limit_results') and mfilter.limit_results is not None:
+                limit = mfilter.limit_results
 
-        return results
+            results = api.list_models(
+                filter=mfilter,
+                use_auth_token=is_token_available,
+                sort="lastModified",
+                direction=-1,
+                cardData=cardData,
+                limit=limit,
+            )  # type: List[ModelInfo]
+
+            all_results.extend(results)
+
+        return all_results
 
     @classmethod
     def get_available_model_names(cls) -> List[str]:
