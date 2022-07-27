@@ -81,6 +81,8 @@ def main(cfg) -> None:
 
     model = MegatronRetrievalModel(cfg.model, trainer)
     set_base_shapes(model, cfg.model.shape_file, rescale_params=False)
+    # add shape file
+    model.register_artifact("model.shape_file", cfg.model.shape_file),
 
     for name, tensor in model.named_parameters():
         if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
