@@ -1101,14 +1101,14 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             ids = tokenizer.text_to_ids(txt)
             if ret_enc_add:
                 # TODO: Handle multiple nn case
-                ids =  prepend_ids + [tokenizer.bos_id] + ret_enc_add[i] +  ids + [tokenizer.eos_id]
+                ids =  prepend_ids + ret_enc_add[i] + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
             else:
                 ids = prepend_ids + [tokenizer.bos_id] + ids + [tokenizer.eos_id]
             inputs.append(ids)
 
             # Add decoder input for decoder initialization
             if ret_dec_add:
-                decoder_inputs.append([tokenizer.bos_id] + ret_dec_add[i])
+                decoder_inputs.append(ret_dec_add[i] + [tokenizer.bos_id])
 
         max_len = max(len(txt) for txt in inputs)
         src_ids_ = np.ones((len(inputs), max_len)) * tokenizer.pad_id
@@ -1126,7 +1126,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             decoder_src = torch.LongTensor(decoder_src_ids_).to(device)
             return src, src_mask, decoder_src
         else:
-            return src, src_mask
+            return src, src_mask, None
 
     @torch.no_grad()
     def translate(

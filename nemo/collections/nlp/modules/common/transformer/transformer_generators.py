@@ -299,9 +299,8 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         log_probs, decoder_mems_list = self._one_step_forward(tgt, encoder_hidden_states, encoder_input_mask, None, 0)
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)
-
         # repeat init target prefixes and cached memory states beam_size times
-        if decoder_input_ids:
+        if decoder_input_ids is not None:
             prefixes = torch.cat((tgt.repeat(self.beam_size, 1), prefixes), dim=1)
         else:
             prefixes = torch.cat((tgt.repeat(1, self.beam_size).view(-1, 1), prefixes), dim=1)
@@ -333,7 +332,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             pad_mask = pad_profile.repeat(1, self.beam_size)
 
             # generate and score candidates for prefixes continuation
-            if decoder_input_ids:
+            if decoder_input_ids is not None:
                 position_ = decoder_input_ids.shape[1]
             else:
                 position_ = 1
@@ -394,7 +393,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
         )
         tgt = prefixes.view(batch_size, self.beam_size, -1).gather(1, best_guesses).squeeze(1)
 
-        if decoder_input_ids:
+        if decoder_input_ids is not None:
             # Retrieval: Cut-out decoder inputs
             decoder_input_ids_length = decoder_input_ids.shape[1]
             tgt = tgt[:,decoder_input_ids_length:]

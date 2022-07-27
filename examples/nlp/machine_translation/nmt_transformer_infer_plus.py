@@ -288,8 +288,11 @@ def main():
                     if add_special:
                         decoder_context.extend([models[0].encoder_tokenizer.token_to_id('[NN_TGT]')])
                     decoder_context.extend(tgt_retrieval_ids[tgt_retrieval_ids_start[nn_id]:tgt_retrieval_ids_start[nn_id+1]])
-                ret_enc_add.append(encoder_context[1:-1])
-                ret_dec_add.append(decoder_context[1:-1])
+                # remove <bos> & <eos>
+                # ret_enc_add.append(encoder_context[1:-1])
+                # ret_dec_add.append(decoder_context[1:-1])
+                ret_enc_add.append(encoder_context)
+                ret_dec_add.append(decoder_context)
 
             if len(src_text) == args.batch_size:
                 # warmup when measuring timing
