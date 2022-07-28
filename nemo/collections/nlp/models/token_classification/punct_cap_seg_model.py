@@ -1,6 +1,7 @@
 
 import enum
 import itertools
+import re
 from typing import Optional, Union, Dict, Tuple, List, Iterable
 
 from hydra.utils import instantiate
@@ -282,7 +283,7 @@ class PunctCapSegModel(NLPModel):
         seg_encoded = self.bert_model(
             input_ids=seg_inputs, attention_mask=seg_mask, token_type_ids=torch.zeros_like(seg_inputs)
         )
-        # Megatron will return Tuples; make an assumption if we have a Tuple
+        # Megatron will return tuples; the first element is the decoder output.
         if isinstance(punct_encoded, tuple):
             punct_encoded = punct_encoded[0]
             cap_encoded = cap_encoded[0]
@@ -438,6 +439,13 @@ class PunctCapSegModel(NLPModel):
         post_scores = post_scores.tolist()
         post_preds = post_preds.tolist()
 
+        # Need these for some post-processing
+        # Match space after a pre-token punctuation label, or space before a post-token punctuation label
+        pre_labels = "".join(re.escape(x) for x in self._punct_pre_labels if x != self._null_punct_token)
+        post_labels = "".join(re.escape(x) for x in self._punct_post_labels if x != self._null_punct_token)
+        pre_space_ptn = re.compile(rf"([{pre_labels}])\s+")
+        post_space_ptn = re.compile(rf"\s+([{post_labels}])")
+
         output_texts: List[str] = []
         for batch_idx in range(batch_size):
             # Strip BOS/EOS
@@ -457,8 +465,13 @@ class PunctCapSegModel(NLPModel):
                 if batch_post_scores[i] > threshold:
                     pred_id = self.tokenizer.token_to_id(self._punct_post_labels[batch_post_preds[i]])
                     out_ids.append(pred_id)
-            # output_texts.append(self.tokenizer.ids_to_text(out_ids))
-            output_texts.append(self.tokenizer.tokenizer.decode(out_ids))
+            # Convert to text and normalize space around punctuation labels
+            out_text = self.tokenizer.ids_to_text(out_ids)
+            out_text = pre_space_ptn.sub(r"\g<1>", out_text)
+            out_text = post_space_ptn.sub(r"\g<1>", out_text)
+            output_texts.append(out_text)
+            # output_texts.append(self.tokenizer.tokenizer.decode(out_ids))
+
         return output_texts
 
     def infer_segmentation(self, texts: List[str], threshold: float = 0.5) -> List[List[str]]:

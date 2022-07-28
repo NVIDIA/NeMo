@@ -28,12 +28,13 @@ def main() -> None:
         m = PunctCapSegModel.restore_from(args.model, map_location=torch.device("cpu"))
     else:
         m = PunctCapSegModel.load_from_checkpoint(args.model, map_location="cpu")
-    m = m.eval()
+    m = m.eval().float()
 
     texts: List[str] = []
     with open(args.text_file) as f:
         for text in f:
             text = text.strip()
+            # Skip comments
             if text.startswith("#"):
                 continue
             texts.append(text)

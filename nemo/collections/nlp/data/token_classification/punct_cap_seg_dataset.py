@@ -1,42 +1,14 @@
 
 import abc
 import re
-from dataclasses import dataclass
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Optional, Dict, List, Tuple
 
 import torch
 import numpy as np
-from omegaconf import OmegaConf, MISSING
 
 from nemo.core import Dataset, typecheck
 from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec, SentencePieceTokenizer
 from nemo.core.neural_types import NeuralType, TokenIndex, LengthsType
-
-
-@dataclass
-class YamlDatasetEntry:
-    punct_input_ids: List[int] = MISSING
-    punct_input_tokens: Any = None
-    punct_pre_target_ids: List[int] = MISSING
-    punct_pre_target_tokens: Any = None  # Optional[List[str]]
-    punct_post_target_ids: List[int] = MISSING
-    punct_post_target_tokens: Any = None  # Optional[List[str]]
-    cap_input_ids: List[int] = MISSING
-    cap_input_tokens: Any = None
-    cap_target_ids: List[int] = MISSING
-    cap_target_tokens: Any = None
-    seg_input_ids: List[int] = MISSING
-    seg_input_tokens: Any = None
-    seg_target_ids: List[int] = MISSING
-    seg_target_tokens: Any = None
-
-
-@dataclass
-class YamlDatasetConfig:
-    entries: List[YamlDatasetEntry] = MISSING
-    is_continuous: bool = False
-    language: str = "unk"
-    target_pad_value: int = -100
 
 
 class CharTokenizerOverlay(TokenizerSpec):
@@ -52,6 +24,11 @@ class CharTokenizerOverlay(TokenizerSpec):
     def __init__(self, tokenizer: TokenizerSpec) -> None:
         super().__init__()
         self._tokenizer: TokenizerSpec = tokenizer
+        # # Needed to comply with HF's 'basic tokenization' scheme, used in some BERT tokenizers
+        # self._do_basic_tokenize = (
+        #         isinstance(self._tokenizer, AutoTokenizer)
+        #         and self._tokenizer.tokenizer.do_basic_tokenize
+        # )
         # Maps raw chars to tokens as they appear at the beginning of words.
         # E.g., for SentencePiece {'a': '▁a'} or for HuggingFace {'a': 'a'}
         self._bow_char_vocab: Dict[str, str] = {}
@@ -75,7 +52,8 @@ class CharTokenizerOverlay(TokenizerSpec):
 
     def text_to_ids(self, text: str) -> List[int]:
         ids: List[int] = []
-        for word in text.split():
+        words = text.split()
+        for word in words:
             chars: List[str] = []
             for char_num, char in enumerate(word):
                 if char_num == 0:
@@ -623,53 +601,6 @@ class TarredPunctCapSegDataset(PunctCapSegDataset):
         pass
 
 
-class YamlPunctCapSegDataset(PunctCapSegDataset):
-
-    def __init__(
-            self,
-            yaml_file: str
-    ):
-        """
-        TODO define yaml structure in dataclass
-        """
-        self._cfg = OmegaConf.load(yaml_file)
-        super().__init__(
-            language=self._cfg.language,
-            is_continuous=self._cfg.is_continuous,
-            tokenizer=None,
-            target_pad_value=self._cfg.target_pad_value
-        )
-
-    @classmethod
-    def from_text_dataset(cls, text_dataset: 'TextPunctCapSegDataset'):
-        entries: List[YamlDatasetEntry] = []
-        for item in iter(text_dataset):
-            pass
-        cfg: YamlDatasetConfig = YamlDatasetConfig(
-            entries=entries,
-            language="",
-            is_continuous=False,
-            target_pad_value=-100
-        )
-
-    def __len__(self):
-        return len(self._cfg.data)
-
-    def __getitem__(self, index):
-        entry = self._cfg.data[index]
-        punct_input_tensor = torch.tensor(entry.punct_input_ids, dtype=torch.long)
-        cap_input_tensor = torch.tensor(entry.cap_input_ids, dtype=torch.long)
-        seg_input_tensor = torch.tensor(entry.seg_input_ids, dtype=torch.long)
-        punct_pre_targets_tensor = torch.tensor(entry.punct_pre_target_ids, dtype=torch.long)
-        punct_post_targets_tensor = torch.tensor(entry.punct_post_target_ids, dtype=torch.long)
-        cap_targets_tensor = torch.tensor(entry.cap_target_ids, dtype=torch.long)
-        seg_targets_tensor = torch.tensor(entry.seg_target_ids, dtype=torch.long)
-        return (
-            punct_input_tensor, cap_input_tensor, seg_input_tensor,
-            punct_pre_targets_tensor, punct_post_targets_tensor, cap_targets_tensor, seg_targets_tensor
-        )
-
-
 class TextPunctCapSegDataset(PunctCapSegDataset):
     """Punctuation, true-casing, and sentence-boundary detection dataset that uses text files for example generation.
 
@@ -865,7 +796,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         return data
 
     def _verify_punct_labels_in_vocab(self):
-        # TODO remove why do we need this
+        # TODO remove I don't think this is required anymore
         for label in self._punct_pre_labels + self._punct_post_labels:
             piece = self._tokenizer.text_to_tokens(label)
             if piece != label:
@@ -915,11 +846,11 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
 
         # Make segmentation targets.
         # TODO use the concatenated text instead of looping. Aligning targets is easy when looping, because the final
-        #  token is the segmentation target. Much harder when multiple sentences are already concatenated.
+        #  token is the segmentation target. Harder when multiple sentences are already concatenated.
         seg_input_ids: List[int] = []
         seg_targets: List[int] = []
         for i, text in enumerate(texts_to_use):
-            # For segmentation and punctuation, we use lower-case text for most examples
+            # Maybe lower-case sentence
             if rng.random() < self._prob_lower_case:
                 text = text.lower()
             if self._is_continuous and i > 0:
