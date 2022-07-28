@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from nemo_text_processing.g2p.models.ctc_g2p import CTCG2PModel
+from nemo_text_processing.g2p.models.g2p_model import G2PModel
 from omegaconf import OmegaConf
 from utils import get_metrics
 
@@ -28,13 +28,12 @@ from nemo.utils import logging
 
 """
 python g2p_inference.py \
-    pretrained_model=<Path to .nemo file or pretrained model name for CTCG2PModel from list_available_models()>" \
+    pretrained_model=<Path to .nemo file or pretrained model name for G2PModel from list_available_models()>" \
     manifest_filepath="<Path to .json manifest>" \
     output_file="<Path to .json manifest to save prediction>" \
     batch_size=32 \
     num_workers=4 \
-    target_field=pred_text \
-    pretrained_heteronyms_model=<Path to .nemo file or pretrained model name for HeteronymClassificationModel from list_available_models()>"
+    pred_field=pred_text
 """
 
 
@@ -72,7 +71,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if not cfg.pretrained_model:
         raise ValueError(
             'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
-            f'Choose from {CTCG2PModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
+            f'Choose from {G2PModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
         )
 
     logging.info(
@@ -92,12 +91,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     trainer = pl.Trainer(devices=device, accelerator=accelerator, logger=False, enable_checkpointing=False)
 
     if os.path.exists(cfg.pretrained_model):
-        model = CTCG2PModel.restore_from(cfg.pretrained_model, map_location=map_location)
-    elif cfg.pretrained_model in CTCG2PModel.get_available_model_names():
-        model = CTCG2PModel.from_pretrained(cfg.pretrained_model, map_location=map_location)
+        model = G2PModel.restore_from(cfg.pretrained_model, map_location=map_location)
+    elif cfg.pretrained_model in G2PModel.get_available_model_names():
+        model = G2PModel.from_pretrained(cfg.pretrained_model, map_location=map_location)
     else:
         raise ValueError(
-            f'Provide path to the pre-trained .nemo checkpoint or choose from {CTCG2PModel.list_available_models()}'
+            f'Provide path to the pre-trained .nemo checkpoint or choose from {G2PModel.list_available_models()}'
         )
     model._cfg.max_source_len = 512
     model.set_trainer(trainer)

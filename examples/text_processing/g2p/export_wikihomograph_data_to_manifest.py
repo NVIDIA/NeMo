@@ -3,7 +3,7 @@ import os
 from argparse import ArgumentParser
 from glob import glob
 
-from nemo_text_processing.g2p.data.data_utils import correct_wikihomograph_data, read_wikihomograph_file
+from nemo_text_processing.g2p.data.data_utils import read_wikihomograph_file
 from tqdm import tqdm
 
 
@@ -36,9 +36,8 @@ def convert_wikihomograph_data_to_manifest(data_folder: str, output_manifest: st
             sentences, start_end_indices, homographs, word_ids = read_wikihomograph_file(file)
             for i, sent in enumerate(sentences):
                 start, end = start_end_indices[i]
-                sent, start, end = correct_wikihomograph_data(sent, start, end)
-                homograph = file_name.replace(".tsv", "")
 
+                homograph = file_name.replace(".tsv", "")
                 homograph_span = sent[start:end]
                 if homograph_span.lower() != homograph and sent.lower().count(homograph) == 1:
                     start = sent.lower().index(homograph)

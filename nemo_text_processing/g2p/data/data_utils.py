@@ -14,30 +14,22 @@
 
 
 import csv
-import os
 import re
 import string
-from collections import defaultdict
-from glob import glob
 from typing import List
-
-import torch
-from tqdm import tqdm
-from transformers import AutoTokenizer, PreTrainedTokenizerBase
-
-from nemo.core.classes import Dataset
-from nemo.utils import logging
 
 __all__ = ['correct_wikihomograph_data', 'read_wikihomograph_file', 'read_wordids']
 
 
-def correct_wikihomograph_data(sentence, start=None, end=None):
+def correct_wikihomograph_data(sentence: str, start: int = None, end: int = None):
     """
-    Correct indices for wikihomograph data
-    :param sentence:
-    :param start:
-    :param end:
-    :return:
+    Correct indices for WikiHomograph data
+
+    Args:
+        sentence: sentence
+        start: start index of homograph
+        end: end index of homograph
+
     """
     corrections = {
         "It is traditionally composed of 85–99% tin, mixed with copper, antimony, bismuth, and sometimes lead, although the use of lead is less common today.": [
@@ -72,8 +64,8 @@ def correct_wikihomograph_data(sentence, start=None, end=None):
     if sentence in corrections:
         start, end = corrections[sentence]
 
-    sentence = sentence.replace("2014Coordinate", "2014 Coordinate")
-    sentence = sentence.replace("AAA", "triple A")
+    sentence = sentence.replace("2014Coordinate", "2014 Coordinate")  # for normalized data for G2P OOV models
+    sentence = sentence.replace("AAA", "triple A")  # for normalized data for G2P OOV models
 
     return sentence, start, end
 
@@ -88,7 +80,7 @@ def read_wikihomograph_file(file: str) -> (List[str], List[List[int]], List[str]
     Returns:
         sentences: Text.
         start_end_indices: Start and end indices of the homograph in the sentence.
-        homographs: Target homographs for each sentence (TODO: check that multiple homograph for sent are supported).
+        homographs: Target homographs for each sentence
         word_ids: Word_ids corresponding to each homograph, i.e. label.
     """
     excluded_sentences = 0
@@ -104,7 +96,6 @@ def read_wikihomograph_file(file: str) -> (List[str], List[List[int]], List[str]
                 continue
             homograph, wordid, sentence, start, end = line
             start, end = int(start), int(end)
-
             sentence, start, end = correct_wikihomograph_data(sentence, start, end)
 
             homograph_span = sentence[start:end]
@@ -113,10 +104,8 @@ def read_wikihomograph_file(file: str) -> (List[str], List[List[int]], List[str]
                     start = sentence.lower().index(homograph)
                     end = start + len(homograph)
                     homograph_span = sentence[start:end].lower()
-
                     assert homograph == homograph_span.lower()
                 else:
-                    print(f"homograph {homograph} != homograph_span {homograph_span} in {sentence}")
                     excluded_sentences += 1
                     raise ValueError(f"homograph {homograph} != homograph_span {homograph_span} in {sentence}")
 
