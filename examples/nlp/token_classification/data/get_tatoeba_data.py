@@ -120,7 +120,7 @@ def __split_into_train_dev(in_file: str, train_file: str, dev_file: str, percent
     dev_file.write(' '.join(lines[-dev_size:]))
 
 
-def remove_punctuation(word: str):
+def remove_all_punctuation(word: str):
     """
     Removes all punctuation marks from a word except for '
     that is often a part of word: don't, it's, and so on
@@ -165,10 +165,14 @@ def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = '
                     labels = ''
                     for word in line:
                         label = word[-1] if word[-1] in punct_marks else 'O'
-                        word = remove_punctuation(word)
+                        word = remove_all_punctuation(word)
                         if len(word) > 0:
-                            if word[0].isupper():
+                            if word.islower():
+                                label += 'L'
+                            elif word.isupper():
                                 label += 'U'
+                            elif word[0].isupper():
+                                label += 'C'
                             else:
                                 label += 'O'
 

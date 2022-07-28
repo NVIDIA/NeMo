@@ -61,11 +61,11 @@ This can be changed by introducing new labels in the labels.txt files
 Each line of the labels.txt should follow the format: [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt). \
 For example, labels for the above text.txt file should be:
 
-        OU OO OO OO OO OO OU ?U
-        OU OO OO OO ...
+        OC OL OL OL OL OL OC ?C
+        OC OL OL OL ...
         ...
 
-The complete list of all possible labels for this task used in this tutorial is: OO, ,O, .O, ?O, OU, ,U, .U, ?U.
+The complete list of all possible labels for this task used in this tutorial is: OO, ,O, .O, ?O, OL, ,L, .L, ?L, OL, ,U, .U, ?U, OC, ,C, .C, ?C.
 
 Converting Raw data to NeMo format
 ----------------------------------

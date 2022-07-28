@@ -1033,13 +1033,15 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         ), f"len(query)={len(query)} len(capit_preds)={len(capit_preds)}, query[:30]={query[:30]}"
         punct_ids_to_labels = {v: k for k, v in self.punct_label_ids.items()}
         capit_ids_to_labels = {v: k for k, v in self.capit_label_ids.items()}
+        capit_labels_to_ops = {'L': 'lower', 'U': 'upper', 'C': 'capitalize'}
         query_with_punct_and_capit = ''
         for j, word in enumerate(query):
             punct_label = punct_ids_to_labels[punct_preds[j]]
             capit_label = capit_ids_to_labels[capit_preds[j]]
 
             if capit_label != self._cfg.common_dataset_parameters.pad_label:
-                word = word.capitalize()
+                capit_op = getattr(word, capit_labels_to_ops[capit_label])
+                word = capit_op()
             query_with_punct_and_capit += word
             if punct_label != self._cfg.common_dataset_parameters.pad_label:
                 query_with_punct_and_capit += punct_label
