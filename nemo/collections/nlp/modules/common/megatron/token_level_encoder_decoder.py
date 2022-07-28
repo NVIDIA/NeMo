@@ -127,7 +127,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
                 self._encoder_embedding_key = "encoder_embedding"
-                if self.position_embedding_type == 'relative':
+                if self.encoder_cfg.position_embedding_type == 'relative':
                     self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=encoder_cfg.num_attention_heads,
@@ -199,7 +199,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                 self._decoder_embedding_key = "decoder_embedding"
                 # TODO (sandeepsub): When implementing RPE for PP > 2, this should not be inside `pre_process`. It should exist on all ranks and be synchronized manually.
-                if self.position_embedding_type == 'relative':
+                if self.decoder_cfg.position_embedding_type == 'relative':
                     self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=decoder_cfg.num_attention_heads,
@@ -208,7 +208,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         bidirectional=False,
                     )
                     self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
-                    if not self.relative_position_bias_self_attention_only:
+                    if not self.decoder_cfg.relative_position_bias_self_attention_only:
                         self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
                             init_method=init_method_normal(embedding_init_method_std),
                             num_attention_heads=decoder_cfg.num_attention_heads,
@@ -367,13 +367,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if enc_input is None:
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
-                if self.position_embedding_type != 'relative':
+                if self.encoder_cfg.position_embedding_type != 'relative':
                     enc_position_ids = build_position_ids(enc_input_ids)
                 else:
                     enc_position_ids = None
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
 
-                if self.position_embedding_type == 'relative':
+                if self.encoder_cfg.position_embedding_type == 'relative':
                     encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                         query_seq_length=enc_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
                     )
@@ -390,11 +390,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_position_ids = build_position_ids(dec_input_ids)
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 
-                if self.position_embedding_type == 'relative':
+                if self.decoder_cfg.position_embedding_type == 'relative':
                     decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                         query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                     )
-                    if not self.relative_position_bias_self_attention_only:
+                    if not self.decoder_cfg.relative_position_bias_self_attention_only:
                         decoder_cross_attention_relative_position_bias = self.decoder_cross_attention_relative_position_embedding(
                             query_seq_length=dec_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
                         )
