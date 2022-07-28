@@ -477,7 +477,7 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
 
     speech_segments = torch.empty(0)
 
-    for i in range(1, len(sequence)):
+    for i in range(0, len(sequence)):
         # Current frame is speech
         if speech:
             # Switch from speech to non-speech
