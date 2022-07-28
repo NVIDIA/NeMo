@@ -710,9 +710,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # Distributed optimizer requires custom gradient clipping
         if self.with_distributed_adam:
-            return clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
+            grad_norm = clip_grad_norm_distributed_optimizer(self._optimizer, clip_val)
+            self.log('grad_norm', grad_norm, rank_zero_only=True)
         else:
-            return super().configure_gradient_clipping(*args, **kwargs)
+            super().configure_gradient_clipping(*args, **kwargs)
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()

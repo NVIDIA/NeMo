@@ -173,7 +173,6 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
     assert isinstance(optimizer, DistributedFusedAdam)
 
     # Filter parameters based on:
-    #   - grad should not be none
     #   - parameter should not be shared
     #   - should not be a replica due to tensor model parallelism
     params = itertools.chain.from_iterable(
@@ -183,10 +182,9 @@ def clip_grad_norm_distributed_optimizer(optimizer, max_norm, norm_type=2):
     )
     params_for_norm = []
     for param in params:
-        grad_not_none = param.grad is not None
         is_not_shared = param_is_not_shared(param)
         is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(param)
-        if grad_not_none and is_not_shared and is_not_tp_duplicate:
+        if is_not_shared and is_not_tp_duplicate:
             params_for_norm.append(param)
 
     # Compute grad norm
