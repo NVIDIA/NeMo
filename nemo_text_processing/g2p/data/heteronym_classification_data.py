@@ -87,7 +87,7 @@ class HeteronymClassificationDataset(Dataset):
                         grapheme_sent[se[0] : se[1]] != h
                         or len(self.tokenizer.text_to_tokens(grapheme_sent)) + 2 > max_seq_len
                     ):
-                        num_skipped += 0
+                        num_skipped += 1
                     else:
                         sentences.append(grapheme_sent)
                         start_end_indices.append(se)

@@ -74,9 +74,9 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
 
         self.mode = cfg.model_name.lower()
 
-        supported_modes = ["byt5", "conformer_bpe"]
-        if self.mode not in supported_modes:
-            raise ValueError(f"{self.mode} is not supported, choose from {supported_modes}")
+        self.supported_modes = ["byt5", "conformer_bpe"]
+        if self.mode not in self.supported_modes:
+            raise ValueError(f"{self.mode} is not supported, choose from {self.supported_modes}")
 
         # Setup phoneme tokenizer
         self._setup_tokenizer(cfg.tokenizer)
@@ -125,7 +125,7 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
             self.max_target_len = cfg.get("max_target_len", grapheme_tokenizer.model_max_length)
 
             # TODO store byt5 vocab file
-        else:
+        elif self.mode == "conformer_bpe":
             grapheme_unk_token = (
                 cfg.tokenizer_grapheme.unk_token if cfg.tokenizer_grapheme.unk_token is not None else ""
             )
@@ -147,6 +147,8 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
             grapheme_tokenizer = instantiate(cfg.tokenizer_grapheme.dataset, vocab_file=vocab_file)
             self.max_source_len = cfg.get("max_source_len", 512)
             self.max_target_len = cfg.get("max_target_len", 512)
+        else:
+            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
         return grapheme_tokenizer
 
     def _setup_encoder(self):
@@ -159,7 +161,7 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
             # add encoder hidden dim size to the config
             if self.cfg.decoder.feat_in is None:
                 self._cfg.decoder.feat_in = self.encoder.config.d_model
-        else:
+        elif self.mode == "conformer_bpe":
             self.embedding = nn.Embedding(
                 embedding_dim=self._cfg.embedding.d_model, num_embeddings=self.tokenizer.vocab_size, padding_idx=0
             )
@@ -171,6 +173,8 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
                     self._cfg.decoder.feat_in = self.encoder._feat_out
                 if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                     raise ValueError("param feat_in of the decoder's config is not set!")
+        else:
+            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
 
     # @typecheck()
     def forward(self, input_ids, attention_mask, input_len):

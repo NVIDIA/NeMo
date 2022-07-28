@@ -42,7 +42,7 @@ def get_model(cfg, trainer):
 
 def get_metrics(manifest: str, pred_field="pred_text", phoneme_field="text", grapheme_field="text_graphemes"):
     """
-    Calculates WER and PER metrics (for duplicated grapheme entries with maltuple reference values,
+    Calculates WER and PER metrics (for duplicated grapheme entries with multiple reference values,
         the best matching prediction will be used for evaluation.)
 
     Args:

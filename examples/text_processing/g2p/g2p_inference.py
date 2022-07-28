@@ -58,7 +58,7 @@ class TranscriptionConfig:
     # Config for heteronyms correction
     pretrained_heteronyms_model: Optional[
         str
-    ] = None  # Path to a .nemo file or a Name of a pretrained model to disambiguage heteronyms (Optional)
+    ] = None  # Path to a .nemo file or a Name of a pretrained model to disambiguate heteronyms (Optional)
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)

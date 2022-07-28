@@ -784,8 +784,6 @@ pipeline {
             }
           }
         }
-      }
-    }
 
     // TODO: add test once megatron-bert is supported again
     // stage('L2: Multi-GPU Megatron finetuning') {

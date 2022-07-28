@@ -38,7 +38,7 @@ class T5G2PConfig:
     test_ds: Optional[Dict[Any, Any]] = None
 
 
-class T5G2PModel(G2PModel):  # TODO: Check parent class
+class T5G2PModel(G2PModel):
     """
     T5-based grapheme-to-phoneme model.
     """
