@@ -742,7 +742,7 @@ pipeline {
                         model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
                         trainer.max_epochs=1 \
                         model.max_source_len=64 \
-                        trainer.devices=[1]
+                        trainer.devices=[1] \
                         do_training=True \
                         do_testing=True \
                         exp_manager.exp_dir=${OUTPUT_DIR_T5} \
