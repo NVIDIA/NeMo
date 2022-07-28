@@ -30,6 +30,7 @@ import argparse
 import numpy as np
 import sys
 from builtins import range
+from datetime import datetime
 import statistics as s
 import tritonclient.grpc as grpcclient
 import tritonclient.http as httpclient
@@ -87,6 +88,7 @@ def send_requests(model_name, url, batch_size, input_start_ids, input_len, outpu
             np.int32), (-1 * np.ones([input_start_ids.shape[0], 1, 1])).astype(np.int32)], axis=1)
         stop_word_list = np.concatenate([np.zeros([input_start_ids.shape[0], 1, 1]).astype(
             np.int32), (-1 * np.ones([input_start_ids.shape[0], 1, 1])).astype(np.int32)], axis=1)
+        latencies = []
         for i in range(request_parallelism):
             input_data = input_start_ids
             inputs = [
@@ -110,9 +112,12 @@ def send_requests(model_name, url, batch_size, input_start_ids, input_len, outpu
             ]
 
             print("set request")
+            start_time = datetime.now()
             result = client.infer(model_name, inputs)
+            stop_time = datetime.now()
             print("get request")
             results.append(result)
+            latencies.append((stop_time - start_time).total_seconds()* 1000.0)
 
         for i in range(request_parallelism):
             # Get the result from the initiated asynchronous inference request.
@@ -132,6 +137,8 @@ def send_requests(model_name, url, batch_size, input_start_ids, input_len, outpu
                 print("output_ids is received")
                 print(output_data.shape)
                 print(output_data)
+
+        return s.mean(latencies)
 
 
 if __name__ == '__main__':
@@ -169,7 +176,7 @@ if __name__ == '__main__':
                         '--warm_up',
                         action="store_true",
                         required=False,
-                        default=False,
+                        default=True,
                         help='Enable warm_up before benchmark')
     parser.add_argument('-b',
                         '--batch_size',
@@ -216,7 +223,7 @@ if __name__ == '__main__':
     parser.add_argument('-n',
                         '--num_runs',
                         type=int,
-                        default=1,
+                        default=5,
                         required=False,
                         help="Spedifty number of runs to get the average latency"
                         )
@@ -268,18 +275,14 @@ if __name__ == '__main__':
                       FLAGS.verbose, FLAGS, request_parallelism=2)
     import time
     time.sleep(5)  # TODO: Not sure if this is necessary
-    from datetime import datetime
-    request_parallelism = 10
+    request_parallelism = 1
     latencies = []
     for i in range(FLAGS.num_runs):
-        start_time = datetime.now()
         if FLAGS.protocol == "http":
-            send_requests(FLAGS.name, FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
+            mean_latency = send_requests(FLAGS.name, FLAGS.url, FLAGS.batch_size, input_start_ids, input_len,
                          output_len, FLAGS.input_len_name, FLAGS.output_len_name,
                          FLAGS.verbose, FLAGS, request_parallelism)
-        stop_time = datetime.now()
-        latencies.append((stop_time - start_time).total_seconds()
-                         * 1000.0 / request_parallelism)
+        latencies.append(mean_latency)
     if FLAGS.num_runs > 1:
         print(latencies)
         print(f"[INFO] execution time: {s.mean(latencies)} ms")
