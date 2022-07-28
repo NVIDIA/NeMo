@@ -212,6 +212,7 @@ build-BigNLP:
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -227,6 +228,7 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
 train.gpt3.126m_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -242,7 +244,7 @@ train.gpt3.126m_tp2_pp1_1node_100steps:
 train.gpt3.126m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
-
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -258,6 +260,7 @@ train.gpt3.126m_tp1_pp2_2node_100steps:
 train.gpt3.126m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -273,6 +276,7 @@ train.gpt3.126m_tp2_pp2_2node_100steps:
 train.gpt3.126m_tp4_pp4_4node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -288,6 +292,7 @@ train.gpt3.126m_tp4_pp4_4node_100steps:
 train.gpt3.5b_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
@@ -303,6 +308,7 @@ train.gpt3.5b_tp2_pp1_1node_100steps:
 train.gpt3.5b_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
@@ -318,6 +324,7 @@ train.gpt3.5b_tp2_pp2_2node_100steps:
 train.gpt3.20b_tp8_pp2_4node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 20b
@@ -333,6 +340,7 @@ train.gpt3.20b_tp8_pp2_4node_100steps:
 train.gpt3.40b_tp8_pp4_8node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 40b
@@ -348,6 +356,7 @@ train.gpt3.40b_tp8_pp4_8node_100steps:
 train.gpt3.175b_tp8_pp16_16node_50steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 175b
@@ -363,6 +372,7 @@ train.gpt3.175b_tp8_pp16_16node_50steps:
 train.t5.220m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -378,6 +388,7 @@ train.t5.220m_tp1_pp1_1node_100steps:
 train.t5.220m_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -393,6 +404,7 @@ train.t5.220m_tp2_pp1_1node_100steps:
 train.t5.220m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -408,6 +420,7 @@ train.t5.220m_tp1_pp2_2node_100steps:
 train.t5.220m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -424,6 +437,7 @@ train.t5.220m_tp2_pp2_2node_100steps:
 train.mt5.170m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -439,6 +453,7 @@ train.mt5.170m_tp1_pp1_1node_100steps:
 train.mt5.170m_tp2_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -454,6 +469,7 @@ train.mt5.170m_tp2_pp1_1node_100steps:
 train.mt5.170m_tp1_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -469,6 +485,7 @@ train.mt5.170m_tp1_pp2_2node_100steps:
 train.mt5.170m_tp2_pp2_2node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: train
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -484,6 +501,7 @@ train.mt5.170m_tp2_pp2_2node_100steps:
 eval.gpt3.126m_tp1_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1_lambada
@@ -497,6 +515,7 @@ eval.gpt3.126m_tp1_pp1_lambada:
 eval.gpt3.126m_tp2_pp1_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp1_lambada
@@ -510,6 +529,7 @@ eval.gpt3.126m_tp2_pp1_lambada:
 eval.gpt3.126m_tp1_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp2_lambada
@@ -523,6 +543,7 @@ eval.gpt3.126m_tp1_pp2_lambada:
 eval.gpt3.126m_tp2_pp2_lambada:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp2_pp2_lambada
@@ -536,6 +557,7 @@ eval.gpt3.126m_tp2_pp2_lambada:
 convert.gpt3.126m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -551,6 +573,7 @@ convert.gpt3.126m_tp1_pp1:
 convert.gpt3.126m_tp2_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -566,6 +589,7 @@ convert.gpt3.126m_tp2_pp1:
 convert.gpt3.126m_tp1_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -581,6 +605,7 @@ convert.gpt3.126m_tp1_pp2:
 convert.gpt3.126m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -595,6 +620,7 @@ convert.gpt3.126m_tp2_pp2:
 convert.t5.220m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -609,6 +635,7 @@ convert.t5.220m_tp1_pp1:
 convert.t5.220m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -623,6 +650,7 @@ convert.t5.220m_tp2_pp2:
 finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -639,6 +667,7 @@ finetune.t5.220m_tp1_pp1_1node_100steps_mnli:
 finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 220m
@@ -655,6 +684,7 @@ finetune.t5.220m_tp2_pp2_2node_100steps_mnli:
 eval.t5.220m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp1_pp1_mnli
@@ -667,6 +697,7 @@ eval.t5.220m_tp1_pp1:
 eval.t5.220m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: t5
     RUN_JOB_NAME: 220m_tp2_pp2_mnli
@@ -679,6 +710,7 @@ eval.t5.220m_tp2_pp2:
 convert.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -693,6 +725,7 @@ convert.mt5.170m_tp1_pp1:
 convert.mt5.170m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: convert
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -707,6 +740,7 @@ convert.mt5.170m_tp2_pp2:
 finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -723,6 +757,7 @@ finetune.mt5.170m_tp1_pp1_1node_100steps_xnli:
 finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: finetune
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 170m
@@ -739,6 +774,7 @@ finetune.mt5.170m_tp2_pp2_2node_100steps_xnli:
 eval.mt5.170m_tp1_pp1:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp1_pp1_xnli
@@ -751,6 +787,7 @@ eval.mt5.170m_tp1_pp1:
 eval.mt5.170m_tp2_pp2:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: mt5
     RUN_JOB_NAME: 170m_tp2_pp2_xnli
@@ -763,6 +800,7 @@ eval.mt5.170m_tp2_pp2:
 prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: prompt_learn
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -779,6 +817,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad:
 prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: prompt_learn
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 126m
@@ -794,6 +833,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
 eval.gpt3.prompt_126m_tp1_pp1_squad:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: prompt_126m_tp1_pp1_squad
@@ -806,6 +846,7 @@ eval.gpt3.prompt_126m_tp1_pp1_squad:
 eval.gpt3.prompt_126m_tp1_pp1_squad_real:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
     RUN_MODEL: gpt3
     RUN_JOB_NAME: prompt_126m_tp1_pp1_squad_real
@@ -817,6 +858,7 @@ eval.gpt3.prompt_126m_tp1_pp1_squad_real:
 data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: data_prep
     RUN_MODEL: gpt3
     RUN_JOB_NAME: the_pile_prepare_shard00
@@ -832,6 +874,7 @@ data_prep.gpt3.the_pile_prepare_shard00:
 data_prep.t5.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: data_prep
     RUN_MODEL: t5
     RUN_JOB_NAME: the_pile_prepare_shard00
@@ -847,6 +890,7 @@ data_prep.t5.the_pile_prepare_shard00:
 data_prep.mt5.mc4_prepare_lang_mt:
   <<: *bignlp-LUNA-test-LAUNCHER
   variables:
+    <<: [*VARS, *LUNA_VARS]
     RUN_TASK: data_prep
     RUN_MODEL: mt5
     RUN_JOB_NAME: mc4_prepare_lang_mt
@@ -861,6 +905,7 @@ data_prep.mt5.mc4_prepare_lang_mt:
 train.gpt3.ngc_126m_tp1_pp1_2node_100steps:
   <<: *bignlp-NGC-test-LAUNCHER
   variables:
+    <<: [*VARS, *NGC_VARS]
     RUN_TASK: train
     RUN_MODEL: gpt3
     RUN_JOB_NAME: 126m_tp1_pp1_2node_100steps
@@ -873,7 +918,7 @@ cleanup.selene:
   tags: *LUNA_TAGS
   stage: cleanup
   variables:
-
+    <<: [*VARS, *LUNA_VARS]
   script:
     - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
     - echo "Finished cleaning everything in Selene"
