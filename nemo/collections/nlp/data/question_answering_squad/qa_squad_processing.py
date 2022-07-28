@@ -17,7 +17,7 @@
 import collections
 from typing import List
 
-import ijson
+import json
 import numpy as np
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
