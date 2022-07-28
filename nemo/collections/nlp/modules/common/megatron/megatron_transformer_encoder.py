@@ -38,6 +38,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ["MegatronTransformerEncoderModule"]
 
+
 class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncoderModule):
     """Transformer encoder model.
     """
