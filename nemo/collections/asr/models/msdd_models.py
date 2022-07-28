@@ -44,6 +44,7 @@ from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.losses.bce_loss import BCELoss
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
+# from nemo.collections.asr.models.msdd_models_exp import ClusterEmbeddingTest
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -94,7 +95,7 @@ except ImportError:
         yield
 
 
-__all__ = ['EncDecDiarLabelModel', '_ClusterEmbedding']
+__all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding']
 
 
 def get_audio_rttm_map(manifest):
@@ -182,8 +183,9 @@ def generate_speaker_timestamps(clus_labels, preds, max_overlap=2, **params):
     Generate timestamps from the predicted sigmoid values
     '''
     preds.squeeze(0)
+    estimated_num_of_spks = preds.shape[-1]
+    overlap_speaker_list = [[] for _ in range(estimated_num_of_spks)]
     main_speaker_lines = []
-    overlap_speaker_list = [[] for _ in range(params['max_num_of_spks'])]
     for seg_idx, cluster_label in enumerate(clus_labels):
         preds.squeeze(0)
         spk_for_seg = (preds[0, seg_idx] > params['threshold']).int().cpu().numpy().tolist()
@@ -1119,15 +1121,14 @@ class NeuralDiarizer:
         self.msdd_model.load_state_dict(pretrained_dict)
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
-        self.msdd_model.run_clus_from_loaded_emb = True
         self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
         self.use_clus = False
         self.use_dec = True
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
+        # self.clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
         self.clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
-        self.clustering_embedding.run_clus_from_loaded_emb = True
 
         self.use_prime_cluster_avg_emb = True
         self.max_pred_length = 0
@@ -1137,6 +1138,7 @@ class NeuralDiarizer:
         msdd_model.cfg.base.diarizer.out_dir = cfg.diarizer.out_dir
         msdd_model.cfg.test_ds.manifest_filepath = cfg.diarizer.manifest_filepath
         msdd_model.cfg.test_ds.emb_dir = cfg.diarizer.out_dir
+        msdd_model.cfg.test_ds.batch_size = cfg.diarizer.msdd_model.parameters.infer_batch_size
         msdd_model.cfg_base = cfg
         msdd_model._cfg.base.diarizer.clustering.parameters.max_num_speakers = (
             cfg.diarizer.clustering.parameters.max_num_speakers
@@ -1207,6 +1209,10 @@ class NeuralDiarizer:
         preds_list, targets_list, signal_lengths_list = self.run_pairwise_diarization()
         for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
             self.run_overlap_aware_eval(preds_list, threshold)
+        self.use_dec=False
+        self.use_clus=True 
+        for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
+            self.run_overlap_aware_eval(preds_list, threshold)
 
     def get_range_average(self, signals, emb_vectors, diar_window_index, test_data_collection):
         emb_vectors_split = torch.zeros_like(emb_vectors)
@@ -1253,7 +1259,20 @@ class NeuralDiarizer:
 
     def get_range_clus_avg_emb(self, test_batch, _test_data_collection, split_count):
         """
-        
+        This module calculates cluster-average embeddings for the given short range. The range length is set by `self.diar_window_length`,
+
+        Args:
+            test_batch: (list)
+                List containing embedding sequences, length of embedding sequences, ground truth labels (if exists) and initializing embedding vectors.
+            test_data_collection: (list)
+                List containing test-set dataloader contents. test_data_collection includes wav file path, RTTM file path, clustered speaker indices.
+
+        Returns:
+            sess_emb_vectors: (torch.Tensor)
+            sess_emb_seq: (torch.Tensor)
+            sess_sig_lengths: (torch.Tensor)
+
+
 
         split_count
 
@@ -1386,10 +1405,10 @@ class NeuralDiarizer:
                     - If threshold is 1.0, no overlap speech is detected and only detect major speaker.
                     - If threshold is 0.0, all speakers are considered active at any time step.
         """
-        for k, (collar, ignore_overlap) in enumerate([(0.25, True), (0.0, False)]):
-            logging.info(
-                f"     [Threshold: {threshold:.4f}]   [infer_overlap={not ignore_overlap}]   [use_clus={self.use_clus}]    [use_dec={self.use_dec}]"
-            )
+        logging.info(
+            f"     [Threshold: {threshold:.4f}] [use_clus={self.use_clus}] [use_dec={self.use_dec}] [diar_window={self.diar_window_length}]"
+        )
+        for k, (collar, ignore_overlap) in enumerate([(0.25, True), (0.25, False), (0.0, False)]):
             all_reference, all_hypothesis = make_rttm_with_overlap(
                 self.manifest_filepath,
                 self.msdd_model.clus_test_label_dict,
@@ -1402,3 +1421,6 @@ class NeuralDiarizer:
             score = score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
             )
+
+        logging.info(f"  \n") 
+

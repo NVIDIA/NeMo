@@ -80,8 +80,6 @@ def extract_seg_info_from_rttm(uniq_id, rttm_lines, mapping_dict=None, target_sp
     """
     stt_list, end_list, speaker_list, pairwise_infer_spks = [], [], [], []
     if target_spks:
-        label_scale_idx = max(emb_dict.keys())
-        mapping_dict = emb_dict[label_scale_idx][uniq_id]['mapping']
         inv_map = {v: k for k, v in mapping_dict.items()}
         for spk_idx in target_spks:
             spk_str = f'speaker_{spk_idx}'

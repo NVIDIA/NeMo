@@ -490,7 +490,7 @@ class ClusterEmbeddingTest:
             )
         for scale_index in emb_scale_seq_dict.keys():
             for uniq_id, _emb_tensor in emb_scale_seq_dict[scale_index].items():
-                logging.info(f"Calculating cluster-average embeddings for {uniq_id}")
+                # logging.info(f"Calculating cluster-average embeddings for {uniq_id}")
                 if type(_emb_tensor) == list:
                     emb_tensor = torch.tensor(np.array(_emb_tensor))
                 else:

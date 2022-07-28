@@ -432,6 +432,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             max_num_speaker=max_num_speakers,
             enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
+            maj_vote_spk_count=clustering_params.maj_vote_spk_count,
             sparse_search_volume=clustering_params.sparse_search_volume,
             cuda=cuda,
         )

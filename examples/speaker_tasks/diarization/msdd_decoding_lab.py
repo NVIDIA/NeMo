@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.models.msdd_models import NeuralDiarizerLab
+from nemo.collections.asr.models.msdd_models_lab import NeuralDiarizerLab
 from nemo.core.config import hydra_runner
 
 # from nemo.collections.asr.models.msdd_models_exp import NeuralDiarizer
@@ -20,7 +20,7 @@ from nemo.core.config import hydra_runner
 
 @hydra_runner(config_path="conf", config_name="diarization_decoder.telephonic.yaml")
 def main(cfg):
-    neural_diarizer = NeuralDiarizer(cfg=cfg)
+    neural_diarizer = NeuralDiarizerLab(cfg=cfg)
     neural_diarizer.diarize()
 
 
