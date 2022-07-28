@@ -176,7 +176,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         if self.max_num_samples is None:
             return len(self.src_indexed_dataset)
         else:
-            return self.max_num_samples
+            return len(self.samples_mapping)
 
     def __getitem__(self, idx):
         if isinstance(idx, np.int64):
