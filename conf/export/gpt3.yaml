@@ -17,7 +17,7 @@ model:
   load_checkpoints_to_cpu: False
 
 triton_deployment:
-  max_batch_size: 256
+  max_batch_size: 1
   pipeline_model_parallel_size: 1
   int8_mode: False
   enable_custom_all_reduce: False
