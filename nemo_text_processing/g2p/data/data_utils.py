@@ -114,10 +114,6 @@ def read_wikihomograph_file(file: str) -> (List[str], List[List[int]], List[str]
             sentences.append(sentence)
             word_ids.append(wordid)
 
-    if num_corrected > 0:
-        print(f"corrected: {num_corrected}")
-    if excluded_sentences > 0:
-        print(f"excluded: {excluded_sentences}")
     return sentences, start_end_indices, homographs, word_ids
 
 

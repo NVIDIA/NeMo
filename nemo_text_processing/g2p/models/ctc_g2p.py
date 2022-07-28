@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import string
 from dataclasses import dataclass
@@ -24,12 +23,10 @@ from nemo_text_processing.g2p.data.ctc_g2p import CTCG2PBPEDataset
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch import nn
-from tqdm import tqdm
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 
-from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
 from nemo.utils import logging
 
 try:
