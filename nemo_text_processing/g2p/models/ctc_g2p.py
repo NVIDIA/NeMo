@@ -20,13 +20,13 @@ from typing import Any, Dict, List, Optional, Union
 import torch
 from hydra.utils import instantiate
 from nemo_text_processing.g2p.data.ctc_g2p import CTCG2PBPEDataset
+from nemo_text_processing.g2p.models.g2p_model import G2PModel
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo_text_processing.g2p.models.g2p_model import G2PModel
 from nemo.utils import logging
 
 try:
