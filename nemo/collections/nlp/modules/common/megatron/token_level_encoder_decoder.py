@@ -379,6 +379,8 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             decoder_cross_attention_relative_position_bias,
         ) = (None, None, None)
 
+        enc_output_provided = enc_output is not None
+
         if (enc_input is None) and (enc_input_ids is not None):
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
@@ -425,6 +427,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             else:
                 # Note: This is when the decoder itself is split across PP ranks.
                 dec_input = None
+
+            # If enc_output is provided in `batch_for_pipeline`, we need to transpose it from [B x S x H] -> [S x B x H].
+            if enc_output_provided:
+                enc_output = enc_output.transpose(0, 1)
 
             output = self.enc_dec_model(
                 enc_input=enc_input,

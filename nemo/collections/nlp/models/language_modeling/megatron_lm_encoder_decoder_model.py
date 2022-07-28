@@ -900,13 +900,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before encode
-        _reconfigure_microbatch_calculator(
-            rank=app_state.global_rank,
-            rampup_batch_size=None,
-            global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
-            data_parallel_size=parallel_state.get_data_parallel_world_size(),
-        )
+        if reconfigure_microbatch:
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
 
         # build input arguments description
@@ -948,11 +949,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 dtype=self.autocast_dtype,
             )
 
-        # get output tensor of encoder [batch, seq_len, hidden]
+        # get output tensor of encoder [seq_len, batch, hidden]
         if parallel_state.is_pipeline_last_stage():
             output_tensor = output_tensor[0]['hiddens']
         else:
-            output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda().transpose(0, 1).contiguous()
+            output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda()
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             # Broadcast from the last pipeline stage to all other model-parallel ranks.
@@ -972,7 +973,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
 
-        return output_tensor
+        # Return the output tensor of encoder and transpose from [batch, seq_len, hidden] to [seq_len, batch, hidden]
+        return output_tensor.transpose(1, 0)
 
     def decode(
         self,
@@ -1032,6 +1034,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # get encoder hiddens (output)
         if enc_output is None:
+            # Encode returns a tensr of shape [batch, seq_len, hidden]
             enc_output = self.encode(
                 tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
             )
