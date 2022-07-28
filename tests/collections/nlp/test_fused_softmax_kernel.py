@@ -157,3 +157,48 @@ class TestFusedSoftmaxKernel:
                 softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t[0].item())
                 error = (softmax_results_torch - softmax_results).abs().max()
                 assert error < 2e-3
+
+    @pytest.mark.unit
+    def test_allmask_backward(self):
+        import nemo.collections.nlp.modules.common.megatron.fused_kernels
+        import scaled_masked_softmax_cuda_new
+
+        batch = 2
+        attn = 16
+        qlen = 2348
+        klen = 3123
+        scale_t = torch.tensor([1.0])
+        for qlen in [2348, 2322, 1234, 1, 2]:
+            for klen in [
+                3123,
+                1234,
+                2,
+                4,
+                8,
+                3,
+                1,
+                5,
+                10,
+                11,
+                13,
+                128,
+                256,
+                1200,
+                2048,
+                4096,
+                7234,
+                8192,
+                10232,
+                4128,
+            ]:
+                inputs = torch.normal(0, 2, (batch, attn, qlen, klen), dtype=torch.float16, device='cuda:0')
+                backward = torch.rand_like(inputs, dtype=torch.float16, device='cuda:0')
+                masks = torch.ones((batch, 1, qlen, klen), dtype=torch.bool, device='cuda:0')
+                softmax_results = scaled_masked_softmax_cuda_new.forward(inputs, masks, scale_t[0].item())
+                back_grad = scaled_masked_softmax_cuda_new.backward(backward, softmax_results, scale_t[0].item())
+
+                inputs.requires_grad = True
+                softmax_results_torch = forward_torch_softmax(inputs, masks, scale_t[0].item())
+                softmax_results_torch.backward(backward)
+                error = (back_grad - inputs.grad).abs().max()
+                assert error < 1e-3
