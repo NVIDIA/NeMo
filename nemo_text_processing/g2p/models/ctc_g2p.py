@@ -26,7 +26,7 @@ from torch import nn
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.core.classes.modelPT import ModelPT
+from nemo_text_processing.g2p.models.g2p_model import G2PModel
 from nemo.utils import logging
 
 try:
@@ -49,7 +49,7 @@ class CTCG2PConfig:
     validation_ds: Optional[Dict[Any, Any]] = None
 
 
-class CTCG2PModel(ModelPT, ASRBPEMixin):
+class CTCG2PModel(G2PModel, ASRBPEMixin):
     """
     CTC-based grapheme-to-phoneme model.
     """
