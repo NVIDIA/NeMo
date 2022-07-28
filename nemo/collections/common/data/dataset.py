@@ -259,7 +259,7 @@ class ConcatMapDataset(Dataset):
 
         # Get the index of the sample we want to fetch from the dataset
         sample_idx = self.dataset_index[dataset_index]
-        
+
         # If the sample idx > dataset size, reset to 0.
         if sample_idx > len(self.datasets[dataset_index]):
             sample_idx = 0

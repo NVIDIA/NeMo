@@ -102,7 +102,6 @@ class MegatronT5FinetuneModel(MegatronT5Model):
                 elif hasattr(data_cfg, "file_names") and isinstance(data_cfg.file_names, ListConfig):
                     metric = [
                         metric(average=data_cfg.metric.average, num_classes=data_cfg.metric.num_classes)
-                        if metric_name != 'exact_string_match' else metric()
                         for _ in range(len(data_cfg.file_names))
                     ]
                 else:
