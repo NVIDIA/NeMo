@@ -130,9 +130,9 @@ def main():
 
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
-    langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
+    langs = ['mandarin', 'french', 'german',  'russian']
     vad_exps = ['neural_vad']
-    models = ['nr_citrinet'] 
+    models = ['citrinet'] 
 
     shift_length_in_sec = 0.08
     # ref="energy_vad"

@@ -319,7 +319,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath, per_args):
 
 
 def generate_vad_segment_table(
-    vad_pred_dirs, postprocessing_params, shift_length_in_sec, num_workers, out_dir=None, threshold=None
+    vad_pred_dirs, postprocessing_params, frame_length_in_sec, num_workers, out_dir=None, threshold=None
 ):
     """
     Convert frame level prediction to speech segment in start and end times format.
@@ -329,7 +329,7 @@ def generate_vad_segment_table(
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
         postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering.
-        shift_length_in_sec (float): amount of shift of window for generating the frame.
+        frame_length_in_sec (float): amount of shift of window for generating the frame.
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
     Returns:
@@ -355,7 +355,7 @@ def generate_vad_segment_table(
     if not os.path.exists(table_out_dir):
         os.mkdir(table_out_dir)
 
-    per_args = {"shift_length_in_sec": shift_length_in_sec, "out_dir": table_out_dir}
+    per_args = {"frame_length_in_sec": frame_length_in_sec, "out_dir": table_out_dir}
 
     per_args = {**per_args, **postprocessing_params}
 
@@ -370,7 +370,6 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
     """
     See discription in generate_overlap_vad_seq.
     """
-    shift_length_in_sec = per_args['shift_length_in_sec']
     out_dir = per_args['out_dir']
 
     name = pred_filepath.split("/")[-1].rsplit(".", 1)[0]
@@ -381,7 +380,7 @@ def generate_vad_segment_table_per_file(pred_filepath, per_args):
 
     seg_speech_table = pd.DataFrame(speech_segments, columns=['start', 'end'])
     seg_speech_table = seg_speech_table.sort_values('start', ascending=True)
-    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + shift_length_in_sec
+    seg_speech_table['dur'] = seg_speech_table['end'] - seg_speech_table['start'] + 0.01
     seg_speech_table['vad'] = 'speech'
 
     save_name = name + ".txt"
@@ -405,12 +404,12 @@ def binarization(sequence, per_args):
             offset (float): offset threshold for detecting the end of a speech. 
             pad_onset (float): adding durations before each speech segment
             pad_offset (float): adding durations after each speech segment;
-            shift_length_in_sec (float): amount of shift of window for generating the frame.
+            frame_length_in_sec (float): amount of shift of window for generating the frame.
     
     Returns:
         speech_segments(set): Set of speech segment in (start, end) format. 
     """
-    shift_length_in_sec = per_args.get('shift_length_in_sec', 0.01)
+    frame_length_in_sec = per_args.get('frame_length_in_sec', 0.01)
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
@@ -426,21 +425,21 @@ def binarization(sequence, per_args):
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if i * shift_length_in_sec + pad_offset > max(0, start - pad_onset):
-                    speech_segments.add((max(0, start - pad_onset), i * shift_length_in_sec + pad_offset))
-                start = i * shift_length_in_sec
+                if i * frame_length_in_sec + pad_offset > max(0, start - pad_onset):
+                    speech_segments.add((max(0, start - pad_onset), i * frame_length_in_sec + pad_offset))
+                start = i * frame_length_in_sec
                 speech = False
 
         # Current frame is non-speech
         else:
             # Switch from non-speech to speech
             if sequence[i] > onset:
-                start = i * shift_length_in_sec
+                start = i * frame_length_in_sec
                 speech = True
 
     # if it's speech at the end, add final segment
     if speech:
-        speech_segments.add((max(0, start - pad_onset), i * shift_length_in_sec + pad_offset))
+        speech_segments.add((max(0, start - pad_onset), i * frame_length_in_sec + pad_offset))
 
     # Merge the overlapped speech segments due to padding
     speech_segments = merge_overlap_segment(speech_segments)  # not sorted
@@ -646,7 +645,7 @@ def vad_tune_threshold_on_dev(
                 continue
 
             # perform binarization, filtering accoring to param and write to rttm-like table
-            vad_table_dir = generate_vad_segment_table(vad_preds, param, shift_length_in_sec=0.01, num_workers=20)
+            vad_table_dir = generate_vad_segment_table(vad_preds, param, frame_length_in_sec=0.01, num_workers=20)
 
             # add reference and hypothesis to metrics
             for filename in paired_filenames:

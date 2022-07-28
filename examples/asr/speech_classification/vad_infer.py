@@ -122,7 +122,7 @@ def main(cfg):
     logging.info(
         f"Finish generating VAD frame level prediction with window_length_in_sec={cfg.vad.parameters.window_length_in_sec} and shift_length_in_sec={cfg.vad.parameters.shift_length_in_sec}"
     )
-
+    frame_length_in_sec = cfg.vad.parameters.shift_length_in_sec
     # overlap smoothing filter
     if cfg.gen_overlap_seq:
         # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
@@ -141,6 +141,7 @@ def main(cfg):
             f"Finish generating predictions with overlapping input segments with smoothing_method={cfg.vad.parameters.smoothing} and overlap={cfg.vad.parameters.overlap}"
         )
         pred_dir = smoothing_pred_dir
+        frame_length_in_sec = 0.01
 
     # postprocessing and generate speech segments
     if cfg.gen_seg_table:
@@ -148,7 +149,7 @@ def main(cfg):
         table_out_dir = generate_vad_segment_table(
             vad_pred_dirs=pred_dir,
             postprocessing_params=cfg.vad.parameters.postprocessing,
-            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
+            frame_length_in_sec=frame_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=cfg.table_out_dir,
         )
