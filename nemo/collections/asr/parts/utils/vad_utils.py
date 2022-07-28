@@ -628,7 +628,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     Use this for single instance pipeline. 
     """
     UNIT_FRAME_LEN = 0.01
-    frame_length_in_sec = per_args['frame_length_in_sec']
+    
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
