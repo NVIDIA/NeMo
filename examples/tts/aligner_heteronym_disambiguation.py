@@ -1,4 +1,4 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,22 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-G2P disambiguation using an Aligner model's input embedding distances.
-
-Does not handle OOV and leaves them as graphemes.
-
-The output will have each token's phonemes (or graphemes) bracketed, e.g.
-<\"><M AH1 L ER0><, ><M AH1 L ER0><, ><HH IY1 Z>< ><DH AH0>< ><M AE1 N><.\">
-
-Example:
-python aligner_g2p.py \
-    --model=<model_path> \
-    --manifest=<manifest_path> \
-    --out=<output_json_path> \
-    --confidence=0.02 \
-    --verbose
-"""
 
 import argparse
 import json
@@ -39,6 +23,24 @@ import torch
 
 from nemo.collections.tts.models import AlignerModel
 from nemo.collections.tts.torch.helpers import general_padding
+
+
+"""
+G2P disambiguation using an Aligner model's input embedding distances.
+
+Does not handle OOV and leaves them as graphemes.
+
+The output will have each token's phonemes (or graphemes) bracketed, e.g.
+<\"><M AH1 L ER0><, ><M AH1 L ER0><, ><HH IY1 Z>< ><DH AH0>< ><M AE1 N><.\">
+
+Example:
+python aligner_heteronym_disambiguation.py \
+    --model=<model_path> \
+    --manifest=<manifest_path> \
+    --out=<output_json_path> \
+    --confidence=0.02 \
+    --verbose
+"""
 
 
 def get_args():
@@ -97,31 +99,6 @@ def load_and_prepare_audio(aligner, audio_path, target_sr, device):
     spec, spec_len = aligner.preprocessor(input_signal=audio, length=audio_len)
 
     return spec, spec_len
-
-
-def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):
-    """Calculates the mean distance between text and audio embeddings given a range of text tokens.
-
-    This is the same function as in the Aligner Inference tutorial notebook.
-    """
-    # Need to calculate which audio frame we start on by summing all durations up to the start token's duration
-    start_frame = torch.sum(durs[:start_token]).data
-
-    total_frames = 0
-    dist_sum = 0
-
-    # Loop through each text token
-    for token_ind in range(start_token, start_token + num_tokens):
-        # Loop through each frame for the given text token
-        for frame_ind in range(start_frame, start_frame + durs[token_ind]):
-            # Recall that the L2 distance matrix is shape [spec_len, text_len]
-            dist_sum += l2_dists[frame_ind, token_ind]
-
-        # Update total frames so far & the starting frame for the next token
-        total_frames += durs[token_ind]
-        start_frame += durs[token_ind]
-
-    return dist_sum / total_frames
 
 
 def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, heteronyms, log_file=None):
@@ -205,7 +182,7 @@ def disambiguate_candidates(aligner, text, spec, spec_len, confidence, device, h
             max_dist = 0.0
             best_candidate = None
             for i in range(num_candidates):
-                candidate_mean_dist = get_mean_distance_for_word(
+                candidate_mean_dist = aligner.alignment_encoder.get_mean_distance_for_word(
                     l2_dists=l2_dists[i],
                     durs=durations[i],
                     start_token=word_start_idx + (1 if aligner.tokenizer.pad_with_space else 0),
