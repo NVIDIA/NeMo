@@ -1,6 +1,5 @@
 import csv
 import json
-import os
 from argparse import ArgumentParser
 from glob import glob
 from typing import List

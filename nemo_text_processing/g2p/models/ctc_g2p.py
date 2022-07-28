@@ -32,7 +32,6 @@ from nemo.utils import logging
 try:
     from nemo.collections.asr.losses.ctc import CTCLoss
     from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
-    from nemo.collections.asr.metrics.wer import word_error_rate
     from nemo.collections.asr.models import EncDecCTCModel
     from nemo.collections.asr.parts.mixins import ASRBPEMixin
 
@@ -184,10 +183,12 @@ class CTCG2PModel(ModelPT, ASRBPEMixin):
             # encoded_input = [B, seq_len, hid_dim]
             # swap seq_len and hid_dim dimensions to get [B, hid_dim, seq_len]
             encoded_input = encoded_input.transpose(1, 2)
-        else:
+        elif self.mode == "conformer_bpe":
             input_embedding = self.embedding(input_ids)
             input_embedding = input_embedding.transpose(1, 2)
             encoded_input, encoded_len = self.encoder(audio_signal=input_embedding, length=input_len)
+        else:
+            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
 
         log_probs = self.decoder(encoder_output=encoded_input)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
