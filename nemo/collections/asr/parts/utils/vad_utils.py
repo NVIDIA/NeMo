@@ -637,7 +637,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     speech_segments, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + 0.01 # 10ms frame unit
+    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + 0.01  # 10ms frame unit
     speech_segments = torch.column_stack((speech_segments, dur))
 
     return speech_segments

@@ -82,10 +82,7 @@ if __name__ == "__main__":
         default='DetER',
     )
     parser.add_argument(
-        "--frame_length_in_sec",
-        help="frame_length_in_sec ",
-        type=float,
-        default=0.01,
+        "--frame_length_in_sec", help="frame_length_in_sec ", type=float, default=0.01,
     )
     args = parser.parse_args()
 
@@ -131,7 +128,13 @@ if __name__ == "__main__":
         )
 
     best_threhsold, optimal_scores = vad_tune_threshold_on_dev(
-        params, args.vad_pred, args.groundtruth_RTTM, args.result_file, args.vad_pred_method, args.focus_metric, args.frame_length_in_sec
+        params,
+        args.vad_pred,
+        args.groundtruth_RTTM,
+        args.result_file,
+        args.vad_pred_method,
+        args.focus_metric,
+        args.frame_length_in_sec,
     )
     logging.info(
         f"Best combination of thresholds for binarization selected from input ranges is {best_threhsold}, and the optimal score is {optimal_scores}"

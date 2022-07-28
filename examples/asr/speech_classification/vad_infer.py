@@ -123,7 +123,7 @@ def main(cfg):
         f"Finish generating VAD frame level prediction with window_length_in_sec={cfg.vad.parameters.window_length_in_sec} and shift_length_in_sec={cfg.vad.parameters.shift_length_in_sec}"
     )
     frame_length_in_sec = cfg.vad.parameters.shift_length_in_sec
-    
+
     # overlap smoothing filter
     if cfg.vad.parameters.smoothing:
         # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
