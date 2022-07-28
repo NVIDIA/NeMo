@@ -627,7 +627,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     See description in generate_overlap_vad_seq.
     Use this for single instance pipeline. 
     """
-
+    UNIT_FRAME_LEN = 0.01
     frame_length_in_sec = per_args['frame_length_in_sec']
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
@@ -637,7 +637,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     speech_segments, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + 0.01  # 10ms frame unit
+    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + UNIT_FRAME_LEN
     speech_segments = torch.column_stack((speech_segments, dur))
 
     return speech_segments
@@ -940,14 +940,14 @@ def plot(
         per_args(dict): a dict that stores the thresholds for postprocessing.
     """
     plt.figure(figsize=[20, 2])
-    FRAME_LEN = 0.01
+    UNIT_FRAME_LEN = 0.01
 
     audio, sample_rate = librosa.load(path=path2audio_file, sr=16000, mono=True, offset=offset, duration=duration)
     dur = librosa.get_duration(y=audio, sr=sample_rate)
 
-    time = np.arange(offset, offset + dur, FRAME_LEN)
+    time = np.arange(offset, offset + dur, UNIT_FRAME_LEN)
     frame, _ = load_tensor_from_file(path2_vad_pred)
-    frame_snippet = frame[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
+    frame_snippet = frame[int(offset / UNIT_FRAME_LEN) : int((offset + dur) / UNIT_FRAME_LEN)]
 
     len_pred = len(frame_snippet)
     ax1 = plt.subplot()
@@ -971,14 +971,14 @@ def plot(
         )  # take whole frame here for calculating onset and offset
         speech_segments = generate_vad_segment_table_per_tensor(frame, per_args_float)
         pred = gen_pred_from_speech_segments(speech_segments, frame)
-        pred_snippet = pred[int(offset / FRAME_LEN) : int((offset + dur) / FRAME_LEN)]
+        pred_snippet = pred[int(offset / UNIT_FRAME_LEN) : int((offset + dur) / UNIT_FRAME_LEN)]
 
     if path2ground_truth_label:
         label = extract_labels(path2ground_truth_label, time)
-        ax2.plot(np.arange(len_pred) * FRAME_LEN, label, 'r', label='label')
+        ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, label, 'r', label='label')
 
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, pred_snippet, 'b', label='pred')
-    ax2.plot(np.arange(len_pred) * FRAME_LEN, frame_snippet, 'g--', label='speech prob')
+    ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, pred_snippet, 'b', label='pred')
+    ax2.plot(np.arange(len_pred) * UNIT_FRAME_LEN, frame_snippet, 'g--', label='speech prob')
     ax2.tick_params(axis='y', labelcolor='r')
     ax2.legend(loc='lower right', shadow=True)
     ax2.set_ylabel('Preds and Probas')
