@@ -459,12 +459,12 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
             offset (float): offset threshold for detecting the end of a speech. 
             pad_onset (float): adding durations before each speech segment
             pad_offset (float): adding durations after each speech segment;
-            shift_length_in_sec (float): amount of shift of window for generating the frame.
+            frame_length_in_sec (float): length of frame.
     
     Returns:
         speech_segments(torch.Tensor): A tensor of speech segment in torch.Tensor([[start1, end1], [start2, end2]]) format. 
     """
-    shift_length_in_sec = per_args.get('shift_length_in_sec', 0.01)
+    frame_length_in_sec = per_args.get('frame_length_in_sec', 0.01)
 
     onset = per_args.get('onset', 0.5)
     offset = per_args.get('offset', 0.5)
@@ -482,25 +482,25 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
         if speech:
             # Switch from speech to non-speech
             if sequence[i] < offset:
-                if i * shift_length_in_sec + pad_offset > max(0, start - pad_onset):
+                if i * frame_length_in_sec + pad_offset > max(0, start - pad_onset):
                     new_seg = torch.tensor(
-                        [max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]
+                        [max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]
                     ).unsqueeze(0)
                     speech_segments = torch.cat((speech_segments, new_seg), 0)
 
-                start = i * shift_length_in_sec
+                start = i * frame_length_in_sec
                 speech = False
 
         # Current frame is non-speech
         else:
             # Switch from non-speech to speech
             if sequence[i] > onset:
-                start = i * shift_length_in_sec
+                start = i * frame_length_in_sec
                 speech = True
 
     # if it's speech at the end, add final segment
     if speech:
-        new_seg = torch.tensor([max(0, start - pad_onset), i * shift_length_in_sec + pad_offset]).unsqueeze(0)
+        new_seg = torch.tensor([max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]).unsqueeze(0)
         speech_segments = torch.cat((speech_segments, new_seg), 0)
 
     # Merge the overlapped speech segments due to padding
@@ -628,7 +628,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
     Use this for single instance pipeline. 
     """
 
-    shift_length_in_sec = per_args['shift_length_in_sec']
+    frame_length_in_sec = per_args['frame_length_in_sec']
     speech_segments = binarization(sequence, per_args)
     speech_segments = filtering(speech_segments, per_args)
 
@@ -637,7 +637,7 @@ def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict
 
     speech_segments, _ = torch.sort(speech_segments, 0)
 
-    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + shift_length_in_sec
+    dur = speech_segments[:, 1:2] - speech_segments[:, 0:1] + 0.01 # 10ms frame unit
     speech_segments = torch.column_stack((speech_segments, dur))
 
     return speech_segments
@@ -667,7 +667,7 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
 
 
 def generate_vad_segment_table(
-    vad_pred_dir: str, postprocessing_params: dict, shift_length_in_sec: float, num_workers: int, out_dir: str = None,
+    vad_pred_dir: str, postprocessing_params: dict, frame_length_in_sec: float, num_workers: int, out_dir: str = None,
 ) -> str:
     """
     Convert frame level prediction to speech segment in start and end times format.
@@ -677,7 +677,7 @@ def generate_vad_segment_table(
     Args:
         vad_pred_dir (str): directory of prediction files to be processed.
         postprocessing_params (dict): dictionary of thresholds for prediction score. See details in binarization and filtering.
-        shift_length_in_sec (float): amount of shift of window for generating the frame.
+        frame_length_in_sec (float): frame length. 
         out_dir (str): output dir of generated table/csv file.
         num_workers(float): number of process for multiprocessing
     Returns:
@@ -700,7 +700,7 @@ def generate_vad_segment_table(
         os.mkdir(table_out_dir)
 
     per_args = {
-        "shift_length_in_sec": shift_length_in_sec,
+        "frame_length_in_sec": frame_length_in_sec,
         "out_dir": table_out_dir,
     }
     per_args = {**per_args, **postprocessing_params}
@@ -778,7 +778,7 @@ def vad_tune_threshold_on_dev(
     result_file: str = "res",
     vad_pred_method: str = "frame",
     focus_metric: str = "DetER",
-    shift_length_in_sec: float = 0.01,
+    frame_length_in_sec: float = 0.01,
     num_workers: int = 20,
 ) -> Tuple[dict, dict]:
     """
@@ -788,6 +788,8 @@ def vad_tune_threshold_on_dev(
         vad_pred_method (str): suffix of prediction file. Use to locate file. Should be either in "frame", "mean" or "median".
         groundtruth_RTTM_dir (str): directory of ground-truth rttm files or a file contains the paths of them.
         focus_metric (str): metrics we care most when tuning threshold. Should be either in "DetER", "FA", "MISS"
+        frame_length_in_sec (float): frame length.
+        num_workers (int): number of workers.
     Returns:
         best_threshold (float): threshold that gives lowest DetER.
     """
@@ -810,7 +812,7 @@ def vad_tune_threshold_on_dev(
             # Generate speech segments by performing binarization on the VAD prediction according to param.
             # Filter speech segments according to param and write the result to rttm-like table.
             vad_table_dir = generate_vad_segment_table(
-                vad_pred, param, shift_length_in_sec=shift_length_in_sec, num_workers=num_workers
+                vad_pred, param, frame_length_in_sec=frame_length_in_sec, num_workers=num_workers
             )
             # add reference and hypothesis to metrics
             for filename in paired_filenames:
