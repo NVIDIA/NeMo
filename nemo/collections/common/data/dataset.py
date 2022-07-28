@@ -259,16 +259,16 @@ class ConcatMapDataset(Dataset):
 
         # Get the index of the sample we want to fetch from the dataset
         sample_idx = self.dataset_index[dataset_index]
+        
+        # If the sample idx > dataset size, reset to 0.
+        if sample_idx > len(self.datasets[dataset_index]):
+            sample_idx = 0
+            self.dataset_index[dataset_index] = 0
 
         # Sample index -> shuffled sample index
         shuffled_sample_idx = self.permuted_dataset_indices[dataset_index][sample_idx]
 
-        if sample_idx > len(self.datasets[dataset_index]):
-            sample_idx = 0
-            self.dataset_index[dataset_index] = 0
-            sample = self.datasets[dataset_index][shuffled_sample_idx]
-        else:
-            sample = self.datasets[dataset_index][shuffled_sample_idx]
-            self.dataset_index[dataset_index] += 1
+        sample = self.datasets[dataset_index][shuffled_sample_idx]
+        self.dataset_index[dataset_index] += 1
 
         return sample
