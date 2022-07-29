@@ -1545,6 +1545,7 @@ class ParallelTransformer(MegatronModule):
         self.model_type = model_type
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
+        self.layer_type = layer_type
 
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
