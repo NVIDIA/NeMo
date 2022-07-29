@@ -77,9 +77,12 @@ class Prefix(MegatronModule):
         prefix_reps = self.prefix_projection(prefix_reps)  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
         prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
+        import pdb
+        pdb.set_trace()
         prefix_reps = self.dropout(prefix_reps)
+        bsz, effective_prefix_len, _ = prefix_reps.shape
         prefix_reps = prefix_reps.view(
-            bsz, self.prefix_len, 2, self.num_layers, self.num_attention_heads_per_partition, self.num_emb_per_head,
+            bsz, effective_prefix_len, 2, self.num_layers, self.num_attention_heads_per_partition, self.num_emb_per_head,
         )
         prefix_reps = prefix_reps.permute([2, 1, 3, 0, 4, 5])
         return prefix_reps
