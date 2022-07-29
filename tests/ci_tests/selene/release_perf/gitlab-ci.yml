@@ -1681,3 +1681,15 @@ train.mt5.3b_tp8_pp4_4node_bf16_O2_100steps:
     PP_SIZE: 4
     TIME_LIMIT: "3:00:00"
     AMP_STYLE: O2
+
+cleanup.selene:
+  tags: *LUNA_TAGS
+  stage: cleanup
+  variables:
+    <<: [*VARS, *LUNA_VARS]
+  script:
+    - rm -rf ${CI_BUILDS_DIR}/${SLURM_ACCOUNT}/big_nlp/bignlp_ci/*
+    - echo "Finished cleaning everything in Selene"
+  allow_failure: true
+  rules:
+    - when: manual
