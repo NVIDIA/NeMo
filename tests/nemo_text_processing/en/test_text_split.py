@@ -26,9 +26,9 @@ class TestTextSentenceSplit:
     @pytest.mark.run_only_on('CPU')
     @pytest.mark.unit
     def test_text_sentence_split(self):
-        text = "This happened in 1918 when Mr. Smith paid $111.12 in U.S.A. on Dec. 1. 2020. And Jan. 17th. This is an example. He paid $123 for this desk. 123rd, St. Patrick."
+        text = "This happened in 1918 when Mrs. and Mr. Smith paid $111.12 in U.S.A. at 9 a.m. on Dec. 1. 2020. And Jan. 17th. This is an example. He paid $123 for this desk. 123rd, St. Patrick."
         gt_sentences = [
-            'This happened in 1918 when Mr. Smith paid $111.12 in U.S.A. on Dec. 1. 2020.',
+            'This happened in 1918 when Mrs. and Mr. Smith paid $111.12 in U.S.A. at 9 a.m. on Dec. 1. 2020.',
             'And Jan. 17th.',
             'This is an example.',
             'He paid $123 for this desk.',
