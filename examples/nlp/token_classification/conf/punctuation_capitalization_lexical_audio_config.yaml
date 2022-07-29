@@ -84,8 +84,8 @@ model:
     # A path to directory where `tar_metadata_file` or `text_file` and `labels_file` are stored.
     ds_item: ../LibriTTS_data
 
-#    text_file: text_nemo_corpa_train_f_l.txt
-#    labels_file: labels_nemo_corpa_train_f_l.txt
+    text_file: text_nemo_corpa_train_f_l.txt
+    labels_file: labels_nemo_corpa_train_f_l.txt
     # Permutes batches every epoch
     shuffle: true
     num_samples: -1
@@ -105,7 +105,7 @@ model:
     # contains total number of batches in the dataset, a list of paths to tar files and paths to label vocabularies.
     # Metadata file is create by script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py`
-    tar_metadata_file:  metadata.punctuation_capitalization.tokens10000.max_seq_length512.bert-base-uncased.json
+#    tar_metadata_file:  metadata.punctuation_capitalization.tokens10000.max_seq_length512.bert-base-uncased.json
     # Controls batch shuffling in tarred dataset. `tar_shuffle_n` is a size of shuffled batch buffer. Mind that this
     # shuffling only permutes batches and doesn't exchange samples between batches. Proper shuffling is turned on in
     # regular dataset.
