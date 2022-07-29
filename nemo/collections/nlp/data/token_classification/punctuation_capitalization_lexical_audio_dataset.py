@@ -78,11 +78,15 @@ class PunctuationCapitalizationLexicalAudioDataset(BertPunctuationCapitalization
                                                 max_duration=max_duration, min_duration=min_duration, max_utts=max_utts,
                                                 trim=trim, bos_id=bos_id, eos_id=eos_id, pad_id=pad_id,
                                                 return_sample_id=return_sample_id)
+        # print(f'LEN DATASET: {len(self)} LEN AUDIO_DATASET:{len(self._audio_dataset)}')
+        assert len(self) == len(self._audio_dataset)
 
     def __getitem__(self, idx: int) -> Dict[str, Union[np.ndarray, torch.LongTensor]]:
         text_batch = super().__getitem__(idx)
         audio_batch = self._audio_dataset.__getitem__(idx)
         batch = text_batch.copy()
+        if audio_batch[1] == 0:
+            print(f'FOUND BATCH IN __getitem__ W 0 AUDIO INDEX:{idx}')
         batch.update({'features': audio_batch[0], 'features_length': audio_batch[1]})
         return batch
 
