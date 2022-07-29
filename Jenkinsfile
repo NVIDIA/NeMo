@@ -3092,7 +3092,6 @@ pipeline {
         model.encoder.transformer_block_type='pre_ln' \
         model.decoder.transformer_block_type='pre_ln' \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
         model.data.respect_document_boundaries=False \
         model.share_token_embeddings=False \
@@ -3131,7 +3130,6 @@ pipeline {
         model.encoder.transformer_block_type='pre_ln' \
         model.decoder.transformer_block_type='pre_ln' \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
-        model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
         model.data.respect_document_boundaries=False \
         model.share_token_embeddings=False \
