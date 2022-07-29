@@ -214,10 +214,18 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         pass
 
     def forward(
-        self, enc_input, enc_attn_mask, layer_past=None, get_key_value=False,
+        self,
+        enc_input,
+        enc_attn_mask,
+        layer_past=None,
+        get_key_value=False,
+        enc_self_attention_relative_position_bias=None,
     ):
+        if enc_self_attention_relative_position_bias is not None:
+            raise ValueError(f"enc_self_attention_relative_position_bias is not supported for Megatron Perceiver Encoders.")
+
         # convert to Megatron mask
-        latent_attention_mask = torch.ones(enc_input.size(0), self.hidden_steps).to(enc_input.device)
+        latent_attention_mask = torch.ones(enc_input.size(1), self.hidden_steps).to(enc_input.device)
 
         # First convert from 2D (B x T) to 3D (B x T x T)
         # Next convert to 4D (B x 1 x T x T) - unsqueeze(1) is for the head dim.
@@ -234,24 +242,21 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             )
         )
 
-        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(0), -1, -1)  # sequence x batch x dim
+        # 1. Expand latent hidden states to B x S_perceiver x H
+        # 2. Transpose to S_perceiver x B x H
+        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(1), -1, -1).transpose(1, 0)
         for i in range(self.num_layers):
             residual = hidden_states
-
             hidden_states = self.cross_attn_layers[i](
                 hidden_states=hidden_states,
                 attention_mask=latent_attention_mask_4d,
                 enc_dec_attn_mask=enc_dec_attn_mask_4d,
                 encoder_output=enc_input,
-            ).transpose(
-                1, 0
-            )  # Need to transpose at the end becase pre-process is False
+            )
             for j in range(self.num_self_attention_per_cross_attention):
                 hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
                     hidden_states=hidden_states, attention_mask=latent_attention_mask_4d,
-                ).transpose(
-                    1, 0
-                )  # Need to transpose at the end becase pre-process is False
+                )
 
             hidden_states += residual
 

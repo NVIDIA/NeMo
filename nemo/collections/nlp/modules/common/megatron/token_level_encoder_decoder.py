@@ -380,13 +380,13 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         if (enc_input is None) and (enc_input_ids is not None):
             if self.pre_process and self.add_encoder:
                 # We don't need position ids for RPE, because the embedding layer does not have position embeddings.
-                if self.encoder_cfg.position_embedding_type != 'relative':
+                if self.encoder_cfg.get("position_embedding_type", "learned_absolute") != 'relative':
                     enc_position_ids = build_position_ids(enc_input_ids)
                 else:
                     enc_position_ids = None
                 enc_input = self.encoder_embedding(enc_input_ids, enc_position_ids, token_type_ids=token_type_ids)
 
-                if self.encoder_cfg.position_embedding_type == 'relative':
+                if self.encoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
                     encoder_self_attention_relative_position_bias = self.encoder_relative_position_embedding(
                         query_seq_length=enc_input_ids.size(1), key_seq_length=enc_input_ids.size(1),
                     )
@@ -410,7 +410,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 dec_position_ids = build_position_ids(dec_input_ids)
                 dec_input = self.decoder_embedding(dec_input_ids, dec_position_ids, token_type_ids=token_type_ids)
 
-                if self.decoder_cfg.position_embedding_type == 'relative':
+                if self.decoder_cfg.get("position_embedding_type", "learned_absolute") == 'relative':
                     decoder_self_attention_relative_position_bias = self.decoder_relative_position_embedding(
                         query_seq_length=dec_input_ids.size(1), key_seq_length=dec_input_ids.size(1)
                     )
