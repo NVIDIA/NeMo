@@ -36,7 +36,7 @@ import math
 
 import torch
 import torch.nn as nn
-from contextlib import nullcontext
+from nemo.collections.common.parts.training_utils import mhsa_autocast_context
 
 __all__ = [
     'RelPositionMultiHeadAttention',
@@ -123,15 +123,7 @@ class MultiHeadAttention(nn.Module):
         """
 
         # temporary until we solve this more gracefully
-        mhsa_ctx = nullcontext()
-
-        if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
-            if torch.cuda.is_bf16_supported():
-                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.bfloat16)
-            else:
-                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.float32)
-
-        with mhsa_ctx:
+        with mhsa_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
             out = self.forward_attention(v, scores, mask)
@@ -192,18 +184,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         """
 
         # temporary until we solve this more gracefully
-        mhsa_ctx = nullcontext()
-
-        if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
-            if torch.cuda.is_bf16_supported():
-                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.bfloat16)
-            else:
-                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.float32)
-
-
-
-
-        with mhsa_ctx:
+        with mhsa_autocast_context():
             q, k, v = self.forward_qkv(query, key, value)
             q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
