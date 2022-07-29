@@ -1,8 +1,6 @@
 import os
 import sys
 import json
-
-from tensorboard.backend.event_processing import event_accumulator
 from CITestHelper import CITestHelper
 
 def collect_val_test_metrics(ci_job_results_dir):

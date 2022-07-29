@@ -113,6 +113,10 @@ build-BigNLP:
   rules:
     - when: always
 
+release_perf:
+  stage: release_perf
+  trigger:
+    include: tests/ci_tests/selene/release_perf/gitlab-ci.yml
 
 .bignlp-LUNA-test-LAUNCHER: &bignlp-LUNA-test-LAUNCHER
   tags: *LUNA_TAGS
