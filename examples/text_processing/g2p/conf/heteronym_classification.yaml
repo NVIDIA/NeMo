@@ -1,9 +1,9 @@
 name: HeteronymClassification
 
 # Dataset info
-train_dataset: ???
-validation_dataset: ???
-test_dataset: null
+train_manifest: ???
+validation_manifest: ???
+test_manifest: null
 do_training: True
 do_testing: False
 pretrained_model: null # path to .nemo file or model name from list_available_models()
@@ -34,7 +34,7 @@ model:
   train_ds:
     dataset:
       _target_: "nemo_text_processing.g2p.data.heteronym_classification_data.HeteronymClassificationDataset"
-      manifest: ${train_dataset}
+      manifest: ${train_manifest}
       grapheme_field: "text_graphemes" # name of the field in manifest for input grapheme text
     dataloader_params:
       drop_last: false
@@ -45,7 +45,7 @@ model:
   validation_ds:
     dataset:
       _target_: "nemo_text_processing.g2p.data.heteronym_classification_data.HeteronymClassificationDataset"
-      manifest: ${validation_dataset}
+      manifest: ${validation_manifest}
       grapheme_field: "text_graphemes" # name of the field in manifest for input grapheme text
     dataloader_params:
       drop_last: false
@@ -56,7 +56,7 @@ model:
   test_ds:
     dataset:
       _target_: "nemo_text_processing.g2p.data.heteronym_classification_data.HeteronymClassificationDataset"
-      manifest: ${test_dataset}
+      manifest: ${test_manifest}
       grapheme_field: "text_graphemes" # name of the field in manifest for input grapheme text
     dataloader_params:
       drop_last: false

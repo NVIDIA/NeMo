@@ -770,7 +770,7 @@ pipeline {
             }
             stage('ByT5G2P training, evaluation and inference') {
               steps {
-                sh 'cd examples/text_processing/g2p && \
+                sh 'TRANSFORMERS_OFFLINE=0 && cd examples/text_processing/g2p && \
                     TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
                     python g2p_train_and_evaluate.py \
                         train_manifest=/home/TestData/g2p/g2p.json \
@@ -787,7 +787,7 @@ pipeline {
                     python g2p_inference.py \
                         pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
                         manifest_filepath=/home/TestData/g2p/g2p.json \
-                        phoneme_field=text'
+                        phoneme_field=text && TRANSFORMERS_OFFLINE=1'
               }
             }
            stage('HeteronymClassificationModel training, evaluation and inference') {

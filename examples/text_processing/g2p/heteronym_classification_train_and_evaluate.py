@@ -29,8 +29,8 @@ This script runs training and evaluation of HeteronymClassificationModel
 
 To run training and testing:
 python heteronym_classification_train_and_evaluate.py \
-    train_dataset=<Path to manifest file>" \
-    validation_dataset=<Path to manifest file>" \
+    train_manifest=<Path to manifest file>" \
+    validation_manifest=<Path to manifest file>" \
     model.encoder.pretrained="<Path to .nemo file or pretrained model name from list_available_models()>" \
     do_training=True \
     do_testing=True

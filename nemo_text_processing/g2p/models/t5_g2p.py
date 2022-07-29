@@ -61,7 +61,7 @@ class T5G2PModel(G2PModel):
             self.world_size = trainer.num_nodes * trainer.num_gpus
 
         # Load appropriate tokenizer from HuggingFace
-        self.model_name = cfg.get("model_name", "t5-small")  # One of: t5-small, t5-base, t5-large, t5-3b, t5-11b
+        self.model_name = cfg.model_name
         self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
         self.max_source_len = cfg.get("max_source_len", self._tokenizer.model_max_length)

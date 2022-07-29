@@ -9,7 +9,7 @@ do_testing: False
 pretrained_model: null # path to .nemo file or model name from list_available_models()
 
 model:
-  model_name: "google/byt5-small"
+  model_name: "google/byt5-small" # One of: google/byt5-small/base/large/xl or t5-small/base/large/3b/11b
   max_source_len: 256
   max_target_len: 512
   do_lower: false
