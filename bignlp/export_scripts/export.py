@@ -19,6 +19,7 @@ import subprocess
 import typing
 
 from bignlp.bignlp_utils import add_container_mounts
+from bignlp.inference_scripts.benchmark import run_benchmark
 
 FT_PATH = pathlib.Path("/opt/bignlp/FasterTransformer")
 FT_BACKEND_PATH = pathlib.Path("/opt/bignlp/fastertransformer_backend")
@@ -211,6 +212,24 @@ def run_export(cfg, dependency=None):
     if not accuracy_cfg.enabled:
         dependency = ":".join([conversion_job_id])
 
+    # Run benchmark
+    benchmark_script = run_benchmark(
+        run_cfg=cfg.export.run,
+        benchmark_cfg=cfg.export.benchmark,
+        cluster_cfg=cfg.cluster,
+        dependency=conversion_job_id,
+        bignlp_scripts_path=pathlib.Path(cfg.bignlp_path),
+        triton_model_dir=f"{cfg.export.run.results_dir}/model_repo",
+        model_name=run_cfg.model_train_name,
+        container=cfg.inference_container,
+        tensor_parallel_size=cfg.export.model.tensor_model_parallel_size,
+        pipeline_parallel_size=cfg.export.triton_deployment.pipeline_model_parallel_size,
+    )
+
+    job_id = subprocess.check_output([f"sbatch --parsable {benchmark_script}"], shell=True)
+    job_id = job_id.decode("utf-8")
+    print(f"Submitted Inference benchmark script with job id: {job_id}")
+
     return dependency
 
 
@@ -303,6 +322,7 @@ def _get_bcm_submission_cmd(
 
 
 def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
+    run_cfg = cfg.export.run
     ft_model_cfg = cfg.export.model
     triton_cfg = cfg.export.triton_deployment
     tokenizer_cfg = cfg.training.model.tokenizer
@@ -327,11 +347,13 @@ def _get_gpt_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     )
     triton_prepare_model_config_cmd = (
         f"python -u {prepare_model_config_script_path} \\\n"
+        f" --model-train-name {run_cfg.model_train_name} \\\n"
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{ft_model_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
         f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
         f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --tensor-model-parallel-size {ft_model_cfg.tensor_model_parallel_size} \\\n"
         f" --data-type {triton_cfg.data_type}"
     )
     if triton_cfg.int8_mode:
@@ -371,11 +393,13 @@ def _get_t5_conversion_cmds(cfg, checkpoint_path, triton_model_dir):
     )
     triton_prepare_model_config_cmd = (
         f"python -u {prepare_model_config_script_path} \\\n"
+        f" --model-train-name {run_cfg.model_train_name} \\\n"
         f" --template-path {template_path} \\\n"
         f" --ft-checkpoint {triton_model_version_dir}/{ft_model_cfg.tensor_model_parallel_size}-gpu \\\n"
         f" --config-path {triton_model_dir}/config.pbtxt \\\n"
         f" --max-batch-size {triton_cfg.max_batch_size} \\\n"
         f" --pipeline-model-parallel-size {triton_cfg.pipeline_model_parallel_size} \\\n"
+        f" --tensor-model-parallel-size {ft_model_cfg.tensor_model_parallel_size} \\\n"
         f" --data-type {triton_cfg.data_type}"
     )
     if triton_cfg.int8_mode:
