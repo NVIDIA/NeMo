@@ -80,9 +80,9 @@ model:
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py` for tarred dataset
     # creation.
-    use_tarred_dataset: true
+    use_tarred_dataset: false
     # A path to directory where `tar_metadata_file` or `text_file` and `labels_file` are stored.
-    ds_item: /mnt/sda/FL_tarred_5/
+    ds_item: ../LibriTTS_data
 
 #    text_file: text_nemo_corpa_train_f_l.txt
 #    labels_file: labels_nemo_corpa_train_f_l.txt
