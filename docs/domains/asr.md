@@ -1,4 +1,0 @@
----
-title: Automatic Speech Recogntion
----
-

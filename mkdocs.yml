@@ -125,5 +125,5 @@ markdown_extensions:
 # Page tree
 nav:
   - Home: index.md
-  - Domains:
-    - Automatic Speech Recognition: domains/asr.md
+  - Blog Posts:
+    - Automatic Speech Recognition: blogs/asr.md
