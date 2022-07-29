@@ -13,6 +13,7 @@ stages:
   - build
   - test
   - cleanup
+  - release_perf
 
 ################
 # JOB Templates
