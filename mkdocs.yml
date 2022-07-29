@@ -1,0 +1,129 @@
+
+# Project information
+site_name: NVIDIA NeMo
+site_url: https://nvidia.github.io/NeMo/
+site_description: >-
+  NeMo: a toolkit for conversational AI
+# Repository
+repo_name: NVIDIA/NeMo
+repo_url: https://github.com/NVIDIA/NeMo
+
+# Copyright
+# copyright: Copyright &copy; 2019 - 2022 NVIDIA
+
+# Configuration
+theme:
+  name: material
+  custom_dir: docs/overrides
+
+  # Static files
+  # static_templates:
+  #   - 404.html
+
+  # Don't include MkDocs' JavaScript
+  include_search_page: false
+  search_index_only: true
+
+  # Default values, taken from mkdocs_theme.yml
+  language: en
+  features:
+    - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    # - header.autohide
+    # - navigation.expand
+    - navigation.indexes
+    # - navigation.instant
+    # - navigation.prune
+    - navigation.sections
+    - navigation.tabs
+    # - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    # - toc.integrate
+  palette:
+    - scheme: midnight
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/favicon.png
+  icon:
+    logo: logo
+
+# Plugins
+plugins:
+  - search
+  - minify:
+      minify_html: true
+
+# Customization
+extra:
+  # analytics:
+  #   provider: google
+  #   property: !ENV ANALYTICS_KEY
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/NVIDIA/NeMo
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+
+# Extensions
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - meta
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: NVIDIA
+      repo: NeMo
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  # - pymdownx.superfences:
+  #     custom_fences:
+  #       - name: mermaid
+  #         class: mermaid
+  #         format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+# Page tree
+nav:
+  - Home: index.md
+  - Domains:
+    - Automatic Speech Recognition: domains/asr.md
