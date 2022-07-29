@@ -35,6 +35,7 @@ from pynini.lib.rewrite import top_rewrite
 from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
+from nemo.utils import logging
 
 SPACE_DUP = re.compile(' {2,}')
 
@@ -252,10 +253,11 @@ class Normalizer:
 
         Returns: spoken form
         """
-        # assert len(text.split()) < 500, (
-        #     "Your input is too long. "
-        #     "Please split up the input into sentences using split_text_into_sentences() and then use normalize_list()"
-        # )
+        if len(text.split()) > 500:
+            logging.warning(
+                "Your input is too long, and this could take a long time to normalize."
+                "Use split_text_into_sentences() to make the input shorter and then call normalize_list()."
+            )
 
         original_text = text
         if punct_pre_process:
@@ -301,7 +303,7 @@ class Normalizer:
 
         return output
 
-    def split_text_into_sentences(self, text=str) -> List[str]:
+    def split_text_into_sentences(self, text: str) -> List[str]:
         """
         Split text into sentences.
 
