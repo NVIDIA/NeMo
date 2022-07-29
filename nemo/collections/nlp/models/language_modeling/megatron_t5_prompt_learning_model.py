@@ -95,7 +95,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                 dec_attn_mask=dec_mask,
                 token_type_ids=None,
                 labels=labels,
-                enc_hidden_states=None,
                 output_enc_hidden_only=False,
                 enc_input=encoder_input,
             )
@@ -108,7 +107,6 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
                     dec_attn_mask=dec_mask,
                     token_type_ids=None,
                     labels=labels,
-                    enc_hidden_states=None,
                     output_enc_hidden_only=False,
                     enc_input=encoder_input,
                 )
