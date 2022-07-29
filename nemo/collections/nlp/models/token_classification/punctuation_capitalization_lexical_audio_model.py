@@ -5,6 +5,10 @@ import torch
 
 from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
 from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
+from nemo.collections.nlp.data.token_classification.punctuation_capitalization_lexical_audio_tarred_dataset import \
+    BertPunctuationCapitalizationLexicalAudioTarredDataset
+from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import \
+    BertPunctuationCapitalizationTarredDataset
 
 from nemo.core.classes.mixins import adapter_mixins
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -256,30 +260,30 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         if not self.label_ids_are_set and not train:
             self._set_label_ids()
         if cfg.use_tarred_dataset:
-            raise NotImplementedError("P&C lexical audio model currently doesn't support tarred datasets")
-            # if cfg.tar_metadata_file is None:
-            #     raise ValueError(
-            #         f"If parameter `use_tarred_dataset` is `True`, then a field `tar_metadata_file` has to be a path "
-            #         f"to tarred dataset metadata file, whereas `None` is given."
-            #     )
-            # tar_metadata_file = Path(cfg.ds_item) / cfg.tar_metadata_file
-            # dataset = BertPunctuationCapitalizationTarredDataset(
-            #     metadata_file=tar_metadata_file,
-            #     tokenizer=self.tokenizer,
-            #     pad_label=self._cfg.common_dataset_parameters.pad_label,
-            #     ignore_extra_tokens=self._cfg.common_dataset_parameters.ignore_extra_tokens,
-            #     ignore_start_end=self._cfg.common_dataset_parameters.ignore_start_end,
-            #     world_size=self.world_size,
-            #     global_rank=self.global_rank,
-            #     shuffle_n=cfg.tar_shuffle_n,
-            #     label_info_save_dir=cfg.label_info_save_dir,
-            # )
-            # dataset.check_for_label_consistency_with_model_config(
-            #     self.punct_label_ids,
-            #     self.capit_label_ids,
-            #     self._cfg.class_labels,
-            #     self._cfg.common_dataset_parameters,
-            # )
+            # raise NotImplementedError("P&C lexical audio model currently doesn't support tarred datasets")
+            if cfg.tar_metadata_file is None:
+                raise ValueError(
+                    f"If parameter `use_tarred_dataset` is `True`, then a field `tar_metadata_file` has to be a path "
+                    f"to tarred dataset metadata file, whereas `None` is given."
+                )
+            tar_metadata_file = Path(cfg.ds_item) / cfg.tar_metadata_file
+            dataset = BertPunctuationCapitalizationLexicalAudioTarredDataset(
+                metadata_file=tar_metadata_file,
+                tokenizer=self.tokenizer,
+                pad_label=self._cfg.common_dataset_parameters.pad_label,
+                ignore_extra_tokens=self._cfg.common_dataset_parameters.ignore_extra_tokens,
+                ignore_start_end=self._cfg.common_dataset_parameters.ignore_start_end,
+                world_size=self.world_size,
+                global_rank=self.global_rank,
+                shuffle_n=cfg.tar_shuffle_n,
+                label_info_save_dir=cfg.label_info_save_dir,
+            )
+            dataset.check_for_label_consistency_with_model_config(
+                self.punct_label_ids,
+                self.capit_label_ids,
+                self._cfg.class_labels,
+                self._cfg.common_dataset_parameters,
+            )
         else:
             if cfg.text_file is None or cfg.labels_file is None:
                 raise ValueError(
