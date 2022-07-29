@@ -540,7 +540,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
 
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
 
         (
             encoder_input_ids,
@@ -929,7 +929,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
-        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.encoder.hidden_size]
 
         # build input arguments description
         if tokens_enc is not None:
