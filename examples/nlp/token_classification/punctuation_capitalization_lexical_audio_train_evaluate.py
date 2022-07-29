@@ -20,7 +20,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import \
-    PunctuationCapitalizationLexicalAudioConfig
+    PunctuationCapitalizationConfig, PunctuationCapitalizationLexicalAudioConfig
 from nemo.collections.nlp.models.token_classification.punctuation_capitalization_lexical_audio_model import \
     PunctuationCapitalizationLexicalAudioModel
 from nemo.core.config import hydra_runner
@@ -97,7 +97,6 @@ Set `do_training` to `false` and `do_testing` to `true` to perform evaluation wi
 
 @hydra_runner(config_path="conf", config_name="punctuation_capitalization_lexical_audio_config")
 def main(cfg: DictConfig) -> None:
-    # torch.cuda.set_per_process_memory_fraction(0.66)
     torch.manual_seed(42)
     cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationLexicalAudioConfig()), cfg)
     trainer = pl.Trainer(**cfg.trainer)
@@ -142,6 +141,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.do_training:
         trainer.fit(model)
     if cfg.do_testing:
+        model.restore_from(trainer.checkpoint_callback.dirpath + '/Punctuation_and_Capitalization.nemo')
         trainer.test(model)
 
 

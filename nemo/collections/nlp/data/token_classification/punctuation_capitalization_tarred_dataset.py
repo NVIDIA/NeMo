@@ -41,8 +41,6 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     load_label_ids,
     raise_not_equal_labels_error,
 )
-from nemo.collections.nlp.data.token_classification.punctuation_capitalization_lexical_audio_dataset import \
-    PunctuationCapitalizationLexicalAudioDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
 from nemo.utils import logging
@@ -186,7 +184,7 @@ def process_fragment(
                 otf.write(text_line)
                 olf.write(lf.readline())
                 oaf.write(mf.readline())
-        dataset = PunctuationCapitalizationLexicalAudioDataset(
+        dataset = BertPunctuationCapitalizationDataset(
             tmp_text,
             tmp_labels,
             max_seq_length,

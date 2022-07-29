@@ -128,7 +128,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     @typecheck()
     def forward(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor, token_type_ids: Optional[torch.Tensor] = None
+            self, input_ids: torch.Tensor, attention_mask: torch.Tensor, token_type_ids: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Executes a forward pass through the model. For more details see ``forward`` method of HuggingFace BERT-like
@@ -256,7 +256,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return {'loss': None, 'punct_class_report': None, 'capit_class_report': None}
 
     def validation_step(
-        self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
+            self, batch: Dict[str, torch.Tensor], batch_idx: int, dataloader_idx: int = 0
     ) -> Dict[str, None]:
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader passed in as
@@ -502,7 +502,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             self.register_artifact('class_labels.capit_labels_file', str(capit_label_ids_file))
 
     def _get_eval_metrics_kwargs(
-        self,
+            self,
     ) -> Tuple[
         Dict[str, bool],
         Dict[str, Union[bool, str, int, Dict[str, int]]],
@@ -636,9 +636,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                         first_labels=label_ids,
                         second_labels=file_label_ids,
                         first_labels_desc=f"Labels passed in config parameter "
-                        f"`model.common_dataset_parameters.{label_ids_name}`",
+                                          f"`model.common_dataset_parameters.{label_ids_name}`",
                         second_labels_desc=f"Labels loaded from file {plvf} passed in config "
-                        f"parameter `model.common_dataset_parameters.{label_vocab_name}",
+                                           f"parameter `model.common_dataset_parameters.{label_vocab_name}",
                     )
             if already_set_label_ids is not None:
                 config_label_ids = label_ids if label_vocab_file is None else file_label_ids
@@ -658,7 +658,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                             second_labels=already_set_label_ids,
                             first_labels_desc=config_label_ids_source,
                             second_labels_desc=f"Labels which are already set in an attribute "
-                            f"`PunctuationCapitalizationModel.{label_ids_name}`",
+                                               f"`PunctuationCapitalizationModel.{label_ids_name}`",
                         )
         if plvf is not None:
             pli = load_label_ids(plvf)
@@ -797,7 +797,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 raise ValueError(
                     f"If `use_tarred_dataset` is `False`, then you need to provide `tokens_in_batch` parameter."
                 )
-            text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            text_file, labels_file, = Path(cfg.ds_item) / cfg.text_file, Path(
+                cfg.ds_item) / cfg.labels_file
+            if cfg.audio_file:
+                audio_file = Path(cfg.ds_item) / cfg.audio_file
             if self.label_ids_are_set:
                 label_kwargs = {'punct_label_ids': self.punct_label_ids, 'capit_label_ids': self.capit_label_ids}
             else:
@@ -860,6 +863,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
+                audio_file=audio_file if cfg.audio_file else None,
+                sample_rate=cfg.sample_rate,
+                use_audio=cfg.use_audio
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
@@ -878,13 +884,13 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         )
 
     def _setup_infer_dataloader(
-        self,
-        queries: List[str],
-        batch_size: int,
-        max_seq_length: int,
-        step: int,
-        margin: int,
-        dataloader_kwargs: Optional[Dict[str, Any]],
+            self,
+            queries: List[str],
+            batch_size: int,
+            max_seq_length: int,
+            step: int,
+            margin: int,
+            dataloader_kwargs: Optional[Dict[str, Any]],
     ) -> torch.utils.data.DataLoader:
         """
         Setup function for a infer data loader.
@@ -926,14 +932,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return tensor
 
     def _transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
-        self,
-        punct_logits: torch.Tensor,
-        capit_logits: torch.Tensor,
-        subtokens_mask: torch.Tensor,
-        start_word_ids: Tuple[int],
-        margin: int,
-        is_first: Tuple[bool],
-        is_last: Tuple[bool],
+            self,
+            punct_logits: torch.Tensor,
+            capit_logits: torch.Tensor,
+            subtokens_mask: torch.Tensor,
+            start_word_ids: Tuple[int],
+            margin: int,
+            is_first: Tuple[bool],
+            is_last: Tuple[bool],
     ) -> Tuple[List[np.ndarray], List[np.ndarray], List[int]]:
         """
         Applies softmax to get punctuation and capitalization probabilities, applies ``subtokens_mask`` to extract
@@ -964,7 +970,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         subtokens_mask = subtokens_mask > 0.5
         b_punct_probs, b_capit_probs = [], []
         for i, (first, last, pl, cl, stm) in enumerate(
-            zip(is_first, is_last, punct_logits, capit_logits, subtokens_mask)
+                zip(is_first, is_last, punct_logits, capit_logits, subtokens_mask)
         ):
             if not first:
                 new_start_word_ids[i] += torch.count_nonzero(stm[: margin + 1]).numpy()  # + 1 is for [CLS] token
@@ -978,7 +984,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
 
     @staticmethod
     def _move_acc_probs_to_token_preds(
-        pred: List[int], acc_prob: np.ndarray, number_of_probs_to_move: int
+            pred: List[int], acc_prob: np.ndarray, number_of_probs_to_move: int
     ) -> Tuple[List[int], np.ndarray]:
         """
         ``number_of_probs_to_move`` rows in the beginning are removed from ``acc_prob``. From every remove row the label
@@ -1070,14 +1076,14 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         return result[:-1]
 
     def add_punctuation_capitalization(
-        self,
-        queries: List[str],
-        batch_size: int = None,
-        max_seq_length: int = 64,
-        step: int = 8,
-        margin: int = 16,
-        return_labels: bool = False,
-        dataloader_kwargs: Dict[str, Any] = None,
+            self,
+            queries: List[str],
+            batch_size: int = None,
+            max_seq_length: int = 64,
+            step: int = 8,
+            margin: int = 16,
+            return_labels: bool = False,
+            dataloader_kwargs: Dict[str, Any] = None,
     ) -> List[str]:
         """
         Adds punctuation and capitalization to the queries. Use this method for inference.
@@ -1148,7 +1154,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             d = self.device
             for batch_i, batch in tqdm(
-                enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
+                    enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
             ):
                 inp_ids, inp_type_ids, inp_mask, subtokens_mask, start_word_ids, query_ids, is_first, is_last = batch
                 punct_logits, capit_logits = self.forward(
@@ -1159,7 +1165,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 )
                 punct_probs, capit_probs, start_word_ids = _res
                 for i, (q_i, start_word_id, bpp_i, bcp_i) in enumerate(
-                    zip(query_ids, start_word_ids, punct_probs, capit_probs)
+                        zip(query_ids, start_word_ids, punct_probs, capit_probs)
                 ):
                     for all_preds, acc_probs, b_probs_i in [
                         (all_punct_preds, acc_punct_probs, bpp_i),
@@ -1199,17 +1205,17 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             PretrainedModelInfo(
                 pretrained_model_name="punctuation_en_bert",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_bert/versions/1.0.0rc1/"
-                "files/punctuation_en_bert.nemo",
+                         "files/punctuation_en_bert.nemo",
                 description="The model was trained with NeMo BERT base uncased checkpoint on a subset of data from "
-                "the following sources: Tatoeba sentences, books from Project Gutenberg, Fisher transcripts.",
+                            "the following sources: Tatoeba sentences, books from Project Gutenberg, Fisher transcripts.",
             ),
             PretrainedModelInfo(
                 pretrained_model_name="punctuation_en_distilbert",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/punctuation_en_distilbert/versions/"
-                "1.0.0rc1/files/punctuation_en_distilbert.nemo",
+                         "1.0.0rc1/files/punctuation_en_distilbert.nemo",
                 description="The model was trained with DiltilBERT base uncased checkpoint from HuggingFace on a "
-                "subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, "
-                "Fisher transcripts.",
+                            "subset of data from the following sources: Tatoeba sentences, books from Project Gutenberg, "
+                            "Fisher transcripts.",
             ),
         ]
         return result
