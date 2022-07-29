@@ -311,8 +311,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         decoder_kv_channels = self._validate_kv_channels(self.decoder_cfg)
         self._validate_enc_dec_hidden_size(self.encoder_cfg, self.decoder_cfg)
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            assert self.share_token_embeddings, "Token embeddings must be shared when using pipeline model parallel size > 1"
-            assert self.share_decoder_tokens_head_embeddings, "Decoder token embeddings and the outputlayer must be shared when using pipeline model parallel size > 1"
+            assert (
+                self.share_token_embeddings
+            ), "Token embeddings must be shared when using pipeline model parallel size > 1"
+            assert (
+                self.share_decoder_tokens_head_embeddings
+            ), "Decoder token embeddings and the outputlayer must be shared when using pipeline model parallel size > 1"
         return encoder_kv_channels, decoder_kv_channels
 
     def set_input_tensor(self, input_tensor):
