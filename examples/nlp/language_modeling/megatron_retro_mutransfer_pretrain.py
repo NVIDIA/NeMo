@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
+
 from omegaconf.omegaconf import OmegaConf, open_dict
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks.timer import Timer
@@ -26,7 +28,6 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPre
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-import math
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_mutransfer")
@@ -98,7 +99,9 @@ def main(cfg) -> None:
     for name, layer in model.named_modules():
         if name.endswith('.self_attention') or name.endswith('.inter_attention') or name.endswith('.cross_attention'):
             if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
-                layer.norm_factor = layer.hidden_size_per_attention_head / 8.0  # divide 8 to make it consist with ADLR setting
+                layer.norm_factor = (
+                    layer.hidden_size_per_attention_head / 8.0
+                )  # divide 8 to make it consist with ADLR setting
         else:
             if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
                 logging.error(
