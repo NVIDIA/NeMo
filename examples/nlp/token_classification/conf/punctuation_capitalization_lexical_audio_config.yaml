@@ -94,7 +94,7 @@ model:
     # number of pad tokens in a batch. A number of examples in a batch varies: longer input sequences -> less
     # examples in a batch.
     #    tokens_in_batch: 15000
-#    batch_size: 32
+    batch_size: 32
     max_seq_length: 512
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
