@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import functools
+import copy
 import inspect
 import re
 from typing import Any, Dict, Optional
@@ -146,8 +147,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         Populate encoder and decoder configs for backward compatibility with a checkpoint that has a common enc/dec config.
         """
         # TODO: This will not remove redundant args that are already present in the new yaml file's config.model
-        encoder_cfg = cfg
-        decoder_cfg = cfg
+        encoder_cfg = copy.deepcopy(cfg)
+        decoder_cfg = copy.deepcopy(cfg)
 
         OmegaConf.set_struct(encoder_cfg, True)
         OmegaConf.set_struct(decoder_cfg, True)

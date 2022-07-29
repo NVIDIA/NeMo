@@ -131,7 +131,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
                 self._encoder_embedding_key = "encoder_embedding"
-                if self.encoder_cfg.position_embedding_type == 'relative':
+                if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                     self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=encoder_cfg.num_attention_heads,
@@ -204,7 +204,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                 self._decoder_embedding_key = "decoder_embedding"
                 # TODO (sandeepsub): When implementing RPE for PP > 2, this should not be inside `pre_process`. It should exist on all ranks and be synchronized manually.
-                if self.decoder_cfg.position_embedding_type == 'relative':
+                if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
                     self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=decoder_cfg.num_attention_heads,
@@ -307,7 +307,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
     def _validate_perceiver_config(self, cfg):
-        if cfg.position_embedding_type == "relative" and cfg.arch == "perceiver":
+        if cfg.get("position_embedding_type", "learned_absolute") == "relative" and cfg.get("arch", "transformer") == "perceiver":
             raise ValueError(f"Perceivers with relative position embeddings are not supported")
 
     def _validate_config(self):
