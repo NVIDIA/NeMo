@@ -305,11 +305,17 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             raise ValueError(
                 f"Encoder and decoder hidden_size must be equal, but got encoder: {encoder_cfg.hidden_size} and decoder: {decoder_cfg.hidden_size}"
             )
+        
+    def _validate_perceiver_config(self, cfg):
+        if cfg.position_embedding_type == "relative" and cfg.arch == "perceiver":
+            raise ValueError(f"Perceivers with relative position embeddings are not supported")
 
     def _validate_config(self):
         encoder_kv_channels = self._validate_kv_channels(self.encoder_cfg)
         decoder_kv_channels = self._validate_kv_channels(self.decoder_cfg)
         self._validate_enc_dec_hidden_size(self.encoder_cfg, self.decoder_cfg)
+        self._validate_perceiver_config(self.encoder_cfg)
+        self._validate_perceiver_config(self.decoder_cfg)
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             assert (
                 self.share_token_embeddings
