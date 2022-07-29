@@ -122,9 +122,22 @@ class MultiHeadAttention(nn.Module):
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        q, k, v = self.forward_qkv(query, key, value)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-        return self.forward_attention(v, scores, mask)
+
+        # temporary until we solve this more gracefully
+        mhsa_ctx = nullcontext()
+
+        if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
+            if torch.cuda.is_bf16_supported():
+                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.bfloat16)
+            else:
+                mhsa_ctx = torch.cuda.amp.autocast(dtype=torch.float32)
+
+        with mhsa_ctx:
+            q, k, v = self.forward_qkv(query, key, value)
+            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+            out = self.forward_attention(v, scores, mask)
+
+        return out
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
@@ -179,7 +192,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
 
-        # temporary until we solve this more gracefully, via scaling
+        # temporary until we solve this more gracefully
         mhsa_ctx = nullcontext()
 
         if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
