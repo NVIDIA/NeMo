@@ -808,7 +808,7 @@ pipeline {
                         +exp_manager.version=test && \
                     python heteronym_classification_inference.py \
                         manifest=eval.json \
-                        pretrained_model=${OUTPUT_DIR}/test/checkpoints/HeteronymClassification.nemo \
+                        pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
                         output_file=preds.json'
               }
             }
