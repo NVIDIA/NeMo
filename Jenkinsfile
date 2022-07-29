@@ -3066,12 +3066,14 @@ pipeline {
         model.transformer_block_type='pre_ln' \
         model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
         model.position_embedding_type=relative \
-        model.data.respect_document_boundaries=False \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
         model.data.data_impl=text_mmap \
         +model.data.data_impl_kwargs.newline_int=10 \
         +model.data.data_impl_kwargs.header_lines=0 \
         +model.data.data_impl_kwargs.workers=null \
-        +model.data.data_impl_kwargs.sort_dataset_paths=False"
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
         trainer.devices=2 \
         trainer.accelerator=gpu \
@@ -3093,11 +3095,16 @@ pipeline {
         model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.transformer_block_type='pre_ln' \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
         model.position_embedding_type=relative \
-        model.data.respect_document_boundaries=False \
-        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings"
+        model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
+        model.share_token_embeddings=False \
+        model.share_decoder_tokens_head_embeddings=False"
         sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/t5_index_mappings"
       }

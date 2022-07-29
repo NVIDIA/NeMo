@@ -40,6 +40,7 @@ class TextMemMapDataset(Dataset):
         self, dataset_paths, newline_int=10, header_lines=0, workers=None, tokenizer=None, sort_dataset_paths=True,
     ):
         super().__init__()
+        self.mdata_midx_list = []
 
         # Make a single string into a list
         if isinstance(dataset_paths, str):
