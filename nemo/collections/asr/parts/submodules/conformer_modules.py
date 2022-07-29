@@ -27,6 +27,7 @@ from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 
 __all__ = ['ConformerConvolution', 'ConformerFeedForward', 'ConformerLayer']
 
+
 class ConformerLayer(torch.nn.Module, AdapterModuleMixin, AccessMixin):
     """A single block of the Conformer encoder.
 

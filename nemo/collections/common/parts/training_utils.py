@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from contextlib import nullcontext
+
 import torch
 
 __all__ = ['subsampling_autocast_context', 'mhsa_autocast_context']
+
 
 def subsampling_autocast_context():
     """

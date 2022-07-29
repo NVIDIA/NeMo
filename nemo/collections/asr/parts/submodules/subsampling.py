@@ -16,7 +16,9 @@ import math
 
 import torch
 import torch.nn as nn
+
 from nemo.collections.common.parts.training_utils import subsampling_autocast_context
+
 
 class StackingSubsampling(torch.nn.Module):
     """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate
