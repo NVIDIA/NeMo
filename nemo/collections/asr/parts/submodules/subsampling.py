@@ -16,6 +16,7 @@ import math
 
 import torch
 import torch.nn as nn
+from contextlib import nullcontext
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -188,7 +189,10 @@ class ConvSubsampling(torch.nn.Module):
         if self._subsampling in ['striding', 'dw_striding']:
             # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
             # to be removed once the above is fixed in cudnn
-            with torch.cuda.amp.autocast(dtype=torch.float32):
+            if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.bfloat16:
+                with torch.cuda.amp.autocast(dtype=torch.float32):
+                    x = self.conv(x)
+            else:
                 x = self.conv(x)
         else:
             x = self.conv(x)
