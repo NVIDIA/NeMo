@@ -2766,7 +2766,7 @@ pipeline {
         trainer.val_check_interval=2 \
         trainer.limit_val_batches=1 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
+        trainer.max_steps=6 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
@@ -2837,7 +2837,7 @@ pipeline {
         trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
-        trainer.max_steps=3 \
+        trainer.max_steps=6 \
         trainer.precision=16 \
         trainer.gradient_clip_val=1.0 \
         exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
