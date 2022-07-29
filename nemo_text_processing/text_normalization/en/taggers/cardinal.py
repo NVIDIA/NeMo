@@ -114,6 +114,8 @@ class CardinalFst(GraphFst):
         self.fst = final_graph.optimize()
 
     def add_optional_and(self, graph):
+        graph_with_and = graph
+
         if not self.lm:
             graph_with_and = pynutil.add_weight(graph, 0.00001)
             not_quote = pynini.closure(NEMO_NOT_QUOTE)
