@@ -59,9 +59,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         encoder_attn_mask_type=AttnMaskType.padding,
         hidden_dropout=0.1,
         attention_dropout=0.1,
-        position_embedding_type='learned_absolute',
-        relative_attention_num_buckets=32,
-        relative_attention_max_distance=128,
         precision=16,
         fp32_residual_connection=False,
         activations_checkpoint_method=None,
@@ -114,12 +111,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.onnx_safe = onnx_safe
         self.activation = activation
         self.bias = bias
-        self.relative_attention_num_buckets = relative_attention_num_buckets
-        self.relative_attention_max_distance = relative_attention_max_distance
         self.headscale = headscale
         self.hidden_dropout = hidden_dropout
         self.attention_dropout = attention_dropout
-        self.position_embedding_type = position_embedding_type
         self.use_cpu_initialization = use_cpu_initialization
         self.normalization = normalization
         self.parent_model_type = parent_model_type
@@ -163,9 +157,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             layernorm_epsilon=self.layernorm_epsilon,
             hidden_dropout=self.hidden_dropout,
             attention_dropout=self.attention_dropout,
-            position_embedding_type=self.position_embedding_type,
-            relative_attention_num_buckets=self.relative_attention_num_buckets,
-            relative_attention_max_distance=self.relative_attention_max_distance,
             use_cpu_initialization=self.use_cpu_initialization,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_fusion=self.bias_dropout_add_fusion,
@@ -202,9 +193,6 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             layernorm_epsilon=self.layernorm_epsilon,
             hidden_dropout=self.hidden_dropout,
             attention_dropout=self.attention_dropout,
-            position_embedding_type=self.position_embedding_type,
-            relative_attention_num_buckets=self.relative_attention_num_buckets,
-            relative_attention_max_distance=self.relative_attention_max_distance,
             use_cpu_initialization=self.use_cpu_initialization,
             bias_activation_fusion=self.bias_activation_fusion,
             bias_dropout_fusion=self.bias_dropout_add_fusion,
