@@ -783,7 +783,7 @@ pipeline {
                         do_testing=True \
                         exp_manager.exp_dir=${OUTPUT_DIR_T5} \
                         +exp_manager.use_datetime_version=False\
-                        +exp_manager.version=test \
+                        +exp_manager.version=test && \
                     python g2p_inference.py \
                         pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
                         manifest_filepath=/home/TestData/g2p/g2p.json \
