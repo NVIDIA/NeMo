@@ -185,6 +185,7 @@ def generate_speaker_timestamps(clus_labels, preds, max_overlap=2, **params):
     preds.squeeze(0)
     estimated_num_of_spks = preds.shape[-1]
     overlap_speaker_list = [[] for _ in range(estimated_num_of_spks)]
+    infer_overlap = estimated_num_of_spks < params['overlap_infer_spk_limit']
     main_speaker_lines = []
     for seg_idx, cluster_label in enumerate(clus_labels):
         preds.squeeze(0)
@@ -198,7 +199,7 @@ def generate_speaker_timestamps(clus_labels, preds, max_overlap=2, **params):
         else:
             main_spk_idx = np.argsort(preds[0, seg_idx].cpu().numpy())[::-1][0]
 
-        if sum(spk_for_seg) > 1:
+        if sum(spk_for_seg) > 1 and infer_overlap:
             max_idx = np.argmax(sm_for_seg)
             idx_arr = np.argsort(sm_for_seg)[::-1]
             for ovl_spk_idx in idx_arr[:max_overlap].tolist():
@@ -1124,6 +1125,8 @@ class NeuralDiarizer:
         self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
         self.use_clus = False
         self.use_dec = True
+        # self.overlap_infer_spk_limit = cfg.diarizer.msdd_model.parameters.overlap_infer_spk_limit
+        self.overlap_infer_spk_limit = cfg.diarizer.msdd_model.parameters.get('overlap_infer_spk_limit', cfg.diarizer.clustering.parameters.max_num_speakers)
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.manifest_filepath)
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
@@ -1215,6 +1218,13 @@ class NeuralDiarizer:
             self.run_overlap_aware_eval(preds_list, threshold)
 
     def get_range_average(self, signals, emb_vectors, diar_window_index, test_data_collection):
+        """
+        This function is only used when `split_infer=True`. This module calculates cluster-average embeddings for the given short range.
+        The range length is set by `self.diar_window_length`, and each cluster-average is only calculated for the specified range.
+        Note that if the specified range does not contain some speakers (e.g. the range contains speaker 1, 3) compared to the global speaker sets
+        (e.g. speaker 1, 2, 3, 4) then the missing speakers (e.g. speakers 2, 4) are assigned with zero-filled cluster-average speaker embedding.
+
+        """
         emb_vectors_split = torch.zeros_like(emb_vectors)
         uniq_id = os.path.splitext(os.path.basename(test_data_collection.rttm_file))[0]
         clus_label_tensor = torch.tensor([x[-1] for x in self.msdd_model.clus_test_label_dict[uniq_id]])
@@ -1259,7 +1269,8 @@ class NeuralDiarizer:
 
     def get_range_clus_avg_emb(self, test_batch, _test_data_collection, split_count):
         """
-        This module calculates cluster-average embeddings for the given short range. The range length is set by `self.diar_window_length`,
+        This function is only used when `get_range_average` function is called. This module calculates cluster-average embeddings for
+        the given short range. The range length is set by `self.diar_window_length`, and each cluster-average is only calculated for the specified range.
 
         Args:
             test_batch: (list)
@@ -1268,14 +1279,15 @@ class NeuralDiarizer:
                 List containing test-set dataloader contents. test_data_collection includes wav file path, RTTM file path, clustered speaker indices.
 
         Returns:
-            sess_emb_vectors: (torch.Tensor)
-            sess_emb_seq: (torch.Tensor)
-            sess_sig_lengths: (torch.Tensor)
-
-
-
-        split_count
-
+            sess_emb_vectors (Tensor):
+                Tensor of cluster-average speaker embedding vectors.
+                Shape: (batch_size, scale_n, emb_dim, 2(num_of_spks))
+            sess_emb_seq (Tensor):
+                Tensor of input multi-scale embedding sequences.
+                Shape: (batch_size, length, scale_n, emb_dim)
+            sess_sig_lengths (Tensor):
+                Tensor of the actucal sequence length without zero-padding.
+                Shape: (batch_size)
         """
         _signals, signal_lengths, _targets, _emb_vectors = test_batch
         sess_emb_vectors, sess_emb_seq, sess_sig_lengths = [], [], []
@@ -1417,6 +1429,7 @@ class NeuralDiarizer:
                 infer_overlap=(not ignore_overlap),
                 use_clus=self.use_clus,
                 use_dec=self.use_dec,
+                overlap_infer_spk_limit=self.overlap_infer_spk_limit,
             )
             score = score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,

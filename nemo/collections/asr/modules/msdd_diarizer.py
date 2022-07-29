@@ -59,7 +59,7 @@ class MSDD_module(NeuralModule, Exportable):
 
     Args:
         num_spks (int):
-            Max number of speakers that are processed by the model. In ``MSDD_module``, ``num_spks=2`` for pairwise inference.
+            Max number of speakers that are processed by the model. In `MSDD_module`, `num_spks=2` for pairwise inference.
         hidden_size (int):
             Number of hidden units in sequence models and intermediate layers.
         num_lstm_layers (int):
@@ -199,10 +199,10 @@ class MSDD_module(NeuralModule, Exportable):
                 Shape: (batch_size, feats_len, scale_n, emb_dim)
 
         Returns:
-            preds: (Tensor)
+            preds (Tensor):
                 Predicted binary speaker label for each speaker.
                 Shape: (batch_size, feats_len, max_spks)
-            scale_weights: (Tensor)
+            scale_weights (Tensor):
                 Multiscale weights per each base-scale segment.
                 Shape: (batch_size, feats_len, scale_n, max_spks)
 
@@ -240,7 +240,7 @@ class MSDD_module(NeuralModule, Exportable):
     def element_wise_product(self, scale_weights, ms_avg_embs, ms_emb_seq):
         """
         Calculate element wise product values among cluster-average embedding vectors and input embedding vector sequences.
-        ``element_wise_product`` method usually takes more time to converge compared to ``cosine_similarity`` method.
+        `element_wise_product` method usually takes more time to converge compared to `cosine_similarity` method.
 
         Args:
             scale_weights (Tensor):
@@ -249,14 +249,14 @@ class MSDD_module(NeuralModule, Exportable):
             ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            _ms_emb_seq: (Tensor)
+            _ms_emb_seq (Tensor):
                 Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
         Returns:
-            context_emb: (Tensor)
-                Output of ``dist_to_emb`` linear layer containing context for speaker label estimation.
+            context_emb (Tensor):
+                Output of `dist_to_emb` linear layer containing context for speaker label estimation.
         """
         scale_weight_flatten = scale_weights.reshape(self.batch_size * self.length, self.num_spks, self.scale_n)
         ms_avg_embs_flatten = ms_avg_embs.reshape(self.batch_size * self.length, self.scale_n, self.emb_dim, self.num_spks)
@@ -280,14 +280,14 @@ class MSDD_module(NeuralModule, Exportable):
             ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            _ms_emb_seq: (Tensor)
+            _ms_emb_seq (Tensor):
                 Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
         Returns:
-            context_emb: (Tensor)
-                Output of ``dist_to_emb`` linear layer containing context for speaker label estimation.
+            context_emb (Tensor):
+                Output of `dist_to_emb` linear layer containing context for speaker label estimation.
         """
         cos_dist_seq = self.cos_dist(_ms_emb_seq, ms_avg_embs)
         context_vectors = torch.mul(scale_weights, cos_dist_seq)
@@ -303,16 +303,16 @@ class MSDD_module(NeuralModule, Exportable):
         distributed scale weights.
 
         Args:
-            ms_avg_embs_perm: (Tensor)
+            ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            ms_emb_seq_single: (Tensor)
+            ms_emb_seq_single (Tensor):
                 Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
         Returns:
-            scale_weights: (Tensor)
+            scale_weights (Tensor):
                 Weight vectors that determines the weight of each scale.
                 Shape: (batch_size, length, num_spks, emb_dim)
         """
@@ -332,16 +332,16 @@ class MSDD_module(NeuralModule, Exportable):
         input embedding sequence.
 
         Args:
-            ms_avg_embs_perm: (Tensor)
+            ms_avg_embs_perm (Tensor):
                 Tensor containing cluster-average speaker embeddings for each scale.
                 Shape: (batch_size, length, scale_n, emb_dim)
-            ms_emb_seq_single: (Tensor)
+            ms_emb_seq_single (Tensor):
                 Tensor containing multi-scale speaker embedding sequences. ms_emb_seq_single is input from the
                 given audio stream input.
                 Shape: (batch_size, length, num_spks, emb_dim)
 
         Returns:
-            scale_weights: (Tensor)
+            scale_weights (Tensor):
                 Weight vectors that determines the weight of each scale.
                 Shape: (batch_size, length, num_spks, emb_dim)
         """
@@ -365,23 +365,23 @@ class MSDD_module(NeuralModule, Exportable):
         modules are included.
 
         Note:
-            If ``first_layer=True``, the input shape is set for processing embedding input.
-            If ``first_layer=False``, then the input shape is set for processing the output from another ``conv_forward`` module.
+            If `first_layer=True`, the input shape is set for processing embedding input.
+            If `first_layer=False`, then the input shape is set for processing the output from another `conv_forward` module.
 
         Args:
-            conv_input: (Tensor)
+            conv_input (Tensor):
                 Reshaped tensor containing cluster-average embeddings and multi-scale embedding sequences.
                 Shape: (batch_size*length, 1, scale_n*(num_spks+1), emb_dim)
-            conv_module: (ConvLayer)
+            conv_module (ConvLayer):
                 ConvLayer instance containing torch.nn.modules.conv modules.
-            bn_module: (torch.nn.modules.batchnorm.BatchNorm2d)
+            bn_module (torch.nn.modules.batchnorm.BatchNorm2d):
                 Predefined Batchnorm module.
-            first_layer: (bool)
+            first_layer (bool):
                 Boolean for switching between first layer and the others.
-                Default: ``False``
+                Default: `False`
 
         Returns:
-            conv_out: (Tensor)
+            conv_out (Tensor):
                 Convnet output that can be fed to another ConvLayer module or linear layer.
                 Shape: (batch_size*length, 1, cnn_output_ch, emb_dim)
         """
@@ -402,7 +402,7 @@ class MSDD_module(NeuralModule, Exportable):
         """
         Generate input examples for tracing etc.
 
-        Returns: (tuple)
+        Returns (tuple):
             A tuple of input examples.
         """
         device = next(self.parameters()).device

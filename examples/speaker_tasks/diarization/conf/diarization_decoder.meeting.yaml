@@ -17,7 +17,6 @@ diarizer: &diarizer
   vad:
     model_path: null # .nemo local model path or pretrained model name or none
     external_vad_manifest: null # This option is provided to use external vad and provide its speech activity labels for speaker embeddings extraction. Only one of model_path or external_vad_manifest should be set
-
     parameters: # Tuned parameter for CH109 (using the 11 multi-speaker sessions as dev set) 
       window_length_in_sec: 0.15  # Window length in sec for VAD context input 
       shift_length_in_sec: 0.01 # Shift length in sec for generate frame level VAD prediction
@@ -59,4 +58,5 @@ diarizer: &diarizer
       split_infer: True # If True, break the input audio clip to short sequences and calculate cluster average embeddings for inference.
       diar_window_length: 120 # The length of split short sequence when split_infer is True.
       use_longest_scale_clus_avg_emb: False # Take the cluster average embedding of the longest scale then use the longest scale embedding for all the other scales.
+      overlap_infer_spk_limit: 5 # If the estimated number of speakers are larger than this number, overlap speech is not estimated.
     
