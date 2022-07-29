@@ -42,6 +42,13 @@ class TestExportmT5Config:
             beam_width: 1
             sampling_top_k: 1
             sampling_top_p: 0
+
+        benchmark:
+          input_len: 60
+          output_len: 20
+          batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+          triton_wait_time_s: 300
+          vocab_size: 29184
         """
         expected = OmegaConf.create(s)
         assert (
@@ -90,6 +97,13 @@ class TestExportT5Config:
             beam_width: 1
             sampling_top_k: 1
             sampling_top_p: 0
+
+        benchmark:
+          input_len: 60
+          output_len: 20
+          batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+          triton_wait_time_s: 300
+          vocab_size: 250112
         """
         expected = OmegaConf.create(s)
         assert (
@@ -138,6 +152,13 @@ class TestExportGPT3Config:
             beam_width: 1
             sampling_top_k: 1
             sampling_top_p: 0
+
+        benchmark:
+          input_len: 60
+          output_len: 20
+          batch_sizes: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+          triton_wait_time_s: 300
+          vocab_size: 51200
         """
         expected = OmegaConf.create(s)
         assert (
