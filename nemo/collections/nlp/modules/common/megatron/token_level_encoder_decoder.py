@@ -305,7 +305,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             raise ValueError(
                 f"Encoder and decoder hidden_size must be equal, but got encoder: {encoder_cfg.hidden_size} and decoder: {decoder_cfg.hidden_size}"
             )
-        
+
     def _validate_perceiver_config(self, cfg):
         if cfg.position_embedding_type == "relative" and cfg.arch == "perceiver":
             raise ValueError(f"Perceivers with relative position embeddings are not supported")

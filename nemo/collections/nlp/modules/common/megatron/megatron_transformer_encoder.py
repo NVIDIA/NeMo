@@ -128,7 +128,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             transformer_block_type=transformer_block_type,
             headscale=headscale,
             model_type=parent_model_type,
-            gradient_accumulation_fusion=False, # TODO: This has to be False for enc-dec models for now.
+            gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
         )
         self._model_key = 'model'
 
