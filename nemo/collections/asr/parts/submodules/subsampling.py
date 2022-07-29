@@ -16,8 +16,6 @@ import math
 
 import torch
 import torch.nn as nn
-from contextlib import nullcontext
-
 
 class StackingSubsampling(torch.nn.Module):
     """Stacking subsampling which simply stacks consecutive frames to reduce the sampling rate

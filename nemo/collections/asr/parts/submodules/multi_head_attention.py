@@ -37,7 +37,6 @@ import math
 import torch
 import torch.nn as nn
 from contextlib import nullcontext
-import logging
 
 __all__ = [
     'RelPositionMultiHeadAttention',
