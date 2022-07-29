@@ -76,8 +76,10 @@ model:
     label_vocab_dir: null
 
   train_ds:
-    use_audio: true
     use_cache: true
+    cache_dir: ../small_ds/cache_audio
+    label_info_save_dir: ../small_ds/label_info_save_dir_audio
+    use_audio: true
     audio_file: audio_train.txt
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py` for tarred dataset
@@ -143,8 +145,12 @@ model:
     sample_rate: 16000
     num_workers: 8
     use_cache: true
+    cache_dir: ../small_ds/cache_audio
+    label_info_save_dir: ../small_ds/label_info_save_dir_audio
 
   test_ds:
+    cache_dir: ../small_ds/cache_audio
+    label_info_save_dir: ../small_ds/label_info_save_dir_audio
     use_audio: true
     use_cache: true
     audio_file: audio_test.txt

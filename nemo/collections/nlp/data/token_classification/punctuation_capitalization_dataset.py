@@ -1137,7 +1137,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         if features is None:
             features = pickle.load(self.features_pkl.open('rb'))
-            li = features[2], features[3]
+            li = features[-2:]
             self._check_label_ids_loaded_from_pkl(
                 punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file
             )
@@ -1146,7 +1146,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
                 logging.info(f'Features restored from {self.features_pkl}')
-            features = features[:2] + features[4:]
+            features = features[-2:]
         if self.use_audio:
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels, self.waveforms, self.waveforms_length = features
         else:
