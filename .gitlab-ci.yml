@@ -11,9 +11,10 @@ variables: &VARS
 
 stages:
   - build
+  - release_perf
   - test
   - cleanup
-  - release_perf
+
 
 ################
 # JOB Templates
