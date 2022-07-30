@@ -17,7 +17,7 @@ import math
 import torch
 import torch.nn as nn
 
-from nemo.collections.common.parts.training_utils import subsampling_autocast_context
+from nemo.collections.common.parts.training_utils import avoid_bfloat16_autocast_context
 
 
 class StackingSubsampling(torch.nn.Module):
@@ -190,7 +190,7 @@ class ConvSubsampling(torch.nn.Module):
         if self._subsampling in ['striding', 'dw_striding']:
             # added in order to prevent slowdown in torch.nn.Conv2d with bfloat16 / CUDNN v8 API
             # to be removed once the above is fixed in cudnn
-            with subsampling_autocast_context():
+            with avoid_bfloat16_autocast_context():
                 x = self.conv(x)
         else:
             x = self.conv(x)

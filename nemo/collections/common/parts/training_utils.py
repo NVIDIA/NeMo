@@ -16,13 +16,13 @@ from contextlib import nullcontext
 
 import torch
 
-__all__ = ['subsampling_autocast_context', 'mhsa_autocast_context']
+__all__ = ['avoid_bfloat16_autocast_context', 'avoid_float16_autocast_context']
 
 
-def subsampling_autocast_context():
+def avoid_bfloat16_autocast_context():
     """
-    This is to overcome the current slowness in the conv2D layer when CUDNN
-    v8 API is used with bfloat16
+    If the current autocast context is bfloat16,
+    cast it to float32
     """
 
     if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.bfloat16:
@@ -31,10 +31,10 @@ def subsampling_autocast_context():
         return nullcontext()
 
 
-def mhsa_autocast_context():
+def avoid_float16_autocast_context():
     """
-    This is to overcome the current issues in MHSA when 
-    float16 is used
+    If the current autocast context is float16, cast it to bfloat16
+    if available or float32
     """
 
     if torch.is_autocast_enabled() and torch.get_autocast_gpu_dtype() == torch.float16:
