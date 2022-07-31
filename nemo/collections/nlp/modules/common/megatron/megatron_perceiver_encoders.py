@@ -222,7 +222,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         enc_self_attention_relative_position_bias=None,
     ):
         if enc_self_attention_relative_position_bias is not None:
-            raise ValueError(f"enc_self_attention_relative_position_bias is not supported for Megatron Perceiver Encoders.")
+            raise ValueError(
+                f"enc_self_attention_relative_position_bias is not supported for Megatron Perceiver Encoders."
+            )
 
         # convert to Megatron mask
         latent_attention_mask = torch.ones(enc_input.size(1), self.hidden_steps).to(enc_input.device)

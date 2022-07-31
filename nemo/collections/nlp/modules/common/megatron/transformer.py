@@ -358,7 +358,7 @@ class CoreAttention(MegatronModule):
         get_key_value=False,
         rotary_pos_emb=None,
         relative_position_bias=None,
-        headscale_tensor=None
+        headscale_tensor=None,
     ):
 
         # ===================================
@@ -616,7 +616,14 @@ class ParallelAttention(MegatronModule):
         self.layer_type = layer_type
 
     def _checkpointed_attention_forward(
-        self, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=None, relative_position_bias=None, headscale_tensor=None
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        attention_mask,
+        rotary_pos_emb=None,
+        relative_position_bias=None,
+        headscale_tensor=None,
     ):
         """Forward method with activation checkpointing."""
 
@@ -634,7 +641,7 @@ class ParallelAttention(MegatronModule):
                 attention_mask,
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
-                headscale_tensor=headscale_tensor
+                headscale_tensor=headscale_tensor,
             )
             return output_
 
@@ -647,7 +654,7 @@ class ParallelAttention(MegatronModule):
             attention_mask,
             rotary_pos_emb,
             relative_position_bias,
-            headscale_tensor
+            headscale_tensor,
         )
 
         return hidden_states

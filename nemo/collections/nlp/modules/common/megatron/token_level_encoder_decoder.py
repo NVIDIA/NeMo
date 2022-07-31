@@ -307,7 +307,10 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
             )
 
     def _validate_perceiver_config(self, cfg):
-        if cfg.get("position_embedding_type", "learned_absolute") == "relative" and cfg.get("arch", "transformer") == "perceiver":
+        if (
+            cfg.get("position_embedding_type", "learned_absolute") == "relative"
+            and cfg.get("arch", "transformer") == "perceiver"
+        ):
             raise ValueError(f"Perceivers with relative position embeddings are not supported")
 
     def _validate_config(self):
