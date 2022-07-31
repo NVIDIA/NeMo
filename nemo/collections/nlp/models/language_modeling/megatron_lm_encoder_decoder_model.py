@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
+import inspect
 import re
 from typing import Any, Dict, Optional
 
 import torch
 from omegaconf.dictconfig import DictConfig
-from pytorch_lightning.plugins.precision.native_amp import NativeMixedPrecisionPlugin
 from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
@@ -34,7 +35,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_params_for_weight_decay_optimization,
 )
-from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -77,6 +77,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             if cfg.get('pipeline_model_parallel_split_rank', 0) <= 0:
                 raise ValueError(
                     f"pipeline_model_parallel_split_rank must be > 0 when using pipeline_model_parallel_size > 1"
+                )
+        if cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if not cfg.get('share_token_embeddings', True) or not cfg.get(
+                'share_decoder_tokens_head_embeddings', True
+            ):
+                raise ValueError(
+                    "when pipeline_model_parallel_size > 1 we require share_token_embeddings=True and share_decoder_tokens_head_embeddings=True"
                 )
 
         # Make sure trainer.accumulate_grad_batches is 1.
@@ -172,6 +179,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             num_self_attention_per_cross_attention=self.cfg.get('num_self_attention_per_cross_attention', 1),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
+            share_token_embeddings=self.cfg.get('share_token_embeddings', True),
+            share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
         )
         return model
 
@@ -183,8 +192,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         decoder_attn_mask,
         token_type_ids=None,
         lm_labels=None,
-        enc_hidden_states=None,
-        enc_output_mask=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
         output_enc_hidden_only=False,
         enc_input=None,
     ):
@@ -195,8 +204,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             dec_attn_mask=decoder_attn_mask,
             token_type_ids=token_type_ids,
             labels=lm_labels,
-            enc_hidden_states=enc_hidden_states,
-            enc_output_mask=enc_output_mask,
+            enc_output=enc_output,
+            enc_output_attn_mask=enc_output_attn_mask,
             output_enc_hidden_only=output_enc_hidden_only,
             enc_input=enc_input,
         )
@@ -214,7 +223,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         # we zero grads here because we also call backward in the apex fwd/bwd functions
         self._optimizer.zero_grad()
-
         # we prepare the micro batches for the apex fwd/bwd function
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
@@ -298,44 +306,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return loss_mean
 
-    def on_train_batch_end(self, outputs, batch, batch_idx: int, unused: Optional[int] = 0) -> None:
-        super().on_train_batch_end(outputs, batch, batch_idx)
-
-        # TODO: Replace with newer override for scheduler.step() instead of
-        # search for plugins for fp16 GradScalar
-        if self.trainer.precision_plugin is not None and isinstance(
-            self.trainer.precision_plugin, NativeMixedPrecisionPlugin
-        ):
-            precision_plugin = self.trainer.precision_plugin
-
-            if (
-                hasattr(precision_plugin, 'scaler')
-                and precision_plugin.scaler is not None
-                and isinstance(precision_plugin.scaler, GradScaler)
-            ):
-                grad_scaler = precision_plugin.scaler
-
-                # If the grad scaler skipped its optimizer step due to infs/nans,
-                # decrement the step of all schedulers.
-                if grad_scaler.optimizer_update_skipped is not None and grad_scaler.optimizer_update_skipped is True:
-                    schedulers = self.trainer.lr_schedulers
-
-                    if not schedulers or not self.trainer.lightning_module.automatic_optimization:
-                        return
-
-                    for scheduler in schedulers:
-                        # Decrement the counter by 2, then perform a scheduler.step() to perform a no-up
-                        # as well as update the optimizer lr in all param groups
-                        scheduler['scheduler'].last_epoch -= 2
-                        scheduler['scheduler'].step()
-
-                    # Increase the max step count by 1
-                    self.trainer.fit_loop.max_steps = self.trainer.fit_loop.max_steps + 1
-
-                    # Reset the optimizer update skipped to `None` - this is to prevent scheduler no-ops during
-                    # accumulated gradient updates.
-                    grad_scaler.optimizer_update_skipped = None
-
     def backward(self, *args, **kwargs):
         """ LightningModule hook to do backward.
             We want this to do nothing since we run backward in the fwd/bwd functions from apex.
@@ -384,7 +354,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_rank_in_embedding_group()
         ):
-            if self.enc_dec_model.share_word_embeddings:
+            if self.enc_dec_model.share_token_embeddings:
                 word_embeddings_weight = self.enc_dec_model.word_embeddings_weight()
                 if self.megatron_amp_o2:
                     # O2 recipe stores a "main" copy of weights and grads
@@ -411,6 +381,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         def fwd_output_and_loss_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
             encoder_input_ids, decoder_input_ids, loss_mask, lm_labels, encoder_attn_mask, decoder_attn_mask = batch
+
             output = model(
                 encoder_input_ids,  # enc_input_ids
                 encoder_attn_mask,  # enc_attn_mask
@@ -418,7 +389,6 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 decoder_attn_mask,  # dec_attn_mask
                 None,  # token_type_ids
                 lm_labels,  # labels
-                None,  # enc_hidden_states
             )
 
             def loss_func(output_tensor):
@@ -430,34 +400,137 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         return fwd_output_and_loss_func
 
-    def get_forward_output_only_func(self):
+    @functools.cached_property
+    def _kwargs_to_arg_idx(self):
+        """
+        Returns a dict {kwarg name: arg index} to be used when mapping
+        kwargs into a list of args.
+        
+        Computed on first call, and then cached.
+        """
+        # build mapping of kwargs to arg index at first run
+        args_name = inspect.getfullargspec(self.enc_dec_model.forward)[0][1:]
+        kwargs_to_arg_idx = {k: v for k, v in zip(args_name, range(len(args_name)))}
+
+        return kwargs_to_arg_idx
+
+    def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
+        """
+        A helper method that converts arguments into positional arguments (by name)
+        
+        args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
+        args_name - a list of argument name (to be matched against allowed kwargs)
+        kwargs - a dict {arg name: arg value} (used for non-tensor values)
+        """
+        # sanity checks
+        if len(args) != len(args_name):
+            raise ValueError(f"Mismatch between length in args_name ({len(args_name)}) and args ({len(args)})")
+        if any([n in kwargs for n in args_name]):
+            raise ValueError(f"args_name = {args_name} cannot overlap kwargs = {list(kwargs.keys())}")
+
+        # get mapping of kwarg names to arg index
+        kwargs_to_arg_idx = self._kwargs_to_arg_idx
+
+        # collect all arguments
+        all_args_name = args_name[:]
+        all_args = args[:]
+        for k, v in kwargs.items():
+            all_args_name.append(k)
+            all_args.append(v)
+
+        args_idx = [kwargs_to_arg_idx[n] for n in all_args_name]
+
+        # print(f"all_args_name = {all_args_name}   args_idx = {args_idx}")
+
+        # construct args ordered by name (with None as place-holder)
+        forward_args = [None] * (max(args_idx) + 1)
+        for i, v in zip(args_idx, all_args):
+            forward_args[i] = v
+
+        return forward_args
+
+    def _get_forward_output_only_func(self, arg_names, output_name, **kwargs):
+        """
+        args_idx - maps batch into index of args (with None filling gaps)
+        arg_names - corresponding names for a friendly error message
+        output_name - name of output (hiddens for encode, logits for decode)
+        kwargs - shared arguments (non tensors)
+        """
+
         def fwd_output_only_func(batch, model):
             batch = [x.cuda(non_blocking=True) for x in batch]
-            if len(batch) == 4:
-                encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask = batch
-                enc_input = None
-            elif len(batch) == 5:
-                encoder_input_ids, decoder_input_ids, encoder_attn_mask, decoder_attn_mask, enc_input = batch
-            else:
-                raise ValueError("wrong number of items in the batch")
-            output = model(
-                encoder_input_ids,  # enc_input_ids
-                encoder_attn_mask,  # enc_attn_mask
-                decoder_input_ids,  # dec_input_ids
-                decoder_attn_mask,  # dec_attn_mask
-                None,  # token_type_ids
-                None,  # labels
-                enc_input,  # enc_hidden_states
-            )
+
+            # map batch and shared args into forward args
+            args = self._build_forward_args_from_kwargs(args_name=arg_names, args=batch, **kwargs)
+            output = model(*args)
 
             def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+                return output_tensor, {output_name: output_tensor}
 
             return output, id_func
 
         return fwd_output_only_func
 
+    def validation_step_logits(self, batch, batch_idx):
+        """
+        return_values - if given, returns a dictionary with given keys and corresponding values
+        """
+        batch_for_pipeline = self.process_global_batch(batch)
+        encoder_seq_length = batch_for_pipeline[0].size(1)
+        decoder_seq_length = batch_for_pipeline[1].size(1)
+
+        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.hidden_size]
+
+        (
+            encoder_input_ids,
+            decoder_input_ids,
+            loss_mask,
+            lm_labels,
+            encoder_attn_mask,
+            decoder_attn_mask,
+        ) = batch_for_pipeline
+        batch_for_pipeline = [encoder_input_ids, encoder_attn_mask, decoder_input_ids, decoder_attn_mask]
+        arg_names = ['enc_input_ids', 'enc_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+
+        forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=decoder_seq_length,
+                dtype=self.autocast_dtype,
+                grad_scaler=self.trainer.precision_plugin.scaler if self.cfg.precision == 16 else None,
+            )
+
+        if output_tensor:
+            # average loss across micro batches
+            logits_tensors_list = [o['logits'] for o in output_tensor]
+            logits_tensor = torch.concat(logits_tensors_list)
+        else:
+            # we're not on the last pipeline stage so no losses
+            logits_tensor = []
+
+        return logits_tensor
+
     def validation_step(self, batch, batch_idx):
+        """
+        return_values - if given, returns a dictionary with given keys and corresponding values
+        """
         batch_for_pipeline = self.process_global_batch(batch)
         encoder_seq_length = batch_for_pipeline[0].size(1)
         decoder_seq_length = batch_for_pipeline[1].size(1)
@@ -691,7 +764,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 init_consumed_samples = int(
                     float(re.findall(r"consumed_samples\=([0-9]+.[0-9]+)", resume_checkpoint_path)[0])
                 )
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, IndexError):
                 logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
                 init_consumed_samples = 0
         else:
@@ -748,7 +821,131 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         logging.info(f"response: {response}")
         return response
 
-    def decode(self, tokens_enc, enc_mask, num_tokens_to_generate, encoder_input=None, tokenizer=None):
+    def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
+        """
+        tokens_enc - encoder input tokens 
+        enc_mask - corresponding mask
+        encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
+        """
+        # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
+        if parallel_state.is_unitialized():
+
+            def dummy():
+                return
+
+            if self.trainer.strategy.launcher is not None:
+                self.trainer.strategy.launcher.launch(dummy, trainer=self.trainer)
+            self.trainer.strategy.setup_environment()
+
+            # Reconfigure microbatch sizes here because on model restore, this will contain the micro/global batch configuration used while training.
+            if reconfigure_microbatch:
+                _reconfigure_microbatch_calculator(
+                    rank=0,  # This doesn't matter since it is only used for logging
+                    rampup_batch_size=None,
+                    global_batch_size=1,
+                    micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
+                    data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
+                )
+
+        # If classes that inherit from this class are using a different tokenizer,
+        app_state = AppState()
+        if tokens_enc is not None:
+            global_batch_per_gpu = tokens_enc.size(0)
+            encoder_seq_length = tokens_enc.size(1)
+        else:
+            global_batch_per_gpu = encoder_input.size(0)
+            encoder_seq_length = encoder_input.size(1)
+
+        num_micro_batches_before_decode = get_num_microbatches()
+        # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
+        # reconfigure back to how things were before encode
+        if reconfigure_microbatch:
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+        tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
+
+        # build input arguments description
+        if tokens_enc is not None:
+            batch_for_pipeline = [tokens_enc, enc_mask]
+            arg_names = ['enc_input_ids', 'enc_attn_mask']
+        else:
+            if encoder_input is None:
+                raise ValueError("At least one of tokens_enc and encoder_input must be provided with not None value")
+
+            batch_for_pipeline = [enc_mask]
+            arg_names = ['enc_attn_mask']
+
+        if encoder_input is not None:
+            batch_for_pipeline.append(encoder_input)
+            arg_names.append('enc_input')
+
+        forward_step_func = self._get_forward_output_only_func(
+            arg_names=arg_names, output_name="hiddens", output_enc_hidden_only=True
+        )
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            output_tensor = forward_backward_pipelining_without_interleaving(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=1,
+                dtype=self.autocast_dtype,
+            )
+        else:
+            output_tensor = forward_backward_no_pipelining(
+                forward_step_func=forward_step_func,
+                batch=batch_for_pipeline,
+                model=self.enc_dec_model,
+                forward_only=True,
+                tensor_shape=tensor_shape,
+                decoder_sequence_length=1,
+                dtype=self.autocast_dtype,
+            )
+
+        # get output tensor of encoder [seq_len, batch, hidden]
+        if parallel_state.is_pipeline_last_stage():
+            output_tensor = output_tensor[0]['hiddens']
+        else:
+            output_tensor = torch.zeros(tensor_shape, dtype=self.autocast_dtype).cuda()
+
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            # Broadcast from the last pipeline stage to all other model-parallel ranks.
+            torch.distributed.broadcast(
+                output_tensor,
+                parallel_state.get_pipeline_model_parallel_last_rank(),
+                group=parallel_state.get_pipeline_model_parallel_group(),
+            )
+
+        # Reset microbatch calculator to what it was before decoding.
+        if reconfigure_microbatch:
+            _reconfigure_microbatch_calculator(
+                rank=app_state.global_rank,
+                rampup_batch_size=None,
+                global_batch_size=global_batch_per_gpu * parallel_state.get_data_parallel_world_size(),
+                micro_batch_size=global_batch_per_gpu // num_micro_batches_before_decode,
+                data_parallel_size=parallel_state.get_data_parallel_world_size(),
+            )
+
+        # Return the output tensor of encoder and transpose from [batch, seq_len, hidden] to [seq_len, batch, hidden]
+        return output_tensor.transpose(1, 0)
+
+    def decode(
+        self,
+        tokens_enc,
+        enc_mask,
+        num_tokens_to_generate,
+        encoder_input=None,
+        tokenizer=None,
+        enc_output=None,
+        enc_output_attn_mask=None,
+        ignore_ids=[],
+    ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
 
@@ -771,11 +968,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         # If classes that inherit from this class are using a different tokenizer,
         tokenizer = self.tokenizer if tokenizer is None else tokenizer
         app_state = AppState()
-        global_batch_per_gpu = tokens_enc.size(0)
+        if tokens_enc is not None:
+            global_batch_per_gpu = tokens_enc.size(0)
+            device = tokens_enc.device
+            encoder_seq_length = tokens_enc.size(1)
+        else:
+            global_batch_per_gpu = enc_output.size(0)
+            device = enc_output.device
+            encoder_seq_length = enc_output.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
-        # TODO: reconfigure back to how things were before decode?
+        # reconfigure back to how things were before decode
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -783,25 +987,31 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             micro_batch_size=global_batch_per_gpu,  # Make sure that there is no "grad acc" while decoding.
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
-        predicted_tokens_dec = (
-            torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(tokens_enc.device)
-        )
-        encoder_seq_length = tokens_enc.size(1)
+        predicted_tokens_dec = torch.LongTensor([tokenizer.bos_id] * global_batch_per_gpu).unsqueeze(1).to(device)
         tensor_shape = [encoder_seq_length, global_batch_per_gpu, self.cfg.hidden_size]
         assert predicted_tokens_dec.size(0) == global_batch_per_gpu
+
+        # get encoder hiddens (output)
+        if enc_output is None:
+            # Encode returns a tensr of shape [batch, seq_len, hidden]
+            enc_output = self.encode(
+                tokens_enc=tokens_enc, enc_mask=enc_mask, encoder_input=encoder_input, reconfigure_microbatch=False
+            )
+        if enc_output_attn_mask is None:
+            enc_output_attn_mask = enc_mask
 
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
 
-            if encoder_input is not None:
-                batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask, encoder_input]
-            else:
-                batch_for_pipeline = [tokens_enc, predicted_tokens_dec, enc_mask, dec_mask]
+            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+
+            forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
                 output_tensor = forward_backward_pipelining_without_interleaving(
-                    forward_step_func=self.get_forward_output_only_func(),
+                    forward_step_func=forward_step_func,
                     batch=batch_for_pipeline,
                     model=self.enc_dec_model,
                     forward_only=True,
@@ -811,7 +1021,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 )
             else:
                 output_tensor = forward_backward_no_pipelining(
-                    forward_step_func=self.get_forward_output_only_func(),
+                    forward_step_func=forward_step_func,
                     batch=batch_for_pipeline,
                     model=self.enc_dec_model,
                     forward_only=True,
@@ -819,11 +1029,18 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     decoder_sequence_length=decoder_seq_length,
                     dtype=self.autocast_dtype,
                 )
-
             # get output tensor
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
+                # make sure it won't sample outside the vocab_size range
+                output_tensor[:, :, tokenizer.vocab_size :] = -float('Inf')
+                # ignore selected indices
+                if ignore_ids:
+                    output_tensor = output_tensor.index_fill(
+                        dim=-1, index=torch.tensor(ignore_ids, device=device), value=-float('Inf')
+                    )
+
                 log_probs, token_ids = torch.max(torch.nn.functional.log_softmax(output_tensor, dim=-1), dim=-1)
                 predicted_tokens_dec = torch.cat(
                     [predicted_tokens_dec.to(token_ids.device), token_ids[:, -1].unsqueeze(1)], dim=1
