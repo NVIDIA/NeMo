@@ -67,7 +67,7 @@ model:
       weight: [0.5, 4.0]
     # Loss weights for [lower_case, upper_case]
     cap:
-      weight: [0.5, 5.0]
+      weight: [0.5, 8.0]
     # Loss weights for [no_stop, full_stop]
     seg:
       weight: [1.0, 2.0]
@@ -75,21 +75,22 @@ model:
   pad_value: -100
 
   train_ds:
-    batch_size: 16
+    batch_size: 32
     num_workers: 6
     # A list of datasets will be used to create a ConcatDataset.
     sampling_technique: "temperature"
     sampling_temperature: 5
     # Typically, set up one data set per language.
     datasets:
-      # targets can be any implementation of a PunctCapSegDataset; currently only TextPunctCapSegDataset exists
+      # targets can be any implementation of a PunctCapSegDataset; currently, only TextPunctCapSegDataset is fully
+      #  implemented.
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         # One or more unprocessed, plain-text files containing one sentence per line
         text_files:
           - "/home/shane/corpora/tatoeba/en/train.txt"
-          - "/home/shane/corpora/opensub/en/train.txt"
+#          - "/home/shane/corpora/opensub/en/train.txt"
         # Read in only the first N lines from each text file.
-        max_lines_per_input_file: 100000
+        max_lines_per_input_file: 200000
         # Will be used to select the punctuation targets generator, which is language-specific.
         language: "en"
         # Punctuation labels that can appear before tokens.
@@ -102,10 +103,10 @@ model:
         # inference time.
         unused_punctuation: ${model.unused_punctuation}
         # Filter out input lines longer than this many words, as a cleaning method (a perfect data set has only one
-        # sentence per line).
+        # sentence per line; we use heuristics to achieve this from arbitrary data).
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
         # Don't generate examples with more than this many tokens. Take this into consideration when specifying batch
         # size.
@@ -120,15 +121,15 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/ru/train.txt"
-          - "/home/shane/corpora/opensub/ru/train.txt"
-        max_lines_per_input_file: 100000
+#          - "/home/shane/corpora/opensub/ru/train.txt"
+        max_lines_per_input_file: 200000
         language: "ru"
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
         max_length: 64
         truncate_max_tokens: 0
@@ -138,15 +139,15 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/es/train.txt"
-          - "/home/shane/corpora/opensub/es/train.txt"
-        max_lines_per_input_file: 100000
+#          - "/home/shane/corpora/opensub/es/train.txt"
+        max_lines_per_input_file: 200000
         language: "es"
         punct_pre_labels: ${model.punct_pre_labels}
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
         max_length: 64
         truncate_max_tokens: 0
@@ -157,8 +158,8 @@ model:
       - _target_: nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset.TextPunctCapSegDataset
         text_files:
           - "/home/shane/corpora/tatoeba/zh/train.txt"
-          - "/home/shane/corpora/opensub/zh/train.txt"
-        max_lines_per_input_file: 100000
+#          - "/home/shane/corpora/opensub/zh/train.txt"
+        max_lines_per_input_file: 200000
         language: "zh"
         # Let dataset know this is a continuous-script language
         is_continuous: true
@@ -167,7 +168,7 @@ model:
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_chars: 32
         min_input_length_chars: 2
-        min_lines_per_eg: 4
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
         max_length: 64
         truncate_max_tokens: 0
@@ -191,8 +192,8 @@ model:
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 1
         max_lines_per_eg: 4
         max_length: 128
         truncate_max_tokens: 0
@@ -208,8 +209,8 @@ model:
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 2
         max_lines_per_eg: 4
         max_length: 128
         truncate_max_tokens: 0
@@ -225,8 +226,8 @@ model:
         punct_post_labels: ${model.punct_post_labels}
         unused_punctuation: ${model.unused_punctuation}
         max_input_length_words: 16
-        min_input_length_words: 2
-        min_lines_per_eg: 4
+        min_input_length_words: 1
+        min_lines_per_eg: 2
         max_lines_per_eg: 4
         max_length: 128
         truncate_max_tokens: 0
@@ -299,7 +300,7 @@ trainer:
   num_nodes: 1
   max_epochs: 1
   # max_steps: null
-  accumulate_grad_batches: 4
+  accumulate_grad_batches: 2
   gradient_clip_val: 0.0
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
   accelerator: auto

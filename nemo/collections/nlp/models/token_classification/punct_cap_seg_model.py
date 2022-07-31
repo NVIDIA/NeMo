@@ -36,8 +36,8 @@ class Mode(enum.Enum):
 class PunctCapSegModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
-        # Maybe turn off HF's "convenient" basic tokenization, which messes with punctuation and Chinese chars. This can
-        # produce unexpected (and undesirable) results.
+        # Maybe turn off HF's basic tokenization, which messes with punctuation and Chinese chars. This can produce
+        # unexpected (and undesirable) results due to non-invertible tokenization.
         if isinstance(self.tokenizer, AutoTokenizer):
             self.tokenizer.tokenizer.do_basic_tokenize = False
         # Wrap the tokenizer with a tokenizer that always produces chars, for capitalization inputs.
@@ -160,6 +160,15 @@ class PunctCapSegModel(NLPModel):
         self._train_dl = self._setup_train_dataloader_from_config(cfg=train_data_config)
 
     def _setup_metrics(self, num_dl: int) -> nn.ModuleList:
+        """Creates metrics for each data loader. Typically, we have one DL per language.
+
+        Metrics are reported for punctuation (pre- and post-token), true casing, segmentation, and loss.
+
+        Returns:
+            A :class:``nn.ModuleList``, with one element per data loader. Each element is another
+            :class:``nn.ModuleList`` of metrics for that language.
+
+        """
         module_list: nn.ModuleList = nn.ModuleList()
         for _ in range(num_dl):
             metrics: nn.ModuleDict = nn.ModuleDict({
@@ -237,8 +246,8 @@ class PunctCapSegModel(NLPModel):
         )
         dataloader = torch.utils.data.DataLoader(
             dataset=dataset,
-            collate_fn=datasets[0].collate_fn,
-            batch_size=cfg.get("batch_size", 128),
+            collate_fn=datasets[0].collate_fn,  # TODO assumption
+            batch_size=cfg.get("batch_size", 32),
             num_workers=cfg.get("num_workers", 8),
             pin_memory=cfg.get("pin_memory", False),
             drop_last=cfg.get("drop_last", False)
@@ -363,8 +372,8 @@ class PunctCapSegModel(NLPModel):
             self.log(f"{mode.value}_{language}_{t}_f1", f1)
             logging.info(f"{t} report for '{language}': {report}")
 
+    # TODO re-enable these, in the case of using only one language.
     # def validation_epoch_end(self, outputs) -> None:
-    #     logging.warning("****** single validation epoch end **********8")
     #     # Always use multi implementation and just use index 0.
     #     self.multi_validation_epoch_end(outputs=outputs, dataloader_idx=0)
     #
@@ -512,11 +521,22 @@ class PunctCapSegModel(NLPModel):
             for stop, score in enumerate(scores):
                 if score > threshold:
                     text = self.tokenizer.ids_to_text(ids[start:stop + 1])
-                    segmented_texts.append(text)
+                    text = text.strip()
+                    # Quick fix: sentence may be split on subword (e.g., Chinese) TODO find better fix?
+                    if text.startswith("##"):
+                        text = text[2:]
+                    if text:
+                        segmented_texts.append(text)
                     start = stop + 1
+            # Add any remaining text, in case segmentation was not predicted on the final token
             if stop >= start:
                 text = self.tokenizer.ids_to_text(ids[start:stop + 1])
-                segmented_texts.append(text)
+                # Quick fix: sentence may be split on subword (e.g., Chinese)
+                if text.startswith("##"):
+                    text = text[2:]
+                text = text.strip()
+                if text:
+                    segmented_texts.append(text)
             output_texts.append(segmented_texts)
         return output_texts
 

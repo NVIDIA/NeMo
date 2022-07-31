@@ -24,7 +24,7 @@ class CharTokenizerOverlay(TokenizerSpec):
     def __init__(self, tokenizer: TokenizerSpec) -> None:
         super().__init__()
         self._tokenizer: TokenizerSpec = tokenizer
-        # # Needed to comply with HF's 'basic tokenization' scheme, used in some BERT tokenizers
+        # # May be needed to comply with HF's 'basic tokenization' scheme, used in some BERT tokenizers
         # self._do_basic_tokenize = (
         #         isinstance(self._tokenizer, AutoTokenizer)
         #         and self._tokenizer.tokenizer.do_basic_tokenize
@@ -35,6 +35,7 @@ class CharTokenizerOverlay(TokenizerSpec):
         # Maps raw chars to tokens as they appear inside of words.
         # E.g., for SentencePiece {'a': 'a'} or for HuggingFace {'a': '##a'}
         self._inner_char_vocab: Dict[str, str] = {}
+        # TODO if we continue with this class, this method's assumptions need to be refined
         if isinstance(self._tokenizer, AutoTokenizer):
             vocab: List[str] = self._tokenizer.vocab
             for token in vocab:
@@ -94,9 +95,10 @@ class PunctCapSegDataset(Dataset):
         language: The language code for this dataset. E.g., 'en', 'es', 'zh'. Used for logging and inferring whether
             this dataset is for a continuous-script language.
         is_continuous: Whether this language is continuous. Determines whether spaces are inserted between concatenated
-            sentences, etc. If not set, the language code will be compared against a list of known continous-script
+            sentences, etc. If not set, the language code will be compared against a list of known continuous-script
             language codes and this value will be inferred.
-        tokenizer: Text tokenizer. Can be set later, e.g., after an NLP model initializes its BertModule.
+        tokenizer: Text tokenizer. Can be set later, e.g., after an NLP model initializes its BertModule, but must be
+            set before producing examples.
         target_pad_value: Pad targets with this value, and use it to indicate ignored tokens (e.g. uncased tokens for
             true casing). Should be the same value used in the loss function to ignore.
 
@@ -121,11 +123,11 @@ class PunctCapSegDataset(Dataset):
             self._char_tokenizer = CharTokenizerOverlay(self._tokenizer)
 
     @property
-    def tokenizer(self) -> AutoTokenizer:
+    def tokenizer(self) -> TokenizerSpec:
         return self._tokenizer
 
     @tokenizer.setter
-    def tokenizer(self, tokenizer: AutoTokenizer):
+    def tokenizer(self, tokenizer: TokenizerSpec):
         self._tokenizer = tokenizer
         self._char_tokenizer = CharTokenizerOverlay(self._tokenizer)
 
@@ -206,6 +208,9 @@ class PunctCapSegDataset(Dataset):
 class TextCleaner(abc.ABC):
     """Base class for language-specific text cleaners.
 
+    The classes derived from this base class will be applied to each input sentence before we generate examples. The
+    main idea is that these classes normalize the data specific to our task.
+
     """
 
     @abc.abstractmethod
@@ -270,7 +275,7 @@ class SpanishPunctNormalizer(TextCleaner):
 
     """
     def __init__(self, pre_punct_tokens: List[str], post_punct_tokens: List[str]) -> None:
-        pre_punct_tokens = [x for x in pre_punct_tokens if x != "<NULL>"]
+        pre_punct_tokens = [x for x in pre_punct_tokens if x != "<NULL>"]  # TODO don't assume null token
         post_punct_tokens = [x for x in post_punct_tokens if x != "<NULL>"]
         # make char classes e.g. '[\.,?]'
         post_punct_char_str = "".join([re.escape(x) for x in post_punct_tokens])
@@ -338,7 +343,7 @@ class ChineseTextCleaner(TextCleaner):
             text = re.sub(r"!", "！", text)
         if self._no_enum_comma:
             # Replace the enumeration comma with regular comma. The former and latter are often used interchangeably in
-            # datasets, so it is difficult or impossible to learn the enumeration comma.
+            # raw data, so it is difficult or impossible to learn the enumeration comma.
             text = re.sub(r"、", "，", text)
         return text
 
@@ -433,10 +438,10 @@ class PuncTargetsGenerator(abc.ABC):
                 pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop, rng_seed=rng_seed
             )
         elif lang_code in {"th"}:
-            # Thai -- uses space as punctuation
+            # Thai -- uses space as punctuation. Don't have a solution, yet.
             raise ValueError(f"Language not supported: {lang_code}")
         else:
-            # Assume all other languages use English-like punctuation ruless.
+            # Assume all other languages use English-like punctuation rules.
             return BasicPuncTargetsGenerator(
                 pre_labels=pre_labels, post_labels=post_labels, p_drop=p_drop, rng_seed=rng_seed
             )
@@ -459,7 +464,7 @@ class BasicPuncTargetsGenerator(PuncTargetsGenerator):
         for idx in punc_indices:
             if idx + 1 in punc_indices:
                 ignore_indices.append(idx)
-        # todo squash the above loop into a one liner here
+        # todo squash the above nested loop into a one liner here
         punc_indices = [x for x in punc_indices if x not in ignore_indices]
         # Randomly select which ones to drop
         indices_to_drop = [i for i in punc_indices if self._rng.random() <= self._p_drop]
@@ -506,17 +511,18 @@ class CapTargetsGenerator:
     """Generator of true-casing examples.
 
     Args:
-        prob_all_lower: With this probability, lower-case the entire input example.
+        prob_all_lower: With this probability, lower-case the entire input example. For practical purposes, we want most
+            examples all lower-cased.
         prob_all_upper: With this probability, upper-case the entire input example.
-        prob_char_lower: Lower-case characters on a case-by-case basic with this probability, if the entire input
-            example was not upper- or lower-cased.
-        prob_char_upper: Upper-case characters on a case-by-case basic with this probability, if the entire input
-            example was not upper- or lower-cased.
+        prob_char_lower: Lower-case characters on a char-by-char basis with this probability, if the entire input
+            example was not upper- or lower-cased already.
+        prob_char_upper: Upper-case characters on a char-by-char basis with this probability, if the entire input
+            example was not upper- or lower-cased already.
         rng_seed: Seed for the PRNG, used when choosing whether to upper- or lower-case the inputs.
     """
     def __init__(
             self,
-            prob_all_lower: float = 0.5,
+            prob_all_lower: float = 0.85,
             prob_all_upper: float = 0.05,
             prob_char_lower: float = 0.9,
             prob_char_upper: float = 0.05,
@@ -557,11 +563,11 @@ class CapTargetsGenerator:
             # Ignore tokens that have no case
             if self._char_is_uncased(char):
                 continue
-            # Targets match the original input
+            # Targets correspond to the original input
             targets[i] = 0 if char.islower() else 1
             # Maybe transform case of input char
             val = rng.random()
-            if lowercase_all or val < self._prob_char_lower:
+            if lowercase_all or (not uppercase_all and val < self._prob_char_lower):
                 # Some rare chars, e.g., 'İ', convert to 2 chars when lower-cased; take index 0 just in case
                 # TODO does this properly handle those characters? Does it matter?
                 # new_chars[i] = new_chars[i].lower()[0]  # can use new_chars[:len(new_chars[i])]
@@ -576,7 +582,7 @@ class CapTargetsGenerator:
 class TarredPunctCapSegDataset(PunctCapSegDataset):
     """Loads a tarred dataset.
 
-    The idea is that a text-based dataset can do preprocessing, save it to tar, and this class will use webdataset
+    The idea is that a text-based dataset can do preprocessing, save it as a tar, and this class will use webdataset
     to load the data without needing to do preprocessing. But preprocessing is not a bottleneck so not prioritized for
     now.
 
@@ -586,7 +592,7 @@ class TarredPunctCapSegDataset(PunctCapSegDataset):
             tarred_dataset_dir: str,
             language: str = "unk",
             is_continuous: bool = None,
-            tokenizer: Optional[AutoTokenizer] = None,
+            tokenizer: Optional[TokenizerSpec] = None,
             target_pad_value: int = -100,
     ):
         super().__init__(
@@ -650,7 +656,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             punct_pre_labels: List[str],
             punct_post_labels: List[str],
             is_continuous: Optional[bool] = None,
-            tokenizer: Optional[AutoTokenizer] = None,
+            tokenizer: Optional[TokenizerSpec] = None,
             cleaners: Optional[List[TextCleaner]] = None,
             null_label: str = "<NULL>",
             max_length: int = 512,
@@ -761,11 +767,11 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
                     if not line or all_punct_ptn.match(line):
                         continue
                     # Drop if line does not end in punctuation, if specified.
-                    if line[-1] not in non_null_punct_labels and self._drop_if_no_end_punct:
+                    if self._drop_if_no_end_punct and line[-1] not in non_null_punct_labels:
                         continue
                     # Drop if line does not start with an upper-case letter.
                     # Note: for uncase chars, islower() == isupper() == False, so no action is taken.
-                    if line[0].islower() and self._drop_if_first_char_lower:
+                    if self._drop_if_first_char_lower and line[0].islower():
                         continue
                     num_words = len(line.split())
                     num_chars = len(line)
@@ -796,7 +802,7 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         return data
 
     def _verify_punct_labels_in_vocab(self):
-        # TODO remove I don't think this is required anymore
+        # TODO remove; probably not required anymore
         for label in self._punct_pre_labels + self._punct_post_labels:
             piece = self._tokenizer.text_to_tokens(label)
             if piece != label:
@@ -824,6 +830,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
         tokenized_chars: List[str] = self._char_tokenizer.text_to_tokens(full_text)
         recased_chars, cap_targets = self._cap_targets_gen.generate_targets(tokenized_chars=tokenized_chars)
         cap_input_ids: List[int] = self._tokenizer.tokens_to_ids(recased_chars)
+        if len(cap_input_ids) + 2 > self._max_length:
+            cap_input_ids = cap_input_ids[:self._max_length - 2]
+            cap_targets = cap_targets[:self._max_length - 2]
         # Add BOS/EOS and target padding for those tokens.
         cap_input_ids = [bos] + cap_input_ids + [eos]
         cap_targets = [pad] + cap_targets + [pad]
@@ -840,7 +849,12 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             punct_post_targets
         ) = self._punct_targets_gen.generate_targets(input_tokens)
         # Add BOS/EOS and target padding for those tokens.
-        punct_input_ids = [bos] + self._tokenizer.tokens_to_ids(punct_input_tokens) + [eos]
+        punct_input_ids = self._tokenizer.tokens_to_ids(punct_input_tokens)
+        if len(punct_input_ids) + 2 > self._max_length:
+            punct_input_ids = punct_input_ids[:self._max_length - 2]
+            punct_pre_targets = punct_pre_targets[:self._max_length - 2]
+            punct_post_targets = punct_post_targets[:self._max_length - 2]
+        punct_input_ids = [bos] + punct_input_ids + [eos]
         punct_pre_targets = [pad] + punct_pre_targets + [pad]
         punct_post_targets = [pad] + punct_post_targets + [pad]
 
@@ -866,6 +880,9 @@ class TextPunctCapSegDataset(PunctCapSegDataset):
             # Final token is a sentence boundary, all else are not.
             seg_targets.extend([0] * len(next_seg_input_ids))
             seg_targets[-1] = 1
+        if len(seg_input_ids) + 2 > self._max_length:
+            seg_input_ids = seg_input_ids[:self._max_length - 2]
+            seg_targets = seg_targets[:self._max_length - 2]
         # Add BOS/EOS and target padding for those tokens.
         seg_input_ids = [bos] + seg_input_ids + [eos]
         seg_targets = [pad] + seg_targets + [pad]
