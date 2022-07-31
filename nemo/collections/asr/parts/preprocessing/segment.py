@@ -33,6 +33,7 @@
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 
+import math
 import os
 import random
 
@@ -64,18 +65,7 @@ class AudioSegment(object):
     :raises TypeError: If the sample data type is not float or int.
     """
 
-    def __init__(
-        self,
-        samples,
-        sample_rate,
-        target_sr=None,
-        trim=False,
-        trim_ref=np.max,
-        trim_top_db=60,
-        trim_frame_length=2048,
-        trim_hop_length=512,
-        orig_sr=None,
-    ):
+    def __init__(self, samples, sample_rate, target_sr=None, trim=False, trim_db=60, orig_sr=None):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
         """
@@ -84,9 +74,7 @@ class AudioSegment(object):
             samples = librosa.core.resample(samples, orig_sr=sample_rate, target_sr=target_sr)
             sample_rate = target_sr
         if trim:
-            samples, _ = librosa.effects.trim(
-                samples, top_db=trim_top_db, ref=trim_ref, frame_length=trim_frame_length, hop_length=trim_hop_length
-            )
+            samples, _ = librosa.effects.trim(samples, top_db=trim_db)
         self._samples = samples
         self._sample_rate = sample_rate
         if self._samples.ndim >= 2:
@@ -138,18 +126,7 @@ class AudioSegment(object):
 
     @classmethod
     def from_file(
-        cls,
-        audio_file,
-        target_sr=None,
-        int_values=False,
-        offset=0,
-        duration=0,
-        trim=False,
-        trim_ref=np.max,
-        trim_top_db=60,
-        trim_frame_length=2048,
-        trim_hop_length=512,
-        orig_sr=None,
+        cls, audio_file, target_sr=None, int_values=False, offset=0, duration=0, trim=False, orig_sr=None,
     ):
         """
         Load a file supported by librosa and return as an AudioSegment.
@@ -158,13 +135,6 @@ class AudioSegment(object):
         :param int_values: if true, load samples as 32-bit integers
         :param offset: offset in seconds when loading audio
         :param duration: duration in seconds when loading audio
-        :param trim: if true, trim leading and trailing silence from an audio signal
-        :param trim_ref: the reference amplitude. By default, it uses `np.max` and compares to the peak amplitude in
-                         the signal
-        :param trim_top_db: the threshold (in decibels) below reference to consider as silence
-        :param trim_frame_length: the number of samples per analysis frame
-        :param trim_hop_length: the number of samples between analysis frames
-        :param orig_sr: the original sample rate
         :return: numpy array of samples
         """
         samples = None
@@ -205,17 +175,7 @@ class AudioSegment(object):
             libs = "soundfile, and pydub" if HAVE_PYDUB else "soundfile"
             raise Exception(f"Your audio file {audio_file} could not be decoded. We tried using {libs}.")
 
-        return cls(
-            samples,
-            sample_rate,
-            target_sr=target_sr,
-            trim=trim,
-            trim_ref=trim_ref,
-            trim_top_db=trim_top_db,
-            trim_frame_length=trim_frame_length,
-            trim_hop_length=trim_hop_length,
-            orig_sr=orig_sr,
-        )
+        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
 
     @classmethod
     def segment_from_file(cls, audio_file, target_sr=None, n_segments=0, trim=False, orig_sr=None):
@@ -224,14 +184,26 @@ class AudioSegment(object):
 
         Note that audio_file can be either the file path, or a file-like object.
         """
+        is_segmented = False
         try:
             with sf.SoundFile(audio_file, 'r') as f:
                 sample_rate = f.samplerate
-                if 0 < n_segments < len(f):
-                    max_audio_start = len(f) - n_segments
+                if target_sr is not None:
+                    n_segments_at_original_sr = math.ceil(n_segments * sample_rate / target_sr)
+                else:
+                    n_segments_at_original_sr = n_segments
+
+                if 0 < n_segments_at_original_sr < len(f):
+                    max_audio_start = len(f) - n_segments_at_original_sr
                     audio_start = random.randint(0, max_audio_start)
                     f.seek(audio_start)
-                    samples = f.read(n_segments, dtype='float32')
+                    samples = f.read(n_segments_at_original_sr, dtype='float32')
+                    is_segmented = True
+                elif n_segments_at_original_sr >= len(f):
+                    logging.warning(
+                        f"Number of segments is greater than the length of the audio file {audio_file}. This may lead to shape mismatch errors."
+                    )
+                    samples = f.read(dtype='float32')
                 else:
                     samples = f.read(dtype='float32')
             samples = samples.transpose()
@@ -239,7 +211,12 @@ class AudioSegment(object):
             logging.error(f"Loading {audio_file} via SoundFile raised RuntimeError: `{e}`.")
 
         samples = samples.transpose()
-        return cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
+        features = cls(samples, sample_rate, target_sr=target_sr, trim=trim, orig_sr=orig_sr)
+
+        if is_segmented:
+            features._samples = features._samples[:n_segments]
+
+        return features
 
     @property
     def samples(self):
