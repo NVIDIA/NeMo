@@ -1,14 +1,8 @@
 
-import os
-
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctCapSegModel
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationConfig,
-)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

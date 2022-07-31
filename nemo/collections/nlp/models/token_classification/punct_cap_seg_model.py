@@ -22,8 +22,7 @@ from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.data.token_classification.punct_cap_seg_dataset import (
     PunctCapSegDataset,
-    CharTokenizerOverlay,
-    TextPunctCapSegDataset
+    CharTokenizerOverlay
 )
 
 
