@@ -90,6 +90,8 @@ class TTSDataset(Dataset):
         n_mels: int = 80,
         lowfreq: int = 0,
         highfreq: Optional[int] = None,
+        segment_max_duration: Optional[int] = None,
+        pitch_augment: bool = False,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -246,6 +248,9 @@ class TTSDataset(Dataset):
         self.trim_top_db = trim_top_db if trim_top_db is not None else 60
         self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
+
+        self.segment_max_duration = segment_max_duration
+        self.pitch_augment = pitch_augment
 
         self.n_fft = n_fft
         self.n_mels = n_mels
@@ -453,6 +458,13 @@ class TTSDataset(Dataset):
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
 
+    def pitch_shift(self, audio, sr):
+        choice1 = np.random.uniform(-4, -1)
+        choice2 = np.random.uniform(1, 4)
+        shift_val = random.choice([choice1, choice2])
+        audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=shift_val)
+        return audio_shifted
+
     def __getitem__(self, index):
         sample = self.data[index]
 
@@ -462,16 +474,38 @@ class TTSDataset(Dataset):
         if sample["is_phoneme"] == 1:
             rel_audio_path_as_text_id += "_phoneme"
 
-        # Load audio
-        features = self.featurizer.process(
-            sample["audio_filepath"],
-            trim=self.trim,
-            trim_ref=self.trim_ref,
-            trim_top_db=self.trim_top_db,
-            trim_frame_length=self.trim_frame_length,
-            trim_hop_length=self.trim_hop_length,
-        )
-        audio, audio_length = features, torch.tensor(features.shape[0]).long()
+        if (
+            self.segment_max_duration is not None
+            and 'duration' in sample
+            and sample['duration'] > self.segment_max_duration
+        ):
+            n_segments = int(self.segment_max_duration * self.sample_rate)
+            features = AudioSegment.segment_from_file(
+                sample["audio_filepath"], target_sr=self.sample_rate, n_segments=n_segments, trim=self.trim
+            )
+            audio_shifted = None
+            if self.pitch_augment:
+                features_shifted = self.pitch_shift(features.samples, self.sample_rate)
+                audio_shifted = torch.tensor(features_shifted)
+                assert features.shape == features_shifted.shape
+            features = torch.tensor(features.samples)
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
+        else:
+            features = self.featurizer.process(
+                sample["audio_filepath"],
+                trim=self.trim,
+                trim_ref=self.trim_ref,
+                trim_top_db=self.trim_top_db,
+                trim_frame_length=self.trim_frame_length,
+                trim_hop_length=self.trim_hop_length,
+            )
+            audio_shifted = None
+            if self.pitch_augment:
+                features_shifted = self.pitch_shift(features.cpu().detach().numpy(), self.sample_rate)
+                audio_shifted = torch.tensor(features_shifted)
+                assert audio_shifted.size() == features.size()
+
+            audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
             text = torch.tensor(sample["text_tokens"]).long()
@@ -595,6 +629,7 @@ class TTSDataset(Dataset):
             speaker_id,
             voiced_mask,
             p_voiced,
+            audio_shifted,
         )
 
     def __len__(self):
@@ -627,6 +662,7 @@ class TTSDataset(Dataset):
             _,
             voiced_masks,
             p_voiceds,
+            _,
         ) = zip(*batch)
 
         max_audio_len = max(audio_lengths).item()
@@ -648,7 +684,19 @@ class TTSDataset(Dataset):
             if AlignPriorMatrix in self.sup_data_types_set
             else []
         )
-        audios, tokens, log_mels, durations_list, pitches, energies, speaker_ids, voiced_masks, p_voiceds = (
+        (
+            audios,
+            tokens,
+            log_mels,
+            durations_list,
+            pitches,
+            energies,
+            speaker_ids,
+            voiced_masks,
+            p_voiceds,
+            audios_shifted,
+        ) = (
+            [],
             [],
             [],
             [],
@@ -677,6 +725,7 @@ class TTSDataset(Dataset):
                 speaker_id,
                 voiced_mask,
                 p_voiced,
+                audio_shifted,
             ) = sample_tuple
 
             audio = general_padding(audio, audio_len.item(), max_audio_len)
@@ -684,6 +733,10 @@ class TTSDataset(Dataset):
 
             token = general_padding(token, token_len.item(), max_tokens_len, pad_value=self.text_tokenizer_pad_id)
             tokens.append(token)
+
+            if audio_shifted is not None:
+                audio_shifted = general_padding(audio_shifted, audio_len.item(), max_audio_len)
+                audios_shifted.append(audio_shifted)
 
             if LogMel in self.sup_data_types_set:
                 log_mels.append(general_padding(log_mel, log_mel_len, max_log_mel_len, pad_value=log_mel_pad))
@@ -727,6 +780,7 @@ class TTSDataset(Dataset):
             "speaker_id": torch.stack(speaker_ids) if SpeakerID in self.sup_data_types_set else None,
             "voiced_mask": torch.stack(voiced_masks) if Voiced_mask in self.sup_data_types_set else None,
             "p_voiced": torch.stack(p_voiceds) if P_voiced in self.sup_data_types_set else None,
+            "audio_shifted": torch.stack(audios_shifted) if audio_shifted is not None else None,
         }
 
         return data_dict
