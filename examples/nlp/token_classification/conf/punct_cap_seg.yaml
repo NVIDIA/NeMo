@@ -1,5 +1,5 @@
 
-init_from_nemo_model: nemo_exp/pcs/2022-07-17_18-02-57/checkpoints/pcs.nemo
+#init_from_nemo_model: nemo_exp/pcs/2022-07-17_18-02-57/checkpoints/pcs.nemo
 
 model:
   # Note that when using a model, you will want a multi-lingual model with cased vocabulary.
