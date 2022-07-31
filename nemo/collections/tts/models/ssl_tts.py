@@ -28,6 +28,7 @@ class SSLDisentangler(ModelPT):
         super().__init__(cfg=cfg, trainer=trainer)
         self.preprocessor = SSLDisentangler.from_config_dict(self._cfg.preprocessor)
         self.encoder = SSLDisentangler.from_config_dict(self._cfg.encoder)
+        self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
         self._tb_logger = None
 
         self.downstream_nets = nn.ModuleDict()
@@ -49,7 +50,7 @@ class SSLDisentangler(ModelPT):
                 self.downstream_nets[task] = nn.Linear(in_dim, out_dim)
                 self.content_linear = nn.Linear(out_dim, num_chars)
                 self.ctc_loss = nn.CTCLoss(blank=self._text_tokenizer.blank)
-                self.pitch_augment = self._cfg.pitch_augment
+                self.pitch_augment = self._cfg.get('pitch_augment', False)
                 if self.pitch_augment:
                     self.mse_loss = nn.MSELoss()
 
@@ -97,7 +98,10 @@ class SSLDisentangler(ModelPT):
 
     def __setup_dataloader_from_config(self, data_config):
         # _text_tokenizer = instantiate(self._cfg.text_tokenizer)
-        _text_tokenizer = self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
+        if hasattr(self, _text_tokenizer) and isinstance(self._text_tokenizer, BaseTokenizer):
+            _text_tokenizer = self._text_tokenizer
+        else:
+            _text_tokenizer = self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
         for task in self._cfg.downstream_heads.task_names:
             if task == 'speaker_verification':
                 sv_dataset = TTSData.TTSDataset(
@@ -122,7 +126,7 @@ class SSLDisentangler(ModelPT):
                     sample_rate=16000,
                     text_tokenizer=_text_tokenizer,
                     max_duration=16.7,
-                    pitch_augment=data_config['pitch_augment'],
+                    pitch_augment=data_config.get('pitch_augment', False),
                 )
                 content_loader = torch.utils.data.DataLoader(
                     content_dataset,
@@ -193,13 +197,16 @@ class SSLDisentangler(ModelPT):
         else:
             return [optim_backbone, optim_downstream]
 
-    def forward(self, input_signal=None, input_signal_length=None):
+    def _forward(self, input_signal=None, input_signal_length=None, for_export=False):
 
         processed_signal, processed_signal_length = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
         )
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
+        if for_export:
+            encoded, encoded_len = self.encoder.forward_for_export(audio_signal=processed_signal, length=processed_signal_length) # b,c,t
+        else:
+            encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
 
         for task in self._cfg.downstream_heads.task_names:
             if task == "speaker_verification":
@@ -224,6 +231,12 @@ class SSLDisentangler(ModelPT):
             content_log_probs,
             encoded_len,
         )
+
+    def forward(self, input_signal=None, input_signal_length=None):
+        return self._forward(input_signal=input_signal, input_signal_length=input_signal_length)
+
+    def forward_for_export(self, input_signal=None, input_signal_length=None):
+        return self._forward(input_signal=input_signal, input_signal_length=input_signal_length, for_export=True)
 
     def training_step(self, batch, batch_idx):
         loss = 0.0

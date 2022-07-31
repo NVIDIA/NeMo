@@ -1,0 +1,108 @@
+# This config contains the default values for training HiFi-GAN model on LJSpeech dataset.
+# If you want to train model on other dataset, you can change config values according to your dataset.
+# Most dataset-specific arguments are in the head of the config file, see below.
+
+name: "HifiGan"
+
+train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train.json"
+validation_datasets: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_val.json"
+
+# Default values for dataset with sample_rate=22050
+sample_rate: 25600 # 25664
+n_mel_channels: 80
+n_window_size: 400
+n_window_stride: 160
+n_fft: 512
+lowfreq: 0
+highfreq: 8000
+window: hann  
+
+train_n_segments: 16000
+train_max_duration: null
+train_min_duration: 0.75
+
+val_n_segments: 25600
+val_max_duration: null
+val_min_duration: 3
+
+ssl_model_type: conformer_multitask
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
+ssl_content_emb_type: 'probs'
+
+defaults:
+  - model/generator: v_ssl
+  - model/train_ds: train_ds_ssl
+  - model/validation_ds: val_ds_ssl
+
+model:
+  preprocessor:
+    _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
+    nfilt: ${n_mel_channels}
+    lowfreq: ${lowfreq}
+    highfreq: ${highfreq}
+    n_fft: ${n_fft}
+    n_window_size: ${n_window_size}
+    n_window_stride: ${n_window_stride}
+    pad_to: 0
+    pad_value: -11.52
+    sample_rate: ${sample_rate}
+    window: ${window}
+    normalize: null
+    preemph: null
+    dither: 0.0
+    frame_splicing: 1
+    log: true
+    log_zero_guard_type: clamp
+    log_zero_guard_value: 1e-05
+    mag_power: 1.0
+    use_grads: false
+    exact_pad: true
+
+  optim:
+    _target_: torch.optim.AdamW
+    lr: 0.0002
+    betas: [0.8, 0.99]
+
+    sched:
+      name: CosineAnnealing
+      min_lr: 1e-5
+      warmup_ratio: 0.02
+
+  max_steps: 2500000
+  l1_loss_factor: 45
+  denoise_strength: 0.0025
+  ssl_model_type: ${ssl_model_type}
+  content_emb_indim: 46
+  content_emb_outdim: 256
+  speaker_emb_indim: 256
+  speaker_emb_outdim: 256
+
+trainer:
+  num_nodes: 1
+  devices: -1
+  accelerator: gpu
+  strategy: ddp
+  precision: 32
+  max_steps: ${model.max_steps}
+  accumulate_grad_batches: 1
+  enable_checkpointing: False  # Provided by exp_manager
+  logger: false # Provided by exp_manager
+  log_every_n_steps: 100
+  val_check_interval: 1.0
+  benchmark: false
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: val_loss
+    mode: min
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+    entity: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false

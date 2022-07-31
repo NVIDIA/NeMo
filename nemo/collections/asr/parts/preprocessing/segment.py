@@ -34,6 +34,7 @@
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
 import os
 import random
+import math
 
 import librosa
 import numpy as np
