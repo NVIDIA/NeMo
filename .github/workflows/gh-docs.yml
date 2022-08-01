@@ -21,23 +21,16 @@ jobs:
       image: squidfunk/mkdocs-material
 
     steps:
-      # Check for write permission
-      - name: Check user permission
-        id: check
-        uses: scherermichael-oss/action-has-permission@master
-        with:
-          required-permission: write
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/checkout@v3
+        if: github.event.repository.fork == false
         with:
           ref: gh-pages
 
       - name: "Correct github config"
+        if: github.event.repository.fork == false
         run: git config --global --add safe.directory /__w/NeMo/NeMo
 
       - name: "Deploy Github Page"
-        if: steps.check.outputs.has-permission
+        if: github.event.repository.fork == false
         run:  mkdocs gh-deploy --force
 
