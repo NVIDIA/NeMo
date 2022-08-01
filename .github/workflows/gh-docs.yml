@@ -7,13 +7,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    container:
+      image: squidfunk/mkdocs-material
+
     steps:
       - uses: actions/checkout@v3
         with:
           ref: gh-pages
-      - uses: actions/setup-python@v2
-        with:
-          python-version: 3.x
-      - run: pip install mkdocs-material
       - run: mkdocs gh-deploy --force
 
