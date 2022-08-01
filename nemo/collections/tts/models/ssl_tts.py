@@ -199,7 +199,7 @@ class SSLDisentangler(ModelPT):
         else:
             return [optim_backbone, optim_downstream]
 
-    def _forward(self, input_signal=None, input_signal_length=None, for_export=False):
+    def _forward(self, input_signal=None, input_signal_length=None, for_export=False, normalize_content=True):
 
         processed_signal, processed_signal_length = self.preprocessor(
             input_signal=input_signal, length=input_signal_length,
@@ -222,16 +222,18 @@ class SSLDisentangler(ModelPT):
             elif task == "content":
                 encoded_btc = encoded.permute(0, 2, 1)
                 content_embedding = self.downstream_nets['content'](encoded_btc)
-                l2_norm_content = torch.norm(content_embedding, p=2, dim=-1, keepdim=True)
-                content_embedding_normalized = content_embedding / l2_norm_content
-                content_logits = self.content_linear(content_embedding_normalized)
+                if normalize_content:
+                    l2_norm_content = torch.norm(content_embedding, p=2, dim=-1, keepdim=True)
+                    content_embedding = content_embedding / l2_norm_content
+
+                content_logits = self.content_linear(content_embedding)
                 content_log_probs = content_logits.log_softmax(dim=2)
                 content_log_probs = content_log_probs.permute(1, 0, 2)  # t,b,c for ctc
 
         return (
             speaker_logits,
             speaker_embedding_normalized,
-            content_embedding_normalized,
+            content_embedding,
             content_log_probs,
             encoded_len,
         )
@@ -239,8 +241,13 @@ class SSLDisentangler(ModelPT):
     def forward(self, input_signal=None, input_signal_length=None):
         return self._forward(input_signal=input_signal, input_signal_length=input_signal_length)
 
-    def forward_for_export(self, input_signal=None, input_signal_length=None):
-        return self._forward(input_signal=input_signal, input_signal_length=input_signal_length, for_export=True)
+    def forward_for_export(self, input_signal=None, input_signal_length=None, normalize_content=True):
+        return self._forward(
+            input_signal=input_signal,
+            input_signal_length=input_signal_length,
+            for_export=True,
+            normalize_content=normalize_content,
+        )
 
     def training_step(self, batch, batch_idx):
         loss = 0.0
