@@ -1,3 +1,5 @@
+set -o xtrace
+
 # Default values
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
