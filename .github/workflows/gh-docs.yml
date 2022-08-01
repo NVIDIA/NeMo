@@ -1,9 +1,9 @@
 name: gh-docs-build
 on:
   push:
-    branches:
-      - main
-      - gh-pages
+  pull_request:
+    paths:
+      - "**"
 jobs:
   deploy:
     runs-on: ubuntu-latest
