@@ -16,7 +16,7 @@ case $RUN_MODEL_SIZE in
     ;;
 
   390m)
-    NUM_NODES=${NUM_NODES:8}
+    NUM_NODES=${NUM_NODES:-8}
     TP_SIZE=${TP_SIZE:-1}
     PP_SIZE=${PP_SIZE:-1}
     ;;
@@ -55,7 +55,7 @@ else
   AMP_O2_FLAG=True
 fi
 
-export RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
+export RUN_NAME=${RUN_MODEL}_${RUN_MODEL_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
 export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
 
 HYDRA_FULL_ERROR=1 python3 main.py \
