@@ -21,10 +21,12 @@ jobs:
       image: squidfunk/mkdocs-material
 
     steps:
-      - name: "Check if user has write access"
-        uses: "lannonbr/repo-permission-check-action@2.0.0"
+      # Check for write permission
+      - name: Check user permission
+        id: check
+        uses: scherermichael-oss/action-has-permission@master
         with:
-          permission: "write"
+          required-permission: write
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -32,6 +34,10 @@ jobs:
         with:
           ref: gh-pages
 
-      - run: git config --global --add safe.directory /__w/NeMo/NeMo
-      - run: mkdocs gh-deploy --force
+      - name: "Correct github config"
+        run: git config --global --add safe.directory /__w/NeMo/NeMo
+
+      - name: "Deploy Github Page"
+        if: steps.check.outputs.has-permission
+        run:  mkdocs gh-deploy --force
 
