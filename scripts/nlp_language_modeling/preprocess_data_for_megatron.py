@@ -87,9 +87,9 @@ import gzip
 import json
 import multiprocessing
 import os
+import pathlib
 import sys
 import time
-import pathlib
 
 import ftfy
 import torch
@@ -272,9 +272,7 @@ def main():
         print('Searching folder for .json or .json.gz files...')
         assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
         json_files = (str(f) for f in pathlib.Path(args.input).glob(args.files_filter))
-        json_files = [
-            f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')
-        ]
+        json_files = [f for f in json_files if f.endswith('.json') or f.endswith('.json.gz')]
         if len(json_files) == 0:
             raise FileNotFoundError('No .json or .json.gz files found in folder.')
         else:

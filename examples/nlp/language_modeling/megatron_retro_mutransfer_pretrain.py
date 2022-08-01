@@ -23,14 +23,14 @@ from pytorch_lightning.trainer.connectors.checkpoint_connector import Checkpoint
 
 from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
 from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
+from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam, MuAdamW
 from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shapes
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPrecisionPlugin, NLPDDPPlugin
 from nemo.core.config import hydra_runner
+from nemo.core.config.optimizers import AdamParams, AdamWParams
+from nemo.core.optim.optimizers import register_optimizer
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
-from nemo.core.optim.optimizers import register_optimizer
-from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam, MuAdamW
-from nemo.core.config.optimizers import AdamParams, AdamWParams
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_mutransfer")
@@ -104,7 +104,12 @@ def main(cfg) -> None:
                 raise ValueError(f'need to check {name} init')
 
     for name, layer in model.named_modules():
-        if name.endswith('.self_attention') or name.endswith('.inter_attention') or name.endswith('.cross_attention') or name.endswith('.core_attention'):
+        if (
+            name.endswith('.self_attention')
+            or name.endswith('.inter_attention')
+            or name.endswith('.cross_attention')
+            or name.endswith('.core_attention')
+        ):
             if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
                 layer.norm_factor = (
                     layer.hidden_size_per_attention_head / 8.0
