@@ -1043,7 +1043,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         labels_file: Path,
         cache_dir: Optional[Union[str, os.PathLike]],
         max_seq_length: int,
-        num_samples: int
+        num_samples: int,
     ) -> Path:
         if cache_dir is None:
             cache_dir = text_file.parent
