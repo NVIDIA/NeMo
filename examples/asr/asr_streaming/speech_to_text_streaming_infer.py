@@ -237,13 +237,13 @@ def main():
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
-    # In streaming, offline normalization is not possible for all cases as we don't have access to the whole audio at the beginning
+    # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
     # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
     # It is suggested to train the streaming models without any normalization in the input features.
     if args.online_normalization:
-        if asr_model.cfg.normalize in ["per_feature", "all_feature"]:
+        if asr_model.cfg.preprocessor.normalize not in ["per_feature", "all_feature"]:
             logging.warning(
-                "online_normalization is enabled but the model does not use normalization, so normalization is skipped."
+                "online_normalization is enabled but the model has no normalization in the feature extration part, so it is ignored."
             )
             online_normalization = False
         else:
