@@ -55,7 +55,8 @@ else
   AMP_O2_FLAG=True
 fi
 
-RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
+export RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
+export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
 
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \

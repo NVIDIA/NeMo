@@ -69,8 +69,6 @@ build-BigNLP:
     - set -x
     - export PIPELINE_DIR="${SELENE_BIGNLP_CI_PATH}/${CI_PIPELINE_ID}"
     - export BASE_RESULTS_DIR="${PIPELINE_DIR}/results"
-    - export RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
-    - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/release_perf/scripts/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
     # Wait for job to launch
