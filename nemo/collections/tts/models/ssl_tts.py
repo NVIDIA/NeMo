@@ -17,6 +17,7 @@ from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishChar
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
+from nemo.utils import logging
 
 
 def decode(tokenizer, token_list):
@@ -98,7 +99,7 @@ class SSLDisentangler(ModelPT):
 
     def __setup_dataloader_from_config(self, data_config):
         # _text_tokenizer = instantiate(self._cfg.text_tokenizer)
-        if hasattr(self, _text_tokenizer) and isinstance(self._text_tokenizer, BaseTokenizer):
+        if hasattr(self, '_text_tokenizer') and isinstance(self._text_tokenizer, BaseTokenizer):
             _text_tokenizer = self._text_tokenizer
         else:
             _text_tokenizer = self._text_tokenizer = EnglishCharsTokenizer(add_blank_at="last")
@@ -106,7 +107,7 @@ class SSLDisentangler(ModelPT):
             if task == 'speaker_verification':
                 sv_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_speaker_verification_fp'],
-                    sample_rate=16000,
+                    sample_rate=self._cfg.sample_rate,
                     text_tokenizer=_text_tokenizer,
                     segment_max_duration=data_config['segment_max_duration'],
                     sup_data_types=['speaker_id'],
@@ -123,9 +124,10 @@ class SSLDisentangler(ModelPT):
             if task == 'content':
                 content_dataset = TTSData.TTSDataset(
                     manifest_filepath=data_config['manifest_content_fp'],
-                    sample_rate=16000,
+                    sample_rate=self._cfg.sample_rate,
                     text_tokenizer=_text_tokenizer,
-                    max_duration=16.7,
+                    min_duration=data_config['min_duration_content'],
+                    max_duration=data_config['max_duration_content'],
                     pitch_augment=data_config.get('pitch_augment', False),
                 )
                 content_loader = torch.utils.data.DataLoader(
@@ -204,7 +206,9 @@ class SSLDisentangler(ModelPT):
         )
 
         if for_export:
-            encoded, encoded_len = self.encoder.forward_for_export(audio_signal=processed_signal, length=processed_signal_length) # b,c,t
+            encoded, encoded_len = self.encoder.forward_for_export(
+                audio_signal=processed_signal, length=processed_signal_length
+            )  # b,c,t
         else:
             encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)  # b,c,t
 
@@ -281,7 +285,12 @@ class SSLDisentangler(ModelPT):
                 )
 
                 ctc_loss = self.ctc_loss(content_log_probs, target, encoded_len, target_len)
-                content_loss += ctc_loss
+
+                # check if ctc loss is nan
+                if torch.isnan(ctc_loss):
+                    logging.warning(f"ctc_loss is nan. Add min duration to avoid getting here.")
+                else:
+                    content_loss += ctc_loss
 
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
@@ -317,12 +326,12 @@ class SSLDisentangler(ModelPT):
             sch2.step()
 
         if self.trainer.global_step % 10 == 0:
-            # self.log("lr backbone", optim_backbone.param_groups[0]['lr'] )
-            # self.log("lr downstream", optim_downstream.param_groups[0]['lr'] )
-            # self.log("t_loss", loss)
+            self.log("lr backbone", optim_backbone.param_groups[0]['lr'])
+            self.log("lr downstream", optim_downstream.param_groups[0]['lr'])
+            self.log("t_loss", loss)
             print("Loss", loss.item())
-            # print ("lr backbone", optim_backbone.param_groups[0]['lr'])
-            # print ("lr down", optim_downstream.param_groups[0]['lr'])
+            print("lr backbone", optim_backbone.param_groups[0]['lr'])
+            print("lr down", optim_downstream.param_groups[0]['lr'])
 
         # return {'loss': loss}
 
