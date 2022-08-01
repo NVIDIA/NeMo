@@ -692,7 +692,6 @@ eval.t5.220m_tp1_pp1:
     RUN_JOB_NAME: 220m_tp1_pp1_mnli
   only:
     - master
-    - merge_requests
   needs:
     - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
