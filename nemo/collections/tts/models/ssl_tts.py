@@ -294,10 +294,10 @@ class SSLDisentangler(ModelPT):
                 ctc_loss = self.ctc_loss(content_log_probs, target, encoded_len, target_len)
 
                 # check if ctc loss is nan
-                if torch.isnan(ctc_loss):
-                    logging.warning(f"ctc_loss is nan. Add min duration to avoid getting here.")
-                else:
+                if torch.isfinite(ctc_loss):
                     content_loss += ctc_loss
+                else:
+                    logging.warning(f"ctc_loss is not finite. Add min duration to avoid getting here.")
 
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
@@ -318,7 +318,8 @@ class SSLDisentangler(ModelPT):
                     optim_backbone.step()
                     optim_downstream.step()
 
-                self.log("t_content_loss", content_loss.item())
+                if isinstance(content_loss, torch.Tensor):
+                    self.log("t_content_loss", content_loss.item())
 
         if self._cfg.combined_loss:
             optim_backbone.zero_grad()
