@@ -1,0 +1,5 @@
+hparams_file: ${conversion.run.train_dir}/hparams.yaml
+config:
+  vocab_file: null
+  merge_file: null
+  tokenizer_model: ${data_dir}/mc4/bpe/mt5_tokenizer.model

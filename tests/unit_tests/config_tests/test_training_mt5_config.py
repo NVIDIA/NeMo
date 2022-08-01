@@ -36,7 +36,7 @@ class TestTrainingmT5Config:
         
         
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_mt5
           create_wandb_logger: False
@@ -208,7 +208,7 @@ class TestTrainingmT5Config:
         
         
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_mt5
           create_wandb_logger: False
@@ -380,7 +380,7 @@ class TestTrainingmT5Config:
         
         
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_mt5
           create_wandb_logger: False

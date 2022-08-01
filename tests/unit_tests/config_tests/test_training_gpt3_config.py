@@ -30,7 +30,7 @@ class TestTrainingGPT3Config:
           gradient_clip_val: 1.0
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_gpt
           create_wandb_logger: False
@@ -237,7 +237,7 @@ class TestTrainingGPT3Config:
           gradient_clip_val: 1.0
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_gpt
           create_wandb_logger: False
@@ -444,7 +444,7 @@ class TestTrainingGPT3Config:
 
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_gpt
           create_wandb_logger: False
@@ -652,7 +652,7 @@ class TestTrainingGPT3Config:
           gradient_clip_val: 1.0
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_gpt
           create_wandb_logger: False
@@ -858,7 +858,7 @@ class TestTrainingGPT3Config:
           gradient_clip_val: 1.0
 
         exp_manager:
-          explicit_log_dir: ${training.run.results_dir}
+          explicit_log_dir: ${training.run.results_dir}/results
           exp_dir: null
           name: megatron_gpt
           create_wandb_logger: False
