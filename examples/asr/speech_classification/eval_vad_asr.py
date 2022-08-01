@@ -130,20 +130,21 @@ def main():
 
     db_list = [0,5,10,15,20,'clean']
     modes = ['offline']
-    langs = ['mandarin', 'french', 'german',  'russian']
-    vad_exps = ['neural_vad']
-    models = ['citrinet'] 
+    langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
+    vad_exps = ['neural_vad', 'random_vad']
+    models = ['nr_citrinet', 'citrinet'] 
 
     shift_length_in_sec = 0.08
     # ref="energy_vad"
-    overlap=0.875
+    # overlap=0.875
+    overlap=False
     ref='oracle_vad'
     
-    subset="dev"
+    subset="test"
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res{exp}_asr_offline_multiple_fixSNR_s8_875.csv"
+    res_file = f"res{exp}_asr_offline_multiple_fixSNR_s8_tunedO_test.csv"
 
     si_ratio = False  #True
 
@@ -154,7 +155,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"final_multiple_fixed_{exp}_s8_875"
+    final_output_folder = f"final_multiple_fixed_{exp}_s8_test"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True
@@ -252,13 +253,22 @@ def main():
 
                                     if vad_exp=="neural_vad":
                                         params = {
-                                            "onset": 0.5,
-                                            "offset": 0.5,
+                                            "onset": 0.7,
+                                            "offset": 0.4,
                                             "min_duration_on": 0.5,
                                             "min_duration_off": 0.5,
                                             "pad_onset": 0.2,
-                                            "pad_offset": -0.2
+                                            "pad_offset": 0.2,
+                                            "frame_length_in_sec": 0.08
                                         }
+                                        # params = {
+                                        #     "onset": 0.5,
+                                        #     "offset": 0.5,
+                                        #     "min_duration_on": 0.5,
+                                        #     "min_duration_off": 0.5,
+                                        #     "pad_onset": 0.2,
+                                        #     "pad_offset": -0.2
+                                        # }
                                         # params = {
                                         #     "onset": 0.4,
                                         #     "offset": 0.9,
