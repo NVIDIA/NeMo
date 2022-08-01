@@ -3254,6 +3254,7 @@ pipeline {
         model.encoder.hidden_size=64 \
         model.decoder.hidden_size=64 \
         model.encoder.num_attention_heads=8 \
+        model.decoder.num_attention_heads=8 \
         model.decoder.ffn_hidden_size=2048 \
         model.encoder.activation='gelu' \
         model.encoder.activations_checkpoint_method='block' \
@@ -3282,6 +3283,7 @@ pipeline {
         model.encoder.hidden_size=64 \
         model.decoder.hidden_size=64 \
         model.encoder.num_attention_heads=8 \
+        model.decoder.num_attention_heads=8 \
         model.decoder.ffn_hidden_size=2048 \
         model.encoder.activation='gelu' \
         model.encoder.activations_checkpoint_method='block' \
