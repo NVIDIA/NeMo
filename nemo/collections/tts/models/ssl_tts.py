@@ -287,10 +287,9 @@ class SSLDisentangler(ModelPT):
                 ctc_loss = self.ctc_loss(content_log_probs, target, encoded_len, target_len)
 
                 # check if ctc loss is nan
-                if not torch.isnan(ctc_loss):
-                    # happens when sentence/audio is too short. Add min duration to avoid getting here.
-                    # log warning
+                if torch.isnan(ctc_loss):
                     logging.warning(f"ctc_loss is nan. Add min duration to avoid getting here.")
+                else:
                     content_loss += ctc_loss
 
                 if self.pitch_augment:
