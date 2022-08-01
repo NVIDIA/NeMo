@@ -138,7 +138,7 @@ model:
       pred_hidden: ${model.model_defaults.pred_hidden}
       pred_rnn_layers: 1
       t_max: null
-      dropout: 0.1
+      dropout: 0.2
 
   joint:
     _target_: nemo.collections.asr.modules.RNNTJoint
@@ -159,7 +159,7 @@ model:
     jointnet:
       joint_hidden: ${model.model_defaults.joint_hidden}
       activation: "relu"
-      dropout: 0.1
+      dropout: 0.2
 
   decoding:
     strategy: "greedy_batch" # can be greedy, greedy_batch, beam, tsd, alsd.
