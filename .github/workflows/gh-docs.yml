@@ -13,7 +13,6 @@ permissions:
   deployments: write
   pages: write
 
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -22,6 +21,13 @@ jobs:
       image: squidfunk/mkdocs-material
 
     steps:
+      - name: "Check if user has write access"
+        uses: "lannonbr/repo-permission-check-action@2.0.0"
+        with:
+          permission: "write"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/checkout@v3
         with:
           ref: gh-pages
