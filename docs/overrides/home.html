@@ -17,8 +17,10 @@
 
         .tx-container {
             padding-top: .0rem;
-            /* background: linear-gradient(to bottom, var(--md-primary-fg-color), hsla(160deg,47%,55%,1) 99%,#fff 99%) */
-            background: linear-gradient(to bottom, #0D47A1, #0D47A1, 99%,#fff 99%)
+            /* background: linear-gradient(to bottom, var(--md-primary-fg-color), hsla(160deg,47%,55%,1) 99%,#fff 99%); */
+            /* background: linear-gradient(to bottom, #0D47A1, #0D47A1, 99%,#fff 99%); */
+            background: linear-gradient(to bottom, #000000, #000000, 99%,#fff 99%);
+            /* background: linear-gradient(to bottom, #76B900, #76B900, 99%,#fff 99%); */
         }
 
         .tx-hero {
@@ -41,6 +43,7 @@
         .tx-hero__image{
             width:17rem;
             height:17rem;
+            padding-top: 2rem;
             order:1;
             padding-right: 2.5rem;
         }
@@ -53,7 +56,8 @@
 
         .tx-hero .md-button--primary {
             background-color: var(--md-primary-bg-color);
-            color: hsla(280deg, 37%, 48%, 1);
+            /* color: hsla(280deg, 37%, 48%, 1); */
+            color: rgb(0, 0, 0);
             border-color: var(--md-primary-bg-color)
         }
 
@@ -300,6 +304,7 @@
         }
     </style>
 
+    <!-- Hero Banner -->
     <section class="tx-container">
         <div class="md-grid md-typeset">
             <div class="tx-hero">
@@ -308,11 +313,39 @@
                 </div>
                 <div class="tx-hero__content">
                     <h1>NVIDIA NeMo</h1>
-                    <p>{{ config.site_description }}. Set up in 5 minutes.</p>
-                    <a href="{{ page.next_page.url | url }}" title="{{ page.next_page.title | e }}"
-                        class="md-button md-button--primary">
-                        Quick start
+                    <p>{{ config.site_description }}</p>
+                    
+                    <!-- <a href="{{ page.next_page.url | url }}" title="{{ page.next_page.title | e }}" -->
+                    <a 
+                    href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/intro.html" 
+                    class="md-button md-button--primary">
+                        Docs
                     </a>
+
+                    <a
+                    href="https://github.com/NVIDIA/NeMo" 
+                    class="md-button md-button--primary">
+                        Github
+                    </a>
+
+                    <a
+                    href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html" 
+                    class="md-button md-button--primary">
+                        Tutorial
+                    </a>
+                    
+                    <a
+                    href="https://developer.nvidia.com/riva" 
+                    class="md-button md-button--primary">
+                        NVIDIA RIVA
+                    </a>
+                    
+                    <a
+                    href="https://developer.nvidia.com/nemo-megatron-early-access" 
+                    class="md-button md-button--primary">
+                        NeMo Megatron
+                    </a>
+                    
                 </div>
             </div>
         </div>
@@ -338,15 +371,22 @@
                     <h1 id="what-is-nemo">What is NeMo?</h1><br>
 
                     <p>
+
+                        NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), 
+                        natural language processing (NLP), and text-to-speech synthesis (TTS). The primary objective of NeMo is to help
+                        researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to 
+                        create new conversational AI models.<br><br>
+
+                        A NeMo model is composed of neural modules,  which are the building blocks of models. The inputs and 
+                        outputs of these modules are strongly typed  with neural types that can automatically perform the 
+                        semantic checks between the modules.<br><br>
+
                         NeMo includes domain-specific collections for 
                         <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_asr">ASR</a>, 
                         <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_nlp">NLP</a> and 
                         <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_tts"></a> to develop 
                         state-of-the-art research models.<br><br>
                         
-                        A NeMo model is composed of neural modules,  which are the building blocks of models. The inputs and 
-                        outputs of these modules are strongly typed  with neural types that can automatically perform the 
-                        semantic checks between the modules.<br><br>
 
                     </p><br>
                 </div>
@@ -430,7 +470,43 @@
             </div>
         </div>
     </section>
-    
+
+    <!-- 5th Section -->
+    <!-- RIVA -->
+    <section class="tx-container-3">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+
+                <!-- Hero image -->
+                <div class="tx-hero__image-3">
+                    <img
+                            src="assets/images/deploy-to-production-2c50-d@2x.png"
+                            alt=""
+                            width="2800"
+                            draggable="false"
+                    >
+                </div>
+
+                <!-- Hero content -->
+                <div class="tx-hero__content">
+                    <br>
+                    <h1 id="deploy-riva">Deploy to Production using NVIDIA AI </h1><br>
+
+                    <p>
+                        
+                        To leverage the NVIDIA AI platform and deploy NeMo speech models in production with <a href="https://developer.nvidia.com/riva">
+                        NVIDIA Riva</a>, developers should export NeMo models to a format compatible with Riva and then execute Riva build 
+                        and deploy commands for creating an optimized skill that can run in real-time.<br><br>
+
+                        The <a href="https://docs.nvidia.com/deeplearning/riva/user-guide/docs/model-overview.html?#nemo2riva-export-for-nemo">
+                        documentation</a> includes detailed instructions for exporting and deploying NeMo models to Riva.
+                        
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
 {% endblock %}
 
 {% block content %}

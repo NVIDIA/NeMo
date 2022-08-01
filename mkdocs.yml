@@ -3,7 +3,7 @@
 site_name: NVIDIA NeMo
 site_url: https://nvidia.github.io/NeMo/
 site_description: >-
-  NeMo: a toolkit for conversational AI
+  NeMo: a toolkit for conversational AI & NLP
 # Repository
 repo_name: NVIDIA/NeMo
 repo_url: https://github.com/NVIDIA/NeMo
@@ -46,7 +46,7 @@ theme:
     - toc.follow
     # - toc.integrate
   palette:
-    - scheme: midnight
+    - scheme: midnight-black
       primary: indigo
       accent: light blue
       toggle:
@@ -63,7 +63,7 @@ theme:
     code: Roboto Mono
   favicon: assets/favicon.png
   icon:
-    logo: logo
+    logo: nvidia-eyemark-favicon
 
 # Plugins
 plugins:
@@ -125,5 +125,5 @@ markdown_extensions:
 # Page tree
 nav:
   - Home: index.md
-  - Blog Posts:
-    - Automatic Speech Recognition: blogs/asr.md
+  # - 2022:
+  #   - blogs/2022/template.md
