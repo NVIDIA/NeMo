@@ -730,44 +730,6 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, Exportable):
 
         return {'loss': loss_value}
 
-    # def stream_step(
-    #     self,
-    #     processed_signal,
-    #     processed_signal_length=None,
-    #     cache_last_channel=None,
-    #     cache_last_time=None,
-    #     keep_all_outputs=True,
-    #     previous_hypotheses=None,
-    #     previous_pred_out=None,
-    #     drop_extra_pre_encoded=None,
-    #     return_transcription=True,
-    # ):
-    #     if return_transcription == False:
-    #         logging.info(
-    #             "return_transcription can not be False for Transducer models as decoder returns the transcriptions too."
-    #         )
-    #     (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
-    #         processed_signal=processed_signal,
-    #         processed_signal_length=processed_signal_length,
-    #         cache_last_channel=cache_last_channel,
-    #         cache_last_time=cache_last_time,
-    #         keep_all_outputs=keep_all_outputs,
-    #         drop_extra_pre_encoded=drop_extra_pre_encoded,
-    #     )
-    #
-    #     best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-    #         encoder_output=encoded,
-    #         encoded_lengths=encoded_len,
-    #         return_hypotheses=True,
-    #         partial_hypotheses=previous_hypotheses,
-    #     )
-    #     greedy_predictions = [hyp.y_sequence for hyp in best_hyp]
-    #
-    #     if all_hyp is None:
-    #         all_hyp = best_hyp
-    #
-    #     return greedy_predictions, all_hyp, cache_last_channel_next, cache_last_time_next, best_hyp
-
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
 

@@ -592,58 +592,6 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
-    # def stream_step(
-    #     self,
-    #     processed_signal,
-    #     processed_signal_length=None,
-    #     cache_last_channel=None,
-    #     cache_last_time=None,
-    #     keep_all_outputs=True,
-    #     previous_hypotheses=None,
-    #     previous_pred_out=None,
-    #     drop_extra_pre_encoded=None,
-    #     return_transcription=True,
-    # ):
-    #     (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
-    #         processed_signal=processed_signal,
-    #         processed_signal_length=processed_signal_length,
-    #         cache_last_channel=cache_last_channel,
-    #         cache_last_time=cache_last_time,
-    #         keep_all_outputs=keep_all_outputs,
-    #         drop_extra_pre_encoded=drop_extra_pre_encoded,
-    #     )
-    #
-    #     log_probs = self.decoder(encoder_output=encoded)
-    #     predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
-    #
-    #     if processed_signal_length is not None:
-    #         seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
-    #         pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
-    #         predictions_tensor.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
-    #
-    #     greedy_predictions = []
-    #     for preds_idx, preds in enumerate(predictions_tensor):
-    #         if encoded_len is None:
-    #             preds_cur = predictions_tensor[preds_idx]
-    #         else:
-    #             preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
-    #         if previous_pred_out is not None:
-    #             greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
-    #             encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
-    #         else:
-    #             greedy_predictions_concat = preds_cur
-    #         greedy_predictions.append(greedy_predictions_concat)
-    #
-    #     # TODO: make decoding more efficient by avoiding the decoding process from the beginning
-    #     if return_transcription:
-    #         transcribed_texts = self._wer.ctc_decoder_predictions_tensor(
-    #             predictions=greedy_predictions, predictions_len=encoded_len, return_hypotheses=False,
-    #         )
-    #     else:
-    #         transcribed_texts = None
-    #
-    #     return greedy_predictions, transcribed_texts, cache_last_channel_next, cache_last_time_next, None
-
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:

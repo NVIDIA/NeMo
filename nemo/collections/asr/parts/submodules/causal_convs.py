@@ -136,12 +136,12 @@ class CausalConv1D(nn.Conv1d):
             input_x = x
             x_length = x.size(-1)
             cache = cache[self._cache_id]
-            cache_next = cache_next[self._cache_id]
-            cache_next_length = cache_next.size(-1)
             needed_cache = cache[:, :, -self._max_cache_len :]
             x = F.pad(x, pad=(0, self._right_padding))
             x = torch.cat((needed_cache, x), dim=-1)
         if cache_next is not None:
+            cache_next = cache_next[self._cache_id]
+            cache_next_length = cache_next.size(-1)
             x_keep_size = x_length - self.cache_drop_size
             cache_keep_size = min(x_keep_size, cache_next_length)
             cache_next[:, :, :-x_keep_size] = cache[:, :, cache_keep_size:]

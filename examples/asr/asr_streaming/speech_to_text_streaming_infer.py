@@ -61,18 +61,18 @@ from nemo.collections.asr.parts.utils.streaming_utils import FramewiseStreamingA
 from nemo.utils import logging
 
 
-def extract_transcribtions(hyps):
+def extract_transcriptions(hyps):
     """
         The transcribed_texts returned by CTC and RNNT models are different.
         This method would extract and return the text section of the hypothesis.
     """
     if isinstance(hyps[0], Hypothesis):
-        transcribtions = []
+        transcriptions = []
         for hyp in hyps:
-            transcribtions.append(hyp.text)
+            transcriptions.append(hyp.text)
     else:
-        transcribtions = hyps
-    return transcribtions
+        transcriptions = hyps
+    return transcriptions
 
 
 def calc_drop_extra_pre_encoded(asr_model, step_num):
@@ -98,12 +98,12 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                         cache_last_channel_next,
                         cache_last_time_next,
                         best_hyp,
-                    ) = asr_model.stream_step(
+                    ) = asr_model.conformer_stream_step(
                         processed_signal=processed_signal,
                         processed_signal_length=processed_signal_length,
                         return_transcription=True,
                     )
-        final_offline_tran = extract_transcribtions(transcribed_texts)
+        final_offline_tran = extract_transcriptions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
     else:
         final_offline_tran = None
@@ -125,7 +125,7 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                         cache_last_channel,
                         cache_last_time,
                         previous_hypotheses,
-                    ) = asr_model.stream_step(
+                    ) = asr_model.conformer_stream_step(
                         processed_signal=chunk_audio,
                         processed_signal_length=chunk_lengths,
                         cache_last_channel=cache_last_channel,
@@ -138,9 +138,9 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
                     )
 
         if debug_mode:
-            logging.info(f"Streaming transcriptions: {extract_transcribtions(transcribed_texts)}")
+            logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
 
-    final_streaming_tran = extract_transcribtions(transcribed_texts)
+    final_streaming_tran = extract_transcriptions(transcribed_texts)
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
 
     if compare_vs_offline:

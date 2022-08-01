@@ -51,7 +51,7 @@ def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg
             asr.reset()
             row = json.loads(l.strip())
             asr.read_audio_file(
-                os.path.join("/drive3/datasets/eval3/", row['audio_filepath']), delay, model_stride_in_secs
+                row['audio_filepath'], delay, model_stride_in_secs
             )
             hyp = asr.transcribe(tokens_per_chunk, delay)
             hyps.append(hyp)

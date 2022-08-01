@@ -1280,13 +1280,6 @@ class FramewiseStreamingAudioBuffer:
         else:
             return False
 
-    # def get_valid_out_len(self):
-    #     # TODO: streaming fix here
-    #     if self.step <= 1 or self.buffer_idx >= self.buffer.size(-1):
-    #         return self.streaming_cfg.valid_out_len
-    #     else:
-    #         return None
-
     def __len__(self):
         return len(self.buffer)
 

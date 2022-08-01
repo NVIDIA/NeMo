@@ -394,7 +394,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             self, context_window=context_window, update_config=update_config
         )
 
-    def stream_step(
+    def conformer_stream_step(
         self,
         processed_signal: torch.Tensor,
         processed_signal_length: torch.Tensor = None,
@@ -414,7 +414,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             processed_signal_length: the length of the audios
             cache_last_channel: the cache tensor for last channel layers like MHA
             cache_last_time: the cache tensor for last time layers like convolutions
-            keep_all_outputs: if set to True, the extra outputs specified the encoder.streaming_cfg.valid_out_len would get dropped
+            keep_all_outputs: if set to True, would not drop the extra outputs specified by encoder.streaming_cfg.valid_out_len
             previous_hypotheses: the hypotheses from the previous step for RNNT models
             previous_pred_out: the predicted outputs from the previous step for CTC models
             drop_extra_pre_encoded: number of steps to drop from the beginning of the outputs after the downsampling module. This can be used if extra paddings are added on the left side of the input.
