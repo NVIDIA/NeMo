@@ -23,7 +23,7 @@ trainer:
 exp_manager:
   explicit_log_dir: null
   exp_dir: null
-  name: megatron_nmt
+  name: ${name}
   create_wandb_logger: False
   wandb_logger_kwargs:
     project: null
@@ -36,7 +36,7 @@ exp_manager:
     save_top_k: 10
     mode: min
     always_save_nemo: False # saves nemo file during validation, not implemented for model parallel
-    filename: 'megatron_nmt--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
+    filename: '${name}--{${exp_manager.checkpoint_callback_params.monitor}:.3f}-{step}-{consumed_samples}'
     model_parallel_size: ${multiply:${model.tensor_model_parallel_size}, ${model.pipeline_model_parallel_size}}
 
 model:
@@ -93,7 +93,7 @@ model:
   train_ds:
     src_file_name: null
     tgt_file_name: null
-    dataset_type: 'bin_memmap' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
+    dataset_type: 'text_memmap' # Options ['tarred', 'text', 'bin_memmap', 'text_memmap']
     sampler: 'megatron' # Options ['distributed', 'megatron']. Note megatron samplers do not shuffle across epochs.
     micro_batch_size: ${model.micro_batch_size}
     global_batch_size: ${model.global_batch_size}
