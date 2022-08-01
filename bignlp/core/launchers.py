@@ -9,16 +9,31 @@ import sys
 import uuid
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
+
+import bignlp.utils.job_utils as job_utils
+
+
+BIGNLP_DEBUG = os.getenv("BIGNLP_DEBUG", "False").lower() in ("true", "t", "1")
 
 class AutoLauncher:
-    def __init__(self, folder: Union[str, Path], cluster: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(
+            self, folder: Union[str, Path], job_name: str, cluster: Optional[str] = None, **kwargs: Any
+    ) -> None:
         self.cluster = cluster or self.which()
+        self.cluster = self.cluster.lower()
+
         launchers = self.get_launchers()
         if self.cluster not in launchers:
             raise ValueError(f"AutoLauncher doesn't know any cluster named {self.cluster}")
 
-        self._launcher = launchers[self.cluster](folder)
+        self._launcher = launchers[self.cluster](folder, job_name, **kwargs)
+
+    def launch(
+            self, command_groups: List[List[str]]
+    ) -> str:
+        job_id = self._launcher.launch(command_groups)
+        return job_id
 
     @staticmethod
     def which() -> str:
@@ -28,33 +43,40 @@ class AutoLauncher:
     @staticmethod
     def get_launchers():
         return {
-            "BCM": SlurmLauncher,
-            "BCP": BCPLauncher,
+            "bcm": SlurmLauncher,
+            "bcp": BCPLauncher,
+            "interactive": InteractiveLauncher,
         }
 
 
-class BCPLauncher:
-    """BCP Job launcher"""
-
-    def __init__(self, folder: Union[Path, str], **kwargs: Any) -> None:
+class Launcher:
+    def __init__(self, folder: Union[Path, str], job_name: str):
         self.folder = folder
-        self.parameters = {} # TODO: BCP paramerters
-        self.job_name = self.parameters.get("job_name", "bignlp")
-
-        # TODO: BCP env check
+        self.job_name = job_name
 
     def launch(
             self, command_groups: List[List[str]]
-    ) -> None:
+    ) -> str:
         submission_file_path = self._make_submission_file(
             command_groups
         )
-        self._submit_command(submission_file_path)
+        print(f"Job {self.job_name} submission file created at '{submission_file_path}'.")
+
+        job_id = ""
+        if not BIGNLP_DEBUG:
+            job_id = self._submit_command(submission_file_path)
+        return job_id
+
+    def _submit_command(
+        self, submission_file_path: Path
+    ) -> str:
+        """Submits a set of command groups to the cluster"""
+        raise NotImplementedError
 
     def _make_submission_file(
             self, command_groups: List[List[str]]
     ) -> Path:
-        job_paths = utils.JobPaths(folder=self.folder, job_name=self.job_name)
+        job_paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         folder = job_paths.folder
         folder.mkdir(parents=True, exist_ok=True)
 
@@ -63,37 +85,109 @@ class BCPLauncher:
             f.write(self._make_submission_file_text(command_groups))
         return submission_file_path
 
+
+class InteractiveLauncher(Launcher):
+    def __init__(
+            self, folder: Union[Path, str], job_name: str, **kwargs: Any
+    ) -> None:
+        super().__init__(folder, job_name)
+        self.parameters = kwargs
+
+    def _submit_command(
+        self, submission_file_path: Path
+    ) -> str:
+        """Submits a set of command groups to the cluster"""
+        command_list = self._make_submission_command(submission_file_path)
+        # run
+        job_utils.CommandFunction(command_list, ret_stdout=False, verbose=False)()  # explicit errors
+        return ""
+
+    @staticmethod
+    def _make_submission_command(submission_file_path: Path) -> List[str]:
+        return ["bash", str(submission_file_path)]
+
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
-        paths = utils.JobPaths(folder=self.folder, job_name=self.job_name)
+        nodes = self.parameters.get("nodes", 1)
+        ntasks_per_node = self.parameters.get("ntasks_per_node", 1)
+        assert nodes == 1, "Multi-node is not supported in interactive mode."
+
+        paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
         stdout = str(paths.stdout).replace("_%j", "")
+
         # now create
-        lines = ["#!/bin/bash", "", "# Parameters"]
-        for k in sorted(self.parameters):
-            pass # TODO: add if any
+        lines = ["#!/bin/bash", ""]
+
         # environment setup:
-        setup = self.parameters.get("setup")
+        setup = self.parameters.get("setup", None)
         if setup is not None:
             lines += ["", "# setup"] + setup
-        # commandline (this will run the function and args specified in the file provided as argument)
-        # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
-        stdout_suffix = f" |& tee -a {stdout}"
-        if bcprun_args is None:
-            bcprun_args = []
 
-        for command_group in command_groups:
-            bcprun_cmd = shlex.join(["srun", "--output", stdout, *stderr_flags, *bcprun_args])
-            command = shlex.join(command_group)
+        for group_ind, command_group in enumerate(command_groups):
+            command = ";\n  ".join(command_group)
+            command = command.replace(
+                "python3 -u", f"torchrun --nproc_per_node={ntasks_per_node}"
+            )
+
             lines += [
                 "",
-                "# command",
-                "  \n".join((bcprun_cmd, command)),
+                f"# command {group_ind + 1}",
+                f"bash -c \"",
+                f"  {command} \" 2>&1 | tee -a {stdout}",
                 "",
             ]
         return "\n".join(lines)
 
 
+class BCPLauncher(Launcher):
+    """BCP Job launcher"""
+    def __init__(
+            self, folder: Union[Path, str], job_name: str, **kwargs: Any
+    ) -> None:
+        super().__init__(folder, job_name)
+        self.parameters = kwargs
 
-class SlurmLauncher:
+    def _submit_command(
+        self, submission_file_path: Path
+    ) -> str:
+        """Submits a set of command groups to the cluster"""
+        command_list = self._make_submission_command(submission_file_path)
+        # run
+        job_utils.CommandFunction(command_list, ret_stdout=False, verbose=False)()  # explicit errors
+        return ""
+
+    @staticmethod
+    def _make_submission_command(submission_file_path: Path) -> List[str]:
+        return ["bash", str(submission_file_path)]
+
+    def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
+        nodes = self.parameters.get("nodes", 1)
+        ntasks_per_node = self.parameters.get("ntasks_per_node", 1)
+
+        paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
+        stdout = str(paths.stdout).replace("_%j", "")
+
+        # now create
+        lines = ["#!/bin/bash", ""]
+
+        # environment setup:
+        setup = self.parameters.get("setup", None)
+        if setup is not None:
+            lines += ["", "# setup"] + setup
+
+        for group_ind, command_group in enumerate(command_groups):
+            command = ";\n  ".join(command_group)
+
+            lines += [
+                "",
+                f"# command {group_ind + 1}",
+                f"bcprun -n {nodes} -p {ntasks_per_node} -c \"",
+                f"  {command} \" 2>&1 | tee -a {stdout}",
+                "",
+            ]
+        return "\n".join(lines)
+
+
+class SlurmLauncher(Launcher):
     """Slurm job launcher
     This class is used to hold the parameters to run a job on slurm.
     In practice, it will create a batch file in the specified directory for each job,
@@ -113,24 +207,15 @@ class SlurmLauncher:
                 a list of command to run in sbatch befure running srun
     """
 
-    def __init__(self, folder: Union[Path, str], **kwargs: Any) -> None:
-        self.folder = folder
+    def __init__(
+            self, folder: Union[Path, str], job_name: str, **kwargs: Any
+    ) -> None:
+        super().__init__(folder, job_name)
         self.parameters = {}
+        self._update_parameters(job_name=job_name, **kwargs)
 
-        self._update_parameters(**kwargs)
-        self.job_name = self.parameters.get("job_name", "bignlp")
-
-        if shutil.which("srun") is None:
+        if shutil.which("srun") is None and not BIGNLP_DEBUG:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
-
-    def launch(
-            self, command_groups: List[List[str]]
-    ) -> str:
-        submission_file_path = self._make_submission_file(
-            command_groups
-        )
-        job_id = self._submit_command(submission_file_path)
-        return job_id
 
     @classmethod
     def _equivalence_dict(cls):
@@ -184,8 +269,7 @@ class SlurmLauncher:
             raise ValueError(
                 f"Unavailable parameter(s): {in_valid_parameters}\nValid parameters are:\n  - {string}"
             )
-        # check that new parameters are correct
-        _make_sbatch_string(command_groups=[["nothing to do"]], folder=self.folder, **kwargs)
+
         self.parameters.update(kwargs)
         self.parameters = self._convert_parameters(self.parameters)
 
@@ -195,23 +279,12 @@ class SlurmLauncher:
         """Submits a set of command groups to the cluster"""
         command_list = self._make_submission_command(submission_file_path)
         # run
-        output = utils.CommandFunction(command_list, verbose=False)()  # explicit errors
-        job_id = self._get_job_id_from_submission_command(output)
+        output = job_utils.CommandFunction(command_list, verbose=False)()  # explicit errors
 
-        # self._write_job_id(job.job_id)
+        job_id = ""
+        if output:
+            job_id = _get_job_id_from_submission_command(output)
         return job_id
-
-    def _make_submission_file(
-            self, command_groups: List[List[str]]
-    ) -> Path:
-        job_paths = utils.JobPaths(folder=self.folder, job_name=self.job_name)
-        folder = job_paths.folder
-        folder.mkdir(parents=True, exist_ok=True)
-
-        submission_file_path = job_paths.submission_file
-        with submission_file_path.open("w") as f:
-            f.write(self._make_submission_file_text(command_groups))
-        return submission_file_path
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
         return _make_sbatch_string(
@@ -266,6 +339,7 @@ def _make_sbatch_string(
     mem: Optional[str] = None,
     mem_per_gpu: Optional[str] = None,
     mem_per_cpu: Optional[str] = None,
+    dependency: Optional[str] = None,
     comment: Optional[str] = None,
     constraint: Optional[str] = None,
     exclude: Optional[str] = None,
@@ -273,6 +347,8 @@ def _make_sbatch_string(
     gres: Optional[str] = None,
     exclusive: Optional[Union[bool, str]] = None,
     stderr_to_stdout: bool = False,
+    container_image: Optional[str] = None,
+    container_mounts: Optional[str] = None,
     map_count: Optional[int] = None,  # used internally
     additional_parameters: Optional[Dict[str, Any]] = None,
     srun_args: Optional[Iterable[str]] = None,
@@ -315,6 +391,8 @@ def _make_sbatch_string(
         "additional_parameters",
         "setup",
         "stderr_to_stdout",
+        "container_image",
+        "container_mounts",
         "srun_args",
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
@@ -328,8 +406,8 @@ def _make_sbatch_string(
     if "cpus_per_gpu" in parameters and "gpus_per_task" not in parameters:
         warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
     # add necessary parameters
-    job_name = self.parameters.get("job_name")
-    paths = utils.JobPaths(folder=folder)
+    job_name = parameters.get("job_name")
+    paths = job_utils.JobPaths(folder=folder, job_name=job_name)
     stdout = str(paths.stdout)
     stderr = str(paths.stderr)
     # Job arrays will write files in the form  <ARRAY_ID>_<ARRAY_TASK_ID>_<TASK_ID>
@@ -354,16 +432,19 @@ def _make_sbatch_string(
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
     stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
+    container_flags = ["--container-image", container_image] if container_image else []
+    container_flags += ["--container-mounts", container_mounts] if container_mounts else []
     if srun_args is None:
         srun_args = []
 
-    for command_group in command_groups:
-        srun_cmd = shlex.join(["srun", "--output", stdout, *stderr_flags, *srun_args])
-        command = shlex.join(command_group)
+    for group_ind, command_group in enumerate(command_groups):
+        srun_cmd = shlex.join(["srun", "--output", stdout, *stderr_flags, *container_flags, *srun_args])
+        command = ";\n  ".join(command_group)
         lines += [
             "",
-            "# command",
-            "  \n".join((srun_cmd, command)),
+            f"# command {group_ind + 1}",
+            f"{srun_cmd} bash -c \"",
+            f"  {command} \"",
             "",
         ]
     return "\n".join(lines)
@@ -372,6 +453,8 @@ def _make_sbatch_string(
 def _convert_mem(mem_gb: float) -> str:
     """Convert non-integer mem_gb to unit MB"""
     if mem_gb == int(mem_gb):
+        if int(mem_gb) == 0:
+            return "0"
         return f"{int(mem_gb)}GB"
     return f"{int(mem_gb * 1024)}MB"
 
@@ -383,3 +466,7 @@ def _as_sbatch_flag(key: str, value: Any) -> str:
 
     value = shlex.quote(str(value))
     return f"#SBATCH --{key}={value}"
+
+if __name__ == "__main__": #TODO: delete
+    launcher = BCPLauncher("./test", ntasks_per_node=8, time="00:50:00", dependency="singleton", container_image="abcd", container_mounts="ab:cd")
+    launcher.launch(command_groups=[["whatever;", "it;", "is"], ["whatever;", "it;", "is"]])
