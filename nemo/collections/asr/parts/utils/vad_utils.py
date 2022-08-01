@@ -1045,7 +1045,7 @@ def construct_manifest_eval(
     return aligned_vad_asr_output_manifest
 
 
-def write_ss2manifest(input_manifest, exp, output_manifest="generated_oracle_ss_manifest.json"):
+def write_ss2manifest(input_manifest, exp, output_manifest="generated_oracle_ss_manifest.json", random_vad_ref='oracle_vad'):
     results = []
     for line in open(input_manifest, 'r', encoding='utf-8'):
         sample = json.loads(line)
@@ -1063,7 +1063,7 @@ def write_ss2manifest(input_manifest, exp, output_manifest="generated_oracle_ss_
                 results.append(metadata)
 
         elif exp == "random_vad":
-            speech_segments = torch.load(sample['oracle_vad'])
+            speech_segments = torch.load(sample[random_vad_ref])
             for i in range(len(speech_segments)):
 
                 start, end = None, None

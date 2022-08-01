@@ -128,10 +128,10 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = [0,5,10,15,20,'clean']
+    db_list = [0,5,10,15,20,'clean'] #
     modes = ['offline']
-    langs = ['english', 'mandarin', 'french', 'german',  'spanish', 'russian']
-    vad_exps = ['neural_vad', 'random_vad']
+    langs = ['english']
+    vad_exps = [ 'oracle_vad']
     models = ['nr_citrinet', 'citrinet'] 
 
     shift_length_in_sec = 0.08
@@ -139,7 +139,8 @@ def main():
     # overlap=0.875
     overlap=False
     ref='oracle_vad'
-    
+    random_vad_ref = 'energy_vad'
+
     subset="test"
     single= False # True
     exp = "_single" if single else ""
@@ -253,8 +254,8 @@ def main():
 
                                     if vad_exp=="neural_vad":
                                         params = {
-                                            "onset": 0.7,
-                                            "offset": 0.4,
+                                            "onset": 0.5,
+                                            "offset": 0.3,
                                             "min_duration_on": 0.5,
                                             "min_duration_off": 0.5,
                                             "pad_onset": 0.2,
@@ -306,7 +307,7 @@ def main():
                                         vad_out_manifest_filepath = perform_energy_vad(input_manifest, vad_out_manifest_filepath)
 
                                     else: # random_vad, oracle_vad and energy_oracle_vad
-                                        vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath)
+                                        vad_out_manifest_filepath = write_ss2manifest(input_manifest, vad_exp, vad_out_manifest_filepath, random_vad_ref=random_vad_ref)
 
                                     segmented_output_manifest = os.path.join(mode_lang_folder, "asr_segmented_output_manifest.json")
 
