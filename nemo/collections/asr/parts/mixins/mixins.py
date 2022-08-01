@@ -474,7 +474,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 # TODO: make decoding more efficient by avoiding the decoding process from the beginning
                 if return_transcription:
                     decoded_out = self.decoding.ctc_decoder_predictions_tensor(
-                        decoder_outputs=greedy_predictions_concat.unsqueeze(0), decoder_lengths=encoded_len[preds_idx:preds_idx+1], return_hypotheses=False,
+                        decoder_outputs=greedy_predictions_concat.unsqueeze(0),
+                        decoder_lengths=encoded_len[preds_idx : preds_idx + 1],
+                        return_hypotheses=False,
                     )
                     all_hyp_or_transcribed_texts.append(decoded_out[0][0])
             best_hyp = None

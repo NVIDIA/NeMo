@@ -206,14 +206,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             # the left context for self-attention in chunked_limited mode should be dividable by the right context
             # right context=att_context_size[1]+1, and left_context=self.att_context_size[0]
             if self.att_context_size[0] > 0 and self.att_context_size[0] % (self.att_context_size[1] + 1) > 0:
-                raise ValueError("att_context_size[0] % (att_context_size[0] + 1) should be zero!")
+                raise ValueError("att_context_size[0] % (att_context_size[1] + 1) should be zero!")
             if self.att_context_size[1] < 0:
                 raise ValueError("Right context can not be unlimited for chunked_limited style!")
             self.chunk_size = self.att_context_size[1] + 1
 
             # left_chunks_num specifies the number of chunks to be visible by each chunk on the left side
             if self.att_context_size[0] >= 0:
-                self.left_chunks_num = ((self.att_context_size[0] + 1) / (self.att_context_size[1] + 1)) - 1
+                self.left_chunks_num = self.att_context_size[0] // self.chunk_size
             else:
                 self.left_chunks_num = 100000
 
@@ -345,20 +345,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             self.register_buffer('att_mask', att_mask, persistent=False)
 
     @typecheck()
-    def forward(self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None):
+    def forward(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
-        return self.forward_for_export(
-            audio_signal=audio_signal,
-            length=length,
-            cache_last_channel=cache_last_channel,
-            cache_last_time=cache_last_time,
-        )
-
-    @typecheck()
-    def forward_for_export(self, audio_signal, length, cache_last_channel=None, cache_last_time=None):
         max_audio_length: int = audio_signal.size(-1)
-        if max_audio_length > self.max_audio_length:
-            self.set_max_audio_length(max_audio_length)
+
         if length is None:
             length = audio_signal.new_full(
                 audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
