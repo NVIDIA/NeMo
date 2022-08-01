@@ -1,0 +1,8 @@
+# GPU Numa Mapping Config
+enable: True  # Set to False to disable all mapping (performance will suffer).
+mode: unique_contiguous  # One of: all, single, single_unique, unique_interleaved or unique_contiguous.
+scope: node  # Either node or socket.
+cores: all_logical  # Either all_logical or single_logical.
+balanced: True  # Whether to assing an equal number of physical cores to each process.
+min_cores: 1  # Minimum number of physical cores per process.
+max_cores: 8  # Maximum number of physical cores per process. Can be null to use all available cores.
