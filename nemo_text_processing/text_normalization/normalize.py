@@ -113,9 +113,9 @@ class Normalizer:
             deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
         )
         if lang == 'zh':
-            self.parser = TokenParser()
-        else:
             self.parser = TokenParser_zh()
+        else:
+            self.parser = TokenParser()
         self.lang = lang
 
         self.processor = MosesProcessor(lang_id=lang)
