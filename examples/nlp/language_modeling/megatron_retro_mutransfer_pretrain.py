@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,10 +28,15 @@ from nemo.collections.nlp.parts.nlp_overrides import GradScaler, MegatronHalfPre
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager
+from nemo.core.optim.optimizers import register_optimizer
+from nemo.collections.nlp.modules.common.megatron.mup.optim import MuAdam, MuAdamW
+from nemo.core.config.optimizers import AdamParams, AdamWParams
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_mutransfer")
 def main(cfg) -> None:
+    register_optimizer("muadamw", MuAdamW, AdamWParams())
+    register_optimizer("muadam", MuAdam, AdamParams())
     logging.info("\n\n************** Experiment configuration ***********")
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 

@@ -49,7 +49,7 @@ def process_param_groups(params, **kwargs):
     return param_groups
 
 
-def MuAdam(params, impl=Adam, decoupled_wd=False, **kwargs):
+def MuAdam(params, impl=Adam, decoupled_wd=True, **kwargs):
     '''Adam with μP scaling.
 
     Note for this to work properly, your model needs to have its base shapes set
