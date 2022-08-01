@@ -144,23 +144,14 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
     + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
     + [7.1.2. Training Performance Results](#712-training-performance-results)
     + [7.1.3. Inference Performance](#713-inference-performance)
-      - [7.1.3.1. 5B Model](#7131-5b-model)
-      - [7.1.3.2. 5B Chatbot for Question Answering](#7132-5b-chatbot-for-question-answering)
-      - [7.1.3.3. 5B: Translation and Style Transfer](#7133-5b--translation-and-style-transfer)
-      - [7.1.3.4. Summary for 5B Results](#7134-summary-for-5b-results)
-      - [7.1.3.5. 20B Model](#7135-20b-model)
-      - [7.1.3.6. 20B: Chatbot for Question Answering](#7136-20b--chatbot-for-question-answering)
-      - [7.1.3.7. 20B: Translation and Style Transfer](#7137-20b--translation-and-style-transfer)
-      - [7.1.3.8. Summary for 20B Results](#7138-summary-for-20b-results)
-      - [7.1.3.9. Model Size and Performance](#7139-model-size-and-performance)
-        * [7.1.3.9.1. Online Scenario](#71391-online-scenario)
-        * [7.1.3.9.2. Offline Scenario](#71392-offline-scenario)
   * [7.2. T5 Results](#72-t5-results)
     + [7.2.1. Training Accuracy Results](#721-training-accuracy-results)
     + [7.2.2. Training Performance Results](#722-training-performance-results)
+    + [7.2.3. Inference Performance](#723-inference-performance)
   * [7.3. mT5 Results](#73-mt5-results)
     + [7.3.1. Training Accuracy Results](#731-training-accuracy-results)
     + [7.3.2. Training Performance Results](#732-training-performance-results)
+    + [7.3.3. Inference Performance](#733-inference-performance)
 - [8. Changelog](#8-changelog)
 - [9. Known Issues](#9-known-issues)
 
@@ -3902,235 +3893,21 @@ The tables and charts below show the performance results.
 #### 7.1.3. Inference Performance
 <a id="markdown-inference-performance" name="inference-performance"></a>
 
-The most important factor for NLP model performance is the size of a model. You
-can use a smaller model to get faster inference but it will likely degrade your
-accuracy.
-
-If you know your model size, then there are two parameters you can vary to find
-the best throughput and keep inside a latency budget:
-* Number of GPUs used for one instance of your model.
-* Batch size used during processing requests.
-
-The same model can be executed with different amounts of GPUs and nodes so the
-basic throughput values don't reflect cost of inference like for one GPU model.
-A throughput normalized to one GPU is used as a proxy for cost of inference in
-graphs and tables below.
-
-
-The FasterTransformer hardware configuration is described by two parameters:
-* Tensor parallel (TP) size - number of GPUs used at each node for computation.
-* Pipeline parallel (PP) size - number of nodes used for one instance of model.
-The number of GPUs used for computation is determined by multiplying those two
-numbers. Only easily divisible parts of the whole DGX A100 system was considered
-during tests so it will be easy to deploy a model in a cluster.
-
-The table below contains a summary of used configurations.
-
-| TP | PP | #GPUs | #Nodes | Max GPU RAM \[GB\] |
-| -- | -- | ----- | ------ | ------------------ |
-| 1    | 1    | 1         | 1            | 80                                 |
-| 2    | 1    | 2         | 1            | 160                                |
-| 4    | 1    | 4         | 1            | 320                                |
-| 8    | 1    | 8         | 1            | 640                                |
-| 8    | 2    | 16        | 2            | 1280                             |
-| 8    | 3    | 24        | 3            | 1920                             |
-| 8    | 4    | 32        | 4            | 2560                             |
-
-
-##### 7.1.3.1. 5B Model
-<a id="markdown-b-model" name="b-model"></a>
-
-The 5B model can fit into a single A100 80GB GPU. Still FasterTransformer can
-run 5B model using tensor parallel splitting of model between multiple GPUs and
-pipeline parallel, when different transformer layers are distributed across
-many nodes it gives the possibility to utilize different tradeoffs (e.g.
-latency vs throughput). You can also consider using several DGX nodes in DGX
-SuperPOD as one instance of the FasterTransformer model. You should also
-consider an inference task for your application. Some inference tasks require
-longer token sequence lengths for input and output.
-
-##### 7.1.3.2. 5B Chatbot for Question Answering
-<a id="markdown-b-chatbot-for-question-answering" name="b-chatbot-for-question-answering"></a>
-
-Let us consider a scenario with a chatbot for question answering. It can be
-implemented with FasterTransformer, when sequence length for input tokens is 60
-and output length is 20. Two graphs below show how latency and throughput vary,
-when a certain number of GPUs is used for inference for batch size=1 and for
-batch size=256.
-
-
-<img src="img/5B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
-<img src="img/5B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
-
-If latency achievable at 1-GPU configuration fits within latency budget, then
-the best performance can be derived from the graph below, which shows how
-latency and throughput change for different batch sizes used for computations.
-
-
-<img src="img/5B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
-
-A chatbot with a latency budget within 380 ms can work for batch size=64 and 1
-GPU used for computation.
-
-
-##### 7.1.3.3. 5B: Translation and Style Transfer
-<a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
-
-A translation or style transfer inference task requires input length 200 and
-output length 200.
-
-<img src="img/5B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
-<img src="img/5B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
-
-The graph for 1 GPU with many batch sizes shows what batch size can fit into a
-certain latency budget.
-
-
-<img src="img/5B_GPT_3_of_GPU_1_input_len_200_output_len_200.svg"/>
-
-The graph clearly shows that the translation or style transfer inference task
-with latency budget 2000 milliseconds can be deployed using 1 GPU and batch
-size = 16.
-
-##### 7.1.3.4. Summary for 5B Results
-<a id="markdown-summary-for-5b-results" name="summary-for-5b-results"></a>
-
-The table below contains performance measurements from all graphs for the 5B
-model running in FasterTransformer at DGX A100 80 GB system.
-
-<details>
-
-<summary>
-5B model: Latency and throughput for different number of GPUs and batch sizes.
-</summary>
-
-| GPUs | Latency p99                                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                                    | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
-| ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
-|            | Input len 60 output len 60 |                                                                |                         |                                                                | Input len 200 output len 200 |                                                                |                         |                                                                |
-|            | BS=256                                         |                                                                | BS=1                |                                                                | BS=256                                             |                                                                | BS=1                |                                                                |
-| 1        | 1143                                             | 224                                                        | 172                 | 5.81                                                     | 9048                                                 | 28.3                                                     | 1623                | 0.616                                                    |
-| 2        | 799                                                | 160                                                        | 126                 | 3.95                                                     | 6018                                                 | 21.3                                                     | 1219                | 0.410                                                    |
-| 4        | 529                                                | 121                                                        | 94                    | 2.66                                                     | 3939                                                 | 16.2                                                     | 923                 | 0.271                                                    |
-| 8        | 436                                                | 73                                                         | 115                 | 1.08                                                     | 3154                                                 | 10.1                                                     | 998                 | 0.125                                                    |
-| 16     | 327                                                | 49                                                         | 101                 | 0.62                                                     | 2776                                                 | 5.8                                                        | 977                 | 0.064                                                    |
-| 24     | 273                                                | 39                                                         | 100                 | 0.42                                                     | 2484                                                 | 4.3                                                        | 950                 | 0.044                                                    |
-| 32     | 284                                                | 28                                                         | 95                    | 0.33                                                     | 2517                                                 | 3.2                                                        | 897                 | 0.035                                                    |
-
-</details>
-
-##### 7.1.3.5. 20B Model
-<a id="markdown-b-model" name="b-model"></a>
-
-To improve accuracy a larger model can be used.
-
-##### 7.1.3.6. 20B: Chatbot for Question Answering
-<a id="markdown-b%3A-chatbot-for-question-answering" name="b%3A-chatbot-for-question-answering"></a>
-
-<img src="img/20B_GPT_3_batch_size_1_input_len_60_output_len_20.svg"/>
-<img src="img/20B_GPT_3_batch_size_256_input_len_60_output_len_20.svg"/>
-<img src="img/20B_GPT_3_of_GPU_1_input_len_60_output_len_20.svg"/>
-
-##### 7.1.3.7. 20B: Translation and Style Transfer
-<a id="markdown-b%3A-translation-and-style-transfer" name="b%3A-translation-and-style-transfer"></a>
-
-<img src="img/20B_GPT_3_batch_size_1_input_len_200_output_len_200.svg"/>
-<img src="img/20B_GPT_3_batch_size_256_input_len_200_output_len_200.svg"/>
-<img src="img/20B_GPT_3_of_GPU_4_input_len_200_output_len_200.svg"/>
-
-##### 7.1.3.8. Summary for 20B Results
-<a id="markdown-summary-for-20b-results" name="summary-for-20b-results"></a>
-
-The table below contains performance measurements from all graphs for the 20B
-model running in FasterTransformer at DGX A100 80GB.
-
-<details>
-
-<summary>
-20B model: Latency and throughput for different number of GPUs and batch sizes.
-</summary>
-
-| GPUs | Latency p99                                | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU | Latency p99                                    | Normalized throughput to 1 GPU | Latency p99 | Normalized throughput to 1 GPU |
-| ---- | -------------------------- | ------------------------------ | ----------- | ------------------------------ | ---------------------------- | ------------------------------ | ----------- | ------------------------------ |
-|            | Input len 60 output len 60 |                                                                |                         |                                                                | Input len 200 output len 200 |                                                                |                         |                                                                |
-|            | BS=256                                         |                                                                | BS=1                |                                                                | BS=64,128,256                                |                                                                | BS=1                |                                                                |
-| 1        | 4146                                             | 62                                                         | 560                 | 1.78                                                     | 10772                                                | 5.9                                                        | 5650                | 0.177                                                    |
-| 2        | 2429                                             | 53                                                         | 359                 | 1.39                                                     | 10544                                                | 6.1                                                        | 3548                | 0.141                                                    |
-| 4        | 1592                                             | 40                                                         | 251                 | 1.00                                                     | 10453                                                | 6.1                                                        | 2486                | 0.101                                                    |
-| 8        | 1169                                             | 27                                                         | 230                 | 0.54                                                     | 7909                                                 | 4.0                                                        | 2147                | 0.058                                                    |
-| 16     | 923                                                | 17                                                         | 218                 | 0.29                                                     | 7380                                                 | 2.2                                                        | 2131                | 0.029                                                    |
-| 24     | 758                                                | 14                                                         | 218                 | 0.19                                                     | 6511                                                 | 1.6                                                        | 2123                | 0.020                                                    |
-| 32     | 742                                                | 11                                                         | 224                 | 0.14                                                     | 6200                                                 | 1.3                                                        | 2124                | 0.015                                                    |
-
-</details>
-
-##### 7.1.3.9. Model Size and Performance
-<a id="markdown-model-size-and-performance" name="model-size-and-performance"></a>
-
-###### 7.1.3.9.1. Online Scenario
-<a id="markdown-online-scenario" name="online-scenario"></a>
-
-An online scenario focuses on the minimization of latency. Large checkpoints
-were generated with randomly initialized weights.
-
-<img src="img/Chatbot_Q_A_batch_size_1_input_len_60_output_len_20.svg"/>
-
-<img src="img/Translation_or_style_transfer_batch_size_1_input_len_200_output_len_200.svg"/>
-
-The performance measurements were obtained on DGX A100 80 GB nodes.
-
-<details>
-
-<summary>
-Performance for different model sizes in online scenario
-</summary>
-
-|                                                 | Len input 60 output 20 |                                     |                        |                                                         |                                                                |                                | Len input 200 output 200 |                                     |                        |                                                         |                                                                |                                |
-| ----------------------- | ---------------------- | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
-| Parameters number \[B\] | Latency\[ms\]                    | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs | Latency\[ms\]                        | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs |
-| 5B                                            | 93                                         | 2.68                            | 1                    | 4                                                     | 1                                                            | 4                            | 923                                            | 0.271                         | 1                    | 4                                                     | 1                                                            | 4                            |
-| 13B                                         | 189                                        | 1.32                            | 1                    | 4                                                     | 1                                                            | 4                            | 1893                                         | 0.132                         | 1                    | 4                                                     | 1                                                            | 4                            |
-| 20B                                         | 251                                        | 0.50                            | 1                    | 8                                                     | 1                                                            | 8                            | 2230                                         | 0.056                         | 1                    | 8                                                     | 1                                                            | 8                            |
-| 89B                                         | 464                                        | 0.27                            | 1                    | 8                                                     | 1                                                            | 8                            | 4585                                         | 0.027                         | 1                    | 8                                                     | 1                                                            | 8                            |
-| 175B                                        | 923                                        | 0.14                            | 1                    | 8                                                     | 1                                                            | 8                            | 8873                                         | 0.014                         | 1                    | 8                                                     | 1                                                            | 8                            |
-| 310B                                        | 1354                                     | 0.09                            | 1                    | 8                                                     | 1                                                            | 8                            | 13391                                        | 0.005                         | 1                    | 8                                                     | 2                                                            | 16                         |
-| 530B                                        | 2035                                     | 0.03                            | 1                    | 8                                                     | 3                                                            | 24                         | 21034                                        | 0.002                         | 1                    | 8                                                     | 3                                                            | 24                         |
-
-</details>
-
-###### 7.1.3.9.2. Offline Scenario
-<a id="markdown-offline-scenario" name="offline-scenario"></a>
-
-The offline scenario focuses on maximum throughput. The two graphs below show
-latency and throughput for two tasks. The first one is chatbot questions
-answering and a second one is translation or style transfer.
-
-<img src="img/Chatbot_Q_A_batch_size_256_input_len_60_output_len_20.svg"/>
-
-<img src="img/Translation_or_Style_Transfer_batch_size_max_input_len_200_output_len_200.svg"/>
-
-The chatbot scenario can be executed with batch size equal to 256 for all model
-sizes so it is possible to utilize computing resources in GPUs.
-
-
-<details>
-
-<summary>
-Performance for different model sizes in offline scenario
-</summary>
-
-|                                                 | Len input 60 output 20 |                                     |                        |                                 |                                                                |                                | Len input 200 output 200 |                                     |                        |                                                         |                                                                |                                |
-| ----------------------- | ---------------------- | ----------------- | ---------- | --------------- | ------------------------------ | -------------- | ------------------------ | ----------------- | ---------- | --------------------------- | ------------------------------ | -------------- |
-| Parameters number \[B\] | Latency\[ms\]                    | Infer/sec per GPU | Batch size | Tensor parallel | Pipeline parallel (nodes used) | Number of GPUs | Latency\[ms\]                        | Infer/sec per GPU | Batch size | Tensor parallel (GPUs used) | Pipeline parallel (nodes used) | Number of GPUs |
-| 5B                      | 1143                                     | 224.0                           | 256                | 1                             | 1                                                            | 1                            | 9047                                         | 28.297                        | 256                | 1                                                     | 1                                                            | 1                            |
-| 13B                     | 2756                                     | 92.9                            | 256                | 1                             | 1                                                            | 1                            | 13390                                        | 9.559                         | 256                | 2                                                     | 1                                                            | 2                            |
-| 20B                     | 4145                                     | 61.8                            | 256                | 1                             | 1                                                            | 1                            | 10453                                        | 6.123                         | 256                | 4                                                     | 1                                                            | 4                            |
-| 89B                     | 4686                                     | 22.2                            | 256                | 4                             | 1                                                            | 4                            | 17815                                        | 1.796                         | 256                | 8                                                     | 1                                                            | 8                            |
-| 175B                    | 5728                                     | 15.7                            | 256                | 8                             | 1                                                            | 8                            | 16181                                        | 0.494                         | 64                 | 8                                                     | 1                                                            | 8                            |
-| 310B                    | 6768                                     | 2.4                             | 256                | 8                             | 2                                                            | 16                           | 13686                                        | 0.018                         | 2                  | 8                                                     | 1                                                            | 8                            |
-| 530B                    | 10588                                    | 0.8                             | 256                | 8                             | 3                                                            | 24                           | 21034                                        | 0.002                         | 1                  | 8                                                     | 3                                                            | 24                         |
-
-</details>
-
+Inference performance was measured for NVIDIA DGX SuperPOD (1 x 8 x A100 80GB).
+
+Inference parameters:
+* batch size: 1
+* input tokens length: 60
+* output tokens length: 20
+
+<img src="img/infer_model_size_gpt3.svg"/>
+
+| GPT Model size | Average latency [ms]           | TP | PP | GPUs |
+|----------------|--------------------------------|----|----|------|
+| 5B             |                             87 |  8 |  4 |   32 |
+| 20B            |                            202 |  8 |  4 |   32 |
+| 175B           |                            893 |  8 |  4 |   32 |
+| 530B           |                            977 | 32 |  1 |   32 |
 
 ### 7.2. T5 Results
 <a id="markdown-t5-results" name="t5-results"></a>
@@ -4194,6 +3971,22 @@ speed-up. We are actively working on improving the scaling performance for T5 mo
 
 <img src="img/3B_T5_throughput_2205.svg"/>
 
+#### 7.2.3. Inference Performance
+Inference performance was measured for NVIDIA DGX SuperPOD (1 x 8 x A100 80GB).
+
+Inference parameters:
+* batch size: 1
+* input tokens length: 60
+* output tokens length: 20
+
+<img src="img/infer_model_size_t5.svg"/>
+
+| T5 Model size | Average latency [ms] | TP | PP | GPUs |
+|---------------|----------------------|----|----|------|
+| 3B            |                   94 |  2 |  1 |    2 |
+| 11B           |                  123 |  4 |  1 |    4 |
+| 23B           |                  213 |  4 |  1 |    4 |
+| 41B           |                  332 |  8 |  1 |    8 |
 
 
 ### 7.3. mT5 Results
@@ -4274,6 +4067,23 @@ The table and chart below show the performance results.
 |         | Speed-up                           | 1x	    | 1.97x	  | 3.84x	  |4.69x   	| 8.77x  | 14.87x |
 
 <img src="img/3B_mT5_throughput_2205.svg"/>
+
+#### 7.3.3. Inference Performance
+Inference performance was measured for NVIDIA DGX SuperPOD (1 x 8 x A100 80GB).
+
+Inference parameters:
+* batch size: 1
+* input tokens length: 60
+* output tokens length: 20
+
+<img src="img/infer_model_size_mt5.svg"/>
+
+| mT5 Model size | Average latency [ms] | TP | PP | GPUs |
+|----------------|----------------------|----|----|------|
+| 380M           |                   35 |  1 |  1 |    1 |
+| 3B             |                  102 |  2 |  1 |    2 |
+| 11B            |                  134 |  4 |  1 |    4 |
+| 23B            |                  230 |  4 |  1 |    4 |
 
 
 ## 8. Changelog
