@@ -1,3 +1,5 @@
+set -o xtrace
+
 # Default values
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4/

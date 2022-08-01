@@ -1,3 +1,5 @@
+set -o xtrace
+
 # Default values
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4/
@@ -53,7 +55,7 @@ else
   AMP_O2_FLAG=True
 fi
 
-RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
+export RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
 
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
