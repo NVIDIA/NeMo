@@ -735,6 +735,86 @@ pipeline {
       }
     }
 
+    stage('L2: G2P Models') {
+      when {
+        anyOf {
+          branch 'main'
+          changeRequest target: 'main'
+        }
+      }
+      failFast true
+      parallel {
+        stage('G2P Conformer training, evaluation and inference') {
+          steps {
+            sh 'cd examples/text_processing/g2p && \
+                TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_CONFORMER=output_ctc_${TIME} && \
+                python g2p_train_and_evaluate.py \
+                    train_manifest=/home/TestData/g2p/g2p.json \
+                    validation_manifest=/home/TestData/g2p/g2p.json \
+                    model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
+                    model.tokenizer.dir=/home/TestData/g2p/tokenizer_spe_unigram_v512 \
+                    trainer.max_epochs=1 \
+                    model.max_source_len=64 \
+                    trainer.devices=[0] \
+                    do_training=True \
+                    do_testing=True \
+                    exp_manager.exp_dir=${OUTPUT_DIR_CONFORMER} \
+                    +exp_manager.use_datetime_version=False\
+                    +exp_manager.version=test \
+                    --config-name=g2p_conformer_ctc && \
+                python g2p_inference.py \
+                    pretrained_model=${OUTPUT_DIR_CONFORMER}/G2P-Conformer-CTC/test/checkpoints/G2P-Conformer-CTC.nemo \
+                    manifest_filepath=/home/TestData/g2p/g2p.json \
+                    phoneme_field=text'
+              }
+            }
+            stage('ByT5G2P training, evaluation and inference') {
+              steps {
+                sh 'TRANSFORMERS_OFFLINE=0 && cd examples/text_processing/g2p && \
+                    TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR_T5=output_byt5_${TIME} && \
+                    python g2p_train_and_evaluate.py \
+                        train_manifest=/home/TestData/g2p/g2p.json \
+                        validation_manifest=/home/TestData/g2p/g2p.json \
+                        model.test_ds.manifest_filepath=/home/TestData/g2p/g2p.json \
+                        trainer.max_epochs=1 \
+                        model.max_source_len=64 \
+                        trainer.devices=[1] \
+                        do_training=True \
+                        do_testing=True \
+                        exp_manager.exp_dir=${OUTPUT_DIR_T5} \
+                        +exp_manager.use_datetime_version=False\
+                        +exp_manager.version=test && \
+                    python g2p_inference.py \
+                        pretrained_model=${OUTPUT_DIR_T5}/T5G2P/test/checkpoints/T5G2P.nemo \
+                        manifest_filepath=/home/TestData/g2p/g2p.json \
+                        phoneme_field=text && TRANSFORMERS_OFFLINE=1'
+              }
+            }
+           stage('HeteronymClassificationModel training, evaluation and inference') {
+              steps {
+                sh 'cd examples/text_processing/g2p && \
+                    TIME=`date +"%Y-%m-%d-%T"` && OUTPUT_DIR=output_${TIME} && \
+                    python heteronym_classification_train_and_evaluate.py \
+                        train_manifest=/home/TestData/g2p/heteronym_classification.json \
+                        validation_manifest=/home/TestData/g2p/heteronym_classification.json \
+                        test_manifest=/home/TestData/g2p/heteronym_classification.json \
+                        model.wordids=/home/TestData/g2p/wordids.tsv \
+                        trainer.max_epochs=1 \
+                        model.max_seq_length=64 \
+                        do_training=True \
+                        do_testing=True \
+                        exp_manager.exp_dir=${OUTPUT_DIR} \
+                        +exp_manager.use_datetime_version=False\
+                        +exp_manager.version=test && \
+                    python heteronym_classification_inference.py \
+                        manifest=/home/TestData/g2p/heteronym_classification.json \
+                        pretrained_model=${OUTPUT_DIR}/HeteronymClassification/test/checkpoints/HeteronymClassification.nemo \
+                        output_file=preds.json'
+              }
+            }
+          }
+        }
+
     // TODO: add test once megatron-bert is supported again
     // stage('L2: Multi-GPU Megatron finetuning') {
     //   when {
@@ -2734,7 +2814,7 @@ pipeline {
         trainer.devices=2 \
         trainer.accelerator=gpu \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
+        trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
@@ -2759,36 +2839,36 @@ pipeline {
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-//        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-//        trainer.devices=2 \
-//        trainer.accelerator=gpu \
-//        trainer.log_every_n_steps=1 \
-//        trainer.val_check_interval=10 \
-//        trainer.limit_val_batches=1 \
-//        trainer.accumulate_grad_batches=1 \
-//        trainer.max_steps=20 \
-//        trainer.precision=16 \
-//        trainer.gradient_clip_val=1.0 \
-//        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-//        exp_manager.resume_if_exists=True \
-//        model.tensor_model_parallel_size=2 \
-//        model.optim.name=fused_adam \
-//        model.optim.lr=2e-4 \
-//        model.optim.sched.warmup_steps=2 \
-//        model.optim.sched.constant_steps=2 \
-//        model.optim.sched.min_lr=8e-5 \
-//        model.max_position_embeddings=128 \
-//        model.encoder_seq_length=128 \
-//        model.data.seq_length=128 \
-//        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-//        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-//        model.num_layers=8 \
-//        model.hidden_size=256 \
-//        model.num_attention_heads=8 \
-//        model.activations_checkpoint_method='block' \
-//        model.activations_checkpoint_num_layers=1 \
-//        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-//        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.accelerator=gpu \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=1 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=6 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.tensor_model_parallel_size=2 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -2805,7 +2885,7 @@ pipeline {
         sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
         trainer.devices=2 \
         trainer.log_every_n_steps=1 \
-        trainer.val_check_interval=10 \
+        trainer.val_check_interval=2 \
         trainer.limit_val_batches=2 \
         trainer.accumulate_grad_batches=1 \
         trainer.max_steps=3 \
@@ -2831,36 +2911,36 @@ pipeline {
         model.activations_checkpoint_num_layers=1 \
         model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
         model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
-        // sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
-        // trainer.devices=2 \
-        // trainer.log_every_n_steps=1 \
-        // trainer.val_check_interval=10 \
-        // trainer.limit_val_batches=2 \
-        // trainer.accumulate_grad_batches=1 \
-        // trainer.max_steps=20 \
-        // trainer.precision=16 \
-        // trainer.gradient_clip_val=1.0 \
-        // exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
-        // exp_manager.resume_if_exists=True \
-        // model.pipeline_model_parallel_size=2 \
-        // model.tensor_model_parallel_size=1 \
-        // model.optim.name=fused_adam \
-        // model.optim.lr=2e-4 \
-        // model.optim.sched.warmup_steps=2 \
-        // model.optim.sched.constant_steps=2 \
-        // model.optim.sched.min_lr=8e-5 \
-        // model.max_position_embeddings=128 \
-        // model.encoder_seq_length=128 \
-        // model.data.seq_length=128 \
-        // model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
-        // model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
-        // model.num_layers=8 \
-        // model.hidden_size=256 \
-        // model.num_attention_heads=8 \
-        // model.activations_checkpoint_method='block' \
-        // model.activations_checkpoint_num_layers=1 \
-        // model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
-        // model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
+        sh "python examples/nlp/language_modeling/megatron_gpt_pretraining.py \
+        trainer.devices=2 \
+        trainer.log_every_n_steps=1 \
+        trainer.val_check_interval=2 \
+        trainer.limit_val_batches=2 \
+        trainer.accumulate_grad_batches=1 \
+        trainer.max_steps=6 \
+        trainer.precision=16 \
+        trainer.gradient_clip_val=1.0 \
+        exp_manager.exp_dir=examples/nlp/language_modeling/gpt_pretrain_results \
+        exp_manager.resume_if_exists=True \
+        model.pipeline_model_parallel_size=2 \
+        model.tensor_model_parallel_size=1 \
+        model.optim.name=fused_adam \
+        model.optim.lr=2e-4 \
+        model.optim.sched.warmup_steps=2 \
+        model.optim.sched.constant_steps=2 \
+        model.optim.sched.min_lr=8e-5 \
+        model.max_position_embeddings=128 \
+        model.encoder_seq_length=128 \
+        model.data.seq_length=128 \
+        model.tokenizer.vocab_file=/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json \
+        model.tokenizer.merge_file=/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt \
+        model.num_layers=8 \
+        model.hidden_size=256 \
+        model.num_attention_heads=8 \
+        model.activations_checkpoint_method='block' \
+        model.activations_checkpoint_num_layers=1 \
+        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document,.5,/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document] \
+        model.data.index_mapping_dir=examples/nlp/language_modeling/gpt_index_mappings"
         sh "rm -rf examples/nlp/language_modeling/gpt_pretrain_results"
         sh "rm -rf examples/nlp/language_modeling/gpt_index_mappings"
       }
@@ -3064,10 +3144,14 @@ pipeline {
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
         model.transformer_block_type='pre_ln' \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.respect_document_boundaries=False \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
         model.share_token_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "python examples/nlp/language_modeling/megatron_t5_pretraining.py \
@@ -3091,11 +3175,14 @@ pipeline {
         model.bias_activation_fusion=False \
         model.activations_checkpoint_method='block' \
         model.activations_checkpoint_num_layers=1 \
-        model.transformer_block_type='pre_ln' \
-        model.data.data_prefix=[.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document,.5,/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document] \
+        model.data.data_prefix=[.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.src,.5,/home/TestData/nlp/nmt/toy_data/wmt14-de-en.ref] \
         model.position_embedding_type=relative \
         model.data.index_mapping_dir=examples/nlp/language_modeling/t5_index_mappings \
-        model.data.respect_document_boundaries=False \
+        model.data.data_impl=text_mmap \
+        +model.data.data_impl_kwargs.newline_int=10 \
+        +model.data.data_impl_kwargs.header_lines=0 \
+        +model.data.data_impl_kwargs.workers=null \
+        +model.data.data_impl_kwargs.sort_dataset_paths=False \
         model.share_token_embeddings=False \
         model.share_decoder_tokens_head_embeddings=False"
         sh "rm -rf examples/nlp/language_modeling/t5_pretrain_results"
