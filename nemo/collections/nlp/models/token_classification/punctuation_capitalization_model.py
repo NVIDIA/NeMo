@@ -844,7 +844,10 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             if cfg.cache_dir is None:
                 cache_dir = cfg.cache_dir
             else:
-                cache_dir = Path(cfg.cache_dir).expanduser().resolve().joinpath(*text_file.parents[1:])
+                # If pickled features are saved `cache_dir` not in the same directory with original data files, then
+                # a full path to data directory have to be appended to `cache_dir`. This is done to avoid collisions
+                # cache for different datasets is save to same `cache_dir`.
+                cache_dir = Path(cfg.cache_dir).joinpath('fsroot', *text_file.expanduser().resolve().parts[1:-1])
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
