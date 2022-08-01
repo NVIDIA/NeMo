@@ -32,7 +32,6 @@ model:
   augment_mse_alpha: 1.0
 
   train_ds:
-    manifest_filepath: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/train_clean_100.json"
     sample_rate: ${model.sample_rate}
@@ -40,22 +39,12 @@ model:
     shuffle: true
     num_workers: 8
     pin_memory: false
-    use_start_end_token: true
-    trim_silence: false
-    max_duration: 16.7
-    min_duration: 8.0
-    # tarred datasets
-    is_tarred: false
-    tarred_audio_filepaths: null
-    shuffle_n: 2048
-    # bucketing params
-    bucketing_strategy: "synced_randomized"
-    bucketing_batch_size: null
+    max_duration_content: 16.7
+    min_duration_content: 8.0
     segment_max_duration: 5
     pitch_augment: ${model.pitch_augment}
 
   validation_ds:
-    manifest_filepath: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/dev_clean.json"
     sample_rate: ${model.sample_rate}
@@ -64,7 +53,8 @@ model:
     num_workers: 8
     pin_memory: true
     use_start_end_token: false
-    min_duration: 8.0
+    max_duration_content: 16.7
+    min_duration_content: 8.0
     segment_max_duration: 5
     pitch_augment: ${model.pitch_augment}
 
@@ -147,12 +137,12 @@ model:
 
   optim_backbone:
     _target_: torch.optim.Adam
-    lr: 1e-5
+    lr: 5e-5
     # optimizer arguments
     # betas: [0.9, 0.98]
     sched:
       min_lr: 1e-6
-      warmup_steps: 1000
+      warmup_steps: 2000
   
   optim_downstream:
     _target_: torch.optim.Adam

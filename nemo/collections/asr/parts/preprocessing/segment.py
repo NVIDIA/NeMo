@@ -32,9 +32,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 # This file contains code artifacts adapted from https://github.com/ryanleary/patter
+import math
 import os
 import random
-import math
 
 import librosa
 import numpy as np
