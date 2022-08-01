@@ -150,7 +150,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=encoder_cfg.get('apply_query_key_layer_scaling', True),
                 kv_channels=encoder_kv_channels,
                 init_method=init_method_normal(encoder_cfg.get('init_method_std', 0.02)),
-                scaled_init_method=scaled_init_method_normal(encoder_cfg.get('init_method_std', 0.02), encoder_cfg.num_layers),
+                scaled_init_method=scaled_init_method_normal(
+                    encoder_cfg.get('init_method_std', 0.02), encoder_cfg.num_layers
+                ),
                 encoder_attn_mask_type=AttnMaskType.padding,
                 pre_process=pre_process,
                 post_process=post_process,
@@ -234,7 +236,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 apply_query_key_layer_scaling=decoder_cfg.get('apply_query_key_layer_scaling', True),
                 kv_channels=decoder_kv_channels,
                 init_method=init_method_normal(decoder_cfg.get('init_method_std', 0.02)),
-                scaled_init_method=scaled_init_method_normal(decoder_cfg.get('init_method_std', 0.02), decoder_cfg.num_layers),
+                scaled_init_method=scaled_init_method_normal(
+                    decoder_cfg.get('init_method_std', 0.02), decoder_cfg.num_layers
+                ),
                 decoder_attn_mask_type=AttnMaskType.causal,
                 pre_process=pre_process,
                 post_process=post_process,
