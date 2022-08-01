@@ -450,15 +450,15 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         if isinstance(self, asr_models.EncDecCTCModel):
             log_probs = self.decoder(encoder_output=encoded)
             predictions_tensor = log_probs.argmax(dim=-1, keepdim=False)
-            # if processed_signal_length is not None:
-            #     seq_range = torch.arange(0, encoded.size(2), device=encoded.device)
-            #     pad_mask = seq_range.repeat(encoded_len.size(0), 1) >= encoded_len.unsqueeze(-1)
-            #     predictions_tensor.masked_fill_(pad_mask, value=len(self.decoder.vocabulary))
 
             # Concatenate the previous predictions with the current one to have the full predictions.
             # We drop the extra predictions for each sample by using the lengths returned by the encoder (encoded_len)
             # Then create a list of the predictions for the batch. The predictions can have different lengths because of the paddings.
             greedy_predictions = []
+            if return_transcription:
+                all_hyp_or_transcribed_texts = []
+            else:
+                all_hyp_or_transcribed_texts = None
             for preds_idx, preds in enumerate(predictions_tensor):
                 if encoded_len is None:
                     preds_cur = predictions_tensor[preds_idx]
@@ -473,11 +473,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
                 # TODO: make decoding more efficient by avoiding the decoding process from the beginning
                 if return_transcription:
-                    all_hyp_or_transcribed_texts = self.decoding.ctc_decoder_predictions_tensor(
-                        decoder_outputs=greedy_predictions, decoder_lengths=encoded_len, return_hypotheses=False,
+                    decoded_out = self.decoding.ctc_decoder_predictions_tensor(
+                        decoder_outputs=greedy_predictions_concat.unsqueeze(0), decoder_lengths=encoded_len[preds_idx:preds_idx+1], return_hypotheses=False,
                     )
-                else:
-                    all_hyp_or_transcribed_texts = None
+                    all_hyp_or_transcribed_texts.append(decoded_out[0][0])
             best_hyp = None
         else:
             best_hyp, all_hyp_or_transcribed_texts = self.decoding.rnnt_decoder_predictions_tensor(
