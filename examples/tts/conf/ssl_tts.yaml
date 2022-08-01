@@ -40,7 +40,7 @@ model:
     num_workers: 8
     pin_memory: false
     max_duration_content: 16.7
-    min_duration_content: 8.0
+    min_duration_content: 5.0
     segment_max_duration: 5
     pitch_augment: ${model.pitch_augment}
 
@@ -54,7 +54,7 @@ model:
     pin_memory: true
     use_start_end_token: false
     max_duration_content: 16.7
-    min_duration_content: 8.0
+    min_duration_content: 5.0
     segment_max_duration: 5
     pitch_augment: ${model.pitch_augment}
 
