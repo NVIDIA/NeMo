@@ -875,8 +875,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             global_batch_per_gpu = tokens_enc.size(0)
             encoder_seq_length = tokens_enc.size(1)
         else:
-            global_batch_per_gpu = encoder_input.size(1)
-            encoder_seq_length = encoder_input.size(0)
+            global_batch_per_gpu = encoder_input.size(0)
+            encoder_seq_length = encoder_input.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
