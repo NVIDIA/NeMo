@@ -462,12 +462,15 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     # [b, s] -> [s, b]
                     labels = labels.transpose(0, 1).contiguous()
 
+                    # Set label smoothing to 0 if in eval mode.
+                    label_smoothing = self.label_smoothing if self.training else 0.0
+
                     # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                     if self.fp16_cross_entropy:
                         assert token_logits.dtype == torch.half
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, self.label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, label_smoothing)
                     else:
-                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, self.label_smoothing)
+                        tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, label_smoothing)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
