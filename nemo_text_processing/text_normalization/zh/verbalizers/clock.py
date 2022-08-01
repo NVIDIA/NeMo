@@ -15,13 +15,16 @@ class Clock(GraphFst):
         graph_no_zero = pynini.cross("0","")
 
         graph_digit_no_zero = graph_digit | graph_no_zero
+
+        graph_2_digit_zero_none = pynini.cross("0","") + pynini.cross("0","")
+        graph_2_digit_zero = pynini.cross("00","零")
+
         graph_2_digit_time = (
             (graph_ten + pynutil.insert(UNIT_1e01) + graph_digit_no_zero) | (graph_zero + graph_digit)
         )
-        graph_2_digit_zero_none = pynini.cross("0","") + pynini.cross("0","")
-        graph_2_digit_zero = pynini.cross("00","零")
         h = graph_2_digit_time | graph_2_digit_zero | graph_digit
         m = graph_2_digit_time | graph_2_digit_zero
+        s = graph_2_digit_time | graph_2_digit_zero
 
         # 6:25
         h_m = (
@@ -43,7 +46,7 @@ class Clock(GraphFst):
             delete_space + \
             pynutil.delete("m: \"") + m + pynutil.insert("分")+ pynutil.delete("\"") + \
             delete_space + \
-            pynutil.delete("s: \"") + (graph_2_digit_time) + pynutil.insert("秒") + pynutil.delete("\"")
+            pynutil.delete("s: \"") + s + pynutil.insert("秒") + pynutil.delete("\"")
         )
 
         graph = h_m | h_m_s | h_00
