@@ -94,8 +94,11 @@ class NLPDDPPlugin(DDPPlugin):
             Sets find_unused_parameters to False to use activation-checkpoint-recomputation.
         """
 
-        if hasattr(self.model, 'megatron_amp_o2'):
+        if hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2:
             # do not use DDP if using megatron amp O2
+            self._model = LightningDistributedModule(self.model)
+        elif hasattr(self.model, 'distributed_fused_adam') and self.model.distributed_fused_adam:
+            # do not use DDP if using distributed optimizer
             self._model = LightningDistributedModule(self.model)
         else:
             app_state = AppState()
