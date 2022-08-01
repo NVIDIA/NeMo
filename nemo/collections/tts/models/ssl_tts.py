@@ -18,10 +18,30 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
-
+import editdistance
 
 def decode(tokenizer, token_list):
     return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
+
+class GreedyCTCDecoder(torch.nn.Module):
+    def __init__(self, labels, blank=0):
+        super().__init__()
+        self.labels = labels
+        self.blank = blank
+
+    def forward(self, emission):
+        """Given a sequence emission over labels, get the best path
+        Args:
+          emission (Tensor): Logit tensors. Shape `[num_seq, num_label]`.
+
+        Returns:
+          List[str]: The resulting transcript
+        """
+        indices = torch.argmax(emission, dim=-1)  # [num_seq,]
+        indices = torch.unique_consecutive(indices, dim=-1)
+        indices = [i for i in indices if i != self.blank]
+        joined = "".join([self.labels[i] for i in indices])
+        return indices, joined
 
 
 class SSLDisentangler(ModelPT):
@@ -54,6 +74,8 @@ class SSLDisentangler(ModelPT):
                 self.pitch_augment = self._cfg.get('pitch_augment', False)
                 if self.pitch_augment:
                     self.mse_loss = nn.MSELoss()
+                
+                self.ctc_decoder = GreedyCTCDecoder(self._text_tokenizer.tokens, self._text_tokenizer.blank)
 
         self.automatic_optimization = False
 
@@ -384,10 +406,24 @@ class SSLDisentangler(ModelPT):
                     content_loss += self._cfg.augment_mse_alpha * mse_loss
 
                 loss_total += content_loss
-                pred_char_batch = torch.argmax(content_log_probs, dim=2)
-                pred_char_batch = pred_char_batch.permute(1, 0)
-                pred_char = decode(self._text_tokenizer, pred_char_batch[0].tolist())
-                target_char = decode(self._text_tokenizer, target[0].tolist())
+                cers = []
+                for _idx in range(target.shape[0]):
+                    item_log_prob = content_log_probs[:,_idx,:][:encoded_len[_idx]].cpu()
+                    item_target = target[_idx][:target_len[_idx]].cpu()
+                    _, predicted_str = self.ctc_decoder(item_log_prob)
+                    target_str = decode(self._text_tokenizer, item_target.tolist())
+                    
+                    ed = editdistance.eval(predicted_str,target_str)
+                    if max(len(predicted_str),len(target_str)) > 0:
+                        normalized_ed = (1.0 * ed)/max(len(predicted_str),len(target_str))
+                    else:
+                        normalized_ed = 1.0
+                    cers.append(normalized_ed)
+
+                # pred_char_batch = torch.argmax(content_log_probs, dim=2)
+                # pred_char_batch = pred_char_batch.permute(1, 0)
+                # pred_char = decode(self._text_tokenizer, pred_char_batch[0].tolist())
+                # target_char = decode(self._text_tokenizer, target[0].tolist())
 
         return {
             'val_loss': loss_total.cpu(),
@@ -395,6 +431,7 @@ class SSLDisentangler(ModelPT):
             'ctc_loss': ctc_loss.cpu(),
             'content_loss': content_loss.cpu(),
             'accuracy_sv': acc_val.cpu(),
+            'cer': torch.tensor(cers).mean().cpu()
         }
 
     def validation_epoch_end(self, outputs):
@@ -404,8 +441,10 @@ class SSLDisentangler(ModelPT):
         val_ctc_loss = collect("ctc_loss")
         val_content_loss = collect("content_loss")
         accuracy_sv = collect("accuracy_sv")
+        cer = collect("cer")
         self.log("val_loss", val_loss)
         self.log("sv_loss", val_sv_loss)
         self.log("val_ctc_loss", val_ctc_loss)
         self.log("val_content_loss", val_content_loss)
         self.log("accuracy_sv", accuracy_sv)
+        self.log("cer", cer)
