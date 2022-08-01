@@ -72,7 +72,7 @@ build-BigNLP:
     - export RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
-    - bash tests/ci_tests/selene/release_perf/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
+    - bash tests/ci_tests/selene/release_perf/scripts/${RUN_MODEL}/train_${RUN_MODEL}_model.sh
     # Wait for job to launch
     - sleep 10s # Without this, "sacct" in jobstate.sh does not always find the SLURM job.
     - export SLURM_JOBID=$(grep 'Submitted batch job' "${RESULTS_DIR}/launcher.log" | awk '{ print $4 }')
