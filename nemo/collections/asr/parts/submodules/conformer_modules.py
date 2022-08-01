@@ -184,11 +184,14 @@ class ConformerConvolution(nn.Module):
             the paper.
     """
 
-    def __init__(self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'):
+    def __init__(
+        self, d_model, kernel_size, norm_type='batch_norm', conv_context_size=None, pointwise_activation='glu_'
+    ):
         super(ConformerConvolution, self).__init__()
         assert (kernel_size - 1) % 2 == 0
         self.d_model = d_model
         self.kernel_size = kernel_size
+        self.norm_type = norm_type
 
         if pointwise_activation in activation_registry:
             self.pointwise_activation = activation_registry[pointwise_activation]()
