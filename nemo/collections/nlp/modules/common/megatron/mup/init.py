@@ -225,7 +225,7 @@ try:
         return constant_std_init_(tensor, sampler_)
 
 
-except:
+except (ImportError, ModuleNotFoundError):
     warnings.warn(
         'Failed to import _no_grad_trunc_normal_ from torch.nn.init; '
         'you might be running an older version of torch. trunc_normal_ will not work.'
@@ -233,4 +233,3 @@ except:
 
     def trunc_normal_(tensor, mean=0, std=1, a=-2, b=2):
         warnings.warn('Please upgrade your Pytorch version before using truncated normal.')
-        pass
