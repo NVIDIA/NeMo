@@ -3252,6 +3252,7 @@ pipeline {
         model.encoder.num_layers=4 \
         model.decoder.num_layers=1 \
         model.encoder.hidden_size=64 \
+        model.decoder.hidden_size=64 \
         model.encoder.num_attention_heads=8 \
         model.decoder.ffn_hidden_size=2048 \
         model.encoder.activation='gelu' \
@@ -3279,6 +3280,7 @@ pipeline {
         model.encoder.num_layers=4 \
         model.decoder.num_layers=1 \
         model.encoder.hidden_size=64 \
+        model.decoder.hidden_size=64 \
         model.encoder.num_attention_heads=8 \
         model.decoder.ffn_hidden_size=2048 \
         model.encoder.activation='gelu' \
