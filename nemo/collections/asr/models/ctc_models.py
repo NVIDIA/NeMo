@@ -544,15 +544,11 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-        if len(encoder_output) == 2:
-            return (
-                log_probs,
-                encoded_len,
-                greedy_predictions,
-            )
-        else:
-            # when caches are returned. Used for streaming inference,
-            return log_probs, encoded_len, greedy_predictions, encoder_output[2], encoder_output[3]
+        return (
+            log_probs,
+            encoded_len,
+            greedy_predictions,
+        )
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):

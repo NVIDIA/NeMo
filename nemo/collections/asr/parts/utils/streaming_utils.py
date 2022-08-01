@@ -1254,10 +1254,9 @@ class FramewiseStreamingAudioBuffer:
             audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
 
             if self.online_normalization:
-                # TODO: FIX for batches
                 audio_chunk, x_mean, x_std = normalize_batch(
                     x=audio_chunk,
-                    seq_len=torch.tensor([audio_chunk.size(-1)]),
+                    seq_len=torch.tensor([audio_chunk.size(-1)]*audio_chunk.size(0)),
                     normalize_type=self.model_normalize_type,
                 )
 
