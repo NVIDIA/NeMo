@@ -37,6 +37,8 @@ import time
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
@@ -191,10 +193,10 @@ def create_masked_lm_predictions(
     geometric_dist=False,
     masking_style="bert",
     tokenizer_type="wordpiece",
+    skip_masking_id=None,
 ):
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
-
     if not geometric_dist and mean_ngram_size is not None:
         raise ValueError(f"Mean ngram size is only supported for geometric distribution.")
 
@@ -203,8 +205,10 @@ def create_masked_lm_predictions(
     # the starting piece of current token, where 1 means true, so that
     # on-the-fly whole word masking is possible.
     token_boundary = [0] * len(tokens)
-
+    skip_mask_idx = None # Store the index of token that cannot be masked.
     for (i, token) in enumerate(tokens):
+        if token == skip_masking_id:
+            skip_mask_idx = i
         if token == cls_id or token == sep_id:
             token_boundary[i] = 1
             continue
@@ -242,9 +246,13 @@ def create_masked_lm_predictions(
 
     ngram_indexes = []
     for idx in range(len(cand_indexes)):
-        ngram_index = []
+        ngram_index = {}
         for n in ngrams:
-            ngram_index.append(cand_indexes[idx : idx + n])
+            # Skip this ngram if it contains the index of token that should not be masked.
+            # TODO: (sandeepsub) Generalize this to be a list of tokens that cannot be masked.
+            if skip_mask_idx is not None and skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+                continue
+            ngram_index[n] = cand_indexes[idx : idx + n]
         ngram_indexes.append(ngram_index)
 
     np_rng.shuffle(ngram_indexes)
@@ -258,15 +266,18 @@ def create_masked_lm_predictions(
             continue
         # Note(mingdachen):
         # Skip current piece if they are covered in lm masking or previous ngrams.
-        for index_set in cand_index_set[0]:
+        for index_set in cand_index_set[1]:
             for index in index_set:
                 if index in covered_indexes:
                     continue
 
         if not geometric_dist:
+            # Not all ngrams are available because of skip_masking_id that prevents a certain ID from being masked.
+            available_ngrams = list(cand_index_set.keys())
+            pvals_current = np.array([pvals[n] for n in available_ngrams])
             n = np_rng.choice(
-                ngrams[: len(cand_index_set)],
-                p=pvals[: len(cand_index_set)] / pvals[: len(cand_index_set)].sum(keepdims=True),
+                available_ngrams,
+                p=pvals_current / pvals_current.sum(keepdims=True),
             )
         else:
             # Sampling "n" from the geometric distribution and clipping it to
@@ -276,8 +287,11 @@ def create_masked_lm_predictions(
             # The expectation of a geometric distribution is E[X] = 1 / p
             p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
             n = min(np_rng.geometric(p), max_ngram_size)
-
-        index_set = sum(cand_index_set[n - 1], [])
+            # n may not be in the candidate index set because of skip_masking_id.
+            # we try to find the nearest one in the candidate index set.
+            if n not in cand_index_set:
+                n = _truncate_to_nearest(cand_index_set, n)
+        index_set = sum(cand_index_set[n], [])
         n -= 1
         # Note(mingdachen):
         # Repeatedly looking for a candidate that does not exceed the
@@ -285,7 +299,8 @@ def create_masked_lm_predictions(
         while len(masked_lms) + len(index_set) > num_to_predict:
             if n == 0:
                 break
-            index_set = sum(cand_index_set[n - 1], [])
+            if n - 1 in cand_index_set:
+                index_set = sum(cand_index_set[n - 1], [])
             n -= 1
         # If adding a whole-word mask would exceed the maximum number of
         # predictions, then just skip this candidate.
@@ -329,6 +344,8 @@ def create_masked_lm_predictions(
 
     select_indexes = set()
     if permutation:
+        if skip_masking_id is not None:
+            raise ValueError(f"permutation=True is not supported when skip_masking_id is not None.")
         for cand_index_set in ngram_indexes:
             if len(select_indexes) >= num_to_predict:
                 break
@@ -386,6 +403,14 @@ def create_masked_lm_predictions(
         masked_lm_labels.append(p.label)
     return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
 
+def _truncate_to_nearest(cand_index_set, n):
+    min_dist = 9999
+    for key in cand_index_set:
+        if abs(key - n) < min_dist:
+            n = key
+            min_dist = abs(key - n)
+    
+    return n
 
 def create_extreme_masked_lm_predictions(
     tokens,
@@ -397,6 +422,7 @@ def create_extreme_masked_lm_predictions(
     min_ngram_size=2,
     mean_ngram_size=5,
     span_length_distribution=LengthDistribution.uniform,
+    skip_masking_id=None,
 ):
     """Creates the predictions for the extreme span-masking UL2 objective.
     Note: Tokens here are vocab ids and not text tokens."""
@@ -414,11 +440,22 @@ def create_extreme_masked_lm_predictions(
         pvals = np.array([1.0 / (max_ngram_size - min_ngram_size + 1)] * (max_ngram_size - min_ngram_size + 1))
 
     ngram_indexes = []
+    if skip_masking_id is not None:
+        skip_mask_idx = None
+        for idx in range(len(tokens)):
+            if tokens[idx] == skip_masking_id:
+                skip_mask_idx = idx
+                break
+
     cand_indexes = [[i] for i in range(len(tokens))]
     for idx in range(len(cand_indexes)):
-        ngram_index = []
+        ngram_index = {}
         for n in ngrams:
-            ngram_index.append(cand_indexes[idx : idx + n])
+            # Skip this ngram if it contains the index of token that should not be masked.
+            # TODO: (sandeepsub) Generalize this to be a list of tokens that cannot be masked.
+            if skip_mask_idx is not None and skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+                continue
+            ngram_index[n] = cand_indexes[idx : idx + n]
         ngram_indexes.append(ngram_index)
 
     np_rng.shuffle(ngram_indexes)
@@ -432,15 +469,17 @@ def create_extreme_masked_lm_predictions(
             continue
         # Note(mingdachen):
         # Skip current piece if they are covered in lm masking or previous ngrams.
-        for index_set in cand_index_set[0]:
+        for index_set in cand_index_set[min_ngram_size]:
             for index in index_set:
                 if index in covered_indexes:
                     continue
 
         if span_length_distribution == LengthDistribution.uniform:
+            available_ngrams = list(cand_index_set.keys())
+            pvals_current = np.array([pvals[n] for n in available_ngrams])
             n = np_rng.choice(
-                ngrams[: len(cand_index_set)],
-                p=pvals[: len(cand_index_set)] / pvals[: len(cand_index_set)].sum(keepdims=True),
+                available_ngrams,
+                p=pvals_current / pvals_current.sum(keepdims=True),
             )
         elif span_length_distribution == LengthDistribution.geometric:
             # Sampling "n" from the geometric distribution and clipping it to
@@ -449,14 +488,21 @@ def create_extreme_masked_lm_predictions(
 
             # The expectation of a geometric distribution is E[X] = 1 / p
             p = 1 / mean_ngram_size if mean_ngram_size is not None else 0.2
-            n = np_rng.geometric(p)
+            n = min(np_rng.geometric(p), max_ngram_size)
+            # n may not be in the candidate index set because of skip_masking_id.
+            # we try to find the nearest one in the candidate index set.
+            if n not in cand_index_set:
+                n = _truncate_to_nearest(cand_index_set, n)
             n = int(np.clip(n, min_ngram_size, max_ngram_size))
         elif span_length_distribution == LengthDistribution.truncated_normal:
             # Sampling "n" from a truncated normal distribution.
             mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
             n = int(np.clip(np_rng.normal(loc=mu, scale=np.sqrt(mu)), min_ngram_size, max_ngram_size))
+            if n not in cand_index_set:
+                n = _truncate_to_nearest(cand_index_set, n)
+                n = int(np.clip(n, min_ngram_size, max_ngram_size))
 
-        index_set = sum(cand_index_set[n - min_ngram_size], [])
+        index_set = sum(cand_index_set[n], [])
         n -= 1
         # Note(mingdachen):
         # Repeatedly looking for a candidate that does not exceed the
@@ -464,7 +510,8 @@ def create_extreme_masked_lm_predictions(
         while len(masked_lms) + len(index_set) > num_to_predict:
             if n < min_ngram_size:
                 break
-            index_set = sum(cand_index_set[n - min_ngram_size], [])
+            if n in cand_index_set:
+                index_set = sum(cand_index_set[n], [])
             n -= 1
 
         # If adding a whole-word mask would exceed the maximum number of
@@ -529,6 +576,14 @@ def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels
     return tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np
 
 
+def make_text_memmap_bin_compatibility(text_memmap_ds):
+    """Make a TextMemMapDataset compatible with binary memmap."""
+    text_memmap_ds.doc_idx = np.arange(len(text_memmap_ds) + 1, dtype=np.int64)
+    text_memmap_ds.sizes = np.ones(len(text_memmap_ds), dtype=np.int32)
+
+    return text_memmap_ds
+
+
 def build_train_valid_test_datasets(
     cfg,
     trainer,
@@ -553,7 +608,23 @@ def build_train_valid_test_datasets(
     favor_long_ngrams=False,
     delete_mask_prob=0,
     respect_document_boundaries=True,
+    data_impl_kwargs={},
 ):
+    # for VSC and text memmap we need to provide a tokenizer, if not given
+    if data_impl in ["text_mmap", "csv_mmap"]:
+        if "tokenizer" not in data_impl_kwargs:
+            if isinstance(data_impl_kwargs, DictConfig):
+                data_impl_kwargs = OmegaConf.to_object(data_impl_kwargs)
+            else:
+                # prevent updating the default
+                data_impl_kwargs = data_impl_kwargs.copy()
+
+            data_impl_kwargs["tokenizer"] = tokenizer
+
+    if not respect_document_boundaries and data_impl_kwargs != {}:
+        raise ValueError(
+            "respect_document_boundaries=False is not compatible with text_memmap and csv_memmap (data_impl_kwargs != {})"
+        )
 
     if len(data_prefix) == 1:
         return _build_train_valid_test_datasets(
@@ -580,11 +651,13 @@ def build_train_valid_test_datasets(
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
+            data_impl_kwargs=data_impl_kwargs,
         )
     # Blending dataset.
     # Parse the values.
     output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)
     prefixes, weights, datasets_train_valid_test_num_samples = output
+    train_n, valid_n, test_n = map(sum, zip(*datasets_train_valid_test_num_samples))
 
     # Build individual datasets.
     train_datasets = []
@@ -615,6 +688,7 @@ def build_train_valid_test_datasets(
             favor_long_ngrams=favor_long_ngrams,
             delete_mask_prob=delete_mask_prob,
             respect_document_boundaries=respect_document_boundaries,
+            data_impl_kwargs=data_impl_kwargs,
         )
         if train_ds:
             train_datasets.append(train_ds)
@@ -626,13 +700,13 @@ def build_train_valid_test_datasets(
         # Blend.
     blending_train_dataset = None
     if train_datasets:
-        blending_train_dataset = BlendableDataset(train_datasets, weights)
+        blending_train_dataset = BlendableDataset(train_datasets, weights, train_n)
     blending_valid_dataset = None
     if valid_datasets:
-        blending_valid_dataset = BlendableDataset(valid_datasets, weights)
+        blending_valid_dataset = BlendableDataset(valid_datasets, weights, valid_n)
     blending_test_dataset = None
     if test_datasets:
-        blending_test_dataset = BlendableDataset(test_datasets, weights)
+        blending_test_dataset = BlendableDataset(test_datasets, weights, test_n)
 
     return (blending_train_dataset, blending_valid_dataset, blending_test_dataset)
 
@@ -661,16 +735,17 @@ def _build_train_valid_test_datasets(
     favor_long_ngrams=False,
     delete_mask_prob=0,  # This flag is used in BART only, and will not have effect on T5/BERT
     respect_document_boundaries=True,
+    data_impl_kwargs={},
 ):
 
     if dataset_type not in DSET_TYPES:
         raise ValueError("Invalid dataset_type: ", dataset_type)
 
     # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup)
+    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs)
 
-    if dataset_type == DSET_TYPE_ICT:
-        title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
+    # if dataset_type == DSET_TYPE_ICT:
+    #     title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
 
     # Get start and end indices of train/valid/train into doc-idx
     # Note that doc-idx is desinged to be num-docs + 1 so we can
@@ -709,13 +784,15 @@ def _build_train_valid_test_datasets(
         dataset = None
         if splits[index + 1] > splits[index]:
             # Get the pointer to the original doc-idx so we can set it later.
-            doc_idx_ptr = indexed_dataset.get_doc_idx()
+            if hasattr(indexed_dataset, 'get_doc_idx'):
+                doc_idx_ptr = indexed_dataset.get_doc_idx()
             # Slice the doc-idx
             start_index = splits[index]
             # Add +1 so we can index into the dataset to get the upper bound.
             end_index = splits[index + 1] + 1
             # New doc_idx view.
-            indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
+            if hasattr(indexed_dataset, 'set_doc_idx'):
+                indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
             # Build the dataset accordingly.
             kwargs = dict(
                 name=name,
@@ -857,7 +934,8 @@ def _build_train_valid_test_datasets(
                 raise NotImplementedError("Dataset type not fully implemented.")
 
             # Set the original pointer so dataset remains the main dataset.
-            indexed_dataset.set_doc_idx(doc_idx_ptr)
+            if hasattr(indexed_dataset, 'set_doc_idx'):
+                indexed_dataset.set_doc_idx(doc_idx_ptr)
             # Checks.
             assert indexed_dataset.doc_idx[0] == 0
             assert indexed_dataset.doc_idx.shape[0] == (total_num_of_documents + 1)
@@ -870,12 +948,16 @@ def _build_train_valid_test_datasets(
     return (train_dataset, valid_dataset, test_dataset)
 
 
-def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
+def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={}):
 
     logging.info(' > building dataset index ...')
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup)
+    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
+    if data_impl in ['text_mmap', 'csv_mmap']:
+        # make csv/text memmap compatible with Megatron sampling
+        make_text_memmap_bin_compatibility(indexed_dataset)
+
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
     logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
 
@@ -923,7 +1005,7 @@ def get_samples_mapping(
     indexmap_filename += '.npy'
 
     # Build the indexed mapping if not exist.
-    if torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
+    if not os.path.isfile(indexmap_filename):
         print(
             ' > WARNING: could not find index map file {}, building '
             'the indices on rank 0 ...'.format(indexmap_filename)
@@ -934,10 +1016,12 @@ def get_samples_mapping(
         assert indexed_dataset.sizes.dtype == np.int32
 
         # Build samples mapping
-        verbose = torch.distributed.get_rank() == 0
+        # verbose = torch.distributed.get_rank() == 0
+        verbose = True
         start_time = time.time()
         logging.info(' > building samples index mapping for {} ...'.format(name))
         # First compile and then import.
+        '''
         try:
             if is_global_rank_zero():
                 compile_helper()
@@ -946,7 +1030,7 @@ def get_samples_mapping(
             raise ImportError(
                 f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
             )
-
+        '''
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
             indexed_dataset.sizes,
@@ -966,6 +1050,7 @@ def get_samples_mapping(
             ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
         )
 
+    '''
     torch.distributed.barrier()
     counts = torch.cuda.LongTensor([1])
     torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group())
@@ -974,7 +1059,7 @@ def get_samples_mapping(
         torch.distributed.get_world_size()
         // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
     )
-
+    '''
     # Load indexed dataset.
     logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
     start_time = time.time()
