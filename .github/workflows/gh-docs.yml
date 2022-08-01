@@ -4,6 +4,16 @@ on:
   pull_request:
     paths:
       - "**"
+
+# Set the access for individual scopes, or use permissions: write-all
+permissions:
+  pull-requests: write
+  issues: write
+  repository-projects: write
+  deployments: write
+  pages: write
+
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
