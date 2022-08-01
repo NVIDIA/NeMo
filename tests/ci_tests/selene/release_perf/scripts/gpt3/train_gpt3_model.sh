@@ -4,7 +4,7 @@ set -o xtrace
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 PRECISION=${PRECISION:-bf16}
-ACTIVATIONS_CHECKPOINT_NUM_LAYERS=:null
+ACTIVATIONS_CHECKPOINT_NUM_LAYERS=null
 CREATE_CHECKPOINT_CALLBACK_FLAG=False
 
 case $RUN_MODEL_SIZE in

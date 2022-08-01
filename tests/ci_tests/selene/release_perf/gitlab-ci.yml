@@ -505,7 +505,7 @@ train.gpt3.5b_tp2_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "4:00:00"
@@ -519,7 +519,7 @@ train.gpt3.5b_tp4_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "4:00:00"
@@ -533,7 +533,7 @@ train.gpt3.5b_tp8_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: gpt3
     RUN_MODEL_SIZE: 5b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 8
     PP_SIZE: 1
     TIME_LIMIT: "4:00:00"
@@ -843,7 +843,7 @@ train.t5.3b_tp2_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -858,7 +858,7 @@ train.t5.3b_tp4_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -872,7 +872,7 @@ train.t5.3b_tp8_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 8
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -928,7 +928,7 @@ train.t5.3b_tp2_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -942,7 +942,7 @@ train.t5.3b_tp4_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -956,7 +956,7 @@ train.t5.3b_tp8_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: t5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 8
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1267,7 +1267,7 @@ train.mt5.3b_tp2_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1281,7 +1281,7 @@ train.mt5.3b_tp4_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1295,7 +1295,7 @@ train.mt5.3b_tp8_pp1_1node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 1
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 8
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1351,7 +1351,7 @@ train.mt5.3b_tp2_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 2
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1365,7 +1365,7 @@ train.mt5.3b_tp4_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1379,7 +1379,7 @@ train.mt5.3b_tp8_pp1_4node_fp16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 8
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"
@@ -1407,7 +1407,7 @@ train.mt5.3b_tp4_pp1_4node_bf16_O1_100steps:
     RUN_MODEL: mt5
     RUN_MODEL_SIZE: 3b
     NUM_NODES: 4
-    PRECISION: fp16
+    PRECISION: 16
     TP_SIZE: 4
     PP_SIZE: 1
     TIME_LIMIT: "3:00:00"

@@ -3,6 +3,7 @@ set -o xtrace
 # Default values
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4
+PREPROCESSED_DIR=
 PRECISION=${PRECISION:-bf16}
 CREATE_CHECKPOINT_CALLBACK_FLAG=False
 TOKENIZER_MODEL=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4/mt5_tokenizer.model
@@ -28,13 +29,13 @@ case $RUN_MODEL_SIZE in
     ;;
 
   11b)
-    NUM_NODES=${NUM_NODES:20}
+    NUM_NODES=${NUM_NODES:-20}
     TP_SIZE=${TP_SIZE:-4}
     PP_SIZE=${PP_SIZE:-1}
     ;;
 
   23b)
-    NUM_NODES=${NUM_NODES:40}
+    NUM_NODES=${NUM_NODES:-40}
     TP_SIZE=${TP_SIZE:-4}
     PP_SIZE=${PP_SIZE:-2}
     ;;
@@ -77,6 +78,7 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     cluster.job_name_prefix="${SLURM_ACCOUNT}-bignlp_ci:" \
     training.run.name=${RUN_NAME} \
     training.run.time_limit=${TIME_LIMIT} \
+    training.run.preprocessed_dir=${DATA_DIR} \
     training.trainer.num_nodes=${NUM_NODES} \
     training.trainer.max_steps=${MAX_STEPS} \
     training.trainer.log_every_n_steps=${LOG_EVERY_N_STEPS} \
