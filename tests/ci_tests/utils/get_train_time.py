@@ -17,4 +17,4 @@ if __name__ == '__main__':
     with open(train_time_file, "w") as out_file:
         json.dump(train_metrics, out_file)
 
-    print(f" ****** Release Performance timeline logged in  {train_metrics_file}", flush=True)
+    print(f" ****** Release Performance timeline logged in  {train_time_file}", flush=True)

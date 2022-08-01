@@ -2,7 +2,7 @@ set -o xtrace
 
 # Default values
 MAX_STEPS=100
-DATA_DIR=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4/
+DATA_DIR=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4
 PRECISION=${PRECISION:-bf16}
 CREATE_CHECKPOINT_CALLBACK_FLAG=False
 TOKENIZER_MODEL=/lustre/fsw/swdl/swdl-langspeech/datasets/data/BigNLP/mC4/mt5_tokenizer.model
