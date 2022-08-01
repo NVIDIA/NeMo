@@ -689,7 +689,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dataset_paths=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1), 
+                min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
@@ -705,7 +705,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dataset_paths=self.cfg.data.validation_ds,
                 batch_size=self.cfg.global_batch_size,
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1), 
+                min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=True,
@@ -721,7 +721,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 dataset_paths=self.cfg.data.test_ds,
                 batch_size=self.cfg.global_batch_size,
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1), 
+                min_seq_length=self.cfg.data.get('min_seq_length', 1),
                 add_bos=self.cfg.data.get('add_bos', False),
                 add_eos=self.cfg.data.get('add_eos', True),
                 for_train=False,
@@ -732,20 +732,20 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             )
 
     def build_virtual_prompt_dataset(
-        self, 
-        dataset_paths, 
+        self,
+        dataset_paths,
         batch_size=None,
         max_seq_length=2048,
-        min_seq_length=1, 
+        min_seq_length=1,
         add_bos=False,
         add_eos=False,
         for_train=True,
-        drop_last=False, 
-        shuffle=False, 
-        num_workers=1, 
-        pin_memory=True,
+        drop_last=False,
+        shuffle=False,
+        num_workers=0,
+        pin_memory=False,
         tokens_to_generate=None,
-        get_dataset_only=False
+        get_dataset_only=False,
     ):
         dataset = GPTPromptLearningDataset(
             datasets=dataset_paths,
@@ -759,9 +759,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             add_bos=add_bos,
             add_eos=add_eos,
             for_train=for_train,
-            tokens_to_generate=tokens_to_generate
+            tokens_to_generate=tokens_to_generate,
         )
-        
+
         if get_dataset_only:
             return dataset
 
@@ -772,10 +772,8 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle
         )
 
-        assert (
-            batch_size % data_parallel_size == 0
-        ), "Global batch size must be evenly divisible by data parallel size"
-        
+        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+
         if for_train:
             collate_fn = dataset.collate_fn
         else:
@@ -858,7 +856,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return output_tensor, id_func
 
         return fwd_output_only_func
-    
+
     def generate(
         self,
         inputs: Union[List[str], torch.Tensor, List[dict]],
@@ -884,24 +882,24 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         if length_params is None:
             length_params = get_default_length_params()
-        
+
         max_input_length = self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
-        
-        dataset, _ = self.build_virtual_prompt_dataset(
-            datasets=inputs,
+
+        dataset = self.build_virtual_prompt_dataset(
+            dataset_paths=inputs,
             max_seq_length=max_input_length,
-            min_seq_length=self.cfg.data.get('min_seq_length', 1), 
+            min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=sampling_params["add_BOS"],
             add_eos=False,
             for_train=False,
             tokens_to_generate=length_params["max_length"],
-            get_dataset_only=True
+            get_dataset_only=True,
         )
-        
+
         full_dataset = [dataset[i] for i in range(len(dataset))]
         task_ids, processed_inputs = dataset.inference_collate_fn(full_dataset)
         self.frozen_model.model.parallel_output = False
-        
+
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
             self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
@@ -927,7 +925,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
                 "all_probs": inference_config["all_probs"],
                 "compute_logprob": inference_config["compute_logprob"],
             }
-            
+
             task_ids, processed_inputs = batch
             self.frozen_model.model.parallel_output = False
 
@@ -935,7 +933,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
             return megatron_gpt_generate(
                 self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids
             )
-    
+
     @classmethod
     def list_available_models(cls):
         pass

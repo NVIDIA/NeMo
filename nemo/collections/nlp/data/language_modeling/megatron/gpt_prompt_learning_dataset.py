@@ -57,7 +57,7 @@ class GPTPromptLearningDataset(Dataset):
         add_bos: bool = False,
         add_eos: bool = True,
         for_train: bool = True,
-        tokens_to_generate = None,
+        tokens_to_generate=None,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -71,7 +71,7 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
-        
+
         if not self.for_train:
             self.tokens_to_generate = tokens_to_generate
 
@@ -303,7 +303,7 @@ class GPTPromptLearningDataset(Dataset):
     def collate_fn(self, batch):
         """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
         taskname_ids, input_ids, answer_starts = zip(*batch)
-    
+
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
@@ -337,7 +337,7 @@ class GPTPromptLearningDataset(Dataset):
         position_ids = build_position_ids(input_ids)
 
         return input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids
-        
+
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
         """ Pad input_ids in batch to max batch length while building loss mask """
         batch_loss_masks = []

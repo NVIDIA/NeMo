@@ -16,22 +16,13 @@ import torch
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
-
-try:
-    from apex.transformer import parallel_state
-
-    HAVE_APEX = True
-except (ImportError, ModuleNotFoundError):
-    HAVE_APEX = False
 
 """
 This is the script to run GPT text generation.
@@ -78,6 +69,7 @@ This is the script to run GPT text generation.
 
 if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
+
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_inference")
 def main(cfg) -> None:
@@ -139,20 +131,20 @@ def main(cfg) -> None:
     # Second method of running text generation, call trainer.predict
     # Use for batched inference on larger test sets, can do inference with data parallel > 1
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
-    
+
     _, dataloader = model.build_virtual_prompt_dataset(
-        datasets=cfg.data_paths,
-        batch_size=64, 
+        dataset_paths=cfg.data_paths,
+        batch_size=64,
         max_seq_length=max_input_length,
-        min_seq_length=model.cfg.data.get('min_seq_length', 1), 
+        min_seq_length=model.cfg.data.get('min_seq_length', 1),
         add_bos=sampling_params["add_BOS"],
         add_eos=False,
-        for_train=False, 
+        for_train=False,
         tokens_to_generate=length_params["max_length"],
         drop_last=False,
         shuffle=False,
     )
-    
+
     config = OmegaConf.to_container(cfg.inference)
     model.set_inference_config(config)
     response = trainer.predict(model, dataloader)
