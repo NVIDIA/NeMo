@@ -18,6 +18,12 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import parallel_lm_logits
 from nemo.utils import logging
 
+try:
+    from apex.transformer import parallel_state
+    HAVE_APEX = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_APEX = False
+
 
 class MuReadout(MegatronModule):
     """Drop-in replacement for all output linear layers.
@@ -46,8 +52,10 @@ class MuReadout(MegatronModule):
         else:
             width_mult = 1.0
             logging.warning("need to set_shape before use mu-Transfer readout layer")
+        async_tensor_model_parallel_allreduce = parallel_state.get_tensor_model_parallel_world_size() > 1
         output = parallel_lm_logits(
-            hidden_states / width_mult, word_embeddings_weight, self.parallel_output, bias=self.bias
+            hidden_states / width_mult, word_embeddings_weight, self.parallel_output, bias=self.bias,
+            async_tensor_model_parallel_allreduce=async_tensor_model_parallel_allreduce,
         )
         return output
 

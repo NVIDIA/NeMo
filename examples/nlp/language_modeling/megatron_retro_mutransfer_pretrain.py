@@ -99,7 +99,7 @@ def main(cfg) -> None:
                 raise ValueError(f'need to check {name} init')
 
     for name, layer in model.named_modules():
-        if name.endswith('.self_attention') or name.endswith('.inter_attention') or name.endswith('.cross_attention'):
+        if name.endswith('.self_attention') or name.endswith('.inter_attention') or name.endswith('.cross_attention') or name.endswith('.core_attention'):
             if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
                 layer.norm_factor = (
                     layer.hidden_size_per_attention_head / 8.0

@@ -510,7 +510,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
         # transformer encoder
         if not isinstance(dec_input, tuple):
-            dec_input = rearrange(dec_input, 'b s d -> s b d')
+            dec_input = rearrange(dec_input, 'b s d -> s b d').contiguous()
         enc_output = self.model(
             dec_input,
             dec_attn_mask_3d,
