@@ -467,15 +467,11 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                         assert token_logits.dtype == torch.half
                         tokens_loss = vocab_parallel_cross_entropy(token_logits, labels, self.label_smoothing)
                     else:
-<<<<<<< HEAD
                         tokens_loss = vocab_parallel_cross_entropy(token_logits.float(), labels, self.label_smoothing)
-=======
-                        tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
 
                     # [s, b] -> [b, s]
                     tokens_loss = tokens_loss.transpose(0, 1).contiguous()
 
->>>>>>> d18ee78ca30044a3b47caddb6027b2c0f3daa352
                     return tokens_loss
                 else:
                     # [s, b, h] -> [b, s, h]
