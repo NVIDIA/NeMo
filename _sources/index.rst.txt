@@ -1,4 +1,0 @@
-NVIDIA NeMo Developer Guide
-===========================
-
-Our documentation is now hosted at `https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.11.0/ <https://docs.nvidia.com/deeplearning/nemo/developer_guide/en/v0.11.0/>`_

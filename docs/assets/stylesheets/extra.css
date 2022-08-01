@@ -1,0 +1,49 @@
+/* Color pallets */
+
+[data-md-color-scheme="midnight"] {
+    --md-primary-fg-color: #304FFE;
+    --md-primary-fg-color--light: #1976D2;
+    --md-primary-fg-color--dark: #1A237E;
+}
+
+[data-md-color-scheme="midnight-black"] {
+    --md-primary-fg-color: #000000;
+    --md-primary-fg-color--light: #1976D2;
+    --md-primary-fg-color--dark: #304FFE;
+}
+
+[data-md-color-scheme="nvidia"] {
+    --md-primary-fg-color: #76B900;
+    --md-primary-fg-color--light: #76B900;
+    --md-primary-fg-color--dark: #000000;
+}
+
+/* Blogging Overrides */
+
+/* Styles for blog-like features - author avatar & name, posting date, min to read, etc. */
+.md-typeset .mdx-author img {
+    border-radius: 100%;
+    height: 2rem;
+}
+
+.md-typeset .mdx-author {
+    display: flex;
+    font-size: .68rem;
+}
+
+.md-typeset .mdx-author p>span {
+    display: block;
+}
+
+.p-blog {
+    display: block;
+    margin-block-start: 1em;
+    margin-block-end: 1em;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+}
+
+/* .md-typeset .mdx-author p:first-child {
+    flex-shrink: 0;
+    margin-right: .8rem;
+} */

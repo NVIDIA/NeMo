@@ -1,0 +1,517 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+
+    {{ super() }}
+
+    <style>
+
+        .md-main {
+            flex-grow: 0
+        }
+
+        .md-main__inner {
+            display: flex;
+            height: 100%;
+        }
+
+        .tx-container {
+            padding-top: .0rem;
+            /* background: linear-gradient(to bottom, var(--md-primary-fg-color), hsla(160deg,47%,55%,1) 99%,#fff 99%); */
+            /* background: linear-gradient(to bottom, #0D47A1, #0D47A1, 99%,#fff 99%); */
+            background: linear-gradient(to bottom, #000000, #000000, 99%,#fff 99%);
+            /* background: linear-gradient(to bottom, #76B900, #76B900, 99%,#fff 99%); */
+        }
+
+        .tx-hero {
+            margin: 32px 2.8rem;
+            color: var(--md-primary-bg-color);
+            justify-content: center;
+        }
+
+        .tx-hero h1 {
+            margin-bottom: 1rem;
+            color: currentColor;
+            font-weight: 700
+        }
+
+        .tx-hero__content {
+            padding-bottom: 1rem;
+            margin: 0 auto;
+        }
+
+        .tx-hero__image{
+            width:17rem;
+            height:17rem;
+            padding-top: 2rem;
+            order:1;
+            padding-right: 2.5rem;
+        }
+
+        .tx-hero .md-button {
+            margin-top: .5rem;
+            margin-right: .5rem;
+            color: var(--md-primary-bg-color)
+        }
+
+        .tx-hero .md-button--primary {
+            background-color: var(--md-primary-bg-color);
+            /* color: hsla(280deg, 37%, 48%, 1); */
+            color: rgb(0, 0, 0);
+            border-color: var(--md-primary-bg-color)
+        }
+
+        .tx-hero .md-button:focus,
+        .tx-hero .md-button:hover {
+            background-color: var(--md-accent-fg-color);
+            color: var(--md-default-bg-color);
+            border-color: var(--md-accent-fg-color)
+        }
+
+        .tx-container-2 {
+            padding: 0rem;
+            background-color: white;
+            margin-bottom: 0px;
+        }
+
+        .tx-hero__image-2 {
+            max-width: 100%;
+            max-height: 100%;
+            order: 1;
+            padding-right: 0.5rem;
+            padding-left: 0rem;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            float: left;
+        }
+
+        .tx-hero__content-2 {
+            margin-left: 50px;
+            justify-content: left;
+            color: #0D47A1;
+            font-weight: 300;
+            padding: 0 0px;
+            padding-bottom: 40px;
+            word-break: break-word;
+            float: right;
+        }
+
+        .tx-hero__content-2 h1 {
+            margin-top: 50px;
+            color: #0D47A1;
+            font-weight: 600;
+            font-size: 36px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: normal;
+            /*font-family: inherit;*/
+        }
+
+        .tx-hero__content-2 p {
+            font-size: 17px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            color: black;
+            display: block;
+        }
+
+        .tx-hero__content-2 a:link {
+            color: #0D47A1;
+        }
+
+        .tx-hero__content-2 a:visited {
+            color: #0D47A1;
+        }
+
+        .tx-container-3 {
+            --md-primary-fg-color: #0a192f;
+            height: auto;
+            background: linear-gradient(to bottom, var(--md-primary-fg-color), #02162f 100%, #fff 99%);
+        }
+
+        .tx-container-4 {
+            height: auto;
+            background: linear-gradient(to bottom, #0D47A1, #02162f 99%, #fff 99%);
+        }
+
+        .tx-container-testimonial {
+            height: auto;
+            background: #EDEFF0;
+        }
+
+        .tx-hero__image-3 {
+            max-width: 100%;
+            max-height: 100%;
+            order: 1;
+            padding-right: 2.5rem;
+            padding-top: 30px;
+            padding-bottom: 30px;
+        }
+
+        /* .feature-item h2 svg {
+            height: 30px;
+            float: left;
+            margin-right: 10px;
+            transform: translateY(10%);
+        } */
+
+        .top-hr {
+            margin-top: 42px;
+        }
+
+        /* .feature-item {
+            font-family: 'Lato', sans-serif;
+            font-weight: 300;
+            box-sizing: border-box;
+            padding: 0 15px;
+            word-break: break-word
+        }
+
+        .feature-item h2 {
+            color: #333;
+            font-weight: 300;
+            font-size: 25px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: normal;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .feature-item p {
+            font-size: 16px;
+            line-height: 1.8em;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            color: #111;
+            margin: 0 0 10px;
+            display: block;
+        } */
+
+        @media screen and (max-width:30em) {
+            .tx-hero h1 {
+                font-size: 1.4rem
+            }
+        }
+
+        @media screen and (min-width:60em) {
+            .md-sidebar--secondary {
+                display: none
+            }
+
+            .tx-hero {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .tx-hero__content {
+                max-width: 22rem;
+                margin-top: 3.5rem;
+                margin-bottom: 3.5rem;
+                margin-left: 1.0rem;
+                margin-right: 4.0rem;
+                align-items: center;
+            }
+        }
+
+        @media screen and (min-width:76.25em) {
+            .md-sidebar--primary {
+                display: none
+            }
+
+            .top-hr {
+                width: 100%;
+                display: flex;
+                max-width: 61rem;
+                margin-right: auto;
+                margin-left: auto;
+                padding: 0 .2rem;
+            }
+
+            .bottom-hr {
+                margin-top: 10px;
+                width: 100%;
+                display: flex;
+                max-width: 61rem;
+                margin-right: auto;
+                margin-left: auto;
+                padding: 0 .2rem;
+            }
+
+            .feature-item {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .feature-item:hover {
+                background-color: #526cfe47;
+                border-radius: 3px;
+            }
+        }
+
+        .hr {
+            border-bottom: 1px solid #eee;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        .text-center {
+            text-align: center;
+            padding-right: 15px;
+            padding-left: 15px;
+            margin-right: auto;
+            margin-left: auto;
+            margin-top: 15px;
+            font-family: 'Lato', sans-serif;
+            font-size: 23px;
+            font-weight: 300;
+            padding-bottom: 10px;
+        }
+
+        .logos {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-flow: row wrap;
+            margin: 0 auto;
+        }
+
+        .logos img {
+            flex: 1 1 auto;
+            padding: 25px;
+            max-height: 130px;
+            vertical-align: middle;
+        }
+
+        .hr-logos {
+            margin-top: 0;
+            margin-bottom: 30px;
+        }
+
+        .md-footer-meta__inner {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            margin-top: 1.0rem;
+        }
+
+        .md-footer-social {
+            padding-top: 20px;
+        }
+    </style>
+
+    <!-- Hero Banner -->
+    <section class="tx-container">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+                <div class="tx-hero__image">
+                    <img src="assets/images/nvidia-logo.png" draggable="false">
+                </div>
+                <div class="tx-hero__content">
+                    <h1>NVIDIA NeMo</h1>
+                    <p>{{ config.site_description }}</p>
+                    
+                    <!-- <a href="{{ page.next_page.url | url }}" title="{{ page.next_page.title | e }}" -->
+                    <a 
+                    href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/intro.html" 
+                    class="md-button md-button--primary">
+                        Docs
+                    </a>
+
+                    <a
+                    href="https://github.com/NVIDIA/NeMo" 
+                    class="md-button md-button--primary">
+                        Github
+                    </a>
+
+                    <a
+                    href="https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/starthere/tutorials.html" 
+                    class="md-button md-button--primary">
+                        Tutorial
+                    </a>
+                    
+                    <a
+                    href="https://developer.nvidia.com/riva" 
+                    class="md-button md-button--primary">
+                        NVIDIA RIVA
+                    </a>
+                    
+                    <a
+                    href="https://developer.nvidia.com/nemo-megatron-early-access" 
+                    class="md-button md-button--primary">
+                        NeMo Megatron
+                    </a>
+                    
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main site box descriptions -->
+    <!-- 2nd Section -->
+    <!-- WHAT IS NEMO ? -->
+    <section class="tx-container-2">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero__image-2" style="margin-top: 50px">
+                <img
+                        src="assets/images/state-of-the-art-convai-models-2c50-d@2x.png"
+                        alt=""
+                        width="800"
+                        draggable="false"
+                        align="left"
+                >
+            </div>
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-2">
+                    <h1 id="what-is-nemo">What is NeMo?</h1><br>
+
+                    <p>
+
+                        NVIDIA NeMo is a conversational AI toolkit built for researchers working on automatic speech recognition (ASR), 
+                        natural language processing (NLP), and text-to-speech synthesis (TTS). The primary objective of NeMo is to help
+                        researchers from industry and academia to reuse prior work (code and pretrained models) and make it easier to 
+                        create new conversational AI models.<br><br>
+
+                        A NeMo model is composed of neural modules,  which are the building blocks of models. The inputs and 
+                        outputs of these modules are strongly typed  with neural types that can automatically perform the 
+                        semantic checks between the modules.<br><br>
+
+                        NeMo includes domain-specific collections for 
+                        <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_asr">ASR</a>, 
+                        <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_nlp">NLP</a> and 
+                        <a href="https://catalog.ngc.nvidia.com/orgs/nvidia/collections/nemo_tts"></a> to develop 
+                        state-of-the-art research models.<br><br>
+                        
+
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3rd Section -->
+    <!-- LLM with NeMo -->
+    <section class="tx-container-3">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+
+                <!-- Hero image -->
+                <div class="tx-hero__image-3">
+                    <img
+                            src="assets/images/convai-nemo-megatron.svg"
+                            alt=""
+                            width="2800"
+                            draggable="false"
+                    >
+                </div>
+
+                <!-- Hero content -->
+                <div class="tx-hero__content">
+                    <br>
+                    <h1 id="nemo-megatron">Large-Scale Language Modeling with NeMo Megatron</h1><br>
+
+                    <p>
+                        NeMo Megatron is an end-to-end platform that delivers high training efficiency across 
+                        thousands of GPUs and makes it practical for enterprises to deploy large-scale NLP. 
+                        It provides capabilities to curate training data, train large-scale models up to trillions 
+                        of parameters and deploy them in inference.<br><br>
+
+                        It performs data curation tasks such as formatting, filtering, deduplication, and blending 
+                        that can otherwise take months. It includes state-of-the-art parallelization techniques such 
+                        as tensor parallelism, pipeline parallelism, sequence parallelism, and selective activation 
+                        recomputation, to scale models efficiently.<br><br>
+
+                        These models can be exported to the NVIDIA Triton™ Inference Server to run large-scale NLP 
+                        models on multiple GPUs and multiple nodes.<br><br>
+
+                        NeMo Megaton is optimized to run on DGX system on-prem as well as in the cloud.
+                        
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4th Section -->
+    <!-- OSS -->
+    <section class="tx-container-2">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero__image-2" style="max-width: 40%; margin-top: 10%;">
+                <img
+                        src="assets/images/deep-learning-nemo-integration.png"
+                        alt=""
+                        draggable="false"
+                        align="left"
+                >
+            </div>
+            <div class="tx-hero">
+                <!-- Hero content -->
+                <div class="tx-hero__content-2">
+                    <h1 id="nemo-oss">Flexible, Open-Source, <br>Rapidly Expanding Ecosystem</h1><br>
+
+                    <p>
+                        NeMo is built on top of PyTorch and PyTorch Lightning, providing an easy path for researchers 
+                        to develop and integrate with modules with which they are already comfortable. PyTorch and 
+                        PyTorch lightning are open-source python libraries that provide modules to compose models.<br><br>
+
+                        To provide the researcher's flexibility to customize the models/modules easily, NeMo integrated 
+                        with the Hydra framework. Hydra is a popular framework that simplifies the development of complex 
+                        conversational AI models.<br><br>
+
+                        NeMo is available as an open-source so that researchers can contribute to and build on it.
+
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5th Section -->
+    <!-- RIVA -->
+    <section class="tx-container-3">
+        <div class="md-grid md-typeset">
+            <div class="tx-hero">
+
+                <!-- Hero image -->
+                <div class="tx-hero__image-3">
+                    <img
+                            src="assets/images/deploy-to-production-2c50-d@2x.png"
+                            alt=""
+                            width="2800"
+                            draggable="false"
+                    >
+                </div>
+
+                <!-- Hero content -->
+                <div class="tx-hero__content">
+                    <br>
+                    <h1 id="deploy-riva">Deploy to Production using NVIDIA AI </h1><br>
+
+                    <p>
+                        
+                        To leverage the NVIDIA AI platform and deploy NeMo speech models in production with <a href="https://developer.nvidia.com/riva">
+                        NVIDIA Riva</a>, developers should export NeMo models to a format compatible with Riva and then execute Riva build 
+                        and deploy commands for creating an optimized skill that can run in real-time.<br><br>
+
+                        The <a href="https://docs.nvidia.com/deeplearning/riva/user-guide/docs/model-overview.html?#nemo2riva-export-for-nemo">
+                        documentation</a> includes detailed instructions for exporting and deploying NeMo models to Riva.
+                        
+                    </p><br>
+                </div>
+            </div>
+        </div>
+    </section>
+
+{% endblock %}
+
+{% block content %}
+{% endblock %}
+
+{% block footer %}
+{{ super() }}
+{% endblock %}
