@@ -31,6 +31,7 @@ from nemo_text_processing.text_normalization.data_loader_utils import (
     write_file,
 )
 from nemo_text_processing.text_normalization.token_parser import PRESERVE_ORDER_KEY, TokenParser
+from nemo_text_processing.text_normalization.token_parser_zh import TokenParser_zh
 from pynini.lib.rewrite import top_rewrite
 from tqdm import tqdm
 
@@ -44,7 +45,6 @@ class Normalizer:
     """
     Normalizer class that converts text from written to spoken form.
     Useful for TTS preprocessing.
-
     Args:
         input_case: expected input capitalization
         lang: language specifying the TN rules, by default: English
@@ -98,6 +98,9 @@ class Normalizer:
         elif lang == 'es':
             from nemo_text_processing.text_normalization.es.taggers.tokenize_and_classify import ClassifyFst
             from nemo_text_processing.text_normalization.es.verbalizers.verbalize_final import VerbalizeFinalFst
+        elif lang == 'zh':
+            from nemo_text_processing.text_normalization.zh.taggers.tokenize_and_classify import ClassifyFst
+            from nemo_text_processing.text_normalization.zh.verbalizers.verbalize_final import VerbalizeFinalFst
         self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
@@ -109,8 +112,10 @@ class Normalizer:
         self.verbalizer = VerbalizeFinalFst(
             deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
         )
-
-        self.parser = TokenParser()
+        if lang == 'zh':
+            self.parser = TokenParser()
+        else:
+            self.parser = TokenParser_zh()
         self.lang = lang
 
         self.processor = MosesProcessor(lang_id=lang)
@@ -126,7 +131,6 @@ class Normalizer:
     ):
         """
         NeMo text normalizer
-
         Args:
             texts: list of input strings
             verbose: whether to print intermediate meta information
@@ -136,7 +140,6 @@ class Normalizer:
                 no parallel computing code is used at all, which is useful for debugging. For n_jobs below -1,
                 (n_cpus + 1 + n_jobs) are used. Thus for n_jobs = -2, all CPUs but one are used.
             batch_size: Number of examples for each process
-
         Returns converted list input strings
         """
 
@@ -187,9 +190,7 @@ class Normalizer:
         """
         Splits a sequence of tokens in a smaller sequences of tokens in a way that maximum number of composite
         tokens permutations does not exceed ``max_number_of_permutations_per_split``.
-
         For example,
-
         .. code-block:: python
             tokens = [
                 {"tokens": {"date": {"year": "twenty eighteen", "month": "december", "day": "thirty one"}}},
@@ -202,16 +203,13 @@ class Normalizer:
                 [{"tokens": {"date": {"year": "twenty eighteen", "month": "december", "day": "thirty one"}}}],
                 [{"tokens": {"date": {"year": "twenty eighteen", "month": "january", "day": "eight"}}}],
             ]
-
         Date tokens contain 3 items each which gives 6 permutations for every date. Since there are 2 dates, total
         number of permutations would be ``6 * 6 == 36``. Parameter ``max_number_of_permutations_per_split`` equals 6,
         so input sequence of tokens is split into 2 smaller sequences.
-
         Args:
             tokens (:obj:`List[dict]`): a list of dictionaries, possibly nested.
             max_number_of_permutations_per_split (:obj:`int`, `optional`, defaults to :obj:`243`): a maximum number
                 of permutations which can be generated from input sequence of tokens.
-
         Returns:
             :obj:`List[List[dict]]`: a list of smaller sequences of tokens resulting from ``tokens`` split.
         """
@@ -244,13 +242,11 @@ class Normalizer:
         """
         Main function. Normalizes tokens from written to spoken form
             e.g. 12 kg -> twelve kilograms
-
         Args:
             text: string that may include semiotic classes
             verbose: whether to print intermediate meta information
             punct_pre_process: whether to perform punctuation pre-processing, for example, [25] -> [ 25 ]
             punct_post_process: whether to normalize punctuation
-
         Returns: spoken form
         """
         if len(text.split()) > 500:
@@ -306,10 +302,8 @@ class Normalizer:
     def split_text_into_sentences(self, text: str) -> List[str]:
         """
         Split text into sentences.
-
         Args:
             text: text
-
         Returns list of sentences
         """
         lower_case_unicode = ''
@@ -327,10 +321,8 @@ class Normalizer:
     def _permute(self, d: OrderedDict) -> List[str]:
         """
         Creates reorderings of dictionary elements and serializes as strings
-
         Args:
             d: (nested) dictionary of key value pairs
-
         Return permutations of different string serializations of key value pairs
         """
         l = []
@@ -356,22 +348,18 @@ class Normalizer:
     def generate_permutations(self, tokens: List[dict]):
         """
         Generates permutations of string serializations of list of dictionaries
-
         Args:
             tokens: list of dictionaries
-
         Returns string serialization of list of dictionaries
         """
 
         def _helper(prefix: str, tokens: List[dict], idx: int):
             """
             Generates permutations of string serializations of given dictionary
-
             Args:
                 tokens: list of dictionaries
                 prefix: prefix string
                 idx:    index of next dictionary
-
             Returns string serialization of dictionary
             """
             if idx == len(tokens):
@@ -386,10 +374,8 @@ class Normalizer:
     def find_tags(self, text: str) -> 'pynini.FstLike':
         """
         Given text use tagger Fst to tag text
-
         Args:
             text: sentence
-
         Returns: tagged lattice
         """
         lattice = text @ self.tagger.fst
@@ -398,10 +384,8 @@ class Normalizer:
     def select_tag(self, lattice: 'pynini.FstLike') -> str:
         """
         Given tagged lattice return shortest path
-
         Args:
             tagged_text: tagged text
-
         Returns: shortest path
         """
         tagged_text = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
@@ -411,10 +395,8 @@ class Normalizer:
         """
         Given tagged text creates verbalization lattice
         This is context-independent.
-
         Args:
             tagged_text: input text
-
         Returns: verbalized lattice
         """
         lattice = tagged_text @ self.verbalizer.fst
@@ -423,10 +405,8 @@ class Normalizer:
     def select_verbalizer(self, lattice: 'pynini.FstLike') -> str:
         """
         Given verbalized lattice return shortest path
-
         Args:
             lattice: verbalization lattice
-
         Returns: shortest path
         """
         output = pynini.shortestpath(lattice, nshortest=1, unique=True).string()
@@ -437,10 +417,8 @@ class Normalizer:
     def post_process(self, normalized_text: 'pynini.FstLike') -> str:
         """
         Runs post processing graph on normalized text
-
         Args:
             normalized_text: normalized text
-
         Returns: shortest path
         """
         normalized_text = normalized_text.strip()
