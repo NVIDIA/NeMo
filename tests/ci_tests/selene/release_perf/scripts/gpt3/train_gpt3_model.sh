@@ -57,8 +57,6 @@ else
   AMP_STYLE=O2 # by defualt all jobs use O2
 fi
 
-RUN_NAME=${RUN_MODEL}_${RUN_SIZE}_tp${TP_SIZE}_pp${PP_SIZE}_${NUM_NODES}nodes_${PRECISION}_precision_${AMP_STYLE}_${MAX_STEPS}steps
-
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
     training=${RUN_MODEL}/${RUN_MODEL_SIZE} \
@@ -89,4 +87,4 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.model.megatron_amp_O2=${AMP_O2_FLAG} \
     training.model.activations_checkpoint_num_layers=${ACTIVATIONS_CHECKPOINT_NUM_LAYERS} \
     training.model.gradient_accumulation_fusion=${GRADIENT_ACCUMULATION_FUSION_FLAG} \
-    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG} 
+    training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG}
