@@ -79,6 +79,10 @@ class TTSDataset(Dataset):
         min_duration: Optional[float] = None,
         ignore_file: Optional[Union[str, Path]] = None,
         trim: bool = False,
+        trim_ref: Optional[float] = None,
+        trim_top_db: Optional[int] = None,
+        trim_frame_length: Optional[int] = None,
+        trim_hop_length: Optional[int] = None,
         n_fft: int = 1024,
         win_length: Optional[int] = None,
         hop_length: Optional[int] = None,
@@ -119,7 +123,14 @@ class TTSDataset(Dataset):
                 audio to compute duration. Defaults to None which does not prune.
             ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
                 that will be pruned prior to training. Defaults to None which does not prune.
-            trim (Optional[bool]): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
+            trim (bool): Whether to apply `librosa.effects.trim` to trim leading and trailing silence from an audio
+                signal. Defaults to False.
+            trim_ref (Optional[float]): the reference amplitude. By default, it uses `np.max` and compares to the peak
+                amplitude in the signal.
+            trim_top_db (Optional[int]): the threshold (in decibels) below reference to consider as silence.
+                Defaults to 60.
+            trim_frame_length (Optional[int]): the number of samples per analysis frame. Defaults to 2048.
+            trim_hop_length (Optional[int]): the number of samples between analysis frames. Defaults to 512.
             n_fft (int): The number of fft samples. Defaults to 1024
             win_length (Optional[int]): The length of the stft windows. Defaults to None which uses n_fft.
             hop_length (Optional[int]): The hope length between fft computations. Defaults to None which uses n_fft//4.
@@ -196,13 +207,15 @@ class TTSDataset(Dataset):
                         "is_phoneme": item["is_phoneme"] if "is_phoneme" in item else None,
                     }
 
-                    if "normalized_text" not in item:
+                    if ("text_normalized" not in item) or ("normalized_text" not in item):
                         text = item["text"]
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
-                    else:
+                    elif "normalized_text" in item:
                         file_info["normalized_text"] = item["normalized_text"]
+                    else:
+                        file_info["normalized_text"] = item["text_normalized"]
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
@@ -229,6 +242,10 @@ class TTSDataset(Dataset):
         self.sample_rate = sample_rate
         self.featurizer = WaveformFeaturizer(sample_rate=self.sample_rate)
         self.trim = trim
+        self.trim_ref = trim_ref if trim_ref is not None else np.max
+        self.trim_top_db = trim_top_db if trim_top_db is not None else 60
+        self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
+        self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
 
         self.n_fft = n_fft
         self.n_mels = n_mels
@@ -332,6 +349,8 @@ class TTSDataset(Dataset):
 
         if self.log_mel_folder is None:
             self.log_mel_folder = Path(self.sup_data_path) / LogMel.name
+        elif isinstance(self.log_mel_folder, str):
+            self.log_mel_folder = Path(self.log_mel_folder)
 
         self.log_mel_folder.mkdir(exist_ok=True, parents=True)
 
@@ -356,6 +375,8 @@ class TTSDataset(Dataset):
 
         if self.align_prior_matrix_folder is None:
             self.align_prior_matrix_folder = Path(self.sup_data_path) / AlignPriorMatrix.name
+        elif isinstance(self.align_prior_matrix_folder, str):
+            self.align_prior_matrix_folder = Path(self.align_prior_matrix_folder)
 
         self.align_prior_matrix_folder.mkdir(exist_ok=True, parents=True)
 
@@ -376,6 +397,8 @@ class TTSDataset(Dataset):
 
         if self.pitch_folder is None:
             self.pitch_folder = Path(self.sup_data_path) / Pitch.name
+        elif isinstance(self.pitch_folder, str):
+            self.pitch_folder = Path(self.pitch_folder)
 
         self.pitch_folder.mkdir(exist_ok=True, parents=True)
 
@@ -407,6 +430,8 @@ class TTSDataset(Dataset):
 
         if self.energy_folder is None:
             self.energy_folder = Path(self.sup_data_path) / Energy.name
+        elif isinstance(self.energy_folder, str):
+            self.energy_folder = Path(self.energy_folder)
 
         self.energy_folder.mkdir(exist_ok=True, parents=True)
 
@@ -438,7 +463,14 @@ class TTSDataset(Dataset):
             rel_audio_path_as_text_id += "_phoneme"
 
         # Load audio
-        features = self.featurizer.process(sample["audio_filepath"], trim=self.trim)
+        features = self.featurizer.process(
+            sample["audio_filepath"],
+            trim=self.trim,
+            trim_ref=self.trim_ref,
+            trim_top_db=self.trim_top_db,
+            trim_frame_length=self.trim_frame_length,
+            trim_hop_length=self.trim_hop_length,
+        )
         audio, audio_length = features, torch.tensor(features.shape[0]).long()
 
         if "text_tokens" in sample:
@@ -818,15 +850,15 @@ class VocoderDataset(Dataset):
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
-            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing information on the
-            dataset. Each line in the .json file should be valid json. Note: the .json file itself is not valid
-            json. Each line should contain the following:
+            manifest_filepath (Union[str, Path, List[str], List[Path]]): Path(s) to the .json manifests containing
+            information on the dataset. Each line in the .json file should be valid json. Note: the .json file itself
+            is not valid json. Each line should contain the following:
                 "audio_filepath": <PATH_TO_WAV>,
                 "duration": <Duration of audio clip in seconds> (Optional),
                 "mel_filepath": <PATH_TO_LOG_MEL> (Optional, can be in .npy (numpy.save) or .pt (torch.save) format)
             sample_rate (int): The sample rate of the audio. Or the sample rate that we will resample all files to.
             n_segments (int): The length of audio in samples to load. For example, given a sample rate of 16kHz, and
-                n_segments=16000, a random 1 second section of audio from the clip will be loaded. The section will
+                n_segments=16000, a random 1-second section of audio from the clip will be loaded. The section will
                 be randomly sampled everytime the audio is batched. Can be set to None to load the entire audio.
                 Must be specified if load_precomputed_mel is True.
             max_duration (Optional[float]): Max duration of audio clips in seconds. All samples exceeding this will be
@@ -838,7 +870,8 @@ class VocoderDataset(Dataset):
             ignore_file (Optional[Union[str, Path]]): The location of a pickle-saved list of audio paths
                 that will be pruned prior to training. Defaults to None which does not prune.
             trim (bool): Whether to apply librosa.effects.trim to the audio file. Defaults to False.
-            load_precomputed_mel (bool): Whether to load precomputed mel (useful for fine-tuning). Note: Requires "mel_filepath" to be set in the manifest file.
+            load_precomputed_mel (bool): Whether to load precomputed mel (useful for fine-tuning).
+                Note: Requires "mel_filepath" to be set in the manifest file.
             hop_length (Optional[int]): The hope length between fft computations. Must be specified if load_precomputed_mel is True.
         """
         super().__init__()

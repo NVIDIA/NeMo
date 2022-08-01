@@ -57,7 +57,7 @@ model:
 
   seq_length: 512
   max_position_embeddings: ${.seq_length}
-  num_layers: 12
+  num_layers: 12 # For perceiver models, this is the number of cross-attention blocks. Each layer has 1 cross-attention and "num_self_attention_per_cross_attention" self-attention layers.
   hidden_size: 768
   ffn_hidden_size: 3072 # Transformer FFN hidden size. Usually 4 * hidden_size.
   num_attention_heads: 12
@@ -67,23 +67,27 @@ model:
   position_embedding_type: 'learned_absolute' # Position embedding type. Options ['learned_absolute', 'relative']
   relative_attention_num_buckets: 32 # Relative position number of buckets for computing the bias
   relative_attention_max_distance: 128 # max_distance to keep relative distance in the attention_num_buckets.
+  relative_position_bias_self_attention_only: True # Whether to only use relative position bias for self attention only.
   kv_channels: null # Projection weights dimension in multi-head attention. Set to hidden_size // num_attention_heads if null
   apply_query_key_layer_scaling: True # scale Q * K^T by 1 / layer-number.
   layernorm_epsilon: 1e-5
   persist_layer_norm: True # Use of persistent fused layer norm kernel.
   gradient_as_bucket_view: True # Allocate gradients in a contiguous bucket to save memory (less fragmentation and buffer memory)
-  bias_gelu_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent gelu activation.
   bias_activation_fusion: True # Use a kernel that fuses the bias addition from weight matrices with the subsequent activation function.
   grad_div_ar_fusion: True # Fuse grad division into torch.distributed.all_reduce
   masked_softmax_fusion: True # Use a kernel that fuses the attention softmax with it's mask.
   bias_dropout_add_fusion: True # Use a kernel that fuses the bias addition, dropout and residual connection addition.
   bias: True # Whether to use bias terms in all weight matrices.
   normalization: 'layernorm' # Normalization layer to use. Options are 'layernorm', 'rmsnorm'
-  encoder_arch: 'transformer'
-  decoder_arch: 'transformer'
+  encoder_arch: 'transformer' # Options: ['transformer', 'perceiver']
+  decoder_arch: 'transformer' # Options: ['transformer']
   activation: 'gelu' # Options ['gelu', 'geglu', 'swiglu', 'reglu']
   headscale: False # Whether to learn extra parameters that scale the output of the each self-attention head.
   transformer_block_type: 'pre_ln' # Options ['pre_ln', 'post_ln', 'normformer']
+  hidden_steps: 32 # Number of latent vectors to use for pereceiver encoders
+  num_self_attention_per_cross_attention: 1 # Number of self-attention layers for every cross-attention layer.
+  share_token_embeddings: True # If True share encoder/decoder embeddings
+  share_decoder_tokens_head_embeddings: True # If True share decoder embeddings and decoder projection to logits
 
   tokenizer:
     library: 'megatron'
@@ -120,7 +124,20 @@ model:
     #   - /raid/data/pile/my-t5_01_text_document
     data_prefix: ???
     index_mapping_dir: null # path to save index mapping .npy files, by default will save in the same location as data_prefix
-    data_impl: mmap
+    data_impl: mmap # mmap, retmmap, text_mmap, csv_mmap
+    # data_impl_kwargs: # currently used only for text_mmap, csv_mmap (should be data_impl dependant)
+    #     # defaults for text_memmap
+    #     newline_int: 10 # byte-value of newline (Use ord('\n') to get value)
+    #     header_lines: 0 # skip first N header lines
+    #     workers: null # number of workers when creating missing index files (null defaults to cpu_num // 2)
+    #     sort_dataset_paths: False # if True datasets will be sorted by name
+    #     # defaults for csv_memmap
+    #     newline_int: 10 # byte-value of newline
+    #     header_lines: 1 # skip first N header lines
+    #     workers: null # number of workers when creating missing index files (null defaults to cpu_num // 2)
+    #     sort_dataset_paths: False # if True datasets will be sorted by name
+    #     data_col: 1 # column to use for data
+    #     data_sep: ',' # string to split text into columns
     splits_string: 949,45,5
     seq_length: ${model.seq_length}
     seq_length_dec: 128
@@ -136,6 +153,7 @@ model:
     permutation: False
     whole_word_masking: True
     favor_longer_ngrams: False
+    respect_document_boundaries: True # If true, a single training exampl cannot cross document boundaries, increasing the fraction of <pad> tokens within a batch.
 
   optim:
     name: fused_adam
