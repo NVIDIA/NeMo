@@ -98,6 +98,7 @@ build-BigNLP:
     - cd CITest
     - git checkout -b dummyBranch
     - cp ../tests/ci_tests/utils/get_train_time.py ./
+    - git add -A
     - git commit -m "test file"
     - git push origin dummyBranch
 
