@@ -42,9 +42,10 @@ def main(cfg) -> None:
     logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
 
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
+    no_ddp_comm_hook = not cfg.model.get('megatron_amp_O2', False) and cfg.model.get('pipeline_model_parallel_size', 1) == 1
     plugins = [
         NLPDDPPlugin(
-            no_ddp_communication_hook=True,
+            no_ddp_communication_hook=no_ddp_comm_hook,
             gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
         )
