@@ -29,12 +29,18 @@ ssl_model_type: conformer_multitask
 ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
 ssl_content_emb_type: 'probs'
 
+pitch_conditioning: false
+generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
+
 defaults:
   - model/generator: v_ssl
   - model/train_ds: train_ds_ssl
   - model/validation_ds: val_ds_ssl
 
 model:
+  pitch_conditioning: ${pitch_conditioning}
+  pitch_emb_dim: 8
+  pitch_processor_kernel_size: 3
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${n_mel_channels}

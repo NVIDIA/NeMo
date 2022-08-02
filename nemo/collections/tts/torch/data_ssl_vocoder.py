@@ -31,6 +31,7 @@ class SSLVocoderDataset(Dataset):
         min_duration: Optional[float] = None,
         ignore_file: Optional[Union[str, Path]] = None,
         trim: Optional[bool] = False,
+        pitch_conditioning: Optional[bool] = False,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -123,9 +124,25 @@ class SSLVocoderDataset(Dataset):
         downsampling_rate_wav_to_mel = int(ssl_window_stride_seconds * ssl_sample_rate)  # 160
         downsampling_rate_mel_to_ssl = int(ssl_cfg.encoder.subsampling_factor)  # 4
         self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
+        self.ssl_frame_length = int(0.025 * ssl_sample_rate)
+        self.ssl_hop_length = int(0.01 * ssl_sample_rate)
+        self.pitch_conditioning = pitch_conditioning
 
     def _collate_fn(self, batch):
-        return torch.utils.data.dataloader.default_collate(batch)
+        final_batch = {}
+        for row in batch:
+            for key in row:
+                if key not in final_batch:
+                    final_batch[key] = []
+                final_batch[key].append(row[key])
+
+        for key in final_batch:
+            if final_batch[key][0] is None:
+                final_batch[key] = None
+            else:
+                final_batch[key] = torch.stack(final_batch[key])
+
+        return final_batch
 
     def filter_files(data, ignore_file, min_duration, max_duration, total_duration):
         if ignore_file:
@@ -165,6 +182,19 @@ class SSLVocoderDataset(Dataset):
 
         return filtered_data
 
+    def get_pitch_contour(self, wav):
+        f0, _, _ = librosa.pyin(
+            wav.numpy(),
+            fmin=librosa.note_to_hz('C2'),
+            fmax=librosa.note_to_hz('C7'),
+            frame_length=self.ssl_hop_length * 16,
+            hop_length=self.ssl_hop_length * 4,
+            sr=self.ssl_sample_rate,
+            center=True,
+            fill_na=0.0,
+        )
+        return torch.tensor(f0, dtype=torch.float32)
+
     def __getitem__(self, index):
         sample = self.data[index]
 
@@ -194,6 +224,10 @@ class SSLVocoderDataset(Dataset):
             audio = torch.cat([audio, torch.zeros(target_audio_length - audio.shape[0], dtype=torch.float)])
             audio_length = torch.tensor(audio.shape[0]).long()
 
+        pitch_contour = None
+        if self.pitch_conditioning:
+            pitch_contour = self.get_pitch_contour(audio_ssl)
+
         if self.ssl_model_type == "conformer":
             with torch.no_grad():
                 processed_signal, processed_signal_length = self.ssl_model.preprocessor(
@@ -205,8 +239,16 @@ class SSLVocoderDataset(Dataset):
                 encoded = encoded[0].detach()
                 encoded_len = encoded_len[0].detach()
                 encoded = encoded[:, : encoded_len.item()]
+                pitch_contour = pitch_contour[: encoded_len.item()]
+                assert pitch_contour.shape[0] == encoded.shape[1]
 
-            return audio, audio_length, encoded, encoded_len
+            return {
+                "audio": audio,
+                "audio_len": audio_length,
+                "encoded": encoded,
+                "encoded_len": encoded_len,
+                "pitch_contour": pitch_contour,
+            }
 
         elif self.ssl_model_type == "conformer_multitask":
             with torch.no_grad():
@@ -235,7 +277,18 @@ class SSLVocoderDataset(Dataset):
                 elif self.ssl_content_emb_type == "log_probs":
                     final_content_embedding = content_log_probs
 
-            return audio, audio_length, final_content_embedding, encoded_len, speaker_embedding_normalized
+                if pitch_contour is not None:
+                    pitch_contour = pitch_contour[: encoded_len.item()]
+                    assert pitch_contour.shape[0] == final_content_embedding.shape[1]
+
+            return {
+                "audio": audio,
+                "audio_len": audio_length,
+                "content_embedding": final_content_embedding,
+                "speaker_embedding": speaker_embedding_normalized,
+                "encoded_len": encoded_len,
+                "pitch_contour": pitch_contour,
+            }
 
     def __len__(self):
         return len(self.data)

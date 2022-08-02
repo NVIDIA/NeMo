@@ -8,6 +8,7 @@ dataset:
   n_segments: ${train_n_segments}
   max_duration: ${train_max_duration}
   min_duration: ${train_min_duration}
+  pitch_conditioning: ${pitch_conditioning}
 dataloader_params:
   drop_last: false
   shuffle: true
