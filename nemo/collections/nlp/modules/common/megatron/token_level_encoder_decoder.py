@@ -20,7 +20,6 @@ from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_d
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
     MegatronTransformerEncoderDecoderModule,
 )
-from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.t5_relative_position_embedding import T5RelativePositionEmbedding
@@ -31,6 +30,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     parallel_lm_logits,
     scaled_init_method_normal,
 )
+from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
 
 try:
     from apex.transformer import tensor_parallel, parallel_state

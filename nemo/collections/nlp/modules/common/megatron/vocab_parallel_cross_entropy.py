@@ -25,6 +25,7 @@ except (ImportError, ModuleNotFoundError):
 
 __all__ = ["vocab_parallel_cross_entropy"]
 
+
 class _VocabParallelCrossEntropy(torch.autograd.Function):
     @staticmethod
     def forward(ctx, vocab_parallel_logits, target, label_smoothing=0.0):
@@ -97,7 +98,9 @@ class _VocabParallelCrossEntropy(torch.autograd.Function):
             mean_log_probs = log_probs.mean(dim=-1)
             loss = (1.0 - smoothing) * loss - smoothing * mean_log_probs
 
-        ctx.save_for_backward(exp_logits, target_mask, masked_target_1d, torch.Tensor([label_smoothing]), torch.LongTensor([vocab_size]))
+        ctx.save_for_backward(
+            exp_logits, target_mask, masked_target_1d, torch.Tensor([label_smoothing]), torch.LongTensor([vocab_size])
+        )
 
         return loss
 
