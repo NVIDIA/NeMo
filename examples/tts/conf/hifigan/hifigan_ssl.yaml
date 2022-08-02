@@ -4,7 +4,7 @@
 
 name: "HifiGan"
 
-train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train.json"
+train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train_small.json"
 validation_datasets: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_val.json"
 
 # Default values for dataset with sample_rate=22050
@@ -17,9 +17,9 @@ lowfreq: 0
 highfreq: 8000
 window: hann  
 
-train_n_segments: 16000
+train_n_segments: 9600
 train_max_duration: null
-train_min_duration: 0.75
+train_min_duration: 1.2
 
 val_n_segments: 25600
 val_max_duration: null

@@ -1,4 +1,6 @@
 import json
+import os
+import pickle
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -32,6 +34,7 @@ class SSLVocoderDataset(Dataset):
         ignore_file: Optional[Union[str, Path]] = None,
         trim: Optional[bool] = False,
         pitch_conditioning: Optional[bool] = False,
+        sup_data_dir: Optional[Union[str, Path]] = None,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -124,9 +127,26 @@ class SSLVocoderDataset(Dataset):
         downsampling_rate_wav_to_mel = int(ssl_window_stride_seconds * ssl_sample_rate)  # 160
         downsampling_rate_mel_to_ssl = int(ssl_cfg.encoder.subsampling_factor)  # 4
         self.pad_multiple = downsampling_rate_wav_to_mel * downsampling_rate_mel_to_ssl
+        assert self.n_segments % self.pad_multiple == 0, "suggested n_segments: {}".format(
+            self.pad_multiple * (self.n_segments // self.pad_multiple)
+        )
+        self.n_segments_at_target_sr = n_segments * self.sample_rate / self.ssl_sample_rate
+        assert self.n_segments_at_target_sr.is_integer()
+        self.n_segments_at_target_sr = int(self.n_segments_at_target_sr)
         self.ssl_frame_length = int(0.025 * ssl_sample_rate)
         self.ssl_hop_length = int(0.01 * ssl_sample_rate)
         self.pitch_conditioning = pitch_conditioning
+
+        if sup_data_dir is None:
+            sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
+
+        self.sup_data_dir = sup_data_dir
+        if not os.path.exists(self.sup_data_dir):
+            os.makedirs(self.sup_data_dir)
+
+        # print("SUP DATA DIR: ", self.sup_data_dir)
+        # print("pad multiple", self.pad_multiple)
+        # print(XXXX)
 
     def _collate_fn(self, batch):
         final_batch = {}
@@ -182,27 +202,132 @@ class SSLVocoderDataset(Dataset):
 
         return filtered_data
 
-    def get_pitch_contour(self, wav):
-        f0, _, _ = librosa.pyin(
-            wav.numpy(),
-            fmin=librosa.note_to_hz('C2'),
-            fmax=librosa.note_to_hz('C7'),
-            frame_length=self.ssl_hop_length * 16,
-            hop_length=self.ssl_hop_length * 4,
-            sr=self.ssl_sample_rate,
-            center=True,
-            fill_na=0.0,
+    def get_pitch_contour(self, wav, wav_text_id):
+        pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
+        pitch_contour_fp = os.path.join(self.sup_data_dir, pitch_contour_fn)
+        if os.path.exists(pitch_contour_fp):
+            return torch.load(pitch_contour_fp)
+        else:
+            f0, _, _ = librosa.pyin(
+                wav.numpy(),
+                fmin=librosa.note_to_hz('C2'),
+                fmax=librosa.note_to_hz('C7'),
+                frame_length=self.ssl_hop_length * 16,
+                hop_length=self.ssl_hop_length * 4,
+                sr=self.ssl_sample_rate,
+                center=True,
+                fill_na=0.0,
+            )
+            pitch_contour = torch.tensor(f0, dtype=torch.float32)
+            torch.save(pitch_contour, pitch_contour_fp)
+            return pitch_contour
+
+    def get_ssl_features(self, audio_ssl, audio_ssl_length, wav_text_id):
+        content_emb_fn = f"{self.ssl_content_emb_type}_content_embedding_{wav_text_id}.pt"
+        speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
+        content_emb_fp = os.path.join(self.sup_data_dir, content_emb_fn)
+        speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
+        if os.path.exists(content_emb_fp):
+            content_embedding = torch.load(content_emb_fp)
+            if os.path.exists(speaker_emb_fp):
+                speaker_embedding = torch.load(speaker_emb_fp)
+            else:
+                speaker_embedding = None
+                assert self.ssl_model_type == "conformer"
+            encoded_len = torch.tensor(content_embedding.shape[1]).long()
+            return content_embedding, speaker_embedding, encoded_len
+        else:
+            if self.ssl_model_type == "conformer_multitask":
+                with torch.no_grad():
+                    (
+                        _,
+                        speaker_embedding_normalized,
+                        content_embedding,
+                        content_log_probs,
+                        encoded_len,
+                    ) = self.ssl_model.forward_for_export(
+                        input_signal=audio_ssl[None], input_signal_length=audio_ssl_length[None]
+                    )
+                    speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
+                    content_embedding = content_embedding[0].detach()
+                    content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
+                    encoded_len = encoded_len[0].detach()
+                    content_embedding = content_embedding[: encoded_len.item()]
+                    content_embedding = content_embedding.t()
+                    content_log_probs = content_log_probs[: encoded_len.item()]
+                    content_log_probs = content_log_probs.t()
+                    content_probs = torch.exp(content_log_probs)
+
+                    if self.ssl_content_emb_type == "probs":
+                        final_content_embedding = content_probs
+                    elif self.ssl_content_emb_type == "embedding":
+                        final_content_embedding = content_embedding
+                    elif self.ssl_content_emb_type == "log_probs":
+                        final_content_embedding = content_log_probs
+
+                    torch.save(final_content_embedding, content_emb_fp)
+                    torch.save(speaker_embedding_normalized, speaker_emb_fp)
+
+                    return final_content_embedding, speaker_embedding_normalized, encoded_len
+
+            elif self.ssl_model_type == "conformer":
+                with torch.no_grad():
+                    processed_signal, processed_signal_length = self.ssl_model.preprocessor(
+                        input_signal=audio_ssl[None], length=audio_ssl_length[None],
+                    )
+                    encoded, encoded_len = self.ssl_model.encoder.forward_for_export(
+                        audio_signal=processed_signal, length=processed_signal_length
+                    )
+                    encoded = encoded[0].detach()
+                    encoded_len = encoded_len[0].detach()
+                    torch.save(encoded, content_emb_fp)
+
+                    return encoded, None, encoded_len
+
+    def _segment_item(self, item):
+        """
+        item is the dict returned by __getitem__
+        """
+        segment_len = self.n_segments
+        encoded_segment_len = segment_len // self.pad_multiple
+
+        assert encoded_segment_len < item['encoded_len'], "{} < {}, {}".format(
+            encoded_segment_len, item['encoded_len'], len(item['audio'])
         )
-        return torch.tensor(f0, dtype=torch.float32)
+        encoded_sidx = np.random.randint(0, item['encoded_len'] - encoded_segment_len)
+        encoded_eidx = encoded_sidx + encoded_segment_len
+
+        audio_sidx = encoded_sidx * self.pad_multiple * self.sample_rate // self.ssl_sample_rate
+        audio_eidx = audio_sidx + self.n_segments_at_target_sr
+
+        audio_segment = item['audio'][audio_sidx:audio_eidx]
+        encoded_segment = item['content_embedding'][:, encoded_sidx:encoded_eidx]
+        if item['pitch_contour'] is not None:
+            segment_pitch = item['pitch_contour'][encoded_sidx:encoded_eidx]
+        else:
+            segment_pitch = None
+
+        new_item = {
+            'audio': audio_segment,
+            'content_embedding': encoded_segment,
+            'audio_len': torch.tensor(self.n_segments_at_target_sr).long(),
+            'encoded_len': torch.tensor(encoded_segment_len).long(),
+            'pitch_contour': segment_pitch,
+        }
+
+        # add remaining fields
+        for key in item:
+            if key not in new_item:
+                new_item[key] = item[key]
+
+        return new_item
 
     def __getitem__(self, index):
         sample = self.data[index]
-
+        rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+        rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
         features = AudioSegment.segment_from_file(
-            sample["audio_filepath"],
-            target_sr=self.sample_rate,
-            n_segments=self.n_segments if self.n_segments is not None else -1,
-            trim=self.trim,
+            sample["audio_filepath"], target_sr=self.sample_rate, n_segments=-1, trim=self.trim,
         )
         audio_samples = features.samples
         audio_samples_forssl = librosa.core.resample(
@@ -226,69 +351,26 @@ class SSLVocoderDataset(Dataset):
 
         pitch_contour = None
         if self.pitch_conditioning:
-            pitch_contour = self.get_pitch_contour(audio_ssl)
+            pitch_contour = self.get_pitch_contour(audio_ssl, rel_audio_path_as_text_id)
 
-        if self.ssl_model_type == "conformer":
-            with torch.no_grad():
-                processed_signal, processed_signal_length = self.ssl_model.preprocessor(
-                    input_signal=audio_ssl[None], length=audio_ssl_length[None],
-                )
-                encoded, encoded_len = self.ssl_model.encoder.forward_for_export(
-                    audio_signal=processed_signal, length=processed_signal_length
-                )
-                encoded = encoded[0].detach()
-                encoded_len = encoded_len[0].detach()
-                encoded = encoded[:, : encoded_len.item()]
-                pitch_contour = pitch_contour[: encoded_len.item()]
-                assert pitch_contour.shape[0] == encoded.shape[1]
+        content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
+            audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
+        )
 
-            return {
-                "audio": audio,
-                "audio_len": audio_length,
-                "encoded": encoded,
-                "encoded_len": encoded_len,
-                "pitch_contour": pitch_contour,
+        if pitch_contour is not None:
+            pitch_contour = pitch_contour[: encoded_len.item()]
+            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
+
+        return self._segment_item(
+            {
+                'audio': audio,
+                'audio_len': audio_length,
+                'content_embedding': content_embedding,
+                'speaker_embedding': speaker_embedding,
+                'encoded_len': encoded_len,
+                'pitch_contour': pitch_contour,
             }
-
-        elif self.ssl_model_type == "conformer_multitask":
-            with torch.no_grad():
-                (
-                    _,
-                    speaker_embedding_normalized,
-                    content_embedding,
-                    content_log_probs,
-                    encoded_len,
-                ) = self.ssl_model.forward_for_export(
-                    input_signal=audio_ssl[None], input_signal_length=audio_ssl_length[None]
-                )
-                speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
-                content_embedding = content_embedding[0].detach()
-                content_log_probs = content_log_probs[:, 0, :].detach()  # (content lob prob is (t, b, c))
-                encoded_len = encoded_len[0].detach()
-                content_embedding = content_embedding[: encoded_len.item()]
-                content_embedding = content_embedding.t()
-                content_log_probs = content_log_probs[: encoded_len.item()]
-                content_log_probs = content_log_probs.t()
-                content_probs = torch.exp(content_log_probs)
-                if self.ssl_content_emb_type == "probs":
-                    final_content_embedding = content_probs
-                elif self.ssl_content_emb_type == "embedding":
-                    final_content_embedding = content_embedding
-                elif self.ssl_content_emb_type == "log_probs":
-                    final_content_embedding = content_log_probs
-
-                if pitch_contour is not None:
-                    pitch_contour = pitch_contour[: encoded_len.item()]
-                    assert pitch_contour.shape[0] == final_content_embedding.shape[1]
-
-            return {
-                "audio": audio,
-                "audio_len": audio_length,
-                "content_embedding": final_content_embedding,
-                "speaker_embedding": speaker_embedding_normalized,
-                "encoded_len": encoded_len,
-                "pitch_contour": pitch_contour,
-            }
+        )
 
     def __len__(self):
         return len(self.data)

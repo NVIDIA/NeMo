@@ -193,7 +193,7 @@ class HifiGanModel(Vocoder, Exportable):
             audio, audio_len, encoded, encoded_len, pitch_contour = batch
             audio = batch['audio']
             audio_len = batch['audio_len']
-            encoded = batch['encoded']
+            encoded = batch['content_embedding']
             encoded_len = batch['encoded_len']
             pitch_contour = batch['pitch_contour']
         elif self.ssl_model_type == "conformer_multitask":
@@ -210,7 +210,6 @@ class HifiGanModel(Vocoder, Exportable):
         audio = audio.unsqueeze(1)
 
         audio_pred = self.generator(x=encoded)
-
         audio_pred_mel, _ = self.trg_melspec_fn(audio_pred.squeeze(1), audio_len)
 
         optim_g, optim_d = self.optimizers()
@@ -269,7 +268,7 @@ class HifiGanModel(Vocoder, Exportable):
             audio, audio_len, encoded, encoded_len, pitch_contour = batch
             audio = batch['audio']
             audio_len = batch['audio_len']
-            encoded = batch['encoded']
+            encoded = batch['content_embedding']
             encoded_len = batch['encoded_len']
             pitch_contour = batch['pitch_contour']
         elif self.ssl_model_type == "conformer_multitask":
