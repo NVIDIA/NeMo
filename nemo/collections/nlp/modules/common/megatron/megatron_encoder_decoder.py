@@ -141,6 +141,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         enc_layer_past=None,
         enc_get_key_value=False,
         enc_output=None,
+        enc_output_attn_mask=None,
         dec_layer_past=None,
         dec_get_key_value=False,
         output_enc_hidden_only=False,
@@ -162,7 +163,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                 assert self.encoder_hidden_state is not None
                 enc_output = self.encoder_hidden_state
         else:
-            enc_output = enc_output.to(enc_input.dtype)
+            enc_attn_mask = enc_output_attn_mask.to(enc_attn_mask)
 
         if self.decoder is None or output_enc_hidden_only:
             return enc_output
@@ -170,7 +171,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # decoder
         # Adjust encoder attention mask if encoder is a perceiver.
         if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
-            enc_attn_mask = torch.ones(enc_output.size(0), self.hidden_steps).to(enc_output.device)
+            # Attention mask is expected to be of shape [B x S] and enc_output is of size [S x B x H].
+            enc_attn_mask = torch.ones(enc_output.size(1), self.hidden_steps).to(enc_output.device)
 
         dec_output = self.decode(
             dec_input=dec_input,
