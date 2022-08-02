@@ -280,7 +280,7 @@ class HifiGanModel(Vocoder, Exportable):
             speaker_embedding = batch['speaker_embedding']
             pitch_contour = batch['pitch_contour']
             encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
-        print("pc", pitch_contour)
+
         audio_trg_mel, _len_mel = self.trg_melspec_fn(audio, audio_len)
         audio_pred = self(spec=encoded)
 
