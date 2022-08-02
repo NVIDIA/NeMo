@@ -2858,7 +2858,7 @@ for i in ea.Scalars('reduced_train_loss'):
     vals.append(i.value)
 training_curve = pd.DataFrame({'loss': vals})
 gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
-assert_frame_equal(training_curve, gt_curve, rtol=1e-4, atol=1e-4)"'''
+assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }
