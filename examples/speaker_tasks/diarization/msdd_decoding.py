@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,12 @@
 from nemo.collections.asr.models.msdd_models import OverlapAwareDiarizer
 from nemo.core.config import hydra_runner
 
+
 @hydra_runner(config_path="conf", config_name="diarization_decoder.telephonic.yaml")
 def main(cfg):
     neural_diarizer = OverlapAwareDiarizer(cfg=cfg)
     neural_diarizer.diarize()
+
 
 if __name__ == '__main__':
     main()

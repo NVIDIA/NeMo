@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -326,7 +326,7 @@ class MSDD_module(NeuralModule, Exportable):
 
         Returns:
             scale_weights (Tensor):
-                Weight vectors that determines the weight of each scale.
+                Weight vectors that determine the weight of each scale.
                 Shape: (batch_size, length, num_spks, emb_dim)
         """
         self.W_a(ms_emb_seq.flatten(0, 1))
@@ -355,7 +355,7 @@ class MSDD_module(NeuralModule, Exportable):
 
         Returns:
             scale_weights (Tensor):
-                Weight vectors that determines the weight of each scale.
+                Weight vectors that determine the weight of each scale.
                 Shape: (batch_size, length, num_spks, emb_dim)
         """
         ms_cnn_input_seq = torch.cat([ms_avg_embs_perm, ms_emb_seq_single], dim=2)
@@ -397,7 +397,7 @@ class MSDD_module(NeuralModule, Exportable):
             bn_module (torch.nn.modules.batchnorm.BatchNorm2d):
                 Predefined Batchnorm module.
             first_layer (bool):
-                Boolean for switching between first layer and the others.
+                Boolean for switching between the first layer and the others.
                 Default: `False`
 
         Returns:
