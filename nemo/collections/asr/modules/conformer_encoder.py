@@ -363,7 +363,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
         if isinstance(self.pre_encode, nn.Linear):
-            audio_signal = self.pre_encode(x=audio_signal)
+            audio_signal = self.pre_encode(audio_signal)
         else:
             audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
             # self.streaming_cfg is set by setup_streaming_cfg(), called in the init
