@@ -2847,7 +2847,7 @@ pipeline {
                 model.attention_dropout=0 \
                 model.fp32_residual_connection=True \
                 model.shape_file=/home/TestData/nlp/megatron_retro/o1_rel_shape_info_tiny.yaml"
-        sh 'python -c "import pandas as pd
+        sh '''python -c "import pandas as pd
 import pathlib
 from pandas.testing import assert_frame_equal
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
@@ -2858,7 +2858,7 @@ for i in ea.Scalars(\'reduced_train_loss\'):
     vals.append(i.value)
 training_curve = pd.DataFrame({\'loss\': vals})
 gt_curve = pd.read_csv(\'/home/TestData/nlp/megatron_retro/expected_learning_curve.csv\')
-assert_frame_equal(training_curve, gt_curve, rtol=1e-4, atol=1e-4)"'
+assert_frame_equal(training_curve, gt_curve, rtol=1e-4, atol=1e-4)"'''
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
     }
