@@ -2,6 +2,7 @@ import itertools
 from dataclasses import dataclass
 from typing import Dict, Optional, Union
 
+import editdistance
 import torch
 import torch.nn as nn
 from hydra.utils import instantiate
@@ -18,10 +19,11 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.optim.lr_scheduler import WarmupPolicy
 from nemo.utils import logging
-import editdistance
+
 
 def decode(tokenizer, token_list):
     return tokenizer.sep.join(tokenizer._id2token[t] for t in token_list)
+
 
 class GreedyCTCDecoder(torch.nn.Module):
     def __init__(self, labels, blank=0):
@@ -72,9 +74,10 @@ class SSLDisentangler(ModelPT):
                 self.content_linear = nn.Linear(out_dim, num_chars)
                 self.ctc_loss = nn.CTCLoss(blank=self._text_tokenizer.blank)
                 self.pitch_augment = self._cfg.get('pitch_augment', False)
+                self.augment_ctc = self._cfg.get('augment_ctc', False)
                 if self.pitch_augment:
                     self.mse_loss = nn.MSELoss()
-                
+
                 self.ctc_decoder = GreedyCTCDecoder(self._text_tokenizer.tokens, self._text_tokenizer.blank)
 
         self.automatic_optimization = False
@@ -133,6 +136,7 @@ class SSLDisentangler(ModelPT):
                     text_tokenizer=_text_tokenizer,
                     segment_max_duration=data_config['segment_max_duration'],
                     sup_data_types=['speaker_id'],
+                    sup_data_path=data_config['sup_data_path'],
                 )
                 sv_loader = torch.utils.data.DataLoader(
                     sv_dataset,
@@ -151,6 +155,7 @@ class SSLDisentangler(ModelPT):
                     min_duration=data_config['min_duration_content'],
                     max_duration=data_config['max_duration_content'],
                     pitch_augment=data_config.get('pitch_augment', False),
+                    sup_data_path=data_config['sup_data_path'],
                 )
                 content_loader = torch.utils.data.DataLoader(
                     content_dataset,
@@ -317,6 +322,7 @@ class SSLDisentangler(ModelPT):
 
                 # check if ctc loss is nan
                 if torch.isfinite(ctc_loss):
+                    self.log("t_ctc_loss", ctc_loss.item())
                     content_loss += ctc_loss
                 else:
                     logging.warning(f"ctc_loss is not finite. Add min duration to avoid getting here.")
@@ -330,6 +336,14 @@ class SSLDisentangler(ModelPT):
                     mse_loss = self.mse_loss(content_embedding, content_embedding_aug)
                     content_loss += self._cfg.augment_mse_alpha * mse_loss
                     self.log("t_mse_loss", mse_loss.item())
+
+                    if self.augment_ctc:
+                        ctc_loss_aug = self.ctc_loss(content_log_probs_aug, target, encoded_len, target_len)
+                        if torch.isfinite(ctc_loss_aug):
+                            content_loss += ctc_loss_aug
+                            self.log("t_ctc_loss_aug", ctc_loss_aug.item())
+                        else:
+                            logging.warning(f"ctc_loss_aug is not finite. Add min duration to avoid getting here.")
 
                 loss += content_loss
 
@@ -408,14 +422,14 @@ class SSLDisentangler(ModelPT):
                 loss_total += content_loss
                 cers = []
                 for _idx in range(target.shape[0]):
-                    item_log_prob = content_log_probs[:,_idx,:][:encoded_len[_idx]].cpu()
-                    item_target = target[_idx][:target_len[_idx]].cpu()
+                    item_log_prob = content_log_probs[:, _idx, :][: encoded_len[_idx]].cpu()
+                    item_target = target[_idx][: target_len[_idx]].cpu()
                     _, predicted_str = self.ctc_decoder(item_log_prob)
                     target_str = decode(self._text_tokenizer, item_target.tolist())
-                    
-                    ed = editdistance.eval(predicted_str,target_str)
-                    if max(len(predicted_str),len(target_str)) > 0:
-                        normalized_ed = (1.0 * ed)/max(len(predicted_str),len(target_str))
+
+                    ed = editdistance.eval(predicted_str, target_str)
+                    if max(len(predicted_str), len(target_str)) > 0:
+                        normalized_ed = (1.0 * ed) / max(len(predicted_str), len(target_str))
                     else:
                         normalized_ed = 1.0
                     cers.append(normalized_ed)
@@ -431,7 +445,7 @@ class SSLDisentangler(ModelPT):
             'ctc_loss': ctc_loss.cpu(),
             'content_loss': content_loss.cpu(),
             'accuracy_sv': acc_val.cpu(),
-            'cer': torch.tensor(cers).mean().cpu()
+            'cer': torch.tensor(cers).mean().cpu(),
         }
 
     def validation_epoch_end(self, outputs):

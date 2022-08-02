@@ -458,12 +458,20 @@ class TTSDataset(Dataset):
             log_mel = torch.log(torch.clamp(mel, min=torch.finfo(mel.dtype).tiny))
         return log_mel
 
-    def pitch_shift(self, audio, sr):
-        choice1 = np.random.uniform(-4, -1)
-        choice2 = np.random.uniform(1, 4)
-        shift_val = random.choice([choice1, choice2])
-        audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=shift_val)
-        return audio_shifted
+    def pitch_shift(self, audio, sr, rel_audio_path_as_text_id):
+        audio_shifted_path = Path(self.sup_data_path) / f"{rel_audio_path_as_text_id}_pitch_shift.pt"
+        if audio_shifted_path.exists():
+            audio_shifted = torch.load(audio_shifted_path)
+            return audio_shifted
+        else:
+            choice1 = np.random.uniform(-4, -1)
+            choice2 = np.random.uniform(1, 4)
+            shift_val = random.choice([choice1, choice2])
+            audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=shift_val)
+            # save audio_shifted
+            audio_shifted = torch.tensor(audio_shifted)
+            torch.save(audio_shifted, audio_shifted_path)
+            return audio_shifted
 
     def __getitem__(self, index):
         sample = self.data[index]
@@ -485,9 +493,9 @@ class TTSDataset(Dataset):
             )
             audio_shifted = None
             if self.pitch_augment:
-                features_shifted = self.pitch_shift(features.samples, self.sample_rate)
-                audio_shifted = torch.tensor(features_shifted)
-                assert features.shape == features_shifted.shape
+                # should not get here, but just in case :P
+                audio_shifted = self.pitch_shift(features.samples, self.sample_rate, rel_audio_path_as_text_id)
+
             features = torch.tensor(features.samples)
             audio, audio_length = features, torch.tensor(features.shape[0]).long()
         else:
@@ -501,8 +509,9 @@ class TTSDataset(Dataset):
             )
             audio_shifted = None
             if self.pitch_augment:
-                features_shifted = self.pitch_shift(features.cpu().detach().numpy(), self.sample_rate)
-                audio_shifted = torch.tensor(features_shifted)
+                audio_shifted = self.pitch_shift(
+                    features.cpu().detach().numpy(), self.sample_rate, rel_audio_path_as_text_id
+                )
                 assert audio_shifted.size() == features.size()
 
             audio, audio_length = features, torch.tensor(features.shape[0]).long()

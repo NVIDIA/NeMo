@@ -30,10 +30,11 @@ model:
   combined_loss: true
   pitch_augment: true
   augment_mse_alpha: 1.0
+  augment_ctc: false
 
   train_ds:
-    manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
-    manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/train_clean_100.json"
+    manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/train_10.json"
+    manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/train_libri_small.json"
     sample_rate: ${model.sample_rate}
     batch_size: 8 # you may increase batch_size if your memory allows
     shuffle: true
@@ -42,6 +43,7 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 5
+    sup_data_path: "/home/shehzeenh/datasets/SupData/train"
     pitch_augment: ${model.pitch_augment}
 
   validation_ds:
@@ -56,6 +58,7 @@ model:
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 5
+    sup_data_path: "/home/shehzeenh/datasets/SupData/val"
     pitch_augment: ${model.pitch_augment}
 
   # text_tokenizer:
