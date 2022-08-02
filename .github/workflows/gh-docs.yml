@@ -6,12 +6,7 @@ on:
       - "**"
 
 # Set the access for individual scopes
-permissions:
-  pull-requests: write
-  issues: write
-  repository-projects: write
-  deployments: write
-  pages: write
+permissions: write-all
 
 jobs:
   deploy:
