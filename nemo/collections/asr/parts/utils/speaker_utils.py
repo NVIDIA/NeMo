@@ -66,7 +66,7 @@ def get_uniq_id_with_dur(meta, deci=3):
     return uniq_id
 
 
-def audio_rttm_map(manifest):
+def audio_rttm_map(manifest, attatch_dur=False):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps
@@ -94,8 +94,10 @@ def audio_rttm_map(manifest):
                 'uem_filepath': dic.get('uem_filepath', None),
                 'ctm_filepath': dic.get('ctm_filepath', None),
             }
-
-            uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
+            if attatch_dur:
+                uniqname = get_uniq_id_with_dur(meta)
+            else:
+                uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta
@@ -438,6 +440,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
             max_num_speaker=max_num_speakers,
             enhanced_count_thres=clustering_params.enhanced_count_thres,
             max_rp_threshold=clustering_params.max_rp_threshold,
+            maj_vote_spk_count=clustering_params.maj_vote_spk_count,
             sparse_search_volume=clustering_params.sparse_search_volume,
             cuda=cuda,
         )
