@@ -28,6 +28,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ColumnLinear
+from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
 try:
     from apex.transformer.parallel_state import get_tensor_model_parallel_world_size
@@ -79,9 +80,9 @@ class Prefix(MegatronModule):
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
         prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
         prefix_reps = self.dropout(prefix_reps)
-        bsz, effective_prefix_len, _ = prefix_reps.shape
+        effective_bsz, effective_prefix_len, _ = prefix_reps.shape
         prefix_reps = prefix_reps.view(
-            bsz, effective_prefix_len, 2, self.num_layers, self.num_attention_heads_per_partition, self.num_emb_per_head,
+            effective_bsz, effective_prefix_len, 2, self.num_layers, self.num_attention_heads_per_partition, self.num_emb_per_head,
         )
         prefix_reps = prefix_reps.permute([2, 1, 3, 0, 4, 5])
         return prefix_reps
@@ -113,7 +114,7 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         self.prefix_generator.to(self.frozen_model.device)
 
         for name, layer in self.frozen_model.named_modules():
-            if hasattr(layer,"activations_checkpoint_method"):
+            if hasattr(layer, 'activations_checkpoint_method'):
                 layer.activations_checkpoint_method = None  # (@adithyare) prefix tuning does not support activations checkpointing atm.
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
@@ -179,11 +180,9 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         self.setup_validation_data()
 
     def state_dict(self):
-        # TODO: (@adithyare) check what should really happen here
         return {self.prefix_generator_key: self.prefix_generator.state_dict()}
 
     def load_state_dict(self, state_dict, strict=True):
-        # TODO: (@adithyare) check what should really happen here
         assert (
             self.prefix_generator_key in state_dict
         ), f"Prefix generator key {self.prefix_generator_key} not found in state dict: {state_dict}"
@@ -192,3 +191,18 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
+
+    def get_forward_output_and_loss_func(self):
+        def fwd_output_and_loss_func(batch, model):
+            batch = [x.cuda(non_blocking=True) for x in batch]
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+
+            def loss_func(output_tensor):
+                loss = self.frozen_model.loss_func(loss_mask, output_tensor)
+                reduced_loss = average_losses_across_data_parallel_group([loss])
+                return loss, {'avg': reduced_loss}
+
+            return output_tensor, loss_func
+
+        return fwd_output_and_loss_func
