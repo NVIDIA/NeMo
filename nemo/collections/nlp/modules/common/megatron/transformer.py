@@ -1952,26 +1952,46 @@ class ParallelTransformer(MegatronModule):
         """Forward method with activation checkpointing."""
 
         def custom(start, end):
-            def custom_forward(*inputs):
-                x_ = inputs[0]
-                attention_mask = inputs[1]
-                encoder_output = inputs[2]
-                enc_dec_attn_mask = inputs[3]
-                rotary_pos_emb = inputs[4]
-                self_attention_relative_position_bias = inputs[5]
-                cross_attention_relative_position_bias = inputs[6]
-                for index in range(start, end):
-                    layer = self._get_layer(index)
-                    x_ = layer(
-                        x_,
-                        attention_mask,
-                        encoder_output,
-                        enc_dec_attn_mask,
-                        rotary_pos_emb,
-                        self_attention_relative_position_bias,
-                        cross_attention_relative_position_bias,
-                    )
-                return x_
+            if getattr(self, 'transformer_engine', False):
+                def custom_forward(*inputs):
+                    hidden_states = inputs[0]
+                    attention_mask = inputs[1]
+                    encoder_output = inputs[2]
+                    enc_dec_attn_mask = inputs[3]
+                    rotary_pos_emb = inputs[4]
+                    self_attention_relative_position_bias = inputs[5]
+                    cross_attention_relative_position_bias = inputs[6]
+                    for index in range(start, end):
+                        layer = self._get_layer(index)
+                        hidden_states = layer(
+                            hidden_states,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            )
+
+                    return hidden_states
+            else:
+                def custom_forward(*inputs):
+                    x_ = inputs[0]
+                    attention_mask = inputs[1]
+                    encoder_output = inputs[2]
+                    enc_dec_attn_mask = inputs[3]
+                    rotary_pos_emb = inputs[4]
+                    self_attention_relative_position_bias = inputs[5]
+                    cross_attention_relative_position_bias = inputs[6]
+                    for index in range(start, end):
+                        layer = self._get_layer(index)
+                        x_ = layer(
+                            x_,
+                            attention_mask,
+                            encoder_output,
+                            enc_dec_attn_mask,
+                            rotary_pos_emb,
+                            self_attention_relative_position_bias,
+                            cross_attention_relative_position_bias,
+                        )
+                    return x_
 
             return custom_forward
 
