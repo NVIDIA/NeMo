@@ -4,7 +4,6 @@ set -o xtrace
 MAX_STEPS=100
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 PRECISION=${PRECISION:-bf16}
-ACTIVATIONS_CHECKPOINT_NUM_LAYERS=null
 CREATE_CHECKPOINT_CALLBACK_FLAG=False
 
 case $RUN_MODEL_SIZE in
@@ -13,7 +12,6 @@ case $RUN_MODEL_SIZE in
     NUM_NODES=${NUM_NODES:-8}
     TP_SIZE=${TP_SIZE:-1}
     PP_SIZE=${PP_SIZE:-1}
-    ACTIVATIONS_CHECKPOINT_NUM_LAYERS=0
     ;;
 
   5b)
@@ -90,6 +88,5 @@ HYDRA_FULL_ERROR=1 python3 main.py \
     training.model.tensor_model_parallel_size=${TP_SIZE} \
     training.model.pipeline_model_parallel_size=${PP_SIZE} \
     training.model.megatron_amp_O2=${AMP_O2_FLAG} \
-    training.model.activations_checkpoint_num_layers=${ACTIVATIONS_CHECKPOINT_NUM_LAYERS} \
     training.model.gradient_accumulation_fusion=${GRADIENT_ACCUMULATION_FUSION_FLAG} \
     training.exp_manager.create_checkpoint_callback=${CREATE_CHECKPOINT_CALLBACK_FLAG}

@@ -23,7 +23,7 @@ case $RUN_MODEL_SIZE in
     ;;
 
   3b)
-    NUM_NODES=${NUM_NODES:20}
+    NUM_NODES=${NUM_NODES:-20}
     TP_SIZE=${TP_SIZE:-2}
     PP_SIZE=${PP_SIZE:-1}
     ;;
