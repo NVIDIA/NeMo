@@ -140,10 +140,10 @@ class SSLDisentangler(ModelPT):
                 )
                 sv_loader = torch.utils.data.DataLoader(
                     sv_dataset,
-                    batch_size=data_config['batch_size'],
+                    batch_size=data_config['batch_size_sv'],
                     collate_fn=sv_dataset.general_collate_fn,
                     shuffle=data_config['shuffle'],
-                    num_workers=data_config.get('num_workers', 0),
+                    num_workers=data_config.get('num_workers_sv', 0),
                     pin_memory=data_config.get('pin_memory', False),
                 )
 
@@ -159,10 +159,10 @@ class SSLDisentangler(ModelPT):
                 )
                 content_loader = torch.utils.data.DataLoader(
                     content_dataset,
-                    batch_size=data_config['batch_size'],
+                    batch_size=data_config['batch_size_content'],
                     collate_fn=content_dataset.general_collate_fn,
                     shuffle=data_config['shuffle'],
-                    num_workers=data_config.get('num_workers', 0),
+                    num_workers=data_config.get('num_workers_content', 0),
                     pin_memory=data_config.get('pin_memory', False),
                 )
 
@@ -288,7 +288,6 @@ class SSLDisentangler(ModelPT):
                 speaker_id = batch[key]['speaker_id']
 
                 sv_logits, sv_emb, _, _, _ = self.forward(input_signal=signal, input_signal_length=signal_len)
-
                 pred_speaker = torch.argmax(sv_logits, dim=1)
 
                 sv_loss = self.sv_loss(logits=sv_logits, labels=speaker_id)
