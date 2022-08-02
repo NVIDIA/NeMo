@@ -6,6 +6,7 @@ name: "HifiGan"
 
 train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train.json"
 validation_datasets: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_val.json"
+data_caching: true
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 25600 # 25664
@@ -17,9 +18,9 @@ lowfreq: 0
 highfreq: 8000
 window: hann  
 
-train_n_segments: 16000
+train_n_segments: 19200
 train_max_duration: null
-train_min_duration: 0.75
+train_min_duration: 1.3
 
 val_n_segments: 25600
 val_max_duration: null
@@ -29,12 +30,22 @@ ssl_model_type: conformer_multitask
 ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
 ssl_content_emb_type: 'probs'
 
+pitch_conditioning: false
+pitch_mean: 212.0
+pitch_std: 70.0
+normalize_pitch: true
+generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
+normalize_content: true # for newer checkpoints.
+
 defaults:
   - model/generator: v_ssl
   - model/train_ds: train_ds_ssl
   - model/validation_ds: val_ds_ssl
 
 model:
+  pitch_conditioning: ${pitch_conditioning}
+  pitch_emb_dim: 8
+  pitch_processor_kernel_size: 3
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${n_mel_channels}
