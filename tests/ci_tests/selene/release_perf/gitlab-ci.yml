@@ -94,6 +94,11 @@ build-BigNLP:
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
     - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR
+    - git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/CITest.git
+    - mkdir test
+    - cd test
+    - git clone https://gitlab-master.nvidia.com/dl/JoC/CITest.git
+
 
   allow_failure: false
   rules:
