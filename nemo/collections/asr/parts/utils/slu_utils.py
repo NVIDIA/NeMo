@@ -1,4 +1,19 @@
-import ast
+# ! /usr/bin/python
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
@@ -22,7 +37,6 @@ class SearcherConfig:
     temperature: float = 1.0  # for top-k sampling
     beam_size: int = 1  # K for top-k sampling, N for beam search
     len_pen: float = 0.0  # for beam-search
-    teacher_force_greedy: bool = False
 
 
 class SequenceGenerator:
@@ -75,12 +89,21 @@ class SequenceGenerator:
 
     def __call__(
         self,
-        encoder_states,
-        encoder_input_mask=None,
-        return_beam_scores=False,
+        encoder_states: torch.Tensor,
+        encoder_input_mask: torch.Tensor = None,
+        return_beam_scores: bool = False,
         pad_max_len: Optional[int] = None,
         return_length: bool = False,
     ):
+        """
+        Generate a sequence given the input encoder states and masks.
+        params:
+        -   encoder_states: a torch Tensor of shape BxTxD
+        -   encoder_input_mask: a binary tensor of shape BxTxD
+        -   return_beam_scores: whether to return beam scores
+        -   pad_max_len: optional int, set it to pad all sequence to the same length
+        -   return_length: whether to return the lengths for generated sequences (shape B)
+        """
         predictions = self.generator(
             encoder_hidden_states=encoder_states,
             encoder_input_mask=encoder_input_mask,
@@ -141,57 +164,6 @@ def pad_sequence(seq: torch.Tensor, max_len: int, pad_token: int = 0) -> torch.T
     return torch.cat([seq, padding], dim=1)
 
 
-def parse_semantics_str2dict(semantics_str: Union[List[str], str]) -> Dict:
-    invalid = False
-    if isinstance(semantics_str, dict):
-        return semantics_str, invalid
-    if isinstance(semantics_str, list):
-        semantics_str = " ".join(semantics_str)
-
-    try:
-        _dict = ast.literal_eval(semantics_str.replace("|", ","))
-        if not isinstance(_dict, dict):
-            _dict = {
-                "scenario": "none",
-                "action": "none",
-                "entities": [],
-            }
-            invalid = True
-    except:  # need this if the output is not a valid dictionary
-        _dict = {
-            "scenario": "none",
-            "action": "none",
-            "entities": [],
-        }
-        invalid = True
-
-    if "scenario" not in _dict or not isinstance(_dict["scenario"], str):
-        _dict["scenario"] = "none"
-        invalid = True
-    if "action" not in _dict or not isinstance(_dict["action"], str):
-        _dict["action"] = "none"
-        invalid = True
-    if "entities" not in _dict:
-        _dict["entities"] = []
-        invalid = True
-    else:
-        for i, x in enumerate(_dict["entities"]):
-            item, entity_error = parse_entity(x)
-            invalid = invalid or entity_error
-            _dict["entities"][i] = item
-
-    return _dict, invalid
-
-
-def parse_entity(item: Dict):
-    error = False
-    for key in ["type", "filler"]:
-        if key not in item or not isinstance(item[key], str):
-            item[key] = "none"
-            error = True
-    return item, error
-
-
 def get_seq_mask(seq: torch.Tensor, seq_lens: torch.Tensor) -> torch.Tensor:
     """
     get the sequence mask based on the actual length of each sequence
@@ -203,23 +175,3 @@ def get_seq_mask(seq: torch.Tensor, seq_lens: torch.Tensor) -> torch.Tensor:
     """
     mask = torch.arange(seq.size(1))[None, :].to(seq.device) < seq_lens[:, None]
     return mask.to(seq.device, dtype=bool)
-
-
-def optimistic_restore(network, state_dict):
-    mismatch = False
-    own_state = network.state_dict()
-    for name, param in state_dict.items():
-        if name not in own_state:
-            print("Unexpected key {} in state_dict with size {}".format(name, param.size()))
-            mismatch = True
-        elif param.size() == own_state[name].size():
-            own_state[name].copy_(param)
-        else:
-            print("Network has {} with size {}, ckpt has {}".format(name, own_state[name].size(), param.size()))
-            mismatch = True
-
-    missing = set(own_state.keys()) - set(state_dict.keys())
-    if len(missing) > 0:
-        print("We couldn't find {}".format(','.join(missing)))
-        mismatch = True
-    return not mismatch

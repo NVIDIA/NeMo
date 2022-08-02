@@ -1,15 +1,35 @@
+# ! /usr/bin/python
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 import torch.nn as nn
 
 from nemo.collections.asr.parts.utils.slu_utils import get_seq_mask
-from nemo.core.classes import Loss
+from nemo.core.classes import Loss, typecheck
+from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 
 def get_seq_masked_loss(
     loss_fn, predictions, targets, lengths=None, label_smoothing=0.0, reduction="mean",
 ):
     """
-    inputs:
+    Calculate the loss function specified by 'loss_fn' on the input predictions. 
+    This function also supports label smoothing (https://arxiv.org/abs/1701.06548)
+
+    params:
+    - loss_fn: callable
     - predictions: BxTxC
     - targets: B
     - lengths: B
@@ -48,18 +68,37 @@ def get_seq_masked_loss(
 
 class SeqNLLLoss(Loss):
     def __init__(self, reduction='mean', label_smoothing=0.0, **kwargs):
+        """
+        Calculates the negative log likelihood (NLL) loss for sequence data,
+        with optional sequence masking and label smoothing.
+        """
         super().__init__()
         self.reduction = reduction
         self.label_smoothing = label_smoothing
         self.nll_loss = nn.NLLLoss(reduction='none', **kwargs)
 
-    def forward(self, log_probs, targets, lengths):
+    @property
+    def input_types(self):
         """
-        inputs:
-        - log_probs: BxTxC
-        - targets: B
-        - lengths: B
+        Input types definitions for sequential NLL loss.
         """
+        return {
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+        }
+
+    @property
+    def output_types(self):
+        """O
+        utput types definitions for sequential NLL loss.
+        loss:
+            NeuralType(LossType())
+        """
+        return {"loss": NeuralType(elements_type=LossType())}
+
+    @typecheck()
+    def forward(self, log_probs, targets, lengths=None):
         loss = get_seq_masked_loss(
             loss_fn=self.nll_loss,
             predictions=log_probs,

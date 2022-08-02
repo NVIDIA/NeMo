@@ -1,3 +1,18 @@
+# ! /usr/bin/python
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -9,48 +24,48 @@ from nemo.collections.asr.losses.slu_losses import SeqNLLLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
-from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.common.parts import LinearAdapterConfig, MultiLayerPerceptron
+from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding
 from nemo.core import adapter_mixins
-from nemo.core.classes import Serialization as ModuleBuilder
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
-__all__ = ['SLUEncDecBPEModel']
 
-
-class SLUEncDecBPEModel(EncDecCTCModelBPE):
+class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
     def __init__(self, cfg: DictConfig, trainer=None):
         if hasattr(cfg, "adapter") and getattr(cfg.adapter, "enabled", False):
+            logging.info("Using adapters...")
             with open_dict(cfg):
                 adapter_metadata = adapter_mixins.get_registered_adapter(cfg.encoder._target_)
                 if adapter_metadata is not None:
                     cfg.encoder._target_ = adapter_metadata.adapter_class_path
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.cfg.ssl_pretrained.model = None
+
         # Init encoder from SSL checkpoint
-        if self.cfg.ssl_pretrained.model is not None:
-            logging.info(f"Loading pretrained encoder from: {self.cfg.ssl_pretrained.model}")
-            if Path(self.cfg.ssl_pretrained.model).is_file():
+        if self.cfg.pretrained_encoder.model is not None:
+            if Path(self.cfg.pretrained_encoder.model).is_file():
+                logging.info(f"Loading pretrained encoder from local: {self.cfg.pretrained_encoder.model}")
                 ssl_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.restore_from(
-                    restore_path=self.cfg.ssl_pretrained.model
+                    restore_path=self.cfg.pretrained_encoder.model
                 )
             else:
+                logging.info(f"Loading pretrained encoder from NGC: {self.cfg.pretrained_encoder.model}")
                 ssl_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                    model_name=self.cfg.ssl_pretrained.model
+                    model_name=self.cfg.pretrained_encoder.model
                 )
             self.encoder.load_state_dict(ssl_model.encoder.state_dict(), strict=False)
             del ssl_model
         else:
             logging.info("Not using pretrained encoder.")
 
-        if self.cfg.ssl_pretrained.freeze:
-            logging.info("Freezing SSL encoder...")
+        if self.cfg.pretrained_encoder.freeze:
+            logging.info("Freezing encoder...")
             self.encoder.freeze()
 
         if hasattr(cfg, "adapter") and getattr(cfg.adapter, "enabled", False):
-            logging.info("Using Adapters...")
+            logging.info("Setting up adapters...")
             adapter_cfg = LinearAdapterConfig(
                 in_features=self.cfg.encoder.d_model,  # conformer specific model dim. Every layer emits this dim at its output.
                 dim=cfg.adapter.adapter_dim,  # the bottleneck dimension of the adapter
@@ -70,16 +85,21 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
 
         # Create embedding layer
         self.cfg.embedding["vocab_size"] = vocab_size
-        self.embedding = ModuleBuilder.from_config_dict(self.cfg.embedding)
+        self.embedding = TransformerEmbedding.from_config_dict(self.cfg.embedding)
 
         # Create token classifier
         self.cfg.classifier["num_classes"] = vocab_size
-        self.classifier = ModuleBuilder.from_config_dict(self.cfg.classifier)
+        self.classifier = MultiLayerPerceptron.from_config_dict(self.cfg.classifier)
 
-        self.loss = SeqNLLLoss(label_smoothing=getattr(self.cfg, "loss.label_smoothing", 0.0))
+        self.loss = SeqNLLLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
 
-        self.teacher_force_greedy = getattr(cfg.searcher, "teacher_force_greedy", False)
-        self.searcher = SequenceGenerator(cfg.searcher, self.embedding, self.decoder, self.classifier, self.tokenizer)
+        self.searcher = SequenceGenerator(
+            cfg=cfg.searcher,
+            embedding=self.embedding,
+            decoder=self.decoder,
+            log_softmax=self.classifier,
+            tokenizer=self.tokenizer,
+        )
 
         # Setup metric objects
         self._wer = WERBPE(
@@ -110,14 +130,14 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "outputs": NeuralType(('B', 'T', 'D'), LogprobsType(), optional=True),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType(), optional=True),
+            "lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType(), optional=True),
         }
 
     def set_decoding_strategy(self, cfg: SearcherConfig):
-        max_len = getattr(self.searcher, "generator.max_seq_length", cfg.max_sequence_length)
-        max_delta = getattr(self.searcher, "generator.max_delta_length", cfg.max_delta_length)
+        max_len = self.searcher.get("generator.max_seq_length", cfg.max_sequence_length)
+        max_delta = self.searcher.get("generator.max_delta_length", cfg.max_delta_length)
         cfg.max_sequence_length = max_len
         cfg.max_delta_length = max_delta
         self.searcher = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
@@ -141,8 +161,7 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
                 `self.sample_rate` number of floating point values.
             input_signal_length: Vector of length B, that contains the individual lengths of the audio
                 sequences.
-            target_semantics: Tensor that represents a batch of semantic tokens,
-                of shape [B, L].
+            target_semantics: Tensor that represents a batch of semantic tokens, of shape [B, L].
             target_semantics_length: Vector of length B, that contains the individual lengths of the semantic
                 sequences.
             processed_signal: Tensor that represents a batch of processed audio signals,
@@ -153,7 +172,7 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
         Returns:
             A tuple of 3 elements -
             1) The log probabilities tensor of shape [B, T, D].
-            2) The lengths of the acoustic sequence after propagation through the encoder, of shape [B].
+            2) The lengths of the output sequence after decoder, of shape [B].
             3) The greedy token predictions of the model of shape [B, T] (via argmax)
         """
         has_input_signal = input_signal is not None and input_signal_length is not None
@@ -176,7 +195,7 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
         encoded = encoded.transpose(1, 2)  # BxDxT -> BxTxD
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
-        if target_semantics is None:
+        if target_semantics is None:  # in inference-only mode
             predictions = self.searcher(encoded, encoded_mask)
             return None, None, predictions
 
@@ -192,10 +211,7 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
         )
         log_probs = self.classifier(decoded)
 
-        if self.training or self.teacher_force_greedy:
-            predictions = log_probs.argmax(dim=-1, keepdim=False)
-        else:
-            predictions = self.searcher(encoded, encoded_mask)
+        predictions = log_probs.argmax(dim=-1, keepdim=False)
 
         pred_len = self.searcher.get_seq_length(predictions)
         return log_probs, pred_len, predictions
@@ -268,12 +284,8 @@ class SLUEncDecBPEModel(EncDecCTCModelBPE):
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
         pred_tokens = self.searcher(encoded, encoded_mask)
-        predictions = self.decode_semantics(pred_tokens)
+        predictions = self.searcher.decode_semantics_from_tokens(pred_tokens)
         return predictions
-
-    def decode_semantics(self, seq_tokens):
-        semantics_str = self.searcher.decode_semantics_from_tokens(seq_tokens)
-        return semantics_str
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         if len(batch) == 4:
