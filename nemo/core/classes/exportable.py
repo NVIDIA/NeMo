@@ -59,7 +59,7 @@ class Exportable(ABC):
         check_trace: Union[bool, List[torch.Tensor]] = False,
         dynamic_axes=None,
         check_tolerance=0.01,
-        export_modules_as_functions=False
+        export_modules_as_functions=False,
     ):
         all_out = []
         all_descr = []
@@ -76,7 +76,7 @@ class Exportable(ABC):
                 check_trace=check_trace,
                 dynamic_axes=dynamic_axes,
                 check_tolerance=check_tolerance,
-                export_modules_as_functions=export_modules_as_functions
+                export_modules_as_functions=export_modules_as_functions,
             )
             # Propagate input example (default scenario, may need to be overriden)
             if input_example is not None:
@@ -97,7 +97,7 @@ class Exportable(ABC):
         check_trace: bool = False,
         dynamic_axes=None,
         check_tolerance=0.01,
-        export_modules_as_functions=False
+        export_modules_as_functions=False,
     ):
         my_args = locals().copy()
         my_args.pop('self')
@@ -179,9 +179,11 @@ class Exportable(ABC):
 
                     if check_trace:
                         if isinstance(check_trace, bool):
-                            check_trace_input = [self.input_module.input_example(max_dim=333),
-                                        self.input_module.input_example(max_dim=777),
-                                        self.input_module.input_example(max_dim=1111)]
+                            check_trace_input = [
+                                self.input_module.input_example(max_dim=333),
+                                self.input_module.input_example(max_dim=777),
+                                self.input_module.input_example(max_dim=1111),
+                            ]
                         else:
                             check_trace_input = check_trace
                         verify_runtime(self, output, check_trace_input, input_names)

@@ -91,7 +91,7 @@ model:
     # Sub-sampling params
     # stacking and stacking_norm would result in significant accuracy degradation and training instability with CTC models, recommend to use striding
     # stacking_norm is more stable and robust for CTC models and can be around 25% faster during inference
-    subsampling: striding # vggnet, striding, stacking, stacking_norm
+    subsampling: striding # vggnet, striding, stacking or stacking_norm, dw_striding
     subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # -1 sets it to d_model
     causal_downsampling: true # enables causal convolutions during downsampling

@@ -170,7 +170,7 @@ class ConvSubsampling(torch.nn.Module):
             if self.is_causal:
                 self._left_padding = self._kernel_size - 1
                 self._right_padding = self._stride - 1
-                self._max_cache_len = subsampling_factor + 1  # TODO: does it work for all cases?
+                self._max_cache_len = subsampling_factor + 1
             else:
                 self._left_padding = (self._kernel_size - 1) // 2
                 self._right_padding = (self._kernel_size - 1) // 2
@@ -184,7 +184,6 @@ class ConvSubsampling(torch.nn.Module):
                             out_channels=conv_channels,
                             kernel_size=self._kernel_size,
                             stride=self._stride,
-                            # padding=self._kernel_size - 1,
                             padding=None,
                         )
                     )

@@ -109,7 +109,7 @@ model:
     d_model: 512
 
     # Sub-sampling params
-    subsampling: striding # vggnet, striding, stacking or stacking_norm
+    subsampling: striding # vggnet, striding, stacking or stacking_norm, dw_striding
     subsampling_factor: 4 # must be power of 2 for striding and vggnet
     subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
 

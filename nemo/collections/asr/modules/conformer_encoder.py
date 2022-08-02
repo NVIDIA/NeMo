@@ -232,6 +232,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
             if subsampling in ['stacking', 'stacking_norm']:
+                # stacking_norm has an extra layer norm after stacking comparing to stacking
                 self.pre_encode = StackingSubsampling(
                     subsampling_factor=subsampling_factor,
                     feat_in=feat_in,
