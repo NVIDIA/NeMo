@@ -91,10 +91,12 @@ class ConvSubsampling(torch.nn.Module):
         layers = []
 
         if subsampling == 'vggnet':
-            self._padding = 0
             self._stride = 2
             self._kernel_size = 2
             self._ceil_mode = True
+
+            self._left_padding = 0
+            self._right_padding = 0
 
             for i in range(self._sampling_num):
                 layers.append(
@@ -113,17 +115,19 @@ class ConvSubsampling(torch.nn.Module):
                     torch.nn.MaxPool2d(
                         kernel_size=self._kernel_size,
                         stride=self._stride,
-                        padding=self._padding,
+                        padding=self._left_padding,
                         ceil_mode=self._ceil_mode,
                     )
                 )
                 in_channels = conv_channels
 
         elif subsampling == 'dw_striding':
-            self._padding = 1
             self._stride = 2
             self._kernel_size = 3
             self._ceil_mode = False
+
+            self._left_padding = (self._kernel_size - 1) // 2
+            self._right_padding = (self._kernel_size - 1) // 2
 
             # Layer 1
             layers.append(
@@ -132,7 +136,7 @@ class ConvSubsampling(torch.nn.Module):
                     out_channels=conv_channels,
                     kernel_size=self._kernel_size,
                     stride=self._stride,
-                    padding=self._padding,
+                    padding=self._left_padding,
                 )
             )
             in_channels = conv_channels
@@ -146,7 +150,7 @@ class ConvSubsampling(torch.nn.Module):
                             out_channels=in_channels,
                             kernel_size=self._kernel_size,
                             stride=self._stride,
-                            padding=self._padding,
+                            padding=self._left_padding,
                             groups=in_channels,
                         ),
                         torch.nn.Conv2d(
