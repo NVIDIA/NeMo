@@ -209,7 +209,7 @@ class ConvSubsampling(torch.nn.Module):
         in_length = torch.tensor(feat_in, dtype=torch.float)
         out_length = calc_length(
             lengths=in_length,
-            padding=self._left_padding + self._right_padding,
+            all_paddings=self._left_padding + self._right_padding,
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
@@ -227,7 +227,7 @@ class ConvSubsampling(torch.nn.Module):
     def forward(self, x, lengths):
         lengths = calc_length(
             lengths,
-            padding=self._left_padding + self._right_padding,
+            all_paddings=self._left_padding + self._right_padding,
             kernel_size=self._kernel_size,
             stride=self._stride,
             ceil_mode=self._ceil_mode,
@@ -271,9 +271,9 @@ class ConvSubsampling(torch.nn.Module):
                 torch.nn.init.uniform_(self.out.bias, -fc_scale, fc_scale)
 
 
-def calc_length(lengths, padding, kernel_size, stride, ceil_mode, repeat_num=1):
+def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
-    add_pad: float = padding - kernel_size
+    add_pad: float = all_paddings - kernel_size
     one: float = 1.0
     for i in range(repeat_num):
         lengths = torch.div(lengths.to(dtype=torch.float) + add_pad, stride) + one

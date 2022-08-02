@@ -206,22 +206,13 @@ class ConformerConvolution(nn.Module):
         self.pointwise_conv1 = nn.Conv1d(
             in_channels=d_model, out_channels=d_model * 2, kernel_size=1, stride=1, padding=0, bias=True
         )
-        self.depthwise_conv = nn.Conv1d(
-            in_channels=dw_conv_input_dim,
-            out_channels=dw_conv_input_dim,
-            kernel_size=kernel_size,
-            stride=1,
-            padding=(kernel_size - 1) // 2,
-            groups=dw_conv_input_dim,
-            bias=True,
-        )
 
         if conv_context_size is None or (
             conv_context_size[0] == (kernel_size - 1) // 2 and conv_context_size[1] == (kernel_size - 1) // 2
         ):
             self.depthwise_conv = nn.Conv1d(
-                in_channels=d_model,
-                out_channels=d_model,
+                in_channels=dw_conv_input_dim,
+                out_channels=dw_conv_input_dim,
                 kernel_size=kernel_size,
                 stride=1,
                 padding=(kernel_size - 1) // 2,
@@ -230,8 +221,8 @@ class ConformerConvolution(nn.Module):
             )
         else:
             self.depthwise_conv = CausalConv1D(
-                in_channels=d_model,
-                out_channels=d_model,
+                in_channels=dw_conv_input_dim,
+                out_channels=dw_conv_input_dim,
                 kernel_size=kernel_size,
                 stride=1,
                 padding=conv_context_size,
