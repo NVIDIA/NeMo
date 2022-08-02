@@ -134,22 +134,21 @@ class CausalConv1D(nn.Conv1d):
             x = F.pad(x, pad=(self._left_padding, self._right_padding))
         else:
             input_x = x
-            x_length = x.size(-1)
-            cache = cache[self._cache_id]
-            needed_cache = cache[:, :, -self._max_cache_len :]
+            needed_cache = cache[self._cache_id, :, :, -self._max_cache_len :]
             x = F.pad(x, pad=(0, self._right_padding))
             x = torch.cat((needed_cache, x), dim=-1)
+
         if cache_next is not None:
-            cache_next = cache_next[self._cache_id]
-            cache_next_length = cache_next.size(-1)
-            x_keep_size = x_length - self.cache_drop_size
-            cache_keep_size = min(x_keep_size, cache_next_length)
-            cache_next[:, :, :-x_keep_size] = cache[:, :, cache_keep_size:]
+            x_keep_size = input_x.size(-1) - self.cache_drop_size
+            cache_keep_size = torch.tensor(x_keep_size, dtype=torch.int64)
+            cache_keep_size = cache_keep_size.clip(max=cache_next.size(-1))
+
+            cache_next[self._cache_id, :, :, :-x_keep_size] = cache[self._cache_id, :, :, cache_keep_size:]
             input_x_kept = input_x[:, :, :x_keep_size]
-            cache_next[:, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
-        return x, cache_next
+            cache_next[self._cache_id, :, :, -cache_keep_size:] = input_x_kept[:, :, -cache_keep_size:]
+        return x
 
     def forward(self, x, cache=None, cache_next=None):
-        x, cache_next = self.update_cache(x, cache=cache, cache_next=cache_next)
+        x = self.update_cache(x, cache=cache, cache_next=cache_next)
         x = super().forward(x)
         return x

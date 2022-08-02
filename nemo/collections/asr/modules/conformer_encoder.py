@@ -99,9 +99,10 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         if hasattr(self, 'export_cache_support') and self.export_cache_support:
             cache_last_channel = torch.randn(self.n_layers, max_batch, self.conv_context_size[0], self.d_model).to(dev)
             cache_last_time = torch.randn(self.n_layers, max_batch, self.d_model, max_dim).to(dev)
-            all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         else:
-            all_input_example = tuple([input_example, input_example_length])
+            cache_last_channel = cache_last_time = None
+
+        all_input_example = tuple([input_example, input_example_length, cache_last_channel, cache_last_time])
         return all_input_example
 
     @property
