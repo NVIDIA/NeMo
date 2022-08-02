@@ -174,6 +174,7 @@ class BCPLauncher(Launcher):
         if setup is not None:
             lines += ["", "# setup"] + setup
 
+        #TODO: Add prime_dns_connections
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
 

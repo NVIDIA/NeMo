@@ -2170,7 +2170,7 @@ To specify the output location and file name of the converted `.nemo` file for G
 in `conf/conversion/convert_gpt3.yaml`:
 ```yaml
 run:
-    job_name: convert_${conversion.run.model_train_name}
+    name: convert_${conversion.run.model_train_name}
     nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -2268,7 +2268,7 @@ To specify the output location and file name of the converted `.nemo` file for T
 in `conf/conversion/convert_t5.yaml`:
 ```yaml
 run:
-    job_name: convert_${conversion.run.model_train_name}
+    name: convert_${conversion.run.model_train_name}
     nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
     time_limit: "2:00:00"
     ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -2369,7 +2369,7 @@ To specify the output location and file name of the converted `.nemo` file for m
 in `conf/conversion/convert_mt5.yaml`:
 ```yaml
 run:
-  job_name: convert_${conversion.run.model_train_name}
+  name: convert_${conversion.run.model_train_name}
   nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
   time_limit: "2:00:00"
   ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}

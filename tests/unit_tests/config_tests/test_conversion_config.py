@@ -6,7 +6,7 @@ class TestConversionT5Config:
         conf = OmegaConf.load("conf/conversion/convert_t5.yaml")
         s = """
         run:
-          job_name: convert_${conversion.run.model_train_name}
+          name: convert_${conversion.run.model_train_name}
           nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8} # 8 gpus per node
           time_limit: "2:00:00"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
@@ -39,7 +39,7 @@ class TestConversionGPT3Config:
         conf = OmegaConf.load("conf/conversion/convert_gpt3.yaml")
         s = """
         run:
-          job_name: convert_${conversion.run.model_train_name}
+          name: convert_${conversion.run.model_train_name}
           nodes: ${divide_ceil:${conversion.model.model_parallel_size}, 8}
           time_limit: "2:00:00"
           ntasks_per_node: ${divide_ceil:${conversion.model.model_parallel_size}, ${.nodes}}
