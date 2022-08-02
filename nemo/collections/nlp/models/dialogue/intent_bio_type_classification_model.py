@@ -181,6 +181,13 @@ class IntentBIOTypeClassificationModel(NLPModel):
             mode='micro',
         )
 
+        self.bio_slot_classification_report = ClassificationReport(
+            num_classes=len([0, 1, 2]),
+            label_ids={0:0, 1:1, 2:2},
+            dist_sync_on_step=True,
+            mode='micro',
+        )
+
     def update_data_dir_for_training(self, data_dir: str, train_ds, validation_ds) -> None:
         """
         Update data directory and get data stats with Data Descriptor.
@@ -205,6 +212,43 @@ class IntentBIOTypeClassificationModel(NLPModel):
         """
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
+    
+    @staticmethod
+    def get_entity_embedding_from_hidden_states(mention_mask, hidden_states):
+        '''
+        Generate mean pooling embedding per entity mention from hidden_states
+        Args:
+            mention_mask: tensor of size (batch_size, num_tokens, num_entities), that maps tokens to entity matches using BIO slot class of each word token
+            hidden_states: tensor of size (batch_size, num_tokens, hidden_state_dim)
+
+            eg,
+            send me a  wake up alert at seven am tomorrow morning
+            0    0  0  1    2  0     0  1     2  1        1
+            0: 'O' other
+            1: 'B' Begin
+            2: 'I' Inside
+            mention_mask = [[1, 0, 0, 1, 2, 0, 1]]
+            hidden_states = torch.ones((1,7,3))
+            [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]
+
+
+        '''
+        _, max_token_len, hidden_states_dim = hidden_states.size()
+        mention_hidden_states=[]
+
+        for one_mention_mask, one_hidden_states in zip(mention_mask, hidden_states):
+            mention_states = []
+            for idx, one_mask_value in enumerate(one_mention_mask):
+                if one_mask_value == 1:
+                    mention_states.append([])
+                if one_mask_value in [1, 2]:
+                    mention_states[-1].append(one_hidden_states[idx])
+            
+            mention_states = [torch.mean(torch.stack(mention_state),0) for mention_state in mention_states]
+            mention_states += [torch.zeros((hidden_states_dim)).to(hidden_states.device) for i in range(max_token_len-len(mention_states))]
+            mention_hidden_states.append(torch.stack(mention_states))
+        
+        return torch.stack(mention_hidden_states)
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids, mention_mask):
@@ -243,43 +287,10 @@ class IntentBIOTypeClassificationModel(NLPModel):
         # print("END DUMP bio_slot_logits")
 
         # current:bug; hidden_states#(batch*128*768) zzz
-        hidden_states_dim = hidden_states.size()[2]
-        max_token_len = hidden_states.size()[1]
+        
 
-        mention_hidden_states=[]
-
-        for m, h in zip(mention_mask, hidden_states):
-            mention_hidden_states_temp=[]
-            m = m.tolist()
-            h = h.tolist()
-            
-            for idx, l in enumerate(m):
-                if l==1:
-                    one_mention_hidden_states=[]
-                    one_mention_hidden_states.append(h[idx])
-                    idx+=1
-                    while(idx<len(m) and m[idx]==2):
-                        one_mention_hidden_states.append(h[idx])
-                        idx+=1
-                    idx-=1
-                    one_mention_hidden_states = torch.FloatTensor(one_mention_hidden_states)
-                    one_mention_mean_emb = torch.mean(one_mention_hidden_states, 0)
-                    mention_hidden_states_temp.append(one_mention_mean_emb.tolist())
-            mention_hidden_states.append(mention_hidden_states_temp)
-
-
-        mention_hidden_states_pad=[]
-        for b in mention_hidden_states:
-            mention_hidden_states_pad_temp=[]
-            for i in range(max_token_len):
-                if i<len(b):
-                    mention_hidden_states_pad_temp.append(b[i])
-                else:
-                    mention_hidden_states_pad_temp.append([0]*hidden_states_dim)
-            mention_hidden_states_pad.append(mention_hidden_states_pad_temp)
-            
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        mention_hidden_states_pad = (torch.FloatTensor(mention_hidden_states_pad)).to(device)
+        mention_hidden_states_pad = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
+        
 
         # dump
         # mention_hidden_states
@@ -377,7 +388,11 @@ class IntentBIOTypeClassificationModel(NLPModel):
         slot_preds = torch.argmax(slot_logits, axis=-1)
         # self.slot_classification_report.update(slot_preds[subtokens_mask], slot_labels[subtokens_mask])
         self.slot_classification_report.update(slot_preds[mention_loss_mask], bio_mention_labels[mention_loss_mask])
-        
+
+        loss_mask = loss_mask > 0.5
+        bio_slot_preds = torch.argmax(bio_slot_logits, axis=-1)
+        self.bio_slot_classification_report.update(bio_slot_preds[loss_mask], bio_slot_labels[loss_mask])
+
         return {
             'val_loss': val_loss,
             'intent_tp': self.intent_classification_report.tp,
@@ -386,10 +401,15 @@ class IntentBIOTypeClassificationModel(NLPModel):
             'slot_tp': self.slot_classification_report.tp,
             'slot_fn': self.slot_classification_report.fn,
             'slot_fp': self.slot_classification_report.fp,
+            'bio_slot_tp': self.bio_slot_classification_report.tp,
+            'bio_slot_fn': self.bio_slot_classification_report.fn,
+            'bio_slot_fp': self.bio_slot_classification_report.fp,
             'intent_preds': intent_preds,
             'intent_labels': intent_labels,
             'slot_preds': slot_preds,
             'slot_labels': slot_labels,
+            'bio_slot_preds': bio_slot_preds,
+            'bio_slot_labels': bio_slot_labels,
             'input': input_ids,
             'subtokens_mask': subtokens_mask,
         }
@@ -581,6 +601,10 @@ class IntentBIOTypeClassificationModel(NLPModel):
         slot_precision, slot_recall, slot_f1, slot_report = self.slot_classification_report.compute()
         logging.info(f'Slot report: {slot_report}')
 
+        bio_slot_precision, bio_slot_recall, bio_slot_f1, bio_slot_report = self.bio_slot_classification_report.compute()
+        logging.info(f'BIO Slot report: {bio_slot_report}')
+
+
         self.log('val_loss', avg_loss)
         self.log('intent_precision', intent_precision)
         self.log('intent_recall', intent_recall)
@@ -588,6 +612,9 @@ class IntentBIOTypeClassificationModel(NLPModel):
         self.log('slot_precision', slot_precision)
         self.log('slot_recall', slot_recall)
         self.log('slot_f1', slot_f1)
+        self.log('bio_slot_precision', bio_slot_precision)
+        self.log('bio_slot_recall', bio_slot_recall)
+        self.log('bio_slot_f1', bio_slot_f1)
         self.log('unified_slot_precision', unified_slot_precision)
         self.log('unified_slot_recall', unified_slot_recall)
         self.log('unified_slot_f1', unified_slot_f1)
@@ -595,6 +622,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
 
         self.intent_classification_report.reset()
         self.slot_classification_report.reset()
+        self.bio_slot_classification_report.reset()
 
         return {
             'val_loss': avg_loss,
