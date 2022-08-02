@@ -2851,7 +2851,7 @@ pipeline {
                 model.data.data_prefix=[/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document] \
                 model.data.knn_index=[/home/TestData/nlp/megatron_retro/knn_map_wiki_test.idx] \
                 model.data.retrieval_prefix=/home/TestData/nlp/megatron_retro/retro_wiki_test_text_document \
-                model.data.index_mapping_dir=examples/nlp/language_modeling/retro_results/smalltest \
+                model.data.index_mapping_dir=/home/TestData/nlp/megatron_retro \
                 model.data.num_workers=8 \
                 model.micro_batch_size=8 \
                 model.normalization=rmsnorm \
