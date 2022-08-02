@@ -998,6 +998,7 @@ class BeamRNNTInfer(Typing):
 
             # List that contains the blank token emisions
             list_b = []
+            duplication_check = [hyp.y_sequence for hyp in hyps]
 
             # Repeat for number of mAES steps
             for n in range(self.maes_num_steps):
@@ -1035,16 +1036,18 @@ class BeamRNNTInfer(Typing):
                             list_b.append(new_hyp)
                         else:
                             # If the expansion was a token
-                            new_hyp.y_sequence.append(int(k))
+                            # new_hyp.y_sequence.append(int(k))
+                            if (new_hyp.y_sequence + [int(k)]) not in duplication_check:
+                                new_hyp.y_sequence.append(int(k))
 
-                            # TODO: Setup LM
-                            if self.language_model is not None:
-                                # new_hyp.score += self.lm_weight * float(
-                                #     hyp.lm_scores[k]
-                                # )
-                                pass
+                                # TODO: Setup LM
+                                if self.language_model is not None:
+                                    # new_hyp.score += self.lm_weight * float(
+                                    #     hyp.lm_scores[k]
+                                    # )
+                                    pass
 
-                            list_exp.append(new_hyp)
+                                list_exp.append(new_hyp)
 
                 # If there were no token expansions in any of the hypotheses,
                 # Early exit
