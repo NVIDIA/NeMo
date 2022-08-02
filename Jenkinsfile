@@ -2792,7 +2792,7 @@ pipeline {
       }
       failFast true
       steps {
-            sh "examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
+            sh "python examples/nlp/language_modeling/megatron_retro_mutransfer_pretrain.py \
                 trainer.devices=2 \
                 trainer.num_nodes=1 \
                 trainer.accelerator=gpu \
@@ -2851,13 +2851,13 @@ pipeline {
 import pathlib
 from pandas.testing import assert_frame_equal
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-event_file = list(pathlib.Path(\'examples/nlp/language_modeling/retro_results/megatron_retro/smalltest\').glob(\'events.out.tfevents*\'))[0]
+event_file = list(pathlib.Path('examples/nlp/language_modeling/retro_results/megatron_retro/smalltest').glob('events.out.tfevents*'))[0]
 ea = EventAccumulator(str(event_file)).Reload()
 vals = []
-for i in ea.Scalars(\'reduced_train_loss\'):
+for i in ea.Scalars('reduced_train_loss'):
     vals.append(i.value)
-training_curve = pd.DataFrame({\'loss\': vals})
-gt_curve = pd.read_csv(\'/home/TestData/nlp/megatron_retro/expected_learning_curve.csv\')
+training_curve = pd.DataFrame({'loss': vals})
+gt_curve = pd.read_csv('/home/TestData/nlp/megatron_retro/expected_learning_curve.csv')
 assert_frame_equal(training_curve, gt_curve, rtol=1e-4, atol=1e-4)"'''
         sh "rm -rf examples/nlp/language_modeling/retro_results"
       }
