@@ -18,9 +18,9 @@ lowfreq: 0
 highfreq: 8000
 window: hann  
 
-train_n_segments: 9600
+train_n_segments: 19200
 train_max_duration: null
-train_min_duration: 1.2
+train_min_duration: 1.3
 
 val_n_segments: 25600
 val_max_duration: null
@@ -31,6 +31,9 @@ ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
 ssl_content_emb_type: 'probs'
 
 pitch_conditioning: false
+pitch_mean: 212.0
+pitch_std: 70.0
+normalize_pitch: true
 generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
 normalize_content: true # for newer checkpoints.
 

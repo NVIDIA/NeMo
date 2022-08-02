@@ -34,6 +34,9 @@ class SSLVocoderDataset(Dataset):
         ignore_file: Optional[Union[str, Path]] = None,
         trim: Optional[bool] = False,
         pitch_conditioning: Optional[bool] = False,
+        pitch_mean: Optional[float] = None,
+        pitch_std: Optional[float] = None,
+        normalize_pitch: Optional[bool] = True,
         sup_data_dir: Optional[Union[str, Path]] = None,
         data_caching: Optional[bool] = True,
         normalize_content: Optional[bool] = True,
@@ -138,6 +141,9 @@ class SSLVocoderDataset(Dataset):
         self.ssl_frame_length = int(0.025 * ssl_sample_rate)
         self.ssl_hop_length = int(0.01 * ssl_sample_rate)
         self.pitch_conditioning = pitch_conditioning
+        self.pitch_mean = pitch_mean
+        self.pitch_std = pitch_std
+        self.normalize_pitch = normalize_pitch
         self.data_caching = data_caching
 
         if sup_data_dir is None:
@@ -219,6 +225,10 @@ class SSLVocoderDataset(Dataset):
                 center=True,
                 fill_na=0.0,
             )
+            if self.normalize_pitch:
+                f0 = f0 - self.pitch_mean
+                f0[f0 == -self.pitch_mean] = 0.0
+                f0 = f0 / self.pitch_std
             pitch_contour = torch.tensor(f0, dtype=torch.float32)
             torch.save(pitch_contour, pitch_contour_fp)
             return pitch_contour

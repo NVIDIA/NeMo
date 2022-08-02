@@ -9,6 +9,9 @@ dataset:
   max_duration: ${train_max_duration}
   min_duration: ${train_min_duration}
   pitch_conditioning: ${pitch_conditioning}
+  pitch_mean: ${pitch_mean}
+  pitch_std: ${pitch_std}
+  normalize_pitch: ${normalize_pitch}
   data_caching: ${data_caching}
   normalize_content: ${normalize_content}
 dataloader_params:
