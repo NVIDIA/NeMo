@@ -62,11 +62,12 @@ class Prefix(MegatronModule):
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
-        self.prefix_layer_projection = ColumnLinear(prefix_projection_size, num_layers * hidden_size * 2)
+        self.prefix_layer_projection = ColumnLinear(prefix_projection_size, num_layers * self.num_emb_per_head * self.num_attention_heads_per_partition * 2)
         nn.init.normal_(self.prefix_embeddings.weight)
         nn.init.xavier_uniform_(self.prefix_projection.weight)
         nn.init.constant_(self.prefix_projection.bias, 0)
         self.dropout = nn.Dropout(prefix_dropout)
+
 
     def forward(self, bsz):
         """
@@ -77,8 +78,6 @@ class Prefix(MegatronModule):
         prefix_reps = self.prefix_projection(prefix_reps)  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
         prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
-        import pdb
-        pdb.set_trace()
         prefix_reps = self.dropout(prefix_reps)
         bsz, effective_prefix_len, _ = prefix_reps.shape
         prefix_reps = prefix_reps.view(
@@ -114,6 +113,8 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         self.prefix_generator.to(self.frozen_model.device)
 
         for name, layer in self.frozen_model.named_modules():
+            if hasattr(layer,"activations_checkpoint_method"):
+                layer.activations_checkpoint_method = None  # (@adithyare) prefix tuning does not support activations checkpointing atm.
             if hasattr(layer, 'scale_mask_softmax'):
                 layer.scale_mask_softmax.scaled_masked_softmax_fusion = False
 
