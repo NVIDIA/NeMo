@@ -23,9 +23,10 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_classification_data
 )
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_sgd_bert_dataset import DialogueSGDBERTDataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics, DialogueGenerationMetrics
 from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model import DialogueNearestNeighbourModel
-
+from nemo.collections.nlp.models.dialogue.intent_bio_type_classification_model import IntentBIOTypeClassificationModel
 
 @pytest.mark.unit
 def test_dialogue_metric_generation_f1():
@@ -276,3 +277,42 @@ def test_dialogue_nearest_neighbour_mean_pooling():
     assert torch.equal(
         torch.ones(8, 768).float() * 0.5, DialogueNearestNeighbourModel.mean_pooling(model_output, attention_mask)
     )
+
+@pytest.mark.unit
+def test_dialogue_get_entity_embedding_from_hidden_states():
+    mention_mask = torch.FloatTensor([[1, 0, 0, 1, 2, 0, 1]])
+    hidden_states = torch.ones((1,7,3))
+    expected_output = torch.FloatTensor([[[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]])
+    actual_output = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
+    assert torch.equal(
+        expected_output, actual_output
+    )
+
+@pytest.mark.unit
+def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
+    slot_label_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
+    label_of_other_type = 54
+    expected_output = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type)
+    assert expected_output == actual_output
+
+    slot_label_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2]
+    label_of_other_type = 0
+    expected_output = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type)
+    assert expected_output == actual_output
+
+@pytest.mark.unit
+def test_dialogue_bert_dataset_get_bio_mention_labels():
+    slot_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
+    bio_list = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
+    expected_output = [0, 46, 12, 48, -1, -1, -1, -1, -1, -1, -1]
+    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    assert expected_output == actual_output
+
+    slot_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2]
+    bio_list = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2]
+    expected_output = [6, 3, 2, -1, -1, -1, -1, -1, -1, -1, -1]
+    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    assert expected_output == actual_output
+
