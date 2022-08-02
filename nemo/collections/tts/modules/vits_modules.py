@@ -736,6 +736,7 @@ class DiscriminatorP(torch.nn.Module):
             norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
             norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
         ])
+        self.dropout = nn.Dropout(0.3)
         self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
@@ -772,6 +773,7 @@ class DiscriminatorS(torch.nn.Module):
             norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
             norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
         ])
+        self.dropout = nn.Dropout(0.3)
         self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):

@@ -248,10 +248,11 @@ class VitsModel(TextToWaveform):
         # with autocast(enabled=True):
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
         # with autocast(enabled=False):
-        loss_disc_real, loss_disc_gen, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+        # loss_disc_real, loss_disc_gen, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+        loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
         disc_generated_outputs=y_d_hat_g)
-        loss_disc_all = torch.max(loss_disc_real, loss_disc_gen)
-        # loss_disc_all = loss_disc_real + loss_disc_gen
+        # loss_disc_all = torch.max(loss_disc_real, loss_disc_gen)
+        loss_disc_all = loss_disc
 
         # if self.global_step <= 180000:
         # train discriminator
