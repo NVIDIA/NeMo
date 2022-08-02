@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 import torch
 from omegaconf import DictConfig
 
@@ -131,15 +132,16 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     position_embedding_type=encoder_cfg.get('position_embedding_type', 'learned_absolute'),
                 )
                 self._encoder_embedding_key = "encoder_embedding"
-                if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
-                    self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
-                        init_method=init_method_normal(embedding_init_method_std),
-                        num_attention_heads=encoder_cfg.num_attention_heads,
-                        relative_position_num_buckets=encoder_cfg.relative_attention_num_buckets,
-                        relative_position_max_distance=encoder_cfg.relative_attention_max_distance,
-                        bidirectional=True,
-                    )
-                    self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
+            if self.encoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+                self.encoder_relative_position_embedding = T5RelativePositionEmbedding(
+                    init_method=init_method_normal(embedding_init_method_std),
+                    num_attention_heads=encoder_cfg.num_attention_heads,
+                    relative_position_num_buckets=encoder_cfg.relative_attention_num_buckets,
+                    relative_position_max_distance=encoder_cfg.relative_attention_max_distance,
+                    bidirectional=True,
+                    layer_type=LayerType.encoder,
+                )
+                self._encoder_relative_position_embedding_key = "encoder_relative_position_embedding"
 
             encoder = get_encoder_model(
                 arch=encoder_cfg.arch,
@@ -206,26 +208,28 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
                 self._decoder_embedding_key = "decoder_embedding"
                 # TODO (sandeepsub): When implementing RPE for PP > 2, this should not be inside `pre_process`. It should exist on all ranks and be synchronized manually.
-                if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
-                    self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
+            if self.decoder_cfg.get('position_embedding_type', 'learned_absolute') == 'relative':
+                self.decoder_relative_position_embedding = T5RelativePositionEmbedding(
+                    init_method=init_method_normal(embedding_init_method_std),
+                    num_attention_heads=decoder_cfg.num_attention_heads,
+                    relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
+                    relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
+                    bidirectional=False,
+                    layer_type=LayerType.decoder,
+                )
+                self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
+                if not self.decoder_cfg.relative_position_bias_self_attention_only:
+                    self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
                         init_method=init_method_normal(embedding_init_method_std),
                         num_attention_heads=decoder_cfg.num_attention_heads,
                         relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
                         relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
-                        bidirectional=False,
+                        bidirectional=True,
+                        layer_type=LayerType.decoder,
                     )
-                    self._decoder_relative_position_embedding_key = "decoder_relative_position_embedding"
-                    if not self.decoder_cfg.relative_position_bias_self_attention_only:
-                        self.decoder_cross_attention_relative_position_embedding = T5RelativePositionEmbedding(
-                            init_method=init_method_normal(embedding_init_method_std),
-                            num_attention_heads=decoder_cfg.num_attention_heads,
-                            relative_position_num_buckets=decoder_cfg.relative_attention_num_buckets,
-                            relative_position_max_distance=decoder_cfg.relative_attention_max_distance,
-                            bidirectional=True,
-                        )
-                        self._decoder_cross_attention_relative_position_embedding_key = (
-                            "decoder_cross_attention_relative_position_embedding"
-                        )
+                    self._decoder_cross_attention_relative_position_embedding_key = (
+                        "decoder_cross_attention_relative_position_embedding"
+                    )
 
             decoder = get_decoder_model(
                 arch=decoder_cfg.arch,
