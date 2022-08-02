@@ -178,6 +178,7 @@ class HifiGanModel(Vocoder, Exportable):
         speaker_embedding_repeated = speaker_embedding_projected[:, :, None].repeat(
             1, 1, content_embedding_projected.shape[2]
         )
+
         if self.pitch_conditioning and pitch_contour is not None:
             pitch_contour_processed = self.pitch_contour_processor(pitch_contour[:, None, :])
             encoded = torch.cat(
@@ -298,7 +299,6 @@ class HifiGanModel(Vocoder, Exportable):
         # Plot audio once per epoch
 
         if batch_idx == 0:
-            print("Creating tensorboard logs")
             self.logger.experiment.add_audio(
                 "Real audio", audio[0, : audio_len[0]].data.cpu().numpy(), self.global_step, self.sample_rate
             )

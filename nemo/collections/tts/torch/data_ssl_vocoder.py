@@ -35,6 +35,8 @@ class SSLVocoderDataset(Dataset):
         trim: Optional[bool] = False,
         pitch_conditioning: Optional[bool] = False,
         sup_data_dir: Optional[Union[str, Path]] = None,
+        data_caching: Optional[bool] = True,
+        normalize_content: Optional[bool] = True,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -136,6 +138,7 @@ class SSLVocoderDataset(Dataset):
         self.ssl_frame_length = int(0.025 * ssl_sample_rate)
         self.ssl_hop_length = int(0.01 * ssl_sample_rate)
         self.pitch_conditioning = pitch_conditioning
+        self.data_caching = data_caching
 
         if sup_data_dir is None:
             sup_data_dir = os.path.join(self.base_data_dir, "sup_data")
@@ -144,9 +147,7 @@ class SSLVocoderDataset(Dataset):
         if not os.path.exists(self.sup_data_dir):
             os.makedirs(self.sup_data_dir)
 
-        # print("SUP DATA DIR: ", self.sup_data_dir)
-        # print("pad multiple", self.pad_multiple)
-        # print(XXXX)
+        self.normalize_content = normalize_content
 
     def _collate_fn(self, batch):
         final_batch = {}
@@ -205,7 +206,7 @@ class SSLVocoderDataset(Dataset):
     def get_pitch_contour(self, wav, wav_text_id):
         pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
         pitch_contour_fp = os.path.join(self.sup_data_dir, pitch_contour_fn)
-        if os.path.exists(pitch_contour_fp):
+        if os.path.exists(pitch_contour_fp) and self.data_caching:
             return torch.load(pitch_contour_fp)
         else:
             f0, _, _ = librosa.pyin(
@@ -227,7 +228,7 @@ class SSLVocoderDataset(Dataset):
         speaker_emb_fn = f"speaker_embedding_{wav_text_id}.pt"
         content_emb_fp = os.path.join(self.sup_data_dir, content_emb_fn)
         speaker_emb_fp = os.path.join(self.sup_data_dir, speaker_emb_fn)
-        if os.path.exists(content_emb_fp):
+        if os.path.exists(content_emb_fp) and self.data_caching:
             content_embedding = torch.load(content_emb_fp)
             if os.path.exists(speaker_emb_fp):
                 speaker_embedding = torch.load(speaker_emb_fp)
@@ -246,7 +247,9 @@ class SSLVocoderDataset(Dataset):
                         content_log_probs,
                         encoded_len,
                     ) = self.ssl_model.forward_for_export(
-                        input_signal=audio_ssl[None], input_signal_length=audio_ssl_length[None]
+                        input_signal=audio_ssl[None],
+                        input_signal_length=audio_ssl_length[None],
+                        normalize_content=self.normalize_content,
                     )
                     speaker_embedding_normalized = speaker_embedding_normalized[0].detach()
                     content_embedding = content_embedding[0].detach()
@@ -302,6 +305,7 @@ class SSLVocoderDataset(Dataset):
 
         audio_segment = item['audio'][audio_sidx:audio_eidx]
         encoded_segment = item['content_embedding'][:, encoded_sidx:encoded_eidx]
+
         if item['pitch_contour'] is not None:
             segment_pitch = item['pitch_contour'][encoded_sidx:encoded_eidx]
         else:

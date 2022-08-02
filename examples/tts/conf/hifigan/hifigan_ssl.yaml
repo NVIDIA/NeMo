@@ -4,8 +4,9 @@
 
 name: "HifiGan"
 
-train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train_small.json"
+train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train.json"
 validation_datasets: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_val.json"
+data_caching: true
 
 # Default values for dataset with sample_rate=22050
 sample_rate: 25600 # 25664
@@ -31,6 +32,7 @@ ssl_content_emb_type: 'probs'
 
 pitch_conditioning: false
 generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
+normalize_content: true # for newer checkpoints.
 
 defaults:
   - model/generator: v_ssl

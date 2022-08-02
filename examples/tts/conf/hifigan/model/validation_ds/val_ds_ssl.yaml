@@ -9,6 +9,8 @@ dataset:
   max_duration: ${val_max_duration}
   min_duration: ${val_min_duration}
   pitch_conditioning: ${pitch_conditioning}
+  data_caching: ${data_caching}
+  normalize_content: ${normalize_content}
 dataloader_params:
   drop_last: false
   shuffle: false
