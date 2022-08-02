@@ -92,19 +92,25 @@ class MegatronModule(torch.nn.Module):
         if hasattr(self, 'encoder_relative_position_embedding'):
             return self.encoder_relative_position_embedding.relative_position_embedding.weight
         else:
-            raise ValueError(f"No encoder_relative_position_embedding found on this rank. Looking for encoder_relative_position_embedding.relative_position_embedding.weight")
+            raise ValueError(
+                f"No encoder_relative_position_embedding found on this rank. Looking for encoder_relative_position_embedding.relative_position_embedding.weight"
+            )
 
     def decoder_relative_position_embeddings_weight(self):
         if hasattr(self, 'decoder_relative_position_embedding'):
             return self.decoder_relative_position_embedding.relative_position_embedding.weight
         else:
-            raise ValueError(f"No decoder_relative_position_embedding found on this rank. Looking for decoder_relative_position_embedding.relative_position_embedding.weight")
+            raise ValueError(
+                f"No decoder_relative_position_embedding found on this rank. Looking for decoder_relative_position_embedding.relative_position_embedding.weight"
+            )
 
     def decoder_cross_attention_relative_position_embeddings_weight(self):
         if hasattr(self, 'decoder_cross_attention_relative_position_embedding'):
             return self.decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight
         else:
-            raise ValueError(f"No decoder_cross_attention_relative_position_embedding found on this rank. Looking for decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight")
+            raise ValueError(
+                f"No decoder_cross_attention_relative_position_embedding found on this rank. Looking for decoder_cross_attention_relative_position_embedding.relative_position_embedding.weight"
+            )
 
     def initialize_word_embeddings(self, init_method, vocab_size, hidden_size):
         if not self.share_token_embeddings:

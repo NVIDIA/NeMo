@@ -381,7 +381,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     grad = word_embeddings_weight.grad
                 torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
             else:
-                raise ValueError(f"Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet.")
+                raise ValueError(
+                    f"Attempting to allreduce word_embeddings for pipeline parallel size > 1, but found untied word embeddings or token head embeddings. This is not supported yet."
+                )
 
         # All-reduce position embeddings for T5.
         if (
@@ -401,7 +403,8 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # All-reduce relative position embeddings for T5.
         if (
-            parallel_state.get_pipeline_model_parallel_world_size() > 2 # This > 2 and not > 1 since with PP=2 encoder RPE can live only on one rank.
+            parallel_state.get_pipeline_model_parallel_world_size()
+            > 2  # This > 2 and not > 1 since with PP=2 encoder RPE can live only on one rank.
             and parallel_state.get_pipeline_model_parallel_split_rank() is not None
         ):
             # For split rank = 1, we have only one encoder rank and so we don't need to allreduce.
@@ -415,29 +418,38 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                     grad = position_embeddings_weight.main_grad
                 else:
                     grad = position_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_encoder_relative_position_embedding_group())
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_encoder_relative_position_embedding_group()
+                )
 
             # For split rank == pipeline_world_size - 1, we have only one decoder rank and so we don't need to allreduce.
             if (
                 self.cfg.decoder.get('position_embedding_type') == 'relative'
                 and parallel_state.is_rank_in_decoder_relative_position_embedding_group()
-                and parallel_state.get_pipeline_model_parallel_split_rank() < parallel_state.get_pipeline_model_parallel_world_size() - 1
+                and parallel_state.get_pipeline_model_parallel_split_rank()
+                < parallel_state.get_pipeline_model_parallel_world_size() - 1
             ):
                 position_embeddings_weight = self.enc_dec_model.decoder_relative_position_embeddings_weight()
                 if self.megatron_amp_o2:
                     grad = position_embeddings_weight.main_grad
                 else:
                     grad = position_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_decoder_relative_position_embedding_group())
+                torch.distributed.all_reduce(
+                    grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                )
 
                 # If the model also has separate RPE weights for decoder cross-attention, allreduce those as well.
                 if not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
-                    position_embeddings_weight = self.enc_dec_model.decoder_cross_attention_relative_position_embeddings_weight()
+                    position_embeddings_weight = (
+                        self.enc_dec_model.decoder_cross_attention_relative_position_embeddings_weight()
+                    )
                     if self.megatron_amp_o2:
                         grad = position_embeddings_weight.main_grad
                     else:
                         grad = position_embeddings_weight.grad
-                    torch.distributed.all_reduce(grad, group=parallel_state.get_decoder_relative_position_embedding_group())
+                    torch.distributed.all_reduce(
+                        grad, group=parallel_state.get_decoder_relative_position_embedding_group()
+                    )
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):

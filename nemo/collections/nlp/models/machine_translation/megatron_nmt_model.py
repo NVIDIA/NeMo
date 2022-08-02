@@ -122,7 +122,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             self.enc_dec_model.sync_initial_word_embeddings()
             # Only synchronize position embeddings if using absolute position embeddings in both the encoder and decoder.
-            if self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute" and self.cfg.decoder.get("position_embedding_type", "learned_absolute") == "learned_absolute":
+            if (
+                self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+                and self.cfg.decoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+            ):
                 self.enc_dec_model.sync_initial_position_embeddings()
 
     def _build_tokenizer(self):

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 import torch
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
+from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
 from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
     MegatronTransformerEncoderDecoderModule,
