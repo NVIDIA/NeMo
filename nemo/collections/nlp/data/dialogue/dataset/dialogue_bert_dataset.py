@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import pickle
+import torch
 from typing import Dict, Optional
 
 import numpy as np
@@ -94,141 +95,43 @@ class DialogueBERTDataset(DialogueDataset):
         self.all_subtokens_mask = features[4]
         self.all_slots = features[5]
 
-
-        
-        # dict_slots = {}
-        # bio_transfer= {} #0 indicates 'O', 1 indicates 'B', 2 indicates 'I' 
-        # bio_transfer['0'] = '0'
-
-        # for idx,s in enumerate(self.all_possible_slots):
-        #     dict_slots[str(idx)]=s
-
-        # for k,v in dict_slots.items():
-        #     if 'B' in v:
-        #         bio_transfer[k] = '1'
-        #     elif 'I' in v:
-        #         bio_transfer[k] = '2'
-
-        def transfer(input_list, other_label):
-            bio_list = []
-            start = 0
-            idx = 0
-            
-            
-            while idx<len(input_list):
-                label=input_list[idx]
-                # print(idx)
-                
-                if label!=other_label and label!=-1:
-                    while idx<len(input_list) and label != other_label and label!=-1:
-                        # print(idx)
-                        if start==0:
-                            start = 1
-                            bio_list.append(1)
-                        elif label!=input_list[idx-1]:
-                            start = 1
-                            bio_list.append(1)
-                        else:
-                            bio_list.append(2)
-                        idx+=1
-                        if idx<len(input_list):
-                            label=input_list[idx]
-                    start = 0
-                    idx-=1
-                else:
-                    # bio_list.append(label)
-                    bio_list.append(0)
-                idx +=1
-            return bio_list
-
-
-        # bio_train_slots = []
-        # for t in features[5]:
-        #     bio_train_slots.append(' '.join([bio_transfer[s] for s in t.split()]))
-
-        # drive through dataset: other_label=0; assistant dataset: other_label='54'
+        # drive through dataset: label_of_other_type=0; assistant dataset: label_of_other_type=54
+        # use the train_slot_stats.tsv file majority class as the "Other" slot class
         file_path_for_stats = cfg.data_dir+"/train_slot_stats.tsv"
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        # print("============== file_path_for_stats ==========")
-        print(file_path_for_stats)
+        
         with open(file_path_for_stats) as f:
-            other_label = int(f.read().strip().split('\n')[0].split()[0])
+            label_of_other_type = int(f.read().strip().split('\n')[0].split()[0])
 
-        bio_train_slots = [transfer(t, other_label) for t in features[5]]
-        
-        
-
+        bio_train_slots = [DialogueBERTDataset.get_bio_slot_label_from_sequence(t, label_of_other_type) for t in features[5]]
         self.all_bio_slots = bio_train_slots
 
-        def get_bio_mention_labels(slot_list, bio_list):
-            # slot_list [-1  0  0  0  3  0  0  0 -1 -1 -1]
-            # bio_list  [-1  0  0  0  1  0  0  0 -1 -1 -1]
-            # the function will generate mention's entity lables
-            # bio_train_slots [3]+[0 0 ... 0 0]
-
-            bio_train_slots=[]
-            for idx_ in range(len(slot_list)):
-                if bio_list[idx_]==1:
-                    bio_train_slots.append(slot_list[idx_])
-            add_zero=len(slot_list)-len(bio_train_slots)
-            
-            bio_train_slots = bio_train_slots+[-1]*(add_zero)
-            # bio_train_slots = [0]+bio_train_slots
-            # bio_train_slots = bio_train_slots+[0]*(add_zero-1)
-            return bio_train_slots
-
-        bio_mention_labels = [get_bio_mention_labels(t, bio_list) for t, bio_list in zip(features[5], bio_train_slots)]
-
+        bio_mention_labels = [DialogueBERTDataset.get_bio_mention_labels(t, bio_list) for t, bio_list in zip(features[5], bio_train_slots)]
         self.bio_mention_labels = bio_mention_labels
 
-        # this may be wrong, we need to create new mention_loss_mask, as the next floowing function
-        def get_mention_loss_mask(bio_mention_labels_list):
-            # bio_mention_labels_list [3]+[0 0 ... 0 0]
-            # mention_loss_mask_list  [1]+[0 0 ... 0 0 ]
-            mention_loss_mask_list= [1 if b!=-1 else 0 for b in bio_mention_labels_list]
-            return mention_loss_mask_list
-
-        # def get_mention_loss_mask(slot_list):
-        #     # slot_list              [-1  0  0  0  3  0  0  0 -1 -1 -1]
-        #     # the function will generate mention's mask
-        #     # mention_loss_mask_list [ 0  0  0  0  3  0  0  0  0  0  0]
-        #     # s>0 which is not -1 , and not 0, would be other classes 1, 2, 3, ...
-        #     mention_loss_mask_list= [1 if s>0 else 0 for s in slot_list]
-        #     return mention_loss_mask_list
-
-        #this may be wrong, check out the next line
-        mention_loss_mask = [get_mention_loss_mask(b_list) for b_list in bio_mention_labels]
-        # mention_loss_mask = [get_mention_loss_mask(t) for t in features[5]]
-
-
-        self.mention_loss_mask = mention_loss_mask
+        bio_mention_loss_mask = torch.FloatTensor(bio_mention_labels)
+        bio_mention_loss_mask = (bio_mention_loss_mask>0).type(torch.uint8).tolist()
+        self.mention_loss_mask = bio_mention_loss_mask
 
         self.all_intents = intents
 
-        print("============== DUMP PICKLE =============")
-        with open('/home/lilee/pickle/features.pickle', 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
-            pickle.dump(features, f, pickle.HIGHEST_PROTOCOL)
+        # print("============== DUMP PICKLE =============")
+        # with open('/home/lilee/pickle/features.pickle', 'wb') as f:
+        #     # Pickle the 'data' dictionary using the highest protocol available.
+        #     pickle.dump(features, f, pickle.HIGHEST_PROTOCOL)
 
-        with open('/home/lilee/pickle/bio_train_slots.pickle', 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
-            pickle.dump(bio_train_slots, f, pickle.HIGHEST_PROTOCOL)
+        # with open('/home/lilee/pickle/bio_train_slots.pickle', 'wb') as f:
+        #     # Pickle the 'data' dictionary using the highest protocol available.
+        #     pickle.dump(bio_train_slots, f, pickle.HIGHEST_PROTOCOL)
 
-        with open('/home/lilee/pickle/bio_mention_labels.pickle', 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
-            pickle.dump(bio_mention_labels, f, pickle.HIGHEST_PROTOCOL)
+        # with open('/home/lilee/pickle/bio_mention_labels.pickle', 'wb') as f:
+        #     # Pickle the 'data' dictionary using the highest protocol available.
+        #     pickle.dump(bio_mention_labels, f, pickle.HIGHEST_PROTOCOL)
         
-        with open('/home/lilee/pickle/mention_loss_mask.pickle', 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
-            pickle.dump(mention_loss_mask, f, pickle.HIGHEST_PROTOCOL)        
+        # with open('/home/lilee/pickle/mention_loss_mask.pickle', 'wb') as f:
+        #     # Pickle the 'data' dictionary using the highest protocol available.
+        #     pickle.dump(bio_mention_loss_mask, f, pickle.HIGHEST_PROTOCOL)        
 
-        print("============== DUMP PICKLE END =============")
+        # print("============== DUMP PICKLE END =============")
 
     def convert_slot_position_to_slot_ids(self, feature):
         slot_ids = [self.slot_name_to_slot_id[self.empty_slot_name] for i in range(len(feature["utterance"].split()))]
@@ -259,6 +162,98 @@ class DialogueBERTDataset(DialogueDataset):
             np.array(self.bio_mention_labels[idx]),
             np.array(self.mention_loss_mask[idx]),
         )
+
+    @staticmethod
+    def get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type):
+        """
+        Generate BIO slot label based on slot label
+        Args:
+            slot_label_list: list of int representing slot class of each word token (per sentence)
+            Eg,
+            send me a  wake up alert at seven am tomorrow morning
+            54   54 54 0    0  54    54 46    46 12       48
+            [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
+
+            label_of_other_type: int lable of "Other" type in the slot_label_list
+            For instance, in drive_through dataset "Other" is 0; in assistant dataset "Other" is 54
+        Returns:
+            bio_label_list: list of int representing BIO slot class of each word token
+            eg,
+            send me a  wake up alert at seven am tomorrow morning
+            0    0  0  1    2  0     0  1     2  1        1
+            [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
+        """
+
+        bio_label_list = []
+        start = 0
+        idx = 0
+
+        while idx < len(slot_label_list):
+            label = slot_label_list[idx]
+            
+            if label not in [label_of_other_type, -1]:
+                while idx < len(slot_label_list) and label not in [label_of_other_type, -1]:
+                    if start == 0:
+                        start = 1
+                        bio_label_list.append(1)
+                    elif label != slot_label_list[idx-1]:
+                        start = 1
+                        bio_label_list.append(1)
+                    else:
+                        bio_label_list.append(2)
+                    idx += 1
+                    if idx < len(slot_label_list):
+                        label = slot_label_list[idx]
+                start = 0
+                idx -= 1
+            else:
+                bio_label_list.append(0)
+            idx += 1
+        return bio_label_list
+
+    @staticmethod
+    def get_bio_mention_labels(slot_list, bio_list):
+        """
+        Generate slot label per BIO mention 
+        Args:
+            slot_list: list of int representing slot class of each word token
+            eg 1.
+            send me a  wake up alert at seven am tomorrow morning
+            54   54 54 0    0  54    54 46    46 12       48
+
+            eg 2.
+            yes Could I also get one two litre of Sprite cola?
+            0   0     0 0    0   6   3   3     0  2      2
+            
+            bio_list: list of int representing BIO slot class of each word token
+            eg 1.
+            send me a  wake up alert at seven am tomorrow morning
+            0    0  0  1    2  0     0  1     2  1        1
+            eg 2.
+            yes Could I also get one two litre of Sprite cola?
+            0   0     0 0    0   1   1   2     0  1      2
+
+        Returns:
+            bio_train_slots: list of int representing slot class of each BIO mention
+            eg 1.
+            wake+up seven+am tomorrow morning (padding ... )
+            0       46       12       48      (-1, ..., -1
+
+
+            eg 2.
+            one   two+litre  Sprite+cola (padding ...)
+            6     3          2           (-1, ..., -1)
+        """
+
+        bio_train_slots=[]
+        for idx_ in range(len(slot_list)):
+            if bio_list[idx_]==1:
+                bio_train_slots.append(slot_list[idx_])
+        add_zero=len(slot_list)-len(bio_train_slots)
+        
+        bio_train_slots = bio_train_slots+[-1]*(add_zero)
+        
+        return bio_train_slots
 
     @staticmethod
     def truncate_and_pad(
