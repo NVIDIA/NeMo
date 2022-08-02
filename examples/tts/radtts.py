@@ -24,7 +24,7 @@ from nemo.utils.exp_manager import exp_manager
 def prepare_model_weights(model, unfreeze_modules):
     if unfreeze_modules != 'all':
         model.freeze()  # freeze everything
-        logging.info("module freezed, about to unfreeze modules to be trained")
+        logging.info("module frozen")
         if 'dur' in unfreeze_modules and hasattr(model.model, 'dur_pred_layer'):
             logging.info("Training duration prediction")
             model.model.dur_pred_layer.unfreeze()
@@ -43,6 +43,8 @@ def prepare_model_weights(model, unfreeze_modules):
         if 'unvbias' in unfreeze_modules and hasattr(model.model, 'unvoiced_bias_module'):
             logging.info("Training unvoiced bias")
             model.model.unvoiced_bias_module.unfreeze()
+        else:
+            logging.info("Model does not have the specified attribute.")
     else:
         logging.info("Training everything")
 

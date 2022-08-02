@@ -366,7 +366,7 @@ class RadTTSModule(NeuralModule, Exportable):
 
         if self.n_group_size > 1:
             context = self.unfold(context.unsqueeze(-1))
-            # (todo): fix unfolding zero-padded values
+
             if f0 is not None:
                 f0 = self.unfold(f0[:, None, :, None])
             if energy_avg is not None:
@@ -504,7 +504,7 @@ class RadTTSModule(NeuralModule, Exportable):
         if 'dec' in self.include_modules:
             if self.n_group_size > 1:
                 # might truncate some frames at the end, but that's ok
-                # sometimes referred to as the "squeeeze" operation
+                # sometimes referred to as the "squeeze" operation
                 # invert this by calling self.fold(mel_or_z)
                 mel = self.unfold(mel.unsqueeze(-1))
             z_out = []
@@ -656,7 +656,7 @@ class RadTTSModule(NeuralModule, Exportable):
             z_dur = txt_enc.new_empty((1, 1, text.shape[1]), dtype=torch.float)
             z_dur = z_dur.normal_() * sigma_txt
             dur = self.dur_pred_layer.infer(z_dur, txt_enc, spk_vec_text)
-            dur = pad_dur(dur, txt_enc)  # FIXME: use replication pad
+            dur = pad_dur(dur, txt_enc)
 
             dur = dur[:, 0]
             dur = dur.clamp(0, token_duration_max)
@@ -706,8 +706,6 @@ class RadTTSModule(NeuralModule, Exportable):
         # may lead to mismatched lengths
         # FIXME: use replication pad
         (energy_avg, f0) = pad_energy_avg_and_f0(energy_avg, f0, out_lens)
-
-        # print (txt_enc_time_expanded.shape, dur.shape, f0.shape, energy_avg.shape)
 
         if self.decoder_use_unvoiced_bias:
             context_w_spkvec = self.preprocess_context(
@@ -858,7 +856,6 @@ class RadTTSModule(NeuralModule, Exportable):
             text,
             speaker_id_text=speaker_id_text,
             speaker_id_attributes=speaker_id_attributes,
-            #                                            sigma=0.0, sigma_txt=0.0, sigma_f0=0., sigma_energy=0.,
             sigma=0.7,
             sigma_txt=0.7,
             sigma_f0=1.0,

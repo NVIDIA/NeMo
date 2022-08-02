@@ -161,7 +161,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
-        # print("batch", batch)
+
         batch = self.batch_dict(batch)
         speaker_ids = batch['speaker_id']
         text = batch['text']
@@ -259,12 +259,12 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             optimizer = torch.optim.Adam(
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
-        elif self.optim.name == 'RAdam':  # Fasle for inference riva
+        elif self.optim.name == 'RAdam':  # False for inference riva
             optimizer = torch.optim.RAdam(
                 self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
             )
         else:
-            logging.info("Unrecognized optimizer %s!" % (self.optim.name))
+            logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
             exit(1)
 
         return optimizer
@@ -302,7 +302,6 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
     )
     def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
         self.eval()
-        # s = [0]
         if self.training:
             logging.warning("generate_spectrogram() is meant to be called in eval mode.")
         speaker = torch.tensor([speaker]).long().cuda().to(self.device)
@@ -331,10 +330,7 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 g2p_kwargs["heteronyms"] = self.register_artifact(
                     'text_tokenizer.g2p.heteronyms', cfg.text_tokenizer.g2p.heteronyms,
                 )
-            if "adlr_symbol_id_mapper" in cfg.text_tokenizer.g2p:
-                adlr_symbol_to_id = self.register_artifact(
-                    'text_tokenizer.g2p.adlr_symbol_id_mapper', cfg.text_tokenizer.g2p.adlr_symbol_id_mapper,
-                )
+
             text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)

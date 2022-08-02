@@ -27,13 +27,8 @@ lowfreq: 0
 highfreq: 8000
 window: "hann"
 
-pitch_loss_scale: 0.1
-durs_loss_scale: 0.1
-mel_loss_scale: 1.0
-
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921" #"scripts/tts_dataset_files/heteronyms-030921"
-adlr_symbol_id_mapper_path: "scripts/tts_dataset_files/mapping.txt"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722" 
 
 model:
   target: nemo.collections.tts.models.RadTTSModel
@@ -42,10 +37,6 @@ model:
 
   symbols_embedding_dim: 384
   n_mel_channels: ${n_mels}
-
-  pitch_loss_scale: ${pitch_loss_scale}
-  durs_loss_scale: ${durs_loss_scale}
-  mel_loss_scale: ${mel_loss_scale}
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
@@ -68,7 +59,7 @@ model:
       sample_rate: ${sample_rate}
       sup_data_path: ${sup_data_path}
       sup_data_types: ${sup_data_types}
-      n_fft: ${n_fft} #hmmmmmmmm
+      n_fft: ${n_fft}
       win_length: ${n_window_size}
       hop_length: ${n_window_stride}
       window: ${window}
@@ -81,8 +72,6 @@ model:
       trim: False
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax} 
-      
-      
       
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
@@ -106,7 +95,7 @@ model:
       shuffle: true
       batch_size: 32
       num_workers: 8
-      pin_memory: false
+      pin_memory: True
 
   validation_ds:
     dataset:
@@ -153,7 +142,7 @@ model:
       shuffle: false
       batch_size: 32
       num_workers: 8
-      pin_memory: false
+      pin_memory: True
 
   optim:
     name: RAdam
@@ -245,7 +234,6 @@ model:
         dur_model_config: 
             name: dap 
             hparams: 
-                #_target_: "nemo.collections.tts.modules.feature_prediction_model.FP"
                 n_speaker_dim: 16 
                 bottleneck_hparams: 
                     in_dim: 512
@@ -314,13 +302,14 @@ model:
         
 
 trainer:
-  gpus: 8
+  devices: 8
   precision: 16
   max_epochs: 1000
   num_nodes: 1
-  accelerator: ddp
+  accelerator: gpu
+  strategy: ddp
   accumulate_grad_batches: 1
-  checkpoint_callback: False
+  enable_checkpointing: False
   logger: False
   gradient_clip_val: 1
   flush_logs_every_n_steps: 1000

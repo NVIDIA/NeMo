@@ -26,34 +26,30 @@ import torch.nn.functional as F
 def piecewise_linear_transform(x, q_tilde, compute_jacobian=True, outlier_passthru=True):
     """Apply an element-wise piecewise-linear transformation to some variables
 
-    Parameters
-    ----------
-    x : torch.Tensor
-        a tensor with shape (N,k) where N is the batch dimension while k is the
-        dimension of the variable space. This variable span the k-dimensional unit
+    Args:
+        x : torch.Tensor
+            a tensor with shape (N,k) where N is the batch dimension while k is the dimension of the variable space. This variable span the k-dimensional unit
         hypercube
 
-    q_tilde: torch.Tensor
-        is a tensor with shape (N,k,b) where b is the number of bins.
-        This contains the un-normalized heights of the bins of the piecewise-constant PDF for dimension k,
-        i.e. q_tilde lives in all of R and we don't impose a constraint on their sum yet.
-        Normalization is imposed in this function using softmax.
+        q_tilde: torch.Tensor
+                is a tensor with shape (N,k,b) where b is the number of bins.
+                This contains the un-normalized heights of the bins of the piecewise-constant PDF for dimension k,
+                i.e. q_tilde lives in all of R and we don't impose a constraint on their sum yet.
+                Normalization is imposed in this function using softmax.
 
-    compute_jacobian : bool, optional
-        determines whether the jacobian should be compute or None is returned
+        compute_jacobian : bool, optional
+                            determines whether the jacobian should be compute or None is returned
 
-    Returns
-    -------
-    tuple of torch.Tensor
-        pair `(y,h)`.
-        - `y` is a tensor with shape (N,k) living in the k-dimensional unit hypercube
-        - `j` is the jacobian of the transformation with shape (N,) if compute_jacobian==True, else None.
+    Returns:
+        tuple of torch.Tensor
+            pair `(y,h)`.
+            - `y` is a tensor with shape (N,k) living in the k-dimensional unit hypercube
+            - `j` is the jacobian of the transformation with shape (N,) if compute_jacobian==True, else None.
     """
     logj = None
 
     third_dimension_softmax = torch.nn.Softmax(dim=2)
 
-    # TODO bottom-up assesment of handling the differentiability of variables
     # Compute the bin width w
     N, k, b = q_tilde.shape
     Nx, kx = x.shape
@@ -114,31 +110,23 @@ def piecewise_linear_inverse_transform(y, q_tilde, compute_jacobian=True, outlie
     Apply inverse of an element-wise piecewise-linear transformation to some
     variables
 
-    Parameters
-    ----------
-    y : torch.Tensor
-        a tensor with shape (N,k) where N is the batch dimension while k is the
-        dimension of the variable space. This variable span the k-dimensional unit
-        hypercube
+    Args:
+        y : torch.Tensor
+            a tensor with shape (N,k) where N is the batch dimension while k is the dimension of the variable space. This variable span the k-dimensional unit hypercube
 
-    q_tilde: torch.Tensor
-        is a tensor with shape (N,k,b) where b is the number of bins.
-        This contains the un-normalized heights of the bins of the piecewise-constant PDF for dimension k,
-        i.e. q_tilde lives in all of R and we don't impose a constraint on their sum yet.
-        Normalization is imposed in this function using softmax.
+        q_tilde: torch.Tensor
+                is a tensor with shape (N,k,b) where b is the number of bins. This contains the un-normalized heights of the bins of the piecewise-constant PDF for dimension k, i.e. q_tilde lives in all of R and we don't impose a constraint on their sum yet. Normalization is imposed in this function using softmax.
 
-    compute_jacobian : bool, optional
-        determines whether the jacobian should be compute or None is returned
+        compute_jacobian : bool, optional
+                            determines whether the jacobian should be compute or None is returned
 
-    Returns
-    -------
-    tuple of torch.Tensor
-        pair `(x,h)`.
-        - `x` is a tensor with shape (N,k) living in the k-dimensional unit hypercube
-        - `j` is the jacobian of the transformation with shape (N,) if compute_jacobian==True, else None.
+    Returns:
+        tuple of torch.Tensor
+            pair `(x,h)`.
+            - `x` is a tensor with shape (N,k) living in the k-dimensional unit hypercube
+            - `j` is the jacobian of the transformation with shape (N,) if compute_jacobian==True, else None.
     """
 
-    # TODO bottom-up assesment of handling the differentiability of variables
     third_dimension_softmax = torch.nn.Softmax(dim=2)
     # Compute the bin width w
     N, k, b = q_tilde.shape
@@ -238,22 +226,20 @@ def weighted_softmax(v, w):
 
 def piecewise_quadratic_transform(x, w_tilde, v_tilde, inverse=False):
     """Element-wise piecewise-quadratic transformation
-    Parameters
-    ----------
-    x : torch.Tensor
-        *, The variable spans the D-dim unit hypercube ([0,1))
-    w_tilde : torch.Tensor
-        * x K defined in the paper
-    v_tilde : torch.Tensor
-        * x (K+1) defined in the paper
-    inverse : bool
-        forward or inverse
-    Returns
-    -------
-    c : torch.Tensor
-        *, transformed value
-    log_j : torch.Tensor
-        *, log determinant of the Jacobian matrix
+    Args:
+        x : torch.Tensor
+            *, The variable spans the D-dim unit hypercube ([0,1))
+        w_tilde : torch.Tensor
+            * x K defined in the paper
+        v_tilde : torch.Tensor
+            * x (K+1) defined in the paper
+        inverse : bool
+            forward or inverse
+    Returns:
+        c : torch.Tensor
+            *, transformed value
+        log_j : torch.Tensor
+            *, log determinant of the Jacobian matrix
     """
     w = torch.softmax(w_tilde, dim=-1)
     v = weighted_softmax(v_tilde, w)

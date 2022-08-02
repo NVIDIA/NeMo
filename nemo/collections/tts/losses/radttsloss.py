@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from torch.nn import functional as F
 
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.modules.common import get_mask_from_lengths
+from nemo.core.classes import Loss, typecheck
 
 
 def compute_flow_loss(z, log_det_W_list, log_s_list, n_elements, n_dims, mask, sigma=1.0):
@@ -118,7 +119,7 @@ class AttentionBinarizationLoss(torch.nn.Module):
         return -log_sum / hard_attention.sum()
 
 
-class RADTTSLoss(torch.nn.Module):
+class RADTTSLoss(Loss):
     def __init__(
         self,
         sigma=1.0,

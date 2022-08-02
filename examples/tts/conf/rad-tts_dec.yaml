@@ -27,25 +27,17 @@ lowfreq: 0
 highfreq: 8000
 window: "hann"
 
-pitch_loss_scale: 0.1
-durs_loss_scale: 0.1
-mel_loss_scale: 1.0
 
 phoneme_dict_path: "scripts/tts_dataset_files/cmudict-0.7b_nv22.07"
-heteronyms_path: "scripts/tts_dataset_files/heteronyms-030921" #"scripts/tts_dataset_files/heteronyms-030921"
+heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 
 model:
-  # aligner
   target: nemo.collections.tts.models.RadTTSModel
   bin_loss_start_ratio: 0.2
   bin_loss_warmup_epochs: 100
 
   symbols_embedding_dim: 384
   n_mel_channels: ${n_mels}
-
-  pitch_loss_scale: ${pitch_loss_scale}
-  durs_loss_scale: ${durs_loss_scale}
-  mel_loss_scale: ${mel_loss_scale}
 
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
@@ -100,7 +92,6 @@ model:
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
-          #adlr_symbol_id_mapper: ${adlr_symbol_id_mapper_path}
     dataloader_params:
       drop_last: false
       shuffle: true
@@ -128,9 +119,7 @@ model:
       trim: False
       pitch_fmin: ${pitch_fmin}
       pitch_fmax: ${pitch_fmax}
-      
-      
-        
+         
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
@@ -147,8 +136,6 @@ model:
           phoneme_dict: ${phoneme_dict_path}
           heteronyms: ${heteronyms_path}
           phoneme_probability: 0.5
-          #adlr_symbol_id_mapper: ${adlr_symbol_id_mapper_path}
-
     dataloader_params:
       drop_last: false
       shuffle: false
@@ -189,8 +176,6 @@ model:
         vpred_loss_weight: 1.0
     unfreeze_modules: "all"
         
-
-    
   load_from_checkpoint: False
   init_from_ptl_ckpt: ${ckpt_path}
   modelConfig:
@@ -246,10 +231,6 @@ model:
                     kernel_size: 3
                     p_dropout: 0.5
 
-
-
-        
-
 trainer:
   devices: 8
   precision: 16
@@ -260,8 +241,7 @@ trainer:
   accumulate_grad_batches: 1
   enable_checkpointing: False
   logger: False
-  gradient_clip_val: 1
-  #flush_logs_every_n_steps: 1000
+  gradient_clip_val: 1 
   log_every_n_steps: 100
   check_val_every_n_epoch: 5
 
