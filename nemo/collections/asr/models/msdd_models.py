@@ -13,74 +13,45 @@
 # limitations under the License.
 
 import copy
-import itertools
 import json
-import math
 import os
 import pickle as pkl
-import shutil
-import subprocess
-import time
 from collections import OrderedDict
 from statistics import mode
 from typing import Dict, List, Optional, Union
 
-import librosa
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
-from omegaconf.omegaconf import open_dict
+from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.utilities.rank_zero import _get_rank
-from torch.utils.data import ChainDataset
-from torchmetrics import Metric
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list
-from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.asr.losses.bce_loss import BCELoss
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat, getCosAffinityMatrix
+from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
-    embedding_normalize,
     get_contiguous_stamps,
     get_embs_and_timestamps,
-    get_uniq_id_with_dur,
     get_uniqname_from_filepath,
     labels_to_pyannote_object,
-    labels_to_rttmfile,
     merge_stamps,
     parse_scale_configs,
-    perform_clustering,
     rttm_to_labels,
     score_labels,
     segments_manifest_to_subsegments_manifest,
     write_rttm2manifest,
 )
-from nemo.collections.common.losses import CrossEntropyLoss as CELoss
-from nemo.collections.common.metrics import TopKClassificationAccuracy
-from nemo.collections.common.parts.preprocessing.collections import ASRSpeechLabel
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import *
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    EncodedRepresentation,
-    LengthsType,
-    LogitsType,
-    NeuralType,
-    ProbsType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, ProbsType
 from nemo.core.neural_types.elements import ProbsType
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 try:
     from torch.cuda.amp import autocast
@@ -111,10 +82,8 @@ def getScaleMappingArgmat(uniq_embs_and_timestamps):
             This function generates an ffinity matrix that is obtained by calculating
             the weighted sum of the affinity matrices from the different scales.
     """
-    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
-    multiscale_weights = uniq_embs_and_timestamps['multiscale_weights']
     scale_mapping_argmat = {}
-
+    uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
     session_scale_mapping_dict = get_argmin_mat(uniq_scale_dict)
     for scale_idx in sorted(uniq_scale_dict.keys()):
         mapping_argmat = session_scale_mapping_dict[scale_idx]
@@ -231,7 +200,6 @@ def generate_speaker_timestamps(clus_labels, msdd_preds, **params):
             main_spk_idx = np.argsort(msdd_preds[0, seg_idx].cpu().numpy())[::-1][0]
 
         if sum(spk_for_seg) > 1 and infer_overlap:
-            max_idx = np.argmax(sm_for_seg)
             idx_arr = np.argsort(sm_for_seg)[::-1]
             for ovl_spk_idx in idx_arr[: params['max_overlap_spks']].tolist():
                 if ovl_spk_idx != int(main_spk_idx):
@@ -251,7 +219,6 @@ def get_uniq_id_list_from_manifest(manifest_file):
         for i, line in enumerate(manifest.readlines()):
             line = line.strip()
             dic = json.loads(line)
-            uniq_id = dic['audio_filepath'].split('/')[-1].split('.wav')[-1]
             uniq_id = get_uniqname_from_filepath(dic['audio_filepath'])
             uniq_id_list.append(uniq_id)
     return uniq_id_list
@@ -292,7 +259,7 @@ def compute_accuracies(diar_decoder_model):
         f1_score (float):
             F1 score of the estimated diarized speaker label sequences.
         simple_acc (float):
-            Accuracy (total number of correct labels divided by total number of sigmoid values)
+            Accuracy of predicted speaker labels: (total # of correct labels)/(total # of sigmoid values)
     """
     f1_score = diar_decoder_model._accuracy_test.compute()
     num_correct = torch.sum(diar_decoder_model._accuracy_test.true.bool())
@@ -683,7 +650,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         ClusterEmbedding.__init__(self, cfg_base=self.cfg_msdd_model.base, cfg_msdd_model=self.cfg_msdd_model)
         if trainer:
             self._init_segmentation_info()
-            self.prepare_train_split()
+            self.prepare_splits()
             self.world_size = trainer.num_nodes * trainer.num_devices
             self.emb_batch_size = self.cfg_msdd_model.emb_batch_size
         else:
@@ -732,7 +699,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         """
         model_path = self.cfg_msdd_model.base.diarizer.speaker_embeddings.model_path
         self._diarizer_params = self.cfg_msdd_model.base.diarizer
-        gpu_device = torch.device(torch.cuda.current_device())
         if model_path is not None and model_path.endswith('.nemo'):
             rank_id = torch.device(self.trainer.global_rank)
             self.msdd._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=rank_id)
@@ -756,8 +722,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.clus_test_label_dict = cluster_embeddings.clus_test_label_dict
         self.emb_seq_test = cluster_embeddings.emb_seq_test
 
-    def prepare_train_split(self):
-        device = torch.cuda.current_device()
+    def prepare_splits(self):
         self.train_multiscale_timestamp_dict = self.prepare_split_data(
             self.cfg_msdd_model.train_ds.manifest_filepath, self.cfg_msdd_model.train_ds.emb_dir,
         )
@@ -911,9 +876,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
     def __setup_dataloader_from_config_infer(
         self, config: Optional[Dict], emb_dict: Dict, emb_seq: Dict, clus_label_dict: Dict, pairwise_infer=False
     ):
-        featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
-        )
         shuffle = config.get('shuffle', False)
 
         if 'manifest_filepath' in config and config['manifest_filepath'] is None:
@@ -1076,7 +1038,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 	        Multi-scale embedding sequence that is mapped, matched and repeated. The longer scales are less repeated,
                 while shorter scales are more frequently repeated following the scale mapping tensor.
         """
-        device = torch.cuda.current_device()
         scale_n, batch_size = scale_mapping[0].shape[0], scale_mapping.shape[0]
         split_emb_tup = torch.split(embs, ms_seg_counts.view(-1).tolist(), dim=0)
         batch_emb_list = [split_emb_tup[i : i + scale_n] for i in range(0, len(split_emb_tup), scale_n)]
@@ -1106,7 +1067,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 Shape: (batch_size, maximum total segment count among the samples in the batch)
             ms_seg_counts
                 Cumulative sum of the number of segments in each scale. This information is needed to reconstruct
-                the multi-scale input matrix during forward propagating.
+                multi-scale input tensors during forward propagating.
 
                 Example: `batch_size=3, scale_n=6, emb_dim=192`
                     ms_seg_counts =
@@ -1200,7 +1161,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
         batch_size = processed_signal.shape[0]
         for batch_idx in range(batch_size):
-            max_seq_len = sum(ms_seg_counts[batch_idx])
             for scale_idx in range(self.scale_n):
                 scale_seg_num = ms_seg_counts[batch_idx][scale_idx]
                 for k, (stt, end) in enumerate(ms_seg_timestamps[batch_idx][scale_idx][:scale_seg_num]):
@@ -1271,7 +1231,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             ms_emb_seq=ms_emb_seq, length=sequence_lengths, ms_avg_embs=ms_avg_embs, targets=targets
         )
         scale_weights = scale_weights.detach()
-        embs = embs.detach()
         return preds, scale_weights
 
     def training_step(self, batch, batch_idx):
@@ -1726,7 +1685,7 @@ class OverlapAwareDiarizer:
                 use_adaptive_thres=self.use_adaptive_thres,
                 max_overlap_spks=self.max_overlap_spks,
             )
-            score = score_labels(
+            score_labels(
                 self.AUDIO_RTTM_MAP, all_reference, all_hypothesis, collar=collar, ignore_overlap=ignore_overlap,
             )
         logging.info(f"  \n")

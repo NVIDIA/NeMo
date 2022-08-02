@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from typing import Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -22,24 +21,15 @@ import torch.nn.functional as F
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    EncodedRepresentation,
-    LengthsType,
-    LogitsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
 from nemo.core.neural_types.elements import ProbsType
 
-__all__ = ['LSTMDecoder', 'MSDD_module']
+__all__ = ['MSDD_module']
 
 
 class ConvLayer(nn.Module):
     def __init__(self, in_channels=1, out_channels=1, kernel_size=(3, 1), stride=(1, 1)):
         super(ConvLayer, self).__init__()
-        pad_size = (kernel_size[1] - 1) // 2
         self.cnn = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride),
             nn.ReLU(),
@@ -249,8 +239,8 @@ class MSDD_module(NeuralModule, Exportable):
             context_emb = self.element_wise_product(scale_weights, ms_avg_embs, _ms_emb_seq)
 
         context_emb = self.dropout(F.relu(context_emb))
-        lstm_output, (hn, cn) = self.lstm(context_emb)
-        lstm_hidden_out = self.dropout(F.relu(lstm_output))
+        lstm_output = self.lstm(context_emb)
+        lstm_hidden_out = self.dropout(F.relu(lstm_output[0]))
         spk_preds = self.hidden_to_spks(lstm_hidden_out)
         preds = nn.Sigmoid()(spk_preds)
         return preds, scale_weights
@@ -315,7 +305,6 @@ class MSDD_module(NeuralModule, Exportable):
         """
         cos_dist_seq = self.cos_dist(_ms_emb_seq, ms_avg_embs)
         context_vectors = torch.mul(scale_weights, cos_dist_seq)
-        seq_input_sum = context_vectors.sum(axis=2).view(self.batch_size, self.length, -1)
         context_vectors = context_vectors.view(self.batch_size, self.length, -1)
         context_emb = self.dist_to_emb(context_vectors)
         return context_emb
