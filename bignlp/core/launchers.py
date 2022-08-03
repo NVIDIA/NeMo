@@ -182,7 +182,7 @@ class BCPLauncher(Launcher):
                 "",
                 f"# command {group_ind + 1}",
                 f"bcprun -n {nodes} -p {ntasks_per_node} -c \"",
-                f"  {command} \" 2>&1 | tee -a {stdout}",
+                f"  {command} \" 2>&1 | tee -a {stdout}", # TODO: Avoid override
                 "",
             ]
         return "\n".join(lines)
