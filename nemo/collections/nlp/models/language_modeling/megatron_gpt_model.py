@@ -99,10 +99,14 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.megatron_amp_o2:
 
             # Pre-allocate the model on GPU to have master parameters allocated on the same device with matching data type
-            self.model.cuda(torch.cuda.current_device())
+            for module in self.model:
+                module.cuda(torch.cuda.current_device())
 
             # Model wrapper to convert both model and inputs to half precision
-            self.model = Float16Module(module=self.model, precision=cfg.precision)
+            converted_model = []
+            for module in self.model:
+                converted_model.append(Float16Module(module=module, precision=cfg.precision))
+                self.model = converted_model
 
         if self.trainer.precision == 32:
             self.autocast_dtype = torch.float
@@ -172,7 +176,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
 
     def forward(self, tokens, text_position_ids, attention_mask, labels):
         output_tensor = self.model(tokens, text_position_ids, attention_mask, labels=labels)

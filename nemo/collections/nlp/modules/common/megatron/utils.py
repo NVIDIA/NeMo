@@ -313,10 +313,9 @@ def get_params_for_weight_decay_optimization(
 
     Layernorms and biases will have no weight decay but the rest will.
     """
-    modules = listify_model(model)
     weight_decay_params = {'params': []}
     no_weight_decay_params = {'params': [], 'weight_decay': 0.0}
-    for module in modules:
+    for module in model:
         for module_ in module.modules():
             if isinstance(module_, (FusedLayerNorm, FastLayerNorm)):
                 no_weight_decay_params['params'].extend(
