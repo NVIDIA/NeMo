@@ -413,7 +413,14 @@ class EncDecClassificationModel(_EncDecBaseModel):
             List of available pre-trained models.
         """
         results = []
-
+        
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_multilingual_marblenet",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_marblenet/versions/1.10.0/files/vad_multilingual_marblenet.nemo",
+        )
+        results.append(model)
+        
         model = PretrainedModelInfo(
             pretrained_model_name="vad_telephony_marblenet",
             description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet",
