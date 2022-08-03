@@ -68,6 +68,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.utils import logging
 import numpy as np
 import sys
+import time
 
 QUEUE_SIZE = 30
 
@@ -110,6 +111,7 @@ def process_sentence_chunks(
     logging.info(f"{total_chunks} chunks are used to build the index")
 
     if stage is None or stage == 0:
+        beg = time.time()
         # only prepare the warmup batch for stage None and stage 0
         assert warm_up_size < total_chunks
         warm_chunk_ids = np.random.randint(0, total_chunks,  warm_up_size)
@@ -118,6 +120,8 @@ def process_sentence_chunks(
             warm_up_slices.append(ds.get_chunk(warm_up_id, force_no_cont_ids=True))
         with Pool(workers) as p:
             sentences = p.map(tokenizer.ids_to_text, warm_up_slices)
+        end = time.time()
+        logging.info(f"token-to-text {local_scripts} chunks takes {end-beg}")
         queue.put(sentences)
         if stage == 0:
             # first the task for stage 0
@@ -145,7 +149,10 @@ def calculate_embedding(pool, batch_size):
         sentences = get_sentence_chunks()
         if sentences is None:
             break
+        beg = time.time()
         emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
+        end = time.time()
+        logging.info(f"one embedding {len(emb)} batch size takes {end-beg}")
         emb_queue.put(emb)
     emb_queue.put(None)
 
@@ -263,8 +270,10 @@ if __name__ == "__main__":
 
     # 8 specifies that each sub-vector is encoded as 8 bits
     # build the index
+    beg = time.time()
     index.train(emb)
-    logging.info('Trained Index')
+    end = time.time()
+    logging.info(f'Trained Index takes {end-beg}')
     if args.stage is not None:
         logging.info('build index at stage {args.stage}')
     if args.stage == 0:
