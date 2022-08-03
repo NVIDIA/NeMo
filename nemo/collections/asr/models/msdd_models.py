@@ -904,6 +904,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             soft_label_thres=config.soft_label_thres,
             seq_eval_mode=self.cfg_base.diarizer.msdd_model.parameters.seq_eval_mode,
             window_stride=self._cfg.preprocessor.window_stride,
+            use_single_scale_clus=False,
             pairwise_infer=pairwise_infer,
         )
         self.data_collection = dataset.collection
@@ -1388,7 +1389,8 @@ class OverlapAwareDiarizer:
                 spk_emb_module_names.append(name)
 
         for name in spk_emb_module_names:
-            self.spk_emb_state_dict[name] = loaded_model['state_dict'][name]
+            org_name = name.replace('msdd._speaker_model.', '')
+            self.spk_emb_state_dict[org_name] = loaded_model['state_dict'][name]
             del loaded_model['state_dict'][name]
 
         standalone_model_path = self._cfg.diarizer.msdd_model.model_path.replace(ext, f'.{ext}')
