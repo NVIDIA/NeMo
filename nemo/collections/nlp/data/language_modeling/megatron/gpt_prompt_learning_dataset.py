@@ -30,7 +30,7 @@ class GPTPromptLearningDataset(Dataset):
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
     
     Args:
-        datasets (list[strings], list[dict]): A list of either (1) dictionary/json objects, (2) json objects as strings, or (3) paths to .jsonl or .json files 
+        datasets (list[strings]): paths to .jsonl or .json files 
         tokenizer (tokenizer): Tokenizer from frozen language model
         virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
@@ -80,21 +80,13 @@ class GPTPromptLearningDataset(Dataset):
 
         logging.info("Loading and tokenizing dataset ... ")
 
-        # Datasets is just a list of json dicts
-        if isinstance(datasets[0], dict):
-            self.load_data(datasets)
-
-        # Dataset is a list of json dicts as strings
-        elif isinstance(datasets[0], str) and "taskname" in datasets[0]:
-            self.load_data(datasets)
-
         # Datasets are a list of file path strings to .json or .jsonl files
-        elif isinstance(datasets[0], str):
+        if isinstance(datasets[0], str):
             for path in datasets:
                 dataset = open(path, 'r', encoding='utf-8')
                 self.load_data(dataset)
         else:
-            raise ValueError("Datasets must be a list of dicts or a list of filepath strings")
+            raise ValueError("Datasets must be a list of filepath strings")
 
     def load_data(self, dataset):
         """

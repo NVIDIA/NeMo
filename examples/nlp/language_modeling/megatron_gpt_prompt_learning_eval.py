@@ -24,6 +24,7 @@ from nemo.collections.nlp.modules.common.transformer.text_generation import Leng
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 
+
 """
 This is the script to run GPT text generation.
     a. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
@@ -67,12 +68,11 @@ This is the script to run GPT text generation.
         p-tuned/prompt-tuned model. 
 """
 
-if not torch.cuda.is_available():
-    raise EnvironmentError("GPU is needed for the inference")
-
 
 @hydra_runner(config_path="conf", config_name="megatron_gpt_prompt_learning_inference")
 def main(cfg) -> None:
+    if not torch.cuda.is_available():
+        raise EnvironmentError("GPU is needed for the inference")
 
     # trainer required for restoring model parallel models
     trainer = Trainer(plugins=NLPDDPPlugin(), **cfg.trainer)
