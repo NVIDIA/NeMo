@@ -179,11 +179,7 @@ class Exportable(ABC):
 
                     if check_trace:
                         if isinstance(check_trace, bool):
-                            check_trace_input = [
-                                self.input_module.input_example(max_dim=333),
-                                self.input_module.input_example(max_dim=777),
-                                self.input_module.input_example(max_dim=1111),
-                            ]
+                            check_trace_input = [input_example]
                         else:
                             check_trace_input = check_trace
                         verify_runtime(self, output, check_trace_input, input_names)

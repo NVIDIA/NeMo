@@ -167,9 +167,6 @@ def nemo_export(argv):
             )
         )
         raise e
-    finally:
-        if export_cache_support_prev is not None:
-            model.encoder.export_cache_support = export_cache_support_prev
 
 
 if __name__ == '__main__':
