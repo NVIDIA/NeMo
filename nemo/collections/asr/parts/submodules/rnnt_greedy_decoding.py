@@ -287,6 +287,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         if partial_hypotheses is not None:
             hypothesis.last_token = partial_hypotheses.last_token
+            hypothesis.y_sequence = partial_hypotheses.y_sequence.cpu().tolist()
             if partial_hypotheses.dec_state is not None:
                 hypothesis.dec_state = self.decoder.batch_concat_states([partial_hypotheses.dec_state])
                 hypothesis.dec_state = _states_to_device(hypothesis.dec_state, x.device)
@@ -539,9 +540,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if self.preserve_alignments:
                         # Insert logprobs into last timestep per sample
                         logp_vals = logp.to('cpu')
+                        logp_ids = logp_vals.max(1)[1]
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].alignments[-1].append((logp_vals[batch_idx], k[batch_idx]))
+                                hypotheses[batch_idx].alignments[-1].append(
+                                    (logp_vals[batch_idx], logp_ids[batch_idx])
+                                )
                         del logp_vals
                     del logp
 
@@ -710,9 +714,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer):
                     if self.preserve_alignments:
                         # Insert logprobs into last timestep per sample
                         logp_vals = logp.to('cpu')
+                        logp_ids = logp_vals.max(1)[1]
                         for batch_idx in range(batchsize):
                             if time_idx < out_len[batch_idx]:
-                                hypotheses[batch_idx].alignments[-1].append((logp_vals[batch_idx], k[batch_idx]))
+                                hypotheses[batch_idx].alignments[-1].append(
+                                    (logp_vals[batch_idx], logp_ids[batch_idx])
+                                )
                         del logp_vals
                     del logp
 

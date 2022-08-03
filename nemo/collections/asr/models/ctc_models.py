@@ -540,11 +540,16 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
+        encoded = encoder_output[0]
+        encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-
-        return log_probs, encoded_len, greedy_predictions
+        return (
+            log_probs,
+            encoded_len,
+            greedy_predictions,
+        )
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
@@ -574,7 +579,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         tensorboard_logs = {
             'train_loss': loss_value,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': self.trainer.global_step,
+            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
         }
 
         if hasattr(self, '_trainer') and self._trainer is not None:
@@ -628,6 +633,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
+
+        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
+
         return {
             'val_loss': loss_value,
             'val_wer_num': wer_num,
