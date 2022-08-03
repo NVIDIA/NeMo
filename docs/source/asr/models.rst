@@ -127,10 +127,10 @@ You may find the example config files of Conformer-Transducer model with charact
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
 with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
 
-Streaming Conformer
--------------------
+Cache-aware Streaming Conformer
+-------------------------------
 
-Streaming Conformer models are variants of Conformer which are trained with limited right context. It enables the model to be used very efficiently for frame-wise streaming.
+Cache-aware Streaming Conformer models are variants of Conformer which are trained with limited right context. It enables the model to be used very efficiently for streaming.
 Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in downsampling layers.
 Streaming Conformer models uses causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same output and accuracy as when the whole audio is given to the model in offline mode.
@@ -166,21 +166,9 @@ Self-attention left context of around 6 secs would give close result to have unl
 If striding approach is used for downsampling, all the convolutions in downsampling would be fully causal and don't see future tokens.
 It is recommended to use stacking for streaming model which is significantly faster and uses less memory.
 
-Conformer-Transducer is the Conformer model introduced in :cite:`asr-models-gulati2020conformer` and uses RNNT/Transducer loss/decoder.
-It has the same encoder as Conformer-CTC but utilizes RNNT/Transducer loss/decoder which makes it an autoregressive model.
-
-Most of the config file for Conformer-Transducer models are similar to Conformer-CTC except the sections related to the decoder and loss: decoder, loss, joint, decoding.
-You may take a look at our `tutorials page <../starthere/tutorials.html>` on Transducer models to become familiar with their configs:
-`Introduction to Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/Intro_to_Transducers.ipynb>` and `ASR with Transducers <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_with_Transducers.ipynb>`
-You can find more details on the config files for the Conformer-Transducer models at `Conformer-CTC <./configs.html#conformer-ctc>`.
-
-This model supports both the sub-word level and character level encodings. The variant with sub-word encoding is a BPE-based model
-which can be instantiated using the :class:`~nemo.collections.asr.models.EncDecRNNTBPEModel` class, while the
-character-based variant is based on :class:`~nemo.collections.asr.models.EncDecRNNTModel`.
-
-You may find the example config files of Conformer-Transducer model with character-based encoding at
-``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_char.yaml`` and
-with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``.
+You may find the example config files of cache-aware streaming Conformer models at
+``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_transducer_bpe_streaming.yaml`` for Transducer variant and
+at ``<NeMo_git_root>/examples/asr/conf/conformer/streaming/conformer_ctc_bpe.yaml`` for CTC variant.
 
 
 .. _LSTM-Transducer_model:
@@ -191,7 +179,7 @@ LSTM-Transducer
 LSTM-Transducer is a model which uses RNNs (eg. LSTM) in the encoder. The architecture of this model is followed from suggestions in :cite:`asr-models-he2019streaming`.
 It uses RNNT/Transducer loss/decoder. The encoder consists of RNN layers (LSTM as default) with lower projection size to increase the efficiency.
 Layer norm is added between the layers to stabilize the training.
-It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient frame-wise streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
+It can be trained/used in unidirectional or bidirectional mode. The unidirectional mode is fully causal and can be used easily for simple and efficient streaming. However the accuracy of this model is generally lower than other models like Conformer and Citrinet.
 
 This model supports both the sub-word level and character level encodings. You may find the example config file of RNNT model with wordpiece encoding at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml``.
 You can find more details on the config files for the RNNT models at ``LSTM-Transducer <./configs.html#lstm-transducer>``.
