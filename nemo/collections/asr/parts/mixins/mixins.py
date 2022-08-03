@@ -438,7 +438,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 "return_transcription can not be False for Transducer models as decoder returns the transcriptions too."
             )
 
-        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.stream_step(
+        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next) = self.encoder.cache_aware_stream_step(
             processed_signal=processed_signal,
             processed_signal_length=processed_signal_length,
             cache_last_channel=cache_last_channel,

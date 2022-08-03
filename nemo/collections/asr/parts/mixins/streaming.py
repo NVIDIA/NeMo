@@ -38,7 +38,7 @@ class StreamingEncoder(ABC):
             return None
         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
-    def stream_step(
+    def cache_aware_stream_step(
         self,
         processed_signal,
         processed_signal_length=None,
