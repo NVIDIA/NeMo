@@ -171,7 +171,7 @@ build-BigNLP:
     - if [[ "$RUN_STAGE" = "train" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps; fi
     - if [[ "$RUN_STAGE" = "prompt_learn" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${TEST_TASK}; fi
     - if [[ "$RUN_STAGE" = "finetune" ]]; then export RUN_NAME=${RUN_NAME}_${NUM_NODES}node_${MAX_STEPS}steps_${TEST_TASK}; fi
-    - if [[ "$RUN_STAGE" = "eval"]]; then export RUN_NAME=${RUN_NAME}_${TEST_TASK}; fi
+    - if [[ "$RUN_STAGE" = "eval" ]]; then export RUN_NAME=${RUN_NAME}_${TEST_TASK}; fi
     - export RESULTS_DIR=${BASE_RESULTS_DIR}/${RUN_NAME}
     - env
     - bash tests/ci_tests/selene/scripts/${RUN_STAGE}/${RUN_MODEL}/${RUN_STAGE}_${RUN_MODEL}_model.sh
