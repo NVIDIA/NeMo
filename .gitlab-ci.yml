@@ -198,6 +198,17 @@ build-BigNLP:
     - cd ${GIT_CLONE_PATH}
     # Run metrics collection
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json_new.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
+    - |
+        if [[ $CREATE_TEST_DATA ]]; then
+          git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+          git checkout -b $RUN_NAME
+          cp $RESULTS_DIR/*.json file bignlp-scripts/tests/ci_test/selene/$RUN_STAGE/${RUN_MODEL}_result_files/
+          git add -A
+          git commit -m " Adding the result file for $RUN_NAME"
+          git push origin $RUN_NAME
+          echo "Created test file and pushed it"
+          exit 0
+        fi
     # Run Pytest
     - pip3 install pytest
     - TEST_FILE=test_${RUN_STAGE}_pipeline.py
@@ -226,6 +237,7 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
     MAX_STEPS: 100
     TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
+    CREATE_TEST_DATA: True
   needs:
     - build-BigNLP
 
