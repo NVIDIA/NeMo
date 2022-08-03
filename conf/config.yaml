@@ -16,12 +16,10 @@ hydra:
 
 debug: False
 
-run_data_preparation: True
-run_training: True
-run_conversion: True
-run_fine_tuning: False # fine_tuning only supports T5/mT5
-run_prompt_learning: False # Prompt learning only support GPT3 PP=1 models
-run_evaluation: True
+stages:
+  - training
+  - conversion
+  - evaluation
 
 cluster_type: bcm  # bcm or bcp. If bcm, it must match - cluster above.
 bignlp_path: ???  # Path should end with bignlp-scripts

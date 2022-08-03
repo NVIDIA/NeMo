@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
 from bignlp.core.launchers import AutoLauncher
 from bignlp.utils.job_utils import JobPaths
+from bignlp.utils.file_utils import download_single_file
 
 class BigNLPStage:
     def __init__(self, cfg):
@@ -91,10 +92,9 @@ class BigNLPStage:
             return []
 
         numa_override = [f"{k}={v}" for k, v in numa_cfg.items()]
-        return [
-            f"python3 -u {self._bignlp_path / 'bignlp/collections/numa_mapping.py'} "
-            f"{' '.join(numa_override)}"
-        ]
+        numa_command = [f"python3 -u {self._bignlp_path / 'bignlp/collections/numa_mapping.py'}", *numa_override]
+        numa_command = " \\\n  ".join(numa_command)
+        return [numa_command]
 
     def _make_nsys_command_prefix(self, results_dir) -> str:
         model_cfg = self.stage_cfg.get("model")
@@ -136,6 +136,55 @@ class BigNLPStage:
         mounts_string += add_container_mounts(container_mounts)
         return mounts_string
 
+    def _make_cluster_parameters(self, cluster: str) -> Dict:
+        cfg = self.cfg
+        stage_cfg = self.stage_cfg
+
+        run_cfg = stage_cfg.get("run")
+        job_name = run_cfg.get("name")
+        time_limit = run_cfg.get("time_limit")
+        nodes = run_cfg.get("nodes")
+        if nodes is None:
+            nodes = stage_cfg.get("trainer").get("num_nodes")
+        ntasks_per_node = run_cfg.get("ntasks_per_node")
+        if ntasks_per_node is None:
+            ntasks_per_node = stage_cfg.get("trainer").get("devices")
+
+        container_image = cfg.get("container")
+        container_mounts = self._make_container_mounts_string()
+
+        cluster_parameters = {}
+        if cluster == "bcm":
+            cluster_cfg = cfg.get("cluster")
+            slurm_cfg = cluster_cfg.get("slurm")
+            job_name_prefix = cluster_cfg.get("job_name_prefix")
+            slurm_job_name = job_name_prefix + job_name
+            cluster_parameters = {
+                **slurm_cfg
+            }
+            cluster_parameters.update({
+                "job_name": slurm_job_name,
+                "time": time_limit,
+                "nodes": nodes,
+                "ntasks_per_node": ntasks_per_node,
+                "container_image": container_image,
+                "container_mounts": container_mounts,
+            })
+        elif cluster == "bcp":
+            cluster_parameters.update({
+                "job_name": job_name,
+                "nodes": nodes,
+                "ntasks_per_node": ntasks_per_node,
+            })
+        elif cluster == "interactive":
+            cluster_parameters.update({
+                "job_name": job_name,
+                "nodes": nodes,
+                "ntasks_per_node": ntasks_per_node,
+            })
+
+        return cluster_parameters
+
     @property
     def get_job_path(self):
         raise NotImplementedError
@@ -150,8 +199,9 @@ class BigNLPStage:
 
     @property
     def _cuda_visible_devices(self) -> str:
-        trainer_cfg = self.stage_cfg.get("trainer")
-        ntasks_per_node = trainer_cfg.get("devices", 0) if trainer_cfg else 0
+        ntasks_per_node = self.stage_cfg.run.get("ntasks_per_node")
+        if ntasks_per_node is None:
+            ntasks_per_node = self.stage_cfg.trainer.get("devices", 0)
         return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
             if ntasks_per_node == 8 else ""
 
@@ -204,7 +254,7 @@ class NeMoStage(BigNLPStage):
 
         code_path = self._get_nemo_code_path(choice_model_type)
 
-        hydra_override = self._hydra_override()
+        hydra_override = self._make_hydra_override()
 
         command = [
             f"python3 -u {code_path} ",
@@ -221,55 +271,6 @@ class NeMoStage(BigNLPStage):
             hydra_override += ["+cluster_type=BCP"]
         return hydra_override
 
-    def _make_cluster_parameters(self, cluster: str) -> Dict:
-        cfg = self.cfg
-        stage_cfg = self.stage_cfg
-
-        run_cfg = stage_cfg.get("run")
-        job_name = run_cfg.get("name")
-        time_limit = run_cfg.get("time_limit")
-        nodes = run_cfg.get("nodes")
-        if nodes is None:
-            nodes = stage_cfg.get("trainer").get("num_nodes")
-        ntasks_per_node = run_cfg.get("ntasks_per_node")
-        if ntasks_per_node is None:
-            ntasks_per_node = stage_cfg.get("trainer").get("devices")
-
-        container_image = cfg.get("container")
-        container_mounts = self._make_container_mounts_string()
-
-        cluster_parameters = {}
-        if cluster == "bcm":
-            cluster_cfg = cfg.get("cluster")
-            slurm_cfg = cluster_cfg.get("slurm")
-            job_name_prefix = cluster_cfg.get("job_name_prefix")
-            slurm_job_name = job_name_prefix + job_name
-            cluster_parameters = {
-                **slurm_cfg
-            }
-            cluster_parameters.update({
-                "job_name": slurm_job_name,
-                "time": time_limit,
-                "nodes": nodes,
-                "ntasks_per_node": ntasks_per_node,
-                "container_image": container_image,
-                "container_mounts": container_mounts,
-            })
-        elif cluster == "bcp":
-            cluster_parameters.update({
-                "job_name": job_name,
-                "nodes": nodes,
-                "ntasks_per_node": ntasks_per_node,
-            })
-        elif cluster == "interactive":
-            cluster_parameters.update({
-                "job_name": job_name,
-                "nodes": nodes,
-                "ntasks_per_node": ntasks_per_node,
-            })
-
-        return cluster_parameters
-
 
 class Training(NeMoStage):
 
@@ -281,7 +282,7 @@ class Training(NeMoStage):
         hydra_override = []
         if self.cluster == "bcp":
             hydra_override += ["+cluster_type=BCP"]
-        if self.stage_name.model.data.get("data_prefix", None) is None:
+        if self.stage_cfg.model.data.get("data_prefix", None) is None:
             preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
             blending_alpha = self.stage_cfg.run.get("blending_alpha")
             auto_blend_command = \
@@ -379,7 +380,6 @@ class Conversion(BigNLPStage):
         self.stage_cfg = cfg.get("conversion")
 
     def _make_hparams_override_command(self):
-        cfg = self.cfg
         model_cfg = self.stage_cfg.get("model")
         hparams_file = model_cfg.get("hparams_file")
         vocab_file = model_cfg.get("vocab_file")
@@ -393,21 +393,23 @@ class Conversion(BigNLPStage):
             "tokenizer_model": tokenizer_model,
         }
         hparams_override = [f"{k}={v}" for k, v in override_configs.items()]
-        return [
-            f"python3 -u {self._bignlp_path / 'bignlp/collections/hparams_override.py'} "
-            f"{' '.join(hparams_override)}"
+        override_command = [
+            f"python3 -u {self._bignlp_path / 'bignlp/collections/hparams_override.py'}",
+            *hparams_override
         ]
+        override_command = " \\\n  ".join(override_command)
+        return [override_command]
 
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
-        return [
+        return (
             f"python3 -u {self._bignlp_path / 'bignlp/collections/get_latest_checkpoint.py'} "
             f"{' '.join(checkpoint_override)}"
-        ]
+        )
 
     def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
         command_groups = [[], []]
-        command_groups[0] = [self._make_hparams_override_command()]
+        command_groups[0] += self._make_hparams_override_command()
 
         run_cfg = self.stage_cfg.get("run")
         model_cfg = self.stage_cfg.get("model")
@@ -473,7 +475,7 @@ class EvalHarnessEvaluation(BigNLPStage):
 
     def _make_download_command_string(self) -> str:
         data_dir = self.cfg.get("data_dir")
-        cache_dir = os.path.join(data_dir, "eval_harness_data_cache")
+        cache_dir = os.path.join(data_dir, "eval_harness_data")
         run_cfg = self.stage_cfg.get("run")
         tasks = run_cfg.get("tasks")
 
@@ -488,13 +490,13 @@ class EvalHarnessEvaluation(BigNLPStage):
 
     def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
         if self.prompt_evaluation:
+            command_groups = [[]]
+        else:
             command_groups = [[], []]
             command_groups[0] += [self._make_download_command_string()]
-        else:
-            command_groups = [[]]
 
         data_dir = self.cfg.get("data_dir")
-        cache_dir = os.path.join(data_dir, "eval_harness_data_cache")
+        cache_dir = os.path.join(data_dir, "eval_harness_data")
         run_cfg = self.stage_cfg.get("run")
         model_cfg = self.stage_cfg.get("model")
 
@@ -554,6 +556,6 @@ def _hydra_interpolation(cfg) -> None:
 
 def create_args_list(hydra=False, **kwargs):
     args = []
-    for k, v in kwargs:
+    for k, v in kwargs.items():
         args.append(f"{k}={v}" if hydra else f"--{k}={v}")
     return args
