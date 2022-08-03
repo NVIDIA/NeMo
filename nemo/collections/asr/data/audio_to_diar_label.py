@@ -571,7 +571,7 @@ class _AudioMSDDInferDataset(Dataset):
         if sample.offset is None:
             sample.offset = 0
 
-        uniq_id = os.path.splitext(os.path.basename(sample.rttm_file))[0]
+        uniq_id = os.path.splitext(os.path.basename(sample.audio_file))[0]
         scale_n = len(self.emb_dict.keys())
         _avg_embs = torch.stack([self.emb_dict[scale_index][uniq_id]['avg_embs'] for scale_index in range(scale_n)])
 

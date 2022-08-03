@@ -483,7 +483,12 @@ class ClusterEmbedding:
                 for spk_idx in spk_set:
                     selected_embs = emb_tensor[label_array == spk_idx]
                     avg_embs[:, spk_idx] = torch.mean(selected_embs, dim=0)
-                inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
+
+                if speaker_mapping_dict is not None:
+                    inv_map = {clus_key: rttm_key for rttm_key, clus_key in speaker_mapping_dict[uniq_id].items()}
+                else:
+                    inv_map = None
+
                 emb_sess_avg_dict[scale_index][uniq_id] = {'mapping': inv_map, 'avg_embs': avg_embs}
         return emb_sess_avg_dict, output_clus_label_dict
 
@@ -527,7 +532,13 @@ class ClusterEmbedding:
 
         logging.info(f"Multiscale Weights: {self.clusdiar_model.multiscale_args_dict['multiscale_weights']}")
         logging.info(f"Clustering Parameters: {clustering_params_str}")
-        metric, speaker_mapping_dict = self.clusdiar_model.diarize(batch_size=self.cfg_base.batch_size)
+        scores = self.clusdiar_model.diarize(batch_size=self.cfg_base.batch_size)
+
+        # If RTTM (ground-truth diarization annotation) files do not exist, scores is None.
+        if scores is not None:
+            metric, speaker_mapping_dict = scores
+        else:
+            metric, speaker_mapping_dict = None, None
 
         # Get the mapping between segments in different scales.
         self._embs_and_timestamps = get_embs_and_timestamps(
@@ -1527,7 +1538,7 @@ class OverlapAwareDiarizer:
                 Length of the sequence determined by `self.diar_window_length` variable.
         """
         emb_vectors_split = torch.zeros_like(emb_vectors)
-        uniq_id = os.path.splitext(os.path.basename(test_data_collection.rttm_file))[0]
+        uniq_id = os.path.splitext(os.path.basename(test_data_collection.audio_file))[0]
         clus_label_tensor = torch.tensor([x[-1] for x in self.msdd_model.clus_test_label_dict[uniq_id]])
         for spk_idx in range(len(test_data_collection.target_spks)):
             stt, end = (
