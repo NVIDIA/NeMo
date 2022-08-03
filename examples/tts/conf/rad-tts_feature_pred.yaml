@@ -116,10 +116,7 @@ model:
       ignore_file: null
       trim: False
       pitch_fmin: ${pitch_fmin}
-      pitch_fmax: ${pitch_fmax}
-      
-      
-        
+      pitch_fmax: ${pitch_fmax}  
       text_tokenizer:
         _target_: "nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer"
         punct: True
@@ -154,7 +151,8 @@ model:
       name: exp_decay
       warmup_steps: 40000
       last_epoch: -1 
-      d_model: 1  # Disable scaling based on model dim 
+      d_model: 1  # Disable scaling based on model dim
+
   trainerConfig:
     sigma: 1
     iters_per_checkpoint: 3000
@@ -177,8 +175,6 @@ model:
         vpred_loss_weight: 1.0
     unfreeze_modules: "durf0energyvpred"
         
-
-    
   load_from_checkpoint: True
   init_from_ptl_ckpt: ${ckpt_path}
   modelConfig:
@@ -296,10 +292,6 @@ model:
                     n_channels: 256
                     kernel_size: 3
                     p_dropout: 0.5
-
-
-
-        
 
 trainer:
   devices: 8
