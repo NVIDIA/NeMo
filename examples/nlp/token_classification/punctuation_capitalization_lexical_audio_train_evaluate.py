@@ -145,7 +145,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.do_training:
         trainer.fit(model)
     if cfg.do_testing:
-        model.restore_from(trainer.checkpoint_callback.dirpath + '/Punctuation_and_Capitalization.nemo')
+        model.restore_from(trainer.checkpoint_callback.dirpath + '/Punctuation_and_Capitalization_Lexical_Audio.nemo')
         trainer.test(model)
 
 
