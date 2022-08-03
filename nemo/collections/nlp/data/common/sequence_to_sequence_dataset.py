@@ -133,7 +133,9 @@ class SequenceToSequenceDataset(Dataset):
 
 
 class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
-    """Abstract class for TextMemmapSequenceToSequenceDataset and BinarizedMemmapSequenceToSequenceDataset."""
+    """Abstract class for TextMemmapSequenceToSequenceDataset and BinarizedMemmapSequenceToSequenceDataset.
+    This class is not meant to be used standalone and just as an abstract class for the two subclasses.
+    """
 
     def __init__(
         self,
@@ -146,6 +148,16 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         seed: int = 1234,
         max_num_samples=None,
     ):
+        """
+        src_file_name: Path to a single source file on disk. This is either the path to a raw text file or the prefix to the processed src_file_name.bin/idx files.
+        src_file_name: Path to a single target file on disk. This is either the path to a raw text file or the prefix to the processed tgt_file_name.bin/idx files.
+        src_tokenizer: Tokenizer for the source dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        tgt_tokenizer: Tokenizer for the target dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        max_src_seq_length: Maximum length of the source sequences. Lines above this length will be truncated.
+        max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
+        seed: Random seed for data shuffling.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        """
         super().__init__(
             src_file_name=src_file_name,
             tgt_file_name=tgt_file_name,
@@ -187,6 +199,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
 
         if len(src) > self.max_src_seq_length - 2:
             src = src[: self.max_src_seq_length - 2]
+
         text_enc = np.concatenate([[self.src_tokenizer.bos_id], src, [self.src_tokenizer.eos_id]])
 
         if len(tgt) > self.max_tgt_seq_length - 2:
@@ -234,6 +247,16 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
         seed: int = 1234,
         max_num_samples: int = None,
     ):
+        """
+        src_file_name: Path to a single source file on disk. The file should contain one sentence per line and be raw text.
+        tgt_file_name: Path to a single target file on disk. The file should contain one sentence per line aligned with src_file_name and be raw text.
+        src_tokenizer: Tokenizer for the source dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        tgt_tokenizer: Tokenizer for the target dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        max_src_seq_length: Maximum length of the source sequences. Lines above this length will be truncated.
+        max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
+        seed: Random seed for data shuffling.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        """
         self.seed = seed
         self.max_num_samples = max_num_samples
         super().__init__(
@@ -276,6 +299,16 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         seed: int = 1234,
         max_num_samples: int = None,
     ):
+        """
+        src_dataset_prefix: Path to the *prefix* of a single source bin/idx file on disk. This necessitates the existance src_file_prefix.bin and src_file_prefix.idx.
+        tgt_dataset_prefix: Path to the *prefix* of a single target aligned with source bin/idx file on disk. This necessitates the existance tgt_file_prefix.bin and tgt_file_prefix.idx.
+        src_tokenizer: Tokenizer for the source dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        tgt_tokenizer: Tokenizer for the target dataset. Instance of a class that inherits TokenizerSpec (ex: YTTM, SentencePiece).
+        max_src_seq_length: Maximum length of the source sequences. Lines above this length will be truncated.
+        max_tgt_seq_length: Maximum length of the target sequences. Lines above this length will be truncated.
+        seed: Random seed for data shuffling.
+        max_num_samples: Maximum number of samples to load. This can be > dataset length if you want to oversample data. If None, all samples will be loaded.
+        """
         self.src_dataset_prefix = src_dataset_prefix
         self.tgt_dataset_prefix = tgt_dataset_prefix
         self.seed = seed

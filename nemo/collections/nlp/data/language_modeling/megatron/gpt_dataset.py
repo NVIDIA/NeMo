@@ -98,6 +98,8 @@ def build_train_valid_test_datasets(
         if test_ds:
             test_datasets.append(test_ds)
 
+    train_n, valid_n, test_n = map(sum, zip(*datasets_train_valid_test_num_samples))
+
     # Blend.
     blending_train_dataset = None
     if train_datasets:
