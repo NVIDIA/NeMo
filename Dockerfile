@@ -32,6 +32,13 @@ RUN apt-get update && \
     python-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# FIXME a workaround to update apex. Remove when base image is updated
+WORKDIR /tmp/
+RUN git clone https://github.com/ericharper/apex.git && \
+    cd apex && \
+    git checkout 19e4f55eb402452f74dead19f68b65d6291cfdb2 && \
+    pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+
 # uninstall stuff from base container
 RUN pip uninstall -y sacrebleu torchtext
 
