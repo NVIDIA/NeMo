@@ -30,7 +30,7 @@ class GPTPromptLearningDataset(Dataset):
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
     
     Args:
-        datasets (list[strings]): paths to .jsonl or .json files 
+        dataset_paths (list[strings]): paths to .jsonl or .json files 
         tokenizer (tokenizer): Tokenizer from frozen language model
         virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
@@ -46,7 +46,7 @@ class GPTPromptLearningDataset(Dataset):
 
     def __init__(
         self,
-        datasets,
+        dataset_paths,
         tokenizer,
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
@@ -81,8 +81,8 @@ class GPTPromptLearningDataset(Dataset):
         logging.info("Loading and tokenizing dataset ... ")
 
         # Datasets are a list of file path strings to .json or .jsonl files
-        if isinstance(datasets[0], str):
-            for path in datasets:
+        if isinstance(dataset_paths[0], str):
+            for path in dataset_paths:
                 dataset = open(path, 'r', encoding='utf-8')
                 self.load_data(dataset)
         else:

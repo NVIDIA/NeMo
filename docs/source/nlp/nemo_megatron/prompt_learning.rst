@@ -349,14 +349,14 @@ The inference file can contain a mix of prompts from all the tasks the model has
 
     python megatron_gpt_prompt_learning_eval.py \
             virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
-            model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
+            gpt_model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
             inference.greedy=True \
             inference.add_BOS=False \
             trainer.devices=1 \
             trainer.num_nodes=1 \
             tensor_model_parallel_size=1 \
             pipeline_model_parallel_size=1 \
-            prompts=[prompt1,prompt2]
+            data_paths=[path/to/dataset1.jsonl, path/to/dataset2.jsonl]
             
 ``virtual_prompt_model_file`` should be a path to a .nemo file saved after p-tuning/prompt tuning and ``model_file`` is still the path to the gpt model's .nemo file.   
 

@@ -28,7 +28,7 @@ from nemo.core.config import hydra_runner
 """
 This is the script to run GPT text generation.
     a. run greedy inference from a p-tuned/prompt-tuned model's nemo file:
-        python megatron_gpt_eval.py \
+        python megatron_gpt_prompt_learning_eval.py \
             virtual_prompt_model_file=PATH_TO_NEMO_PROMPT_LEARNING_MODEL_FILE \
             gpt_model_file=PATH_TO_FROZEN_GPT_MODEL_FILE \
             inference.greedy=True \
