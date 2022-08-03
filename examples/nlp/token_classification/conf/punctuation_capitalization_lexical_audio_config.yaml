@@ -74,6 +74,7 @@ model:
     label_vocab_dir: null
 
   train_ds:
+    label_info_save_dir: ./label_info_train
     use_audio: true
     # Tarred dataset is recommended if all dataset cannot be loaded in memory. Use script
     # `examples/nlp/token_classification/create_punctuation_capitalization_tarred_dataset.py` for tarred dataset
@@ -97,6 +98,7 @@ model:
     num_workers: 8
 
   validation_ds:
+    label_info_save_dir: ./label_info_valid
     use_audio: true
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
@@ -119,6 +121,7 @@ model:
     num_workers: 8
 
   test_ds:
+    label_info_save_dir: ./label_info_test
     use_audio: true
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
