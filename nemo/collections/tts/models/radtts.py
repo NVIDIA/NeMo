@@ -41,6 +41,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 
 
+@experimental
 class RadTTSModel(SpectrogramGenerator, Exportable):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         if isinstance(cfg, dict):
@@ -77,6 +78,11 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self._tb_logger = None
         self.cfg = cfg
         self.log_train_images = False
+
+        self.normalizer = None
+        self.text_normalizer_call = None
+        self.text_normalizer_call_kwargs = {}
+        self._setup_normalizer(cfg)
 
     def batch_dict(self, batch_data):
         if len(batch_data) < 14:
@@ -346,6 +352,20 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
+
+    def _setup_normalizer(self, cfg):
+        if "text_normalizer" in cfg:
+            normalizer_kwargs = {}
+
+            if "whitelist" in cfg.text_normalizer:
+                normalizer_kwargs["whitelist"] = self.register_artifact(
+                    'text_normalizer.whitelist', cfg.text_normalizer.whitelist
+                )
+
+            self.normalizer = instantiate(cfg.text_normalizer, **normalizer_kwargs)
+            self.text_normalizer_call = self.normalizer.normalize
+            if "text_normalizer_call_kwargs" in cfg:
+                self.text_normalizer_call_kwargs = cfg.text_normalizer_call_kwargs
 
     def parse(self, text: str, normalize=False) -> torch.Tensor:
         if self.training:
