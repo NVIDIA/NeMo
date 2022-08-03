@@ -40,7 +40,7 @@ def parse_semantics_str2dict(semantics_str: Union[List[str], str, Dict]) -> Dict
                 "entities": [],
             }
             invalid = True
-    except:  # need this if the output is not a valid dictionary
+    except SyntaxError:  # need this if the output is not a valid dict
         _dict = {
             "scenario": "none",
             "action": "none",

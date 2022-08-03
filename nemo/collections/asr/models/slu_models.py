@@ -23,7 +23,6 @@ from omegaconf import DictConfig, open_dict
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.losses.slu_losses import SmoothedNLLLoss
-from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
