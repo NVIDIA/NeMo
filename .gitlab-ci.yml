@@ -715,7 +715,7 @@ eval.t5.220m_tp1_pp1:
     - finetune.t5.220m_tp1_pp1_1node_100steps_mnli
 
 eval.t5.220m_tp2_pp2:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_STAGE: eval
@@ -863,7 +863,7 @@ prompt_learn.gpt3.126m_tp1_pp1_1node_squad_real:
     - build-BigNLP
 
 eval.gpt3.prompt_126m_tp1_pp1_squad:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
@@ -878,7 +878,7 @@ eval.gpt3.prompt_126m_tp1_pp1_squad:
     - prompt_learn.gpt3.126m_tp1_pp1_1node_100steps_squad
 
 eval.gpt3.prompt_126m_tp1_pp1_squad_real:
-  <<: *bignlp-LUNA-test-LAUNCHER
+  <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
     RUN_TASK: eval
