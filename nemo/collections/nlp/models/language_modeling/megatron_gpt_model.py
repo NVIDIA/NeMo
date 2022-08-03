@@ -205,7 +205,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if self.cfg.get('virtual_pipeline_model_parallel_size', 1) > 1:
+            if self.cfg.get('virtual_pipeline_model_parallel_size', None) > 1:
                 losses_reduced_per_micro_batch = _forward_backward_pipelining_with_interleaving(
                     forward_step_func=self.get_forward_output_and_loss_func(),
                     batch=batch_for_pipeline,
@@ -606,7 +606,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            self.model.sync_initial_word_embeddings()
+            for module in self.model:
+                module.sync_initial_word_embeddings()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
