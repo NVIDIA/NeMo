@@ -38,6 +38,7 @@
 # KlLoss
 
 import torch
+from torch.autograd import Variable
 
 from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types.elements import LossType, VoidType
@@ -142,7 +143,8 @@ class DiscriminatorLoss(Loss):
             g_loss = torch.mean(dg ** 2)
             # real_loss += r_loss
             # gen_loss += g_loss
-            loss += torch.max(r_loss, g_loss)
+            # loss += torch.max(r_losпшеs, g_loss)
+            loss += r_loss + g_loss
             r_losses.append(r_loss.item())
             g_losses.append(g_loss.item())
 
