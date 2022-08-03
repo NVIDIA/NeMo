@@ -3432,8 +3432,8 @@ assert_frame_equal(training_curve, gt_curve, rtol=1e-3, atol=1e-3)"'''
                 virtual_prompt_model_file='/home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo' \
                 pretrained_language_model_file='/home/TestData/nlp/megatron_t5/8m/megatron_t5_8m_tp2.nemo' \
                 data.test_ds=['/home/TestData/nlp/prompt_learning/squad_CI_test.jsonl'] \
-                tensor_model_parallel_size=2 \ 
-                trainer.devices=2 \ 
+                tensor_model_parallel_size=2 \
+                trainer.devices=2 \
                 data.batch_size=8"
             sh "rm -rf /home/TestData/nlp/prompt_learning/t5_p_tuning_test_tp2.nemo"
           }
