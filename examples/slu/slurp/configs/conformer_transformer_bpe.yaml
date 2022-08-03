@@ -1,29 +1,3 @@
-# It contains the default values for training a Conformer-CTC ASR model, large size (~120M) with CTC loss and sub-word encoding.
-
-# Architecture and training config:
-# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
-# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
-# Here are the recommended configs for different variants of Conformer-CTC, other parameters are the same as in this config file.
-# One extra layer (compared to original paper) is added to the medium and large variants to compensate for replacing the LSTM decoder with a linear one.
-#
-#  +-------------+---------+---------+----------+------------+-----+
-#  | Model       | d_model | n_heads | n_layers | time_masks | lr  |
-#  +=============+=========+========+===========+============+=====+
-#  | Small  (13M)|   176   |    4   |    16     |     5      | 5.0 |
-#  +-------------+---------+--------+-----------+------------+-----+
-#  | Medium (30M)|   256   |    4   |    18     |     5      | 5.0 |
-#  +-------------+---------+--------+-----------+------------+-----+
-#  | Large (121M)|   512   |    8   |    18     |     10     | 2.0 |
-#  +---------------------------------------------------------------+
-#
-# If you do not want to train with AMP, you may use weight decay of 0.0 or reduce the number of time maskings to 2
-# with time_width=100. It may help when you want to train for fewer epochs and need faster convergence.
-# With weight_decay=0.0, learning rate may need to get reduced to 2.0.
-
-# You may find more info about Conformer-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#conformer-ctc
-# Pre-trained models of Conformer-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
-# The checkpoint of the large model trained on LibriSpeech with this recipe can be found here: https://ngc.nvidia.com/catalog/models/nvidia:nemo:stt_en_conformer_ctc_large_ls
-
 name: "ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"
 
 model:
@@ -40,7 +14,7 @@ model:
     pin_memory: true
     use_start_end_token: true
     trim_silence: false
-    max_duration: 10.0
+    max_duration: 11.0
     min_duration: 0.1
     # tarred datasets
     is_tarred: false
@@ -68,7 +42,6 @@ model:
     pin_memory: true
     use_start_end_token: true
 
-  # recommend small vocab size of 128 or 256 when using 4x sub-sampling
   # you may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
@@ -198,7 +171,7 @@ trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
   max_epochs: 100
-  max_steps: null # computed at runtime if not set
+  max_steps: -1 # computed at runtime if not set
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp
@@ -206,7 +179,6 @@ trainer:
   gradient_clip_val: 0.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 20  # Interval of logging.
-  progress_bar_refresh_rate: 10
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs

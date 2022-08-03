@@ -1,3 +1,17 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import os
 from dataclasses import dataclass, is_dataclass
@@ -5,8 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 import torch
-from eval_utils import InferenceConfig, SLURPEvaluator, run_inference
-from evaluation.util import format_results
+from eval_utils import InferenceConfig, SLURPEvaluator, format_results, run_inference
 from omegaconf import MISSING, OmegaConf, open_dict
 
 from nemo.core.config import hydra_runner
@@ -22,7 +35,6 @@ class EvaluationConfig(InferenceConfig):
     errors: bool = False
     table_layout: str = "fancy_grid"
     only_score_manifest: bool = False
-    mode: str = "slu"
 
 
 @hydra_runner(config_name="EvaluationConfig", schema=EvaluationConfig)

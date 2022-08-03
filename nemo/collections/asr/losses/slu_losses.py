@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, Optional
+
 import torch
 import torch.nn as nn
 
@@ -21,18 +23,25 @@ from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
 
 
-def get_seq_masked_loss(
-    loss_fn, predictions, targets, lengths=None, label_smoothing=0.0, reduction="mean",
+def get_seq_smoothed_loss(
+    loss_fn: Callable,
+    predictions: torch.Tensor,
+    targets: torch.Tensor,
+    lengths: Optional[torch.Tensor] = None,
+    label_smoothing: float = 0.0,
+    reduction: str = "mean",
 ):
     """
     Calculate the loss function specified by 'loss_fn' on the input predictions. 
     This function also supports label smoothing (https://arxiv.org/abs/1701.06548)
 
-    params:
-    - loss_fn: callable
-    - predictions: BxTxC
-    - targets: B
-    - lengths: B
+    Params:
+    -   loss_fn: callable for calculating loss_fn(predictions, targets).
+    -   predictions: prediction tensor of shape BxTxC.
+    -   targets: groundtruth label tensor of shape BxT.
+    -   lengths: optional tensor of shape B, representing the actual length of each sample.
+    Returns: 
+    -   loss value
     """
 
     mask = torch.ones_like(predictions)
@@ -66,8 +75,8 @@ def get_seq_masked_loss(
         return -label_smoothing * loss_reg + (1 - label_smoothing) * loss
 
 
-class SeqNLLLoss(Loss):
-    def __init__(self, reduction='mean', label_smoothing=0.0, **kwargs):
+class SmoothedNLLLoss(Loss):
+    def __init__(self, reduction: str = 'mean', label_smoothing: float = 0.0, **kwargs):
         """
         Calculates the negative log likelihood (NLL) loss for sequence data,
         with optional sequence masking and label smoothing.
@@ -80,7 +89,7 @@ class SeqNLLLoss(Loss):
     @property
     def input_types(self):
         """
-        Input types definitions for sequential NLL loss.
+        Input types definitions for smoothed NLL loss.
         """
         return {
             "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
@@ -90,16 +99,24 @@ class SeqNLLLoss(Loss):
 
     @property
     def output_types(self):
-        """O
-        utput types definitions for sequential NLL loss.
+        """
+        Output types definitions for smoothed NLL loss.
         loss:
             NeuralType(LossType())
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
     @typecheck()
-    def forward(self, log_probs, targets, lengths=None):
-        loss = get_seq_masked_loss(
+    def forward(self, log_probs: torch.Tensor, targets: torch.Tensor, lengths: torch.Tensor = None):
+        """
+        Params:
+        -   log_probs: log probability tensor of shape BxTxC.
+        -   targets: integer label tensor of shape BxT.
+        -   lengths: optional integer tensor of shape B.
+        Returns:
+        -   loss value
+        """
+        loss = get_seq_smoothed_loss(
             loss_fn=self.nll_loss,
             predictions=log_probs,
             targets=targets,

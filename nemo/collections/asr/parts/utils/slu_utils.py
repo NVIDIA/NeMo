@@ -15,7 +15,7 @@
 
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 import torch
 from omegaconf import DictConfig
@@ -40,6 +40,10 @@ class SearcherConfig:
 
 
 class SequenceGenerator:
+    """
+    Wrapper class for sequence generators in NeMo NLP package.
+    """
+
     TYPE_GREEDY = "greedy"
     TYPE_TOPK = "topk"
     TYPE_BEAM = "beam"
@@ -96,13 +100,15 @@ class SequenceGenerator:
         return_length: bool = False,
     ):
         """
-        Generate a sequence given the input encoder states and masks.
-        params:
+        Generate sequence tokens given the input encoder states and masks.
+        Params:
         -   encoder_states: a torch Tensor of shape BxTxD
         -   encoder_input_mask: a binary tensor of shape BxTxD
         -   return_beam_scores: whether to return beam scores
         -   pad_max_len: optional int, set it to pad all sequence to the same length
         -   return_length: whether to return the lengths for generated sequences (shape B)
+        Returns:
+        -   generated tokens tensor of shape BxT
         """
         predictions = self.generator(
             encoder_hidden_states=encoder_states,
@@ -118,13 +124,27 @@ class SequenceGenerator:
 
         return predictions
 
-    def get_seq_length(self, seq):
+    def get_seq_length(self, seq: torch.Tensor) -> torch.Tensor:
+        """
+        Get sequence length.
+        Params:
+        -   seq: batched sequence tensor of shape BxTxD
+        Returns:
+        -   tensor of shape B, where each element is the length of the sequence
+        """
         lengths = seq.size(1) * torch.ones(seq.size(0), device=seq.device).long()
         pos = (seq == self.eos_id).long().nonzero()
         seq_lengths = torch.scatter(lengths, dim=0, index=pos[:, 0], src=pos[:, 1])
         return seq_lengths
 
-    def decode_semantics_from_tokens(self, seq_tokens):
+    def decode_semantics_from_tokens(self, seq_tokens: torch.Tensor) -> List[str]:
+        """
+        Decode tokens into strings
+        Rarams:
+        -   seq_tokens: integer tensor of shape BxT
+        Returns:
+        -   list of strings
+        """
         semantics_list = []
         # Drop sequence tokens to CPU
         seq_tokens = seq_tokens.detach().long().cpu()
@@ -139,7 +159,15 @@ class SequenceGenerator:
         return semantics_list
 
 
-def get_seq_length(seq, eos_id):
+def get_seq_length(seq: torch.Tensor, eos_id: int) -> torch.Tensor:
+    """
+    Get sequence length.
+    Params:
+    -   seq: batched sequence tensor of shape BxTxD
+    -   eos_id: integer representing the end of sentence
+    Returns:
+    -   tensor of shape B, where each element is the length of the sequence
+    """
     lengths = seq.size(1) * torch.ones(seq.size(0), device=seq.device).long()
     pos = (seq == eos_id).long().nonzero()
     seq_lengths = torch.scatter(lengths, dim=0, index=pos[:, 0], src=pos[:, 1])
@@ -148,11 +176,11 @@ def get_seq_length(seq, eos_id):
 
 def pad_sequence(seq: torch.Tensor, max_len: int, pad_token: int = 0) -> torch.Tensor:
     """
-    params:
+    Params:
         - seq: integer token sequences of shape BxT
         - max_len: integer for max sequence length
         - pad_token: integer token for padding
-    return:
+    Returns:
         - padded sequence of shape B x max_len
     """
     batch = seq.size(0)
@@ -166,11 +194,11 @@ def pad_sequence(seq: torch.Tensor, max_len: int, pad_token: int = 0) -> torch.T
 
 def get_seq_mask(seq: torch.Tensor, seq_lens: torch.Tensor) -> torch.Tensor:
     """
-    get the sequence mask based on the actual length of each sequence
-    input:
+    Get the sequence mask based on the actual length of each sequence
+    Params:
         - seq: tensor of shape [BxLxD]
         - seq_len: tensor of shape [B]
-    output:
+    Returns:
         - binary mask of shape [BxL]
     """
     mask = torch.arange(seq.size(1))[None, :].to(seq.device) < seq_lens[:, None]

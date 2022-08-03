@@ -15,19 +15,20 @@
 
 from pathlib import Path
 from typing import Dict, Optional
+from urllib.error import HTTPError
 
+import torch
 from omegaconf import DictConfig, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.slu_losses import SeqNLLLoss
+from nemo.collections.asr.losses.slu_losses import SmoothedNLLLoss
 from nemo.collections.asr.metrics.wer_bpe import WERBPE
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
-from nemo.collections.common.parts import LinearAdapterConfig, MultiLayerPerceptron
-from nemo.collections.nlp.modules.common.transformer import TransformerEmbedding
+from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.core import adapter_mixins
-from nemo.core.classes.common import typecheck
+from nemo.core.classes.common import Serialization, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
@@ -43,20 +44,25 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Init encoder from SSL checkpoint
+        # Init encoder from pretrained model
         if self.cfg.pretrained_encoder.model is not None:
             if Path(self.cfg.pretrained_encoder.model).is_file():
                 logging.info(f"Loading pretrained encoder from local: {self.cfg.pretrained_encoder.model}")
-                ssl_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.restore_from(
-                    restore_path=self.cfg.pretrained_encoder.model
+                pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.restore_from(
+                    restore_path=self.cfg.pretrained_encoder.model, map_location=torch.device("cpu")
                 )
+                self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+                del pretraind_model
             else:
                 logging.info(f"Loading pretrained encoder from NGC: {self.cfg.pretrained_encoder.model}")
-                ssl_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                    model_name=self.cfg.pretrained_encoder.model
-                )
-            self.encoder.load_state_dict(ssl_model.encoder.state_dict(), strict=False)
-            del ssl_model
+                try:
+                    pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
+                        model_name=self.cfg.pretrained_encoder.model, map_location=torch.device("cpu")
+                    )
+                    self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+                    del pretraind_model
+                except HTTPError:
+                    logging.warning(f"Unable to load pretrained model: {self.cfg.pretrained_encoder.model}, skipped.")
         else:
             logging.info("Not using pretrained encoder.")
 
@@ -85,13 +91,13 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
 
         # Create embedding layer
         self.cfg.embedding["vocab_size"] = vocab_size
-        self.embedding = TransformerEmbedding.from_config_dict(self.cfg.embedding)
+        self.embedding = Serialization.from_config_dict(self.cfg.embedding)
 
         # Create token classifier
         self.cfg.classifier["num_classes"] = vocab_size
-        self.classifier = MultiLayerPerceptron.from_config_dict(self.cfg.classifier)
+        self.classifier = Serialization.from_config_dict(self.cfg.classifier)
 
-        self.loss = SeqNLLLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
+        self.loss = SmoothedNLLLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
 
         self.searcher = SequenceGenerator(
             cfg=cfg.searcher,
@@ -99,16 +105,6 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
             decoder=self.decoder,
             log_softmax=self.classifier,
             tokenizer=self.tokenizer,
-        )
-
-        # Setup metric objects
-        self._wer = WERBPE(
-            tokenizer=self.tokenizer,
-            batch_dim_index=0,
-            use_cer=self._cfg.get('use_cer', False),
-            ctc_decode=False,  # use naive decoding
-            dist_sync_on_step=True,
-            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     @property
@@ -136,8 +132,8 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
         }
 
     def set_decoding_strategy(self, cfg: SearcherConfig):
-        max_len = self.searcher.get("generator.max_seq_length", cfg.max_sequence_length)
-        max_delta = self.searcher.get("generator.max_delta_length", cfg.max_delta_length)
+        max_len = getattr(self.searcher, "generator.max_seq_length", cfg.max_sequence_length)
+        max_delta = getattr(self.searcher, "generator.max_delta_length", cfg.max_delta_length)
         cfg.max_sequence_length = max_len
         cfg.max_delta_length = max_delta
         self.searcher = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
@@ -155,7 +151,7 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
         """
         Forward pass of the model.
 
-        Args:
+        Params:
             input_signal: Tensor that represents a batch of raw audio signals,
                 of shape [B, T]. T here represents timesteps, with 1 second of audio represented as
                 `self.sample_rate` number of floating point values.
@@ -173,7 +169,7 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
             A tuple of 3 elements -
             1) The log probabilities tensor of shape [B, T, D].
             2) The lengths of the output sequence after decoder, of shape [B].
-            3) The greedy token predictions of the model of shape [B, T] (via argmax)
+            3) The token predictions of the model of shape [B, T].
         """
         has_input_signal = input_signal is not None and input_signal_length is not None
         has_processed_signal = processed_signal is not None and processed_signal_length is not None

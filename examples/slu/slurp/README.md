@@ -13,7 +13,10 @@
 ### Data Preparation
 
 
+### Building Tokenizers
+
 ### Training
+
 
 ### Evaluation
 
@@ -30,3 +33,9 @@
 
 
 ## Reference
+[1] [SLURP: A Spoken Language Understanding Resource Package](https://arxiv.org/abs/2011.13205)
+ 
+
+## Acknowledgments
+
+The evaluation code is borrowed from the official [SLURP package](https://github.com/pswietojanski/slurp/tree/master/scripts/evaluation), and some data processing code is adapted from [SpeechBrain SLURP Recipe](https://github.com/speechbrain/speechbrain/tree/develop/recipes/SLURP).
