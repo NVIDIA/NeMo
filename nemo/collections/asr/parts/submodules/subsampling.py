@@ -273,8 +273,8 @@ class ConvSubsampling(torch.nn.Module):
 
 def calc_length(lengths, all_paddings, kernel_size, stride, ceil_mode, repeat_num=1):
     """ Calculates the output length of a Tensor passed through a convolution or max pooling layer"""
-    add_pad: float = all_paddings - kernel_size
-    one: float = 1.0
+    add_pad = all_paddings - kernel_size
+    one = 1.0
     for i in range(repeat_num):
         lengths = torch.div(lengths.to(dtype=torch.float) + add_pad, stride) + one
         if ceil_mode:
