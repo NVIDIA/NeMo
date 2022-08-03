@@ -748,7 +748,7 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
         get_dataset_only=False,
     ):
         dataset = GPTPromptLearningDataset(
-            datasets=dataset_paths,
+            dataset_paths=dataset_paths,
             tokenizer=self.tokenizer,
             virtual_prompt_source=self.virtual_prompt_source,
             task_templates=self.task_templates,
@@ -885,8 +885,9 @@ class MegatronGPTPromptLearningModel(MegatronBaseModel, TextGeneration):
 
         max_input_length = self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
 
+        dataset_paths = [path["data_path"] for path in inputs]
         dataset = self.build_virtual_prompt_dataset(
-            dataset_paths=inputs,
+            dataset_paths=dataset_paths,
             max_seq_length=max_input_length,
             min_seq_length=self.cfg.data.get('min_seq_length', 1),
             add_bos=sampling_params["add_BOS"],

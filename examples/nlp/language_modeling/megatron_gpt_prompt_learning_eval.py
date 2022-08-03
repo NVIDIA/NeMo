@@ -119,17 +119,18 @@ def main(cfg) -> None:
     }
 
     # First method of running text generation, call model.generate method
+    # Input into generate method should be either list of string prompts or list of dicts
+    datapaths_dict = [{"data_path": path} for path in cfg.data_paths]
+
     # Use for inference on a few examples
-    response = model.generate(
-        inputs=OmegaConf.to_container(cfg.data_paths), length_params=length_params, sampling_params=sampling_params
-    )
+    response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
 
     print("***************************")
     print(response)
     print("***************************")
 
     # Second method of running text generation, call trainer.predict
-    # Use for batched inference on larger test sets, can do inference with data parallel > 1
+    # Use for batched inference on larger test sets
     max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
 
     _, dataloader = model.build_virtual_prompt_dataset(
