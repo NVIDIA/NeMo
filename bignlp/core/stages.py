@@ -16,10 +16,18 @@ class BigNLPStage:
         self.cfg = cfg
         self.cluster = cfg.get("cluster_type")
 
+        self.stage_name = None
+        self.stage_cfg = None
+        self.setup_stage_vars(cfg)
+        self.job_name = self.stage_cfg.run.get("name")
+
+    def setup_stage_vars(self, cfg):
+        raise NotImplementedError
+
     def run(self) -> str:
         """Run current stage; returns job id"""
         # Setup folders and datasets
-        self.setup()
+        self.setup_folder_and_data()
         # Save stage hydra config
         job_path = self.get_job_path()
         stage_cfg_path = BigNLPStage.save_stage_hydra_config(
@@ -39,9 +47,12 @@ class BigNLPStage:
 
         return job_id
 
-    def setup(self) -> None:
+    def setup_folder_and_data(self) -> None:
         """Setup required folders and dataset"""
-        raise NotImplementedError
+        job_path = self.get_job_path()
+        job_path.folder.mkdir(parents=True, exist_ok=True)
+        results_folder = job_path.results_folder
+        results_folder.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def save_stage_hydra_config(stage_cfg, job_path) -> Path:
@@ -79,10 +90,9 @@ class BigNLPStage:
         if not numa_cfg.get("enable"):
             return []
 
-        bignlp_path = Path(cfg.get("bignlp_path"))
         numa_override = [f"{k}={v}" for k, v in numa_cfg.items()]
         return [
-            f"python3 -u {bignlp_path / 'bignlp/collections/numa_mapping.py'} "
+            f"python3 -u {self._bignlp_path / 'bignlp/collections/numa_mapping.py'} "
             f"{' '.join(numa_override)}"
         ]
 
@@ -118,10 +128,9 @@ class BigNLPStage:
             return mounts_str
 
         cfg = self.cfg
-        bignlp_path = cfg.get("bignlp_path")
         data_dir = cfg.get("data_dir")
         base_results_dir = cfg.get("base_results_dir")
-        mounts_string = f"{bignlp_path}:{bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
+        mounts_string = f"{self._bignlp_path}:{self._bignlp_path},{data_dir}:{data_dir},{base_results_dir}:{base_results_dir}"
 
         container_mounts = cfg.get("container_mounts")
         mounts_string += add_container_mounts(container_mounts)
@@ -130,6 +139,10 @@ class BigNLPStage:
     @property
     def get_job_path(self):
         raise NotImplementedError
+
+    @property
+    def _bignlp_path(self) -> Path:
+        return Path(self.cfg.get("bignlp_path"))
 
     @property
     def _nemo_code_path(self) -> Path:
@@ -149,26 +162,17 @@ class BigNLPStage:
         return "CUDA_DEVICE_MAX_CONNECTIONS=1" \
             if tensor_model_parallel_size > 1 else ""
 
+    @functools.lru_cache()
+    def get_job_path(self) -> JobPaths:
+        run_cfg = self.stage_cfg.get("run") # TODO: add run in data prep config
+        results_dir = run_cfg.get("results_dir") # TODO: rename this to job dir in config
+        return JobPaths(results_dir, self.job_name)
 
-class Training(BigNLPStage):
+
+class NeMoStage(BigNLPStage):
+
     def __init__(self, cfg):
         super().__init__(cfg)
-
-        self.stage_name = None
-        self.stage_cfg = None
-        self.setup_stage_vars(cfg)
-        self.job_name = self.stage_cfg.run.get("name")
-
-    def setup_stage_vars(self, cfg):
-        self.stage_name = "training"
-        self.stage_cfg = cfg.get("training")
-
-    def setup(self):
-        # Setup folders
-        job_path = self.get_job_path()
-        job_path.folder.mkdir(parents=True, exist_ok=True)
-        results_folder = job_path.results_folder
-        results_folder.mkdir(parents=True, exist_ok=True)
 
     def make_stage_command_groups(self, stage_cfg_path):
         # Training has one command group
@@ -215,16 +219,6 @@ class Training(BigNLPStage):
         hydra_override = []
         if self.cluster == "bcp":
             hydra_override += ["+cluster_type=BCP"]
-        if self.stage_name.model.data.get("data_prefix", None) is None:
-            bignlp_path = Path(cfg.get("bignlp_path"))
-            preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
-            blending_alpha = self.stage_cfg.run.get("blending_alpha")
-            auto_blend_command = \
-                f"python3 {bignlp_path / 'bignlp/collections/auto_blend.py'} " \
-                f"model_type={choice_model_type} " \
-                f"preprocessed_dir={preprocessed_dir} " \
-                f"blending_alpha={blending_alpha} "
-            hydra_override += [f"model.data.data_prefix=\${{{auto_blend_command}}}"]
         return hydra_override
 
     def _make_cluster_parameters(self, cluster: str) -> Dict:
@@ -276,6 +270,28 @@ class Training(BigNLPStage):
 
         return cluster_parameters
 
+
+class Training(NeMoStage):
+
+    def setup_stage_vars(self, cfg):
+        self.stage_name = "training"
+        self.stage_cfg = cfg.get("training")
+
+    def _make_hydra_override(self):
+        hydra_override = []
+        if self.cluster == "bcp":
+            hydra_override += ["+cluster_type=BCP"]
+        if self.stage_name.model.data.get("data_prefix", None) is None:
+            preprocessed_dir = self.stage_cfg.run.get("preprocessed_dir")
+            blending_alpha = self.stage_cfg.run.get("blending_alpha")
+            auto_blend_command = \
+                f"python3 {self._bignlp_path / 'bignlp/collections/auto_blend.py'} " \
+                f"model_type={choice_model_type} " \
+                f"preprocessed_dir={preprocessed_dir} " \
+                f"blending_alpha={blending_alpha} "
+            hydra_override += [f"model.data.data_prefix=\${{{auto_blend_command}}}"]
+        return hydra_override
+
     def _get_nemo_code_path(self, model_type):
         model_type_to_code_path = {
             "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_pretraining.py",
@@ -284,27 +300,15 @@ class Training(BigNLPStage):
         }
         return model_type_to_code_path[model_type]
 
-    @functools.lru_cache()
-    def get_job_path(self) -> JobPaths:
-        run_cfg = self.stage_cfg.get("run")
-        results_dir = run_cfg.get("results_dir") # TODO: rename this to job dir in config
-        return JobPaths(results_dir, self.job_name)
 
-
-class FineTuning(Training):
-    def __init__(self, cfg):
-        super().__init__(cfg)
+class FineTuning(NeMoStage):
 
     def setup_stage_vars(self, cfg):
         self.stage_name = "fine_tuning"
         self.stage_cfg = cfg.get("fine_tuning")
 
-    def setup(self):
-        # Setup folders
-        job_path = self.get_job_path()
-        job_path.folder.mkdir(parents=True, exist_ok=True)
-        results_folder = job_path.results_folder
-        results_folder.mkdir(parents=True, exist_ok=True)
+    def setup_folder_and_data(self):
+        super().setup_folder_and_data()
 
         # Prepare fine-tuning dataset
         # TODO: Update to squad
@@ -316,12 +320,6 @@ class FineTuning(Training):
         if task_name in TASKS_LOWER:
             download_glue(data_dir=os.path.join(data_dir, "glue_data"), tasks=task_name)
 
-    def _make_hydra_override(self):
-        hydra_override = []
-        if self.cluster == "bcp":
-            hydra_override += ["+cluster_type=BCP"]
-        return hydra_override
-
     def _get_nemo_code_path(self, model_type):
         if model_type == "gpt3":
             raise NotImplementedError("Fine-tuning is not supported in NeMo Megatron GPT-3 models.")
@@ -332,20 +330,15 @@ class FineTuning(Training):
         return model_type_to_code_path[model_type]
 
 
-class PromptLearning(Training):
-    def __init__(self, cfg):
-        super().__init__(cfg)
+class PromptLearning(NeMoStage):
 
     def setup_stage_vars(self, cfg):
         self.stage_name = "prompt_learning"
         self.stage_cfg = cfg.get("prompt_learning")
 
-    def setup(self):
+    def setup_folder_and_data(self):
         # Setup folders
-        job_path = self.get_job_path()
-        job_path.folder.mkdir(parents=True, exist_ok=True)
-        results_folder = job_path.results_folder
-        results_folder.mkdir(parents=True, exist_ok=True)
+        super().setup_folder_and_data()
 
         # Prepare prompt learning dataset
         data_dir = self.cfg.get("data_dir")
@@ -356,12 +349,11 @@ class PromptLearning(Training):
             squad_dir = os.path.join(data_dir, "squad-v2.0")
             if not os.path.exists(squad_dir):
                 os.makedirs(squad_dir)
-                bignlp_path = Path(self.cfg.get("bignlp_path"))
                 download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v2.0.json", squad_dir,
                                      "train-v2.0.json")
                 download_single_file("https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v2.0.json", squad_dir,
                                      "dev-v2.0.json")
-                preprocess_script = bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
+                preprocess_script = self._bignlp_path / "bignlp/utils/data_utils/prompt_learning_squad_preprocessing.py"
                 os.system(
                     f"python {preprocess_script} "
                     f"--data-dir={squad_dir} "
@@ -370,12 +362,6 @@ class PromptLearning(Training):
                     f"--make-ground-truth "
                     f"--train-percent=0.8"
                 )
-
-    def _make_hydra_override(self):
-        hydra_override = []
-        if self.cluster == "bcp":
-            hydra_override += ["+cluster_type=BCP"]
-        return hydra_override
 
     def _get_nemo_code_path(self, model_type):
         if model_type != "gpt3":
@@ -387,29 +373,15 @@ class PromptLearning(Training):
 
 
 class Conversion(BigNLPStage):
-    def __init__(self, cfg):
-        super().__init__(cfg)
-
-        self.stage_name = None
-        self.stage_cfg = None
-        self.setup_stage_vars(cfg)
-        self.job_name = self.stage_cfg.run.get("name")
 
     def setup_stage_vars(self, cfg):
         self.stage_name = "conversion"
         self.stage_cfg = cfg.get("conversion")
 
-    def setup(self) -> None:
-        job_path = self.get_job_path()
-        job_path.folder.mkdir(parents=True, exist_ok=True)
-        results_folder = job_path.results_folder
-        results_folder.mkdir(parents=True, exist_ok=True)
-
     def _make_hparams_override_command(self):
         cfg = self.cfg
         model_cfg = self.stage_cfg.get("model")
         hparams_file = model_cfg.get("hparams_file")
-        bignlp_path = Path(cfg.get("bignlp_path"))
         vocab_file = model_cfg.get("vocab_file")
         merge_file = model_cfg.get("merge_file")
         tokenizer_model = model_cfg.get("tokenizer_model")
@@ -422,20 +394,20 @@ class Conversion(BigNLPStage):
         }
         hparams_override = [f"{k}={v}" for k, v in override_configs.items()]
         return [
-            f"python3 -u {bignlp_path / 'bignlp/collections/hparams_override.py'} "
+            f"python3 -u {self._bignlp_path / 'bignlp/collections/hparams_override.py'} "
             f"{' '.join(hparams_override)}"
         ]
 
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return [
-            f"python3 -u {bignlp_path / 'bignlp/collections/get_latest_checkpoint.py'} "
+            f"python3 -u {self._bignlp_path / 'bignlp/collections/get_latest_checkpoint.py'} "
             f"{' '.join(checkpoint_override)}"
         ]
 
     def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
         command_groups = [[], []]
-        command_groups[1] = [self._make_hparams_override_command()]
+        command_groups[0] = [self._make_hparams_override_command()]
 
         run_cfg = self.stage_cfg.get("run")
         model_cfg = self.stage_cfg.get("model")
@@ -455,19 +427,19 @@ class Conversion(BigNLPStage):
             tensor_model_parallel_size=tensor_model_parallel_size,
             pipeline_model_parallel_size=pipeline_model_parallel_size,
         )
-        command_groups[-1] += f"export CKPT_NAME=$({checkpoint_search_command})"
+        command_groups[-1] += [f"export CKPT_NAME=$({checkpoint_search_command})"]
 
-        code_path = "/opt/bignlp/NeMo/examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
-        args = [
-            f"--gpus_per_node={gpus_per_node}",
-            f"--model_type={model_type}",
-            f"--checkpoint_folder={checkpoint_folder}",
-            f"--checkpoint_name=\${{CKPT_NAME}}",
-            f"--hparams_file={hparams_override_file}",
-            f"--nemo_file_path={nemo_file_path}",
-            f"--tensor_model_parallel_size={tensor_model_parallel_size}",
-            f"--pipeline_model_parallel_size={pipeline_model_parallel_size}",
-        ]
+        code_path = self._nemo_code_path / "examples/nlp/language_modeling/megatron_ckpt_to_nemo.py"
+        args = create_args_list(
+            gpus_per_node=gpus_per_node,
+            model_type=model_type,
+            checkpoint_folder=checkpoint_folder,
+            checkpoint_name="\${CKPT_NAME}",
+            hparams_file=hparams_override_file,
+            nemo_file_path=nemo_file_path,
+            tensor_model_parallel_size=tensor_model_parallel_size,
+            pipeline_model_parallel_size=pipeline_model_parallel_size,
+        )
         args += ["--bcp"] if self.cluster == "bcp" else []
 
         core_command = [f"python3 -u {code_path}", *args]
@@ -477,6 +449,95 @@ class Conversion(BigNLPStage):
 
         return command_groups
 
+
+class NeMoEvaluation(NeMoStage):
+    
+    def setup_stage_vars(self, cfg):
+        self.stage_name = "evaluation"
+        self.stage_cfg = cfg.get("evaluation")
+
+    def _get_nemo_code_path(self, model_type):
+        if model_type == "gpt3":
+            raise ValueError("Evaluating GPT-3 models needs `EvalHarnessEvaluation` class.")
+        model_type_to_code_path = {
+            "t5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_seq2seq_eval.py",
+            "mt5": self._nemo_code_path / "examples/nlp/language_modeling/megatron_t5_seq2seq_eval.py",
+        }
+        return model_type_to_code_path[model_type]
+
+
+class EvalHarnessEvaluation(BigNLPStage):
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        stage_config_choice = cfg.get(f"{self.stage_name}_config")
+        choice_model_type = stage_config_choice.rsplit("/", 1)[0]
+        self.prompt_evaluation = (choice_model_type == "prompt_gpt3")
+
+    def setup_stage_vars(self, cfg):
+        self.stage_name = "evaluation"
+        self.stage_cfg = cfg.get("evaluation")
+
+    def _make_download_command_string(self) -> str:
+        data_dir = self.cfg.get("data_dir")
+        cache_dir = os.path.join(data_dir, "eval_harness_data_cache")
+        run_cfg = self.stage_cfg.get("run")
+        tasks = run_cfg.get("tasks")
+
+        code_path = self._bignlp_path / "bignlp/collections/eval_harness/download.py"
+        args = create_args_list(
+            tasks=tasks,
+            cache_dir=cache_dir,
+        )
+        download_command = [f"python3 -u {code_path}", *args]
+        download_command_string = " \\\n  ".join(download_command)
+        return download_command_string
+
+    def make_stage_command_groups(self, stage_cfg_path) -> List[List[str]]:
+        if self.prompt_evaluation:
+            command_groups = [[], []]
+            command_groups[0] += [self._make_download_command_string()]
+        else:
+            command_groups = [[]]
+
+        data_dir = self.cfg.get("data_dir")
+        cache_dir = os.path.join(data_dir, "eval_harness_data_cache")
+        run_cfg = self.stage_cfg.get("run")
+        model_cfg = self.stage_cfg.get("model")
+
+        code_path = self._bignlp_path / "bignlp/collections/eval_harness/evaluate.py"
+        args = create_args_list(
+            name=run_cfg.get("name"),
+            model=model_cfg.get("model_type"),
+            tasks=run_cfg.get("tasks"),
+            cache_dir=cache_dir,
+            output_path=self.get_job_path().results_folder,
+            batch_size=model_cfg.get("eval_batch_size"),
+            tensor_model_parallel_size=model_cfg.get("tensor_model_parallel_size"),
+            pipeline_model_parallel_size=model_cfg.get("pipeline_model_parallel_size"),
+            precision=model_cfg.get("precision"),
+        )
+
+        if self.prompt_evaluation:
+            args += create_args_list(
+                nemo_model=model_cfg.get("nemo_model"),
+                prompt_dataset_paths=model_cfg.get("prompt_dataset_paths"),
+            )
+        else:
+            args += create_args_list(
+                vocab_file=model_cfg.get("vocab_file"),
+                merge_file=model_cfg.get("merge_file"),
+                checkpoint_folder=model_cfg.get("checkpoint_folder"),
+                checkpoint_name=model_cfg.get("checkpoint_name"),
+                hparams_file=model_cfg.get("hparams_file"),
+            )
+
+        core_command = [f"python3 -u {code_path}", *args]
+        core_command_string = " \\\n  ".join(core_command)
+        command_groups[-1] += [core_command_string]
+        command_groups = clean_command_groups(command_groups)
+
+        return command_groups
 
 
 def clean_command_groups(command_groups):
@@ -496,3 +557,10 @@ def _hydra_interpolation(cfg) -> None:
                 cfg[i] = interpolate(v)
         return cfg
     interpolate(cfg)
+
+
+def create_args_list(hydra=False, **kwargs):
+    args = []
+    for k, v in kwargs:
+        args.append(f"{k}={v}" if hydra else f"--{k}={v}")
+    return args
