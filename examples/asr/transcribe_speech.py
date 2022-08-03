@@ -224,10 +224,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     left = cfg.left,
                     right = cfg.right
                 )
-                
+                # todo
             else:
                 transcriptions = asr_model.transcribe(
-                    paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers,
+                    paths2audio_files=filepaths, batch_size=cfg.batch_size, num_workers=cfg.num_workers, 
                 )
 
     logging.info(f"Finished transcribing {len(filepaths)} files !")

@@ -16,108 +16,9 @@ import multiprocessing
 import tqdm
 import numpy as np
 
-def evaluate_vad(manifest: str, ref: str = "oracle_vad") -> Tuple[float, float, float]:
-    metric = detection.DetectionErrorRate()
-    
-    for line in open(manifest, 'r', encoding='utf-8'):
-        sample = json.loads(line)
-
-        reference = Annotation()
-        vad_ref = torch.load(sample[ref])
-        for row in vad_ref:
-            reference[Segment(row[0], row[1])] = 'Speech'
-        
-        hypothesis = Annotation()
-        if sample['speech_segments_filepath'] != "":
-            if sample['speech_segments_filepath'].endswith(".pt"):
-                vad_hyp = torch.load(sample['speech_segments_filepath'])
-            else:
-                vad_hyp = np.load(sample['speech_segments_filepath'])
-            for row in vad_hyp:
-                hypothesis[Segment(row[0], row[1])] = 'Speech'
-
-        metric(reference, hypothesis) 
-
-    # vad evaluation
-    report = metric.report(display=False)
-    DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-    FA = report.iloc[[-1]][('false alarm', '%')].item()
-    MISS = report.iloc[[-1]][('miss', '%')].item()
-    return DetER, FA, MISS
-
-def evaluate_asr(manifest: str, use_cer: bool=False, no_space:bool =False) -> Tuple[float,float]:
-    predicted_text, ground_truth_text = [], []
-    predicted_text_nospace, ground_truth_text_nospace = [], []
-
-    for line in open(manifest, 'r', encoding='utf-8'):
-        sample = json.loads(line)
-        predicted_text.append(sample['pred_text'])
-        predicted_text_nospace.append(sample['pred_text'].replace(" ", ""))
-        ground_truth_text.append(sample['text'])
-        ground_truth_text_nospace.append(sample['text'].replace(" ", ""))
-
-    # asr evaluation
-    WER_nospace = 1.0
-    WER = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=use_cer)
-    if no_space:
-        WER_nospace = word_error_rate(hypotheses=predicted_text_nospace, references=ground_truth_text_nospace, use_cer=use_cer)
-    return WER, WER_nospace
-
-def perform_energy_vad(input_manifest, output_manifest="generated_energy_ss_manifest.json"):
-    data = []
-    for line in open(input_manifest, 'r', encoding='utf-8'):
-        data.append(json.loads(line))
-       
-    number_of_processes = 15
-    p = multiprocessing.Pool(number_of_processes)
-    results = []
-    for result in tqdm.tqdm(p.imap_unordered(process_one_file, data), total=len(data)):
-        results.append(result)
-        
-    p.close()
-    
-    with open(output_manifest, "w") as fout:
-        for result in results:
-            # each file might have multi meta
-            for meta in result:
-                json.dump(meta, fout)
-                fout.write('\n')
-                fout.flush()
-            
-    return output_manifest
+from eval_vad_asr_utils import *
 
 
-def switch_lang_model(lang: str, model: str) -> Tuple[bool, bool, bool, str]:
-    lang_model_table = {
-        'english-citrinet_2.0':  (False, False, True, ""),
-        'english-citrinet_ngc':  (False, False, False, "stt_en_citrinet_1024_gamma_0_25"),
-        'english-nr_citrinet':  (False, False, True, "/home/fjia/models/english/Citrinet_Aug_1024_Gamma_0-25_NeMo_ASRSET_2.0_e200.nemo"),
-        'english-conformer_transducer':  (False, False, False, "stt_en_conformer_transducer_large"),
-        'english-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/english/aug/rno8_bucket32_Aug_nemo2.0_d512_adamwlr5.0_wd1e-3_aug10x0.05spunigram1024_emit0_nodes32_bucketing_200e_b4.nemo"),
-        'mandarin-citrinet': (True, True, False, "stt_zh_citrinet_1024_gamma_0_25"), # test 5000
-        'french-citrinet':   (False, False, False, "stt_fr_citrinet_1024_gamma_0_25"), # test 2320
-        'german-citrinet':   (False, False, False, "stt_de_citrinet_1024"), #dev 15845 test 15854
-        'spanish-nr_citrinet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_citrinet_1024_gamma_0_25.nemo"), 
-        'spanish-nr_conformer_ctc':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_ctc_large.nemo"), 
-        'spanish-nr_conformer_transducer':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_conformer_transducer_large.nemo"), 
-        'spanish-nr_contextnet':  (False, False, True, "/home/fjia/models/jagadeesh_nr/spanish/finetuning_with_augmentation/stt_es_contextnet_1024.nemo"), 
-        'russian-citrinet':  (False, False, True, "/home/fjia/models/vitaly/ru_models/CitriNet-1024-8x-Stride-Gamma-0.25.nemo"), #dev 9361 test 9355 TODO will ask vitaly about new checkpoint  
-    }
-    
-    lang_model = lang + "-" + model
-    return lang_model_table.get(lang_model, None)
-
-
-def switch_model_buffered_param(model: str) -> float:
-     # TODO other models
-    model_streaming_param_table = {
-        'citrinet': 8 ,
-        'conformer_ctc': 4
-    }
-    if "nr" in model:
-        model = model.split("nr_")[1]
-
-    return model_streaming_param_table.get(model, None)
 
 def main():
     """
@@ -128,16 +29,34 @@ def main():
     db_list = [0,5,10,15,20,'clean']
     """
 
-    db_list = [0,5,10,15,20,'clean'] #
-    modes = ['offline']
-    langs = ['english']
-    vad_exps = [ 'oracle_vad']
-    models = ['nr_citrinet', 'citrinet'] 
+    db_list = ['clean'] 
+    modes = ['offline'] #streaming
+    langs = [
+        # 'driveix', 
+        'chris', 
+        # 'hub5',
+        # 'GTC2019-keynote-parts', 
+        # 'tmobile',
+        # 'Ring_central_with_duration',
+        # 'logmein',
+        # 'StreamingInTheCloud',
+        # 'tedlium2_test',
+        # 'wsj-eval-92',
+        # 'librivox-test-other',
+        # 'yt_med_eval'
+    ]
+
+
+    vad_exps = ["neural_vad"] 
+    models = ['riva_citrinet'] 
 
     shift_length_in_sec = 0.08
+    clean_text = True
+
+
     # ref="energy_vad"
-    # overlap=0.875
-    overlap=False
+    overlap=0.875
+    smoothing=False
     ref='oracle_vad'
     random_vad_ref = 'energy_vad'
 
@@ -145,7 +64,7 @@ def main():
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res{exp}_asr_offline_multiple_fixSNR_s8_tunedO_test.csv"
+    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test.csv"
 
     si_ratio = False  #True
 
@@ -156,7 +75,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"final_multiple_fixed_{exp}_s8_test"
+    final_output_folder = f"asr_{exp}_s8_tuned_test"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True
@@ -172,11 +91,11 @@ def main():
                     if switch_model_buffered_param(model):
                         model_stride = switch_model_buffered_param(model)
                     else:
-                        print(f"Currently do not support {mode} in streaming/buffered model")
+                        print(f"Currently do not support {model} in streaming/buffered model")
                         continue
 
-                if switch_lang_model(lang, model):
-                    use_cer, no_space, use_model_path, asr_model = switch_lang_model(lang, model)
+                if switch_lang_model("english", model):
+                    use_cer, no_space, use_model_path, asr_model = switch_lang_model("english", model)
                 else:
                     print(f"{lang} with {model} does not exist")
                     continue
@@ -191,12 +110,15 @@ def main():
 
                             if db=='clean' :
                                 # input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
-                                input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
+                                # input_manifest=f"/home/fjia/code/5_syn/{lang}_{subset}{exp}.json"
+                                input_manifest = f"/home/fjia/code/asr_eval_manifests/{lang}.json"
                             else:
                                 # silence only clean now need change
                                 # input_manifest = f"/data/syn_noise_augmented/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
                                 # input_manifest = f"/data/syn_noise_augmented_fixed/manifests/{lang}_{subset}{exp}_test_noise_0_30_musan_fs_{db}db.json"
-                                input_manifest = f"/data/syn_noise_augmented_fixed_10_100/manifests/{lang}_{subset}{exp}_test_noise_10_100_musan_fs_{db}db.json"
+                                # input_manifest = f"/data/syn_noise_augmented_fixed_10_100/manifests/{lang}_{subset}{exp}_test_noise_10_100_musan_fs_{db}db.json"
+                                print("error")
+                                raise 
 
                             if mode == "offline":
                                 if vad_exp =="novad":
@@ -234,7 +156,7 @@ def main():
                                                 output_filename={novad_output_manifest} \
                                                 left={left} \
                                                 right={right}') 
-                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space, clean_text=clean_text)
                                         print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
                                     else:
@@ -246,15 +168,18 @@ def main():
                                             output_filename={novad_output_manifest} \
                                             left={left} \
                                             right={right}') 
-                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                        WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space, clean_text=clean_text)
                                         print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
                                 elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad", "random_vad"]:
+                                    if not si_ratio:
+                                        left, right = 0, 0
+
                                     vad_out_manifest_filepath= os.path.join(mode_lang_folder, f"vad_out_{vad_exp}.json")
 
                                     if vad_exp=="neural_vad":
                                         params = {
-                                            "onset": 0.5,
+                                            "onset": 0.4,
                                             "offset": 0.3,
                                             "min_duration_on": 0.5,
                                             "min_duration_off": 0.5,
@@ -288,12 +213,13 @@ def main():
                                             #     shutil.rmtree(frame_out_dir) 
                                         else:
                                             frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
-                                        os.system(f'python vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" \
+                                        os.system(f'python vad_infer.py --config-path="../conf/vad" --config-name="vad_inference_postprocessing.yaml" \
                                             dataset={input_manifest} \
                                             vad.model_path={vad_model} \
                                             frame_out_dir={frame_out_dir} \
                                             vad.parameters.window_length_in_sec=0.63 \
                                             vad.parameters.shift_length_in_sec={shift_length_in_sec} \
+                                            vad.parameters.smoothing={smoothing} \
                                             vad.parameters.overlap={overlap} \
                                             vad.parameters.postprocessing.onset={params["onset"]} \
                                             vad.parameters.postprocessing.offset={params["offset"]} \
@@ -317,33 +243,37 @@ def main():
                                             dataset_manifest={vad_out_manifest_filepath} \
                                             batch_size=32 \
                                             amp=True \
-                                            output_filename={segmented_output_manifest}')
+                                            output_filename={segmented_output_manifest} \
+                                            left={left} \
+                                            right={right}')
                                     else:
                                         os.system(f'python ../transcribe_speech.py \
                                             pretrained_name={asr_model} \
                                             dataset_manifest={vad_out_manifest_filepath} \
                                             batch_size=32 \
                                             amp=True \
-                                            output_filename={segmented_output_manifest}')
+                                            output_filename={segmented_output_manifest} \
+                                            left={left} \
+                                            right={right}')
 
                                     stitched_output_manifest = os.path.join(mode_lang_folder, "stitched_asr_output_manifest.json")
-                                    speech_segments_tensor_dir = os.path.join(mode_lang_folder, "speech_segments")
+                                    speech_segments_tensor_dir = os.path.join(mode_lang_folder, f"{vad_exp}/speech_segments_{db}")
                                     stitched_output_manifest = stitch_segmented_asr_output(segmented_output_manifest, speech_segments_tensor_dir, stitched_output_manifest)
 
                                     aligned_vad_asr_output_manifest = f"{final_output_folder}/{mode}/{lang}/asr_{vad_exp}_{model}_output_manifest_{db}_{subset}{exp}.json"
                                     aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest, use_cer)
 
-                                    DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest, ref=ref)
-                                    print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
-
+                                    # DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest, ref=ref)
+                                    # print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+                                    DetER, FA, MISS = None, None, None
                                 
-                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space, clean_text=clean_text)
                                     print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
 
                                     os.remove(vad_out_manifest_filepath)
                                     os.remove(stitched_output_manifest)
                                     os.remove(segmented_output_manifest)
-                                    shutil.rmtree(speech_segments_tensor_dir)
+                                    # shutil.rmtree(speech_segments_tensor_dir)
 
                                 else:
                                     raise ValueError(f"vad_exp could only be in novad, energy_vad, neural_vad and oracle_vad but got {vad_exp}")
@@ -363,7 +293,7 @@ def main():
                                     --model_stride {model_stride} \
                                     --total_buffer_in_secs 4')
 
-                                    WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    WER, WER_nospace = evaluate_asr(novad_output_manifest, use_cer=use_cer, no_space=no_space, clean_text=clean_text)
                                     print(f"no vad WER is {WER}, no vad WER no_space is {WER_nospace}")
 
                                 elif vad_exp in ["neural_vad", "energy_vad", "oracle_vad"]:
@@ -440,12 +370,12 @@ def main():
                                             stitched_output_manifest = stitched_output_manifest)
                                         aligned_vad_asr_output_manifest = construct_manifest_eval(input_manifest, stitched_output_manifest, aligned_vad_asr_output_manifest, use_cer)
                                     
-
                                     
-                                    DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest, ref=ref)
-                                    print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+                                    # DetER, FA, MISS = evaluate_vad(aligned_vad_asr_output_manifest, ref=ref)
+                                    # print(f'DetER (%) : {DetER}, FA (%): {FA}, MISS (%): {MISS}')
+                                    DetER, FA, MISS = None, None, None
 
-                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space)
+                                    WER, WER_nospace = evaluate_asr(aligned_vad_asr_output_manifest, use_cer=use_cer, no_space=no_space, clean_text=clean_text)
                                     print(f"vad WER is {WER}, vad WER no_space is {WER_nospace}")
 
                                 else:

@@ -68,9 +68,10 @@ def transcribe_partial_audio(
                 'batch_size': batch_size,
                 'num_workers': num_workers,
                 'left': left,
-                'right': right
+                'right': right,
             }
-            print("1!!", config)
+            print("!!!!!left", config['left'])
+            print("===============================")
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 logits, logits_len, greedy_predictions = asr_model.forward(

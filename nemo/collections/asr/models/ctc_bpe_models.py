@@ -354,8 +354,8 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
             'pin_memory': True,
             'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
-            'left': config['left'],
-            'right':config['right'],
+            'left': config.get('left', 0),
+            'right': config.get('right', 0),
             'augmentor': config.get('augmentor', None)
         }
 
