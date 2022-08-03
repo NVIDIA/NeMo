@@ -17,6 +17,7 @@ For more information about Faiss, check https://faiss.ai/
 
 It requires the retrieval DB text data to be converted into `bin` and `idx` files by `preprocess_data_for_megatron.py` script.
 
+
 Here is an example to using it:
 
 ```python
@@ -34,9 +35,30 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
 It creates a index.sav which can be loaded by Faiss. It can look up the KNN chunk ids of the 
 DB dataset given the input embedding vector. 
 
+To use it in multiple stages, it follows the example as shown in  
+https://github.com/facebookresearch/faiss/blob/main/demos/demo_ondisk_ivf.py
+
+stage-0: train on the dataset, example,
+
+```python
+python scripts/nlp_language_modeling/build_retrieval_index.py \
+    --input_file=PATH_TO_DB_FILE \
+    --tokenizer-library=sentencepiece \
+    --tokenizer-model=tokenizer.model \
+    --train_index_size=128000 \
+    --devices=0,1,2,3 \
+    --stage=0 \
+    --output_file=index_trained.sav
+```
+
+stage-1: build partial indexes, each containing a fraction of the dataset. This can be done in parallel on several machines
+
+stage-2: merge the 4 indexes into one that is written directly to disk (needs not to fit in RAM)
 """
 import argparse
 import multiprocessing
+from multiprocessing import Pool
+from typing import Union
 
 import faiss
 from sentence_transformers import SentenceTransformer
@@ -44,6 +66,8 @@ from sentence_transformers import SentenceTransformer
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
+import numpy as np
+import sys
 
 QUEUE_SIZE = 30
 
@@ -68,7 +92,13 @@ def get_tokenizer(args):
 
 
 def process_sentence_chunks(
-    ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int, warm_up_size: int, percent: float
+    ds: MMapRetrievalIndexedDataset, 
+    tokenizer, 
+    chunk_size: int, 
+    warm_up_size: int, 
+    percent: float, 
+    stage: Union[int, None],
+    workers: int,
 ):
     total_chunks = ds.chunks
     num_docs = len(ds._index.sizes)
@@ -78,12 +108,22 @@ def process_sentence_chunks(
         logging.info(f"Use {use_num_docs} out of {num_docs} docs to build index")
         total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
     logging.info(f"{total_chunks} chunks are used to build the index")
-    assert warm_up_size < total_chunks
-    warm_up_slices = ds.get_chunk(slice(0, warm_up_size), force_no_cont_ids=True)
-    sentences = [tokenizer.ids_to_text(ids) for ids in warm_up_slices]
-    queue.put(sentences)
 
-    start = warm_up_size
+    if stage is None or stage == 0:
+        # only prepare the warmup batch for stage None and stage 0
+        assert warm_up_size < total_chunks
+        warm_chunk_ids = np.random.randint(0, total_chunks,  warm_up_size)
+        warm_up_slices = []
+        for warm_up_id in warm_chunk_ids:
+            warm_up_slices.append(ds.get_chunk(warm_up_id, force_no_cont_ids=True))
+        with Pool(workers) as p:
+            sentences = p.map(tokenizer.ids_to_text, warm_up_slices)
+        queue.put(sentences)
+        if stage == 0:
+            # first the task for stage 0
+            queue.put(None)
+
+    start = 0
     threshold = 0.1
     while start < total_chunks:
         if start / total_chunks > threshold:
@@ -159,23 +199,36 @@ if __name__ == "__main__":
         '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
+    group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
+    group.add_argument('--stage', type=int, default=None, help='used for building the large index in multiple stages', choices=[0, 1, 2])
+    group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0', choices=[0, 1, 2])
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
     args = parser.parse_args()
     model = SentenceTransformer(args.sentence_transformer_model)
     tokenizer = get_tokenizer(args)
-    ds = MMapRetrievalIndexedDataset(args.input_file)
+    ds = MMapRetrievalIndexedDataset(args.input_file, skip_warmup=True)
     # make sure the dataset is padded as retrieval database
     assert ds._index.retrieval_db
     if ds.chunks < args.train_index_size:
         raise ValueError(
             f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset"
         )
+    if args.stage is None or args.stage == 0:
+        # Where nlist is 4*sqrt(N) to 16*sqrt(N), with N the size of the dataset. 
+        # This just clusters the vectors with k-means. You will need between 30*K and 256*K vectors for training (the more the better).
+        total_chunks = ds.chunks
+        if args.percent < 1.0:
+            num_docs = len(ds._index.sizes)
+            use_num_docs = int(num_docs * args.percent)
+            total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
+        nlist = int(8 * np.sqrt(total_chunks))
+        assert 30 * nlist < args.train_index_size, f"need more training samples, at least {30 * nlist}"
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
-        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size, args.percent),
+        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size, args.percent, args.stage, args.workers),
     )
     process.start()
 
@@ -194,16 +247,30 @@ if __name__ == "__main__":
 
     emb = get_emb()
 
-    nlist = 100
-    # m is number of subquantizers. So vector of size D is broken into m sub-vectors of size D/m
-    m = args.subquantizers
-    k = 4  # num_nearest neighbors to get
-    quantizer = faiss.IndexFlatIP(emb.shape[1])
-    index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+    if args.stage is None or args.stage == 0:
+        # initialize the Faiss index
+        # m is number of subquantizers. So vector of size D is broken into m sub-vectors of size D/m
+        m = args.subquantizers
+        k = 4  # num_nearest neighbors to get
+        # gpu_resource = faiss.StandardGpuResources()
+        # quantizer = faiss.GpuIndexFlatIP(gpu_resource, emb.shape[1])
+        # index = faiss.GPUIndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+        quantizer = faiss.IndexFlatIP(emb.shape[1])
+        index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+    else:
+        # stage 1 and stage 2, need to load the index from file
+        index = faiss.read_index(args.learned_index)
+
     # 8 specifies that each sub-vector is encoded as 8 bits
     # build the index
     index.train(emb)
     logging.info('Trained Index')
+    if args.stage is not None:
+        logging.info('build index at stage {args.stage}')
+    if args.stage == 0:
+        # just need to have the learned index
+        faiss.write_index(index, args.output_file)
+        sys.exit(0)
 
     # add the first batch to the index
     index.add(emb)
