@@ -97,9 +97,6 @@ class NLPDDPPlugin(DDPPlugin):
         if hasattr(self.model, 'megatron_amp_o2') and self.model.megatron_amp_o2:
             # do not use DDP if using megatron amp O2
             self._model = LightningDistributedModule(self.model)
-        elif hasattr(self.model, 'distributed_fused_adam') and self.model.distributed_fused_adam:
-            # do not use DDP if using distributed optimizer
-            self._model = LightningDistributedModule(self.model)
         else:
             app_state = AppState()
 
@@ -389,28 +386,6 @@ class PipelineMixedPrecisionPlugin(NativeMixedPrecisionPlugin):
         self, precision: Union[str, int], device: str, scaler: Optional[torch.cuda.amp.GradScaler] = None
     ) -> None:
         super().__init__(precision, device, scaler=scaler)
-
-    def optimizer_step(
-        self,
-        model: Union["pl.LightningModule", torch.nn.Module],
-        optimizer: torch.optim.Optimizer,
-        optimizer_idx: int,
-        closure: Callable[[], Any],
-        **kwargs: Any,
-    ) -> None:
-        if self.scaler is None:
-            # skip scaler logic, as bfloat16 does not require scaler
-            return super().optimizer_step(model, optimizer, optimizer_idx, closure, **kwargs)
-        closure_result = closure()
-        self._after_closure(model, optimizer, optimizer_idx)
-        skipped_backward = closure_result is None
-        # in manual optimization, the closure does not return a value
-        if not isinstance(model, pl.LightningModule) or not model.automatic_optimization or not skipped_backward:
-            # note: the scaler will skip the `optimizer.step` if nonfinite gradients are found
-            step_output = self.scaler.step(optimizer, **kwargs)
-            self.scaler.update()
-            return step_output
-        return closure_result
 
     @contextmanager
     def forward_context(self) -> Generator[None, None, None]:
