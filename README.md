@@ -122,25 +122,23 @@ The most recent version of the README can be found at [https://ngc.nvidia.com/co
       - [5.11.4.1. Common](#51141-common)
       - [5.11.4.2. Slurm](#51142-slurm)
       - [5.11.4.3. Base Command Platform](#51143-base-command-platform)
+  * [5.12. Model Export](#512-model-export)
+    + [5.12.1. GPT-3 Export](#5121-gpt-3-export)
+      - [5.12.1.1. Common](#51211-common)
+      - [5.12.1.2. Slurm](#51212-slurm)
+      - [5.12.1.3. Base Command Platform](#51213-base-command-platform)
+    + [5.12.2. T5 Export](#5122-t5-export)
+      - [5.12.2.1. Common](#51221-common)
+      - [5.12.2.2. Slurm](#51222-slurm)
+      - [5.12.2.3. Base Command Platform](#51223-base-command-platform)
+    + [5.12.3. mT5 Export](#5123-mt5-export)
+      - [5.12.3.1. Common](#51231-common)
+      - [5.12.3.2. Slurm](#51232-slurm)
+      - [5.12.3.3. Base Command Platform](#51233-base-command-platform)
+
 - [6. Deploying the BigNLP Model](#6-deploying-the-bignlp-model)
-  * [6.1. Model Inference Deployment Process](#61-model-inference-deployment-process)
-  * [6.2. Prepare Environment](#62-prepare-environment)
-    + [6.2.1. Slurm](#621-slurm)
-    + [6.2.2. Base Command Platform](#622-base-command-platform)
-  * [6.3. Provide Model and Inference Configuration](#63-provide-model-and-inference-configuration)
-    + [6.3.1. Predefined Configuration for Selected Models](#631-predefined-configuration-for-selected-models)
-    + [6.3.2. Optimal Configuration Search](#632-optimal-configuration-search)
-      - [6.3.2.1. Random Weights Checkpoint Benchmark](#6321-random-weights-checkpoint-benchmark)
-      - [6.3.2.2. Trained Checkpoint Benchmark](#6322-trained-checkpoint-benchmark)
-  * [6.4. Review Deployment Search Results](#64-review-deployment-search-results)
-  * [6.5. Prepare NVIDIA Triton Model Repository and Run Accuracy/Performance Tests](#65-prepare-nvidia-triton-model-repository-and-run-accuracy-performance-tests)
-  * [6.6. Run NVIDIA Triton Server with Selected Model Repository](#66-run-nvidia-triton-server-with-selected-model-repository)
-  * [6.7. Text generation](#67-text-generation)
-    + [6.7.1. Setup](#671-setup)
-    + [6.7.2. Basic Text Generation](#672-basic-text-generation)
-    + [6.7.3. Longer Text Generation](#673-longer-text-generation)
-    + [6.7.4. Dialogue Text Generation](#674-dialogue-text-generation)
-    + [6.7.5. Inference Parameters](#675-inference-parameters)
+  * [6.1. Run NVIDIA Triton Server with Generated Model Repository](#61-run-nvidia-triton-server-with-generated-model-repository)
+  * [6.2 GPT text generation with ensemble](#62-gpt-text-generation-with-ensemble)
 - [7. Performance](#7-performance)
   * [7.1. GPT-3 Results](#71-gpt-3-results)
     + [7.1.1. Training Accuracy Results](#711-training-accuracy-results)
@@ -3540,7 +3538,7 @@ to `True` to run the training pipeline export stage. `export` parameter should b
 parameters can be modified to adapt different export and set of tests run on prepared Triton Model Repository.
 For Base Command Platform, all these parameters should be overridden from the command line.
 
-##### 5.12.2.1. Common
+##### 5.12.3.1. Common
 <a id="markdown-common" name="common"></a>
 Also the other `run` parameters might be used to define the job specific config:
 ```yaml
@@ -3610,7 +3608,7 @@ benchmark:
   triton_wait_time: 300
 ```
 
-##### 5.12.2.2. Slurm
+##### 5.12.3.2. Slurm
 <a id="markdown-slurm" name="slurm"></a>
 
 Set configuration for a Slurm cluster in the `conf/cluster/bcm.yaml` file:
@@ -3646,7 +3644,7 @@ then run:
 python3 main.py
 ```
 
-##### 5.12.2.3. Base Command Platform
+##### 5.12.3.3. Base Command Platform
 <a id="markdown-base-command-platform" name="base-command-platform"></a>
 In order to run the export stage on Base Command Platform, set the
 `cluster_type` parameter in `conf/config.yaml` to `bcp`. This can also be overridden
@@ -3668,6 +3666,162 @@ export.triton_deployment.pipeline_model_parallel_size=1 \
 The command above assumes you mounted the data workspace in `/mount/data`, and the results workspace in `/mount/results`. 
 The stdout and stderr outputs will also be redirected to the `/results/export_mt5_log.txt` file, to be able to download the logs from NGC.
 Any other parameter can also be added to the command to modify its behavior.
+
+
+## 6. Deploying the BigNLP Model
+
+This section describes the deployment of the BigNLP model on the NVIDIA Triton
+Inference Server with FasterTransformer Backend on both single and multiple
+node environments.    NVIDIA Triton Inference Server supports many inference
+scenarios, of which two most important are:
+* Offline inference    scenario - with a goal to maximize throughput regardless
+    of the latency, usually achieved with increasing batch size and using server
+    static batching feature.
+* Online inference scenario - with a goal to maximize throughput within a given
+    latency budget, usually achieved with small batch sizes and increasing
+    concurrency requests to the server, using dynamic batching feature.
+
+
+### 6.1. Run NVIDIA Triton Server with Generated Model Repository
+<a id="markdown-run-nvidia-triton-server-with-selected-model-repository"
+name="run-nvidia-triton-server-with-selected-model-repository"></a>
+
+The inputs:
+* NVIDIA Triton model repository with FasterTransformer checkpoint
+     ready for inference at production.
+* Docker image with NVIDIA Triton and FasterTransformer backend.
+
+The outputs:
+* Running NVIDIA Triton model instance serving model in cluster.
+
+To run at slurm FasterTransformer backend, do the following:
+```sh
+srun \
+     --nodes=<NUMBER OF NODES>\
+     --partition=<SLURM PARITION>\
+     --mpi <MPI MODE>\
+     --container-image <BIGNLP INFERENCE CONTAINER>\
+     --container-mounts <TRITON MODEL REPOSITORY>:<TRITON MODEL REPOSITORY> \
+     bash -c "export CUDA_VISIBLE_DEVICES=<LIST OF CUDA DEVICES> && tritonserver --model-repository <TRITON MODEL REPOSITORY>"
+
+```
+
+Parameters:
+* `NUMBER OF NODES`: Number of machines in cluster, which should be used to run inference.
+* `SLURM PARTITION`: Slurm partition with DGX machines for inference.
+* `MPI MODE`: FasterTransformer uses MPI for interprocess communication like `pmix` library.
+* `BIGNLP INFERENCE CONTAINER`: Separate docker container streamlined for just inference.
+* `TRITON MODEL REPOSITORY`: Triton model repository created by FasterTransformer export stage.
+* `LIST OF CUDA DEVICES`: List of CUDA devices, which should be used by inference like `0,1,2,3`.
+
+When you run inference, then number of machines and GPUs must match configuration
+set during FasterTransformer export. You set tensor parallel (TP) and pipeline
+parallel configuration (PP). This created wight files divided between GPUs and machines.
+A tensor parallel configuration determines how many GPUs are used to process
+one transformer layer. If you set TP to 16 but your cluster contains just 8 GPU
+machines, then you need 2 nodes to run inference. FasterTransformer consumes all GPUs
+accessible to Triton process. If you set TP to 4 but your machines contain 8 GPUs,
+then you must hide some GPUs from the process. An environment variable
+`CUDA_VISIVLE_DEVICES` can be used to list devices accessible to CUDA library
+for a process, so you can use it to limit number of GPUs used by Triton instance.
+The example configuration for 126m can't be run with tensor parallel set to 8
+because head number in transformer layer must be divisible by tensor parallel
+value.
+
+Table below contains example configurations for DGX 8 GPU machines:
+
+| TP   | PP   | #GPUs | #Nodes | CUDA DEVICES       |
+| ---- | ---- | ----- | ------ | ------------------ |
+| 1    | 1    | 1     | 1      | 0                  |
+| 2    | 1    | 2     | 1      | 0,1                |
+| 4    | 1    | 4     | 1      | 0,1,2,3            |
+| 8    | 1    | 8     | 1      | Not necessary      |
+| 8    | 2    | 16    | 2      | Not necessary      |
+| 16   | 1    | 16    | 2      | Not necessary      |
+| 8    | 3    | 24    | 3      | Not necessary      |
+| 8    | 4    | 32    | 4      | Not necessary      |
+| 16   | 2    | 32    | 4      | Not necessary      |
+
+
+
+The script saves NVIDIA Triton logs so you can verify what happens when
+FasterTransformer loads a checkpoint. The command above starts the server, so
+that users can test it with other tools created later. You can use this
+script to demo inference. The job does not stop on its own, if you don't stop it
+manually, it will stop when the time limit is reached on the cluster.
+
+FasterTransformer backend ignores missing files for weights and uses random
+tensors in such a scenario. You should make sure that your NVIDIA Triton
+instance is serving requests with real weights by inspecting logs.
+
+
+If you notice warning about missing files, you should double check your model:
+
+```
+[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.wpe.bin cannot be opened, loading model fails!
+[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.wte.bin cannot be opened, loading model fails!
+[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.bias.bin cannot be opened, loading model fails!
+[WARNING] file /triton-model-repository/model_name/1/1-gpu/model.final_layernorm.weight.bin cannot be opened, loading model fails!
+```
+
+## 6.2 GPT text generation with ensemble.
+
+FasterTransformer for GPT implements a part of whole text generation application.
+
+An
+[ensemble](https://github.com/triton-inference-server/server/blob/main/docs/architecture.md#ensemble-models)
+model represents a pipeline of models and the connection of input
+and output tensors between those models. Ensemble models are intended to be used
+to encapsulate a procedure that involves multiple models, such as
+"data preprocessing -> inference -> data postprocessing".
+Using ensemble models for this purpose can avoid the overhead of
+transferring intermediate tensors and minimize the number of requests
+that must be sent to Triton.
+
+
+A text generation example for GPT is implemented as ensemble example:
+[gpt](https://github.com/triton-inference-server/fastertransformer_backend/tree/main/all_models/gpt)
+folder. This example contains four folders:
+* `ensemble`: ensemble definition folder.
+* `fastertransformer`: FasterTransformer backend folder.
+* `postprocessing`: Detokeniser to generate text.
+* `preprocessing`: Tokenizer to translate text into token IDs.
+
+You should replace your `fastertransformer` folder with model store generated
+by FasterTransformer export described above. The ensemble expects a `model name`
+to be `fastertransformer` so make sure that your generated configuration uses
+such `model name`.
+
+The inference container doesn't contain PyTorch so you need to install dependencies
+for ensemble. You can start you compute node for Triton in interactive mode to access terminal directly.
+
+
+Inside machine running container for Triton Inference server install PyTorch and regex packages:
+
+```
+pip install torch regex
+
+```
+
+Execute Triton inference server like described above in point 6.1. You can demonize process.
+
+```
+CUDA_VISIBLE_DEVICES=0 mpirun -n 1 --allow-run-as-root tritonserver --model-store /your/folders/fastertransformer_backend/all_models/gpt &
+```
+
+Install Triton client:
+
+```
+pip install tritonclient[all]
+```
+Execute `end_to_end_test.py` example:
+
+```
+python3 /your/folders/fastertransformer_backend/tools/end_to_end_test.py
+```
+
+The `end_to_end_test.py` script contains a string examples, which you can replace with your text.
+
 
 ## 7. Performance
 <a id="markdown-performance" name="performance"></a>
