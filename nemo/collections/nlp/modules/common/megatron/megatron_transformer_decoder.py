@@ -136,6 +136,7 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             model_type=parent_model_type,
             transformer_block_type=transformer_block_type,
             headscale=headscale,
+            gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
         )
         self._model_key = 'model'
 
