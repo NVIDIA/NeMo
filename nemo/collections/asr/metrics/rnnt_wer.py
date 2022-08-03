@@ -14,11 +14,11 @@
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Union, Dict, Callable
+from typing import Callable, Dict, List, Optional, Union
 
 import editdistance
-import torch
 import numpy as np
+import torch
 from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
@@ -347,14 +347,14 @@ class AbstractRNNTDecoding(ABC):
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
-            # RNN-T sample level is already preprocessed by implicit CTC decoding
+            # RNN-T sample level is already preprocessed by implicit RNNT decoding
             # Simply remove any blank tokens
             prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
             if self.compute_timestamps is True:
-                # keep the original predictions, wrap with the number of repetitions per token
-                # this is done so that `ctc_decoder_predictions_tensor()` can process this hypothesis
+                # keep the original predictions, wrap with the number of repetitions per token and alignments
+                # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
                 # in order to compute exact time stamps.
                 alignments = hypotheses_list[ind].alignments
                 token_repetitions = [1] * len(alignments)  # preserve number of repetitions per token
@@ -433,14 +433,14 @@ class AbstractRNNTDecoding(ABC):
         char_offsets = word_offsets = None
         char_offsets = self._compute_offsets(hypothesis, token_repetitions, self.blank_id)
 
-        # set the decoded predictions
+        # finally, set the flattened decoded predictions to text field for later text decoding
         hypothesis.text = decoded_prediction
 
         # Assert number of offsets and hypothesis tokens are 1:1 match.
         num_flattened_tokens = 0
         for t in range(len(char_offsets)):
             # Subtract one here for the extra RNNT BLANK token emitted to designate "End of timestep"
-            num_flattened_tokens += (len(char_offsets[t]['char']) - 1)
+            num_flattened_tokens += len(char_offsets[t]['char']) - 1
 
         if num_flattened_tokens != len(hypothesis.text):
             raise ValueError(
@@ -455,7 +455,7 @@ class AbstractRNNTDecoding(ABC):
         # Correctly process the token ids to chars/subwords.
         for i, offsets in enumerate(char_offsets):
             decoded_chars = []
-            for char in offsets['char'][:-1]:  # ignore the RNNT Blank token at end of every timestep
+            for char in offsets['char'][:-1]:  # ignore the RNNT Blank token at end of every timestep with -1 subset
                 decoded_chars.append(self.decode_tokens_to_str([int(char)]))
             char_offsets[i]["char"] = decoded_chars
 
@@ -463,6 +463,12 @@ class AbstractRNNTDecoding(ABC):
         lens = []
         for v in char_offsets:
             tokens = v["char"]
+            # each token may be either 1 unicode token or multiple unicode token
+            # for character based models, only 1 token is used
+            # for subword, more than one token can be used.
+            # Computing max, then summing up total lens is a test to check for char vs subword
+            # For char models, len(lens) == sum(lens)
+            # but this is violated for subword models.
             max_len = max(len(c) for c in tokens)
             lens.append(max_len)
 
@@ -479,6 +485,8 @@ class AbstractRNNTDecoding(ABC):
             if text_type == 'char':
                 word_offsets = self._get_word_offsets_chars(char_offsets, word_delimiter_char=self.word_seperator)
             else:
+                # utilize the copy of char offsets with the correct integer ids for tokens
+                # so as to avoid tokenize -> detokenize -> compare -> merge steps.
                 word_offsets = self._get_word_offsets_subwords_sentencepiece(
                     encoded_char_offsets,
                     hypothesis,
@@ -503,30 +511,30 @@ class AbstractRNNTDecoding(ABC):
         if word_offsets is not None and timestamp_type in ['word', 'all']:
             hypothesis.timestep['word'] = word_offsets
 
-        # Convert the token indices to text
+        # Convert the flattened token indices to text
         hypothesis.text = self.decode_tokens_to_str(hypothesis.text)
 
         return hypothesis
 
     @staticmethod
     def _compute_offsets(
-            hypothesis: Hypothesis, token_repetitions: List[int], rnnt_token: int
+        hypothesis: Hypothesis, token_repetitions: List[int], rnnt_token: int
     ) -> List[Dict[str, Union[str, int]]]:
         """
         Utility method that calculates the indidual time indices where a token starts and ends.
 
         Args:
             hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
-                emitted at every time step after ctc collapse.
+                emitted at every time step after rnnt collapse.
             token_repetitions: A list of ints representing the number of repetitions of each emitted token.
-            ctc_token: The integer of the ctc blank token used during ctc collapse.
+            rnnt_token: The integer of the rnnt blank token used during rnnt collapse.
 
         Returns:
 
         """
         start_index = 0
 
-        # If the exact timestep information is available, utilize the 1st non-ctc blank token timestep
+        # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
         if hypothesis.timestep is not None and len(hypothesis.timestep) > 0:
             start_index = max(0, hypothesis.timestep[0] - 1)
@@ -535,6 +543,7 @@ class AbstractRNNTDecoding(ABC):
         end_indices = np.asarray(token_repetitions).cumsum()
         start_indices = np.concatenate(([start_index], end_indices[:-1]))
 
+        # Process the TxU dangling alignment tensor, containing pairs of (logits, label)
         alignment_labels = [al_logits_labels for al_logits_labels in hypothesis.text[1]]
         for t in range(len(alignment_labels)):
             for u in range(len(alignment_labels[t])):
@@ -546,13 +555,14 @@ class AbstractRNNTDecoding(ABC):
             for a, s, e in zip(alignment_labels, start_indices, end_indices)
         ]
 
-        # Filter out RNNT token (blank at [t][0] position)
+        # Filter out RNNT token (blank at [t][0] position). This is because blank can only occur at end of a
+        # time step for RNNT, so if 0th token is blank, then that timestep is skipped.
         offsets = list(filter(lambda offsets: offsets["char"][0] != rnnt_token, offsets))
         return offsets
 
     @staticmethod
     def _get_word_offsets_chars(
-            offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
+        offsets: Dict[str, Union[str, float]], word_delimiter_char: str = " "
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of character time stamps.
@@ -603,10 +613,10 @@ class AbstractRNNTDecoding(ABC):
 
     @staticmethod
     def _get_word_offsets_subwords_sentencepiece(
-            offsets: Dict[str, Union[str, float]],
-            hypothesis: Hypothesis,
-            decode_ids_to_tokens: Callable[[List[int]], str],
-            decode_tokens_to_str: Callable[[List[int]], str],
+        offsets: Dict[str, Union[str, float]],
+        hypothesis: Hypothesis,
+        decode_ids_to_tokens: Callable[[List[int]], str],
+        decode_tokens_to_str: Callable[[List[int]], str],
     ) -> Dict[str, Union[str, float]]:
         """
         Utility method which constructs word time stamps out of sub-word time stamps.
@@ -616,7 +626,7 @@ class AbstractRNNTDecoding(ABC):
         Args:
             offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset".
             hypothesis: Hypothesis object that contains `text` field, where each token is a sub-word id
-                after ctc collapse.
+                after rnnt collapse.
             decode_ids_to_tokens: A Callable function that accepts a list of integers and maps it to a sub-word.
             decode_tokens_to_str: A Callable function that accepts a list of integers and maps it to text / str.
 
@@ -627,9 +637,12 @@ class AbstractRNNTDecoding(ABC):
         word_offsets = []
         built_token = []
         previous_token_index = 0
-        # For every collapsed sub-word token
-        for i, offsets in enumerate(offsets):
-            for char in offsets['char'][:-1]:
+        # For every offset token
+        for i, offset in enumerate(offsets):
+            # For every subword token in offset token list (ignoring the RNNT Blank token at the end)
+            for char in offset['char'][:-1]:
+                char = int(char)
+
                 # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
                 token = decode_ids_to_tokens([char])[0]
                 token_text = decode_tokens_to_str([char])
@@ -919,7 +932,7 @@ class RNNTDecodingConfig:
     word_seperator: str = " "
 
     # type of timestamps to calculate
-    ctc_timestamp_type: str = "all"  # can be char, word or all for both
+    rnnt_timestamp_type: str = "all"  # can be char, word or all for both
 
     # greedy decoding config
     greedy: greedy_decode.GreedyRNNTInferConfig = greedy_decode.GreedyRNNTInferConfig()
