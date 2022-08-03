@@ -237,7 +237,6 @@ train.gpt3.126m_tp1_pp1_1node_100steps:
     MAX_STEPS: 100
     TIME_LIMIT: "20:00"
     TEST_LEVEL: L0
-    CREATE_TEST_DATA: True
   needs:
     - build-BigNLP
 
