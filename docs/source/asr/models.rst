@@ -130,7 +130,11 @@ with sub-word encoding at ``<NeMo_git_root>/examples/asr/conf/conformer/conforme
 Cache-aware Streaming Conformer
 -------------------------------
 
-Cache-aware Streaming Conformer models are variants of Conformer which are trained with limited right context. It enables the model to be used very efficiently for streaming.
+Buffered streaming uses overlapping chunks to make an offline ASR model to be used for streaming with reasonable accuracy. However, it uses significant amount of duplication in computations due to the overlapping chunks.
+Also there is a accuracy gep between the offline model and the streaming one as there is inconsistency between how we train the model and how we perform inference for streaming.
+The Cache-aware Streaming Conformer models would tackle and address these disadvantages. They are variants of Conformer which are trained with limited right context and it would make it possible to match the training and inference.
+The cache-aware approach is supported for both the Conformer-CTC and Conformer-Transducer and enables the model to be used very efficiently for streaming.
+
 Three categories of layers in Conformer have access to right tokens: 1-depthwise convolutions 2-self-attention, and 3-convolutions in downsampling layers.
 Streaming Conformer models uses causal convolutions or convolutions with lower right context and also self-attention with limited right context to limit the effective right context for the input.
 The model trained with such limitations can be used in streaming mode and give the exact same output and accuracy as when the whole audio is given to the model in offline mode.
