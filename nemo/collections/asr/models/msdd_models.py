@@ -18,7 +18,7 @@ import os
 import pickle as pkl
 from collections import OrderedDict
 from statistics import mode
-from typing import Dict, Tuple, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -66,7 +66,7 @@ except ImportError:
 __all__ = ['EncDecDiarLabelModel', 'ClusterEmbedding']
 
 
-def getScaleMappingArgmat(uniq_embs_and_timestamps: Dict[Union[str, dict]]) -> Dict[Union[int, torch.Tensor]]:
+def getScaleMappingArgmat(uniq_embs_and_timestamps: Dict[str, dict]) -> Dict[int, torch.Tensor]:
     """
     Calculate cosine similarity values among speaker embeddings for each scale then
     apply multiscale weights to calculate the fused similarity matrix.
@@ -78,9 +78,8 @@ def getScaleMappingArgmat(uniq_embs_and_timestamps: Dict[Union[str, dict]]) -> D
             is performed.
 
     Returns:
-        fused_sim_d (np.array):
-            This function generates an ffinity matrix that is obtained by calculating
-            the weighted sum of the affinity matrices from the different scales.
+        scale_mapping_argmat (dict)
+            Dictionary containing scale mapping information matrix for each scale.
     """
     scale_mapping_argmat = {}
     uniq_scale_dict = uniq_embs_and_timestamps['scale_dict']
@@ -146,7 +145,9 @@ def get_adaptive_threshold(estimated_num_of_spks: int, min_threshold: float, ove
     return adaptive_threshold
 
 
-def generate_speaker_timestamps(clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], **params) -> Tuple[List[str], List[str]]:
+def generate_speaker_timestamps(
+    clus_labels: List[Union[float, int]], msdd_preds: List[torch.Tensor], **params
+) -> Tuple[List[str], List[str]]:
     '''
     Generate speaker timestamps from the segmentation information. If `use_clus_as_main=True`, use clustering result for main speaker
     labels and use timestamps from the predicted sigmoid values. In this function, the main speaker labels in `maj_labels` exist for
@@ -209,6 +210,7 @@ def generate_speaker_timestamps(clus_labels: List[Union[float, int]], msdd_preds
     maj_labels = merge_stamps(cont_stamps)
     ovl_labels = get_overlap_stamps(cont_stamps, overlap_speaker_list)
     return maj_labels, ovl_labels
+
 
 def get_uniq_id_list_from_manifest(manifest_file: str):
     """Retrieve `uniq_id` values from the given manifest_file and save the IDs to a list.
@@ -280,7 +282,12 @@ def get_uniq_id_from_manifest_line(line: str) -> str:
     return uniq_id
 
 
-def make_rttm_with_overlap(manifest_file_path: str, clus_label_dict: Dict[str, List[Union[float, int]]], msdd_preds: List[torch.Tensor], **params):
+def make_rttm_with_overlap(
+    manifest_file_path: str,
+    clus_label_dict: Dict[str, List[Union[float, int]]],
+    msdd_preds: List[torch.Tensor],
+    **params,
+):
     """
     Create RTTM files that include detected overlap speech. Note that the effect of overlap detection is only
     notable when RTTM files are evaluated with `ignore_overlap=False` option.
@@ -344,7 +351,9 @@ class ClusterEmbedding:
         self.multiscale_weights_list = self._cfg_msdd.base.diarizer.speaker_embeddings.parameters.multiscale_weights
         self.clusdiar_model = None
         self.msdd_model = None
+        self.spk_emb_state_dict = {}
         self.embs_filtering_thres = None
+
         self.run_clus_from_loaded_emb = False
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
@@ -395,7 +404,7 @@ class ClusterEmbedding:
                 all_scale_clus_label_dict[scale_index][uniq_id] = new_clus_label
         return all_scale_clus_label_dict
 
-    def get_base_clus_label_dict(self, clus_labels: List[str], emb_scale_seq_dict: Dict[Union[int, dict]]):
+    def get_base_clus_label_dict(self, clus_labels: List[str], emb_scale_seq_dict: Dict[int, dict]):
         """
         Retrieve base scale clustering labels from `emb_scale_seq_dict`.
 
@@ -419,7 +428,9 @@ class ClusterEmbedding:
         emb_dim = emb_scale_seq_dict[0][uniq_id][0].shape[0]
         return base_clus_label_dict, emb_dim
 
-    def get_cluster_avg_embs(self, emb_scale_seq_dict: Dict, clus_labels: List, speaker_mapping_dict: Dict, session_scale_mapping_dict: Dict):
+    def get_cluster_avg_embs(
+        self, emb_scale_seq_dict: Dict, clus_labels: List, speaker_mapping_dict: Dict, session_scale_mapping_dict: Dict
+    ):
         """
         MSDD requires cluster-average speaker embedding vectors for each scale. This function calculates an average embedding vector for each cluster (speaker)
         and each scale.
@@ -480,7 +491,8 @@ class ClusterEmbedding:
     def run_clustering_diarizer(self, manifest_filepath: str, emb_dir: str):
         """
         If no pre-existing data is provided, run clustering diarizer from scratch. This will create scale-wise speaker embedding
-        sequence, cluster-average embeddings, scale mapping and base scale clustering labels.
+        sequence, cluster-average embeddings, scale mapping and base scale clustering labels. Note that speaker embedding `state_dict`
+        is loaded from the `state_dict` in the provided MSDD checkpoint.
 
         Args:
             manifest_filepath (str):
@@ -501,6 +513,10 @@ class ClusterEmbedding:
 
         # Run ClusteringDiarizer which includes system VAD or oracle VAD.
         self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
+
+        # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
+        self.clusdiar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
+
         self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
         self.clusdiar_model.multiscale_args_dict[
             "multiscale_weights"
@@ -559,8 +575,6 @@ class ClusterEmbedding:
             clus_label_path (str):
                 Path to the clustering label output file.
         """
-        if self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering:
-            self.base_scale_index = 0
         clus_label_path = os.path.join(
             out_dir, 'speaker_outputs', f'subsegments_scale{self.base_scale_index}_cluster.label'
         )
@@ -891,7 +905,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             soft_label_thres=config.soft_label_thres,
             seq_eval_mode=self.cfg_base.diarizer.msdd_model.parameters.seq_eval_mode,
             window_stride=self._cfg.preprocessor.window_stride,
-            use_single_scale_clus=self.cfg_base.diarizer.msdd_model.parameters.use_single_scale_clustering,
             pairwise_infer=pairwise_infer,
         )
         self.data_collection = dataset.collection
@@ -1000,7 +1013,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             }
         )
 
-    def get_ms_emb_seq(self, embs: torch.Tensor, scale_mapping: torch.Tensor, ms_seg_counts: torch.Tensor) -> torch.Tensor:
+    def get_ms_emb_seq(
+        self, embs: torch.Tensor, scale_mapping: torch.Tensor, ms_seg_counts: torch.Tensor
+    ) -> torch.Tensor:
         """
         Reshape the given tensor and organize the embedding sequence based on the original sequence counts.
         Repeat the embeddings according to the scale_mapping information so that the final embedding sequence has
@@ -1054,7 +1069,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return ms_emb_seq
 
     @torch.no_grad()
-    def get_cluster_avg_embs_model(self, embs: torch.Tensor, clus_label_index: torch.Tensor, ms_seg_counts: torch.Tensor, scale_mapping):
+    def get_cluster_avg_embs_model(
+        self, embs: torch.Tensor, clus_label_index: torch.Tensor, ms_seg_counts: torch.Tensor, scale_mapping
+    ):
         """
         Calculate the cluster-average speaker embedding based on the ground-truth speaker labels (i.e., cluster labels).
 
@@ -1120,7 +1137,13 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return ms_avg_embs
 
     @torch.no_grad()
-    def get_ms_mel_feat(self, processed_signal: torch.Tensor, processed_signal_len: torch.Tensor, ms_seg_timestamps: torch.Tensor, ms_seg_counts: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_ms_mel_feat(
+        self,
+        processed_signal: torch.Tensor,
+        processed_signal_len: torch.Tensor,
+        ms_seg_timestamps: torch.Tensor,
+        ms_seg_counts: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Load acoustic feature from audio segments for each scale and save it into a torch.tensor matrix.
         In addition, create variables containing the information of the multiscale subsegmentation information.
@@ -1234,7 +1257,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         scale_weights = scale_weights.detach()
         return preds, scale_weights
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch: list, batch_idx: int):
         features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets = batch
         sequence_lengths = torch.tensor([x[-1] for x in ms_seg_counts.detach()])
         preds, _ = self.forward(
@@ -1256,7 +1279,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self._accuracy_train.reset()
         return {'loss': loss}
 
-    def validation_step(self, batch, batch_idx int:, dataloader_idx: int = 0):
+    def validation_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets = batch
         sequence_lengths = torch.tensor([x[-1] for x in ms_seg_counts])
         preds, _ = self.forward(
@@ -1276,7 +1299,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             'val_f1_acc': f1_acc,
         }
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
+    def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
         val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_valid.compute()
         self._accuracy_valid.reset()
@@ -1288,7 +1311,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             'val_f1_acc': f1_acc,
         }
 
-    def multi_test_epoch_end(self, outputs: List[Dict[Union[str, torch.Tensor]]], dataloader_idx: int = 0):
+    def multi_test_epoch_end(self, outputs: List[Dict[str, torch.Tensor]], dataloader_idx: int = 0):
         test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
         f1_acc = self._accuracy_test.compute()
         self._accuracy_test.reset()
@@ -1310,24 +1333,7 @@ class OverlapAwareDiarizer:
         """ """
         self._cfg = cfg
 
-        # Initialize diarization decoder
-        msdd_dict, spk_emb_dict = {}, {}
-        loaded = torch.load(cfg.diarizer.msdd_model.model_path)
-        _loaded = copy.deepcopy(loaded)
-        for name, param in _loaded['state_dict'].items():
-            if 'msdd._speaker_model' in name:
-                del loaded['state_dict'][name]
-                spk_emb_dict[name] = param
-            elif 'msdd.' in name:
-                msdd_dict[name] = param
-        new_model_path = cfg.diarizer.msdd_model.model_path.replace('.ckpt', '_msdd.ckpt')
-        torch.save(loaded, new_model_path)
-        cfg.diarizer.msdd_model.model_path = new_model_path
-        self.msdd_model = self._init_msdd_model(cfg)
-        pretrained_dict = self.msdd_model.state_dict()
-        pretrained_dict.update(msdd_dict)
-        self.msdd_model.load_state_dict(pretrained_dict)
-
+        self._init_msdd_model(cfg)
         self.diar_window_length = cfg.diarizer.msdd_model.parameters.diar_window_length
         self.msdd_model.cfg = self.transfer_diar_params_to_model_params(self.msdd_model, cfg)
         self.manifest_filepath = self.msdd_model.cfg.test_ds.manifest_filepath
@@ -1335,6 +1341,7 @@ class OverlapAwareDiarizer:
 
         # Initialize clustering and embedding preparation instance (as a diarization encoder).
         self.clustering_embedding = ClusterEmbedding(cfg_base=cfg, cfg_msdd_model=self.msdd_model.cfg)
+        self.clustering_embedding.spk_emb_state_dict = self.spk_emb_state_dict
 
         # Parameters for creating diarization results from MSDD outputs.
         self.clustering_max_spks = cfg.diarizer.clustering.parameters.max_num_speakers
@@ -1361,6 +1368,34 @@ class OverlapAwareDiarizer:
         )
         return msdd_model.cfg
 
+    def extract_standalone_model(self, ext: str = '.ckpt') -> str:
+        """
+        MSDD model file contains speaker embedding model and MSDD model. This function extracts standalone MSDD model and save it to
+        disc to separateley load standalone MSDD model. Speaker embedding model weights are saved to `self.spk_emb_state_dict` to be
+        loaded separately for clustering diarizer.
+
+        Args:
+            ext (str):
+                File-name extension of the provided model path.
+        Returns:
+            standalone_model_path (str):
+                Path to the extracted standalone model without speaker embedding extractor model.
+        """
+        loaded_model = torch.load(self._cfg.diarizer.msdd_model.model_path)
+        self.spk_emb_state_dict = {}
+        spk_emb_module_names = []
+        for name in loaded_model['state_dict'].keys():
+            if 'msdd._speaker_model' in name:
+                spk_emb_module_names.append(name)
+
+        for name in spk_emb_module_names:
+            self.spk_emb_state_dict[name] = loaded_model['state_dict'][name]
+            del loaded_model['state_dict'][name]
+
+        standalone_model_path = self._cfg.diarizer.msdd_model.model_path.replace(ext, f'.{ext}')
+        torch.save(loaded_model, standalone_model_path)
+        return standalone_model_path
+
     def _init_msdd_model(self, cfg: DictConfig):
         """
         Initialized MSDD model with the provided config. Load either from `.nemo` file or `.ckpt` checkpoint files.
@@ -1373,11 +1408,13 @@ class OverlapAwareDiarizer:
             )
 
         if cfg.diarizer.msdd_model.model_path.endswith('.nemo'):
-            logging.info(f"Using local speaker model from {cfg.diarizer.msdd_model.model_path}")
-            msdd_model = EncDecDiarLabelModel.restore_from(restore_path=cfg.diarizer.msdd_model.model_path)
+            logging.info(f"Using local nemo file from {cfg.diarizer.msdd_model.model_path}")
+            msdd_only_model_path = self.extract_standalone_model('.nemo')
+            self.msdd_model = EncDecDiarLabelModel.restore_from(restore_path=msdd_only_model_path)
         elif cfg.diarizer.msdd_model.model_path.endswith('.ckpt'):
-            msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=cfg.diarizer.msdd_model.model_path)
-        return msdd_model
+            logging.info(f"Using local checkpoint from {cfg.diarizer.msdd_model.model_path}")
+            msdd_only_model_path = self.extract_standalone_model('.ckpt')
+            self.msdd_model = EncDecDiarLabelModel.load_from_checkpoint(checkpoint_path=msdd_only_model_path)
 
     def get_pred_mat(self, data_list: List[Union[Tuple[int], List[torch.Tensor]]]) -> torch.Tensor:
         """
@@ -1419,15 +1456,17 @@ class OverlapAwareDiarizer:
         sum_pred = sum_pred / (n_est_spks - 1)
         return sum_pred
 
-    def get_integrated_preds_list(self, uniq_id_list: List[str], test_data_collection: List[Any], preds_list: List[torch.Tensor]) -> List[torch.Tensor]:
+    def get_integrated_preds_list(
+        self, uniq_id_list: List[str], test_data_collection: List[Any], preds_list: List[torch.Tensor]
+    ) -> List[torch.Tensor]:
         """
         Merge multiple sequence inference outputs into a session level result.
 
         Args:
             uniq_id_list (list):
-                List containing the `uniq_id` values.
+                List containing `uniq_id` values.
             test_data_collection (collections.DiarizationLabelEntity):
-                Class instance that is containing session information such as targeted speaker indices, audio filepath and RTTM filepath.
+                Class instance that is containing session information such as targeted speaker indices, audio filepaths and RTTM filepaths.
             preds_list (list):
                 List containing tensors filled with sigmoid values.
 
@@ -1450,7 +1489,6 @@ class OverlapAwareDiarizer:
         function that can generate overlapping timestamps. `self.run_overlap_aware_eval()` function performs DER evaluation.
         """
         torch.set_grad_enabled(False)
-
         self.clustering_embedding.prepare_cluster_embs_infer()
         self.msdd_model.pairwise_infer = True
         self.msdd_model.get_emb_clus_infer(self.clustering_embedding)
@@ -1458,7 +1496,9 @@ class OverlapAwareDiarizer:
         for threshold in list(self._cfg.diarizer.msdd_model.parameters.sigmoid_threshold):
             self.run_overlap_aware_eval(preds_list, threshold)
 
-    def get_range_average(self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]) -> Tuple[torch.Tensor, torch.Tensor, int]:
+    def get_range_average(
+        self, signals: torch.Tensor, emb_vectors: torch.Tensor, diar_window_index: int, test_data_collection: List[Any]
+    ) -> Tuple[torch.Tensor, torch.Tensor, int]:
         """
         This function is only used when `split_infer=True`. This module calculates cluster-average embeddings for the given short range.
         The range length is set by `self.diar_window_length`, and each cluster-average is only calculated for the specified range.
@@ -1527,7 +1567,9 @@ class OverlapAwareDiarizer:
                 seq_len = 0
         return emb_vectors_split, emb_seq, seq_len
 
-    def get_range_clus_avg_emb(self, test_batch: List[torch.Tensor], _test_data_collection: List[Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_range_clus_avg_emb(
+        self, test_batch: List[torch.Tensor], _test_data_collection: List[Any]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         This function is only used when `get_range_average` function is called. This module calculates cluster-average embeddings for
         the given short range. The range length is set by `self.diar_window_length`, and each cluster-average is only calculated for the specified range.
@@ -1567,7 +1609,9 @@ class OverlapAwareDiarizer:
         sess_sig_lengths = torch.tensor(sess_sig_lengths)
         return sess_emb_vectors, sess_emb_seq, sess_sig_lengths
 
-    def diar_infer(self, test_batch: List[torch.Tensor], test_data_collection: List[Any]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def diar_infer(
+        self, test_batch: List[torch.Tensor], test_data_collection: List[Any]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Launch forward_infer() function by feeding the session-wise embedding sequences to get pairwise speaker prediction values.
         If split_infer is True, the input audio clips are broken into short sequences then cluster average embeddings are calculated
@@ -1611,7 +1655,9 @@ class OverlapAwareDiarizer:
         preds[:, : _preds.shape[1], :] = _preds
         return preds, targets, signal_lengths
 
-    def run_pairwise_diarization(self, embedding_dir: str='./', device: str='cuda') -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor]]:
+    def run_pairwise_diarization(
+        self, embedding_dir: str = './', device: str = 'cuda'
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor]]:
         """
         Setup the parameters needed for batch inference and run batch inference. Note that each sample is pairwise speaker input.
         The pairwise inference results are reconstructed to make session-wise prediction results.
