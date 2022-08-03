@@ -91,16 +91,9 @@ def get_args() -> argparse.Namespace:
         type=Path,
         required=True,
     )
-    parser.add_argument(
-        "--manifest_filepath",
-        type=Path,
-        required=False
-    )
-    parser.add_argument(
-        "--sample_rate",
-        type=int,
-        required=False
-    )
+    parser.add_argument("--audio_file", type=Path, required=False)
+    parser.add_argument("--use_audio", type=bool, required=False, default=False)
+    parser.add_argument("--sample_rate", type=int, required=False)
     parser.add_argument(
         "--labels",
         "-L",
@@ -337,8 +330,9 @@ def main() -> None:
         capit_label_vocab_file=args.capit_label_vocab_file,
         tar_file_prefix=args.tar_file_prefix,
         n_jobs=args.n_jobs,
-        manifest_filepath=args.manifest_filepath,
-        sample_rate=args.sample_rate
+        audio_file=args.audio_file,
+        sample_rate=args.sample_rate,
+        use_audio=args.use_audio,
     )
 
 

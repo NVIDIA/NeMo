@@ -779,6 +779,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 shuffle_n=cfg.tar_shuffle_n,
                 shard_strategy=cfg.shard_strategy,
                 label_info_save_dir=cfg.label_info_save_dir,
+                use_audio=cfg.use_audio,
             )
             dataset.check_for_label_consistency_with_model_config(
                 self.punct_label_ids,
@@ -797,7 +798,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 raise ValueError(
                     f"If `use_tarred_dataset` is `False`, then you need to provide `tokens_in_batch` parameter."
                 )
-            text_file, labels_file = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            text_file, labels_file, = Path(cfg.ds_item) / cfg.text_file, Path(cfg.ds_item) / cfg.labels_file
+            if cfg.audio_file:
+                audio_file = Path(cfg.ds_item) / cfg.audio_file
             if self.label_ids_are_set:
                 label_kwargs = {'punct_label_ids': self.punct_label_ids, 'capit_label_ids': self.capit_label_ids}
             else:
@@ -860,6 +863,9 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 get_label_frequencies=cfg.get_label_frequences,
                 cache_dir=cfg.cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
+                audio_file=audio_file if cfg.audio_file else None,
+                sample_rate=cfg.sample_rate,
+                use_audio=cfg.use_audio,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:
             logging.warning(f"Shuffling in dataloader is not supported for tarred dataset.")
@@ -920,7 +926,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
     def _remove_margins(tensor: torch.Tensor, margin_size: int, keep_left: bool, keep_right: bool) -> torch.Tensor:
         tensor = tensor.detach().clone()
         if not keep_left:
-            tensor = tensor[margin_size + 1:]  # remove left margin and CLS token
+            tensor = tensor[margin_size + 1 :]  # remove left margin and CLS token
         if not keep_right:
             tensor = tensor[: tensor.shape[0] - margin_size - 1]  # remove right margin and SEP token
         return tensor
@@ -1011,7 +1017,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
         Returns:
             numpy array of shape ``[A + N, L]``
         """
-        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0]:]], axis=0)
+        acc_prob = np.concatenate([acc_prob * update[: acc_prob.shape[0]], update[acc_prob.shape[0] :]], axis=0)
         return acc_prob
 
     def _apply_punct_capit_predictions(self, query: str, punct_preds: List[int], capit_preds: List[int]) -> str:

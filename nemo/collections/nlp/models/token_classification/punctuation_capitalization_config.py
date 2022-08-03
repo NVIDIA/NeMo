@@ -22,7 +22,6 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
     legacy_data_config_to_new_data_config,
-    PunctuationCapitalizationLexicalAudioEvalDataConfig, PunctuationCapitalizationLexicalAudioTrainDataConfig,
 )
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig
@@ -216,13 +215,13 @@ class PunctuationCapitalizationModelConfig:
 
 @dataclass
 class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalizationModelConfig):
-    train_ds: Optional[PunctuationCapitalizationLexicalAudioTrainDataConfig] = None
+    train_ds: Optional[PunctuationCapitalizationTrainDataConfig] = None
     """A configuration for creating training dataset and data loader."""
 
-    validation_ds: Optional[PunctuationCapitalizationLexicalAudioEvalDataConfig] = None
+    validation_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
     """A configuration for creating validation datasets and data loaders."""
 
-    test_ds: Optional[PunctuationCapitalizationLexicalAudioEvalDataConfig] = None
+    test_ds: Optional[PunctuationCapitalizationEvalDataConfig] = None
     """A configuration for creating test datasets and data loaders."""
 
     pretrained_audio_encoder: str = MISSING

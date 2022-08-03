@@ -41,10 +41,8 @@ from nemo.collections.nlp.data.token_classification.punctuation_capitalization_d
     load_label_ids,
     raise_not_equal_labels_error,
 )
-from nemo.collections.nlp.data.token_classification.punctuation_capitalization_lexical_audio_dataset import \
-    PunctuationCapitalizationLexicalAudioDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import AudioSignal, ChannelType, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 NUMBER_RE = "(0|[1-9][0-9]*)"
@@ -69,7 +67,7 @@ DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME = 'capit_label_vocab.csv'
 
 
 def count_lines_and_get_fragment_starting_positions(
-        file_name: Path, lines_per_dataset_fragment: int
+    file_name: Path, lines_per_dataset_fragment: int
 ) -> Tuple[int, List[int]]:
     """
     Returns number of lines in a file and indices of fragment starting bytes.
@@ -95,8 +93,8 @@ def count_lines_and_get_fragment_starting_positions(
 
 
 def get_fragment_start_bytes(
-        text_file: Path, labels_file: Path, lines_per_dataset_fragment: int, manifest_file: Path
-) -> Tuple[int, List[int], List[int], Optional[List[int]]]:
+    text_file: Path, labels_file: Path, lines_per_dataset_fragment: int, audio_file: Path = None
+) -> Union[Tuple[Any, Any, Any, Any], Tuple[Any, Any, Any]]:
     """
     A function for calculating borders of dataset fragments. The function is used to split ``text_file`` and
     ``labels_file`` for processing them in parallel.
@@ -115,48 +113,64 @@ def get_fragment_start_bytes(
         f"Counting lines in files {text_file} and {labels_file} and creating segment borders. This may take "
         f"considerable time. 86GB, 1.27b lines file was processed in 7 minutes."
     )
-    result = Parallel(n_jobs=3)(
-        delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
-        for file_name in [text_file, labels_file, manifest_file]
-    )
-    if result[0][0] != result[1][0]:
-        raise ValueError(
-            f"Text file {text_file} and label file {labels_file} contain different number of lines. Number of lines "
-            f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
+    if audio_file:
+        result = Parallel(n_jobs=3)(
+            delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
+            for file_name in [text_file, labels_file, audio_file]
         )
-    num_lines = result[0][0]
-    text_start_bytes, label_start_bytes, manifest_start_bytes = result[0][1], result[1][1], result[2][1]
-    assert len(text_start_bytes) == len(label_start_bytes) == len(manifest_start_bytes)
-    return num_lines, text_start_bytes, label_start_bytes, manifest_start_bytes
+        num_lines = result[0][0]
+        if result[0][0] != result[1][0]:
+            raise ValueError(
+                f"Text file {text_file} and label file {labels_file} contain different number of lines. Number of lines "
+                f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
+            )
+        text_start_bytes, label_start_bytes, manifest_start_bytes = result[0][1], result[1][1], result[2][1]
+        assert len(text_start_bytes) == len(label_start_bytes) == len(manifest_start_bytes)
+        return num_lines, text_start_bytes, label_start_bytes, manifest_start_bytes
+    else:
+        result = Parallel(n_jobs=2)(
+            delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
+            for file_name in [text_file, labels_file]
+        )
+        num_lines = result[0][0]
+        if result[0][0] != result[1][0]:
+            raise ValueError(
+                f"Text file {text_file} and label file {labels_file} contain different number of lines. Number of lines "
+                f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
+            )
+        text_start_bytes, label_start_bytes = result[0][1], result[1][1]
+        assert len(text_start_bytes) == len(label_start_bytes)
+        return num_lines, text_start_bytes, label_start_bytes
 
 
 def process_fragment(
-        text_file: Path,
-        labels_file: Path,
-        output_dir: Path,
-        text_start_pos: int,
-        label_start_pos: int,
-        lines_per_dataset_fragment: int,
-        max_seq_length: int,
-        tokens_in_batch: int,
-        num_batches_per_tarfile: int,
-        tokenizer_name: str,
-        tokenizer_model: Optional[Path],
-        vocab_file: Optional[Path],
-        merges_file: Optional[Path],
-        special_tokens: Dict[str, str],
-        use_fast_tokenizer: Optional[bool],
-        pad_label: str,
-        punct_label_ids: Dict[str, int],
-        capit_label_ids: Dict[str, int],
-        fragment_idx: int,
-        tokenization_progress_queue: mp.Queue,
-        batch_mark_up_progress_queue: mp.Queue,
-        batch_building_progress_queue: mp.Queue,
-        writing_to_tar_progress_queue: mp.Queue,
-        manifest_filepath: Path,
-        sample_rate: int,
-        manifest_start_pos: int,
+    text_file: Path,
+    labels_file: Path,
+    output_dir: Path,
+    text_start_pos: int,
+    label_start_pos: int,
+    lines_per_dataset_fragment: int,
+    max_seq_length: int,
+    tokens_in_batch: int,
+    num_batches_per_tarfile: int,
+    tokenizer_name: str,
+    tokenizer_model: Optional[Path],
+    vocab_file: Optional[Path],
+    merges_file: Optional[Path],
+    special_tokens: Dict[str, str],
+    use_fast_tokenizer: Optional[bool],
+    pad_label: str,
+    punct_label_ids: Dict[str, int],
+    capit_label_ids: Dict[str, int],
+    fragment_idx: int,
+    tokenization_progress_queue: mp.Queue,
+    batch_mark_up_progress_queue: mp.Queue,
+    batch_building_progress_queue: mp.Queue,
+    writing_to_tar_progress_queue: mp.Queue,
+    audio_file: Path = None,
+    sample_rate: int = None,
+    audio_file_start_pos: int = None,
+    use_audio: bool = False,
 ) -> None:
     tokenizer = get_tokenizer(
         tokenizer_name,
@@ -172,21 +186,31 @@ def process_fragment(
     try:
         otfd, tmp_text = tempfile.mkstemp(suffix='.txt', prefix=f'text_{fragment_idx}_', dir=output_dir, text=True)
         olfd, tmp_labels = tempfile.mkstemp(suffix='.txt', prefix=f'labels_{fragment_idx}_', dir=output_dir, text=True)
-        oafd, tmp_audio = tempfile.mkstemp(suffix='.txt', prefix=f'audio_{fragment_idx}_', dir=output_dir, text=True)
-        with text_file.open() as tf, labels_file.open() as lf, manifest_filepath.open() as mf, \
-                os.fdopen(otfd, 'w') as otf, os.fdopen(olfd, 'w') as olf, os.fdopen(oafd,
-                                                                                    'w') as oaf:  # handle audio manifest
+        if use_audio:
+            oafd, tmp_audio = tempfile.mkstemp(
+                suffix='.txt', prefix=f'audio_{fragment_idx}_', dir=output_dir, text=True
+            )
+        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
+            olfd, 'w'
+        ) as olf:  # handle audio manifest
+            if use_audio:
+                mf = audio_file.open()
+                mf.seek(audio_file_start_pos)
+                oaf = os.fdopen(oafd, 'w')
             tf.seek(text_start_pos)
             lf.seek(label_start_pos)
-            mf.seek(manifest_start_pos)
             for _ in range(lines_per_dataset_fragment):
                 text_line = tf.readline()
                 if not text_line:
                     break
                 otf.write(text_line)
                 olf.write(lf.readline())
-                oaf.write(mf.readline())
-        dataset = PunctuationCapitalizationLexicalAudioDataset(
+                if use_audio:
+                    oaf.write(mf.readline())
+        if use_audio:
+            mf.close()
+            oaf.close()
+        dataset = BertPunctuationCapitalizationDataset(
             tmp_text,
             tmp_labels,
             max_seq_length,
@@ -202,17 +226,17 @@ def process_fragment(
             tokenization_progress_queue=tokenization_progress_queue,
             batch_mark_up_progress_queue=batch_mark_up_progress_queue,
             batch_building_progress_queue=batch_building_progress_queue,
-            manifest_filepath=tmp_audio,
-            sample_rate=sample_rate
+            audio_file=tmp_audio,
+            sample_rate=sample_rate,
+            use_audio=use_audio,
         )
     finally:
-        ...
-    #     if tmp_text is not None and os.path.exists(tmp_text):
-    #         os.remove(tmp_text)
-    #     if tmp_labels is not None and os.path.exists(tmp_labels):
-    #         os.remove(tmp_labels)
-        # if tmp_audio is not None and os.path.exists(tmp_audio):
-        #     os.remove(tmp_audio)
+        if tmp_text is not None and os.path.exists(tmp_text):
+            os.remove(tmp_text)
+        if tmp_labels is not None and os.path.exists(tmp_labels):
+            os.remove(tmp_labels)
+        if tmp_audio is not None and os.path.exists(tmp_audio):
+            os.remove(tmp_audio)
     dataset.features_pkl.unlink()
     tar_ctr = 0
     current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
@@ -220,8 +244,6 @@ def process_fragment(
     sink = wds.TarWriter(str(current_file_name))
     progress_made = 0
     for batch_i, batch in enumerate(dataset):
-        if batch['features_length'] == 0:
-            print(f'FOUND BATCH W 0 AUDIO: {batch}')
         sink.write({"__key__": f"fragment-{fragment_idx}-batch-{batch_i}", "batch.pyd": batch})
         current_num_batches += 1
         progress_made += len(batch['input_ids'])
@@ -279,11 +301,11 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
             [
                 p.match(path.name) is not None
                 for p in [
-                TAR_FRAGMENT_PATTERN_IN_PROGRESS,
-                TAR_FRAGMENT_PATTERN_FINISHED,
-                TAR_FRAGMENT_PATTERN_TO_REPACK,
-                tar_final_pattern,
-            ]
+                    TAR_FRAGMENT_PATTERN_IN_PROGRESS,
+                    TAR_FRAGMENT_PATTERN_FINISHED,
+                    TAR_FRAGMENT_PATTERN_TO_REPACK,
+                    tar_final_pattern,
+                ]
             ]
         )
     ]
@@ -311,7 +333,7 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
 
 
 def collect_unique_labels_from_fragment(
-        labels_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: int
+    labels_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: int
 ) -> Tuple[Set[str], Set[str]]:
     """
     Returns a set of unique punctuation labels and a set of unique capitalization labels.
@@ -354,12 +376,12 @@ def collect_unique_labels_from_fragment(
 
 
 def create_label_dictionaries(
-        labels_file: Path,
-        text_start_bytes: List[int],
-        num_lines: int,
-        lines_per_dataset_fragment: int,
-        pad_label: str,
-        n_jobs: int,
+    labels_file: Path,
+    text_start_bytes: List[int],
+    num_lines: int,
+    lines_per_dataset_fragment: int,
+    pad_label: str,
+    n_jobs: int,
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
     Creates punctuation and capitalization label ids dictionaries based on labels present in ``labels_file``.
@@ -420,11 +442,11 @@ def process_error(msg: str, error_class_or_function: Union[Type[Exception], Call
 
 
 def check_labels_for_being_unique_before_building_label_ids(
-        pad_label: str,
-        other_labels: List[str],
-        pad_label_name: str,
-        other_labels_name: str,
-        error_class_or_function: Union[Type[Exception], Callable[[str], Any]],
+    pad_label: str,
+    other_labels: List[str],
+    pad_label_name: str,
+    other_labels_name: str,
+    error_class_or_function: Union[Type[Exception], Callable[[str], Any]],
 ) -> None:
     """
     A function for checking that that all labels are unique.
@@ -443,7 +465,7 @@ def check_labels_for_being_unique_before_building_label_ids(
             msg = f"Label number {i} in parameter `{other_labels_name}` is equal to `{pad_label_name}`."
             process_error(msg, error_class_or_function)
     for i in range(len(other_labels) - 1):
-        for lbl in other_labels[i + 1:]:
+        for lbl in other_labels[i + 1 :]:
             if lbl == other_labels[i]:
                 msg = f"Label number {i} occurs at least 2 times in parameter `{other_labels_name}`."
                 process_error(msg, error_class_or_function)
@@ -469,16 +491,16 @@ def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str])
 
 
 def get_label_dictionaries(
-        labels_file: Path,
-        start_bytes: List[int],
-        num_lines: int,
-        lines_per_dataset_fragment: int,
-        pad_label: str,
-        punct_label_ids: Optional[Dict[str, int]],
-        capit_label_ids: Optional[Dict[str, int]],
-        punct_label_vocab_file: Optional[Path],
-        capit_label_vocab_file: Optional[Path],
-        n_jobs: int,
+    labels_file: Path,
+    start_bytes: List[int],
+    num_lines: int,
+    lines_per_dataset_fragment: int,
+    pad_label: str,
+    punct_label_ids: Optional[Dict[str, int]],
+    capit_label_ids: Optional[Dict[str, int]],
+    punct_label_vocab_file: Optional[Path],
+    capit_label_vocab_file: Optional[Path],
+    n_jobs: int,
 ) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
     Return label ids if the label ids are present in parameters ``punct_label_ids``, ``capit_label_ids``,
@@ -633,7 +655,7 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
 
 
 def create_metadata_file(
-        output_dir: Path, output_file_tmpl: str, metadata_file_name: Path, num_batches_per_tarfile: int
+    output_dir: Path, output_file_tmpl: str, metadata_file_name: Path, num_batches_per_tarfile: int
 ) -> None:
     """
     Rename tar files according to template ``output_file_tmpl`` and save metadata file.
@@ -660,7 +682,7 @@ def create_metadata_file(
 
 
 def check_tar_file_prefix(
-        tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
+    tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
 ) -> None:
     not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
     if not_allowed_characters_in_prefix:
@@ -674,28 +696,29 @@ def check_tar_file_prefix(
 
 
 def create_tarred_dataset(
-        text_file: Union[os.PathLike, str],
-        labels_file: Union[os.PathLike, str],
-        output_dir: Union[os.PathLike, str],
-        max_seq_length: int,
-        tokens_in_batch: int,
-        lines_per_dataset_fragment: int,
-        num_batches_per_tarfile: int,
-        tokenizer_name: str,
-        tokenizer_model: Optional[Union[os.PathLike, str]] = None,
-        vocab_file: Optional[Union[os.PathLike, str]] = None,
-        merges_file: Optional[Union[os.PathLike, str]] = None,
-        special_tokens: Optional[Dict[str, str]] = None,
-        use_fast_tokenizer: Optional[bool] = False,
-        pad_label: str = 'O',
-        punct_label_ids: Optional[Dict[str, int]] = None,
-        capit_label_ids: Optional[Dict[str, int]] = None,
-        punct_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
-        capit_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
-        tar_file_prefix: Optional[str] = 'punctuation_capitalization',
-        n_jobs: Optional[int] = None,
-        manifest_filepath: Optional[Path] = None,
-        sample_rate: Optional[int] = 16000
+    text_file: Union[os.PathLike, str],
+    labels_file: Union[os.PathLike, str],
+    output_dir: Union[os.PathLike, str],
+    max_seq_length: int,
+    tokens_in_batch: int,
+    lines_per_dataset_fragment: int,
+    num_batches_per_tarfile: int,
+    tokenizer_name: str,
+    tokenizer_model: Optional[Union[os.PathLike, str]] = None,
+    vocab_file: Optional[Union[os.PathLike, str]] = None,
+    merges_file: Optional[Union[os.PathLike, str]] = None,
+    special_tokens: Optional[Dict[str, str]] = None,
+    use_fast_tokenizer: Optional[bool] = False,
+    pad_label: str = 'O',
+    punct_label_ids: Optional[Dict[str, int]] = None,
+    capit_label_ids: Optional[Dict[str, int]] = None,
+    punct_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
+    capit_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
+    tar_file_prefix: Optional[str] = 'punctuation_capitalization',
+    n_jobs: Optional[int] = None,
+    audio_file: Optional[Path] = None,
+    use_audio: Optional[bool] = False,
+    sample_rate: Optional[int] = 16000,
 ) -> None:
     """
     Creates tarred dataset from ``text_file`` and ``labels_file``. A tarred dataset allows to train on large amounts of
@@ -793,9 +816,15 @@ def create_tarred_dataset(
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
     metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
     remove_unexpected_files_and_dirs(output_dir, output_file_tmpl, metadata_file_name)
-    num_lines, text_start_bytes, label_start_bytes, manifest_start_bytes = get_fragment_start_bytes(
-        text_file, labels_file, lines_per_dataset_fragment, manifest_filepath
-    )
+    audio_start_bytes = None
+    if use_audio:
+        num_lines, text_start_bytes, label_start_bytes, audio_start_bytes = get_fragment_start_bytes(
+            text_file, labels_file, lines_per_dataset_fragment, audio_file
+        )
+    else:
+        num_lines, text_start_bytes, label_start_bytes = get_fragment_start_bytes(
+            text_file, labels_file, lines_per_dataset_fragment
+        )
     if text_start_bytes:
         output_dir.mkdir(parents=True, exist_ok=True)
     else:
@@ -814,7 +843,7 @@ def create_tarred_dataset(
     )
 
     with Progress(
-            num_lines, ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"], "query"
+        num_lines, ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"], "query"
     ) as progress_queues:
         Parallel(n_jobs=min(n_jobs, len(text_start_bytes)))(
             delayed(process_fragment)(
@@ -838,12 +867,18 @@ def create_tarred_dataset(
                 capit_label_ids,
                 fragment_idx,
                 *progress_queues,
-                manifest_filepath,
+                audio_file,
                 sample_rate,
-                manifest_start_pos
+                audio_file_start_pos,
+                use_audio,
             )
-            for fragment_idx, (text_start_pos, label_start_pos, manifest_start_pos) in
-            enumerate(zip(text_start_bytes, label_start_bytes, manifest_start_bytes))
+            for fragment_idx, (text_start_pos, label_start_pos, audio_file_start_pos) in enumerate(
+                zip(
+                    text_start_bytes,
+                    label_start_bytes,
+                    audio_start_bytes if use_audio else [None for _ in range(len(text_start_bytes))],
+                )
+            )
         )
     repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
     create_metadata_file(output_dir, output_file_tmpl, metadata_file_name, num_batches_per_tarfile)
@@ -914,7 +949,19 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns neural types of batches yielded by this dataset."""
+        """Returns definitions of module output ports. """
+        if self.use_audio:
+            return {
+                'input_ids': NeuralType(('B', 'T'), ChannelType()),
+                'segment_ids': NeuralType(('B', 'T'), ChannelType()),
+                'input_mask': NeuralType(('B', 'T'), MaskType()),
+                'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+                'loss_mask': NeuralType(('B', 'T'), MaskType()),
+                'punct_labels': NeuralType(('B', 'T'), LabelsType()),
+                'capit_labels': NeuralType(('B', 'T'), LabelsType()),
+                'features': NeuralType(('B', 'T'), AudioSignal()),
+                'features_length': NeuralType(('B', 'T'), LengthsType()),
+            }
         return {
             'input_ids': NeuralType(('B', 'T'), ChannelType()),
             'segment_ids': NeuralType(('B', 'T'), ChannelType()),
@@ -926,17 +973,18 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         }
 
     def __init__(
-            self,
-            metadata_file: Union[os.PathLike, str],
-            tokenizer: TokenizerSpec,
-            pad_label: str,
-            label_info_save_dir: Optional[Union[os.PathLike, str]] = None,
-            ignore_extra_tokens: bool = False,
-            ignore_start_end: bool = True,
-            world_size: int = 1,
-            global_rank: int = 0,
-            shuffle_n: int = 1,
-            shard_strategy: str = "scatter",
+        self,
+        metadata_file: Union[os.PathLike, str],
+        tokenizer: TokenizerSpec,
+        pad_label: str,
+        label_info_save_dir: Optional[Union[os.PathLike, str]] = None,
+        ignore_extra_tokens: bool = False,
+        ignore_start_end: bool = True,
+        world_size: int = 1,
+        global_rank: int = 0,
+        shuffle_n: int = 1,
+        shard_strategy: str = "scatter",
+        use_audio: bool = False,
     ) -> None:
         super().__init__()
 
@@ -1005,6 +1053,8 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
         self._dataset = self._dataset.to_tuple('__key__', 'batch.pyd').map(f=self._build_sample)
 
+        self.use_audio = use_audio
+
     def _check_pad_label(self) -> None:
         """
         Checks the condition that ``pad_label`` passed to this class constructor has ``0`` id in
@@ -1021,11 +1071,11 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 )
 
     def check_for_label_consistency_with_model_config(
-            self,
-            punct_label_ids: Optional[Dict[str, int]],
-            capit_label_ids: Optional[Dict[str, int]],
-            class_labels: DictConfig,
-            common_dataset_parameters_config: DictConfig,
+        self,
+        punct_label_ids: Optional[Dict[str, int]],
+        capit_label_ids: Optional[Dict[str, int]],
+        class_labels: DictConfig,
+        common_dataset_parameters_config: DictConfig,
     ) -> None:
         """
         Checks that label ids loaded from tarred dataset are identical to those provided in
@@ -1057,7 +1107,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=punct_label_ids,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
                     second_labels_desc="Punctuation labels stored in an attribute "
-                                       "`PunctuationCapitalizationModel.punct_label_ids`",
+                    "`PunctuationCapitalizationModel.punct_label_ids`",
                 )
         if capit_label_ids is not None:
             if capit_label_ids != self.capit_label_ids:
@@ -1066,7 +1116,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=capit_label_ids,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
                     second_labels_desc="Capitalization labels stored in an attribute"
-                                       "`PunctuationCapitalizationModel.capit_label_ids`",
+                    "`PunctuationCapitalizationModel.capit_label_ids`",
                 )
         if common_dataset_parameters_config.punct_label_ids is not None:
             cfg_punct_label_ids = dict(common_dataset_parameters_config.punct_label_ids)
@@ -1076,7 +1126,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=cfg_punct_label_ids,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
                     second_labels_desc='Punctuation labels stored a config field '
-                                       '`model.common_dataset_parameters.punct_label_ids`',
+                    '`model.common_dataset_parameters.punct_label_ids`',
                 )
         if common_dataset_parameters_config.capit_label_ids is not None:
             cfg_capit_label_ids = dict(common_dataset_parameters_config.capit_label_ids)
@@ -1086,7 +1136,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=cfg_capit_label_ids,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
                     second_labels_desc='Capitalization labels stored a config field '
-                                       '`model.common_dataset_parameters.capit_label_ids`',
+                    '`model.common_dataset_parameters.capit_label_ids`',
                 )
         if common_dataset_parameters_config.label_vocab_dir is not None:
             label_vocab_dir = Path(common_dataset_parameters_config.label_vocab_dir).expanduser()
@@ -1098,7 +1148,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=file_punct_vocab,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
                     second_labels_desc=f'labels stored in file {punct_label_vocab_file} passed in '
-                                       f'`model.common_dataset_parameters.punct_label_vocab_file`',
+                    f'`model.common_dataset_parameters.punct_label_vocab_file`',
                 )
             capit_label_vocab_file = label_vocab_dir / class_labels.capit_labels_file
             file_capit_vocab = load_label_ids(capit_label_vocab_file)
@@ -1108,11 +1158,11 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                     second_labels=file_capit_vocab,
                     first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
                     second_labels_desc=f'labels stored in file {capit_label_vocab_file} passed in '
-                                       f'`model.common_dataset_parameters.capit_label_vocab_file`',
+                    f'`model.common_dataset_parameters.capit_label_vocab_file`',
                 )
 
     def save_labels_and_get_file_paths(
-            self, punct_labels_file_name: str, capit_labels_file_name: str
+        self, punct_labels_file_name: str, capit_labels_file_name: str
     ) -> Tuple[Path, Path]:
         """
         Copies label vocabulary files for punctuation and capitalization into directory passed in the constructor
@@ -1199,8 +1249,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     def __len__(self) -> int:
         return self.length
 
-    @staticmethod
-    def collate_fn(batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch of ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1229,4 +1278,6 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         batch['segment_ids'] = batch['segment_ids'].int()
         batch['punct_labels'] = batch['punct_labels'].long()
         batch['capit_labels'] = batch['capit_labels'].long()
+        if self.use_audio:
+            batch['features'] = batch['features'].to(torch.float32)
         return batch
