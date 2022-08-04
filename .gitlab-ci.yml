@@ -200,10 +200,16 @@ build-BigNLP:
     - python3 tests/ci_tests/utils/convert_ci_metric_to_json_new.py $RESULTS_DIR $RUN_STAGE $RUN_MODEL
     - |
         if [[ "$CREATE_TEST_DATA" = "True" ]]; then
+          echo "Current working directory"
+          echo $pwd
+          cd ..
+          mkdir test
+          cd test
           git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
+          cd bignlp-scripts
           git checkout -b $RUN_NAME-$SLURM_JOBID
-          cp $RESULTS_DIR/*.json bignlp-scripts/tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
-          git add -A
+          cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          git add bignlp-scripts/tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           git commit -m "Adding the result file for $RUN_NAME"
           git push origin $RUN_NAME_$SLURM-JOBID
           echo "Created test file and pushed it"
