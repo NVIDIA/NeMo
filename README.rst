@@ -205,6 +205,12 @@ Megatron GPT training requires NVIDIA Apex to be installed.
     git checkout 3c19f1061879394f28272a99a7ea26d58f72dace
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
 
+.. note::
+
+  You may need to modify [setup.py](https://github.com/NVIDIA/apex/blob/3c19f1061879394f28272a99a7ea26d58f72dace/setup.py) if 
+  your version of CUDA does not match the version used to compile Pytorch binaries, comment lines 33-41 in the above link
+  before installing.
+
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
 To build a nemo container with Dockerfile from a branch, please run 
