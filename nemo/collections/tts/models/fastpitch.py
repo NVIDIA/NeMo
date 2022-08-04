@@ -538,9 +538,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             "text": NeuralType(tensor_shape, TokenIndex()),
             "pitch": NeuralType(tensor_shape, RegressionValuesType()),
             "pace": NeuralType(tensor_shape),
-            "speaker": NeuralType(('B'), Index(), optional=True),
             "volume": NeuralType(tensor_shape, optional=True),
             "batch_lengths": NeuralType(('B'), optional=True),
+            "speaker": NeuralType(('B'), Index(), optional=True),
         }
         self._output_types = {
             "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
@@ -582,7 +582,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             A tuple of input examples.
         """
         par = next(self.fastpitch.parameters())
-        sz = (max_batch * max_dim) if self.export_config["enable_ragged_batches"] else (max_batch, max_dim)
+        sz = (max_batch * max_dim,) if self.export_config["enable_ragged_batches"] else (max_batch, max_dim)
         inp = torch.randint(
             0, self.fastpitch.encoder.word_emb.num_embeddings, sz, device=par.device, dtype=torch.int64
         )
@@ -596,7 +596,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             inputs['volume'] = volume
         if self.export_config["enable_ragged_batches"]:
             batch_lengths = torch.zeros((max_batch + 1), device=par.device, dtype=torch.int32)
-            left_over_size = sz
+            left_over_size = sz[0]
             batch_lengths[0] = 0
             for i in range(1, max_batch):
                 length = torch.randint(1, left_over_size - (max_batch - i), (1,), device=par.device)
@@ -609,7 +609,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
             while index < len(batch_lengths):
                 sum += batch_lengths[index] - batch_lengths[index - 1]
                 index += 1
-            assert sum == sz, f"sum: {sum}, sz: {sz}, lengths:{batch_lengths}"
+            assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
             inputs['batch_lengths'] = batch_lengths
 
         if self.fastpitch.speaker_emb is not None:
@@ -622,7 +622,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable):
     def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
         if self.export_config["enable_ragged_batches"]:
             text, pitch, pace, volume_tensor = create_batch(
-                text, pitch, pace, volume, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx
+                text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
             )
             if volume is not None:
                 volume = volume_tensor
