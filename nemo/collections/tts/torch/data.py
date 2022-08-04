@@ -23,7 +23,6 @@ from typing import Callable, Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -52,6 +51,15 @@ from nemo.collections.tts.torch.tts_data_types import (
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    Normalizer = None
+    PYNINI_AVAILABLE = False
+
 
 EPSILON = 1e-9
 WINDOW_FN_SUPPORTED = {
@@ -637,7 +645,7 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
-            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+            log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
         align_prior_matrices = (
             torch.zeros(
