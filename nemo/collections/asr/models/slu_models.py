@@ -16,7 +16,6 @@
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from urllib.error import HTTPError
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -30,7 +29,6 @@ from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo, Serialization, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging, model_utils
@@ -75,16 +73,15 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
                 )
                 self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
                 del pretraind_model
-            else:
+            elif pretrained_encoder_name.startswith("ssl_"):
                 logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
-                try:
-                    pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                        model_name=pretrained_encoder_name, map_location=torch.device("cpu")
-                    )
-                    self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
-                    del pretraind_model
-                except HTTPError:
-                    logging.warning(f"Unable to load pretrained model: {pretrained_encoder_name}, skipped.")
+                pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
+                    model_name=pretrained_encoder_name, map_location=torch.device("cpu")
+                )
+                self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+                del pretraind_model
+            else:
+                logging.warning(f"Unable to load pretrained model: {pretrained_encoder_name}, skipped.")
         else:
             logging.info("Not using pretrained encoder.")
 
@@ -545,7 +542,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         return temporary_datalayer
 
     def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
-        raise NotImplemented(
+        raise NotImplementedError(
             f"The transcribe() method in this model is left unimplemented on purpose and should not be used."
         )
 
