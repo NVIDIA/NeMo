@@ -66,7 +66,7 @@ def get_uniq_id_with_dur(meta, deci=3):
     return uniq_id
 
 
-def audio_rttm_map(manifest):
+def audio_rttm_map(manifest, attatch_dur=False):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps
@@ -94,8 +94,10 @@ def audio_rttm_map(manifest):
                 'uem_filepath': dic.get('uem_filepath', None),
                 'ctm_filepath': dic.get('ctm_filepath', None),
             }
-
-            uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
+            if attatch_dur:
+                uniqname = get_uniq_id_with_dur(meta)
+            else:
+                uniqname = get_uniqname_from_filepath(filepath=meta['audio_filepath'])
 
             if uniqname not in AUDIO_RTTM_MAP:
                 AUDIO_RTTM_MAP[uniqname] = meta

@@ -246,11 +246,13 @@ def _vad_frame_seq_collate_fn(self, batch):
     tokens_lengths = torch.tensor(num_slices)
     return audio_signal, audio_lengths, tokens, tokens_lengths
 
+
 def string_to_float(x, round_digits):
     """
     Convert string to float then round the number.
     """
     return round(float(x), round_digits)
+
 
 def convert_rttm_line(rttm_line, round_digits=2):
     """
@@ -270,11 +272,12 @@ def convert_rttm_line(rttm_line, round_digits=2):
         speaker (str):
             speaker string in RTTM lines.
     """
-    rttm  = rttm_line.strip().split()
+    rttm = rttm_line.strip().split()
     start = string_to_float(rttm[3], round_digits)
     end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
     speaker = rttm[7]
     return start, end, speaker
+
 
 def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
     """
@@ -303,7 +306,7 @@ def _extract_seg_info_from_rttm(self, uniq_id, rttm_lines, target_spks=None):
             spk_str = f'speaker_{spk_idx}'
             if spk_str in inv_map:
                 bi_ch_infer_spks.append(inv_map[spk_str])
-    
+
     for rttm_line in rttm_lines:
         start, end, speaker = convert_rttm_line(rttm_line, self.round_digits)
         if target_spks is None or speaker in bi_ch_infer_spks:

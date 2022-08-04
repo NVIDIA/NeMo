@@ -372,7 +372,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             self._embeddings_file = name + f'_embeddings.pkl'
             pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
             logging.info("Saved embedding files to {}".format(embedding_dir))
-    
+
     def path2audio_files_to_manifest(self, paths2audio_files, manifest_filepath):
         with open(manifest_filepath, 'w', encoding='utf-8') as fp:
             for audio_file in paths2audio_files:
@@ -427,7 +427,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         self.embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
         )
-       
+
         # Clustering
         all_reference, all_hypothesis = perform_clustering(
             embs_and_timestamps=self.embs_and_timestamps,

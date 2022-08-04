@@ -15,9 +15,6 @@
 from nemo.collections.asr.models.msdd_models_lab import NeuralDiarizerLab
 from nemo.core.config import hydra_runner
 
-# from nemo.collections.asr.models.msdd_models_exp import NeuralDiarizer
-
-
 @hydra_runner(config_path="conf", config_name="diarization_decoder.telephonic.yaml")
 def main(cfg):
     neural_diarizer = NeuralDiarizerLab(cfg=cfg)
