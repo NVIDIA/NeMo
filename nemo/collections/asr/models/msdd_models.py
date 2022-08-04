@@ -1593,7 +1593,7 @@ class OverlapAwareDiarizer:
         Returns:
             sess_emb_vectors (Tensor):
                 Tensor of cluster-average speaker embedding vectors.
-                Shape: (batch_size, scale_n, emb_dim, 2(num_of_spks))
+                Shape: (batch_size, scale_n, emb_dim, 2*num_of_spks)
             sess_emb_seq (Tensor):
                 Tensor of input multi-scale embedding sequences.
                 Shape: (batch_size, length, scale_n, emb_dim)
