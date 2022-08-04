@@ -66,6 +66,8 @@ from sentence_transformers import SentenceTransformer
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
+from faiss.contrib.ondisk import merge_ondisk
+import pathlib
 import numpy as np
 import sys
 import time
@@ -183,7 +185,7 @@ if __name__ == "__main__":
         '--input_file', type=str, required=True, help='Input file',
     )
     parser.add_argument(
-        '--train_index_size', type=int, required=True, help='The number of sentences that is used to train the index',
+        '--train_index_size', type=int, required=False, help='The number of sentences that is used to train the index',
     )
     parser.add_argument(
         '--train_chunk_size', type=int, default=10000, help='The sentences in chunks that is added to the index',
@@ -227,10 +229,27 @@ if __name__ == "__main__":
     group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
     group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0')
+    group.add_argument('--shard_index_input', type=str, default=None, help='the shard faiss index files, which are created at stage 1')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
     args = parser.parse_args()
+
+    if args.stage == 2:
+        # combine shard index files into one
+        logging.info('loading trained index')
+        # construct the output index
+        index = faiss.read_index(args.learned_index)
+
+        input_file = pathlib.Path(args.shard_index_input)
+        path = input_file.parent
+        fname = input_file.name
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname+'*')]
+        merge_ondisk(index, all_files, str(path / 'merged.index'))
+        faiss.write_index(index, args.output_file)
+        logging.info(f'Write to {args.output_file},  Size of Index : {index.ntotal}')
+        sys.exit(0)
+
     model = SentenceTransformer(args.sentence_transformer_model)
     tokenizer = get_tokenizer(args)
     ds = MMapRetrievalIndexedDataset(args.input_file, skip_warmup=True)
