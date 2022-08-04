@@ -198,6 +198,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             precision=self.cfg.get('precision', 16),
             embedding_init_method_std=embedding_init_method_std,
             embedding_dropout=embedding_dropout,
+            label_smoothing=self.cfg.get('label_smoothing', 0.0),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
@@ -1002,6 +1003,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
+        # TODO: Check if the user is trying to do gradient acc and maybe throw error
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
