@@ -93,13 +93,15 @@ def get_tokenizer(args):
 
 
 def process_sentence_chunks(
-    ds: MMapRetrievalIndexedDataset, 
-    tokenizer, 
-    chunk_size: int, 
-    warm_up_size: int, 
-    percent: float, 
+    ds: MMapRetrievalIndexedDataset,
+    tokenizer,
+    chunk_size: int,
+    warm_up_size: int,
+    percent: float,
     stage: Union[int, None],
     workers: int,
+    shard_id: int,
+    total_shards: int,
 ):
     total_chunks = ds.chunks
     num_docs = len(ds._index.sizes)
@@ -122,23 +124,36 @@ def process_sentence_chunks(
             sentences = p.map(tokenizer.ids_to_text, warm_up_slices)
         end = time.time()
         logging.info(f"token-to-text {total_chunks} chunks takes {end-beg}")
-        queue.put(sentences)
+        queue.put((sentences, None))
         if stage == 0:
             # first the task for stage 0
-            queue.put(None)
+            queue.put((None, None))
             return
+    elif stage == 1:
+        shard_size = total_chunks // total_shards
+        splits = list(range(0, total_chunks, shard_size))
+        if shard_id < total_shards - 1:
+            start = splits[shard_id]
+            total_chunks = splits[shard_id + 1]
+        elif shard_id == total_shards - 1:
+            start = splits[shard_id]
+            total_chunks = total_chunks
+        else:
+            raise ValueError(f'{shard_id} bigger than {total_shards}')
+        logging.info(f'shard_id {shard_id}, create index from chunk {start} to {total_chunks}')
 
-    start = 0
     threshold = 0.1
-    while start < total_chunks:
-        if start / total_chunks > threshold:
-            logging.info(f"sentence processing {start / total_chunks} is done")
-            threshold += 0.1
-        id_slices = ds.get_chunk(slice(start, min(start + chunk_size, total_chunks)), force_no_cont_ids=True)
-        start = min(start + chunk_size, total_chunks)
-        sentences = [tokenizer.ids_to_text(ids) for ids in id_slices]
-        queue.put(sentences)
-    queue.put(None)
+    with Pool(workers) as p:
+        while start < total_chunks:
+            if start / total_chunks > threshold:
+                logging.info(f"sentence processing {start / total_chunks} is done")
+                threshold += 0.1
+            slice_id = (start, min(start + chunk_size, total_chunks))
+            id_slices = ds.get_chunk(slice(*slice_id), force_no_cont_ids=True)
+            start = min(start + chunk_size, total_chunks)
+            sentences = p.map(tokenizer.ids_to_text, id_slices)
+            queue.put((sentences, slice_id))
+    queue.put((None, None))
 
 
 def get_sentence_chunks():
@@ -147,15 +162,15 @@ def get_sentence_chunks():
 
 def calculate_embedding(pool, batch_size):
     while True:
-        sentences = get_sentence_chunks()
+        sentences, slice_id = get_sentence_chunks()
         if sentences is None:
             break
         beg = time.time()
         emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
         end = time.time()
         logging.info(f"one embedding {len(emb)} batch size takes {end-beg}")
-        emb_queue.put(emb)
-    emb_queue.put(None)
+        emb_queue.put((emb, slice_id))
+    emb_queue.put((None, None))
 
 
 def get_emb():
@@ -209,6 +224,8 @@ if __name__ == "__main__":
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
     group.add_argument('--stage', type=int, default=None, help='used for building the large index in multiple stages', choices=[0, 1, 2])
+    group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
+    group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
     group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0', choices=[0, 1, 2])
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
@@ -224,7 +241,7 @@ if __name__ == "__main__":
             f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset"
         )
     if args.stage is None or args.stage == 0:
-        # Where nlist is 4*sqrt(N) to 16*sqrt(N), with N the size of the dataset. 
+        # Where nlist is 4*sqrt(N) to 16*sqrt(N), with N the size of the dataset.
         # This just clusters the vectors with k-means. You will need between 30*K and 256*K vectors for training (the more the better).
         total_chunks = ds.chunks
         if args.percent < 1.0:
@@ -236,7 +253,8 @@ if __name__ == "__main__":
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
-        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size, args.percent, args.stage, args.workers),
+        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size,
+              args.percent, args.stage, args.workers, args.shard_id, args.total_shards),
     )
     process.start()
 
@@ -253,7 +271,7 @@ if __name__ == "__main__":
     # get first batch of sentences to build up the index
     # sentences = get_sentence_chunks()
 
-    emb = get_emb()
+    emb, slice_id = get_emb()
 
     if args.stage is None or args.stage == 0:
         # initialize the Faiss index
@@ -285,14 +303,11 @@ if __name__ == "__main__":
         faiss.write_index(index, args.output_file)
         sys.exit(0)
 
-    # add the first batch to the index
-    index.add(emb)
-
     while True:
-        emb = get_emb()
+        emb, slice_id = get_emb()
         if emb is None:
             break
-        index.add(emb)
+        index.add_with_ids(emb, np.arange(slice_id[0], slice_id[1]))
     process.join()
     emb_process.join()
     logging.info('Writing Index file')
