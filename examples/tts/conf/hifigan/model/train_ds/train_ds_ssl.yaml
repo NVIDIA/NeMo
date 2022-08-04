@@ -12,8 +12,11 @@ dataset:
   pitch_mean: ${pitch_mean}
   pitch_std: ${pitch_std}
   normalize_pitch: ${normalize_pitch}
+  sup_data_dir: ${sup_data_dir}
   data_caching: ${data_caching}
   normalize_content: ${normalize_content}
+  use_speakerwise_stats: ${use_speakerwise_stats}
+  stat_samples_per_speaker: ${stat_samples_per_speaker}
 dataloader_params:
   drop_last: false
   shuffle: true

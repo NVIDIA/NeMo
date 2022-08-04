@@ -4,8 +4,8 @@
 
 name: "HifiGan"
 
-train_dataset: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_train.json"
-validation_datasets: "/home/pneekhara/Datasets/78419/Hi_Fi_TTS_v_0_backup/92_val.json"
+train_dataset: "/home/pneekhara/NeMo2022/libri_train_formatted.json"
+validation_datasets: "/home/pneekhara/NeMo2022/libri_val_formatted.json"
 data_caching: true
 
 # Default values for dataset with sample_rate=22050
@@ -27,15 +27,20 @@ val_max_duration: null
 val_min_duration: 3
 
 ssl_model_type: conformer_multitask
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
-ssl_content_emb_type: 'probs'
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/vox1_augtrue_mse1_small_epoch33.ckpt"
+ssl_content_emb_type: 'embedding'
 
 pitch_conditioning: false
-pitch_mean: 212.0
-pitch_std: 70.0
+pitch_mean: 212.0 # ignored if use_speakerwise_stats=true
+pitch_std: 70.0 # ignored if use_speakerwise_stats=true
 normalize_pitch: true
 generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
 normalize_content: true # for newer checkpoints.
+
+use_speakerwise_stats: false
+stat_samples_per_speaker: 50
+
+sup_data_dir: null
 
 defaults:
   - model/generator: v_ssl
@@ -46,6 +51,8 @@ model:
   pitch_conditioning: ${pitch_conditioning}
   pitch_emb_dim: 8
   pitch_processor_kernel_size: 3
+  speaker_emb_lookup: false
+  num_speakers: 904
   preprocessor:
     _target_: nemo.collections.asr.parts.preprocessing.features.FilterbankFeatures
     nfilt: ${n_mel_channels}
@@ -81,9 +88,10 @@ model:
 
   max_steps: 2500000
   l1_loss_factor: 45
+  pitch_loss_factor: 1
   denoise_strength: 0.0025
   ssl_model_type: ${ssl_model_type}
-  content_emb_indim: 46
+  content_emb_indim: 128
   content_emb_outdim: 256
   speaker_emb_indim: 256
   speaker_emb_outdim: 256
