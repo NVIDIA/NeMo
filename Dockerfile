@@ -34,9 +34,9 @@ RUN apt-get update && \
 
 # FIXME a workaround to update apex. Remove when base image is updated
 WORKDIR /tmp/
-RUN git clone https://github.com/ericharper/apex.git && \
+RUN git clone https://github.com/NVIDIA/apex.git && \
     cd apex && \
-    git checkout 19e4f55eb402452f74dead19f68b65d6291cfdb2 && \
+    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace && \
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
 
 # uninstall stuff from base container
