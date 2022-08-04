@@ -1,3 +1,5 @@
+set -o xtrace
+
 DATA_DIR=/lustre/fsw/joc/big_nlp/gpt3/prepare_dataset/the_pile/train
 
 EVAL_MODEL_NAME=${TRAIN_JOB_NAME}# cut the last two underscores gpt3_126m_tp2_pp2_2node_100steps should become gpt_126m_tp2_pp2
