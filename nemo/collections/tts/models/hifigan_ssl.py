@@ -71,7 +71,7 @@ class HifiGanModel(Vocoder, Exportable):
 
         self.automatic_optimization = False
         self.ssl_model_type = self._cfg.ssl_model_type
-        self.pitch_conditioning = self._cfg.pitch_conditioning
+        self.pitch_conditioning = self._cfg.get('pitch_conditioning', False)
 
         if self.ssl_model_type == "conformer_multitask":
             self.content_projection_layer = torch.nn.Linear(self._cfg.content_emb_indim, self._cfg.content_emb_outdim)
