@@ -1,40 +1,120 @@
-# End-to-end Intent Classification and Slot Filling on SLURP Dataset
+# End-to-end Spoken Language Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
-
+This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. We first finetune the encoder with speech recognition on SLURP, then use it for the end-to-end spoken language intent classification and slot filling task.
 
 ## Results
 
-## Usage
+We present the main results of our models, as well as that of some baselines, in the following table.
+|                                                  |                |                          | **Intent (Scenario_Action)** |               | **Entity** |        |              | **SLURP Metrics** |                     |
+|--------------------------------------------------|----------------|--------------------------|------------------------------|---------------|------------|--------|--------------|-------------------|---------------------|
+|                     **Model**                    | **Params (M)** |      **Pretrained**      |         **Accuracy**         | **Precision** | **Recall** | **F1** | **Precsion** |     **Recall**    |        **F1**       |
+| NeMo-Conformer-Large-Transformer (ASR finetuned) | 137            | NeMo ASR, finetuned on SLURP ASR         |                        91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
+| NeMo-Conformer-Large-Transformer                 | 137            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
+| NeMo-Conformer-Large-Transformer                 | 137            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
+| NeMo-Conformer-XLarge-Transformer                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
+| SpeechBrain-HuBert-Large-AttnLSTM [6]            | ~96            | HuBERT-LL60kh            |          89.37 [paper 89.38] |         73.89 |      70.76 |  72.29 |        80.54 |             77.44 | 78.96 [paper 78.43] |
+| SpeechBrain-HuBert-base-AttnLSTM  [6]            | ~317           | HuBERT-LS960h            |                         87.7 |         70.47 |      67.58 |     69 |        77.65 |             74.78 | 76.19 [paper 75.06] |
+| ICASSP'22 [5]                                    | ~200           | wav2vec2-LS960h finetuned on SLURP ASR, RoBERTa |                        86.92 |           N/A |        N/A |    N/A |          N/A |               N/A |               74.66 |
+| SLURP paper (NLU on gold text) [2]               |                |                          |                        84.84 |           N/A |        N/A |  78.19 |          N/A |               N/A |                 N/A |
+| SLURP paper (ASR+NLU) [2]                        |                |                          |                        76.68 |           N/A |        N/A |  62.69 |          N/A |               N/A |               69.53 |
 
+Note: LL60kh refers to the Libri-Light dataset [7], while LS960h refers to the Librispeech dataset [8].  
+
+## Usage
+Please install NeMo [1] before proceeding.
 
 ### Install Dependencies
+Under the current directory, run
+```bash
+pip install -r requirements.txt
+```
 
 ### Data Preparation
+1. Under the current directory, run the following script to download the audio data, annotaion files and evaluation code.
+```bash
+./scripts/download_data.sh
+```
 
+
+2. Prepare the manifests by running: 
+```bash
+./scripts/prepare_data.sh
+```
 
 ### Building Tokenizers
+1. Build the tokenizer for slu by running:
+```bash
+./scripts/build_slu_tokenizer.sh
+```
+
+2. (Optional) Build the tokenizer for finetuning encoder on SLURP ASR:
+```bash
+./scripts/build_asr_tokenizer.sh
+```
+
+
 
 ### Training
+Run `./scripts/train_slurp.sh` with the default config that uses SSL-pretrained encoder on Librilight-60k (LL60kh). The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
+
+```bash
+DATA_DIR="./slurp_data"
+CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
+    --config-path="./configs" --config-name=conformer_transformer_bpe \
+    model.train_ds.manifest_filepath="[${DATA_DIR}/train_slu.json,${DATA_DIR}/train_synthetic_slu.json]" \
+    model.validation_ds.manifest_filepath="${DATA_DIR}/devel_slu.json" \
+    model.test_ds.manifest_filepath="${DATA_DIR}/test_slu.json" \
+    model.tokenizer.dir="${DATA_DIR}/tokenizers_slu/tokenizer_spe_unigram_v58_pad_bos_eos" \
+    model.train_ds.batch_size=16 \
+    model.validation_ds.batch_size=16 \
+    model.test_ds.batch_size=16 \
+    trainer.devices=1 \
+    trainer.max_epochs=100 \
+    model.optim.sched.warmup_steps=2000 \
+    exp_manager.create_wandb_logger=false
+```
 
 
 ### Evaluation
+After trainng, we can evaluate the model by running `./scripts/eval_slurp.sh`, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
+```bash
+DATA_DIR="./slurp_data"
+EXP_NAME="ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"
+CKPT_DIR="./nemo_experiments/${EXP_NAME}/checkpoints"
 
+python ../../../scripts/checkpoint_averaging/checkpoint_averaging.py ${CKPT_DIR}
+
+NEMO_MODEL="${CKPT_DIR}/${EXP_NAME}-averaged.nemo"
+CUDA_VISIBLE_DEVICES=0 python run_slurp_eval.py \
+    dataset_manifest="${DATA_DIR}/test_slu.json" \
+    model_path=${NEMO_MODEL} \
+    batch_size=32 \
+    num_workers=8 \
+    searcher.type="beam" \
+    searcher.beam_size=32 \
+    searcher.temperature=1.25 \
+    only_score_manifest=false
+```
 
 ### Using Encoder Finetuned on SLURP Speech Recognition
-
-### Using Adapters in Encoder
-
+To learn how to finetune the Conformer encoder on SLURP ASR, please refer to the tutorials at 
+- [Finetuning CTC models on other languages](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb)
+- [Self-Supervised pre-training for ASR](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Self_Supervised_Pre_Training.ipynb)
 
 ## Pretrained Models
-
-
-## Notes
+The pretrained models and directions on how to use them are available at: xxxxxxxxxxxxx
 
 
 ## Reference
-[1] [SLURP: A Spoken Language Understanding Resource Package](https://arxiv.org/abs/2011.13205)
- 
+[1] [NVIDIA NeMo Toolkit](https://github.com/NVIDIA/NeMo)
+[2] [SLURP: A Spoken Language Understanding Resource Package](https://arxiv.org/abs/2011.13205)
+[3] [Conformer: Convolution-augmented Transformer for Speech Recognition](https://arxiv.org/abs/2005.08100)
+[4] [Attention Is All You Need](https://arxiv.org/abs/1706.03762?context=cs)
+[5] [Integration of Pre-trained Networks with Continuous Token Interface for End-to-End Spoken Language Understanding](https://arxiv.org/abs/2104.07253)
+[6] [SpeechBrain SLURP Recipe](https://github.com/speechbrain/speechbrain/tree/develop/recipes/SLURP)
+[7] [Libri-Light: A Benchmark for ASR with Limited or No Supervision](https://arxiv.org/abs/1912.07875)
+[8] [Librispeech: An ASR corpus based on public domain audio books](https://ieeexplore.ieee.org/document/7178964)
 
 ## Acknowledgments
 

@@ -48,26 +48,24 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
         # Initialize a dummy vocabulary
         vocabulary = self.tokenizer.tokenizer.get_vocab()
 
-        if "vocabulary" in cfg.decoder:
-            # Set the new vocabulary
-            with open_dict(cfg):
-                # sidestepping the potential overlapping tokens issue in aggregate tokenizers
-                if self.tokenizer_type == "agg":
-                    cfg.decoder.vocabulary = ListConfig(vocabulary)
-                else:
-                    cfg.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
+        # Set the new vocabulary
+        with open_dict(cfg):
+            # sidestepping the potential overlapping tokens issue in aggregate tokenizers
+            if self.tokenizer_type == "agg":
+                cfg.decoder.vocabulary = ListConfig(vocabulary)
+            else:
+                cfg.decoder.vocabulary = ListConfig(list(vocabulary.keys()))
 
-        if "num_classes" in cfg.decoder:
-            # Override number of classes if placeholder provided
-            num_classes = cfg.decoder["num_classes"]
+        # Override number of classes if placeholder provided
+        num_classes = cfg.decoder["num_classes"]
 
-            if num_classes < 1:
-                logging.info(
-                    "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                        num_classes, len(vocabulary)
-                    )
+        if num_classes < 1:
+            logging.info(
+                "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
+                    num_classes, len(vocabulary)
                 )
-                cfg.decoder["num_classes"] = len(vocabulary)
+            )
+            cfg.decoder["num_classes"] = len(vocabulary)
 
         super().__init__(cfg=cfg, trainer=trainer)
 

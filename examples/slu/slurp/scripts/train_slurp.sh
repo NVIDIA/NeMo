@@ -1,5 +1,5 @@
 DATA_DIR="./slurp_data"
-CUDA_VISIBLE_DEVICES=1 python run_slurp_train.py \
+CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
     --config-path="./configs" --config-name=conformer_transformer_bpe \
     model.train_ds.manifest_filepath="[${DATA_DIR}/train_slu.json,${DATA_DIR}/train_synthetic_slu.json]" \
     model.validation_ds.manifest_filepath="${DATA_DIR}/devel_slu.json" \

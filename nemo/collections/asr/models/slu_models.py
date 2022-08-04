@@ -13,77 +13,86 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 from urllib.error import HTTPError
 
 import torch
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.losses.slu_losses import SmoothedNLLLoss
-from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
+from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
+from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
-from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
+from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.core import adapter_mixins
-from nemo.core.classes.common import Serialization, typecheck
+from nemo.core.classes.common import PretrainedModelInfo, Serialization, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
-from nemo.utils import logging
+from nemo.utils import logging, model_utils
 
 
-class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
+class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASRBPEMixin):
     def __init__(self, cfg: DictConfig, trainer=None):
-        if hasattr(cfg, "adapter") and getattr(cfg.adapter, "enabled", False):
-            logging.info("Using adapters...")
-            with open_dict(cfg):
-                adapter_metadata = adapter_mixins.get_registered_adapter(cfg.encoder._target_)
-                if adapter_metadata is not None:
-                    cfg.encoder._target_ = adapter_metadata.adapter_class_path
+        # Convert to Hydra 1.0 compatible DictConfig
+        cfg = model_utils.convert_model_config_to_dict_config(cfg)
+        cfg = model_utils.maybe_update_config_version(cfg)
+
+        if 'tokenizer' not in cfg:
+            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+
+        # Setup the tokenizer
+        self._setup_tokenizer(cfg.tokenizer)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
+        self.preprocessor = Serialization.from_config_dict(self.cfg.preprocessor)
+        self.encoder = Serialization.from_config_dict(self.cfg.encoder)
+        self.decoder = Serialization.from_config_dict(self.cfg.decoder)
+
+        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+            self.spec_augmentation = Serialization.from_config_dict(self._cfg.spec_augment)
+        else:
+            self.spec_augmentation = None
+
+        # Setup optional Optimization flags
+        self.setup_optimization_flags()
+
+        # Adapter modules setup (from ASRAdapterModelMixin)
+        self.setup_adapters()
+
         # Init encoder from pretrained model
-        if self.cfg.pretrained_encoder.model is not None:
-            if Path(self.cfg.pretrained_encoder.model).is_file():
-                logging.info(f"Loading pretrained encoder from local: {self.cfg.pretrained_encoder.model}")
+        pretrained_encoder_name = self.cfg.get("pretrained_encoder.name", None)
+        if pretrained_encoder_name is not None:
+            if Path(pretrained_encoder_name).is_file():
+                logging.info(f"Loading pretrained encoder from local: {pretrained_encoder_name}")
                 pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.restore_from(
-                    restore_path=self.cfg.pretrained_encoder.model, map_location=torch.device("cpu")
+                    restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
                 )
                 self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
                 del pretraind_model
             else:
-                logging.info(f"Loading pretrained encoder from NGC: {self.cfg.pretrained_encoder.model}")
+                logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
                 try:
                     pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                        model_name=self.cfg.pretrained_encoder.model, map_location=torch.device("cpu")
+                        model_name=pretrained_encoder_name, map_location=torch.device("cpu")
                     )
                     self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
                     del pretraind_model
                 except HTTPError:
-                    logging.warning(f"Unable to load pretrained model: {self.cfg.pretrained_encoder.model}, skipped.")
+                    logging.warning(f"Unable to load pretrained model: {pretrained_encoder_name}, skipped.")
         else:
             logging.info("Not using pretrained encoder.")
 
-        if self.cfg.pretrained_encoder.freeze:
+        if self.cfg.get("pretrained_encoder.freeze", False):
             logging.info("Freezing encoder...")
             self.encoder.freeze()
-
-        if hasattr(cfg, "adapter") and getattr(cfg.adapter, "enabled", False):
-            logging.info("Setting up adapters...")
-            adapter_cfg = LinearAdapterConfig(
-                in_features=self.cfg.encoder.d_model,  # conformer specific model dim. Every layer emits this dim at its output.
-                dim=cfg.adapter.adapter_dim,  # the bottleneck dimension of the adapter
-                activation=cfg.adapter.adapter_activation,  # activation used in bottleneck block
-                norm_position=cfg.adapter.adapter_norm_position,  # whether to use LayerNorm at the beginning or the end of the adapter
-            )
-            try:
-                self.add_adapter(name=cfg.adapter.adapter_name, cfg=adapter_cfg)
-            except ValueError:
-                logging.warning(f"Adapter name {cfg.adapter.adapter_name} already exists, skipping.")
-            self.set_enabled_adapters(name=cfg.adapter.adapter_name, enabled=True)
-            self.encoder.freeze()
-            self.unfreeze_enabled_adapters()
+        else:
+            self.encoder.unfreeze()
 
         self.vocabulary = self.tokenizer.tokenizer.get_vocab()
         vocab_size = len(self.vocabulary)
@@ -96,7 +105,7 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
         self.cfg.classifier["num_classes"] = vocab_size
         self.classifier = Serialization.from_config_dict(self.cfg.classifier)
 
-        self.loss = SmoothedNLLLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
+        self.loss = SmoothedCrossEntropyLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
 
         self.searcher = SequenceGenerator(
             cfg=cfg.searcher,
@@ -104,6 +113,25 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
             decoder=self.decoder,
             log_softmax=self.classifier,
             tokenizer=self.tokenizer,
+        )
+
+        # Setup decoding objects
+        decoding_cfg = self.cfg.get('decoding', None)
+
+        # In case decoding config not found, use default config
+        if decoding_cfg is None:
+            decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
+            with open_dict(self.cfg):
+                self.cfg.decoding = decoding_cfg
+
+        self.decoding = CTCBPEDecoding(self.cfg.decoding, tokenizer=self.tokenizer)
+
+        # Setup metric with decoding strategy
+        self._wer = WERBPE(
+            decoding=self.decoding,
+            use_cer=self._cfg.get('use_cer', False),
+            dist_sync_on_step=True,
+            log_prediction=self._cfg.get("log_prediction", False),
         )
 
     @property
@@ -228,7 +256,8 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
         eos_semantics = semantics[:, 1:]
         eos_semantics_len = semantics_len - 1  # subtract 1 for eos tokens
 
-        loss_value = self.loss(log_probs=log_probs, targets=eos_semantics, lengths=eos_semantics_len)
+        eos_semantics_mask = get_seq_mask(eos_semantics, eos_semantics_len)
+        loss_value = self.loss(log_probs, eos_semantics, eos_semantics_mask)
 
         tensorboard_logs = {'train_loss': loss_value.item()}
         if len(self._optimizer.param_groups) == 1:
@@ -323,3 +352,216 @@ class SLUIntentSlotBPEModel(EncDecCTCModelBPE):
             'val_wer_denom': wer_denom,
             'val_wer': wer,
         }
+
+    def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        if 'augmentor' in config:
+            augmentor = process_augmentations(config['augmentor'])
+        else:
+            augmentor = None
+
+        shuffle = config['shuffle']
+        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        if config.get('use_dali', False):
+            device_id = self.local_rank if device == 'gpu' else None
+            dataset = audio_to_text_dataset.get_dali_bpe_dataset(
+                config=config,
+                tokenizer=self.tokenizer,
+                shuffle=shuffle,
+                device_id=device_id,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                preprocessor_cfg=self._cfg.preprocessor,
+            )
+            return dataset
+
+        # Instantiate tarred dataset loader or normal dataset loader
+        if config.get('is_tarred', False):
+            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
+                'manifest_filepath' in config and config['manifest_filepath'] is None
+            ):
+                logging.warning(
+                    "Could not load dataset as `manifest_filepath` was None or "
+                    f"`tarred_audio_filepaths` is None. Provided config : {config}"
+                )
+                return None
+
+            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            dataset = audio_to_text_dataset.get_tarred_dataset(
+                config=config,
+                tokenizer=self.tokenizer,
+                shuffle_n=shuffle_n,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                augmentor=augmentor,
+            )
+            shuffle = False
+        else:
+            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
+                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+                return None
+
+            dataset = audio_to_text_dataset.get_bpe_dataset(
+                config=config, tokenizer=self.tokenizer, augmentor=augmentor
+            )
+        if hasattr(dataset, 'collate_fn'):
+            collate_fn = dataset.collate_fn
+        else:
+            collate_fn = dataset.datasets[0].collate_fn
+
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=config['batch_size'],
+            collate_fn=collate_fn,
+            drop_last=config.get('drop_last', False),
+            shuffle=shuffle,
+            num_workers=config.get('num_workers', 0),
+            pin_memory=config.get('pin_memory', False),
+        )
+
+    def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the training data loader via a Dict-like object.
+
+        Args:
+            train_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
+        if 'shuffle' not in train_data_config:
+            train_data_config['shuffle'] = True
+
+        # preserve config
+        self._update_dataset_config(dataset_name='train', config=train_data_config)
+
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
+    def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the validation data loader via a Dict-like object.
+
+        Args:
+            val_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
+        if 'shuffle' not in val_data_config:
+            val_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+
+    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the test data loader via a Dict-like object.
+
+        Args:
+            test_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.AudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToCharDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
+            -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
+        """
+        if 'shuffle' not in test_data_config:
+            test_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+
+    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+        """
+        Setup function for a temporary data loader which wraps the provided audio file.
+
+        Args:
+            config: A python dictionary which contains the following keys:
+            paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                Recommended length per file is between 5 and 25 seconds.
+            batch_size: (int) batch size to use during inference. \
+                Bigger will result in better throughput performance but would use more memory.
+            temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                stored.
+            num_workers: (int) number of workers. Depends of the batch_size and machine. \
+                0 - only the main process will load batches, 1 - one worker (not main process)
+
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+        """
+
+        if 'manifest_filepath' in config:
+            manifest_filepath = config['manifest_filepath']
+            batch_size = config['batch_size']
+        else:
+            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
+            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
+        dl_config = {
+            'manifest_filepath': manifest_filepath,
+            'sample_rate': self.preprocessor._sample_rate,
+            'batch_size': batch_size,
+            'shuffle': False,
+            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
+            'pin_memory': True,
+            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+        }
+
+        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        return temporary_datalayer
+
+    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
+        raise NotImplemented(
+            f"The transcribe() method in this model is left unimplemented on purpose and should not be used."
+        )
+
+    @classmethod
+    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+        """
+        This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
+
+        Returns:
+            List of available pre-trained models.
+        """
+        results = []
+
+        model = PretrainedModelInfo(
+            pretrained_model_name="slu_slurp_conformer_transformer_large",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:slu_slurp_conformer_transformer_large",
+            location="",
+        )
+        results.append(model)

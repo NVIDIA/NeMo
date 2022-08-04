@@ -8,7 +8,7 @@ model:
   train_ds:
     manifest_filepath: ???
     sample_rate: ${model.sample_rate}
-    batch_size: 32  # 16 for 32GB GPUs
+    batch_size: 16  # 16 for 32GB GPUs
     shuffle: true
     num_workers: 8
     pin_memory: true
@@ -46,7 +46,6 @@ model:
   tokenizer:
     dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (wpe)
     type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
-    use_blank: false
 
   preprocessor:
     _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
@@ -72,7 +71,7 @@ model:
     time_width: 0.05
   
   pretrained_encoder:
-    model: ssl_en_conformer_large
+    name: ssl_en_conformer_large
     freeze: false
 
   encoder:

@@ -27,10 +27,10 @@ import torch
 from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models import SLUIntentSlotBPEModel
 from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig
 from nemo.core.config import hydra_runner
-from nemo.utils import logging, model_utils
+from nemo.utils import logging
 
 
 @dataclass
@@ -137,19 +137,12 @@ def run_inference(cfg: InferenceConfig) -> InferenceConfig:
     # setup model
     if cfg.model_path is not None:
         # restore model from .nemo file path
-        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
-        classpath = model_cfg.target  # original class path
-        imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
-        logging.info(f"Restoring model : {imported_class.__name__}")
-        asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location
-        )  # type: ASRModel
+        logging.info(f"Restoring model : {cfg.model_path}")
+        asr_model = SLUIntentSlotBPEModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
-        asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location
-        )  # type: ASRModel
+        asr_model = SLUIntentSlotBPEModel.from_pretrained(model_name=cfg.pretrained_name, map_location=map_location)
         model_name = cfg.pretrained_name
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)

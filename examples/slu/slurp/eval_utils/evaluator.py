@@ -32,6 +32,8 @@ def parse_semantics_str2dict(semantics_str: Union[List[str], str, Dict]) -> Dict
         semantics_str = " ".join(semantics_str)
 
     try:
+        if "|" in semantics_str:
+            semantics_str = semantics_str.replace("|", ",")
         _dict = ast.literal_eval(semantics_str)
         if not isinstance(_dict, dict):
             _dict = {
