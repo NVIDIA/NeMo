@@ -211,7 +211,7 @@ build-BigNLP:
           cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           git commit -m "Adding the result file for $RUN_NAME"
-          git push origin $RUN_NAME_$SLURM-JOBID
+          git push origin $RUN_NAME-$SLURM_JOBID
           echo "Created test file and pushed it"
           exit 0
         fi
