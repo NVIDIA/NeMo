@@ -202,7 +202,7 @@ build-BigNLP:
         if [[ "$CREATE_TEST_DATA" = "True" ]]; then
           git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
           git checkout -b $RUN_NAME-$SLURM_JOBID
-          cp $RESULTS_DIR/*.json bignlp-scripts/tests/ci_test/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
+          cp $RESULTS_DIR/*.json bignlp-scripts/tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
           git add -A
           git commit -m "Adding the result file for $RUN_NAME"
           git push origin $RUN_NAME_$SLURM-JOBID
