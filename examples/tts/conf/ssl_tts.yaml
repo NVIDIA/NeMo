@@ -29,10 +29,10 @@ model:
   sample_rate: 16000
   combined_loss: true
   pitch_augment: true
-  augment_mse_alpha: 1.0
+  augment_sim_alpha: 1.0
   stop_gradient: false
   augment_ctc: true
-  aug_loss_type: "cosine"
+  aug_loss_type: "mse"
 
   train_ds:
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/train_10.json"

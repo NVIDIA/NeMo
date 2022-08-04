@@ -345,14 +345,14 @@ class SSLDisentangler(ModelPT):
                     if self.aug_loss_type == "mse":
                         sim_loss = self.mse_loss(content_embedding, content_embedding_aug)
                     elif self.aug_loss_type == "cosine":
-                        # print("content emb shape", content_embedding.shape)
+
                         cosine_similarity = nn.functional.cosine_similarity(
                             content_embedding, content_embedding_aug, dim=-1
                         ).mean()
-                        # print("cosine similarity", cosine_similarity)
+
                         sim_loss = 1.0 - cosine_similarity
 
-                    content_loss += self._cfg.augment_mse_alpha * sim_loss
+                    content_loss += self._cfg.augment_sim_alpha * sim_loss
                     self.log("t_sim_loss", sim_loss.item())
 
                     if self.augment_ctc:
@@ -437,14 +437,12 @@ class SSLDisentangler(ModelPT):
                     if self.aug_loss_type == "mse":
                         sim_loss = self.mse_loss(content_embedding, content_embedding_aug)
                     elif self.aug_loss_type == "cosine":
-                        print("content emb shape", content_embedding.shape)
                         cosine_similarity = nn.functional.cosine_similarity(
                             content_embedding, content_embedding_aug, dim=-1
                         ).mean()
-                        print("cosine similarity", cosine_similarity)
                         sim_loss = 1.0 - cosine_similarity
 
-                    content_loss += self._cfg.augment_mse_alpha * sim_loss
+                    content_loss += self._cfg.augment_sim_alpha * sim_loss
 
                 loss_total += content_loss
                 cers = []
