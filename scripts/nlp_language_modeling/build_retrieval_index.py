@@ -126,6 +126,7 @@ def process_sentence_chunks(
         if stage == 0:
             # first the task for stage 0
             queue.put(None)
+            return
 
     start = 0
     threshold = 0.1
@@ -230,7 +231,7 @@ if __name__ == "__main__":
             num_docs = len(ds._index.sizes)
             use_num_docs = int(num_docs * args.percent)
             total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
-        nlist = int(8 * np.sqrt(total_chunks))
+        nlist = int(4 * np.sqrt(total_chunks))
         assert 30 * nlist < args.train_index_size, f"need more training samples, at least {30 * nlist}"
 
     process = multiprocessing.Process(
@@ -264,9 +265,11 @@ if __name__ == "__main__":
         # index = faiss.GPUIndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         quantizer = faiss.IndexFlatIP(emb.shape[1])
         index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+        index = faiss.index_cpu_to_all_gpus(index)
     else:
         # stage 1 and stage 2, need to load the index from file
         index = faiss.read_index(args.learned_index)
+        index = faiss.index_cpu_to_all_gpus(index)
 
     # 8 specifies that each sub-vector is encoded as 8 bits
     # build the index
@@ -275,9 +278,10 @@ if __name__ == "__main__":
     end = time.time()
     logging.info(f'Trained Index takes {end-beg}')
     if args.stage is not None:
-        logging.info('build index at stage {args.stage}')
+        logging.info(f'build index at stage {args.stage}')
     if args.stage == 0:
         # just need to have the learned index
+        index = faiss.index_gpu_to_cpu(index)
         faiss.write_index(index, args.output_file)
         sys.exit(0)
 
