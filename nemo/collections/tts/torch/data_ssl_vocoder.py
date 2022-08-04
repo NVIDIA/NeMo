@@ -430,13 +430,13 @@ class SSLVocoderDataset(Dataset):
                 pitch_contour[pitch_contour == -mean] = 0.0
                 pitch_contour = pitch_contour / std
 
-        if pitch_contour is not None:
-            pitch_contour = pitch_contour[: encoded_len.item()]
-            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
-
         content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
+
+        if pitch_contour is not None:
+            pitch_contour = pitch_contour[: encoded_len.item()]
+            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
 
         if self.use_speakerwise_stats:
             speaker_embedding = torch.tensor(self.speaker_stats[sample["speaker"]]["speaker_embedding"])

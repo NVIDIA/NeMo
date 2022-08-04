@@ -88,6 +88,7 @@ model:
 
   max_steps: 2500000
   l1_loss_factor: 45
+  pitch_loss_factor: 1
   denoise_strength: 0.0025
   ssl_model_type: ${ssl_model_type}
   content_emb_indim: 128

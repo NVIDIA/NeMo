@@ -20,9 +20,15 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf, open_dict
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 
-from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
+from nemo.collections.tts.helpers.helpers import (
+    get_batch_size,
+    get_num_workers,
+    plot_pitch_to_numpy,
+    plot_spectrogram_to_numpy,
+)
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
 from nemo.collections.tts.models.base import Vocoder
+from nemo.collections.tts.modules.fastpitch import TemporalPredictor
 from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
@@ -57,10 +63,12 @@ class HifiGanModel(Vocoder, Exportable):
         self.mpd = MultiPeriodDiscriminator(debug=cfg.debug if "debug" in cfg else False)
         self.msd = MultiScaleDiscriminator(debug=cfg.debug if "debug" in cfg else False)
         self.feature_loss = FeatureMatchingLoss()
+        self.mse_loss = torch.nn.MSELoss()
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
 
         self.l1_factor = cfg.get("l1_loss_factor", 45)
+        self.pitch_loss_factor = cfg.get("pitch_loss_factor", 1)
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
         self.stft_bias = None
@@ -73,9 +81,12 @@ class HifiGanModel(Vocoder, Exportable):
         self.ssl_model_type = self._cfg.ssl_model_type
         self.pitch_conditioning = self._cfg.get('pitch_conditioning', False)
 
+        self.additional_gen_modules = []
         if self.ssl_model_type == "conformer_multitask":
             self.content_projection_layer = torch.nn.Linear(self._cfg.content_emb_indim, self._cfg.content_emb_outdim)
             self.speaker_projection_layer = torch.nn.Linear(self._cfg.speaker_emb_indim, self._cfg.speaker_emb_outdim)
+            self.additional_gen_modules.append(self.content_projection_layer)
+            self.additional_gen_modules.append(self.speaker_projection_layer)
 
         if self.pitch_conditioning:
             self.pitch_contour_processor = torch.nn.Conv1d(
@@ -86,9 +97,15 @@ class HifiGanModel(Vocoder, Exportable):
                 padding='same',
             )
 
+            pitch_predictor_input_size = self._cfg.content_emb_indim + self._cfg.speaker_emb_indim
+            self.pitch_predictor = TemporalPredictor(pitch_predictor_input_size, 256, 3, 0.1)
+            self.additional_gen_modules.append(self.pitch_contour_processor)
+            self.additional_gen_modules.append(self.pitch_predictor)
+
         self.speaker_emb_lookup = cfg.get('speaker_emb_lookup', False)
         if self.speaker_emb_lookup:
             self.speaker_embedding_layer = torch.nn.Embedding(cfg.num_speakers, cfg.speaker_emb_indim)
+            self.additional_gen_modules.append(self.speaker_embedding_layer)
 
     def _get_max_steps(self):
         return compute_max_steps(
@@ -121,7 +138,12 @@ class HifiGanModel(Vocoder, Exportable):
         sched_config = optim_config.pop("sched", None)
         OmegaConf.set_struct(optim_config, True)
 
-        optim_g = instantiate(optim_config, params=self.generator.parameters(),)
+        gen_params = [self.generator.parameters()]
+        for module in self.additional_gen_modules:
+            print("Adding addtional params to generator optimizer: {}".format(module))
+            gen_params.append(module.parameters())
+
+        optim_g = instantiate(optim_config, params=itertools.chain(*gen_params))
         optim_d = instantiate(optim_config, params=itertools.chain(self.msd.parameters(), self.mpd.parameters()),)
 
         # Backward compatibility
@@ -214,6 +236,15 @@ class HifiGanModel(Vocoder, Exportable):
             pitch_contour = batch['pitch_contour']
             encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
 
+        pitch_prediction_loss = None
+        if self.pitch_conditioning and pitch_contour is not None:
+            speaker_embedding_repeated = speaker_embedding[:, :, None].repeat(1, 1, content_embedding.shape[2])
+            pitch_predictor_input = torch.cat([content_embedding, speaker_embedding_repeated], dim=1)
+            pitch_predictor_input = pitch_predictor_input.permute(0, 2, 1)
+            mask = torch.ones(pitch_contour.shape[0], pitch_contour.shape[1], 1).to(self.device)
+            predicted_pitch = self.pitch_predictor(pitch_predictor_input, mask)
+            pitch_prediction_loss = self.mse_loss(predicted_pitch, pitch_contour)
+
         audio_trg_mel, _len_mel = self.trg_melspec_fn(audio, audio_len)
 
         audio = audio.unsqueeze(1)
@@ -247,6 +278,8 @@ class HifiGanModel(Vocoder, Exportable):
         loss_gen_mpd, _ = self.generator_loss(disc_outputs=mpd_score_gen)
         loss_gen_msd, _ = self.generator_loss(disc_outputs=msd_score_gen)
         loss_g = loss_gen_msd + loss_gen_mpd + loss_fm_msd + loss_fm_mpd + loss_mel * self.l1_factor
+        if pitch_prediction_loss is not None:
+            loss_g += self.pitch_loss_factor * pitch_prediction_loss
         self.manual_backward(loss_g)
         optim_g.step()
 
@@ -269,6 +302,9 @@ class HifiGanModel(Vocoder, Exportable):
             "global_step": self.global_step,
             "lr": optim_g.param_groups[0]['lr'],
         }
+        if pitch_prediction_loss is not None:
+            metrics["pitch_prediction_loss"] = pitch_prediction_loss
+
         self.log_dict(metrics, on_step=True, sync_dist=True)
         self.log("g_l1_loss", loss_mel, prog_bar=True, logger=False, sync_dist=True)
 
@@ -292,6 +328,16 @@ class HifiGanModel(Vocoder, Exportable):
                 speaker_embedding = batch['speaker_embedding']
             pitch_contour = batch['pitch_contour']
             encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
+
+        predicted_pitch = None
+        pitch_prediction_loss = None
+        if self.pitch_conditioning and pitch_contour is not None:
+            speaker_embedding_repeated = speaker_embedding[:, :, None].repeat(1, 1, content_embedding.shape[2])
+            pitch_predictor_input = torch.cat([content_embedding, speaker_embedding_repeated], dim=1)
+            pitch_predictor_input = pitch_predictor_input.permute(0, 2, 1)
+            mask = torch.ones(pitch_contour.shape[0], pitch_contour.shape[1], 1).to(self.device)
+            predicted_pitch = self.pitch_predictor(pitch_predictor_input, mask)
+            pitch_prediction_loss = self.mse_loss(predicted_pitch, pitch_contour)
 
         audio_trg_mel, _len_mel = self.trg_melspec_fn(audio, audio_len)
         audio_pred = self(spec=encoded)
@@ -355,7 +401,23 @@ class HifiGanModel(Vocoder, Exportable):
                 plot_spectrogram_to_numpy(gt_mel[0, :, : gt_mel_len[0]].data.cpu().numpy()),
                 self.global_step,
                 dataformats='HWC',
-            )
+            ),
+
+            if pitch_contour is not None:
+                self.logger.experiment.add_image(
+                    "Ground truth Pitch Contour",
+                    plot_pitch_to_numpy(pitch_contour[0].data.cpu().numpy()),
+                    self.global_step,
+                    dataformats='HWC',
+                )
+
+            if predicted_pitch is not None:
+                self.logger.experiment.add_image(
+                    "Predicted Pitch Contour",
+                    plot_pitch_to_numpy(predicted_pitch[0].data.cpu().numpy()),
+                    self.global_step,
+                    dataformats='HWC',
+                )
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
