@@ -156,10 +156,6 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         }
 
     def set_decoding_strategy(self, cfg: SearcherConfig):
-        max_len = getattr(self.searcher, "generator.max_seq_length", cfg.max_sequence_length)
-        max_delta = getattr(self.searcher, "generator.max_delta_length", cfg.max_delta_length)
-        cfg.max_sequence_length = max_len
-        cfg.max_delta_length = max_delta
         self.searcher = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
 
     @typecheck()
