@@ -121,7 +121,7 @@ def process_sentence_chunks(
         with Pool(workers) as p:
             sentences = p.map(tokenizer.ids_to_text, warm_up_slices)
         end = time.time()
-        logging.info(f"token-to-text {local_scripts} chunks takes {end-beg}")
+        logging.info(f"token-to-text {total_chunks} chunks takes {end-beg}")
         queue.put(sentences)
         if stage == 0:
             # first the task for stage 0
