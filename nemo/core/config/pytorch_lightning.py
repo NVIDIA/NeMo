@@ -46,7 +46,6 @@ class TrainerConfig:
     auto_select_gpus: bool = False
     tpu_cores: Optional[Any] = None
     log_gpu_memory: Optional[str] = None
-    progress_bar_refresh_rate: int = 1
     enable_progress_bar: bool = True
     overfit_batches: Any = 0.0
     track_grad_norm: Any = -1
