@@ -143,7 +143,6 @@ model:
     temperature: 1.0  # for top-k sampling
     beam_size: 1  # K for top-k sampling, N for beam search
     len_pen: 0  # for beam-search
-    teacher_force_greedy: true
 
   optim_param_groups:
       encoder:
