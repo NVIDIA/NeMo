@@ -255,11 +255,11 @@ if __name__ == "__main__":
     ds = MMapRetrievalIndexedDataset(args.input_file, skip_warmup=True)
     # make sure the dataset is padded as retrieval database
     assert ds._index.retrieval_db
-    if ds.chunks < args.train_index_size:
-        raise ValueError(
-            f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset"
-        )
     if args.stage is None or args.stage == 0:
+        if ds.chunks < args.train_index_size:
+            raise ValueError(
+                f"the train index size {args.train_index_size} is larger than the total number of chunks {ds.chunks} in the dataset"
+            )
         # Where nlist is 4*sqrt(N) to 16*sqrt(N), with N the size of the dataset.
         # This just clusters the vectors with k-means. You will need between 30*K and 256*K vectors for training (the more the better).
         total_chunks = ds.chunks
