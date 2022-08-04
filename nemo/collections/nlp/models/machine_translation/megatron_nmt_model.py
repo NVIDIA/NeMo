@@ -844,3 +844,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
     def on_test_start(self) -> None:
         self.trainer.test_loop._data_fetcher = GlobalBatchDataFetcher()
+
+    @property
+    def encoder(self):
+        return EncEmb(self.enc_dec_model.encoder_embedding, self.enc_dec_model.enc_dec_model.encoder, self.device)
+
+    @property
+    def decoder(self):
+        return DecEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.enc_dec_model.decoder, self.device)
+
+    @property
+    def classifier(self):
+        return TokensHeadEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.tokens_head, self.device)
