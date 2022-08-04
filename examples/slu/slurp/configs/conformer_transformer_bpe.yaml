@@ -1,5 +1,9 @@
 name: "ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"
 
+pretrained_encoder:
+  name: ssl_en_conformer_large
+  freeze: false
+  
 model:
   sample_rate: 16000
   log_prediction: true # enables logging sample predictions in the output during training
@@ -69,10 +73,6 @@ model:
     time_masks: 10 # set to zero to disable it
     freq_width: 27
     time_width: 0.05
-  
-  pretrained_encoder:
-    name: ssl_en_conformer_large
-    freeze: false
 
   encoder:
     _target_: nemo.collections.asr.modules.ConformerEncoder

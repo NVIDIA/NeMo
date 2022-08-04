@@ -64,10 +64,13 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/results.ht
 
 """
 
+from pathlib import Path
+
 import pytorch_lightning as pl
+import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.slu_models import SLUIntentSlotBPEModel
+from nemo.collections.asr.models import SLUIntentSlotBPEModel, SpeechEncDecSelfSupervisedModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -81,8 +84,31 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
     model = SLUIntentSlotBPEModel(cfg=cfg.model, trainer=trainer)
 
-    # Initialize the weights of the model from another model, if provided via config
-    model.maybe_init_from_pretrained_checkpoint(cfg)
+    # Init encoder from pretrained model
+    pretrained_encoder_name = cfg.pretrained_encoder.name
+    if pretrained_encoder_name is not None:
+        if Path(pretrained_encoder_name).is_file():
+            logging.info(f"Loading pretrained encoder from local: {pretrained_encoder_name}")
+            pretraind_model = SpeechEncDecSelfSupervisedModel.restore_from(
+                restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
+            )
+            model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+            del pretraind_model
+        else:
+            logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
+            pretraind_model = SpeechEncDecSelfSupervisedModel.from_pretrained(
+                model_name=pretrained_encoder_name, map_location=torch.device("cpu")
+            )
+            model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+            del pretraind_model
+    else:
+        logging.info("Not using pretrained encoder.")
+
+    if cfg.pretrained_encoder.freeze:
+        logging.info("Freezing encoder...")
+        model.encoder.freeze()
+    else:
+        model.encoder.unfreeze()
 
     trainer.fit(model)
 

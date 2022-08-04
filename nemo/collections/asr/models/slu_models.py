@@ -63,34 +63,6 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
 
-        # Init encoder from pretrained model
-        pretrained_encoder_name = self.cfg.get("pretrained_encoder.name", None)
-        if pretrained_encoder_name is not None:
-            if Path(pretrained_encoder_name).is_file():
-                logging.info(f"Loading pretrained encoder from local: {pretrained_encoder_name}")
-                pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.restore_from(
-                    restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
-                )
-                self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
-                del pretraind_model
-            elif pretrained_encoder_name.startswith("ssl_"):
-                logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
-                pretraind_model = nemo_asr.models.SpeechEncDecSelfSupervisedModel.from_pretrained(
-                    model_name=pretrained_encoder_name, map_location=torch.device("cpu")
-                )
-                self.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
-                del pretraind_model
-            else:
-                logging.warning(f"Unable to load pretrained model: {pretrained_encoder_name}, skipped.")
-        else:
-            logging.info("Not using pretrained encoder.")
-
-        if self.cfg.get("pretrained_encoder.freeze", False):
-            logging.info("Freezing encoder...")
-            self.encoder.freeze()
-        else:
-            self.encoder.unfreeze()
-
         self.vocabulary = self.tokenizer.tokenizer.get_vocab()
         vocab_size = len(self.vocabulary)
 
