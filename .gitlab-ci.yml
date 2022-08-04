@@ -207,11 +207,12 @@ build-BigNLP:
           cd test
           git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
           cd bignlp-scripts
-          git checkout -b $RUN_NAME-$SLURM_JOBID
+          git checkout -b $CI_PIPELINE_ID
+          git pull origin $CI_PIPELINE_ID
           cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           git commit -m "Adding the result file for $RUN_NAME"
-          git push origin $RUN_NAME-$SLURM_JOBID
+          git push origin $CI_PIPELINE_ID
           echo "Created test file and pushed it"
           exit 0
         fi
