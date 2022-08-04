@@ -43,7 +43,9 @@ class ConvLayer(nn.Module):
 
 class MSDD_module(NeuralModule, Exportable):
     """
-    Multiscale Diarization Decoder for overlap-aware diarization.
+    Multi-scale Diarization Decoder (MSDD) for overlap-aware diarization and improved diarization accuracy from clustering diarizer.
+    Based on the paper: Taejin Park et. al, "Multi-scale Speaker Diarization with Dynamic Scale Weighting", Interspeech 2022.
+    Arxiv version: https://arxiv.org/pdf/2203.15974.pdf
 
     Args:
         num_spks (int):
