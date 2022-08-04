@@ -354,6 +354,7 @@ class ClusterEmbedding:
         self.embs_filtering_thres = None
 
         self.run_clus_from_loaded_emb = False
+        self.use_speaker_model_from_MSDD = False
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
@@ -519,7 +520,8 @@ class ClusterEmbedding:
         self.clusdiar_model = ClusteringDiarizer(cfg=self.cfg_base)
 
         # Load speaker embedding model state_dict which is loaded from the MSDD checkpoint.
-        self.clusdiar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
+        if self.use_speaker_model_from_MSDD:
+            self.clusdiar_model._speaker_model.load_state_dict(self.spk_emb_state_dict)
 
         self.clusdiar_model._cluster_params = self.cfg_base.diarizer.clustering.parameters
         self.clusdiar_model.multiscale_args_dict[
@@ -1634,8 +1636,11 @@ class OverlapAwareDiarizer:
 
         Returns:
             preds (Tensor):
+                Tensor containing predicted values which are generated from MSDD model.
             targets (Tensor):
+                Tensor containing binary ground-truth values.
             signal_lengths (Tensor):
+                The actual Session length (number of steps = number of base-scale segments) without zero padding.
         """
         signals, signal_lengths, _targets, emb_vectors = test_batch
         if self._cfg.diarizer.msdd_model.parameters.split_infer:
