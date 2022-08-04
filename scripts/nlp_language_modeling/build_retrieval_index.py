@@ -226,7 +226,7 @@ if __name__ == "__main__":
     group.add_argument('--stage', type=int, default=None, help='used for building the large index in multiple stages', choices=[0, 1, 2])
     group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
-    group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0', choices=[0, 1, 2])
+    group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
@@ -270,34 +270,32 @@ if __name__ == "__main__":
 
     # get first batch of sentences to build up the index
     # sentences = get_sentence_chunks()
-
-    emb, slice_id = get_emb()
-
     if args.stage is None or args.stage == 0:
+        emb, slice_id = get_emb()
         # initialize the Faiss index
         # m is number of subquantizers. So vector of size D is broken into m sub-vectors of size D/m
         m = args.subquantizers
         k = 4  # num_nearest neighbors to get
-        # gpu_resource = faiss.StandardGpuResources()
-        # quantizer = faiss.GpuIndexFlatIP(gpu_resource, emb.shape[1])
-        # index = faiss.GPUIndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         quantizer = faiss.IndexFlatIP(emb.shape[1])
+        # 8 specifies that each sub-vector is encoded as 8 bits
         index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
+        index = faiss.IndexIDMap(index)
         index = faiss.index_cpu_to_all_gpus(index)
-    else:
-        # stage 1 and stage 2, need to load the index from file
+    elif args.stage == 1:
+        # stage 1, need to load the index from file
         index = faiss.read_index(args.learned_index)
         index = faiss.index_cpu_to_all_gpus(index)
+    else:
+        raise ValueError(f'should not come here')
 
-    # 8 specifies that each sub-vector is encoded as 8 bits
-    # build the index
-    beg = time.time()
-    index.train(emb)
-    end = time.time()
-    logging.info(f'Trained Index takes {end-beg}')
     if args.stage is not None:
         logging.info(f'build index at stage {args.stage}')
-    if args.stage == 0:
+    if args.stage is None or args.stage == 0:
+        # train the index
+        beg = time.time()
+        index.train(emb)
+        end = time.time()
+        logging.info(f'Trained Index takes {end-beg}')
         # just need to have the learned index
         index = faiss.index_gpu_to_cpu(index)
         faiss.write_index(index, args.output_file)
@@ -311,6 +309,7 @@ if __name__ == "__main__":
     process.join()
     emb_process.join()
     logging.info('Writing Index file')
+    index = faiss.index_gpu_to_cpu(index)
     faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')
     model.stop_multi_process_pool(pool)
