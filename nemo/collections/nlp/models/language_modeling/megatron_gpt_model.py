@@ -428,15 +428,26 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         tensor_shape = [self.cfg.encoder_seq_length, self.cfg.micro_batch_size, self.cfg.hidden_size]
 
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
-                forward_step_func=self.get_forward_output_and_loss_func(),
-                batch=batch_for_pipeline,
-                model=self.model,
-                forward_only=True,
-                tensor_shape=tensor_shape,
-                dtype=self.autocast_dtype,
-                sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
-            )
+            if self.cfg.get('virtual_pipeline_model_parallel_size', 1) > 1:
+                losses_reduced_per_micro_batch = _forward_backward_pipelining_with_interleaving(
+                    forward_step_func=self.get_forward_output_and_loss_func(),
+                    batch=batch_for_pipeline,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                )
+            else:
+                losses_reduced_per_micro_batch = forward_backward_pipelining_without_interleaving(
+                    forward_step_func=self.get_forward_output_and_loss_func(),
+                    batch=batch_for_pipeline,
+                    model=self.model,
+                    forward_only=True,
+                    tensor_shape=tensor_shape,
+                    dtype=self.autocast_dtype,
+                    sequence_parallel_enabled=self.cfg.get('sequence_parallel', False),
+                )
         else:
             losses_reduced_per_micro_batch = forward_backward_no_pipelining(
                 forward_step_func=self.get_forward_output_and_loss_func(),
