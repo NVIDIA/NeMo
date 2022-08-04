@@ -27,8 +27,8 @@ val_max_duration: null
 val_min_duration: 3
 
 ssl_model_type: conformer_multitask
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/Epoch31.ckpt"
-ssl_content_emb_type: 'probs'
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/vox1_augtrue_mse1_small_epoch33.ckpt"
+ssl_content_emb_type: 'embedding'
 
 pitch_conditioning: false
 pitch_mean: 212.0 # ignored if use_speakerwise_stats=true
@@ -39,6 +39,8 @@ normalize_content: true # for newer checkpoints.
 
 use_speakerwise_stats: false
 stat_samples_per_speaker: 50
+
+sup_data_dir: null
 
 defaults:
   - model/generator: v_ssl
@@ -88,7 +90,7 @@ model:
   l1_loss_factor: 45
   denoise_strength: 0.0025
   ssl_model_type: ${ssl_model_type}
-  content_emb_indim: 46
+  content_emb_indim: 128
   content_emb_outdim: 256
   speaker_emb_indim: 256
   speaker_emb_outdim: 256
