@@ -75,8 +75,12 @@ class SSLDisentangler(ModelPT):
                 self.ctc_loss = nn.CTCLoss(blank=self._text_tokenizer.blank)
                 self.pitch_augment = self._cfg.get('pitch_augment', False)
                 self.augment_ctc = self._cfg.get('augment_ctc', False)
-                if self.pitch_augment:
-                    self.mse_loss = nn.MSELoss()
+                self.aug_loss_type = self._cfg.get('aug_loss_type', 'mse')
+                self.stop_gradient = self._cfg.get('stop_gradient', False)
+                assert (
+                    self.stop_gradient and self.augment_ctc
+                ) == False, "stop_gradient and augment_ctc cannot be true at the same time"
+                self.mse_loss = nn.MSELoss()
 
                 self.ctc_decoder = GreedyCTCDecoder(self._text_tokenizer.tokens, self._text_tokenizer.blank)
 
@@ -329,12 +333,27 @@ class SSLDisentangler(ModelPT):
                 if self.pitch_augment:
                     augmented_signal = batch[key]['audio_shifted']
                     # wav2= augmented_signal[0].cpu().detach().numpy()
-                    _, _, content_embedding_aug, content_log_probs_aug, _ = self.forward(
-                        input_signal=augmented_signal, input_signal_length=signal_len
-                    )
-                    mse_loss = self.mse_loss(content_embedding, content_embedding_aug)
-                    content_loss += self._cfg.augment_mse_alpha * mse_loss
-                    self.log("t_mse_loss", mse_loss.item())
+                    if self.stop_gradient:
+                        with torch.no_grad():
+                            _, _, content_embedding_aug, content_log_probs_aug, _ = self.forward(
+                                input_signal=augmented_signal, input_signal_length=signal_len
+                            )
+                    else:
+                        _, _, content_embedding_aug, content_log_probs_aug, _ = self.forward(
+                            input_signal=augmented_signal, input_signal_length=signal_len
+                        )
+                    if self.aug_loss_type == "mse":
+                        sim_loss = self.mse_loss(content_embedding, content_embedding_aug)
+                    elif self.aug_loss_type == "cosine":
+                        # print("content emb shape", content_embedding.shape)
+                        cosine_similarity = nn.functional.cosine_similarity(
+                            content_embedding, content_embedding_aug, dim=-1
+                        ).mean()
+                        # print("cosine similarity", cosine_similarity)
+                        sim_loss = 1.0 - cosine_similarity
+
+                    content_loss += self._cfg.augment_mse_alpha * sim_loss
+                    self.log("t_sim_loss", sim_loss.item())
 
                     if self.augment_ctc:
                         ctc_loss_aug = self.ctc_loss(content_log_probs_aug, target, encoded_len, target_len)
@@ -415,8 +434,17 @@ class SSLDisentangler(ModelPT):
                     _, _, content_embedding_aug, content_log_probs_aug, _ = self.forward(
                         input_signal=augmented_signal, input_signal_length=signal_len
                     )
-                    mse_loss = self.mse_loss(content_embedding, content_embedding_aug)
-                    content_loss += self._cfg.augment_mse_alpha * mse_loss
+                    if self.aug_loss_type == "mse":
+                        sim_loss = self.mse_loss(content_embedding, content_embedding_aug)
+                    elif self.aug_loss_type == "cosine":
+                        print("content emb shape", content_embedding.shape)
+                        cosine_similarity = nn.functional.cosine_similarity(
+                            content_embedding, content_embedding_aug, dim=-1
+                        ).mean()
+                        print("cosine similarity", cosine_similarity)
+                        sim_loss = 1.0 - cosine_similarity
+
+                    content_loss += self._cfg.augment_mse_alpha * sim_loss
 
                 loss_total += content_loss
                 cers = []
