@@ -38,6 +38,8 @@ python ./multiscale_diar_decoder.py --config-path='conf' --config-name='msdd_tra
 """
 
 seed_everything(42)
+
+
 @hydra_runner(config_path="conf", config_name="msdd_training.meeting.yaml")
 def main(cfg):
 
@@ -46,6 +48,7 @@ def main(cfg):
     log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
     msdd_model = EncDecDiarLabelModel(cfg=cfg.msdd_model, trainer=trainer)
     trainer.fit(msdd_model)
+
 
 if __name__ == '__main__':
     main()
