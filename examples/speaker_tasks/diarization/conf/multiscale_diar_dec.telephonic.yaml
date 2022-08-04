@@ -1,0 +1,135 @@
+name: &name "MultiscaleDiarDecoder"
+sample_rate: &sample_rate 16000
+repeat: &rep 2
+dropout: &drop 0.5
+separable: &separable True
+num_workers: &num_workers 20
+batch_size: &global_bs 15
+
+diarizer: &diarizer
+  manifest_filepath: null
+  out_dir: null
+  oracle_vad: True # If True, uses RTTM files provided in manifest file to get speech activity (VAD) timestamps
+
+  speaker_embeddings:
+    model_path: ??? # .nemo local model path or pretrained model name (titanet_large is recommended)
+    parameters:
+      window_length_in_sec: [1.5,1.25,1.0,0.75,0.5] # Window length(s) in sec (floating-point number). either a number or a list. ex) 1.5 or [1.5,1.0,0.5]
+      shift_length_in_sec: [0.75,0.625,0.5,0.375,0.25] # Shift length(s) in sec (floating-point number). either a number or a list. ex) 0.75 or [0.75,0.5,0.25]
+      multiscale_weights: [1,1,1,1,1] # Weight for each scale. should be null (for single scale) or a list matched with window/shift scale count. ex) [0.33,0.33,0.33]
+      save_embeddings: True # Save embeddings as pickle file for each audio input.
+
+  clustering:
+    parameters:
+      oracle_num_speakers: False # If True, use num of speakers value provided in manifest file.
+      max_num_speakers: &max_num_speakers 8 # Max number of speakers for each recording. If oracle num speakers is passed, this value is ignored.
+      enhanced_count_thres: 80 # If the number of segments is lower than this number, enhanced speaker counting is activated.
+      max_rp_threshold: 0.15 # Determines the range of p-value search: 0 < p <= max_rp_threshold. 
+      sparse_search_volume: 30 # The higher the number, the more values will be examined with more time. 
+      maj_vote_spk_count: False  # If True, take a majority vote on multiple p-values to estimate the number of speakers.
+
+msdd_model: 
+  base:
+    diarizer: *diarizer
+  max_num_of_spks: &max_num_of_spks 2 # Number of speakers in a MSDD model. This is currently fixed s 2.
+  scale_n: &scale_n # Number of scales for MSDD model and initializing clustering.
+  soft_label_thres: &soft_label_thres 0.5 # Threshold for creating discretized speaker label from continuous speaker label in RTTM files.
+  emb_batch_size: &emb_batch_size 0 # If this value is bigger than 0, corresponding number of embedding vectors are attached to torch graph and trained.
+
+  train_ds:
+    manifest_filepath: ???
+    emb_dir: ???
+    sample_rate: 16000
+    num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
+    labels: null
+    batch_size: 2
+    emb_batch_size: *emb_batch_size
+    shuffle: True
+
+  validation_ds:
+    manifest_filepath: ???
+    emb_dir: ???
+    sample_rate: 16000
+    num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
+    labels: null
+    batch_size: 2
+    emb_batch_size: *emb_batch_size
+    shuffle: False
+  
+  test_ds:
+    manifest_filepath: null
+    emb_dir: null
+    sample_rate: 16000
+    num_spks: *max_num_of_spks
+    soft_label_thres: *soft_label_thres
+    labels: null
+    batch_size: 2
+    shuffle: False
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    normalize: "per_feature"
+    window_size: 0.025
+    sample_rate: *sample_rate
+    window_stride: 0.01
+    window: "hann"
+    features: &n_mels 80
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+
+  msdd_module:
+    _target_: nemo.collections.asr.modules.msdd_diarizer.MSDD_module
+    num_spks: *max_num_of_spks
+    hidden_size: 256
+    num_lstm_layers: 2
+    dropout_rate: 0.5
+    cnn_output_ch: 16
+    conv_repeat: 1
+    emb_sizes: 192
+    scale_n: *scale_n
+    weighting_scheme: 'conv_scale_weight'
+    use_cos_sim_input: True
+
+  loss:
+    scale: 30
+    margin: 0.2
+
+  optim:
+    name: adam
+    lr: .001
+    weight_decay: 0.001
+
+    sched:
+      name: CosineAnnealing
+      min_lr: 0.00001
+
+trainer:
+  gpus: 1 # number of gpus
+  max_epochs: 200
+  max_steps: -1 # computed at runtime if not set
+  num_nodes: 1
+  strategy: ddp
+  accumulate_grad_batches: 1
+  deterministic: True
+  enable_checkpointing: False
+  logger: False
+  log_every_n_steps: 1  # Interval of logging.
+  val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+
+exp_manager:
+  exp_dir: null
+  name: *name
+  create_tensorboard_logger: True
+  create_checkpoint_callback: True
+  create_wandb_logger: False
+  checkpoint_callback_params:
+    monitor: "val_loss"
+    mode: "min"
+    save_top_k: 30
+    every_n_epochs: 1
+  wandb_logger_kwargs:
+    name: null
+    project: null

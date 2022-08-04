@@ -48,7 +48,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
 )
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import LengthsType, NeuralType, ProbsType
+from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, ProbsType
 from nemo.core.neural_types.elements import ProbsType
 from nemo.utils import logging
 
@@ -697,12 +697,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             self._init_speaker_model()
         torch.cuda.empty_cache()
         self.loss = BCELoss(weight=None)
-        self.task = None
         self.min_detached_embs = 2
         self._accuracy_test = MultiBinaryAccuracy()
         self._accuracy_train = MultiBinaryAccuracy()
         self._accuracy_valid = MultiBinaryAccuracy()
-        self.labels = None
 
     def _init_segmentation_info(self):
         """Initialize segmentation settings: window, shift and multiscale weights.
@@ -781,7 +779,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         if not os.path.exists(f'{_out_dir}/speaker_outputs/embeddings'):
             os.makedirs(f'{_out_dir}/speaker_outputs/embeddings')
 
-        split_audio_rttm_map = audio_rttm_map(manifest_filepath)
+        split_audio_rttm_map = audio_rttm_map(manifest_filepath, attatch_dur=True)
 
         out_rttm_dir = os.path.join(_out_dir, 'pred_rttms')
         os.makedirs(out_rttm_dir, exist_ok=True)
@@ -1140,8 +1138,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
         ms_avg_embs = torch.stack(ms_avg_embs_list).permute(0, 1, 3, 2)
         ms_avg_embs = ms_avg_embs.float().detach().to(device)
-        if self.cfg_msdd_model.use_longest_scale_clus_avg_emb:
-            ms_avg_embs = self.get_longest_scale_clus_avg_emb(ms_avg_embs)
         assert (
             ms_avg_embs.requires_grad == False
         ), "ms_avg_embs.requires_grad = True. ms_avg_embs should be detached from the torch graph."

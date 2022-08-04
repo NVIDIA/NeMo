@@ -51,7 +51,8 @@ def get_uniq_id_with_dur(meta, deci=3):
     """
     Return basename with offset and end time labels
     """
-    bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
+    # bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
+    bare_uniq_id = get_uniqname_from_filepath(meta['rttm_filepath'])
     if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
     if meta['offset']:
