@@ -96,6 +96,7 @@ model:
     tar_shuffle_n: 1
     sample_rate: 16000
     num_workers: 8
+    shard_strategy: replicate
 
   validation_ds:
     label_info_save_dir: ./label_info_valid
@@ -119,6 +120,7 @@ model:
 
     sample_rate: 16000
     num_workers: 8
+    shard_strategy: replicate
 
   test_ds:
     label_info_save_dir: ./label_info_test
@@ -139,6 +141,7 @@ model:
     tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
     sample_rate: 16000
     num_workers: 8
+    shard_strategy: replicate
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
