@@ -144,7 +144,7 @@ model:
       pin_memory: false
 
   optim:
-    name: RAdam #This code base uses pytorch implemenation of RAdam which hasn't been tested fully when this is released we are waiting for SWIPAT approval to use https://github.com/LiyuanLucasLiu/RAdam/blob/master/LICENSE. Until that you can integrate this and train. we will switch code to this implementation once we get SWIPAT approval which could take a couple of days. 
+    name: RAdam #This code base uses pytorch implemenation of RAdam which has not been tested fully when this is released we are waiting for SWIPAT approval to use https://github.com/LiyuanLucasLiu/RAdam/blob/master/LICENSE. Until that you can integrate this and train. we will switch code to this implementation once we get SWIPAT approval which could take a couple of days. 
     lr: 0.0001
     betas: [0.9, 0.98]
     weight_decay: 0.000001
