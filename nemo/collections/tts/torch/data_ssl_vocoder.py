@@ -40,6 +40,8 @@ class SSLVocoderDataset(Dataset):
         sup_data_dir: Optional[Union[str, Path]] = None,
         data_caching: Optional[bool] = True,
         normalize_content: Optional[bool] = True,
+        use_speakerwise_stats: Optional[bool] = False,
+        stat_samples_per_speaker: Optional[int] = None,
     ):
         """Dataset which can be used for training and fine-tuning vocoder with pre-computed mel-spectrograms.
         Args:
@@ -85,6 +87,7 @@ class SSLVocoderDataset(Dataset):
                     file_info = {
                         "audio_filepath": item["audio_filepath"],
                         "duration": item["duration"] if "duration" in item else None,
+                        "speaker": item["speaker"],
                     }
 
                     data.append(file_info)
@@ -154,6 +157,10 @@ class SSLVocoderDataset(Dataset):
             os.makedirs(self.sup_data_dir)
 
         self.normalize_content = normalize_content
+        self.use_speakerwise_stats = use_speakerwise_stats
+        if use_speakerwise_stats:
+            self.stat_samples_per_speaker = stat_samples_per_speaker
+            self.speaker_stats = self.get_speaker_statistics()
 
     def _collate_fn(self, batch):
         final_batch = {}
@@ -209,6 +216,50 @@ class SSLVocoderDataset(Dataset):
 
         return filtered_data
 
+    def get_speaker_statistics(self):
+        speaker_stats_fp = os.path.join(self.sup_data_dir, "speaker_stats.pkl")
+        if os.path.exists(speaker_stats_fp) and self.data_caching:
+            with open(speaker_stats_fp, "rb") as f:
+                return pickle.load(f)
+
+        speaker_key = "speaker"
+        speaker_stats = {}
+        speaker_wise_filepaths = {}
+        for sample in self.data:
+            if sample[speaker_key] not in speaker_wise_filepaths:
+                speaker_wise_filepaths[sample[speaker_key]] = []
+            if len(speaker_wise_filepaths[sample[speaker_key]]) < self.stat_samples_per_speaker:
+                speaker_wise_filepaths[sample[speaker_key]].append(sample["audio_filepath"])
+
+        for speaker, filepaths in speaker_wise_filepaths.items():
+            print("Speaker", speaker, len(filepaths))
+            speaker_pitch_contours = []
+            speaker_embeddings = []
+            for filepath in filepaths:
+                rel_audio_path = Path(filepath).relative_to(self.base_data_dir).with_suffix("")
+                rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+                audio_ssl, audio_ssl_length, _, _ = self._get_wav_from_filepath(filepath)
+                pitch_contour = self.get_pitch_contour(audio_ssl, rel_audio_path_as_text_id)
+                pitch_contour_nonzero = pitch_contour[pitch_contour != 0]
+                speaker_pitch_contours.append(pitch_contour_nonzero)
+                _, speaker_embedding, _ = self.get_ssl_features(audio_ssl, audio_ssl_length, rel_audio_path_as_text_id)
+                speaker_embeddings.append(speaker_embedding)
+
+            speaker_pitch_contour = torch.cat(speaker_pitch_contours)
+            mean_speaker_embedding = torch.mean(torch.stack(speaker_embeddings), dim=0)
+            speaker_stats[speaker] = {}
+            speaker_stats[speaker]['speaker_embedding'] = mean_speaker_embedding.numpy()
+            speaker_stats[speaker]['pitch_mean'] = speaker_pitch_contour.mean().item()
+            speaker_stats[speaker]['pitch_std'] = speaker_pitch_contour.std().item()
+            print("pitch mean", speaker_stats[speaker]['pitch_mean'])
+            print("pitch std", speaker_stats[speaker]['pitch_std'])
+            # print("speaker embedding", speaker_stats[speaker]['speaker_embedding'])
+
+        with open(speaker_stats_fp, "wb") as f:
+            pickle.dump(speaker_stats, f)
+
+        return speaker_stats
+
     def get_pitch_contour(self, wav, wav_text_id):
         pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
         pitch_contour_fp = os.path.join(self.sup_data_dir, pitch_contour_fn)
@@ -225,10 +276,6 @@ class SSLVocoderDataset(Dataset):
                 center=True,
                 fill_na=0.0,
             )
-            if self.normalize_pitch:
-                f0 = f0 - self.pitch_mean
-                f0[f0 == -self.pitch_mean] = 0.0
-                f0 = f0 / self.pitch_std
             pitch_contour = torch.tensor(f0, dtype=torch.float32)
             torch.save(pitch_contour, pitch_contour_fp)
             return pitch_contour
@@ -336,12 +383,9 @@ class SSLVocoderDataset(Dataset):
 
         return new_item
 
-    def __getitem__(self, index):
-        sample = self.data[index]
-        rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
-        rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+    def _get_wav_from_filepath(self, audio_filepath):
         features = AudioSegment.segment_from_file(
-            sample["audio_filepath"], target_sr=self.sample_rate, n_segments=-1, trim=self.trim,
+            audio_filepath, target_sr=self.sample_rate, n_segments=-1, trim=self.trim,
         )
         audio_samples = features.samples
         audio_samples_forssl = librosa.core.resample(
@@ -363,17 +407,39 @@ class SSLVocoderDataset(Dataset):
             audio = torch.cat([audio, torch.zeros(target_audio_length - audio.shape[0], dtype=torch.float)])
             audio_length = torch.tensor(audio.shape[0]).long()
 
+        return audio_ssl, audio_ssl_length, audio, audio_length
+
+    def __getitem__(self, index):
+        sample = self.data[index]
+        rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
+        rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
+        speaker = torch.tensor(sample["speaker"]).long()
+        audio_ssl, audio_ssl_length, audio, audio_length = self._get_wav_from_filepath(sample["audio_filepath"])
+
         pitch_contour = None
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(audio_ssl, rel_audio_path_as_text_id)
+            if self.normalize_pitch:
+                if self.use_speakerwise_stats:
+                    mean = self.speaker_stats[sample["speaker"]]["pitch_mean"]
+                    std = self.speaker_stats[sample["speaker"]]["pitch_std"]
+                else:
+                    mean = self.pitch_mean
+                    std = self.pitch_std
+                pitch_contour = pitch_contour - mean
+                pitch_contour[pitch_contour == -mean] = 0.0
+                pitch_contour = pitch_contour / std
+
+        if pitch_contour is not None:
+            pitch_contour = pitch_contour[: encoded_len.item()]
+            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
 
         content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
 
-        if pitch_contour is not None:
-            pitch_contour = pitch_contour[: encoded_len.item()]
-            assert pitch_contour.shape[0] == content_embedding.shape[1] == encoded_len.item()
+        if self.use_speakerwise_stats:
+            speaker_embedding = torch.tensor(self.speaker_stats[sample["speaker"]]["speaker_embedding"])
 
         return self._segment_item(
             {
@@ -383,6 +449,7 @@ class SSLVocoderDataset(Dataset):
                 'speaker_embedding': speaker_embedding,
                 'encoded_len': encoded_len,
                 'pitch_contour': pitch_contour,
+                'speaker': speaker,
             }
         )
 

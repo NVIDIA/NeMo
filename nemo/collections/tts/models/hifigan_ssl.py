@@ -86,6 +86,10 @@ class HifiGanModel(Vocoder, Exportable):
                 padding='same',
             )
 
+        self.speaker_emb_lookup = cfg.get('speaker_emb_lookup', False)
+        if self.speaker_emb_lookup:
+            self.speaker_embedding_layer = torch.nn.Embedding(cfg.num_speakers, cfg.speaker_emb_indim)
+
     def _get_max_steps(self):
         return compute_max_steps(
             max_epochs=self._cfg.max_epochs,
@@ -202,7 +206,11 @@ class HifiGanModel(Vocoder, Exportable):
             audio_len = batch['audio_len']
             content_embedding = batch['content_embedding']
             encoded_len = batch['encoded_len']
-            speaker_embedding = batch['speaker_embedding']
+            if self.speaker_emb_lookup:
+                speaker = batch['speaker']
+                speaker_embedding = self.speaker_embedding_layer(speaker)
+            else:
+                speaker_embedding = batch['speaker_embedding']
             pitch_contour = batch['pitch_contour']
             encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
 
@@ -277,7 +285,11 @@ class HifiGanModel(Vocoder, Exportable):
             audio_len = batch['audio_len']
             content_embedding = batch['content_embedding']
             encoded_len = batch['encoded_len']
-            speaker_embedding = batch['speaker_embedding']
+            if self.speaker_emb_lookup:
+                speaker = batch['speaker']
+                speaker_embedding = self.speaker_embedding_layer(speaker)
+            else:
+                speaker_embedding = batch['speaker_embedding']
             pitch_contour = batch['pitch_contour']
             encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
 
