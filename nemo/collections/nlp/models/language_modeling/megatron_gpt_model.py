@@ -337,14 +337,15 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
             parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
         ):
-            if self.model.share_token_embeddings:
-                word_embeddings_weight = self.model.word_embeddings_weight()
-                if self.megatron_amp_o2:
-                    # O2 recipe stores a "main" copy of weights and grads
-                    grad = word_embeddings_weight.main_grad
-                else:
-                    grad = word_embeddings_weight.grad
-                torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
+            for module in self.model:
+                if module.share_token_embeddings:
+                    word_embeddings_weight = module.word_embeddings_weight()
+                    if self.megatron_amp_o2:
+                        # O2 recipe stores a "main" copy of weights and grads
+                        grad = word_embeddings_weight.main_grad
+                    else:
+                        grad = word_embeddings_weight.grad
+                    torch.distributed.all_reduce(grad, group=parallel_state.get_embedding_group())
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
