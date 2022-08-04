@@ -14,6 +14,7 @@
 
 from nemo.collections.asr.models.msdd_models import OverlapAwareDiarizer
 from nemo.core.config import hydra_runner
+
 """
 Run the entire speaker diarization pipeline: VAD, clustering diarizer for initializing clustering then Multi-scale Diarization Decoder (MSDD).
 
