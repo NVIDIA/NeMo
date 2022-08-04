@@ -159,6 +159,7 @@ class SSLDisentangler(ModelPT):
                     min_duration=data_config['min_duration_content'],
                     max_duration=data_config['max_duration_content'],
                     pitch_augment=data_config.get('pitch_augment', False),
+                    cache_pitch_augment=data_config.get('cache_pitch_augment', True),
                     sup_data_path=data_config['sup_data_path'],
                 )
                 content_loader = torch.utils.data.DataLoader(

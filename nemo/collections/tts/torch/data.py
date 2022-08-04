@@ -92,6 +92,7 @@ class TTSDataset(Dataset):
         highfreq: Optional[int] = None,
         segment_max_duration: Optional[int] = None,
         pitch_augment: bool = False,
+        cache_pitch_augment: bool = True,
         **kwargs,
     ):
         """Dataset which can be used for training spectrogram generators and end-to-end TTS models.
@@ -251,6 +252,7 @@ class TTSDataset(Dataset):
 
         self.segment_max_duration = segment_max_duration
         self.pitch_augment = pitch_augment
+        self.cache_pitch_augment = cache_pitch_augment
 
         self.n_fft = n_fft
         self.n_mels = n_mels
@@ -460,7 +462,7 @@ class TTSDataset(Dataset):
 
     def pitch_shift(self, audio, sr, rel_audio_path_as_text_id):
         audio_shifted_path = Path(self.sup_data_path) / f"{rel_audio_path_as_text_id}_pitch_shift.pt"
-        if audio_shifted_path.exists():
+        if audio_shifted_path.exists() and self.cache_pitch_augment:
             audio_shifted = torch.load(audio_shifted_path)
             return audio_shifted
         else:
@@ -470,7 +472,8 @@ class TTSDataset(Dataset):
             audio_shifted = librosa.effects.pitch_shift(audio, sr=sr, n_steps=shift_val)
             # save audio_shifted
             audio_shifted = torch.tensor(audio_shifted)
-            torch.save(audio_shifted, audio_shifted_path)
+            if self.cache_pitch_augment:
+                torch.save(audio_shifted, audio_shifted_path)
             return audio_shifted
 
     def __getitem__(self, index):

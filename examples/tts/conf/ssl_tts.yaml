@@ -30,9 +30,9 @@ model:
   combined_loss: true
   pitch_augment: true
   augment_sim_alpha: 1.0
-  stop_gradient: false
-  augment_ctc: true
-  aug_loss_type: "mse"
+  stop_gradient: true
+  augment_ctc: false
+  aug_loss_type: "cosine"
 
   train_ds:
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/train_10.json"
@@ -42,20 +42,21 @@ model:
     batch_size_sv: 16
     shuffle: true
     num_workers_sv: 4
-    num_workers_content: 6
+    num_workers_content: 8
     pin_memory: false
     max_duration_content: 16.7
     min_duration_content: 8.0
     segment_max_duration: 2
     sup_data_path: "/home/shehzeenh/datasets/SupData/train"
     pitch_augment: ${model.pitch_augment}
+    cache_pitch_augment: True
 
   validation_ds:
     manifest_speaker_verification_fp: "/home/shehzeenh/datasets/speaker_verification_full/vox1/validation_10.json"
     manifest_content_fp: "/home/shehzeenh/datasets/All_LibriSpeech/dev_clean.json"
     sample_rate: ${model.sample_rate}
-    batch_size_content: 4 # you may increase batch_size if your memory allows
-    batch_size_sv: 8
+    batch_size_content: 8 # you may increase batch_size if your memory allows
+    batch_size_sv: 16
     shuffle: false
     num_workers_sv: 0
     num_workers_content: 0
@@ -66,6 +67,7 @@ model:
     segment_max_duration: 5
     sup_data_path: "/home/shehzeenh/datasets/SupData/val"
     pitch_augment: ${model.pitch_augment}
+    cache_pitch_augment: True
 
   # text_tokenizer:
   #   _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
@@ -173,7 +175,7 @@ trainer:
   # gradient_clip_val: 1.0
   precision: 32 # Should be set to 16 for O1 and O2 to enable the AMP.
   log_every_n_steps: 10  # Interval of logging.
-  progress_bar_refresh_rate: 10
+  # progress_bar_refresh_rate: 10
   resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
   check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
