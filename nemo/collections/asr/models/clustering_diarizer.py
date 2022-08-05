@@ -74,10 +74,10 @@ def get_available_model_names(class_name):
 
 class ClusteringDiarizer(Model, DiarizationMixin):
     """
-    Inference model Class for offline speaker diarization.
-    This class handles required functionality for diarization : Speech Activity Detection, Segmentation,
-    Extract Embeddings, Clustering, Resegmentation and Scoring.
-    All the parameters are passed through config file
+    Inference model Class for offline speaker diarization. 
+    This class handles required functionality for diarization : Speech Activity Detection, Segmentation, 
+    Extract Embeddings, Clustering, Resegmentation and Scoring. 
+    All the parameters are passed through config file 
     """
 
     def __init__(self, cfg: DictConfig):
@@ -106,6 +106,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
         # Clustering params
         self._cluster_params = self._diarizer_params.clustering.parameters
+
         self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     @classmethod
@@ -152,6 +153,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
                 model_path = "ecapa_tdnn"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
             self._speaker_model = EncDecSpeakerLabelModel.from_pretrained(model_name=model_path)
+
         self.multiscale_args_dict = parse_scale_configs(
             self._diarizer_params.speaker_embeddings.parameters.window_length_in_sec,
             self._diarizer_params.speaker_embeddings.parameters.shift_length_in_sec,
@@ -185,8 +187,8 @@ class ClusteringDiarizer(Model, DiarizationMixin):
 
     def _run_vad(self, manifest_file):
         """
-        Run voice activity detection.
-        Get log probability of voice activity detection and smoothes using the post processing parameters.
+        Run voice activity detection. 
+        Get log probability of voice activity detection and smoothes using the post processing parameters. 
         Using generated frame level predictions generated manifest file for later speaker embedding extraction.
         input:
         manifest_file (str) : Manifest file containing path to audio file and label as infer
@@ -327,7 +329,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
     def _extract_embeddings(self, manifest_file: str):
         """
         This method extracts speaker embeddings from segments passed through manifest_file
-        Optionally you may save the intermediate speaker embeddings for debugging or any use.
+        Optionally you may save the intermediate speaker embeddings for debugging or any use. 
         """
         logging.info("Extracting embeddings for Diarization")
         self._setup_spkr_test_data(manifest_file)
@@ -367,6 +369,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
             embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
             if not os.path.exists(embedding_dir):
                 os.makedirs(embedding_dir, exist_ok=True)
+
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
             self._embeddings_file = name + f'_embeddings.pkl'
@@ -470,6 +473,7 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         """
 
         # TODO: Why does this override the main save_to?
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
             spkr_model = os.path.join(tmpdir, _SPEAKER_MODEL)
