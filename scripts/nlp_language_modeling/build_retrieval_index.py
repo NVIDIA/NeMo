@@ -46,14 +46,48 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
     --tokenizer-library=sentencepiece \
     --tokenizer-model=tokenizer.model \
     --train_index_size=128000 \
+    --train_chunk_size=51200 \
+    --workers=48 \
     --devices=0,1,2,3 \
+    --percent=0.9 \
     --stage=0 \
-    --output_file=index_trained.sav
+    --output_file=index_learned.save
 ```
 
-stage-1: build partial indexes, each containing a fraction of the dataset. This can be done in parallel on several machines
+stage-1: build partial indexes, each containing a fraction of the dataset. This can be done in parallel on several machines. example,
 
-stage-2: merge the 4 indexes into one that is written directly to disk (needs not to fit in RAM)
+```python
+python scripts/nlp_language_modeling/build_retrieval_index.py \
+    --input_file=PATH_TO_DB_FILE \
+    --tokenizer-library=sentencepiece \
+    --tokenizer-model=tokenizer.model \
+    --train_index_size=128000 \
+    --train_chunk_size=51200 \
+    --workers=48 \
+    --devices=0,1,2,3 \
+    --percent=0.9 \
+    --stage=1 \
+    --shard_id=0 \
+    --total_shards=10 \
+    --learned_index=index_learned.save \
+    --output_file=index_shard2.save
+```
+
+stage-2: merge the shard indexes into one that is written directly to disk (needs not to fit in RAM), example
+
+```python
+python scripts/nlp_language_modeling/build_retrieval_index.py \
+    --input_file=PATH_TO_DB_FILE \
+    --tokenizer-library=sentencepiece \
+    --tokenizer-model=tokenizer.model \
+    --train_index_size=128000 \
+    --train_chunk_size=51200 \
+    --stage=2 \
+    --learned_index=index_learned.save \
+    --shard_index_input=index_shard \
+    --output_file=index_final.save
+```
+
 """
 import argparse
 import multiprocessing
