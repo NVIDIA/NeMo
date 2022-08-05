@@ -1,0 +1,38 @@
+name: gh-docs-build
+on:
+  push:
+  pull_request:
+    paths:
+      - "**"
+
+# Set the access for individual scopes
+permissions: write-all
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    container:
+      image: squidfunk/mkdocs-material
+
+    steps:
+      - uses: actions/checkout@v3
+        if: github.event.repository.fork == false
+        with:
+          ref: gh-pages-src
+
+      - name: "Correct github config"
+        if: github.event.repository.fork == false
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.${GITHUB_DOMAIN:-"github.com"}"
+          remote_repo="https://x-access-token:${GITHUB_TOKEN}@${GITHUB_DOMAIN:-"github.com"}/${GITHUB_REPOSITORY}.git"
+          echo "${remote_repo}"
+          git remote rm origin
+          git remote add origin "${remote_repo}"
+
+      - name: "Deploy Github Page"
+        continue-on-error: true
+        run:  mkdocs gh-deploy --force
+
