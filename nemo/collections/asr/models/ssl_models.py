@@ -403,14 +403,6 @@ class SpeechEncDecSelfSupervisedModel(ModelPT, ASRModuleMixin, AccessMixin):
                 outputs = self.decoder_ssl(encoder_output=encoded, targets=targets, target_lengths=target_lengths)
             else:
                 outputs = self.decoder_ssl(encoder_output=encoded)
-            if (
-                self.training
-                and hasattr(self.loss, "set_num_updates")
-                and hasattr(self, "trainer")
-                and self.trainer is not None
-            ):
-                # this is necessary for things such as temperature decay for quantizer in contrastive loss
-                self.loss.set_num_updates(self.trainer.global_step)
             if self.loss.needs_labels:
                 loss_value = self.loss(
                     spec_masks=spec_masks,
