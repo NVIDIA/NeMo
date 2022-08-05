@@ -6,7 +6,7 @@ EVAL_MODEL_NAME=${TRAIN_JOB_NAME}
 # can WE JUST EQUAL THIS TO THE RUN NAME which will be eval_gpt3_126m_tp2_pp2_lambda
 HYDRA_FULL_ERROR=1 python3 main.py \
     +ci_test=True \
-    evaluation=${RUN_MODEL}/${RUN_STAGE}_${TEST_TYPE} \
+    evaluation=${RUN_MODEL}/${RUN_STAGE}_${TEST_TASK} \
     run_data_preparation=False \
     run_training=False \
     run_conversion=False \
