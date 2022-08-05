@@ -99,49 +99,56 @@ model:
     shard_strategy: replicate
 
   validation_ds:
-    label_info_save_dir: ./label_info_valid
+    n_jobs: null
+    text_file: txts/text_corpa_valid.txt
+    labels_file: txts/labels_corpa_valid.txt
+    audio_file: txts/audio_valid.txt
     use_audio: true
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
-    use_tarred_dataset: true
+    use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: [ /mnt/sda/fisher_valid_tarred_30,/mnt/sda/libri_valid_tarred_30 ]
+    ds_item: [ ../fisher,../libri ]
 
     shuffle: false
     num_samples: -1
     max_seq_length: 512
+    tokens_in_batch: 3000
     # Number of jobs for tokenization and labels encoding. If 0, then multiprocessing is not used. If null,
     # number of jobs is equal to the number of CPU cores.
     # WARNING: can cause deadlocks with tokenizers, which use multiprocessing (e.g. SentencePiece)
 
-    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
+    #    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
 
     sample_rate: 16000
     num_workers: 8
-    shard_strategy: replicate
+  #    shard_strategy: replicate
 
   test_ds:
-    label_info_save_dir: ./label_info_test
+    n_jobs: null
+    text_file: txts/text_corpa_test.txt
+    labels_file: txts/labels_corpa_test.txt
+    audio_file: txts/audio_test.txt
     use_audio: true
     # if evaluation data is not in the model.dataset.data_dir as the training data or multiple datasets are used for
     # evaluation is needed, specify ds_item, otherwise by default data_dir is used
     # See `train_ds` section for more details on tarred dataset
-    use_tarred_dataset: true
+    use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: [ /mnt/sda/fisher_test_tarred_30,/mnt/sda/libri_test_tarred_30 ]
+    ds_item: [ ../fisher,../libri ]
 
     shuffle: false
-    num_samples: -1
-    max_seq_length: 512
-
+    #    num_samples: -1
+    #    max_seq_length: 512
+    tokens_in_batch: 3000
     # For more details see `train_ds` section.
-    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
+    #    tar_metadata_file: metadata.punctuation_capitalization.tokens3000.max_seq_length512.bert-base-uncased.json
     sample_rate: 16000
     num_workers: 8
-    shard_strategy: replicate
+  #    shard_strategy: replicate
 
   tokenizer:
     tokenizer_name: ${model.language_model.pretrained_model_name} # or sentencepiece
