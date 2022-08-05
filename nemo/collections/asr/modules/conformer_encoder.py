@@ -456,9 +456,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         self.use_pad_mask = on
         return mask
 
-    def setup_streaming_params(
-        self, max_context: int = 10000, chunk_size=None, left_chunks=None
-    ):
+    def setup_streaming_params(self, max_context: int = 10000, chunk_size=None, left_chunks=None):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.

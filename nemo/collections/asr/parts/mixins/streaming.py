@@ -73,7 +73,9 @@ class StreamingEncoder(ABC):
 
         if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
             if self.streaming_cfg.last_channel_cache_size > 0:
-                cache_last_channel_next = cache_last_channel_next[:, :, -self.streaming_cfg.last_channel_cache_size :, :]
+                cache_last_channel_next = cache_last_channel_next[
+                    :, :, -self.streaming_cfg.last_channel_cache_size :, :
+                ]
             else:
                 cache_last_channel_next = cache_last_channel_next[:, :, 0:0, :]
         if not keep_all_outputs:

@@ -1238,7 +1238,9 @@ class FramewiseStreamingAudioBuffer:
                 if self.buffer_idx == 0 and isinstance(self.sampling_frames, list):
                     cur_sampling_frames = self.sampling_frames[0]
                 else:
-                    cur_sampling_frames = self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    cur_sampling_frames = (
+                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    )
                 if audio_chunk.size(-1) < cur_sampling_frames:
                     return
 

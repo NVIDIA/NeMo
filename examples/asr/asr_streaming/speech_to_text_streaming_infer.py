@@ -139,7 +139,6 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
             with autocast():
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
                 # otherwise the last outputs would get dropped
-                #print(chunk_audio.size(), chunk_lengths)
 
                 with torch.no_grad():
                     (
@@ -206,9 +205,24 @@ def main():
         action="store_true",
         help="Whether to compare the output of the model with the offline mode.",
     )
-    parser.add_argument("--batch_size", type=int, default=32, help="The batch size to be used to perform streaming in batch mode with multiple streams")
-    parser.add_argument("--chunk_size", type=int, default=-1, help="The chunk_size to be used for models trained with full context and offline models")
-    parser.add_argument("--left_chunks", type=int, default=2, help="The number of left chunks to be used as left context via caching for offline models")
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=32,
+        help="The batch size to be used to perform streaming in batch mode with multiple streams",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=-1,
+        help="The chunk_size to be used for models trained with full context and offline models",
+    )
+    parser.add_argument(
+        "--left_chunks",
+        type=int,
+        default=2,
+        help="The number of left chunks to be used as left context via caching for offline models",
+    )
 
     parser.add_argument(
         "--online_normalization",
