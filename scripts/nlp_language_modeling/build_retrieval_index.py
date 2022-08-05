@@ -274,7 +274,11 @@ if __name__ == "__main__":
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
     args = parser.parse_args()
-    has_gpu = torch.cuda.is_available()
+
+    has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
+
+    if not hasattr(faiss, "index_gpu_to_cpu"):
+        logging.warning("faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md")
 
     if args.stage == 2:
         # combine shard index files into one
@@ -318,7 +322,7 @@ if __name__ == "__main__":
     )
     process.start()
 
-    if args.devices is None or not has_gpu:
+    if args.devices is None or not torch.cuda.is_available():
         device_list = None
     else:
         device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
