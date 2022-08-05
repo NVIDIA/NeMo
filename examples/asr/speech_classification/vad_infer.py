@@ -35,7 +35,7 @@ import os
 
 import torch
 
-from nemo.collections.asr.parts.utils.manifest_utils import write_rttm2manifest
+from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_frame_pred,
