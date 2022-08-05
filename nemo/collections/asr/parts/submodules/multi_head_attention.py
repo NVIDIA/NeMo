@@ -37,6 +37,8 @@ import math
 import torch
 import torch.nn as nn
 
+from nemo.collections.common.parts.training_utils import avoid_float16_autocast_context
+
 __all__ = [
     'RelPositionMultiHeadAttention',
     'RelPositionalEncoding',
@@ -52,9 +54,10 @@ class MultiHeadAttention(nn.Module):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate):
+    def __init__(self, n_head, n_feat, dropout_rate, max_cache_len=0):
         """Construct an MultiHeadedAttention object."""
         super(MultiHeadAttention, self).__init__()
+        self.cache_drop_size = None
         assert n_feat % n_head == 0
         # We assume d_v always equals d_k
         self.d_k = n_feat // n_head
@@ -65,6 +68,9 @@ class MultiHeadAttention(nn.Module):
         self.linear_v = nn.Linear(n_feat, n_feat)
         self.linear_out = nn.Linear(n_feat, n_feat)
         self.dropout = nn.Dropout(p=dropout_rate)
+
+        self._max_cache_len = max_cache_len
+        self._cache_id = None
 
     def forward_qkv(self, query, key, value):
         """Transforms query, key and value.
@@ -110,19 +116,47 @@ class MultiHeadAttention(nn.Module):
 
         return self.linear_out(x)  # (batch, time1, d_model)
 
-    def forward(self, query, key, value, mask, pos_emb=None):
+    def forward(self, query, key, value, mask, pos_emb=None, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention'.
         Args:
             query (torch.Tensor): (batch, time1, size)
             key (torch.Tensor): (batch, time2, size)
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
+
         returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        q, k, v = self.forward_qkv(query, key, value)
-        scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
-        return self.forward_attention(v, scores, mask)
+        key, value, query, cache_next = self.update_cache(
+            key=key, value=value, query=query, cache=cache, cache_next=cache_next
+        )
+
+        # temporary until we solve this more gracefully
+        with avoid_float16_autocast_context():
+            q, k, v = self.forward_qkv(query, key, value)
+            scores = torch.matmul(q, k.transpose(-2, -1)) / self.s_d_k
+            out = self.forward_attention(v, scores, mask)
+
+        return out
+
+    def update_cache(self, key, value, query, cache, cache_next):
+        if cache is not None:
+            q_length = query.size(1)
+            q_input = query
+            key = value = torch.cat((cache[self._cache_id], key), dim=1)
+
+        if cache_next is not None:
+            cache_next_length = cache_next.size(2)
+            q_keep_size = q_length - self.cache_drop_size
+
+            cache_next[self._cache_id, :, :-q_keep_size, :] = cache[
+                self._cache_id, :, -(cache_next_length - q_keep_size) :, :
+            ].clone()
+            cache_next[self._cache_id, :, -q_keep_size:, :] = q_input[:, :q_keep_size, :]
+
+        return key, value, query
 
 
 class RelPositionMultiHeadAttention(MultiHeadAttention):
@@ -134,9 +168,9 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         dropout_rate (float): dropout rate
     """
 
-    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v):
+    def __init__(self, n_head, n_feat, dropout_rate, pos_bias_u, pos_bias_v, max_cache_len=0):
         """Construct an RelPositionMultiHeadedAttention object."""
-        super().__init__(n_head, n_feat, dropout_rate)
+        super().__init__(n_head=n_head, n_feat=n_feat, dropout_rate=dropout_rate, max_cache_len=max_cache_len)
         # linear transformation for positional encoding
         self.linear_pos = nn.Linear(n_feat, n_feat, bias=False)
         # these two learnable biases are used in matrix c and matrix d
@@ -165,7 +199,7 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
         x = x[:, :, 1:].view(b, h, qlen, pos_len)  # (b, h, t1, t2)
         return x
 
-    def forward(self, query, key, value, mask, pos_emb):
+    def forward(self, query, key, value, mask, pos_emb, cache=None, cache_next=None):
         """Compute 'Scaled Dot Product Attention' with rel. positional encoding.
         Args:
             query (torch.Tensor): (batch, time1, size)
@@ -173,37 +207,44 @@ class RelPositionMultiHeadAttention(MultiHeadAttention):
             value(torch.Tensor): (batch, time2, size)
             mask (torch.Tensor): (batch, time1, time2)
             pos_emb (torch.Tensor) : (batch, time1, size)
+            cache (torch.Tensor) : (cache_nums, batch, time_cache, size)
+            cache_next (torch.Tensor) : (cache_nums, batch, time_cache_next, size)
         Returns:
             output (torch.Tensor): transformed `value` (batch, time1, d_model) weighted by the query dot key attention
         """
-        q, k, v = self.forward_qkv(query, key, value)
-        q = q.transpose(1, 2)  # (batch, time1, head, d_k)
+        key, value, query = self.update_cache(key=key, value=value, query=query, cache=cache, cache_next=cache_next)
 
-        n_batch_pos = pos_emb.size(0)
-        p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
-        p = p.transpose(1, 2)  # (batch, head, time1, d_k)
+        # temporary until we solve this more gracefully
+        with avoid_float16_autocast_context():
+            q, k, v = self.forward_qkv(query, key, value)
+            q = q.transpose(1, 2)  # (batch, time1, head, d_k)
 
-        # (batch, head, time1, d_k)
-        q_with_bias_u = (q + self.pos_bias_u).transpose(1, 2)
-        # (batch, head, time1, d_k)
-        q_with_bias_v = (q + self.pos_bias_v).transpose(1, 2)
+            n_batch_pos = pos_emb.size(0)
+            p = self.linear_pos(pos_emb).view(n_batch_pos, -1, self.h, self.d_k)
+            p = p.transpose(1, 2)  # (batch, head, time1, d_k)
 
-        # compute attention score
-        # first compute matrix a and matrix c
-        # as described in https://arxiv.org/abs/1901.02860 Section 3.3
-        # (batch, head, time1, time2)
-        matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
+            # (batch, head, time1, d_k)
+            q_with_bias_u = (q + self.pos_bias_u).transpose(1, 2)
+            # (batch, head, time1, d_k)
+            q_with_bias_v = (q + self.pos_bias_v).transpose(1, 2)
 
-        # compute matrix b and matrix d
-        # (batch, head, time1, time2)
-        matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
-        matrix_bd = self.rel_shift(matrix_bd)
-        # drops extra elements in the matrix_bd to match the matrix_ac's size
-        matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
+            # compute attention score
+            # first compute matrix a and matrix c
+            # as described in https://arxiv.org/abs/1901.02860 Section 3.3
+            # (batch, head, time1, time2)
+            matrix_ac = torch.matmul(q_with_bias_u, k.transpose(-2, -1))
 
-        scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+            # compute matrix b and matrix d
+            # (batch, head, time1, time2)
+            matrix_bd = torch.matmul(q_with_bias_v, p.transpose(-2, -1))
+            matrix_bd = self.rel_shift(matrix_bd)
+            # drops extra elements in the matrix_bd to match the matrix_ac's size
+            matrix_bd = matrix_bd[:, :, :, : matrix_ac.size(-1)]
 
-        return self.forward_attention(v, scores, mask)
+            scores = (matrix_ac + matrix_bd) / self.s_d_k  # (batch, head, time1, time2)
+            out = self.forward_attention(v, scores, mask)
+
+        return out
 
 
 class PositionalEncoding(torch.nn.Module):
@@ -289,10 +330,11 @@ class RelPositionalEncoding(PositionalEncoding):
         self.create_pe(positions=positions)
         self.center_pos = torch.tensor(self.pe.size(1) // 2 + 1, dtype=torch.int32, device=device)
 
-    def forward(self, x):
+    def forward(self, x, cache_len=0):
         """Compute positional encoding.
         Args:
             x (torch.Tensor): Input. Its shape is (batch, time, feature_size)
+            cache_len (int): the size of the cache which is used to shift positions
         Returns:
             x (torch.Tensor): Its shape is (batch, time, feature_size)
             pos_emb (torch.Tensor): Its shape is (1, time, feature_size)
@@ -304,8 +346,9 @@ class RelPositionalEncoding(PositionalEncoding):
         # center_pos would be the index of position 0
         # negative positions would be used for right and positive for left tokens
         # for input of length L, 2*L-1 positions are needed, positions from (L-1) to -(L-1)
-        start_pos = self.center_pos - x.size(1)
-        end_pos = self.center_pos + x.size(1) - 1
+        input_len = x.size(1) + cache_len
+        start_pos = self.center_pos - input_len
+        end_pos = self.center_pos + input_len - 1
         pos_emb = self.pe[:, start_pos:end_pos]
         if self.dropout_emb:
             pos_emb = self.dropout_emb(pos_emb)

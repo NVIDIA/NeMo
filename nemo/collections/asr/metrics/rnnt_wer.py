@@ -46,7 +46,8 @@ class AbstractRNNTDecoding(ABC):
 
             preserve_alignments: Bool flag which preserves the history of logprobs generated during
                 decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+                the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+                Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
                 In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
                 with the `return_hypotheses` flag set to True.
@@ -199,6 +200,7 @@ class AbstractRNNTDecoding(ABC):
             )
 
         elif self.cfg.strategy == 'maes':
+
             self.decoding = beam_decode.BeamRNNTInfer(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -384,7 +386,8 @@ class RNNTDecoding(AbstractRNNTDecoding):
 
             preserve_alignments: Bool flag which preserves the history of logprobs generated during
                 decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+                the non-null value for `logprobs` in it. Here, `alignments` is a List of List of
+                Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
                 In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
                 with the `return_hypotheses` flag set to True.
@@ -520,6 +523,8 @@ class RNNTWER(Metric):
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
+
+    full_state_update = True
 
     def __init__(
         self, decoding: RNNTDecoding, batch_dim_index=0, use_cer=False, log_prediction=True, dist_sync_on_step=False

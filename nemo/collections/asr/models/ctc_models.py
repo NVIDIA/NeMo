@@ -31,6 +31,7 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
+from nemo.core.classes.mixins import AccessMixin
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
@@ -539,14 +540,23 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoder_output = self.encoder(audio_signal=processed_signal, length=processed_signal_length,)
+        encoded = encoder_output[0]
+        encoded_len = encoder_output[1]
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
-
-        return log_probs, encoded_len, greedy_predictions
+        return (
+            log_probs,
+            encoded_len,
+            greedy_predictions,
+        )
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
         signal, signal_len, transcript, transcript_len = batch
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             log_probs, encoded_len, predictions = self.forward(
@@ -559,10 +569,17 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
         )
 
+        # Add auxiliary losses, if registered
+        loss_value = self.add_auxiliary_losses(loss_value)
+
+        # Reset access registry
+        if AccessMixin.is_access_enabled():
+            AccessMixin.reset_registry(self)
+
         tensorboard_logs = {
             'train_loss': loss_value,
             'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': self.trainer.global_step,
+            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
         }
 
         if hasattr(self, '_trainer') and self._trainer is not None:
@@ -593,7 +610,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             log_probs, encoded_len, predictions = self.forward(input_signal=signal, input_signal_length=signal_len)
 
         transcribed_texts, _ = self._wer.decoding.ctc_decoder_predictions_tensor(
-            predictions=log_probs, predictions_len=encoded_len, return_hypotheses=False,
+            decoder_outputs=log_probs, decoder_lengths=encoded_len, return_hypotheses=False,
         )
 
         sample_id = sample_id.cpu().detach().numpy()
@@ -616,6 +633,9 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         )
         wer, wer_num, wer_denom = self._wer.compute()
         self._wer.reset()
+
+        self.log_dict({'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32)})
+
         return {
             'val_loss': loss_value,
             'val_wer_num': wer_num,

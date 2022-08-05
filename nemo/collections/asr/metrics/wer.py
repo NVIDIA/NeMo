@@ -186,7 +186,9 @@ class AbstractCTCDecoding(ABC):
             Either a list of str which represent the CTC decoded strings per sample,
             or a list of Hypothesis objects containing additional information.
         """
-        decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
+
+        if isinstance(decoder_outputs, torch.Tensor):
+            decoder_outputs = move_dimension_to_the_front(decoder_outputs, self.batch_dim_index)
 
         with torch.inference_mode():
             # Resolve the forward step of the decoding strategy
@@ -523,6 +525,7 @@ class AbstractCTCDecoding(ABC):
         """
         word_offsets = []
         built_token = []
+        previous_token_index = 0
         # For every collapsed sub-word token
         for i, char in enumerate(hypothesis.text):
             # Compute the sub-word text representation, and the decoded text (stripped of sub-word markers).
@@ -538,14 +541,15 @@ class AbstractCTCDecoding(ABC):
                     word_offsets.append(
                         {
                             "word": decode_tokens_to_str(built_token),
-                            "start_offset": offsets[i]["start_offset"],
-                            "end_offset": offsets[i]["end_offset"],
+                            "start_offset": offsets[previous_token_index]["start_offset"],
+                            "end_offset": offsets[i]["start_offset"],
                         }
                     )
 
                 # Prepare list of new sub-word ids
                 built_token.clear()
                 built_token.append(char)
+                previous_token_index = i
             else:
                 # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
                 # Append to current sub-word list.
