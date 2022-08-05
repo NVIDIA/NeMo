@@ -877,7 +877,6 @@ class TestOptimizersSchedulers:
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
                 enable_progress_bar=False,
-                weights_summary=None,
             )
             max_steps = optim.lr_scheduler.compute_max_steps(
                 max_epochs, accumulate_grad_batches, limit_train_batches, devices, dataset_len, batch_size, drop_last,
@@ -953,7 +952,6 @@ class TestOptimizersSchedulers:
                 limit_train_batches=limit_train_batches,
                 enable_checkpointing=False,
                 enable_progress_bar=False,
-                weights_summary=None,
             )
             model = ExampleModel(batch_size, dataset_len, drop_last, max_steps)
             trainer.callbacks.append(SchedulerNoOpCallback())
