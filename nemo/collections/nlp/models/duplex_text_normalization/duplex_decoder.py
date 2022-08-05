@@ -15,10 +15,10 @@
 import json
 import os
 from collections import defaultdict
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
-from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
@@ -35,6 +35,14 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import ChannelType, LabelsType, LossType, MaskType, NeuralType
 from nemo.utils import logging
+
+try:
+    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
+
 
 __all__ = ['DuplexDecoderModel']
 
@@ -99,7 +107,11 @@ class DuplexDecoderModel(NLPModel):
         if hasattr(self.tokenizer, 'do_lower_case') and self.tokenizer.do_lower_case:
             input_case = 'lower_cased'
 
-        self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
+        if PYNINI_AVAILABLE:
+            self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
+        else:
+            self.cg_normalizer = None
+            logging.warning("`pynini` not installed, please install via nemo_text_processing/pynini_install.sh")
 
     @typecheck()
     def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
@@ -398,6 +410,23 @@ class DuplexDecoderModel(NLPModel):
             cfg=train_data_config, data_split="train"
         )
 
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
             logging.info(
@@ -408,6 +437,23 @@ class DuplexDecoderModel(NLPModel):
         self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
             cfg=val_data_config, data_split="val"
         )
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+            # We also need to check if limit_val_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "validation batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
         if val_data_config is None:

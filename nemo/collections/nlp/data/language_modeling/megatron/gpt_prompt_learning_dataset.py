@@ -42,21 +42,36 @@ class RequestDataSet(Dataset):
 class GPTPromptLearningDataset(Dataset):
     """
     The dataset class for prompt-tuning or p-tuning pretrained GPT models.
+    
+    Args:
+        dataset_paths (list[strings]): paths to .jsonl or .json files 
+        tokenizer (tokenizer): Tokenizer from frozen language model
+        virtual_prompt_source (Enum): Either VirtualPromptSource.PROMPT_TABLE or VirtualPromptSource.PROMPT_ENCODER
+        task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
+        pseudo_tokens (list[strings]): A list of virtual prompt token placeholders e.g [<prompt_1>, <prompt_2>, ...] up to max num virtual tokens
+        pad_token_id (int): ID of pad token from tokenizer
+        max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        add_bos (bool): Whether to add a beginning of sentence token to each data example
+        add_eos (bool): Whether to add an end of sentence token to each data example
+        for_train (bool): Whether you're creating a dataset for training or inference
+        tokens_to_generate (int): (inference only) Number of tokens to generate during inference
     """
 
     def __init__(
         self,
-        datasets,
+        dataset_paths,
         tokenizer,
         virtual_prompt_source: VirtualPromptSource,
         task_templates: dict,
         pseudo_tokens,
-        pad_token_id: str,
+        pad_token_id: int,
         max_seq_length: int,
         min_seq_length: int = 1,
         add_bos: bool = False,
         add_eos: bool = True,
         for_train: bool = True,
+        tokens_to_generate=None,
     ):
         self.tokenizer = tokenizer
         self.virtual_prompt_source = virtual_prompt_source
@@ -70,6 +85,9 @@ class GPTPromptLearningDataset(Dataset):
         self.add_eos = add_eos
         self.for_train = for_train
         self.examples = []
+
+        if not self.for_train:
+            self.tokens_to_generate = tokens_to_generate
 
         assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
@@ -87,7 +105,7 @@ class GPTPromptLearningDataset(Dataset):
                 dataset = open(path, 'r', encoding='utf-8')
                 self.load_data(dataset)
         else:
-            raise ValueError("Datasets must be a list of dicts or a list of filepath strings")
+            raise ValueError("Datasets must be a list of filepath strings")
 
     def load_data(self, dataset):
         """
@@ -203,7 +221,7 @@ class GPTPromptLearningDataset(Dataset):
             len(keys_not_in_template) == 0
         ), f"Examples in your dataset contain the fields: {keys_not_in_template} that are not in the task template."
 
-        # Check that answer field checks if answer_only_loss was set to True
+        # Answer field checks
         if answer_only_loss and self.for_train:
             assert answer_field is not None, "If answer_only_loss=True, an answer_field must be given"
             assert (
@@ -298,8 +316,6 @@ class GPTPromptLearningDataset(Dataset):
         return self.examples[idx]
 
     def collate_fn(self, batch):
-        """Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch"""
-        # Get max sequence length of batch
         taskname_ids, input_ids, answer_starts = zip(*batch)
 
         # Pad taskname_ids to be the same length for the prompt encoder
@@ -364,15 +380,15 @@ class GPTPromptLearningDataset(Dataset):
 
         return input_ids, batch_loss_masks
 
-    def get_all_examples(self, tokens_to_generate):
+    def inference_collate_fn(self, batch):
         """
         Used for loading inference data.
         """
-        task_id_nums, input_ids, answer_starts = zip(*self.examples)
+        task_id_nums, input_ids, answer_starts = zip(*batch)
         input_lengths = torch.cuda.LongTensor([len(inputs) for inputs in input_ids])
         task_id_nums = torch.cuda.LongTensor(task_id_nums)
         batch_max = input_lengths.max().item()
-        batch_max += tokens_to_generate
+        batch_max += self.tokens_to_generate
 
         input_ids, _ = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
         input_ids = input_ids.cuda()
