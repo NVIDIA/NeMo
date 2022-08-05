@@ -1,3 +1,13 @@
+run:
+  name: download_gpt3_pile
+  results_dir: ${base_results_dir}/${.name}
+  time_limit: "4:00:00"
+  dependency: "singleton"
+  node_array_size: 30
+  array: ${..file_numbers}
+  bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.
+
+
 dataset: pile
 download_the_pile: True  # Whether to download the pile dataset from the internet.
 the_pile_url: "https://mystic.the-eye.eu/public/AI/pile/train/"  # Source URL to download The Pile dataset from.
@@ -8,9 +18,5 @@ download_merges_url: null
 vocab_save_dir: ${data_dir}/bpe
 merges_save_dir: ${data_dir}/bpe
 tokenizer_type: BertWordPieceCase # T5 model uses BertWordPieceCase tokenizer
-log_dir: ${base_results_dir}/data_preparation/t5_pile_logs  # Where to save the logs
 rm_downloaded: True # Extract script will remove downloaded zst after extraction
 rm_extracted: True # Preprocess script will remove extracted files after preproc.
-nodes: 30
-time_limit: "4:00:00"
-bcp_preproc_npernode: 2 # 2 should be safe to use and x2 times faster.

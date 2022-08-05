@@ -8,6 +8,7 @@ import subprocess
 import sys
 import uuid
 import warnings
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union, Iterable
 
@@ -112,7 +113,8 @@ class InteractiveLauncher(Launcher):
         assert nodes == 1, "Multi-node is not supported in interactive mode."
 
         paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
-        stdout = str(paths.stdout).replace("_%j", "")
+        time_tag = datetime.datetime.now().strftime("%m%d_%H%M%S")
+        stdout = str(paths.stdout).replace("_%j", f"_{time_tag}")
 
         # now create
         lines = ["#!/bin/bash", ""]
@@ -145,6 +147,24 @@ class BCPLauncher(Launcher):
     ) -> None:
         super().__init__(folder, job_name)
         self.parameters = kwargs
+        self.parameters = self._convert_parameters(self.parameters)
+
+    @classmethod
+    def _equivalence_dict(cls):
+        return {
+            "name": "job_name",
+            "nodes": "nnodes",
+            "tasks_per_node": "npernode",
+            "ntasks_per_node": "npernode",
+            "bcp_launcher": "launcher",
+        }
+
+    def _convert_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        # replace type in some cases
+        eq_dict = self._equivalence_dict()
+        if eq_dict is not None:
+            params = {eq_dict.get(k, k): v for k, v in params.items()}
+        return params
 
     def _submit_command(
         self, submission_file_path: Path
@@ -160,11 +180,21 @@ class BCPLauncher(Launcher):
         return ["bash", str(submission_file_path)]
 
     def _make_submission_file_text(self, command_groups: List[List[str]]) -> str:
-        nodes = self.parameters.get("nodes", 1)
-        ntasks_per_node = self.parameters.get("ntasks_per_node", 1)
-
         paths = job_utils.JobPaths(folder=self.folder, job_name=self.job_name)
-        stdout = str(paths.stdout).replace("_%j", "")
+        time_tag = datetime.datetime.now().strftime("%m%d_%H%M%S")
+        stdout = str(paths.stdout).replace("_%j", f"_{time_tag}")
+
+        nnodes = self.parameters.get("nnodes", 1)
+        npernode = self.parameters.get("npernode", 1)
+        launcher = self.parameters.get("launcher")
+        launcher_flags = ""
+        if launcher is not None:
+            launcher_flags = f"--launcher {launcher}"
+        env_vars = self.parameters.get("env_vars")
+        env_flags = ""
+        if env_vars is not None:
+            env_flags = [f"--env '{k}={v}'" for k, v in env_vars.items()]
+            env_flags = " ".join(env_flags)
 
         # now create
         lines = ["#!/bin/bash", ""]
@@ -177,11 +207,11 @@ class BCPLauncher(Launcher):
         #TODO: Add prime_dns_connections
         for group_ind, command_group in enumerate(command_groups):
             command = ";\n  ".join(command_group)
-
             lines += [
                 "",
                 f"# command {group_ind + 1}",
-                f"bcprun -n {nodes} -p {ntasks_per_node} -c \"",
+                f"bcprun --nnodes {nnodes} --npernode {npernode} "
+                f"{launcher_flags} {env_flags} --cmd \"",
                 f"  {command} \" 2>&1 | tee -a {stdout}", # TODO: Avoid override
                 "",
             ]
@@ -318,7 +348,7 @@ def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
     zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
-    return {key: val for key, val in zipped if key not in {"command_groups", "folder", "map_count"}}
+    return {key: val for key, val in zipped if key not in {"command_groups", "folder"}}
 
 
 # pylint: disable=too-many-arguments,unused-argument, too-many-locals
@@ -347,10 +377,10 @@ def _make_sbatch_string(
     account: Optional[str] = None,
     gres: Optional[str] = None,
     exclusive: Optional[Union[bool, str]] = None,
+    array: Optional[str] = None,
     stderr_to_stdout: bool = False,
     container_image: Optional[str] = None,
     container_mounts: Optional[str] = None,
-    map_count: Optional[int] = None,  # used internally
     additional_parameters: Optional[Dict[str, Any]] = None,
     srun_args: Optional[Iterable[str]] = None,
 ) -> str:
@@ -369,8 +399,6 @@ def _make_sbatch_string(
         folder where print logs and error logs will be written
     setup: list
         a list of command to run in sbatch before running srun
-    map_count: int
-        number of simultaneous map/array jobs allowed
     additional_parameters: dict
         Forces any parameter to a given value in sbatch. This can be useful
         to add parameters which are not currently available in bignlp.
@@ -388,7 +416,6 @@ def _make_sbatch_string(
         "nonslurm",
         "folder",
         "command_groups",
-        "map_count",
         "additional_parameters",
         "setup",
         "stderr_to_stdout",
@@ -411,10 +438,8 @@ def _make_sbatch_string(
     paths = job_utils.JobPaths(folder=folder, job_name=job_name)
     stdout = str(paths.stdout)
     stderr = str(paths.stderr)
-    # Job arrays will write files in the form  <ARRAY_ID>_<ARRAY_TASK_ID>_<TASK_ID>
-    if map_count is not None:
-        assert isinstance(map_count, int) and map_count
-        parameters["array"] = f"0-{map_count - 1}%{map_count}"
+
+    if array is not None:
         stdout = stdout.replace("%j", "%A_%a")
         stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")

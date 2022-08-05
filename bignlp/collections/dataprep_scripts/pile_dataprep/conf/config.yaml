@@ -1,0 +1,11 @@
+data_config: download_gpt3_pile
+cluster_type: bcm
+bignlp_path: null
+data_dir: null
+the_pile_url: null
+file_numbers: null
+rm_downloaded: True
+rm_extracted: True
+tokenizer_type: null
+vocab_save_dir: null
+merges_save_dir: null
