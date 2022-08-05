@@ -95,22 +95,19 @@ class DialogueBERTDataset(DialogueDataset):
         self.all_subtokens_mask = features[4]
         self.all_slots = features[5]
 
-        # drive through dataset: label_of_other_type=0; assistant dataset: label_of_other_type=54
+        # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
         # use the train_slot_stats.tsv file majority class as the "Other" slot class
         file_path_for_stats = cfg.data_dir+"/train_slot_stats.tsv"
         
         with open(file_path_for_stats) as f:
-            label_of_other_type = int(f.read().strip().split('\n')[0].split()[0])
+            label_id_for_empty_slot = int(f.read().strip().split('\n')[0].split()[0])
 
-        bio_train_slots = [DialogueBERTDataset.get_bio_slot_label_from_sequence(t, label_of_other_type) for t in features[5]]
-        self.all_bio_slots = bio_train_slots
+        self.all_bio_slots = [DialogueBERTDataset.get_bio_slot_label_from_sequence(t, label_id_for_empty_slot) for t in self.all_slots]
 
-        bio_mention_labels = [DialogueBERTDataset.get_bio_mention_labels(t, bio_list) for t, bio_list in zip(features[5], bio_train_slots)]
-        self.bio_mention_labels = bio_mention_labels
+        self.bio_mention_labels = [DialogueBERTDataset.get_bio_mention_labels(t, bio_list) for t, bio_list in zip(self.all_slots, self.all_bio_slots)]
 
-        bio_mention_loss_mask = torch.FloatTensor(bio_mention_labels)
-        bio_mention_loss_mask = (bio_mention_loss_mask>0).type(torch.uint8).tolist()
-        self.mention_loss_mask = bio_mention_loss_mask
+        bio_mention_loss_mask = torch.FloatTensor(self.bio_mention_labels)
+        self.mention_loss_mask = (bio_mention_loss_mask>0).type(torch.uint8).tolist()
 
         self.all_intents = intents
 
@@ -164,51 +161,34 @@ class DialogueBERTDataset(DialogueDataset):
         )
 
     @staticmethod
-    def get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type):
+    def get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot):
         """
         Generate BIO slot label based on slot label
         Args:
             slot_label_list: list of int representing slot class of each word token (per sentence)
             Eg,
-            send me a  wake up alert at seven am tomorrow morning
-            54   54 54 0    0  54    54 46    46 12       48
-            [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
+            send me a  wake up alert at seven am tomorrow morning PAD
+            54   54 54 0    0  54    54 46    46 12       48      -1
+            [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48, -1] 
 
-            label_of_other_type: int lable of "Other" type in the slot_label_list
+            label_id_for_empty_slot: int lable of "Other" type in the slot_label_list
             For instance, in drive_through dataset "Other" is 0; in assistant dataset "Other" is 54
         Returns:
             bio_label_list: list of int representing BIO slot class of each word token
             eg,
-            send me a  wake up alert at seven am tomorrow morning
-            0    0  0  1    2  0     0  1     2  1        1
-            [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
+            send me a  wake up alert at seven am tomorrow morning PAD
+            0    0  0  1    2  0     0  1     2  1        1       0
+            [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1, 0]
         """
-
         bio_label_list = []
-        start = 0
-        idx = 0
-
-        while idx < len(slot_label_list):
-            label = slot_label_list[idx]
-            
-            if label not in [label_of_other_type, -1]:
-                while idx < len(slot_label_list) and label not in [label_of_other_type, -1]:
-                    if start == 0:
-                        start = 1
-                        bio_label_list.append(1)
-                    elif label != slot_label_list[idx-1]:
-                        start = 1
-                        bio_label_list.append(1)
-                    else:
-                        bio_label_list.append(2)
-                    idx += 1
-                    if idx < len(slot_label_list):
-                        label = slot_label_list[idx]
-                start = 0
-                idx -= 1
-            else:
+        for idx, slot_label in enumerate(slot_label_list):
+            if slot_label in [label_id_for_empty_slot, -1]:
                 bio_label_list.append(0)
-            idx += 1
+            elif idx > 0 and slot_label == slot_label_list[idx-1]:
+                bio_label_list.append(2)
+            else:
+                bio_label_list.append(1)
+
         return bio_label_list
 
     @staticmethod
@@ -246,9 +226,9 @@ class DialogueBERTDataset(DialogueDataset):
         """
 
         bio_train_slots=[]
-        for idx_ in range(len(slot_list)):
-            if bio_list[idx_]==1:
-                bio_train_slots.append(slot_list[idx_])
+        for idx in range(len(slot_list)):
+            if bio_list[idx]==1:
+                bio_train_slots.append(slot_list[idx])
         add_zero=len(slot_list)-len(bio_train_slots)
         
         bio_train_slots = bio_train_slots+[-1]*(add_zero)
