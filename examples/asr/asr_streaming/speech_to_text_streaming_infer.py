@@ -42,6 +42,27 @@ python speech_to_text_streaming_infer.py \
 
 You may drop the '--debug_mode' and '--compare_vs_offline' to speedup the streaming evaluation. If compare_vs_offline is not used, then significantly larger batch_size can be used.
 
+## Evaluate a model trained with full context for offline mode
+
+You may try the cache-aware streaming with a model trained with full context in offline mode.
+But the accuracy would not be very good with small chunks as there is inconsistency between how the model is trained and how the streaming inference is done.
+The accuracy of the model on the borders of chunks would not be very good.
+
+To use a model trained with full context, you need to pass the chunk_size argument. Also argument online_normalization should be enabled to simulate a realistic streaming.
+The following command would simulate cache-aware streaming on a pretrained model from NGC with chunk_size of 100 and 2 left chunks as left context.
+The chunk_size of 100 would be 100*4*10=4000ms for a model with 4x downsampling and 10ms shift in feature extraction.
+
+python speech_to_text_streaming_infer.py \
+    --asr_model=stt_en_conformer_ctc_large \
+    --chunk_size=100 \
+    --left_chunks=2 \
+    --online_normalization \
+    --manifest_file=manifest_file.json \
+    --batch_size=16 \
+    --compare_vs_offline \
+    --use_amp \
+    --debug_mode
+
 """
 
 
@@ -118,6 +139,8 @@ def perform_streaming(asr_model, streaming_buffer, compare_vs_offline=False, deb
             with autocast():
                 # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
                 # otherwise the last outputs would get dropped
+                #print(chunk_audio.size(), chunk_lengths)
+
                 with torch.no_grad():
                     (
                         pred_out_stream,
@@ -183,7 +206,10 @@ def main():
         action="store_true",
         help="Whether to compare the output of the model with the offline mode.",
     )
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=32, help="The batch size to be used to perform streaming in batch mode with multiple streams")
+    parser.add_argument("--chunk_size", type=int, default=-1, help="The chunk_size to be used for models trained with full context and offline models")
+    parser.add_argument("--left_chunks", type=int, default=2, help="The number of left chunks to be used as left context via caching for offline models")
+
     parser.add_argument(
         "--online_normalization",
         default=False,
@@ -237,6 +263,10 @@ def main():
     asr_model = asr_model.to(args.device)
     asr_model.eval()
 
+    # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
+    if args.chunk_size > 0:
+        asr_model.encoder.setup_streaming_params(chunk_size=args.chunk_size, left_chunks=args.left_chunks)
+
     # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
     # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
     # It is suggested to train the streaming models without any normalization in the input features.
@@ -282,7 +312,7 @@ def main():
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
-            print(f'Added sample to the buffer: {sample["audio_filepath"]}')
+            logging.info(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
             if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")

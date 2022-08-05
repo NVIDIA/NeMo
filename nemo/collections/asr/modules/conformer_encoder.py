@@ -457,14 +457,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
         return mask
 
     def setup_streaming_params(
-        self, max_context: int = 10000,
+        self, max_context: int = 10000, chunk_size=None, left_chunks=None
     ):
         """
             This function sets the needed values and parameters to perform streaming. The configuration would be stored in self.streaming_cfg.
             The streaming configuration is needed to simulate streaming inference.
         """
         streaming_cfg = FramewiseStreamingConfig()
-        if self.att_context_style == "chunked_limited":
+
+        if chunk_size is not None:
+            lookahead_steps = chunk_size - 1
+            streaming_cfg.cache_drop_size = 0
+        elif self.att_context_style == "chunked_limited":
             lookahead_steps = self.att_context_size[1]
             streaming_cfg.cache_drop_size = 0
         elif self.att_context_style == "regular":
@@ -480,9 +484,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable):
             streaming_cfg.cache_drop_size = cache_drop_size
             lookahead_steps = None
 
-        streaming_cfg.last_channel_cache_size = (
-            self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
-        )
+        if chunk_size is None:
+            streaming_cfg.last_channel_cache_size = (
+                self.att_context_size[0] if self.att_context_size[0] >= 0 else max_context
+            )
+        else:
+            if left_chunks is None:
+                raise ValueError("left_chunks can not be None when chunk_size is set.")
+            streaming_cfg.last_channel_cache_size = left_chunks * chunk_size
 
         if hasattr(self.pre_encode, "get_sampling_frames"):
             sampling_frames = self.pre_encode.get_sampling_frames()
