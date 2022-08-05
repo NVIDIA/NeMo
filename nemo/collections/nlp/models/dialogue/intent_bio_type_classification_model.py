@@ -17,6 +17,7 @@ import pickle
 from typing import Dict, List, Optional
 
 import torch
+from transformers import BertTokenizer, BertModel
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
@@ -65,6 +66,27 @@ class IntentBIOTypeClassificationModel(NLPModel):
             activation='relu',
             log_softmax=True,
         )
+
+        # Project mention or description embedding
+        self.project_mlp = MultiLayerPerceptron(
+            hidden_size=self.hidden_size,
+            num_classes=300,
+            num_layers=2,
+            activation='relu',
+            log_softmax=True,
+        )
+         
+        # Initialize slot description
+        self._get_slot_description(cfg.dataset.data_dir)
+
+    def _get_slot_description(self, data_dir):
+        """ Method read slot description file """
+        description_file_name = data_dir + "/description.slots.csv"
+        with open(description_file_name) as f:
+            descriptions = f.read().strip().split('\n')
+        # print(len(descriptions))
+        # print(descriptions)
+        self.slot_descriptions = descriptions
 
     def _set_defaults_data_desc(self, cfg):
         """
@@ -151,20 +173,9 @@ class IntentBIOTypeClassificationModel(NLPModel):
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
             self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
 
-        # self.total_loss = AggregatorLoss(
-        #     num_inputs=2, weights=[self.cfg.intent_loss_weight, 1.0 - self.cfg.intent_loss_weight]
-        # )
-
-        # doing some experiment
-        # self.total_loss = AggregatorLoss(
-        #     num_inputs=2, weights=[0.1, 0.9]
-        # )
-
-        total_weight_for_slot = 1.0 - self.cfg.intent_loss_weight
-        slot_loss_weight = total_weight_for_slot/2
-        bio_loss_weight = total_weight_for_slot/2
+        slot_loss_weight = 1 - self.cfg.intent_loss_weight - self.cfg.bio_slot_loss_weight
         self.total_loss = AggregatorLoss(
-            num_inputs=3, weights=[self.cfg.intent_loss_weight, slot_loss_weight, bio_loss_weight]
+            num_inputs=3, weights=[self.cfg.intent_loss_weight, slot_loss_weight, self.cfg.bio_slot_loss_weight]
         )
 
         # setup to track metrics
@@ -213,6 +224,31 @@ class IntentBIOTypeClassificationModel(NLPModel):
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
     
+    def get_description_embedding(self, one_description):
+        """
+        Generate one description's embedding
+
+        Args:
+            one_description: each slot description
+            eg. food type\tdrinks menu vegetarian main desserts sides
+        """
+
+        model = BertModel.from_pretrained("bert-base-uncased")
+
+        tokens_of_entity_label = one_description.split('\t')[0] # tokens of the entity label
+        entity_description = one_description.split('\t')[1] # entity description in DB
+
+        inputs = self.tokenizer.tokenizer(tokens_of_entity_label, 
+                        entity_description, 
+                        return_tensors="pt",
+                        max_length=128,
+                        truncation="only_second",
+                        padding="max_length",)
+        outputs = model(**inputs) # the actual input will be a little different 
+        last_hidden_states = outputs.last_hidden_state
+        
+        return last_hidden_states[:, 0]
+        
     @staticmethod
     def get_entity_embedding_from_hidden_states(mention_mask, hidden_states):
         '''
