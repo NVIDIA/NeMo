@@ -227,9 +227,6 @@ SampleGitCheck:
           echo "Created test file and pushed it"
           exit 0
         fi
-  rules:
-      when: always
-  allow_failure: false
 
 train.gpt3.126m_tp1_pp1_1node_100steps:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
