@@ -66,7 +66,7 @@ def get_uniq_id_with_dur(meta, deci=3):
     return uniq_id
 
 
-def audio_rttm_map(manifest, attatch_dur=False):
+def audio_rttm_map(manifest, attach_dur=False):
     """
     This function creates AUDIO_RTTM_MAP which is used by all diarization components to extract embeddings,
     cluster and unify time stamps

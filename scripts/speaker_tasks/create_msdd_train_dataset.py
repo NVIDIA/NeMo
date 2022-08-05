@@ -199,17 +199,16 @@ def write_truncated_subsegments(input_manifest_dict, _subsegment_dict, output_ma
  
 def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_folder, window, shift, step_count, deci):
     
-    if deci is None:
-        deci = 3
-
     if '.json' not in input_manifest_path:
         raise ValueError("input_manifest_path file should be .json file format")
     if output_manifest_path and '.json' not in output_manifest_path:
         raise ValueError("output_manifest_path file should be .json file format")
     elif not output_manifest_path:
-        output_manifest_path = rreplace(input_manifest_path, '.json', f'_{step_count}seg.json')
+        output_manifest_path = rreplace(input_manifest_path, '.json', f'.{step_count}seg.json')
     
-    if pairwise_rttm_output_folder:
+    if pairwise_rttm_output_folder is not None:
+        if not pairwise_rttm_output_folder.endswith('/'):
+            pairwise_rttm_output_folder = f"{pairwise_rttm_output_folder}/"
         org_audio_rttm_map = audio_rttm_map(input_manifest_path)
         input_manifest_dict, AUDIO_RTTM_MAP = split_into_pairwise_rttm(audio_rttm_map=org_audio_rttm_map, input_manifest_path=input_manifest_path, output_dir=pairwise_rttm_output_folder)
     else:
