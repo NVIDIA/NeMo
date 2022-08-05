@@ -54,13 +54,16 @@ class MegatronTokenLevelHead(MegatronModule):
         parallel_output: wether output logits being distributed or not.
     """
 
-    def __init__(self, mpu_vocab_size, parallel_output):
+    def __init__(self, mpu_vocab_size, parallel_output, bias=True):
         super(MegatronTokenLevelHead, self).__init__()
 
-        self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
-        self.bias.model_parallel = True
-        self.bias.partition_dim = 0
-        self.bias.stride = 1
+        if bias:
+            self.bias = torch.nn.Parameter(torch.zeros(mpu_vocab_size))
+            self.bias.model_parallel = True
+            self.bias.partition_dim = 0
+            self.bias.stride = 1
+        else:
+            self.bias = None
         self.parallel_output = parallel_output
 
     def forward(self, hidden_states, word_embeddings_weight):
@@ -102,6 +105,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         add_decoder=True,
         share_token_embeddings=True,
         share_decoder_tokens_head_embeddings=True,
+        tokens_head_bias=True,
     ):
         super(MegatronTokenLevelEncoderDecoderModule, self).__init__()
 
@@ -117,6 +121,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
         self.label_smoothing = label_smoothing
         self.share_token_embeddings = share_token_embeddings
         self.share_decoder_tokens_head_embeddings = share_decoder_tokens_head_embeddings
+        self.tokens_head_bias = tokens_head_bias
 
         encoder_kv_channels, decoder_kv_channels = self._validate_config()
 
@@ -163,6 +168,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=encoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=encoder_cfg.get('attention_dropout', 0.1),
+                ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=encoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=encoder_cfg.get('activations_checkpoint_method', None),
@@ -250,6 +256,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 use_cpu_initialization=use_cpu_initialization,
                 hidden_dropout=decoder_cfg.get('hidden_dropout', 0.1),
                 attention_dropout=decoder_cfg.get('attention_dropout', 0.1),
+                ffn_dropout=encoder_cfg.get('ffn_dropout', 0.0),
                 precision=precision,
                 fp32_residual_connection=decoder_cfg.get('fp32_residual_connection', False),
                 activations_checkpoint_method=decoder_cfg.get('activations_checkpoint_method', None),
@@ -286,12 +293,12 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
-                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output)
+                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias)
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,
                     output_size=vocab_size,
-                    bias=False,
+                    bias=tokens_head_bias,
                     gather_output=not self.parallel_output,
                     init_method=init_method_normal(decoder_cfg.init_method_std),
                     use_cpu_initialization=use_cpu_initialization,

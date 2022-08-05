@@ -171,6 +171,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # After the call below, self.cfg.encoder and self.cfg.decoder will be populated with the cfg.model configs from old checkpoints.
             self._populate_encoder_decoder_configs_for_backward_compatibility(self.cfg)
 
+            # NOTE: For old models there are two scenarios:
+            # 1. If we share decoder embeddings with the output layer, we would always set tokens_head_bias=True
+            # 2. If we do not share decoder embeddings with the output layer, we would always set tokens_head_bias=False
+            self.cfg.tokens_head_bias = True if self.cfg.share_decoder_tokens_head_embeddings else False # For models before separate encoder/decoder configs, tokens_head_bias was always True.
+
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
 
@@ -203,6 +208,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
             share_decoder_tokens_head_embeddings=self.cfg.get('share_decoder_tokens_head_embeddings', True),
+            tokens_head_bias=self.cfg.get('tokens_head_bias', True),
         )
         return model
 
