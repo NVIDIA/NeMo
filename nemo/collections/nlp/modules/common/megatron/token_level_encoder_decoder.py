@@ -414,7 +414,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                     enc_attn_mask=enc_attn_mask,
                     enc_layer_past=None,
                     enc_get_key_value=False,
-                    enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias
+                    enc_self_attention_relative_position_bias=encoder_self_attention_relative_position_bias,
                 )
             else:
                 enc_output = self.enc_dec_model.encoder_hidden_state
