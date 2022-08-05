@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -251,8 +251,6 @@ def create_segment_manifest(input_manifest_path, output_manifest_path, window, s
     min_subsegment_duration = 0.05
     step_count = int(step_count)
 
-    input_manifest_file = open(input_manifest_path, 'r').readlines()
-    input_manifest_file = sorted(input_manifest_file)
     AUDIO_RTTM_MAP = audio_rttm_map(input_manifest_path)
     segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
     # print(segments_manifest_file)
@@ -404,4 +402,3 @@ def write_text(output_path, target_ctm):
             word = tgt.split(' ')[4]
             outfile.write(word + ' ')
         outfile.write('\n')
-

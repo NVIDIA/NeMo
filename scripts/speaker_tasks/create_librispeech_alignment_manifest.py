@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import argparse
-import json
 import os
 import random
-import shutil
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
 
@@ -55,7 +53,6 @@ def main():
     target_manifest = []
     unaligned_path = os.path.join(base_alignment_path, "unaligned.txt")
     unaligned = get_unaligned_examples(unaligned_path, dataset)
-    num_unaligned = len(unaligned)
 
     # separate indices to manage source/destination manifest to handle missing alignments
     src_i = 0

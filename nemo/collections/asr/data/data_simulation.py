@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-import random
 import shutil
-import time
 import warnings
-from collections import Counter
 
 import numpy as np
 import pyroomacoustics as pra
 import soundfile as sf
 import torch
 from gpuRIR import att2t_SabineEstimator, beta_SabineEstimation, simulateRIR, t2n
-from omegaconf import OmegaConf
 from pyroomacoustics.directivities import CardioidFamily, DirectionVector, DirectivityPattern
 from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
@@ -53,7 +48,6 @@ class MultiSpeakerSimulator(object):
 
     def __init__(self, cfg):
         self._params = cfg
-        self._check_args()  # error check arguments
         # internal params
         try:
             self._manifest = read_manifest(self._params.data_simulator.manifest_path)
@@ -72,6 +66,7 @@ class MultiSpeakerSimulator(object):
         self.segment_manifest_filepath = None
         # variable speaker volume
         self._volume = None
+        self._check_args()  # error check arguments
 
     def _check_args(self):
         """
@@ -585,7 +580,6 @@ class MultiSpeakerSimulator(object):
         mean_silence_percent = self._params.data_simulator.session_params.mean_silence / (
             1 - self._params.data_simulator.session_params.overlap_prob
         )
-        orig_end = start + length
 
         # overlap
         if prev_speaker != speaker_turn and prev_speaker != None and np.random.uniform(0, 1) < overlap_prob:
@@ -1005,12 +999,14 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     RIR Augmented Multispeaker Audio Session Simulator.
     """
 
-    def _check_args(self):
+    def __init__(self, cfg):
+        super().init(cfg)
+        self._check_args_rir()
+
+    def _check_args_rir(self):
         """
         Checks YAML arguments to ensure they are within valid ranges
         """
-        # check base arguments
-        super()._check_args()
 
         if (
             self._params.data_simulator.rir_generation.toolkit != 'pyroomacoustics'
@@ -1150,7 +1146,8 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
         for pos in pos_src:
             room.add_source(pos)
 
-        orV_rcv = self._params.data_simulator.rir_generation.mic_config.orV_rcv
+        # currently only supports omnidirectional microphones
+        # orV_rcv = self._params.data_simulator.rir_generation.mic_config.orV_rcv
         mic_pattern = self._params.data_simulator.rir_generation.mic_config.mic_pattern
         if self._params.data_simulator.rir_generation.mic_config.mic_pattern == 'omni':
             mic_pattern = DirectivityPattern.OMNI
