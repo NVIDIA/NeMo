@@ -350,8 +350,9 @@ class TestEncDecRNNTModel:
         enc_len = torch.tensor([30], dtype=torch.int32)
 
         with torch.no_grad():
-            partial_hyp = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-            _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=[partial_hyp])
+            (partial_hyp) = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
+            partial_hyp = partial_hyp[0]
+            _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -421,8 +422,9 @@ class TestEncDecRNNTModel:
         enc_len = torch.tensor([30], dtype=torch.int32)
 
         with torch.no_grad():
-            partial_hyp = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
-            _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=[partial_hyp])
+            (partial_hyp) = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
+            partial_hyp = partial_hyp[0]
+            _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE, reason='RNNTLoss has not been compiled with appropriate numba version.',

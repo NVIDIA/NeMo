@@ -445,7 +445,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             (tuple): decoder states
                 [(B x C)]
         """
-        assert(0)
         state_list = []
         batch_list = []
         for sample_id in range(len(batch_states)):
