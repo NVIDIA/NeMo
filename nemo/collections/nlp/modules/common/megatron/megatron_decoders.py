@@ -76,6 +76,7 @@ def get_decoder_model(
     layer_type=None,
     chunk_size=64,
     layer_number_offset=0,  # this is use only for attention norm_factor scaling
+    megatron_legacy=False
 ):
     """Build language model and return along with the key to save."""
 
@@ -125,6 +126,7 @@ def get_decoder_model(
             transformer_block_type=transformer_block_type,
             headscale=headscale,
             parent_model_type=parent_model_type,
+            megatron_legacy=megatron_legacy
         )
     elif arch == "retro":
         decoder = MegatronRetrievalTransformerDecoderModule(
@@ -160,6 +162,7 @@ def get_decoder_model(
             parent_model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
+            megatron_legacy=megatron_legacy
         )
     else:
         raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")

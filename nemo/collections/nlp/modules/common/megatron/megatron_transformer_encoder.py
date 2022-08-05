@@ -72,6 +72,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
         transformer_block_type='pre_ln',
         headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
+        megatron_legacy=False
     ):
         super(MegatronTransformerEncoderModule, self).__init__()
 
@@ -129,6 +130,7 @@ class MegatronTransformerEncoderModule(MegatronModule):
             headscale=headscale,
             model_type=parent_model_type,
             gradient_accumulation_fusion=False,  # TODO: This has to be False for enc-dec models for now.
+            megatron_legacy=megatron_legacy
         )
         self._model_key = 'model'
 

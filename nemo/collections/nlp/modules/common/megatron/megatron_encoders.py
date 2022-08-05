@@ -78,6 +78,7 @@ def get_encoder_model(
     chunk_size=64,
     num_self_attention_per_cross_attention=1,
     layer_number_offset=0,  # this is use only for attention norm_factor scaling
+    megatron_legacy=False
 ):
     """Build language model and return along with the key to save."""
 
@@ -127,6 +128,7 @@ def get_encoder_model(
             transformer_block_type=transformer_block_type,
             headscale=headscale,
             parent_model_type=parent_model_type,
+            megatron_legacy=megatron_legacy
         )
     elif arch == "retro":
         encoder = MegatronRetrievalTransformerEncoderModule(
@@ -162,6 +164,7 @@ def get_encoder_model(
             parent_model_type=parent_model_type,
             chunk_size=chunk_size,
             layer_number_offset=layer_number_offset,
+            megatron_legacy=megatron_legacy
         )
     elif arch == "perceiver":
         encoder = MegatronPerceiverEncoderModule(
@@ -198,6 +201,7 @@ def get_encoder_model(
             parent_model_type=parent_model_type,
             hidden_steps=hidden_steps,
             num_self_attention_per_cross_attention=num_self_attention_per_cross_attention,
+            megatron_legacy=megatron_legacy
         )
     else:
         raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")

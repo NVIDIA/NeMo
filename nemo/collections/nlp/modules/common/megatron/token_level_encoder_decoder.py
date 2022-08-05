@@ -182,6 +182,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 headscale=encoder_cfg.get('headscale', False),
                 parent_model_type=ModelType.encoder_and_decoder,
                 num_self_attention_per_cross_attention=encoder_cfg.get('num_self_attention_per_cross_attention', 1),
+                megatron_legacy=encoder_cfg.get('megatron_legacy', False),
             )
 
         if add_decoder:
@@ -267,6 +268,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
                 transformer_block_type=decoder_cfg.get('transformer_block_type', 'pre_ln'),
                 headscale=decoder_cfg.get('headscale', False),
                 parent_model_type=ModelType.encoder_and_decoder,
+                megatron_legacy=decoder_cfg.get('megatron_legacy', False),
             )
 
         self.enc_dec_model = MegatronTransformerEncoderDecoderModule(
