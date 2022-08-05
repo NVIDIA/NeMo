@@ -177,7 +177,8 @@ release_perf:
           git clone ssh://git@gitlab-master.nvidia.com:12051/dl/JoC/bignlp-scripts.git
           cd bignlp-scripts
           git checkout -b $CI_PIPELINE_ID
-          git pull origin $CI_PIPELINE_ID
+          git branch -r | grep $CI_PIPELINE_ID
+          if [[ $? -eq 0 ]]; then git pull origin $CI_PIPELINE_ID; fi
           cp $RESULTS_DIR/*.json tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/
           git add tests/ci_tests/selene/pytest/$RUN_STAGE/${RUN_MODEL}_result_files/*
           git commit -m "Adding the result file for $RUN_NAME"
@@ -886,7 +887,7 @@ data_prep.gpt3.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: gpt3
     DATASET: pile
     TEST_LEVEL: L2
@@ -898,7 +899,7 @@ data_prep.t5.the_pile_prepare_shard00:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: t5
     DATASET: pile
     TEST_LEVEL: L2
@@ -910,7 +911,7 @@ data_prep.mt5.mc4_prepare_lang_mt:
   <<: *bignlp-LUNA-test-LAUNCHER-refactored
   variables:
     <<: [*VARS, *LUNA_VARS]
-    RUN_TASK: data_prep
+    RUN_STAGE: data_prep
     RUN_MODEL: mt5
     DATASET: mc4
     TEST_LEVEL: L2
