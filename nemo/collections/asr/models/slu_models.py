@@ -14,21 +14,20 @@
 # limitations under the License.
 
 import os
-from pathlib import Path
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.metrics.wer_bpe import WERBPE, CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig, SequenceGenerator, get_seq_mask
-from nemo.collections.common.losses import SmoothedCrossEntropyLoss
+from nemo.collections.asr.parts.utils.slu_utils import SequenceGenerator, SequenceGeneratorConfig, get_seq_mask
+from nemo.collections.common.losses import SmoothedNLLLoss
 from nemo.core.classes.common import PretrainedModelInfo, Serialization, typecheck
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging, model_utils
@@ -74,10 +73,10 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.cfg.classifier["num_classes"] = vocab_size
         self.classifier = Serialization.from_config_dict(self.cfg.classifier)
 
-        self.loss = SmoothedCrossEntropyLoss(label_smoothing=self.cfg.get("loss.label_smoothing", 0.0))
+        self.loss = SmoothedNLLLoss(label_smoothing=self.cfg.loss.label_smoothing)
 
-        self.searcher = SequenceGenerator(
-            cfg=cfg.searcher,
+        self.sequence_generator = SequenceGenerator(
+            cfg=self.cfg.sequence_generator,
             embedding=self.embedding,
             decoder=self.decoder,
             log_softmax=self.classifier,
@@ -127,9 +126,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             "greedy_predictions": NeuralType(('B', 'T'), LabelsType(), optional=True),
         }
 
-    def set_decoding_strategy(self, cfg: SearcherConfig):
-        cfg.max_sequence_length = self.searcher.generator.max_sequence_length
-        self.searcher = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
+    def set_decoding_strategy(self, cfg: SequenceGeneratorConfig):
+        cfg.max_sequence_length = self.sequence_generator.generator.max_seq_length
+        self.sequence_generator = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
 
     @typecheck()
     def forward(
@@ -185,7 +184,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
         if target_semantics is None:  # in inference-only mode
-            predictions = self.searcher(encoded, encoded_mask)
+            predictions = self.sequence_generator(encoded, encoded_mask)
             return None, None, predictions
 
         bos_semantics_tokens = target_semantics[:, :-1]
@@ -202,7 +201,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         predictions = log_probs.argmax(dim=-1, keepdim=False)
 
-        pred_len = self.searcher.get_seq_length(predictions)
+        pred_len = self.sequence_generator.get_seq_length(predictions)
         return log_probs, pred_len, predictions
 
     # PTL-specific methods
@@ -223,7 +222,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics_len = semantics_len - 1  # subtract 1 for eos tokens
 
         eos_semantics_mask = get_seq_mask(eos_semantics, eos_semantics_len)
-        loss_value = self.loss(log_probs, eos_semantics, eos_semantics_mask)
+        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, output_mask=eos_semantics_mask)
 
         tensorboard_logs = {'train_loss': loss_value.item()}
         if len(self._optimizer.param_groups) == 1:
@@ -273,8 +272,8 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         encoded = encoded.transpose(1, 2)  # BxDxT -> BxTxD
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
-        pred_tokens = self.searcher(encoded, encoded_mask)
-        predictions = self.searcher.decode_semantics_from_tokens(pred_tokens)
+        pred_tokens = self.sequence_generator(encoded, encoded_mask)
+        predictions = self.sequence_generator.decode_semantics_from_tokens(pred_tokens)
         return predictions
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -301,7 +300,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics = semantics[:, 1:]
         eos_semantics_len = semantics_len - 1  # subtract 1 for bos&eos tokens
 
-        loss_value = self.loss(log_probs=log_probs, targets=eos_semantics, lengths=eos_semantics_len)
+        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
 
         self._wer.update(
             predictions=predictions,

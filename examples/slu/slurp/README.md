@@ -9,9 +9,9 @@ We present the main results of our models, as well as that of some baselines, in
 |                                                  |                |                          | **Intent (Scenario_Action)** |               | **Entity** |        |              | **SLURP Metrics** |                     |
 |--------------------------------------------------|----------------|--------------------------|------------------------------|---------------|------------|--------|--------------|-------------------|---------------------|
 |                     **Model**                    | **Params (M)** |      **Pretrained**      |         **Accuracy**         | **Precision** | **Recall** | **F1** | **Precsion** |     **Recall**    |        **F1**       |
-| NeMo-Conformer-Large-Transformer (ASR finetuned) | 137            | NeMo ASR, finetuned on SLURP ASR         |                        91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
-| NeMo-Conformer-Large-Transformer                 | 137            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
-| NeMo-Conformer-Large-Transformer                 | 137            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
+| NeMo-Conformer-Large-Transformer (ASR finetuned) | 127            | NeMo ASR, finetuned on SLURP ASR         |                        91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
+| NeMo-Conformer-Large-Transformer                 | 127            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
+| NeMo-Conformer-Large-Transformer                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
 | NeMo-Conformer-XLarge-Transformer                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
 | SpeechBrain-HuBert-Large-AttnLSTM [6]            | ~96            | HuBERT-LL60kh            |          89.37 [paper 89.38] |         73.89 |      70.76 |  72.29 |        80.54 |             77.44 | 78.96 [paper 78.43] |
 | SpeechBrain-HuBert-base-AttnLSTM  [6]            | ~317           | HuBERT-LS960h            |                         87.7 |         70.47 |      67.58 |     69 |        77.65 |             74.78 | 76.19 [paper 75.06] |
@@ -108,12 +108,19 @@ The pretrained models and directions on how to use them are available at: xxxxxx
 
 ## Reference
 [1] [NVIDIA NeMo Toolkit](https://github.com/NVIDIA/NeMo)
+
 [2] [SLURP: A Spoken Language Understanding Resource Package](https://arxiv.org/abs/2011.13205)
+
 [3] [Conformer: Convolution-augmented Transformer for Speech Recognition](https://arxiv.org/abs/2005.08100)
+
 [4] [Attention Is All You Need](https://arxiv.org/abs/1706.03762?context=cs)
+
 [5] [Integration of Pre-trained Networks with Continuous Token Interface for End-to-End Spoken Language Understanding](https://arxiv.org/abs/2104.07253)
+
 [6] [SpeechBrain SLURP Recipe](https://github.com/speechbrain/speechbrain/tree/develop/recipes/SLURP)
+
 [7] [Libri-Light: A Benchmark for ASR with Limited or No Supervision](https://arxiv.org/abs/1912.07875)
+
 [8] [Librispeech: An ASR corpus based on public domain audio books](https://ieeexplore.ieee.org/document/7178964)
 
 ## Acknowledgments

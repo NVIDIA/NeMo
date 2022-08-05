@@ -108,7 +108,7 @@ model:
     dropout_att: 0.1 # The dropout for multi-headed attention modules
 
   embedding:
-    _target_: nemo.collections.nlp.modules.common.transformer.TransformerEmbedding
+    _target_: nemo.collections.common.parts.TransformerEmbedding
     vocab_size: -1
     hidden_size: ${model.encoder.d_model}
     max_sequence_length: 512
@@ -117,7 +117,7 @@ model:
     learn_positional_encodings: false
 
   decoder:
-    _target_: nemo.collections.nlp.modules.common.transformer.TransformerDecoder
+    _target_: nemo.collections.common.parts.TransformerDecoder
     num_layers: 3
     hidden_size: ${model.encoder.d_model}
     inner_size: 2048
@@ -137,7 +137,7 @@ model:
   loss:
     label_smoothing: 0.1
 
-  searcher:
+  sequence_generator:
     type: greedy  # choices=[greedy, topk, beam]
     max_sequence_length: ${model.embedding.max_sequence_length}
     temperature: 1.0  # for top-k sampling

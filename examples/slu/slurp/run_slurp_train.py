@@ -76,7 +76,7 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="./configs/", config_name="conformer_transformer_bpe")
+@hydra_runner(config_path="./configs/", config_name="conformer_large_transformer_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 

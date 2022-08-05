@@ -28,7 +28,7 @@ from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import SLUIntentSlotBPEModel
-from nemo.collections.asr.parts.utils.slu_utils import SearcherConfig
+from nemo.collections.asr.parts.utils.slu_utils import SequenceGeneratorConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -56,11 +56,11 @@ class InferenceConfig:
     # Recompute model transcription, even if the output folder exists with scores.
     overwrite_transcripts: bool = True
 
-    # Decoding strategy for RNNT models
-    searcher: SearcherConfig = SearcherConfig(type="greedy")
+    # Decoding strategy for semantic outputs
+    sequence_generator: SequenceGeneratorConfig = SequenceGeneratorConfig(type="greedy")
 
 
-def slurp_inference(asr_model, path2manifest: str, batch_size: int = 4, num_workers: int = 0,) -> List[str]:
+def slurp_inference(model, path2manifest: str, batch_size: int = 4, num_workers: int = 0,) -> List[str]:
 
     if num_workers is None:
         num_workers = min(batch_size, os.cpu_count() - 1)
@@ -68,16 +68,16 @@ def slurp_inference(asr_model, path2manifest: str, batch_size: int = 4, num_work
     # We will store transcriptions here
     hypotheses = []
     # Model's mode and device
-    mode = asr_model.training
-    device = next(asr_model.parameters()).device
-    dither_value = asr_model.preprocessor.featurizer.dither
-    pad_to_value = asr_model.preprocessor.featurizer.pad_to
+    mode = model.training
+    device = next(model.parameters()).device
+    dither_value = model.preprocessor.featurizer.dither
+    pad_to_value = model.preprocessor.featurizer.pad_to
 
     try:
-        asr_model.preprocessor.featurizer.dither = 0.0
-        asr_model.preprocessor.featurizer.pad_to = 0
+        model.preprocessor.featurizer.dither = 0.0
+        model.preprocessor.featurizer.pad_to = 0
         # Switch model to evaluation mode
-        asr_model.eval()
+        model.eval()
 
         logging_level = logging.get_verbosity()
         logging.set_verbosity(logging.WARNING)
@@ -88,9 +88,9 @@ def slurp_inference(asr_model, path2manifest: str, batch_size: int = 4, num_work
             'num_workers': num_workers,
         }
 
-        temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
+        temporary_datalayer = model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            predictions = asr_model.predict(
+            predictions = model.predict(
                 input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
             )
 
@@ -101,9 +101,9 @@ def slurp_inference(asr_model, path2manifest: str, batch_size: int = 4, num_work
 
     finally:
         # set mode back to its original value
-        asr_model.train(mode=mode)
-        asr_model.preprocessor.featurizer.dither = dither_value
-        asr_model.preprocessor.featurizer.pad_to = pad_to_value
+        model.train(mode=mode)
+        model.preprocessor.featurizer.dither = dither_value
+        model.preprocessor.featurizer.pad_to = pad_to_value
         logging.set_verbosity(logging_level)
     return hypotheses
 
@@ -138,20 +138,19 @@ def run_inference(cfg: InferenceConfig) -> InferenceConfig:
     if cfg.model_path is not None:
         # restore model from .nemo file path
         logging.info(f"Restoring model : {cfg.model_path}")
-        asr_model = SLUIntentSlotBPEModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
+        model = SLUIntentSlotBPEModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
-        asr_model = SLUIntentSlotBPEModel.from_pretrained(model_name=cfg.pretrained_name, map_location=map_location)
+        model = SLUIntentSlotBPEModel.from_pretrained(model_name=cfg.pretrained_name, map_location=map_location)
         model_name = cfg.pretrained_name
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
-    asr_model.set_trainer(trainer)
-    asr_model = asr_model.eval()
+    model.set_trainer(trainer)
+    model = model.eval()
 
     # Setup decoding strategy
-    if hasattr(asr_model, 'set_decoding_strategy'):
-        asr_model.set_decoding_strategy(cfg.searcher)
+    model.set_decoding_strategy(cfg.sequence_generator)
 
     # get audio filenames
     if cfg.audio_dir is not None:
@@ -210,7 +209,7 @@ def run_inference(cfg: InferenceConfig) -> InferenceConfig:
     with autocast():
         with torch.no_grad():
             predictions = slurp_inference(
-                asr_model=asr_model,
+                model=model,
                 path2manifest=cfg.dataset_manifest,
                 batch_size=cfg.batch_size,
                 num_workers=cfg.num_workers,

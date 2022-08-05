@@ -30,7 +30,7 @@ from nemo.core.classes.module import NeuralModule
 
 
 @dataclass
-class SearcherConfig:
+class SequenceGeneratorConfig:
     type: str = "greedy"  # choices=[greedy, topk, beam]
     max_sequence_length: int = 512
     max_delta_length: int = -1
