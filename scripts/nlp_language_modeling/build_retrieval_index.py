@@ -343,14 +343,25 @@ if __name__ == "__main__":
         quantizer = faiss.IndexFlatIP(emb.shape[1])
         # 8 specifies that each sub-vector is encoded as 8 bits
         index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
-        index = faiss.IndexIDMap(index)
         if has_gpu:
-            index = faiss.index_cpu_to_all_gpus(index)
+            co = faiss.GpuMultipleClonerOptions()
+            co.useFloat16 = True
+            co.usePrecomputed = False
+            co.shard = True
+            index = faiss.index_cpu_to_all_gpus(index,
+                                                co,
+                                                ngpu=len(device_list))
     elif args.stage == 1:
         # stage 1, need to load the index from file
         index = faiss.read_index(args.learned_index)
         if has_gpu:
-            index = faiss.index_cpu_to_all_gpus(index)
+            co = faiss.GpuMultipleClonerOptions()
+            co.useFloat16 = True
+            co.usePrecomputed = False
+            co.shard = True
+            index = faiss.index_cpu_to_all_gpus(index,
+                                                co,
+                                                ngpu=len(device_list))
     else:
         raise ValueError(f'should not come here')
 
@@ -366,6 +377,9 @@ if __name__ == "__main__":
         if has_gpu:
             index = faiss.index_gpu_to_cpu(index)
         faiss.write_index(index, args.output_file)
+        model.stop_multi_process_pool(pool)
+        process.join()
+        emb_process.join()
         sys.exit(0)
 
     while True:
@@ -373,9 +387,10 @@ if __name__ == "__main__":
         if emb is None:
             break
         beg = time.time()
-        index.add_with_ids(emb, np.arange(slice_id[0], slice_id[1]))
+        index.add_with_ids(emb, np.arange(slice_id[0], slice_id[1]).astype(np.int64))
         end = time.time()
         logging.info(f'add index {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+    model.stop_multi_process_pool(pool)
     process.join()
     emb_process.join()
     logging.info('Writing Index file')
@@ -383,4 +398,3 @@ if __name__ == "__main__":
         index = faiss.index_gpu_to_cpu(index)
     faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')
-    model.stop_multi_process_pool(pool)
