@@ -324,7 +324,10 @@ if __name__ == "__main__":
         emb, slice_id = get_emb()
         if emb is None:
             break
+        beg = time.time()
         index.add_with_ids(emb, np.arange(slice_id[0], slice_id[1]))
+        end = time.time()
+        logging.info(f'add index {slice_id[0]} - {slice_id[1]} takes {end-beg}')
     process.join()
     emb_process.join()
     logging.info('Writing Index file')
