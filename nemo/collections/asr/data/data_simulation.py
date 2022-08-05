@@ -1000,7 +1000,7 @@ class RIRMultiSpeakerSimulator(MultiSpeakerSimulator):
     """
 
     def __init__(self, cfg):
-        super().init(cfg)
+        super().__init__(cfg)
         self._check_args_rir()
 
     def _check_args_rir(self):
