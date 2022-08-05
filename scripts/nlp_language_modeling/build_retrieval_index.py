@@ -151,9 +151,14 @@ def process_sentence_chunks(
                 logging.info(f"sentence processing {start / total_chunks} is done")
                 threshold += 0.1
             slice_id = (start, min(start + chunk_size, total_chunks))
+            beg = time.time()
             id_slices = ds.get_chunk(slice(*slice_id), force_no_cont_ids=True)
+            end = time.time()
+            logging.info(f"load {chunk_size} chunks takes {end-beg}")
             start = min(start + chunk_size, total_chunks)
             sentences = p.map(tokenizer.ids_to_text, id_slices)
+            end2 = time.time()
+            logging.info(f"tokenize {chunk_size} chunks takes {end2-end}")
             queue.put((sentences, slice_id))
     queue.put((None, None))
 
