@@ -48,7 +48,11 @@ from nemo.collections.tts.torch.tts_data_types import (
     Voiced_mask,
     WithLens,
 )
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
+    BaseTokenizer,
+    EnglishCharsTokenizer,
+    EnglishPhonemesTokenizer,
+)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 

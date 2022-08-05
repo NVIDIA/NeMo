@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +24,7 @@ from typing import Optional
 import nltk
 import torch
 
-from nemo.collections.tts.torch.en_utils import english_word_tokenize
+from nemo.collections.common.tokenizers.text_to_speech.lang_utils import english_word_tokenize
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.get_rank import is_global_rank_zero
@@ -33,7 +34,8 @@ class BaseG2p(abc.ABC):
     def __init__(
         self, phoneme_dict=None, word_tokenize_func=lambda x: x, apply_to_oov_word=None,
     ):
-        """Abstract class for creating an arbitrary module to convert grapheme words to phoneme sequences (or leave unchanged or use apply_to_oov_word).
+        """Abstract class for creating an arbitrary module to convert grapheme words
+        to phoneme sequences, leave unchanged, or use apply_to_oov_word.
         Args:
             phoneme_dict: Arbitrary representation of dictionary (phoneme -> grapheme) for known words.
             word_tokenize_func: Function for tokenizing text to words.
@@ -139,7 +141,7 @@ class EnglishG2p(BaseG2p):
                 f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
                 "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
                 "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
-                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.07."
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.01."
             )
 
             return nltk.corpus.cmudict.dict()

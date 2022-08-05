@@ -30,7 +30,7 @@ tts_dataset:
     punct_post_process: True
 
   text_tokenizer:
-    _target_: nemo.collections.tts.torch.tts_tokenizers.EnglishPhonemesTokenizer
+    _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer
     punct: True
     stresses: True
     chars: True

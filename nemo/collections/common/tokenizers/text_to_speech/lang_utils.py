@@ -68,3 +68,7 @@ def english_word_tokenize(text):
             without_changes = True
             result.append((maybe_without_changes[1:-1].split(" "), without_changes))
     return result
+
+
+def german_text_preprocessing(text):
+    return text.lower()
