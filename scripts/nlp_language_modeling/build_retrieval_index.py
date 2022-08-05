@@ -58,6 +58,7 @@ stage-2: merge the 4 indexes into one that is written directly to disk (needs no
 import argparse
 import multiprocessing
 from multiprocessing import Pool
+import torch
 from typing import Union
 
 import faiss
@@ -239,6 +240,7 @@ if __name__ == "__main__":
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
     args = parser.parse_args()
+    has_gpu = torch.cuda.is_available()
 
     if args.stage == 2:
         # combine shard index files into one
@@ -282,7 +284,7 @@ if __name__ == "__main__":
     )
     process.start()
 
-    if args.devices is None:
+    if args.devices is None or not has_gpu:
         device_list = None
     else:
         device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
@@ -304,11 +306,13 @@ if __name__ == "__main__":
         # 8 specifies that each sub-vector is encoded as 8 bits
         index = faiss.IndexIVFPQ(quantizer, emb.shape[1], nlist, m, 8)
         index = faiss.IndexIDMap(index)
-        index = faiss.index_cpu_to_all_gpus(index)
+        if has_gpu:
+            index = faiss.index_cpu_to_all_gpus(index)
     elif args.stage == 1:
         # stage 1, need to load the index from file
         index = faiss.read_index(args.learned_index)
-        index = faiss.index_cpu_to_all_gpus(index)
+        if has_gpu:
+            index = faiss.index_cpu_to_all_gpus(index)
     else:
         raise ValueError(f'should not come here')
 
@@ -321,7 +325,8 @@ if __name__ == "__main__":
         end = time.time()
         logging.info(f'Trained Index takes {end-beg}')
         # just need to have the learned index
-        index = faiss.index_gpu_to_cpu(index)
+        if has_gpu:
+            index = faiss.index_gpu_to_cpu(index)
         faiss.write_index(index, args.output_file)
         sys.exit(0)
 
@@ -336,7 +341,8 @@ if __name__ == "__main__":
     process.join()
     emb_process.join()
     logging.info('Writing Index file')
-    index = faiss.index_gpu_to_cpu(index)
+    if has_gpu:
+        index = faiss.index_gpu_to_cpu(index)
     faiss.write_index(index, args.output_file)
     logging.info(f'Size of Index : {index.ntotal}')
     model.stop_multi_process_pool(pool)
