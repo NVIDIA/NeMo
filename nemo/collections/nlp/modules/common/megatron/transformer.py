@@ -125,6 +125,7 @@ class ParallelMLP(MegatronModule):
         persist_layer_norm=False,
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
+        dropout=0.0,
     ):
         super(ParallelMLP, self).__init__()
         self.activation = activation
@@ -134,6 +135,7 @@ class ParallelMLP(MegatronModule):
         self.layernorm_epsilon = layernorm_epsilon
         self.persist_layer_norm = persist_layer_norm
         self.activation = activation
+        self.dropout = dropout
 
         if activation not in ['gelu', 'geglu', 'reglu', 'swiglu']:
             raise ValueError(f"Activation {activation} not supported. Only gelu, geglu, reglu, swiglu are supported.")
@@ -263,6 +265,9 @@ class ParallelMLP(MegatronModule):
                 intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
+
+        if self.dropout > 0:
+            intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
 
         # Normformer normalization
         if self.transformer_block_type == 'normformer':
@@ -1056,6 +1061,7 @@ class ParallelTransformerLayer_(MegatronModule):
         onnx_safe=False,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
+        ffn_dropout=0.0,
         activation='gelu',
         megatron_legacy=False,
         bias=True,
@@ -1261,6 +1267,7 @@ class ParallelTransformerLayer_(MegatronModule):
             persist_layer_norm=persist_layer_norm,
             sequence_parallel=sequence_parallel,
             gradient_accumulation_fusion=gradient_accumulation_fusion,
+            dropout=ffn_dropout,
         )
 
     def _get_bias_droput_add_func(self, transformer_block_type='pre_ln', position_after='attention'):
@@ -1519,6 +1526,7 @@ class ParallelTransformer(MegatronModule):
         layernorm_epsilon=1e-5,
         hidden_dropout=0.1,
         attention_dropout=0.1,
+        ffn_dropout=0.0,
         use_cpu_initialization=False,
         bias_activation_fusion=True,
         bias_dropout_fusion=True,
@@ -1619,6 +1627,7 @@ class ParallelTransformer(MegatronModule):
                 layernorm_epsilon=layernorm_epsilon,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
+                ffn_dropout=ffn_dropout,
                 use_cpu_initialization=use_cpu_initialization,
                 bias_activation_fusion=bias_activation_fusion,
                 bias_dropout_fusion=bias_dropout_fusion,
