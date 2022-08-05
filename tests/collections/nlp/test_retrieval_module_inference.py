@@ -59,9 +59,7 @@ class TestRetrievalModuleInference:
         MB_SIZE = 4
         GB_SIZE = 8
         SEED = 1234
-        trainer = Trainer(
-            plugins=plugins, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None,
-        )
+        trainer = Trainer(plugins=plugins, devices=GPUS, accelerator='gpu', num_nodes=1, logger=None,)
 
         initialize_model_parallel_for_nemo(
             world_size=trainer.world_size,
