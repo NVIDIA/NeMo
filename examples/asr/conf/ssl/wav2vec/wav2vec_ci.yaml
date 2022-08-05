@@ -81,9 +81,7 @@ model:
   encoder:
     _target_: nemo.collections.asr.modules.wav2vec_modules.Wav2VecTransformerEncoder
     layer_drop: 0.05
-    projection: # To project preprocessor embeddings to desired dimension
-      input_dim: 512 # should be size of last convolution in preprocessor
-      output_dim: *emb_dim
+    input_dim: 512 # should be size of last convolution in preprocessor
     pos_embed: # Config for convolutional model that generates positional embeddings required for attention layer
       embedding_dim: *emb_dim
       conv_pos: 128 # Number of filters for convolutional positional embeddings

@@ -19,7 +19,7 @@
 
 import math
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import torch
 from omegaconf import DictConfig
@@ -101,6 +101,7 @@ class ConvFeatureEncoder(NeuralModule):
         conv_bias: bool = False,
         feature_grad_mult=1.0,
         normalize_audio=True,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -120,18 +121,20 @@ class ConvFeatureEncoder(NeuralModule):
             if is_layer_norm:
                 return nn.Sequential(
                     make_conv(),
+                    nn.Dropout(p=dropout),
                     nn.Sequential(TransposeLast(), nn.LayerNorm(dim, elementwise_affine=True), TransposeLast()),
                     nn.GELU(),
                 )
             elif is_group_norm:
-                return nn.Sequential(make_conv(), nn.GroupNorm(dim, dim, affine=True), nn.GELU(),)
+                return nn.Sequential(
+                    make_conv(), nn.Dropout(p=dropout), nn.GroupNorm(dim, dim, affine=True), nn.GELU()
+                )
             else:
-                return nn.Sequential(make_conv(), nn.GELU())
+                return nn.Sequential(make_conv(), nn.Dropout(p=dropout), nn.GELU())
 
         in_d = 1
         self.layer_cfg = conv_layers
         self.conv_layers = nn.ModuleList()
-        self.mode = extractor_mode
         for i, cl in enumerate(conv_layers):
             assert len(cl) == 3, "invalid conv definition: " + str(cl)
             dim, k, stride = cl["emb_dim"], cl["kernel_size"], cl["stride"]
@@ -142,8 +145,8 @@ class ConvFeatureEncoder(NeuralModule):
                     dim,
                     k,
                     stride,
-                    is_layer_norm=self.mode == "layer_norm",
-                    is_group_norm=self.mode == "group_norm" and i == 0,  # applied to first layer only
+                    is_layer_norm=extractor_mode == "layer_norm",
+                    is_group_norm=extractor_mode == "group_norm" and i == 0,  # applied to first layer only
                     conv_bias=conv_bias,
                 )
             )
@@ -182,9 +185,8 @@ class ConvFeatureEncoder(NeuralModule):
             with torch.no_grad():  # 0 indicates frozen feature encoder
                 processed_signal = self.apply_layers(processed_signal)
 
-        processed_signal = processed_signal.transpose(1, 2)  # B,T,C
-
         # Adding normalization for output
+        processed_signal = processed_signal.transpose(1, 2)  # B,T,C
         processed_signal = self.layer_norm(processed_signal)
         processed_signal = processed_signal.transpose(1, 2)  # B,C,T
 
@@ -236,18 +238,14 @@ class Wav2VecTransformerEncoder(TransformerEncoder):
 					hidden_act: Activation function for hidden layers
     """
 
-    def __init__(
-        self, pos_embed: DictConfig, transformer: DictConfig, projection: DictConfig = None, layer_drop: float = 0.0
-    ):
+    def __init__(self, pos_embed: DictConfig, transformer: DictConfig, input_dim, layer_drop: float = 0.0):
         super().__init__(**transformer)  # see nlp.collections
 
         # projection input for features
-        self.post_extract_proj = (  # To project feature encodings to transformer
-            nn.Linear(projection.input_dim, projection.output_dim) if projection else None
-        )
 
         # positional convolutional embeddings
         emb_dim = pos_embed.embedding_dim
+        self.post_extract_proj = nn.Linear(input_dim, emb_dim) if input_dim != emb_dim else None
         self.pos_conv = nn.Conv1d(
             emb_dim,
             emb_dim,
