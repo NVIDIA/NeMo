@@ -105,7 +105,7 @@ class StatelessNet(torch.nn.Module):
                 padded_state = torch.ones([B, self.context_size], dtype=torch.long, device=y.device) * self.blank_idx
                 padded_state[:,self.context_size - context_size:] = appended_y
             elif context_size == self.context_size + 1:
-                padded_state = appended_y[:,1:,:]
+                padded_state = appended_y[:,1:]
             else:
                 padded_state = appended_y
 
@@ -395,8 +395,23 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         return state
 
     def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
-        # This function is not needed.
-        assert(0)
+        """
+        Create batch of decoder states.
+
+       Args:
+           batch_states (list): batch of decoder states
+              ([B x (B, H)])
+
+           decoder_states (list of list): list of decoder states
+               [B x ([(1, C)]]
+
+       Returns:
+           batch_states (tuple): batch of decoder states
+               ([(B, C)])
+       """
+        new_state = torch.stack([s[0] for s in decoder_states])
+
+        return [new_state]
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
@@ -413,15 +428,34 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """
         if batch_states is not None:
             states = batch_states[0][idx]
-            ret = states
-            return [ret]
+            states = states.long()  # beam search code assumes the batch_states tensor is always of float type, so need conversion
+            return [states]
         else:
             return None
 
 
     def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
-        # This function is not needed.
+        """Concatenate a batch of decoder state to a packed state.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([(C)]
+
+        Returns:
+            (tuple): decoder states
+                [(B x C)]
+        """
         assert(0)
+        state_list = []
+        batch_list = []
+        for sample_id in range(len(batch_states)):
+            tensor = torch.stack(batch_states[sample_id])  # [1, H]
+            batch_list.append(tensor)
+
+        state_tensor = torch.cat(batch_list, 0)  # [B, H]
+        state_list.append(state_tensor)
+
+        return state_list
 
     def batch_copy_states(
         self,
@@ -474,7 +508,6 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             lm_token is a list of the final integer tokens of the hypotheses in the batch.
         """
         final_batch = len(hypotheses)
-        assert(0)
         if final_batch == 0:
             raise ValueError("No hypotheses was provided for the batch!")
 
@@ -501,7 +534,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
             # convert list of tokens to torch.Tensor, then reshape.
             tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.initialize_state(tokens.to(dtype=dtype))  # [L, B, H]
+            dec_states = self.initialize_state(tokens)  # [B, C]
             dec_states = self.batch_initialize_states(dec_states, [d_state for seq, d_state in process])
 
             y, dec_states = self.predict(
