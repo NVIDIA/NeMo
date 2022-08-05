@@ -76,7 +76,7 @@ class TestExportableClassifiers:
     def test_IntentSlotClassificationModel_export_to_onnx(self, dummy_data):
         with tempfile.TemporaryDirectory() as tmpdir:
             wget.download(
-                'https://raw.githubusercontent.com/NVIDIA/NeMo/main/examples/'
+                'https://raw.githubusercontent.com/NVIDIA/NeMo/upgrade_to_ptl_1.7/examples/'
                 'nlp/intent_slot_classification/conf/intent_slot_classification_config.yaml',
                 tmpdir,
             )
@@ -87,6 +87,7 @@ class TestExportableClassifiers:
             config.trainer.devices = 1
             config.trainer.precision = 32
             config.trainer.strategy = None
+            config.trainer.max_steps = -1
             trainer = pl.Trainer(**config.trainer)
             model = IntentSlotClassificationModel(config.model, trainer=trainer)
             filename = os.path.join(tmpdir, 'isc.onnx')
