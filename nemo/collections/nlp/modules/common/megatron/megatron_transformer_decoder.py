@@ -154,6 +154,8 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         get_key_value=False,
         dec_self_attention_relative_position_bias=None,
         dec_cross_attention_relative_position_bias=None,
+        set_inference_key_value_memory=False,
+        inference_max_sequence_len=None,
     ):
         # convert to Megatron mask
         dec_attn_mask_3d = build_attention_mask_3d(
@@ -173,6 +175,8 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
             enc_dec_attn_mask=attn_mask_postprocess(enc_dec_attn_mask_3d),
             self_attention_relative_position_bias=dec_self_attention_relative_position_bias,
             cross_attention_relative_position_bias=dec_cross_attention_relative_position_bias,
+            set_inference_key_value_memory=set_inference_key_value_memory,
+            inference_max_sequence_len=inference_max_sequence_len,
         )
 
         return dec_output
@@ -222,13 +226,13 @@ class MegatronTransformerDecoderModule(MegatronModule, Exportable, MegatronDecod
         sample = next(self.parameters())
 
         enc_output = torch.randint(
-            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=sample.device, dtype=torch.float32
+            low=-3, high=3, size=(seq_len, max_batch, max_dim), device=sample.device, dtype=torch.float32
         )
         enc_attn_mask = torch.tensor([[1 for _ in range(seq_len)]]).to(sample.device)
 
         dec_len = random.randint(1, 10)
         dec_input = torch.randint(
-            low=0, high=1000, size=(max_batch, dec_len, max_dim), device=sample.device, dtype=torch.float32
+            low=0, high=1000, size=(dec_len, max_batch, max_dim), device=sample.device, dtype=torch.float32
         )
         dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(sample.device)
 

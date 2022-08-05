@@ -802,7 +802,8 @@ class ParallelAttention(MegatronModule):
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
             # Adjust attention mask
-            attention_mask = attention_mask[..., start:end, :end]
+            if not (end == start + 1 and attention_mask.shape[1] == 1):
+                attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -1892,10 +1893,11 @@ class ParallelTransformer(MegatronModule):
 
         output = hidden_states
         # Final layer norm.
-        if self.post_process:
+        ##RM
+        # if self.post_process:
             # only apply the final_layernorm for pre-ln
-            if self.transformer_block_type != 'post_ln':
-                output = self.final_layernorm(hidden_states)
+        #    if self.transformer_block_type != 'post_ln':
+        #        output = self.final_layernorm(hidden_states)
 
         if get_key_value:
             output = [output, presents]
