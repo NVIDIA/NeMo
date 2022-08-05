@@ -38,19 +38,17 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     write_rttm2manifest,
     rttm_to_labels,
     labels_to_pyannote_object
-
-
 )
 
 """
-This scipt creates a manifest file for diarization training. If you specify `pairwise_rttm_output_path`, the script generates
+This scipt creates a manifest file for diarization training. If you specify `pairwise_rttm_output_folder`, the script generates
 two-speaker subset of the original RTTM files. For example, an RTTM file with 4 speakers will obtain 6 different pairs and
 6 RTTM files with two speakers in each RTTM file.
 
 Args:
    --input_manifest_path: input json file name
    --output_manifest_path: output manifest_file name
-   --pairwise_rttm_output_path: Save two-speaker pair RTTM files
+   --pairwise_rttm_output_folder: Save two-speaker pair RTTM files
    --window: Window length for segmentation
    --shift: Shift length for segmentation
    --deci: Rounding decimals
@@ -199,7 +197,11 @@ def write_truncated_subsegments(input_manifest_dict, _subsegment_dict, output_ma
                 json.dump(meta, output_manifest_fp)
                 output_manifest_fp.write("\n")
  
-def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_path, window, shift, step_count, deci):
+def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_folder, window, shift, step_count, deci):
+    
+    if deci is None:
+        deci = 3
+
     if '.json' not in input_manifest_path:
         raise ValueError("input_manifest_path file should be .json file format")
     if output_manifest_path and '.json' not in output_manifest_path:
@@ -207,9 +209,9 @@ def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_path, w
     elif not output_manifest_path:
         output_manifest_path = rreplace(input_manifest_path, '.json', f'_{step_count}seg.json')
     
-    if pairwise_rttm_output_path:
+    if pairwise_rttm_output_folder:
         org_audio_rttm_map = audio_rttm_map(input_manifest_path)
-        input_manifest_dict, AUDIO_RTTM_MAP = split_into_pairwise_rttm(audio_rttm_map=org_audio_rttm_map, input_manifest_path=input_manifest_path, output_dir=pairwise_rttm_output_path)
+        input_manifest_dict, AUDIO_RTTM_MAP = split_into_pairwise_rttm(audio_rttm_map=org_audio_rttm_map, input_manifest_path=input_manifest_path, output_dir=pairwise_rttm_output_folder)
     else:
         input_manifest_dict = get_input_manifest_dict(input_manifest_path)
         AUDIO_RTTM_MAP = audio_rttm_map(input_manifest_path)
@@ -240,7 +242,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input_manifest_path", help="input json file name", type=str, required=True)
     parser.add_argument("--output_manifest_path", help="output manifest_file name", type=str, default=None, required=False)
-    parser.add_argument("--pairwise_rttm_output_path", help="Save two-speaker pair RTTM files", type=str, default=None, required=False)
+    parser.add_argument("--pairwise_rttm_output_folder", help="Save two-speaker pair RTTM files", type=str, default=None, required=False)
     parser.add_argument("--window", help="Window length for segmentation", type=float, required=True)
     parser.add_argument("--shift", help="Shift length for segmentation", type=float, required=True)
     parser.add_argument("--deci", help="Rounding decimals", type=int, default=3, required=False)
@@ -253,7 +255,7 @@ if __name__ == "__main__":
 
     main(args.input_manifest_path, 
          args.output_manifest_path,
-         args.pairwise_rttm_output_path,
+         args.pairwise_rttm_output_folder,
          args.window,
          args.shift,
          args.step_count,
