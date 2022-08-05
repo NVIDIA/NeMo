@@ -61,7 +61,7 @@ Run `./scripts/train_slurp.sh` with the default config that uses SSL-pretrained 
 ```bash
 DATA_DIR="./slurp_data"
 CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
-    --config-path="./configs" --config-name=conformer_transformer_bpe \
+    --config-path="./configs" --config-name=conformer_transformer_large_bpe \
     model.train_ds.manifest_filepath="[${DATA_DIR}/train_slu.json,${DATA_DIR}/train_synthetic_slu.json]" \
     model.validation_ds.manifest_filepath="${DATA_DIR}/devel_slu.json" \
     model.test_ds.manifest_filepath="${DATA_DIR}/test_slu.json" \
@@ -102,8 +102,9 @@ To learn how to finetune the Conformer encoder on SLURP ASR, please refer to the
 - [Finetuning CTC models on other languages](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb)
 - [Self-Supervised pre-training for ASR](https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Self_Supervised_Pre_Training.ipynb)
 
+
 ## Pretrained Models
-The pretrained models and directions on how to use them are available at: xxxxxxxxxxxxx
+The pretrained models and directions on how to use them are available [here](https://ngc.nvidia.com/catalog/models/nvidia:nemo:slu_conformer_transformer_large_slurp).
 
 
 ## Reference

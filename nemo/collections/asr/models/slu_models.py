@@ -32,6 +32,8 @@ from nemo.core.classes.common import PretrainedModelInfo, Serialization, typeche
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging, model_utils
 
+__all__ = ["SLUIntentSlotBPEModel"]
+
 
 class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASRBPEMixin):
     def __init__(self, cfg: DictConfig, trainer=None):
@@ -525,8 +527,8 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         results = []
 
         model = PretrainedModelInfo(
-            pretrained_model_name="slu_slurp_conformer_transformer_large",
-            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:slu_slurp_conformer_transformer_large",
+            pretrained_model_name="slu_conformer_transformer_large_slurp",
+            description="For details about this model, please visit https://ngc.nvidia.com/catalog/models/nvidia:nemo:slu_conformer_transformer_large_slurp",
             location="",
         )
         results.append(model)

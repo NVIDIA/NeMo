@@ -17,4 +17,11 @@ from nemo.collections.common.parts.mlm_scorer import MLMScorer
 from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron
 from nemo.collections.common.parts.transformer_utils import *
 from nemo.collections.common.parts.utils import *
-from nemo.collections.nlp.modules.common.transformer import *
+from nemo.collections.nlp.modules.common.transformer import (
+    BeamSearchSequenceGenerator,
+    GreedySequenceGenerator,
+    TopKSequenceGenerator,
+    TransformerDecoder,
+    TransformerEmbedding,
+    TransformerEncoder,
+)
