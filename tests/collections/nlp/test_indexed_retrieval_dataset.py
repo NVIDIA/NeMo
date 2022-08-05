@@ -24,6 +24,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     KNNIndex,
     MMapRetrievalIndexedDataset,
     MMapRetrievalIndexedDatasetBuilder,
+    merge_knn_files,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
 
@@ -189,6 +190,8 @@ class TestRetrievalIndexFiles:
         data_file = '/tmp/test'
         index_file = data_file + '.idx'
         K = 8
+        index_files = [f'{data_file}_{i}.idx' for i in range(3)]
+        merged_file = '/tmp/merged.idx'
         try:
             with KNNIndex.writer(index_file, K) as w:
                 map_np0 = np.random.randint(0, 100, (50, K))
@@ -224,8 +227,34 @@ class TestRetrievalIndexFiles:
             assert f.chunk_start_id == 100
             assert f.chunk_end_id == f.len + 100
 
+            # test multiple sharding indices
+            inputs = []
+            start = 0
+            for i in range(3):
+                with KNNIndex.writer(index_files[i], K, offset=start) as w:
+                    map_np0 = np.random.randint(0, 100, (50, K))
+                    inputs.append(map_np0)
+                    w.write(map_np0)
+                    map_np1 = np.random.randint(0, 100, (50, K))
+                    inputs.append(map_np1)
+                    w.write(map_np1)
+                f = KNNIndex(index_files[i])
+                start += f.len
+            merge_knn_files(index_files, merged_file)
+            f = KNNIndex(merged_file)
+            input_array = np.vstack(inputs)
+            assert f.len == 100*3
+            for i in range(300):
+                assert np.array_equal(f.get_KNN_chunk_ids(i), input_array[i])
+            assert f.chunk_start_id == 0
+            assert f.chunk_end_id == f.len
+            assert f.K == K
+
         finally:
             os.remove(index_file)
+            for i in range(3):
+                os.remove(index_files[i])
+            os.remove(merged_file)
 
     @pytest.mark.unit
     @pytest.mark.skipif(not HAVE_APEX, reason="apex is not installed")

@@ -22,6 +22,7 @@ import shutil
 import struct
 from functools import lru_cache
 from itertools import accumulate
+from typing import List
 
 import numpy as np
 import torch
@@ -148,6 +149,30 @@ class KNNIndex(object):
         total number of chunks in the data
         """
         return self.len
+
+
+def merge_knn_files(knn_files: List[KNNIndex], output_file: str):
+    """
+    Merge a list of knn sharding index files into one.
+    """
+    files = [KNNIndex(f) for f in knn_files]
+    sorted_files = sorted(files, key=lambda x: x.chunk_start_id)
+    # consistence check
+    start_id = sorted_files[0].chunk_start_id
+    previous_end = sorted_files[0].chunk_end_id
+    K = sorted_files[0].K
+    for i in sorted_files[1:]:
+        assert previous_end == i.chunk_start_id
+        assert K == i.K
+        previous_end = i.chunk_end_id
+    with KNNIndex.writer(output_file, K, offset=start_id) as w:
+        for i in sorted_files:
+            w.write(i.knn_map)
+    f = KNNIndex(output_file)
+    logging.info(f'{output_file} index starts at {f.chunk_start_id}')
+    logging.info(f'{output_file} index ends at {f.chunk_end_id}')
+    logging.info(f'total len {f.len}')
+    assert f.len == (f.chunk_end_id - f.chunk_start_id)
 
 
 class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
