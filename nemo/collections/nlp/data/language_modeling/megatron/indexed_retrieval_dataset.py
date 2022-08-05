@@ -62,13 +62,19 @@ class KNNIndex(object):
     It contains a big matrix of shape (chunk_id, K neighbors)
     where `chunk_id` are all the chunk ids in the RETRO training data.
     E.g. the KNN neighbor chunk ids in the retrieval data for ith chunk id in the training data
-    is self.knn_map[i]
+    is self.knn_map[i].
+    This index can hold partial maps used for building sharding index.
     """
 
     _HDR_MAGIC = b'KNNRETM\x00\x00'
 
     @classmethod
-    def writer(cls, path, K):
+    def writer(cls, path, K, offset=0):
+        """
+        path: file path of the index
+        K: number of neighbors for a chunk
+        offset: start chunk_id for shard index
+        """
         class _Writer(object):
             def __enter__(self):
                 self._file = open(path, 'wb')
@@ -77,6 +83,8 @@ class KNNIndex(object):
                 self._file.write(struct.pack('<Q', K))
                 # reserve the space for total number of chunks
                 self._file.write(struct.pack('<Q', 0))
+                # chunk start
+                self._file.write(struct.pack('<Q', offset))
                 self.K = K
                 self.count_chunks = 0
                 self.path = path
@@ -100,7 +108,7 @@ class KNNIndex(object):
 
         return _Writer()
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=True):
         with open(path, 'rb') as stream:
             magic_test = stream.read(9)
             assert self._HDR_MAGIC == magic_test, 'Index file doesn\'t match expected format. '
@@ -109,6 +117,8 @@ class KNNIndex(object):
 
             self.K = struct.unpack('<Q', stream.read(8))[0]
             self.len = struct.unpack('<Q', stream.read(8))[0]
+            self.chunk_start_id = struct.unpack('<Q', stream.read(8))[0]
+            self.chunk_end_id = self.chunk_start_id + self.len
             offset = stream.tell()
 
         if not skip_warmup:
@@ -125,7 +135,9 @@ class KNNIndex(object):
     def get_KNN_chunk_ids(self, chunk_id):
         """ get the chunk address (in bytes) from chunk id
         """
-        return self.knn_map[chunk_id]
+        if not (self.chunk_start_id <= chunk_id < self.chunk_end_id):
+            raise ValueError(f'chunk {chunk_id} is out side the range [{self.chunk_start_id}, {self.chunk_end_id})')
+        return self.knn_map[chunk_id - self.chunk_start_id]
 
     def __del__(self):
         self._bin_buffer_mmap._mmap.close()
@@ -229,7 +241,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
 
             return _Writer()
 
-        def __init__(self, path, skip_warmup=False):
+        def __init__(self, path, skip_warmup=True):
             with open(path, 'rb') as stream:
                 magic_test = stream.read(9)
                 assert self._HDR_MAGIC == magic_test, (
@@ -328,7 +340,7 @@ class MMapRetrievalIndexedDataset(torch.utils.data.Dataset):
         def __len__(self):
             return self._len
 
-    def __init__(self, path, skip_warmup=False):
+    def __init__(self, path, skip_warmup=True):
         super().__init__()
 
         self._path = None

@@ -204,6 +204,26 @@ class TestRetrievalIndexFiles:
             assert np.array_equal(map_np1, f.knn_map[50:100])
             assert np.array_equal(map_np2, f.knn_map[100:])
             assert np.array_equal(f.get_KNN_chunk_ids(5), map_np0[5])
+            assert f.chunk_start_id == 0
+            assert f.chunk_end_id == f.len
+
+            with KNNIndex.writer(index_file, K, 100) as w:
+                map_np0 = np.random.randint(0, 100, (50, K))
+                w.write(map_np0)
+                map_np1 = np.random.randint(0, 100, (50, K))
+                w.write(map_np1)
+                map_np2 = np.random.randint(0, 100, (50, K))
+                w.write(map_np2)
+            f = KNNIndex(index_file)
+            assert f.K == K
+            assert f.len == map_np0.shape[0] + map_np1.shape[0] + map_np2.shape[0]
+            assert np.array_equal(map_np0, f.knn_map[:50])
+            assert np.array_equal(map_np1, f.knn_map[50:100])
+            assert np.array_equal(map_np2, f.knn_map[100:])
+            assert np.array_equal(f.get_KNN_chunk_ids(5 + 100), map_np0[5])
+            assert f.chunk_start_id == 100
+            assert f.chunk_end_id == f.len + 100
+
         finally:
             os.remove(index_file)
 
