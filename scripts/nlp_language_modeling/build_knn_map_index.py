@@ -53,6 +53,10 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
+import time
+import torch
+from multiprocessing import Pool
+
 
 QUEUE_SIZE = 30
 
@@ -61,37 +65,42 @@ emb_queue = multiprocessing.Queue(QUEUE_SIZE)
 
 
 @njit(parallel=True)
-def build_map(chunk_start, result, total_chunks):
+def build_map(chunk_start, result, total_chunks, start_id, end_id):
     """
-    build the map from chunk_id to document id
+    Build the map from chunk_id to a range of chunk ids that are from the same document.
+    The chunk_id is in range [start_id, end_id)
     """
     size = len(chunk_start)
     for i in prange(size):
         beg = chunk_start[i]
         end = chunk_start[i + 1] if i < size - 1 else total_chunks
-        result[beg:end] = i
+        if start_id < end and beg < end_id: # [beg, end) intersect  [start_id, end_id)
+            result[max(beg - start_id, 0):(end - start_id), 0] = beg
+            result[max(beg - start_id, 0):(end - start_id), 1] = end
 
 
 @njit(parallel=True)
-def dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start):
+def dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     """
     deduplicate the KNN who are from the same document as the data chunks.
-    chunk_id_to_doc_id_map is calculated by build_map function.
+    chunk_id_to_range is calculated by build_map function, which maps chunk_id - offset to range of ids of the same document
     I is original KNN search result from Faiss.
     chunk_id_start is the chunk_id offset.
+    offset is the map offset
 
     filtered KNN will be stored in the tmp_neighbors
     """
     for cid in prange(len(I)):
-        source_doc_id = chunk_id_to_doc_id_map[chunk_id_start + cid]
+        beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
         position = 0
         for target_chunk_id in I[cid]:
             if chunk_id_start + cid == target_chunk_id:
                 continue
-            target_doc_id = chunk_id_to_doc_id_map[target_chunk_id]
-            if source_doc_id != target_doc_id:
-                tmp_neighbors[cid, position] = target_chunk_id
-                position += 1
+            if beg <= target_chunk_id < end:
+                # target chunk is from the same document
+                continue
+            tmp_neighbors[cid, position] = target_chunk_id
+            position += 1
 
 
 def get_tokenizer(args):
@@ -110,19 +119,49 @@ def get_tokenizer(args):
     return tokenizer
 
 
-def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer, chunk_size: int):
+def calculate_start_end(total_chunks, total_shards, shard_id):
+    shard_size = total_chunks // total_shards
+    splits = list(range(0, total_chunks, shard_size))
+    if shard_id < total_shards - 1:
+        start = splits[shard_id]
+        total_chunks = splits[shard_id + 1]
+    elif shard_id == total_shards - 1:
+        start = splits[shard_id]
+        total_chunks = total_chunks
+    else:
+        raise ValueError(f'{shard_id} bigger than {total_shards}')
+    return start, total_chunks
+
+
+def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer,
+                            chunk_size: int, stage: int, workers: int,
+                            shard_id: int, total_shards: int):
     total_chunks = ds.chunks
     start = 0
     threshold = 0
-    while start < total_chunks:
-        if start / total_chunks > threshold:
-            logging.info(f"sentence processing {start / total_chunks} is done")
-            threshold += 0.1
-        id_slices = ds.get_chunk(slice(start, min(start + chunk_size, total_chunks)), force_no_cont_ids=True)
-        start = min(start + chunk_size, total_chunks)
-        sentences = [tokenizer.ids_to_text(ids) for ids in id_slices]
-        queue.put(sentences)
-    queue.put(None)
+
+    if stage == 1:
+        start, total_chunks = calculate_start_end(total_chunks=total_chunks,
+                                                  total_shards=total_shards,
+                                                  shard_id=shard_id)
+        logging.info(f'shard_id {shard_id}, create index from chunk {start} to {total_chunks}')
+
+    with Pool(workers) as p:
+        while start < total_chunks:
+            if start / total_chunks > threshold:
+                logging.info(f"sentence processing {start / total_chunks} is done")
+                threshold += 0.1
+            slice_id = (start, min(start + chunk_size, total_chunks))
+            beg = time.time()
+            id_slices = ds.get_chunk(slice(*slice_id), force_no_cont_ids=True)
+            end = time.time()
+            logging.info(f"load {chunk_size} chunks takes {end-beg}")
+            start = min(start + chunk_size, total_chunks)
+            sentences = p.map(tokenizer.ids_to_text, id_slices)
+            end2 = time.time()
+            logging.info(f"tokenize {chunk_size} chunks takes {end2-end}")
+            queue.put((sentences, slice_id))
+    queue.put((None, None))
 
 
 def get_sentence_chunks():
@@ -131,12 +170,12 @@ def get_sentence_chunks():
 
 def calculate_embedding(pool, batch_size):
     while True:
-        sentences = get_sentence_chunks()
+        sentences, slice_id = get_sentence_chunks()
         if sentences is None:
             break
         emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
-        emb_queue.put(emb)
-    emb_queue.put(None)
+        emb_queue.put((emb, slice_id))
+    emb_queue.put((None, None))
 
 
 def get_emb():
@@ -175,6 +214,8 @@ if __name__ == "__main__":
         default='bert-base-nli-mean-tokens',
         help='sentence transformer to load',
     )
+    parser.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
+    parser.add_argument('--total_shards', type=int, default=None, help='total number of knn index shards')
     parser.add_argument(
         '--output_file', type=str, required=True, help='Output KNN Map index file',
     )
@@ -201,18 +242,38 @@ if __name__ == "__main__":
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
+    group.add_argument('--stage', type=int, default=None, help='used for building the large knn index in multiple stages', choices=[1, 2])
+    group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
 
     args = parser.parse_args()
+
+    has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
+
+    if not hasattr(faiss, "index_gpu_to_cpu"):
+        logging.warning("faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md")
+
     model = SentenceTransformer(args.sentence_transformer_model)
     tokenizer = get_tokenizer(args)
     ds = MMapRetrievalIndexedDataset(args.input_file)
 
     index = faiss.read_index(args.faiss_index)
+    if has_gpu:
+        index = faiss.index_cpu_to_all_gpus(index)
 
-    process = multiprocessing.Process(target=process_sentence_chunks, args=(ds, tokenizer, args.process_chunk_size))
+    start = 0
+    total_chunks = ds.chunks
+    if args.stage == 1:
+        start, total_chunks = calculate_start_end(total_chunks=total_chunks,
+                                                  total_shards=args.total_shards,
+                                                  shard_id=args.shard_id)
+
+    process = multiprocessing.Process(
+        target=process_sentence_chunks,
+        args=(ds, tokenizer, args.process_chunk_size, args.stage, args.workers,
+              args.shard_id, args.total_shards))
     process.start()
 
-    if args.devices is None:
+    if args.devices is None or not torch.cuda.is_available():
         device_list = None
     else:
         device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
@@ -226,21 +287,21 @@ if __name__ == "__main__":
         neighbors = args.K_neighbors + args.dedup_margin
         # build the id maps for quick dedup
         id_start = np.array(ds._index._chunk_id_start)
-        chunk_id_to_doc_id_map = np.zeros((ds.chunks,), dtype=np.int64)
-        build_map(id_start, chunk_id_to_doc_id_map, ds.chunks)
+        chunk_id_to_doc_id_map = np.zeros((total_chunks - start, 2), dtype=np.int64)
+        build_map(id_start, chunk_id_to_doc_id_map, ds.chunks, start, total_chunks)
     else:
         neighbors = args.K_neighbors
 
-    chunk_id_start = 0
-    with KNNIndex.writer(args.output_file, args.K_neighbors) as w:
+    chunk_id_start = start
+    with KNNIndex.writer(args.output_file, args.K_neighbors, offset=start) as w:
         while True:
-            emb = get_emb()
+            emb, slice_id = get_emb()
             if emb is None:
                 break
             D, I = index.search(emb, neighbors)
             if ds._index.retrieval_db and args.remove_duplicate:
                 tmp_neighbors = np.ones_like(I) * -1
-                dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start)
+                dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start, start)
                 I = tmp_neighbors[:, : args.K_neighbors]
                 chunk_id_start += len(I)
             w.write(I)
