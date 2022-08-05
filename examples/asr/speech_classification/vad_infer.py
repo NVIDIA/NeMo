@@ -13,15 +13,15 @@
 # limitations under the License.
 
 """
-During inference, we perform frame-level prediction by two approaches: 
+During inference, we perform frame-level prediction by two approaches:
     1) shift the window of length window_length_in_sec (e.g. 0.63s) by shift_length_in_sec (e.g. 10ms) to generate the frame and use the prediction of the window to represent the label for the frame;
        [this script demonstrate how to do this approach]
-    2) generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments. 
+    2) generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
        [get frame level prediction by this script and use vad_overlap_posterior.py in NeMo/scripts/voice_activity_detection
-       One can also find posterior about converting frame level prediction 
+       One can also find posterior about converting frame level prediction
        to speech/no-speech segment in start and end times format in that script.]
-       
-       Image https://raw.githubusercontent.com/NVIDIA/NeMo/main/tutorials/asr/images/vad_post_overlap_diagram.png 
+
+       Image https://raw.githubusercontent.com/NVIDIA/NeMo/main/tutorials/asr/images/vad_post_overlap_diagram.png
        will help you understand this method.
 
 This script will also help you perform postprocessing and generate speech segments if needed
@@ -35,7 +35,7 @@ import os
 
 import torch
 
-from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
+from nemo.collections.asr.parts.utils.manifest_utils import write_rttm2manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
     generate_overlap_vad_seq,
     generate_vad_frame_pred,
@@ -122,9 +122,10 @@ def main(cfg):
     logging.info(
         f"Finish generating VAD frame level prediction with window_length_in_sec={cfg.vad.parameters.window_length_in_sec} and shift_length_in_sec={cfg.vad.parameters.shift_length_in_sec}"
     )
+    frame_length_in_sec = cfg.vad.parameters.shift_length_in_sec
 
     # overlap smoothing filter
-    if cfg.gen_overlap_seq:
+    if cfg.vad.parameters.smoothing:
         # Generate predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
         # smoothing_method would be either in majority vote (median) or average (mean)
         logging.info("Generating predictions with overlapping input segments")
@@ -141,6 +142,7 @@ def main(cfg):
             f"Finish generating predictions with overlapping input segments with smoothing_method={cfg.vad.parameters.smoothing} and overlap={cfg.vad.parameters.overlap}"
         )
         pred_dir = smoothing_pred_dir
+        frame_length_in_sec = 0.01
 
     # postprocessing and generate speech segments
     if cfg.gen_seg_table:
@@ -148,7 +150,7 @@ def main(cfg):
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=pred_dir,
             postprocessing_params=cfg.vad.parameters.postprocessing,
-            shift_length_in_sec=cfg.vad.parameters.shift_length_in_sec,
+            frame_length_in_sec=frame_length_in_sec,
             num_workers=cfg.num_workers,
             out_dir=cfg.table_out_dir,
         )

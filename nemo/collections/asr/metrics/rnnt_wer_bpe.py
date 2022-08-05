@@ -21,8 +21,6 @@ from torchmetrics import Metric
 
 from nemo.collections.asr.metrics.rnnt_wer import AbstractRNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import move_dimension_to_the_front
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
@@ -46,7 +44,8 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
             preserve_alignments: Bool flag which preserves the history of logprobs generated during
                 decoding (sample / batched). When set to true, the Hypothesis will contain
-                the non-null value for `logprobs` in it. Here, `logprobs` is a List of torch.Tensors.
+                the non-null value for `alignments` in it. Here, `alignments` is a List of List of
+                Tuple(Tensor (of length V + 1), Tensor(scalar, label after argmax)).
 
                 In order to obtain this hypothesis, please utilize `rnnt_decoder_predictions_tensor` function
                 with the `return_hypotheses` flag set to True.
@@ -182,6 +181,8 @@ class RNNTBPEWER(Metric):
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
+
+    full_state_update = True
 
     def __init__(
         self,

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import warnings
 from math import ceil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -467,6 +468,24 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             train_data_config = self._cfg.train_ds
 
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, train=True)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
         self.punct_label_ids = self._train_dl.dataset.punct_label_ids.copy()
         self.capit_label_ids = self._train_dl.dataset.capit_label_ids.copy()
         self.label_ids_are_set = True
@@ -539,6 +558,24 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
             val_data_config = self._cfg.validation_ds
 
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, train=False)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+            # We also need to check if limit_val_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "validation batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
         loss_kw, punct_kw, capit_kw = self._get_eval_metrics_kwargs()
         self.metrics['val']['loss'].append(GlobalAverageLossMetric(**loss_kw))
         self.metrics['val']['punct_class_report'].append(ClassificationReport(**punct_kw))
@@ -740,6 +777,7 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 world_size=self.world_size,
                 global_rank=self.global_rank,
                 shuffle_n=cfg.tar_shuffle_n,
+                shard_strategy=cfg.shard_strategy,
                 label_info_save_dir=cfg.label_info_save_dir,
             )
             dataset.check_for_label_consistency_with_model_config(
@@ -770,6 +808,46 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                     'punct_label_vocab_file': punct_label_vocab_file,
                     'capit_label_vocab_file': capit_label_vocab_file,
                 }
+            if train:
+                number_of_batches_is_multiple_of = 1
+                if self._trainer is None:
+                    warnings.warn(
+                        'A model attribute `trainer` is not set before training dataset setting. If training is '
+                        'resumed from checkpoint, then current epoch data loading can be distorted: some batches '
+                        'may be processed several times and some can be not processed at all. `trainer.current_epoch`'
+                        ' is used as random seed for shuffling batches. Now 0 will be used. If the '
+                        'checkpoint was created not during initial epoch a shuffling of the dataset will '
+                        'be different. You may try use `exp_manager()` function and '
+                        '`PunctuationCapitalizationModel.set_trainer()` method before '
+                        '`PunctuationCapitalizationModel.setup_training_data()` method.'
+                    )
+                    batch_shuffling_random_seed = 0
+                else:
+                    batch_shuffling_random_seed = self._trainer.current_epoch
+            else:
+                batch_shuffling_random_seed = 0
+                if self._trainer is None:
+                    warnings.warn(
+                        'A model attribute `trainer` is not set before test or validation dataset setting. If more '
+                        'than 1 GPU is used for testing, then some examples may be tested several times because '
+                        'number of batches may be not evenly divisible by number of processes. This leads to '
+                        'distortion of metrics. See more in description of `number_of_batches_is_multiple_of` '
+                        'parameter of class `BertPunctuationCapitalizationDataset` initializer and '
+                        'https://pytorch.org/docs/stable/data.html#multi-process-data-loading. You may try to use '
+                        '`PunctuationCapitalizationModel.set_trainer()` method before '
+                        '`PunctuationCapitalizationModel.setup_validation_data()` and '
+                        '`PunctuationCapitalizationModel.setup_test_data()` methods.'
+                    )
+                    number_of_batches_is_multiple_of = 1
+                else:
+                    number_of_batches_is_multiple_of = self._trainer.num_nodes * self._trainer.num_devices
+            if cfg.cache_dir is None:
+                cache_dir = cfg.cache_dir
+            else:
+                # If pickled features are saved `cache_dir` not in the same directory with original data files, then
+                # a full path to data directory have to be appended to `cache_dir`. This is done to avoid collisions
+                # cache for different datasets is save to same `cache_dir`.
+                cache_dir = Path(cfg.cache_dir).joinpath('fsroot', *text_file.expanduser().resolve().parts[1:-1])
             dataset = BertPunctuationCapitalizationDataset(
                 tokenizer=self.tokenizer,
                 text_file=text_file,
@@ -783,11 +861,11 @@ class PunctuationCapitalizationModel(NLPModel, Exportable):
                 num_samples=cfg.num_samples,
                 tokens_in_batch=cfg.tokens_in_batch,
                 n_jobs=cfg.n_jobs,
-                number_of_batches_is_multiple_of=1 if train else self.trainer.num_nodes * self.trainer.num_devices,
-                batch_shuffling_random_seed=self.trainer.global_step if train else 42,
+                number_of_batches_is_multiple_of=number_of_batches_is_multiple_of,
+                batch_shuffling_random_seed=batch_shuffling_random_seed,
                 verbose=cfg.verbose,
                 get_label_frequencies=cfg.get_label_frequences,
-                cache_dir=cfg.cache_dir,
+                cache_dir=cache_dir,
                 label_info_save_dir=cfg.label_info_save_dir,
             )
         if cfg.shuffle and cfg.use_tarred_dataset:

@@ -299,7 +299,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # Hook used for back-prop.
         def param_hook(*unused):
             # Accumulates gradients on main gradients
-            if param.grad.data is not None:
+            if param.grad is not None:
                 if main_param.grad is None:
                     main_param.grad = param.grad.float()
                 else:
@@ -408,6 +408,12 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self, **kwargs):
+        # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
+        # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
+        # we cannot start weight update until all async grad AR works are done.
+        if self._async_grad_allreduce:
+            torch.cuda.synchronize()
+
         # Step the optimizer.
         self.optimizer.step(closure=None, **kwargs)
 
@@ -473,7 +479,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # Promote state so it can be retrieved or set via
     # "optimizer_instance.state"
     def _get_state(self):
-        return self.optimizer.state
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.state
+        else:
+            return []
 
     def _set_state(self, value):
         self.optimizer.state = value
@@ -484,9 +493,25 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # "optimizer_instance.param_groups"
     # (for example, to adjust the learning rate)
     def _get_param_groups(self):
-        return self.optimizer.param_groups
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.param_groups
+        else:
+            return []
 
     def _set_param_groups(self, value):
         self.optimizer.param_groups = value
 
     param_groups = property(_get_param_groups, _set_param_groups)
+
+    # Promote defaults so it can be retrieved or set via
+    # "optimizer_instance.defaults
+    def _get_defaults(self):
+        if hasattr(self, 'optimizer'):
+            return self.optimizer.defaults
+        else:
+            return []
+
+    def _set_defaults(self, value):
+        self.optimizer.defaults = value
+
+    defaults = property(_get_defaults, _set_defaults)

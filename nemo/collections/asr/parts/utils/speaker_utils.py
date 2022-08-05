@@ -101,7 +101,9 @@ def audio_rttm_map(manifest):
                 AUDIO_RTTM_MAP[uniqname] = meta
             else:
                 raise KeyError(
-                    "file {} is already part AUDIO_RTTM_Map, it might be duplicated".format(meta['audio_filepath'])
+                    "file {} is already part of AUDIO_RTTM_MAP, it might be duplicated, Note: file basename must be unique".format(
+                        meta['audio_filepath']
+                    )
                 )
 
     return AUDIO_RTTM_MAP
@@ -313,6 +315,38 @@ def labels_to_rttmfile(labels, uniq_id, out_rttm_dir):
     return filename
 
 
+def string_to_float(x, round_digits):
+    """
+    Convert string to float then round the number.
+    """
+    return round(float(x), round_digits)
+
+
+def convert_rttm_line(rttm_line, round_digits=3):
+    """
+    Convert a line in RTTM file to speaker label, start and end timestamps.
+
+    Args:
+        rttm_line (str):
+            A line in RTTM formatted file containing offset and duration of each segment.
+        round_digits (int):
+            Number of digits to be rounded.
+
+    Returns:
+        start (float)
+            Start timestamp in floating point number.
+        end (float):
+            End timestamp in floating point number.
+        speaker (str):
+            speaker string in RTTM lines.
+    """
+    rttm = rttm_line.strip().split()
+    start = string_to_float(rttm[3], round_digits)
+    end = string_to_float(rttm[4], round_digits) + string_to_float(rttm[3], round_digits)
+    speaker = rttm[7]
+    return start, end, speaker
+
+
 def rttm_to_labels(rttm_filename):
     """
     Prepare time stamps label list from rttm file
@@ -320,10 +354,29 @@ def rttm_to_labels(rttm_filename):
     labels = []
     with open(rttm_filename, 'r') as f:
         for line in f.readlines():
-            rttm = line.strip().split()
-            start, end, speaker = float(rttm[3]), float(rttm[4]) + float(rttm[3]), rttm[7]
+            start, end, speaker = convert_rttm_line(line, round_digits=3)
             labels.append('{} {} {}'.format(start, end, speaker))
     return labels
+
+
+def get_rttm_speaker_index(rttm_labels):
+    """
+    Generate speaker mapping between integer index to RTTM speaker label names.
+
+    Args:
+        rttm_labels (list):
+            List containing string type RTTM lines
+    Returns:
+        speaker_mapping_dict (dict):
+            Dictionary containing the mapping between integer index and RTTM speaker labels.
+    """
+    speaker_set = set()
+    for rttm_line in rttm_labels:
+        spk_str = rttm_line.split()[-1]
+        speaker_set.add(spk_str)
+    speaker_list = sorted(list(speaker_set))
+    speaker_mapping_dict = {key: val for key, val in enumerate(speaker_list)}
+    return speaker_mapping_dict
 
 
 def write_cluster_labels(base_scale_idx, lines_cluster_labels, out_rttm_dir):
@@ -580,6 +633,31 @@ def isOverlap(rangeA, rangeB):
     return end1 > start2 and end2 > start1
 
 
+def validate_vad_manifest(AUDIO_RTTM_MAP, vad_manifest):
+    """
+    This function will check the valid speech segments in the manifest file which is either
+    generated from NeMo voice activity detection(VAD) or oracle VAD.
+    If an audio file does not contain any valid speech segments, we ignore the audio file
+    (indexed by uniq_id) for the rest of the processing steps.
+    """
+    vad_uniq_ids = set()
+    with open(vad_manifest, 'r') as vad_file:
+        for line in vad_file:
+            line = line.strip()
+            dic = json.loads(line)
+            if dic['duration'] > 0:
+                vad_uniq_ids.add(dic['uniq_id'])
+
+    provided_uniq_ids = set(AUDIO_RTTM_MAP.keys())
+    silence_ids = provided_uniq_ids - vad_uniq_ids
+    for uniq_id in silence_ids:
+        del AUDIO_RTTM_MAP[uniq_id]
+        logging.warning(f"{uniq_id} is ignored since the file does not contain any speech signal to be processed.")
+
+    if len(AUDIO_RTTM_MAP) == 0:
+        raise ValueError("All files present in manifest contains silence, aborting next steps")
+
+
 def getOverlapRange(rangeA, rangeB):
     """
     Calculate the overlapping range between rangeA and rangeB.
@@ -709,15 +787,6 @@ def getMergedRanges(label_list_A: List, label_list_B: List, deci: int = 3) -> Li
         return [[int2fl(x[0] - 1, deci), int2fl(x[1], deci)] for x in combined]
 
 
-def getMinMaxOfRangeList(ranges):
-    """
-    Get the min and max of a given range list.
-    """
-    _max = max([x[1] for x in ranges])
-    _min = min([x[0] for x in ranges])
-    return _min, _max
-
-
 def getSubRangeList(target_range, source_range_list) -> List:
     """
     Get the ranges that has overlaps with the target range from the source_range_list.
@@ -751,103 +820,6 @@ def getSubRangeList(target_range, source_range_list) -> List:
                 ovl_range = getOverlapRange(s_range, target_range)
                 out_range.append(ovl_range)
         return out_range
-
-
-def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
-    """
-    Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value.
-
-    Args:
-        AUDIO_RTTM_MAP (dict):
-            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
-            these are used to extract oracle vad timestamps.
-        manifest (str):
-            The path to the output manifest file.
-
-    Returns:
-        manifest (str):
-            The path to the output manifest file.
-    """
-
-    with open(manifest_file, 'w') as outfile:
-        for uniq_id in AUDIO_RTTM_MAP:
-            rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
-            rttm_lines = read_rttm_lines(rttm_file_path)
-            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
-            vad_start_end_list_raw = []
-            for line in rttm_lines:
-                start, dur = get_vad_out_from_rttm_line(line)
-                vad_start_end_list_raw.append([start, start + dur])
-            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
-            if len(vad_start_end_list) == 0:
-                logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
-            elif duration == 0:
-                logging.warning(f"File ID: {uniq_id}: The audio file has zero duration.")
-            else:
-                min_vad, max_vad = getMinMaxOfRangeList(vad_start_end_list)
-                if max_vad > round(offset + duration, deci) or min_vad < offset:
-                    logging.warning("RTTM label has been truncated since start is greater than duration of audio file")
-                overlap_range_list = getSubRangeList(
-                    source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
-                )
-            write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
-    return manifest_file
-
-
-def segments_manifest_to_subsegments_manifest(
-    segments_manifest_file: str,
-    subsegments_manifest_file: str = None,
-    window: float = 1.5,
-    shift: float = 0.75,
-    min_subsegment_duration: float = 0.05,
-    include_uniq_id: bool = False,
-):
-    """
-    Generate subsegments manifest from segments manifest file
-    Args:
-        segments_manifest file (str): path to segments manifest file, typically from VAD output
-        subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
-        window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift
-        min_subsegments_duration (float): exclude subsegments smaller than this duration value
-
-    Returns:
-        returns path to subsegment manifest file
-    """
-    if subsegments_manifest_file is None:
-        pwd = os.getcwd()
-        subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
-
-    with open(segments_manifest_file, 'r') as segments_manifest, open(
-        subsegments_manifest_file, 'w'
-    ) as subsegments_manifest:
-        segments = segments_manifest.readlines()
-        for segment in segments:
-            segment = segment.strip()
-            dic = json.loads(segment)
-            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
-            if include_uniq_id and 'uniq_id' in dic:
-                uniq_id = dic['uniq_id']
-            else:
-                uniq_id = None
-            for subsegment in subsegments:
-                start, dur = subsegment
-                if dur > min_subsegment_duration:
-                    meta = {
-                        "audio_filepath": audio,
-                        "offset": start,
-                        "duration": dur,
-                        "label": label,
-                        "uniq_id": uniq_id,
-                    }
-
-                    json.dump(meta, subsegments_manifest)
-                    subsegments_manifest.write("\n")
-
-    return subsegments_manifest_file
 
 
 def get_subsegments(offset: float, window: float, shift: float, duration: float):
