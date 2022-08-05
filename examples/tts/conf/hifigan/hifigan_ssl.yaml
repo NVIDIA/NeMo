@@ -30,14 +30,14 @@ ssl_model_type: conformer_multitask
 ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/vox1_augtrue_mse1_small_epoch33.ckpt"
 ssl_content_emb_type: 'embedding'
 
-pitch_conditioning: false
+pitch_conditioning: true
 pitch_mean: 212.0 # ignored if use_speakerwise_stats=true
 pitch_std: 70.0 # ignored if use_speakerwise_stats=true
 normalize_pitch: true
-generator_input_size: 512 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
+generator_input_size: 520 # content_emb_outdim + speaker_emb_outdim + pitch_emb_dim
 normalize_content: true # for newer checkpoints.
 
-use_speakerwise_stats: false
+use_speakerwise_stats: true
 stat_samples_per_speaker: 50
 
 sup_data_dir: null
