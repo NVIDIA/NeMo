@@ -40,10 +40,10 @@ def main(cfg) -> None:
     megatron_amp_o2 = cfg.model.get('megatron_amp_O2', False)
     plugins = []
     strategy = NLPDDPStrategy(
-            no_ddp_communication_hook=True,
-            gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
-            find_unused_parameters=False,
-        )
+        no_ddp_communication_hook=True,
+        gradient_as_bucket_view=cfg.model.gradient_as_bucket_view,
+        find_unused_parameters=False,
+    )
     if cfg.trainer.precision in [16, 'bf16']:
         scaler = None
         if cfg.trainer.precision == 16:

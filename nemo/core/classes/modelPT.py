@@ -1354,9 +1354,9 @@ class ModelPT(LightningModule, Model):
             Please create a new model using an updated config to properly update the model.
         """
         return self._cfg
-    
+
     @LightningModule.trainer.getter
-    def trainer(self): 
+    def trainer(self):
         return self._trainer
 
     @cfg.setter
