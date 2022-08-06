@@ -16,10 +16,11 @@
 import os
 
 import numpy as np
-from numpy.testing import assert_array_equal
 import pytest
 import torch
+from numpy.testing import assert_array_equal
 from omegaconf import OmegaConf
+from scripts.nlp_language_modeling.build_knn_map_index import build_map, dedup
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
     KNNIndex,
@@ -28,7 +29,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
     merge_knn_files,
 )
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import RETRODataset
-from scripts.nlp_language_modeling.build_knn_map_index import build_map, dedup
 
 try:
     from apex.transformer import parallel_state
@@ -245,7 +245,7 @@ class TestRetrievalIndexFiles:
             merge_knn_files(index_files, merged_file)
             f = KNNIndex(merged_file)
             input_array = np.vstack(inputs)
-            assert f.len == 100*3
+            assert f.len == 100 * 3
             for i in range(300):
                 assert np.array_equal(f.get_KNN_chunk_ids(i), input_array[i])
             assert f.chunk_start_id == 0
@@ -434,25 +434,25 @@ class TestRetrievalIndexFiles:
         for i in range(200, 210):
             assert_array_equal(chunk_id_to_doc_id_map[i - beg], id_start[2:4])
         beg = 5
-        end = 100 
+        end = 100
         chunk_id_to_doc_id_map = np.zeros((end - beg, 2), dtype=np.int64)
         build_map(id_start, chunk_id_to_doc_id_map, total, beg, end)
         for i in range(beg, end):
             assert_array_equal(chunk_id_to_doc_id_map[i - beg], id_start[0:2])
-        beg = 100 
-        end = 200 
+        beg = 100
+        end = 200
         chunk_id_to_doc_id_map = np.zeros((end - beg, 2), dtype=np.int64)
         build_map(id_start, chunk_id_to_doc_id_map, total, beg, end)
         for i in range(beg, end):
             assert_array_equal(chunk_id_to_doc_id_map[i - beg], id_start[1:3])
-        beg = 900 
+        beg = 900
         end = 1000
         chunk_id_to_doc_id_map = np.zeros((end - beg, 2), dtype=np.int64)
         build_map(id_start, chunk_id_to_doc_id_map, total, beg, end)
         for i in range(beg, end):
             assert_array_equal(chunk_id_to_doc_id_map[i - beg], np.array([900, 1000]))
-        beg = 150 
-        end = 250 
+        beg = 150
+        end = 250
         chunk_id_to_doc_id_map = np.zeros((end - beg, 2), dtype=np.int64)
         build_map(id_start, chunk_id_to_doc_id_map, total, beg, end)
         for i in range(beg, 200):
@@ -474,22 +474,22 @@ class TestRetrievalIndexFiles:
             I = np.arange(1000)[None, :]
             tmp_neighbors = np.ones_like(I) * -1
             dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, i, beg)
-            gt = np.array(list(range(100)) + list(range(200, 1000)) + ([-1]*100))
+            gt = np.array(list(range(100)) + list(range(200, 1000)) + ([-1] * 100))
             assert_array_equal(tmp_neighbors[0], gt)
 
         for i in range(200, 250):
             I = np.arange(1000)[None, :]
             tmp_neighbors = np.ones_like(I) * -1
             dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, i, beg)
-            gt = np.array(list(range(200)) + list(range(300, 1000)) + ([-1]*100))
+            gt = np.array(list(range(200)) + list(range(300, 1000)) + ([-1] * 100))
             assert_array_equal(tmp_neighbors[0], gt)
 
         I = np.arange(1000)[None, :]
         I = np.repeat(I, 70, axis=0)
         tmp_neighbors = np.ones_like(I) * -1
         dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, 180, beg)
-        gt0 = np.array(list(range(100)) + list(range(200, 1000)) + ([-1]*100))
-        gt1 = np.array(list(range(200)) + list(range(300, 1000)) + ([-1]*100))
+        gt0 = np.array(list(range(100)) + list(range(200, 1000)) + ([-1] * 100))
+        gt1 = np.array(list(range(200)) + list(range(300, 1000)) + ([-1] * 100))
         for i in range(20):
             assert_array_equal(tmp_neighbors[i], gt0)
         for i in range(20, 70):

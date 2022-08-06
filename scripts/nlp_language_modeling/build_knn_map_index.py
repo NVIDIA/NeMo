@@ -74,9 +74,14 @@ python scripts/nlp_language_modeling/build_knn_map_index.py  \
 
 import argparse
 import multiprocessing
+import pathlib
+import sys
+import time
+from multiprocessing import Pool
 
 import faiss
 import numpy as np
+import torch
 from numba import njit, prange
 from sentence_transformers import SentenceTransformer
 
@@ -87,12 +92,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_data
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
-import time
-import torch
-from multiprocessing import Pool
-import pathlib
-import sys
-
 
 QUEUE_SIZE = 30
 
@@ -110,11 +109,9 @@ def build_map(chunk_start, result, total_chunks, start_id, end_id):
     for i in prange(size):
         beg = chunk_start[i]
         end = chunk_start[i + 1] if i < size - 1 else total_chunks
-        if start_id < end and beg < end_id: # [beg, end) intersect  [start_id, end_id)
-            result[max(beg - start_id, 0):(end - start_id), 0] = beg
-            result[max(beg - start_id, 0):(end - start_id), 1] = end
-
-
+        if start_id < end and beg < end_id:  # [beg, end) intersect  [start_id, end_id)
+            result[max(beg - start_id, 0) : (end - start_id), 0] = beg
+            result[max(beg - start_id, 0) : (end - start_id), 1] = end
 
 
 @njit(parallel=True)
@@ -177,17 +174,23 @@ def calculate_start_end(total_chunks, total_shards, shard_id):
     return start, total_chunks
 
 
-def process_sentence_chunks(ds: MMapRetrievalIndexedDataset, tokenizer,
-                            chunk_size: int, stage: int, workers: int,
-                            shard_id: int, total_shards: int):
+def process_sentence_chunks(
+    ds: MMapRetrievalIndexedDataset,
+    tokenizer,
+    chunk_size: int,
+    stage: int,
+    workers: int,
+    shard_id: int,
+    total_shards: int,
+):
     total_chunks = ds.chunks
     start = 0
     threshold = 0
 
     if stage == 1:
-        start, total_chunks = calculate_start_end(total_chunks=total_chunks,
-                                                  total_shards=total_shards,
-                                                  shard_id=shard_id)
+        start, total_chunks = calculate_start_end(
+            total_chunks=total_chunks, total_shards=total_shards, shard_id=shard_id
+        )
         logging.info(f'shard_id {shard_id}, create index from chunk {start} to {total_chunks}')
 
     with Pool(workers) as p:
@@ -289,24 +292,42 @@ if __name__ == "__main__":
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
-    group.add_argument('--stage', type=int, default=None, help='used for building the large knn index in multiple stages', choices=[1, 2])
+    group.add_argument(
+        '--stage',
+        type=int,
+        default=None,
+        help='used for building the large knn index in multiple stages',
+        choices=[1, 2],
+    )
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
-    group.add_argument('--nprobe', type=int, default=10, help='number of probes, higher number of probes renders better results but runs slower')
-    group.add_argument('--shard_index_input', type=str, default=None, help='the knn sharding index files, which are created at stage 1')
+    group.add_argument(
+        '--nprobe',
+        type=int,
+        default=10,
+        help='number of probes, higher number of probes renders better results but runs slower',
+    )
+    group.add_argument(
+        '--shard_index_input',
+        type=str,
+        default=None,
+        help='the knn sharding index files, which are created at stage 1',
+    )
 
     args = parser.parse_args()
 
     has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 
     if not hasattr(faiss, "index_gpu_to_cpu"):
-        logging.warning("faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md")
+        logging.warning(
+            "faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md"
+        )
 
     if args.stage == 2:
         # combine shard index files into one
         input_file = pathlib.Path(args.shard_index_input)
         path = input_file.parent
         fname = input_file.name
-        all_files = [str(i) for i in pathlib.Path(path).glob(fname+'*')]
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname + '*')]
         merge_knn_files(all_files, args.output_file)
         f = KNNIndex(args.output_file)
         logging.info(f'Write to {args.output_file},  Size of Index : {f.len}')
@@ -328,14 +349,14 @@ if __name__ == "__main__":
     start = 0
     total_chunks = ds.chunks
     if args.stage == 1:
-        start, total_chunks = calculate_start_end(total_chunks=total_chunks,
-                                                  total_shards=args.total_shards,
-                                                  shard_id=args.shard_id)
+        start, total_chunks = calculate_start_end(
+            total_chunks=total_chunks, total_shards=args.total_shards, shard_id=args.shard_id
+        )
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
-        args=(ds, tokenizer, args.process_chunk_size, args.stage, args.workers,
-              args.shard_id, args.total_shards))
+        args=(ds, tokenizer, args.process_chunk_size, args.stage, args.workers, args.shard_id, args.total_shards),
+    )
     process.start()
 
     if args.devices is None or not torch.cuda.is_available():

@@ -76,6 +76,7 @@ class KNNIndex(object):
         K: number of neighbors for a chunk
         offset: start chunk_id for shard index
         """
+
         class _Writer(object):
             def __enter__(self):
                 self._file = open(path, 'wb')

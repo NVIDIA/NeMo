@@ -86,21 +86,21 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
 """
 import argparse
 import multiprocessing
+import pathlib
+import sys
+import time
 from multiprocessing import Pool
-import torch
 from typing import Union
 
 import faiss
+import numpy as np
+import torch
+from faiss.contrib.ondisk import merge_ondisk
 from sentence_transformers import SentenceTransformer
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
-from faiss.contrib.ondisk import merge_ondisk
-import pathlib
-import numpy as np
-import sys
-import time
 
 QUEUE_SIZE = 30
 
@@ -148,7 +148,7 @@ def process_sentence_chunks(
         beg = time.time()
         # only prepare the warmup batch for stage None and stage 0
         assert warm_up_size < total_chunks
-        warm_chunk_ids = np.random.randint(0, total_chunks,  warm_up_size)
+        warm_chunk_ids = np.random.randint(0, total_chunks, warm_up_size)
         warm_up_slices = []
         for warm_up_id in warm_chunk_ids:
             warm_up_slices.append(ds.get_chunk(warm_up_id, force_no_cont_ids=True))
@@ -260,11 +260,21 @@ if __name__ == "__main__":
     )
     group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
-    group.add_argument('--stage', type=int, default=None, help='used for building the large index in multiple stages', choices=[0, 1, 2])
+    group.add_argument(
+        '--stage',
+        type=int,
+        default=None,
+        help='used for building the large index in multiple stages',
+        choices=[0, 1, 2],
+    )
     group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
     group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
-    group.add_argument('--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0')
-    group.add_argument('--shard_index_input', type=str, default=None, help='the shard faiss index files, which are created at stage 1')
+    group.add_argument(
+        '--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0'
+    )
+    group.add_argument(
+        '--shard_index_input', type=str, default=None, help='the shard faiss index files, which are created at stage 1'
+    )
     group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
 
@@ -273,7 +283,9 @@ if __name__ == "__main__":
     has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 
     if not hasattr(faiss, "index_gpu_to_cpu"):
-        logging.warning("faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md")
+        logging.warning(
+            "faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md"
+        )
 
     if args.stage == 2:
         # combine shard index files into one
@@ -284,7 +296,7 @@ if __name__ == "__main__":
         input_file = pathlib.Path(args.shard_index_input)
         path = input_file.parent
         fname = input_file.name
-        all_files = [str(i) for i in pathlib.Path(path).glob(fname+'*')]
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname + '*')]
         merge_ondisk(index, all_files, str(path / 'merged.index'))
         faiss.write_index(index, args.output_file)
         logging.info(f'Write to {args.output_file},  Size of Index : {index.ntotal}')
@@ -312,8 +324,17 @@ if __name__ == "__main__":
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
-        args=(ds, tokenizer, args.train_chunk_size, args.train_index_size,
-              args.percent, args.stage, args.workers, args.shard_id, args.total_shards),
+        args=(
+            ds,
+            tokenizer,
+            args.train_chunk_size,
+            args.train_index_size,
+            args.percent,
+            args.stage,
+            args.workers,
+            args.shard_id,
+            args.total_shards,
+        ),
     )
     process.start()
 
@@ -343,9 +364,7 @@ if __name__ == "__main__":
             co.useFloat16 = True
             co.usePrecomputed = False
             co.shard = True
-            index = faiss.index_cpu_to_all_gpus(index,
-                                                co,
-                                                ngpu=len(device_list))
+            index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
     elif args.stage == 1:
         # stage 1, need to load the index from file
         index = faiss.read_index(args.learned_index)
@@ -354,9 +373,7 @@ if __name__ == "__main__":
             co.useFloat16 = True
             co.usePrecomputed = False
             co.shard = True
-            index = faiss.index_cpu_to_all_gpus(index,
-                                                co,
-                                                ngpu=len(device_list))
+            index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
     else:
         raise ValueError(f'should not come here')
 
