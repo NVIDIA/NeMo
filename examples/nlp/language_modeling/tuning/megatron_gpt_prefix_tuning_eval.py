@@ -247,34 +247,16 @@ def main(cfg) -> None:
     # Use for inference on a few examples
     response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
 
-    print("***************************")
     if cfg.output_file is not None:
-        with open(cfg.output_file, "w") as f:
+        with open(cfg.output_file, "w", encoding="utf-8") as f:
             for sentence in response["sentences"]:
                 s = ' '.join(sentence.split('\n'))
-                print(s)
                 f.write(s + "\n")
+        print("predictions saved to {}".format(cfg.output_file))
     else:
+        print("***************************")
         print(response)
-    print("***************************") 
-    return
-    # Second method of running text generation, call trainer.predict
-
-    ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))
-    request_dl = DataLoader(dataset=ds, batch_size=1)
-    config = OmegaConf.to_container(cfg.inference)
-    model.set_inference_config(config)
-    responses = trainer.predict(model, request_dl)
-    print("***************************")
-    if cfg.output_file is not None:
-        with open(cfg.output_file, "w") as f:
-            for response in responses:
-                s = ' '.join(response["sentences"][0].split('\n'))
-                print(s)
-                f.write(s + "\n")
-    else:
-        print(responses)
-    print("***************************")
+        print("***************************") 
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
