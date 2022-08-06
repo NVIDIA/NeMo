@@ -280,9 +280,35 @@ def test_dialogue_nearest_neighbour_mean_pooling():
 
 @pytest.mark.unit
 def test_dialogue_get_entity_embedding_from_hidden_states():
-    mention_mask = torch.FloatTensor([[1, 0, 0, 1, 2, 0, 1]])
-    hidden_states = torch.ones((1,7,3))
-    expected_output = torch.FloatTensor([[[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]])
+    # sentence start with an entity [1, ...]
+    # entity follow by a different entity [1, 1, 1]
+    # an empty entity follow by a B-entity and I-entity [0, 1, 2]
+    # sentence end with an entity [..., 1]
+    mention_mask = torch.FloatTensor([[1, 1, 1, 0, 1, 2, 0, 1, 1]])
+    hidden_states = torch.ones((1,9,3))
+    expected_output = torch.FloatTensor([[[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0]]])
+    actual_output = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
+    assert torch.equal(
+        expected_output, actual_output
+    )
+
+    # sentence start with an empty entity [0, ...]
+    # an (B-entity, I-entity) follow by a (B-entity, I-entity) [1, 2, 1, 2]
+    # an entity has loger I-entity [1, 2, 2, 2]
+    # sentence end with an empty entity [..., 0]
+    mention_mask = torch.FloatTensor([[0, 1, 2, 1, 2, 2, 0, 0]])
+    hidden_states = torch.ones((1,8,3))
+    expected_output = torch.FloatTensor([[[1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]])
+    actual_output = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
+    assert torch.equal(
+        expected_output, actual_output
+    )
+
+    # longer empty entity [0, 0, 0]
+    # sentence end with an I-entity [..., 2]
+    mention_mask = torch.FloatTensor([[1, 0, 0, 0, 1, 1, 2, 2, 2]])
+    hidden_states = torch.ones((1,9,3))
+    expected_output = torch.FloatTensor([[[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]])
     actual_output = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
     assert torch.equal(
         expected_output, actual_output
@@ -290,29 +316,97 @@ def test_dialogue_get_entity_embedding_from_hidden_states():
 
 @pytest.mark.unit
 def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
-    slot_label_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
-    label_of_other_type = 54
-    expected_output = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type)
+    # Test label_id_for_empty_slot to be 54, and 0 is an entity class, with PAD
+    slot_label_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48, -1, -1]
+    label_id_for_empty_slot = 54
+    expected_output = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1, 0, 0]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
-    slot_label_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2]
-    label_of_other_type = 0
-    expected_output = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_of_other_type)
+    # Test label_id_for_empty_slot to be 0, with PAD
+    slot_label_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2, -1, -1]
+    label_id_for_empty_slot = 0
+    expected_output = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2, 0, 0]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
+
+    # Test label_id_for_empty_slot to be 54,without PAD
+    # sentence start with an entity [0, ...]
+    # entity follow by a different entity [0, 1, 2]
+    # an empty entity follow by a B-entity and I-entity [54, 46, 46]
+    # sentence end with an entity [..., 15]
+    slot_label_list = [0, 1, 2, 54, 46, 46, 54, 12, 15]
+    label_id_for_empty_slot = 54
+    expected_output = [1, 1, 1, 0, 1, 2, 0, 1, 1]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    assert expected_output == actual_output
+
+    # Test label_id_for_empty_slot to be 54, with PAD
+    # sentence start with an empty entity [54, ...]
+    # an (B-entity, I-entity) follow by a (B-entity, I-entity) [0, 0, 46, 46]
+    # an entity has loger I-entity [46, 46, 46]
+    # sentence end with an empty entity [..., 54]
+    slot_label_list = [54, 0, 0, 46, 46, 46, 54, 54, -1, -1]
+    label_id_for_empty_slot = 54
+    expected_output = [0, 1, 2, 1, 2, 2, 0, 0, 0, 0]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    assert expected_output == actual_output
+
+    # Test label_id_for_empty_slot to be 0, without PAD
+    # longer empty entity [0, 0, 0]
+    # sentence end with an I-entity [..., 10]
+    slot_label_list = [6, 0, 0, 0, 9, 10, 10, 10, 10]
+    label_id_for_empty_slot = 0
+    expected_output = [1, 0, 0, 0, 1, 1, 2, 2, 2]
+    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    assert expected_output == actual_output
+
+    
 
 @pytest.mark.unit
 def test_dialogue_bert_dataset_get_bio_mention_labels():
+    # Test label_id_for_empty_slot to be 54, without PAD
     slot_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
     bio_list = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
     expected_output = [0, 46, 12, 48, -1, -1, -1, -1, -1, -1, -1]
     actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
-    slot_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2]
-    bio_list = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2]
-    expected_output = [6, 3, 2, -1, -1, -1, -1, -1, -1, -1, -1]
+    # Test label_id_for_empty_slot to be 0, with PAD
+    slot_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2, -1, -1]
+    bio_list = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2, 0, 0]
+    expected_output = [6, 3, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
     actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
+    # Test label_id_for_empty_slot to be 54,without PAD
+    # sentence start with an entity [0, ...]
+    # entity follow by a different entity [0, 1, 2]
+    # an empty entity follow by a B-entity and I-entity [54, 46, 46]
+    # sentence end with an entity [..., 15]
+    slot_list = [0, 1, 2, 54, 46, 46, 54, 12, 15]
+    bio_list = [1, 1, 1, 0, 1, 2, 0, 1, 1]
+    expected_output = [0, 1, 2, 46, 12, 15, -1, -1, -1]
+    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    assert expected_output == actual_output
+
+    # Test label_id_for_empty_slot to be 54, with PAD
+    # sentence start with an empty entity [54, ...]
+    # an (B-entity, I-entity) follow by a (B-entity, I-entity) [0, 0, 46, 46]
+    # an entity has loger I-entity [46, 46, 46]
+    # sentence end with an empty entity [..., 54]    
+    slot_list = [54, 0, 0, 46, 46, 46, 54, 54, -1, -1]
+    bio_list = [0, 1, 2, 1, 2, 2, 0, 0, 0, 0]
+    expected_output = [0, 46, -1, -1, -1, -1, -1, -1, -1, -1]
+    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    assert expected_output == actual_output
+
+    # Test label_id_for_empty_slot to be 0, without PAD
+    # longer empty entity [0, 0, 0]
+    # sentence end with an I-entity [..., 10]
+    slot_list = [6, 0, 0, 0, 9, 10, 10, 10, 10]
+    bio_list = [1, 0, 0, 0, 1, 1, 2, 2, 2]
+    expected_output = [6, 9, 10, -1, -1, -1, -1, -1, -1]
+    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    assert expected_output == actual_output
+    
