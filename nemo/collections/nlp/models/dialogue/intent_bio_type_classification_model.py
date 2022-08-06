@@ -231,6 +231,8 @@ class IntentBIOTypeClassificationModel(NLPModel):
         Args:
             one_description: each slot description
             eg. food type\tdrinks menu vegetarian main desserts sides
+        Returns:
+            description embedding by taking final layer embedding for the [CLS] token.
         """
 
         model = BertModel.from_pretrained("bert-base-uncased")
@@ -287,7 +289,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         return torch.stack(mention_hidden_states)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids, mention_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids, mention_mask, mention_loss_mask):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -324,8 +326,49 @@ class IntentBIOTypeClassificationModel(NLPModel):
 
         # current:bug; hidden_states#(batch*128*768) zzz
         
-
+        # mention_hidden_states_pad: b*128*hiddenstate_dim
         mention_hidden_states_pad = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
+        
+        """
+        RUN TIME error cause here (may because too many for loop, may have better way to implement):
+            try to implement 3.7 entity description score from ReFinED paper
+            input is:
+                mention_hidden_states_pad: b*7*hiddenstate_dim  (mention's embedding)
+                    eg. [[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]
+                mention_loss_mask: b*7 (mention's mask)
+                    eg. [[1, 1, 1, 0, 0, 0, 0]]
+                self.slot_descriptions: every slot class's description
+                self.get_description_embedding: a method to get one description's embedding from BERT Model
+        """
+        
+        score_matrix = [] # this is the matrix store all dot score between mention and every description embedding
+        for one_input_sentence, one_input_sentence_mask in zip(mention_hidden_states_pad, mention_loss_mask):
+            one_sentence_score = []
+            for one_mention_emb, every_mention_mask in zip(one_input_sentence, one_input_sentence_mask):
+                if every_mention_mask == True: #only calculate dot product for unmask mention, save time 
+                    # print("one_mention_emb")
+                    # print(one_mention_emb.size())
+                    one_mention_score = []
+                    for one_description in self.slot_descriptions:
+                        one_description_embedding = self.project_mlp(self.get_description_embedding(one_description).to(hidden_states.device))[0] #(1*300)[0] --> (300)
+                        one_mention_embedding = self.project_mlp(one_mention_emb) #(300)
+                        # print("one_description_embedding size")
+                        # print(one_description_embedding.size())
+                        # print("one_mention_embedding size")
+                        # print(one_mention_embedding.size())
+                        one_score = torch.dot(one_description_embedding, one_mention_embedding)
+                        one_mention_score.append(one_score)
+                    one_mention_score = torch.stack(one_mention_score)
+                    one_sentence_score.append(one_mention_score)
+                else:
+                    one_sentence_score.append(torch.zeros(len(self.slot_descriptions)).to(hidden_states.device))
+            one_sentence_score = torch.stack(one_sentence_score)
+            score_matrix.append(one_sentence_score)
+
+        score_matrix = torch.stack(score_matrix)
+        print("score_matrix SIZE!!!")
+        print(score_matrix.size())
+
         
 
         # dump
@@ -371,7 +414,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         # forward pass
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask = batch
         intent_logits, slot_logits, bio_slot_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels, mention_loss_mask=mention_loss_mask
         )
 
         # calculate combined loss for intents and slots
