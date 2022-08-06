@@ -38,7 +38,40 @@ It creates a knn_map.idx KNNIndex file.
 During training of RETRO model, it can look up the KNN chunk ids of the
 DB dataset given the input training data chunk id. 
 
+For large dataset, we can build the KNN index in multiple stages
+
+stage-1: build sharding indexes, each containing a fraction of the dataset. This can be done in parallel on several machines. example,
+
+```python
+python scripts/nlp_language_modeling/build_knn_map_index.py \
+    --input_file=PATH_TO_INPUT_TRAINING_DATA \
+    --tokenizer-library=megatron \
+    --tokenizer-type=GPT2BPETokenizer \
+    --merge-file=/dataset/gpt2-merges.txt \
+    --vocab-file=/dataset/gpt2-vocab.json \
+    --process_chunk_size=10000 \
+    --K_neighbors=16 \
+    --remove_duplicate \
+    --workers=2 \
+    --shard_id=0 \
+    --total_shards=2 \
+    --devices=0,1,2 \
+    --stage=1 \
+    --nprobe=10 \
+    --output_file=knn_shard0.save \
+    --faiss_index=faiss.index
+```
+
+stage-2: merge the sharding indexes into one that is written directly to disk, example
+
+```python
+python scripts/nlp_language_modeling/build_knn_map_index.py  \
+    --stage=2 \
+    --output_file=knn_final.save \
+    --shard_index_input=knn_shard
+```
 """
+
 import argparse
 import multiprocessing
 
@@ -50,12 +83,15 @@ from sentence_transformers import SentenceTransformer
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
     KNNIndex,
     MMapRetrievalIndexedDataset,
+    merge_knn_files,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils import logging
 import time
 import torch
 from multiprocessing import Pool
+import pathlib
+import sys
 
 
 QUEUE_SIZE = 30
@@ -196,9 +232,9 @@ def get_emb():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="build Faiss index",)
     parser.add_argument(
-        '--input_file', type=str, required=True, help='Input file',
+        '--input_file', type=str, required=False, help='Input file',
     )
-    parser.add_argument("--faiss_index", type=str, required=True, help='faiss index file for retrieval dataset')
+    parser.add_argument("--faiss_index", type=str, required=False, help='faiss index file for retrieval dataset')
     parser.add_argument(
         '--process_chunk_size',
         type=int,
@@ -240,7 +276,7 @@ if __name__ == "__main__":
     group.add_argument(
         '--tokenizer-library',
         type=str,
-        required=True,
+        required=False,
         choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular'],
         help='What tokenizer library to use.',
     )
@@ -256,6 +292,7 @@ if __name__ == "__main__":
     group.add_argument('--stage', type=int, default=None, help='used for building the large knn index in multiple stages', choices=[1, 2])
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
     group.add_argument('--nprobe', type=int, default=10, help='number of probes, higher number of probes renders better results but runs slower')
+    group.add_argument('--shard_index_input', type=str, default=None, help='the knn sharding index files, which are created at stage 1')
 
     args = parser.parse_args()
 
@@ -263,6 +300,20 @@ if __name__ == "__main__":
 
     if not hasattr(faiss, "index_gpu_to_cpu"):
         logging.warning("faiss doesn't support gpu index. Please check https://github.com/facebookresearch/faiss/blob/main/INSTALL.md")
+
+    if args.stage == 2:
+        # combine shard index files into one
+        input_file = pathlib.Path(args.shard_index_input)
+        path = input_file.parent
+        fname = input_file.name
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname+'*')]
+        merge_knn_files(all_files, args.output_file)
+        f = KNNIndex(args.output_file)
+        logging.info(f'Write to {args.output_file},  Size of Index : {f.len}')
+        logging.info(f'Index neighbors: {f.K}')
+        logging.info(f'Index chunk start id: {f.chunk_start_id}')
+        logging.info(f'Index chunk end id: {f.chunk_end_id}')
+        sys.exit(0)
 
     model = SentenceTransformer(args.sentence_transformer_model)
     tokenizer = get_tokenizer(args)

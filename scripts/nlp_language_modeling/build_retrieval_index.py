@@ -47,7 +47,7 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
     --tokenizer-model=tokenizer.model \
     --train_index_size=128000 \
     --train_chunk_size=51200 \
-    --workers=48 \
+    --workers=2 \
     --devices=0,1,2,3 \
     --percent=0.9 \
     --stage=0 \
@@ -63,7 +63,7 @@ python scripts/nlp_language_modeling/build_retrieval_index.py \
     --tokenizer-model=tokenizer.model \
     --train_index_size=128000 \
     --train_chunk_size=51200 \
-    --workers=48 \
+    --workers=2 \
     --devices=0,1,2,3 \
     --percent=0.9 \
     --stage=1 \
@@ -77,11 +77,6 @@ stage-2: merge the shard indexes into one that is written directly to disk (need
 
 ```python
 python scripts/nlp_language_modeling/build_retrieval_index.py \
-    --input_file=PATH_TO_DB_FILE \
-    --tokenizer-library=sentencepiece \
-    --tokenizer-model=tokenizer.model \
-    --train_index_size=128000 \
-    --train_chunk_size=51200 \
     --stage=2 \
     --learned_index=index_learned.save \
     --shard_index_input=index_shard \
@@ -222,7 +217,7 @@ def get_emb():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="build Faiss index",)
     parser.add_argument(
-        '--input_file', type=str, required=True, help='Input file',
+        '--input_file', type=str, required=False, help='Input file',
     )
     parser.add_argument(
         '--train_index_size', type=int, required=False, help='The number of sentences that is used to train the index',
@@ -253,7 +248,7 @@ if __name__ == "__main__":
     group.add_argument(
         '--tokenizer-library',
         type=str,
-        required=True,
+        required=False,
         choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular'],
         help='What tokenizer library to use.',
     )
