@@ -752,6 +752,7 @@ class DiscriminatorP(torch.nn.Module):
 
         for l in self.convs:
             x = l(x)
+            x = self.dropout(x)
             x = F.leaky_relu(x, LRELU_SLOPE)
             fmap.append(x)
         x = self.conv_post(x)

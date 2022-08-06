@@ -41,13 +41,17 @@ from nemo.collections.tts.losses.vits_coqui_losses import (
 
 from nemo.collections.tts.models.base import TextToWaveform
 from nemo.collections.tts.modules.vits_coqui_modules import (
-    MultiPeriodDiscriminator,
     SynthesizerTrn,
     audio_to_mel_torch,
     clip_grad_value_,
     slice_segments,
     spec_to_mel_torch,
 )
+
+from nemo.collections.tts.modules.vits_modules import (
+    MultiPeriodDiscriminator,
+)
+
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim.lr_scheduler import CosineAnnealing
 from nemo.utils import logging, model_utils
@@ -115,7 +119,7 @@ class VitsModel(TextToWaveform):
             upsample_kernel_sizes=cfg.generator.upsample_kernel_sizes,
         )
         self.net_d = MultiPeriodDiscriminator(cfg.use_spectral_norm)
-        self.automatic_optimization = True
+        self.automatic_optimization = False
 
         window_fn = {
             'hann': torch.hann_window,
@@ -226,7 +230,7 @@ class VitsModel(TextToWaveform):
             for param in self.waveform_decoder.parameters():
                 param.requires_grad = False
 
-    def training_step(self, batch, batch_idx, optimizer_idx: int):
+    def training_step(self, batch, batch_idx):
         """Perform a single training step. Run the model forward pass and compute losses.
         Args:
             batch (Dict): Input tensors.
@@ -235,6 +239,8 @@ class VitsModel(TextToWaveform):
         Returns:
             Tuple[Dict, Dict]: Model ouputs and computed losses.
         """
+        optim_g, optim_d = self.optimizers()
+
         (waveform, y_lengths, tokens, token_lenghts) = batch
 
         spec = self.get_spec(waveform)
@@ -243,108 +249,110 @@ class VitsModel(TextToWaveform):
         # self._freeze_layers()
         
         # Discriminator
-        if optimizer_idx == 0:
-            # generator pass
-            outputs = self.net_g(
-                tokens,
-                token_lenghts,
-                spec,
-                spec_lens,
-            )
+        # generator pass
+        outputs = self.net_g(
+            tokens,
+            token_lenghts,
+            spec,
+            spec_lens,
+        )
 
-            # y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = outputs
-            # cache tensors for the generator pass
-            self.model_outputs_cache = outputs  # pylint: disable=attribute-defined-outside-init
+        # y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = outputs
 
-            y = torch.unsqueeze(waveform, 1)
-            y = slice_segments(y, self.model_outputs_cache["slice_ids"] * self.cfg.n_window_stride, self._cfg.segment_size)
-            # compute scores and features
-            
-            print(y.requires_grad, outputs["model_outputs"].detach().requires_grad)
-            y_d_hat_r, y_d_hat_g, _, _ = self.net_d(
-                y, outputs["model_outputs"].detach()
-            )
-            print(y_d_hat_r[0].requires_grad)
-            # compute loss
-            with autocast(enabled=False):  # use float32 for the criterion
-                loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
-                    disc_generated_outputs=y_d_hat_g)
-                loss_disc_all = loss_disc
-            loss_dict = {
-                "loss": loss_disc_all,
-            }
+        y = torch.unsqueeze(waveform, 1)
+        y = slice_segments(y, outputs["slice_ids"] * self.cfg.n_window_stride, self._cfg.segment_size)
+        # compute scores and features
+        
+        y_d_hat_r, y_d_hat_g, _, _ = self.net_d(
+            y, outputs["model_outputs"].detach()
+        )
 
-            for i, v in enumerate(losses_disc_r):
-                loss_dict[f"loss_disc_r_{i}"] = v
+        optim_d.zero_grad()
+        # compute loss
+        with autocast(enabled=False):  # use float32 for the criterion
+            loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
+                disc_generated_outputs=y_d_hat_g)
+            loss_disc_all = loss_disc
 
-            for i, v in enumerate(losses_disc_g):
-                loss_dict[f"loss_disc_g_{i}"] = v
-            
-            self.log_dict(loss_dict, on_step=True, sync_dist=True)
-            print(loss_disc_all.requires_grad)
-            return loss_disc_all
+        self.manual_backward(loss_disc_all)
+        optim_d.step()
+
+        loss_dict = {
+            "loss_disc_all": loss_disc_all,
+        }
+
+        for i, v in enumerate(losses_disc_r):
+            loss_dict[f"loss_disc_r_{i}"] = v
+
+        for i, v in enumerate(losses_disc_g):
+            loss_dict[f"loss_disc_g_{i}"] = v
 
         # Generator
-        if optimizer_idx == 1:
-            mel = spec_to_mel_torch(
-                spec,
+
+        
+        
+        mel = spec_to_mel_torch(
+            spec,
+            self._cfg.n_window_size,
+            self._cfg.n_mel_channels,
+            self._cfg.sample_rate,
+            self._cfg.mel_fmin,
+            self._cfg.mel_fmax,
+        )
+        # y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.model_outputs_cache
+        # compute melspec segment
+        with autocast(enabled=False):
+            mel_slice = slice_segments(mel, outputs["slice_ids"], self._cfg.segment_size // self.cfg.n_window_stride)
+            mel_slice_hat = audio_to_mel_torch(
+                outputs["model_outputs"].float().squeeze(1),
                 self._cfg.n_window_size,
                 self._cfg.n_mel_channels,
                 self._cfg.sample_rate,
+                self.cfg.n_window_stride,
+                self._cfg.preprocessor.n_window_size,
                 self._cfg.mel_fmin,
                 self._cfg.mel_fmax,
             )
-            # y_hat, l_length, attn, ids_slice, x_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.model_outputs_cache
-            # compute melspec segment
-            with autocast(enabled=False):
-                mel_slice = slice_segments(mel, self.model_outputs_cache["slice_ids"], self._cfg.segment_size // self.cfg.n_window_stride)
-                mel_slice_hat = audio_to_mel_torch(
-                    self.model_outputs_cache["model_outputs"].float().squeeze(1),
-                    self._cfg.n_window_size,
-                    self._cfg.n_mel_channels,
-                    self._cfg.sample_rate,
-                    self.cfg.n_window_stride,
-                    self._cfg.preprocessor.n_window_size,
-                    self._cfg.mel_fmin,
-                    self._cfg.mel_fmax,
-                )
-            y = torch.unsqueeze(waveform, 1)
-            y = slice_segments(y, self.model_outputs_cache["slice_ids"] * self.cfg.n_window_stride, self._cfg.segment_size)
-            # compute discriminator scores and features
-            y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.disc(
-                y, self.model_outputs_cache["model_outputs"]
-            )
+        y = torch.unsqueeze(waveform, 1)
+        y = slice_segments(y, outputs["slice_ids"] * self.cfg.n_window_stride, self._cfg.segment_size)
+        # compute discriminator scores and features
+        
+        y_d_hat_r, y_d_hat_g, fmap_r, fmap_g = self.net_d(
+            y, outputs["model_outputs"]
+        )
 
-            # compute losses
-            with autocast(enabled=False):  # use float32 for the criterion
-                loss_dur = torch.sum(self.model_outputs_cache["loss_duration"].float())
-                loss_mel = F.l1_loss(mel_slice, mel_slice_hat) * self._cfg.c_mel
-                loss_kl = self.kl_loss(z_p=self.model_outputs_cache["z_p"],
-                                       logs_q=self.model_outputs_cache["logs_q"],
-                                       m_p=self.model_outputs_cache["m_p"], 
-                                       logs_p=self.model_outputs_cache["logs_p"], 
-                                       z_mask=self.model_outputs_cache["z_mask"]) * self._cfg.c_kl
-                loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
-                loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
-                loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
-                
-            loss_dict = {
-                "loss": loss_gen_all,
-                "loss_gen": loss_gen,
-                "loss_fm": loss_fm,
-                "loss_mel * c_mel": loss_mel,
-                "loss_dur": loss_dur,
-                "loss_kl * c_kl": loss_kl,
-                }
-                
-            for i, v in enumerate(losses_gen):
-                loss_dict[f"loss_gen_i_{i}"] = v
+        optim_g.zero_grad()
+        # compute losses
+        with autocast(enabled=False):  # use float32 for the criterion
+            loss_dur = torch.sum(outputs["loss_duration"].float())
+            loss_mel = F.l1_loss(mel_slice, mel_slice_hat) * self._cfg.c_mel
+            loss_kl = self.kl_loss(z_p=outputs["z_p"],
+                                    logs_q=outputs["logs_q"],
+                                    m_p=outputs["m_p"], 
+                                    logs_p=outputs["logs_p"], 
+                                    z_mask=outputs["z_mask"]) * self._cfg.c_kl
+            loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
+            loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
+            loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
+        
+        
+        self.manual_backward(loss_gen_all)
+        optim_g.step()
 
-            self.log_dict(loss_dict, on_step=True, sync_dist=True)
+        loss_dict.update({
+            "loss_gen_all": loss_gen_all,
+            "loss_gen": loss_gen,
+            "loss_fm": loss_fm,
+            "loss_mel * c_mel": loss_mel,
+            "loss_dur": loss_dur,
+            "loss_kl * c_kl": loss_kl,
+            }
+        )
+            
+        for i, v in enumerate(losses_gen):
+            loss_dict[f"loss_gen_i_{i}"] = v
 
-            return loss_gen_all
-
-        raise ValueError(" [!] Unexpected `optimizer_idx`.")
+        self.log_dict(loss_dict, on_step=True, sync_dist=True)
     
     def _log(self, batch, outputs, name_prefix="train"):  # pylint: disable=unused-argument,no-self-use
         y_hat, l_length, attn, ids_slice, x_mask, z_mask, _ = outputs
@@ -399,8 +407,8 @@ class VitsModel(TextToWaveform):
     #     """
     #     self._log(batch, outputs, "train")
     
-    def eval_step(self, batch: dict, criterion, optimizer_idx: int):
-        return self.train_step(batch, criterion, optimizer_idx)
+    def eval_step(self, batch: dict, criterion):
+        return self.train_step(batch, criterion)
     
     def validation_step(self, batch, batch_idx):
         (y, y_lengths, x, x_lengths) = batch

@@ -246,9 +246,9 @@ class VitsModel(TextToWaveform):
         y = torch.unsqueeze(y, 1)
         y = slice_segments(y, ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
         # with autocast(enabled=True):
-        print(y.requires_grad, y_hat.detach().requires_grad)
+
         y_d_hat_r, y_d_hat_g, _, _ = self.net_d(y, y_hat.detach())
-        print(y_d_hat_r[0].requires_grad)
+
         # with autocast(enabled=False):
         # loss_disc_real, loss_disc_gen, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
         loss_disc, losses_disc_r, losses_disc_g = self.disc_loss(disc_real_outputs=y_d_hat_r, 
@@ -257,7 +257,7 @@ class VitsModel(TextToWaveform):
         loss_disc_all = loss_disc
         # if self.global_step <= 180000:
         # train discriminator
-        print(loss_disc_all.requires_grad)
+
         optim_d.zero_grad()
         self.manual_backward(loss_disc_all)
         norm_d = clip_grad_value_(self.net_d.parameters(), None)

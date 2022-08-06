@@ -136,15 +136,16 @@ class DiscriminatorLoss(Loss):
         r_losses = []
         g_losses = []
         loss = 0
-        for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
+        for i, (dr, dg) in enumerate(zip(disc_real_outputs, disc_generated_outputs)):
             dr = dr.float()
             dg = dg.float()
             r_loss = torch.mean((1 - dr) ** 2)
             g_loss = torch.mean(dg ** 2)
             # real_loss += r_loss
             # gen_loss += g_loss
-            # loss += torch.max(r_losпшеs, g_loss)
-            loss += r_loss + g_loss
+            if i == 0:
+                loss += torch.max(r_loss, g_loss) * 0.5
+            # loss += r_loss + g_loss
             r_losses.append(r_loss.item())
             g_losses.append(g_loss.item())
 
