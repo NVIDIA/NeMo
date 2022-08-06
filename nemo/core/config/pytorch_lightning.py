@@ -51,7 +51,7 @@ class TrainerConfig:
     accumulate_grad_batches: Any = 1
     max_epochs: int = 1000
     min_epochs: int = 1
-    max_steps: Optional[int] = None
+    max_steps: Optional[int] = -1
     min_steps: Optional[int] = None
     limit_train_batches: Any = 1.0
     limit_val_batches: Any = 1.0
