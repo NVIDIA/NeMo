@@ -1920,6 +1920,9 @@ class ParallelTransformer(MegatronModule):
                         rotary_pos_emb=rotary_pos_emb,
                         self_attention_relative_position_bias=self_attention_relative_position_bias,
                         cross_attention_relative_position_bias=cross_attention_relative_position_bias,
+                        prefix_tuning_key_values=prefix_tuning_key_values[:, :, index, :, :, :]
+                        if prefix_tuning_key_values is not None
+                        else None,
                     )
 
         output = hidden_states

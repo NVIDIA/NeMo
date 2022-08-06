@@ -95,13 +95,13 @@ class GPTPromptLearningDataset(Dataset):
         logging.info("Loading and tokenizing dataset ... ")
 
         # Datasets is just a list of json dicts
-        if isinstance(datasets[0], dict):
-            self.load_data(datasets)
-        elif isinstance(datasets[0], str) and "taskname" in datasets[0]:
-            self.load_data(datasets)
+        if isinstance(dataset_paths[0], dict):
+            self.load_data(dataset_paths)
+        elif isinstance(dataset_paths[0], str) and "taskname" in dataset_paths[0]:
+            self.load_data(dataset_paths)
         # Datasets are a list of file path strings to .json or .jsonl files
-        elif isinstance(datasets[0], str) and (datasets[0].endswith(".json") or datasets[0].endswith(".jsonl")):
-            for path in datasets:
+        elif isinstance(dataset_paths[0], str) and (dataset_paths[0].endswith(".json") or dataset_paths[0].endswith(".jsonl")):
+            for path in dataset_paths:
                 dataset = open(path, 'r', encoding='utf-8')
                 self.load_data(dataset)
         else:
@@ -174,7 +174,7 @@ class GPTPromptLearningDataset(Dataset):
                     taskname_id = self.task_templates[taskname]["task_id_num"]
 
                 elif self.virtual_prompt_source == VirtualPromptSource.NO_PROMPT:
-                    taskname_id = []
+                    taskname_id = -1
                 else:
                     raise ValueError("Invalid virtual prompt source specified")
 
@@ -317,7 +317,6 @@ class GPTPromptLearningDataset(Dataset):
 
     def collate_fn(self, batch):
         taskname_ids, input_ids, answer_starts = zip(*batch)
-
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
@@ -330,7 +329,7 @@ class GPTPromptLearningDataset(Dataset):
 
         else:
             raise ValueError(f"Unknown virtual prompt source: {self.virtual_prompt_source}")
-
+        
         batch_max = max(len(ids) for ids in input_ids)
         input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
 

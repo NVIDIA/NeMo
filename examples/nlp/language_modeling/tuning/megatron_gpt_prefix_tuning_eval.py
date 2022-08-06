@@ -22,6 +22,7 @@ from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prefix_tuning_model import PrefixTuningModel
+from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import RequestDataSet
@@ -222,8 +223,41 @@ def main(cfg) -> None:
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-    
 
+    length_params: LengthParam = {
+        "max_length": cfg.inference.tokens_to_generate,
+        "min_length": cfg.inference.min_tokens_to_generate,
+    }
+
+    sampling_params: SamplingParam = {
+        "use_greedy": cfg.inference.greedy,
+        "temperature": cfg.inference.temperature,
+        "top_k": cfg.inference.top_k,
+        "top_p": cfg.inference.top_p,
+        "repetition_penalty": cfg.inference.repetition_penalty,
+        "add_BOS": cfg.inference.add_BOS,
+        "all_probs": cfg.inference.all_probs,
+        "compute_logprob": cfg.inference.compute_logprob,
+    }
+
+    # First method of running text generation, call model.generate method
+    # Input into generate method should be either list of string prompts or list of dicts
+    datapaths_dict = [{"data_path": path} for path in cfg.data_paths]
+
+    # Use for inference on a few examples
+    response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
+
+    print("***************************")
+    if cfg.output_file is not None:
+        with open(cfg.output_file, "w") as f:
+            for sentence in response["sentences"]:
+                s = ' '.join(sentence.split('\n'))
+                print(s)
+                f.write(s + "\n")
+    else:
+        print(response)
+    print("***************************") 
+    return
     # Second method of running text generation, call trainer.predict
 
     ds = RequestDataSet(OmegaConf.to_container(cfg.prompts))

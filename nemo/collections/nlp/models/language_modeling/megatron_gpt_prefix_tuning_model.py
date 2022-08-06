@@ -26,7 +26,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_
     MegatronGPTPromptLearningModel,
 )
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
-from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
+from nemo.core.classes import Exportable, NeuralModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ColumnLinear
 from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
 
@@ -38,7 +38,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 
-class Prefix(MegatronModule):
+class Prefix(NeuralModule, Exportable):
     """
     Class that contains prefix parameters for prefix tuning.
     """
@@ -59,7 +59,9 @@ class Prefix(MegatronModule):
         self.num_attention_heads_per_partition = (
             num_heads // world_size
         )  # TODO (@adithyare): megatron-LM code used mpu.divide for this, not sure why...
-        self.prefix_idx = torch.arange(0, self.prefix_len).long().unsqueeze(0)
+        prefix_idx = torch.arange(0, self.prefix_len).unsqueeze(0).float()
+        prefix_idx.requires_grad = False
+        self.prefix_idx = nn.ParameterList([prefix_idx])
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
@@ -75,7 +77,8 @@ class Prefix(MegatronModule):
         Args:
             bsz: an integer representing the batch size
         """
-        prefix_reps = self.prefix_embeddings(self.prefix_idx.expand(bsz, -1))  # (bsz, seqlen, hidden_size)
+        prefix_reps = self.prefix_idx[0].expand(bsz, -1).long()  # (bsz, seqlen, hidden_size)
+        prefix_reps = self.prefix_embeddings(prefix_reps)  # (bsz, seqlen, hidden_size)
         prefix_reps = self.prefix_projection(prefix_reps)  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
         prefix_reps, _ = self.prefix_layer_projection(prefix_reps)  # (bsz, seqlen, num_layers * hidden_size * 2)
@@ -86,11 +89,6 @@ class Prefix(MegatronModule):
         )
         prefix_reps = prefix_reps.permute([2, 1, 3, 0, 4, 5])
         return prefix_reps
-
-    def to(self, device):
-        self.prefix_idx = self.prefix_idx.to(device)
-        super().to(device)
-        return True
 
 
 class PrefixTuningModel(MegatronGPTPromptLearningModel):
@@ -111,9 +109,8 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
         )
         self.prefix_generator_key = "prefix_tuning_generator"
         self.prefix_generator_learning_rate = cfg.prefix_tuning.prefix_learning_rate
-        self.prefix_generator.to(self.frozen_model.device)
 
-        for name, layer in self.frozen_model.named_modules():
+        for _, layer in self.frozen_model.named_modules():
             if hasattr(layer, 'activations_checkpoint_method'):
                 layer.activations_checkpoint_method = None  # (@adithyare) prefix tuning does not support activations checkpointing atm.
             if hasattr(layer, 'scale_mask_softmax'):
@@ -191,6 +188,43 @@ class PrefixTuningModel(MegatronGPTPromptLearningModel):
     def on_train_end(self):
         # Save the best nemo model
         self.save_to(save_path=self.cfg.nemo_path)
+    
+    def on_validation_end(self):
+        # Save the best nemo model
+        self.save_to(save_path=self.cfg.nemo_path)
+
+    def get_forward_output_only_func(self):
+        """
+        Used for generate method only for now.
+        """
+
+        def fwd_output_only_func(batch, model):
+            extra_arg = {}
+            (
+                tokens,
+                attention_mask,
+                position_ids,
+                task_ids,
+                set_inference_key_value_memory,
+                inference_max_sequence_len,
+            ) = batch
+
+            tokens = tokens.cuda()
+            attention_mask = attention_mask.cuda()
+            position_ids = position_ids.cuda()
+            task_ids = task_ids.cuda()
+            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
+            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+
+            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+
+            def id_func(output_tensor):
+                return output_tensor, {'logits': output_tensor}
+
+            return output_tensor, id_func
+
+        return fwd_output_only_func
+
 
     def get_forward_output_and_loss_func(self):
         def fwd_output_and_loss_func(batch, model):
