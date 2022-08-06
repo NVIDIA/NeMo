@@ -79,7 +79,22 @@ def build_map(chunk_start, result, total_chunks, start_id, end_id):
             result[max(beg - start_id, 0):(end - start_id), 1] = end
 
 
+
+
 @njit(parallel=True)
+def _dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
+    for cid in prange(len(I)):
+        if chunk_id_start + cid - offset >= 0 and chunk_id_start + cid - offset < len(chunk_id_to_range):
+            beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
+        position = 0
+        for target_chunk_id in I[cid]:
+            if beg <= target_chunk_id < end:
+                # target chunk is from the same document
+                continue
+            tmp_neighbors[cid, position] = target_chunk_id
+            position += 1
+
+
 def dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     """
     deduplicate the KNN who are from the same document as the data chunks.
@@ -89,19 +104,11 @@ def dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     offset is the map offset
 
     filtered KNN will be stored in the tmp_neighbors
+
     """
-    for cid in prange(len(I)):
-        if chunk_id_start + cid - offset >= 0 and chunk_id_start + cid - offset < len(chunk_id_to_range):
-            beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
-        else:
-            raise ValueError('chunk_id_start out side the range')
-        position = 0
-        for target_chunk_id in I[cid]:
-            if beg <= target_chunk_id < end:
-                # target chunk is from the same document
-                continue
-            tmp_neighbors[cid, position] = target_chunk_id
-            position += 1
+    if chunk_id_start < offset or chunk_id_start + len(I) - offset > len(chunk_id_to_range):
+        raise ValueError('chunk_id_start out side the range')
+    _dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset)
 
 
 def get_tokenizer(args):

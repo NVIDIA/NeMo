@@ -465,6 +465,11 @@ class TestRetrievalIndexFiles:
         with pytest.raises(ValueError):
             dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, 0, beg)
 
+        I = np.arange(1000)[None, :]
+        tmp_neighbors = np.ones_like(I) * -1
+        with pytest.raises(ValueError):
+            dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, 250, beg)
+
         for i in range(beg, 200):
             I = np.arange(1000)[None, :]
             tmp_neighbors = np.ones_like(I) * -1
