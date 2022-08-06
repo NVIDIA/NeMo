@@ -91,11 +91,12 @@ def dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     filtered KNN will be stored in the tmp_neighbors
     """
     for cid in prange(len(I)):
-        beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
+        if chunk_id_start + cid - offset >= 0 and chunk_id_start + cid - offset < len(chunk_id_to_range):
+            beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
+        else:
+            raise ValueError('chunk_id_start out side the range')
         position = 0
         for target_chunk_id in I[cid]:
-            if chunk_id_start + cid == target_chunk_id:
-                continue
             if beg <= target_chunk_id < end:
                 # target chunk is from the same document
                 continue
@@ -173,7 +174,10 @@ def calculate_embedding(pool, batch_size):
         sentences, slice_id = get_sentence_chunks()
         if sentences is None:
             break
+        beg = time.time()
         emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
+        end = time.time()
+        logging.info(f"one embedding {len(emb)} batch size takes {end-beg}")
         emb_queue.put((emb, slice_id))
     emb_queue.put((None, None))
 
@@ -244,6 +248,7 @@ if __name__ == "__main__":
     group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
     group.add_argument('--stage', type=int, default=None, help='used for building the large knn index in multiple stages', choices=[1, 2])
     group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
+    group.add_argument('--nprobe', type=int, default=10, help='number of probes, higher number of probes renders better results but runs slower')
 
     args = parser.parse_args()
 
@@ -259,6 +264,8 @@ if __name__ == "__main__":
     index = faiss.read_index(args.faiss_index)
     if has_gpu:
         index = faiss.index_cpu_to_all_gpus(index)
+
+    index.nprobe = args.nprobe
 
     start = 0
     total_chunks = ds.chunks
@@ -298,13 +305,23 @@ if __name__ == "__main__":
             emb, slice_id = get_emb()
             if emb is None:
                 break
+            beg = time.time()
             D, I = index.search(emb, neighbors)
+            end = time.time()
+            logging.info(f'search {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+            assert chunk_id_start == slice_id[0]
             if ds._index.retrieval_db and args.remove_duplicate:
+                beg = time.time()
                 tmp_neighbors = np.ones_like(I) * -1
                 dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start, start)
                 I = tmp_neighbors[:, : args.K_neighbors]
                 chunk_id_start += len(I)
+                end = time.time()
+                logging.info(f'dedup {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+            beg = time.time()
             w.write(I)
+            end = time.time()
+            logging.info(f'write {slice_id[0]} - {slice_id[1]} takes {end-beg}')
 
     process.join()
     emb_process.join()
