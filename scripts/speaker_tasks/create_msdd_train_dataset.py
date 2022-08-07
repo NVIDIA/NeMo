@@ -14,7 +14,7 @@
 
 import argparse
 import json
-import logging
+from nemo.utils import logging
 import os
 import random
 import numpy as np
@@ -104,7 +104,8 @@ def split_into_pairwise_rttm(audio_rttm_map, input_manifest_path, output_dir):
     rttmlist = []
     rttm_split_manifest_dict = {}
     split_audio_rttm_map = {}
-    for uniq_id, line in input_manifest_dict.items():
+    logging.info("Creating split RTTM files.")
+    for uniq_id, line in tqdm(input_manifest_dict.items(), total=len(input_manifest_dict)):
         audiopath = line['audio_filepath']
         num_speakers = line['num_speakers']
         rttm_filepath = line['rttm_filepath']
@@ -147,9 +148,9 @@ def split_into_pairwise_rttm(audio_rttm_map, input_manifest_path, output_dir):
 def get_subsegment_dict(subsegments_manifest_file, window, shift, deci):
     _subsegment_dict = {}
     with open(subsegments_manifest_file, 'r') as subsegments_manifest:
-        print(f"Reading subsegments_manifest_file: {subsegments_manifest_file}")
+        logging.info(f"Reading subsegments_manifest_file: {subsegments_manifest_file}")
         segments = subsegments_manifest.readlines()
-        for segment in segments:
+        for segment in tqdm(segments, total=len(segments)):
             segment = segment.strip()
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
@@ -179,8 +180,8 @@ def get_input_manifest_dict(input_manifest_path):
 
 def write_truncated_subsegments(input_manifest_dict, _subsegment_dict, output_manifest_path, step_count, deci): 
     with open(output_manifest_path, 'w') as output_manifest_fp:
-        for uniq_id, subseg_dict in _subsegment_dict.items():
-            print(f"Writing {uniq_id}")
+        logging.info("Writing truncated subsegments.")
+        for uniq_id, subseg_dict in tqdm(_subsegment_dict.items(), total=len(_subsegment_dict)):
             subseg_array = np.array(subseg_dict['ts'])
             subseg_array_idx = np.argsort(subseg_array, axis=0)
             chunked_set_count = subseg_array_idx.shape[0] // step_count 
@@ -224,6 +225,8 @@ def main(input_manifest_path, output_manifest_path, pairwise_rttm_output_folder,
     input_manifest_file = sorted(input_manifest_file)
     segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
     subsegments_manifest_file = subsegment_manifest_path
+    
+    logging.info("Creating subsegments.")
     segments_manifest_to_subsegments_manifest(
         segments_manifest_file,
         subsegments_manifest_file, 

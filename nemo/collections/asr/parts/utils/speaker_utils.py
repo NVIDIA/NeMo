@@ -30,6 +30,8 @@ from tqdm import tqdm
 from nemo.collections.asr.parts.utils.nmesc_clustering import COSclustering
 from nemo.utils import logging
 
+from functools import partial
+from multiprocessing import Pool
 
 """
 This file contains all the utility functions required for speaker embeddings part in diarization scripts
@@ -421,7 +423,7 @@ def perform_clustering(embs_and_timestamps, AUDIO_RTTM_MAP, out_rttm_dir, cluste
         logging.warning("cuda=False, using CPU for Eigen decomposition. This might slow down the clustering process.")
         cuda = False
 
-    for uniq_id, value in tqdm(AUDIO_RTTM_MAP.items()):
+    for uniq_id, value in AUDIO_RTTM_MAP.items():
         if clustering_params.oracle_num_speakers:
             num_speakers = value.get('num_speakers', None)
             if num_speakers is None:
@@ -881,7 +883,7 @@ def _write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_i
                 write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
     return manifest_file
 
-def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
+def __write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
     """
     Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
     speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
@@ -916,10 +918,76 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
             overlap_range_list = getSubRangeList(
                 source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
             )
-            meta_list = make_overlap_segments(AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
+            meta_list = make_overlap_segments(AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id=False, deci=5)
             total_json_lines.extend(meta_list)
     write_json_lines_format(manifest_file, total_json_lines) 
     return manifest_file
+
+def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5, num_workers: int = 1) -> str:
+    """
+    Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
+    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
+    and trimmed with the given offset and duration value.
+
+    Args:
+        AUDIO_RTTM_MAP (dict):
+            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+            these are used to extract oracle vad timestamps.
+        manifest (str):
+            The path to the output manifest file.
+
+    Returns:
+        manifest (str):
+            The path to the output manifest file.
+    """
+    uniq_id_args = list(AUDIO_RTTM_MAP.keys())
+    logging.info(f"Extracting oracle VAD from {len(uniq_id_args)} RTTM files.")
+    total_json_lines = []
+    if num_workers > 1:
+        with Pool(processes=num_workers) as pool:
+            pool_total_json_lines = pool.map(partial(create_VAD_meta_dict, AUDIO_RTTM_MAP=AUDIO_RTTM_MAP), uniq_id_args)
+        for x in pool_total_json_lines:
+            total_json_lines.extend(x)
+    else:
+        for uniq_id in tqdm(AUDIO_RTTM_MAP):
+            meta_list = create_VAD_meta_dict(uniq_id, AUDIO_RTTM_MAP)
+            total_json_lines.extend(meta_list)
+    write_json_lines_format(manifest_file, total_json_lines) 
+    return manifest_file
+
+def create_VAD_meta_dict(uniq_id, AUDIO_RTTM_MAP, deci=3):
+    """
+    This function calculate overlapping VAD timestamps and trimmed with the given offset and duration value.
+
+    Args:
+        uniq_id (str):
+            Unique file id, unique name for each data sample entry.
+        AUDIO_RTTM_MAP (dict):
+            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
+            these are used to extract oracle vad timestamps.
+
+    Returns:
+        meta_list (list):
+            List containing meta dictionies from manifest files.
+    """
+    rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
+    rttm_lines = read_rttm_lines(rttm_file_path)
+    offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
+    vad_start_end_list_raw = []
+    for line in rttm_lines:
+        start, dur = get_vad_out_from_rttm_line(line)
+        vad_start_end_list_raw.append([start, start + dur])
+    vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
+    if len(vad_start_end_list) == 0:
+        logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
+    elif duration <= 0:
+        logging.warning(f"File ID: {uniq_id}: The audio file has negative or zero duration.")
+    else:
+        overlap_range_list = getSubRangeList(
+            source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
+        )
+        meta_list = make_overlap_segments(AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id=False)
+    return meta_list
 
 def _segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
@@ -1001,7 +1069,7 @@ def segments_manifest_to_subsegments_manifest(
     total_json_lines = []
     with open(segments_manifest_file, 'r') as segments_manifest:
         segments = segments_manifest.readlines()
-        for segment in tqdm(segments):
+        for segment in segments:
             segment = segment.strip()
             dic = json.loads(segment)
             audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']

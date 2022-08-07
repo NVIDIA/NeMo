@@ -800,7 +800,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         logging.info(f"Extracting oracle VAD timestamps and saving at {self._speaker_dir}")
         if not os.path.exists(_speaker_manifest_path):
              write_rttm2manifest(
-                split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
+                split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True, num_workers=self.cfg_base.num_workers
             )
 
         multiscale_and_timestamps = {}
