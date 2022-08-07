@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -265,7 +266,6 @@ class SSLVocoderDataset(Dataset):
         pitch_contour_fn = f"pitch_contour_{wav_text_id}.pt"
         pitch_contour_fp = os.path.join(self.sup_data_dir, pitch_contour_fn)
         if os.path.exists(pitch_contour_fp) and self.data_caching:
-            print("loading from cache")
             return torch.load(pitch_contour_fp)
         else:
             f0, _, _ = librosa.pyin(

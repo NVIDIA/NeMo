@@ -27,7 +27,7 @@ val_max_duration: null
 val_min_duration: 3
 
 ssl_model_type: conformer_multitask
-ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/vox1_augtrue_mse1_small_epoch33.ckpt"
+ssl_model_ckpt_path: "/home/pneekhara/NeMo2022/SSLCheckPoints/CosineLossExp/Vox2CosineSimEpoch26.ckpt"
 ssl_content_emb_type: 'embedding'
 
 pitch_conditioning: true
