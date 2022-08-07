@@ -50,8 +50,8 @@ from nemo.collections.nlp.models.dialogue.dialogue_gpt_generation_model import D
 from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model import DialogueNearestNeighbourModel
 from nemo.collections.nlp.models.dialogue.dialogue_s2s_generation_model import DialogueS2SGenerationModel
 from nemo.collections.nlp.models.dialogue.dialogue_zero_shot_intent_model import DialogueZeroShotIntentModel
-from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.intent_bio_type_classification_model import IntentBIOTypeClassificationModel
+from nemo.collections.nlp.models.dialogue.intent_slot_classification_model import IntentSlotClassificationModel
 from nemo.collections.nlp.models.dialogue.sgdqa_model import SGDQAModel
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
