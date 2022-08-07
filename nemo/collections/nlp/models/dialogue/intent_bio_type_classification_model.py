@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from audioop import bias
 import os
-import pickle
 from typing import Dict, List, Optional
 
 import torch
@@ -25,7 +25,7 @@ from torch.utils.data import DataLoader
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.common.parts import MultiLayerPerceptron
 from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_intent_bio_type_classification_dataset import DialogueIntentBIOTypeClassificationDataset
 from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc, IntentSlotInferenceDataset
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
@@ -36,8 +36,7 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
-UNIQUE_COUNTER = 0
-UNIQUE_EPOCH_COUNTER = 0
+
 class IntentBIOTypeClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """ Initializes BERT Joint Intent and Slot model.
@@ -55,10 +54,9 @@ class IntentBIOTypeClassificationModel(NLPModel):
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
 
-        # Initialize Classifier.
-        self._reconfigure_classifier()
         
-        # Initialize MultiLayerPerceptron
+        
+        # Initialize MultiLayerPerceptron for predict slot's class
         self.slot_mlp = MultiLayerPerceptron(
             hidden_size=self.hidden_size,
             num_classes=len(self.cfg.data_desc.slot_labels),
@@ -67,26 +65,25 @@ class IntentBIOTypeClassificationModel(NLPModel):
             log_softmax=True,
         )
 
-        # Project mention or description embedding
-        self.project_mlp = MultiLayerPerceptron(
-            hidden_size=self.hidden_size,
-            num_classes=300,
-            num_layers=2,
-            activation='relu',
-            log_softmax=True,
-        )
-         
-        # Initialize slot description
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.mention_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(device)
+        
+        self.description_projection_mlp = torch.nn.Linear(self.hidden_size, 300, bias=False).to(device)
+
+        # Initialize slot description and description embeddings
         self._get_slot_description(cfg.dataset.data_dir)
 
+        # Initialize Classifier.
+        self._reconfigure_classifier()
+        
     def _get_slot_description(self, data_dir):
         """ Method read slot description file """
         description_file_name = data_dir + "/description.slots.csv"
         with open(description_file_name) as f:
             descriptions = f.read().strip().split('\n')
-        # print(len(descriptions))
-        # print(descriptions)
+        
         self.slot_descriptions = descriptions
+        self.description_embeddings = self.get_description_embedding(self.slot_descriptions)
 
     def _set_defaults_data_desc(self, cfg):
         """
@@ -173,9 +170,10 @@ class IntentBIOTypeClassificationModel(NLPModel):
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
             self.bio_slot_loss = CrossEntropyLoss(logits_ndim=3)
 
-        slot_loss_weight = 1 - self.cfg.intent_loss_weight - self.cfg.bio_slot_loss_weight
+        slot_loss_mention_and_description_weight = 1 - self.cfg.intent_loss_weight - self.cfg.bio_slot_loss_weight - self.cfg.slot_loss_mention_only_weight
+
         self.total_loss = AggregatorLoss(
-            num_inputs=3, weights=[self.cfg.intent_loss_weight, slot_loss_weight, self.cfg.bio_slot_loss_weight]
+            num_inputs=4, weights=[self.cfg.intent_loss_weight, self.cfg.bio_slot_loss_weight, self.cfg.slot_loss_mention_only_weight, slot_loss_mention_and_description_weight]
         )
 
         # setup to track metrics
@@ -186,8 +184,8 @@ class IntentBIOTypeClassificationModel(NLPModel):
             mode='micro',
         )
         self.slot_classification_report = ClassificationReport(
-            num_classes=len(self.cfg.data_desc.slot_labels),
-            label_ids=self.cfg.data_desc.slot_label_ids,
+            num_classes=len(self.slot_descriptions),
+            label_ids= {slot_class.split("\t")[0]: idx for idx, slot_class in enumerate(self.slot_descriptions)},
             dist_sync_on_step=True,
             mode='micro',
         )
@@ -224,32 +222,37 @@ class IntentBIOTypeClassificationModel(NLPModel):
         logging.info(f'Setting data_dir to {data_dir}.')
         self.data_dir = data_dir
     
-    def get_description_embedding(self, one_description):
+    def get_description_embedding(self, descriptions):
         """
         Generate one description's embedding
 
         Args:
-            one_description: each slot description
-            eg. food type\tdrinks menu vegetarian main desserts sides
+            descriptions: list of slot description
+            eg. ["food type\tdrinks menu vegetarian main desserts sides"]
         Returns:
-            description embedding by taking final layer embedding for the [CLS] token.
+            description embedding by taking final layer embedding for the [CLS] token, 
+            which is then projected to shared embedding space
         """
 
         model = BertModel.from_pretrained("bert-base-uncased")
+        description_embeddings = []
+        for one_description in descriptions:
+            tokens_of_entity_label = one_description.split('\t')[0] # tokens of the entity label
+            entity_description = one_description.split('\t')[1] # entity description in DB
 
-        tokens_of_entity_label = one_description.split('\t')[0] # tokens of the entity label
-        entity_description = one_description.split('\t')[1] # entity description in DB
+            inputs = self.tokenizer.tokenizer(tokens_of_entity_label, 
+                            entity_description, 
+                            return_tensors="pt",
+                            max_length=128,
+                            truncation="only_second",
+                            padding="max_length",)
+            with torch.no_grad():
+                outputs = model(**inputs) 
+            last_hidden_states = outputs.last_hidden_state
+            description_embeddings.append(last_hidden_states[0, 0, :])
 
-        inputs = self.tokenizer.tokenizer(tokens_of_entity_label, 
-                        entity_description, 
-                        return_tensors="pt",
-                        max_length=128,
-                        truncation="only_second",
-                        padding="max_length",)
-        outputs = model(**inputs) # the actual input will be a little different 
-        last_hidden_states = outputs.last_hidden_state
-        
-        return last_hidden_states[:, 0]
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        return torch.stack(description_embeddings).to(device)
         
     @staticmethod
     def get_entity_embedding_from_hidden_states(mention_mask, hidden_states):
@@ -289,7 +292,7 @@ class IntentBIOTypeClassificationModel(NLPModel):
         return torch.stack(mention_hidden_states)
 
     @typecheck()
-    def forward(self, input_ids, attention_mask, token_type_ids, mention_mask, mention_loss_mask):
+    def forward(self, input_ids, attention_mask, token_type_ids, mention_mask):
         """
         No special modification required for Lightning, define it as you normally would
         in the `nn.Module` in vanilla PyTorch.
@@ -301,110 +304,17 @@ class IntentBIOTypeClassificationModel(NLPModel):
                 input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
             )
 
-        from os.path import exists
-        global UNIQUE_EPOCH_COUNTER
-
-        # print("START DUMP hidden_states")
-        # path_to_file="/home/lilee/pickle/hidden_states"+str(UNIQUE_EPOCH_COUNTER)+".pickle"
-        # if exists(path_to_file)==False:
-        #     with open(path_to_file, 'wb') as f:
-        #         # Pickle the 'data' dictionary using the highest protocol available.
-        #         pickle.dump(hidden_states, f, pickle.HIGHEST_PROTOCOL)        
-        # print("END DUMP hidden_states")
-
-
-        # intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
-        intent_logits, bio_slot_logits = self.classifier(hidden_states=hidden_states)
-
-        # print("START DUMP bio_slot_logits")
-        # path_to_file="/home/lilee/pickle/bio_slot_logits"+str(UNIQUE_EPOCH_COUNTER)+".pickle"
-        # if exists(path_to_file)==False:
-        #     with open(path_to_file, 'wb') as f:
-        #         # Pickle the 'data' dictionary using the highest protocol available.
-        #         pickle.dump(bio_slot_logits, f, pickle.HIGHEST_PROTOCOL)
-        # print("END DUMP bio_slot_logits")
-
-        # current:bug; hidden_states#(batch*128*768) zzz
+        intent_logits, bio_slot_logits = self.classifier(hidden_states=hidden_states)        
         
-        # mention_hidden_states_pad: b*128*hiddenstate_dim
+        # mention_hidden_states_pad: batch_size * max_token_len * hiddenstate_dim
         mention_hidden_states_pad = IntentBIOTypeClassificationModel.get_entity_embedding_from_hidden_states(mention_mask, hidden_states)
         
-        """
-        RUN TIME error cause here (may because too many for loop, may have better way to implement):
-            try to implement 3.7 entity description score from ReFinED paper
-            input is:
-                mention_hidden_states_pad: b*7*hiddenstate_dim  (mention's embedding)
-                    eg. [[1, 1, 1], [1, 1, 1], [1, 1, 1], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]]
-                mention_loss_mask: b*7 (mention's mask)
-                    eg. [[1, 1, 1, 0, 0, 0, 0]]
-                self.slot_descriptions: every slot class's description
-                self.get_description_embedding: a method to get one description's embedding from BERT Model
-        """
+        dot_product_score = self.get_entity_description_score(mention_hidden_states_pad)
+        dot_product_score_log_softmax = torch.log_softmax(dot_product_score, dim=-1)
         
-        score_matrix = [] # this is the matrix store all dot score between mention and every description embedding
-        for one_input_sentence, one_input_sentence_mask in zip(mention_hidden_states_pad, mention_loss_mask):
-            one_sentence_score = []
-            for one_mention_emb, every_mention_mask in zip(one_input_sentence, one_input_sentence_mask):
-                if every_mention_mask == True: #only calculate dot product for unmask mention, save time 
-                    # print("one_mention_emb")
-                    # print(one_mention_emb.size())
-                    one_mention_score = []
-                    for one_description in self.slot_descriptions:
-                        one_description_embedding = self.project_mlp(self.get_description_embedding(one_description).to(hidden_states.device))[0] #(1*300)[0] --> (300)
-                        one_mention_embedding = self.project_mlp(one_mention_emb) #(300)
-                        # print("one_description_embedding size")
-                        # print(one_description_embedding.size())
-                        # print("one_mention_embedding size")
-                        # print(one_mention_embedding.size())
-                        one_score = torch.dot(one_description_embedding, one_mention_embedding)
-                        one_mention_score.append(one_score)
-                    one_mention_score = torch.stack(one_mention_score)
-                    one_sentence_score.append(one_mention_score)
-                else:
-                    one_sentence_score.append(torch.zeros(len(self.slot_descriptions)).to(hidden_states.device))
-            one_sentence_score = torch.stack(one_sentence_score)
-            score_matrix.append(one_sentence_score)
-
-        score_matrix = torch.stack(score_matrix)
-        print("score_matrix SIZE!!!")
-        print(score_matrix.size())
-
-        
-
-        # dump
-        # mention_hidden_states
-        # hidden_states
-        # mention_mask
-
-        # print("START DUMP mention_hidden_states_pad, hidden_states, mention_mask")
-        # path_to_file="/home/lilee/pickle/mention_hidden_states_pad"+str(UNIQUE_EPOCH_COUNTER)+".pickle"
-        # if exists(path_to_file)==False:
-        #     with open(path_to_file, 'wb') as f:
-        #         # Pickle the 'data' dictionary using the highest protocol available.
-        #         pickle.dump(mention_hidden_states_pad, f, pickle.HIGHEST_PROTOCOL)
-        
-        # path_to_file="/home/lilee/pickle/mention_mask"+str(UNIQUE_EPOCH_COUNTER)+".pickle"
-        # if exists(path_to_file)==False:
-        #     with open(path_to_file, 'wb') as f:
-        #         # Pickle the 'data' dictionary using the highest protocol available.
-        #         pickle.dump(mention_mask, f, pickle.HIGHEST_PROTOCOL)
-        
-        # print("END DUMP mention_hidden_states_pad, hidden_states, mention_mask")
-
-
         slot_logits = self.slot_mlp(mention_hidden_states_pad)
-
-        # print("START DUMP slot_logits")
-        # path_to_file="/home/lilee/pickle/slot_logits"+str(UNIQUE_EPOCH_COUNTER)+".pickle"
-        # if exists(path_to_file)==False:
-        #     with open(path_to_file, 'wb') as f:
-        #         # Pickle the 'data' dictionary using the highest protocol available.
-        #         pickle.dump(slot_logits, f, pickle.HIGHEST_PROTOCOL)
-        # print("END DUMP slot_logits")
-
-        UNIQUE_EPOCH_COUNTER +=1
-
-        return intent_logits, slot_logits, bio_slot_logits
+      
+        return intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax
 
     def training_step(self, batch, batch_idx):
         """
@@ -413,19 +323,23 @@ class IntentBIOTypeClassificationModel(NLPModel):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask = batch
-        intent_logits, slot_logits, bio_slot_logits = self(
-            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels, mention_loss_mask=mention_loss_mask
+        intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax = self(
+            input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels
         )
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        # slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
-        slot_loss = self.slot_loss(logits=slot_logits, labels=bio_mention_labels, loss_mask=mention_loss_mask)
         bio_slot_loss = self.bio_slot_loss(logits=bio_slot_logits, labels=bio_slot_labels, loss_mask=loss_mask)
-
-        train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss, loss_3=bio_slot_loss)
-        # train_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
+        slot_loss_mention_only = self.slot_loss(logits=slot_logits, labels=bio_mention_labels, loss_mask=mention_loss_mask)
+        slot_loss_mention_and_description = self.slot_loss(logits=dot_product_score_log_softmax, labels=bio_mention_labels, loss_mask=mention_loss_mask)
         
+        if torch.isnan(slot_loss_mention_only).item():
+            slot_loss_mention_only.data[0] = 0.0
+        if torch.isnan(slot_loss_mention_and_description).item():
+            slot_loss_mention_and_description.data[0] = 0.0
+
+        train_loss = self.total_loss(loss_1=intent_loss, loss_2=bio_slot_loss, loss_3=slot_loss_mention_only, loss_4=slot_loss_mention_and_description)
+                
         lr = self._optimizer.param_groups[0]['lr']
 
         self.log('train_loss', train_loss)
@@ -442,56 +356,71 @@ class IntentBIOTypeClassificationModel(NLPModel):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, loss_mask, subtokens_mask, intent_labels, slot_labels, bio_slot_labels, bio_mention_labels, mention_loss_mask = batch
-        intent_logits, slot_logits, bio_slot_logits = self(
+        intent_logits, slot_logits, bio_slot_logits, dot_product_score_log_softmax = self(
             input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask, mention_mask=bio_slot_labels
         )
 
-
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        # slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
-        slot_loss = self.slot_loss(logits=slot_logits, labels=bio_mention_labels, loss_mask=mention_loss_mask)
         bio_slot_loss = self.bio_slot_loss(logits=bio_slot_logits, labels=bio_slot_labels, loss_mask=loss_mask)
+        slot_loss_mention_only = self.slot_loss(logits=slot_logits, labels=bio_mention_labels, loss_mask=mention_loss_mask)
+        slot_loss_mention_and_description = self.slot_loss(logits=dot_product_score_log_softmax, labels=bio_mention_labels, loss_mask=mention_loss_mask)
 
-        val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss, loss_3=bio_slot_loss)
-        # val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
-
+        val_loss = self.total_loss(loss_1=intent_loss, loss_2=bio_slot_loss, loss_3=slot_loss_mention_only, loss_4=slot_loss_mention_and_description)
+        
         # calculate accuracy metrics for intents and slot reporting
         # intents
         intent_preds = torch.argmax(intent_logits, axis=-1)
         self.intent_classification_report.update(intent_preds, intent_labels)
+        
         # slots
-
-        # subtokens_mask = subtokens_mask > 0.5
-        mention_loss_mask = mention_loss_mask > 0.5
-        slot_preds = torch.argmax(slot_logits, axis=-1)
-        # self.slot_classification_report.update(slot_preds[subtokens_mask], slot_labels[subtokens_mask])
-        self.slot_classification_report.update(slot_preds[mention_loss_mask], bio_mention_labels[mention_loss_mask])
-
         loss_mask = loss_mask > 0.5
         bio_slot_preds = torch.argmax(bio_slot_logits, axis=-1)
         self.bio_slot_classification_report.update(bio_slot_preds[loss_mask], bio_slot_labels[loss_mask])
+
+        mention_loss_mask = mention_loss_mask > 0.5
+        slot_preds = torch.argmax(slot_logits, axis=-1)
+        self.slot_classification_report.update(slot_preds[mention_loss_mask], bio_mention_labels[mention_loss_mask])
+
+        
 
         return {
             'val_loss': val_loss,
             'intent_tp': self.intent_classification_report.tp,
             'intent_fn': self.intent_classification_report.fn,
             'intent_fp': self.intent_classification_report.fp,
-            'slot_tp': self.slot_classification_report.tp,
-            'slot_fn': self.slot_classification_report.fn,
-            'slot_fp': self.slot_classification_report.fp,
             'bio_slot_tp': self.bio_slot_classification_report.tp,
             'bio_slot_fn': self.bio_slot_classification_report.fn,
             'bio_slot_fp': self.bio_slot_classification_report.fp,
+            'slot_tp': self.slot_classification_report.tp,
+            'slot_fn': self.slot_classification_report.fn,
+            'slot_fp': self.slot_classification_report.fp,
             'intent_preds': intent_preds,
             'intent_labels': intent_labels,
-            'slot_preds': slot_preds,
-            'slot_labels': slot_labels,
             'bio_slot_preds': bio_slot_preds,
             'bio_slot_labels': bio_slot_labels,
+            'slot_preds': slot_preds,
+            'slot_labels': slot_labels,
             'input': input_ids,
             'subtokens_mask': subtokens_mask,
         }
+
+    def get_entity_description_score(self, mention_hidden_states_pad):
+        """
+        Implement 3.7 entity description score from ReFinED paper
+        Args: 
+            mention_hidden_states_pad: mention embedding of size (batch_size * max_num_mention * hidden_state_dim)
+            self.description_embeddings: description embeddings of size (num_slot_class * shared_embedding_dim)
+            
+        Returns:
+            dot product score matrix of given mention embedding and description embedding (batch_size * max_num_mention * num_slot_class)
+        
+        """
+        share_description_embedding = self.description_projection_mlp(self.description_embeddings)
+        share_mention_embedding = self.mention_projection_mlp(mention_hidden_states_pad)
+        dot_product_score = torch.matmul(share_mention_embedding, torch.t(share_description_embedding))
+        
+        return dot_product_score
 
     @staticmethod
     def get_continuous_slots(slot_ids, utterance_tokens):
@@ -743,19 +672,12 @@ class IntentBIOTypeClassificationModel(NLPModel):
     def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split: str):
         data_processor = DialogueAssistantDataProcessor(self.data_dir, self.tokenizer, cfg=self.cfg.dataset)
 
-        dataset = DialogueBERTDataset(
+        dataset = DialogueIntentBIOTypeClassificationDataset(
             dataset_split,
             data_processor,
             self.tokenizer,
             self.cfg.dataset,  # this is the model.dataset cfg, which is diff from train_ds cfg etc
         )
-
-        print("DUMP dataset after DialogueBERTDataset before dataloader")
-        with open('/home/lilee/pickle/dataset.pickle', 'wb') as f:
-            # Pickle the 'data' dictionary using the highest protocol available.
-            pickle.dump(dataset, f, pickle.HIGHEST_PROTOCOL)
-
-        print("END dumping dataset after DialogueBERTDataset before dataloader")
 
         return DataLoader(
             dataset=dataset,
