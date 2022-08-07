@@ -46,7 +46,7 @@ msdd_model:
   subsample_rate: &subsample_rate 1
   split_length: 30
   end_to_end_train: False
-  emb_batch_size: 100
+  emb_batch_size: 0
   use_longest_scale_clus_avg_emb: True
 
   train_ds:
@@ -57,7 +57,7 @@ msdd_model:
     soft_label_thres: *soft_label_thres
     labels: null
     batch_size: 2
-    emb_batch_size: 50
+    emb_batch_size: 0
     shuffle: True
 
   validation_ds:
@@ -68,7 +68,7 @@ msdd_model:
     soft_label_thres: *soft_label_thres
     labels: null
     batch_size: 2
-    emb_batch_size: 50
+    emb_batch_size: 0
     shuffle: False
   
   test_ds:
