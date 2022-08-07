@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
-import torch
 from typing import Dict, Optional
 
 import numpy as np
@@ -49,9 +47,6 @@ class DialogueBERTDataset(DialogueDataset):
             'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
             'intent_labels': NeuralType(('B'), LabelsType()),
             'slot_labels': NeuralType(('B', 'T'), LabelsType()),
-            'bio_slot_labels': NeuralType(('B', 'T'), LabelsType()),
-            'bio_mention_labels': NeuralType(('B', 'T'), LabelsType()),
-            'mention_loss_mask': NeuralType(('B', 'T'), LabelsType()),
         }
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
@@ -87,48 +82,14 @@ class DialogueBERTDataset(DialogueDataset):
             ignore_extra_tokens=self.cfg.ignore_extra_tokens,
             ignore_start_end=self.cfg.ignore_start_end,
         )
-        
+
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
         self.all_input_mask = features[2]
         self.all_loss_mask = features[3]
         self.all_subtokens_mask = features[4]
         self.all_slots = features[5]
-
-        # drive through dataset: label_id_for_empty_slot = 0; assistant dataset: label_id_for_empty_slot = 54
-        # use the train_slot_stats.tsv file majority class as the "Other" slot class
-        file_path_for_stats = cfg.data_dir+"/train_slot_stats.tsv"
-        
-        with open(file_path_for_stats) as f:
-            label_id_for_empty_slot = int(f.read().strip().split('\n')[0].split()[0])
-
-        self.all_bio_slots = [DialogueBERTDataset.get_bio_slot_label_from_sequence(t, label_id_for_empty_slot) for t in self.all_slots]
-
-        self.bio_mention_labels = [DialogueBERTDataset.get_bio_mention_labels(t, bio_list) for t, bio_list in zip(self.all_slots, self.all_bio_slots)]
-
-        bio_mention_loss_mask = torch.FloatTensor(self.bio_mention_labels)
-        self.mention_loss_mask = (bio_mention_loss_mask>0).type(torch.uint8).tolist()
-
         self.all_intents = intents
-
-        # print("============== DUMP PICKLE =============")
-        # with open('/home/lilee/pickle/features.pickle', 'wb') as f:
-        #     # Pickle the 'data' dictionary using the highest protocol available.
-        #     pickle.dump(features, f, pickle.HIGHEST_PROTOCOL)
-
-        # with open('/home/lilee/pickle/bio_train_slots.pickle', 'wb') as f:
-        #     # Pickle the 'data' dictionary using the highest protocol available.
-        #     pickle.dump(bio_train_slots, f, pickle.HIGHEST_PROTOCOL)
-
-        # with open('/home/lilee/pickle/bio_mention_labels.pickle', 'wb') as f:
-        #     # Pickle the 'data' dictionary using the highest protocol available.
-        #     pickle.dump(bio_mention_labels, f, pickle.HIGHEST_PROTOCOL)
-        
-        # with open('/home/lilee/pickle/mention_loss_mask.pickle', 'wb') as f:
-        #     # Pickle the 'data' dictionary using the highest protocol available.
-        #     pickle.dump(bio_mention_loss_mask, f, pickle.HIGHEST_PROTOCOL)        
-
-        # print("============== DUMP PICKLE END =============")
 
     def convert_slot_position_to_slot_ids(self, feature):
         slot_ids = [self.slot_name_to_slot_id[self.empty_slot_name] for i in range(len(feature["utterance"].split()))]
@@ -155,85 +116,7 @@ class DialogueBERTDataset(DialogueDataset):
             np.array(self.all_subtokens_mask[idx]),
             self.all_intents[idx],
             np.array(self.all_slots[idx]),
-            np.array(self.all_bio_slots[idx]),
-            np.array(self.bio_mention_labels[idx]),
-            np.array(self.mention_loss_mask[idx]),
         )
-
-    @staticmethod
-    def get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot):
-        """
-        Generate BIO slot label based on slot label
-        Args:
-            slot_label_list: list of int representing slot class of each word token (per sentence)
-            Eg,
-            send me a  wake up alert at seven am tomorrow morning PAD
-            54   54 54 0    0  54    54 46    46 12       48      -1
-            [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48, -1] 
-
-            label_id_for_empty_slot: int lable of "Other" type in the slot_label_list
-            For instance, in drive_through dataset "Other" is 0; in assistant dataset "Other" is 54
-        Returns:
-            bio_label_list: list of int representing BIO slot class of each word token
-            eg,
-            send me a  wake up alert at seven am tomorrow morning PAD
-            0    0  0  1    2  0     0  1     2  1        1       0
-            [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1, 0]
-        """
-        bio_label_list = []
-        for idx, slot_label in enumerate(slot_label_list):
-            if slot_label in [label_id_for_empty_slot, -1]:
-                bio_label_list.append(0)
-            elif idx > 0 and slot_label == slot_label_list[idx-1]:
-                bio_label_list.append(2)
-            else:
-                bio_label_list.append(1)
-
-        return bio_label_list
-
-    @staticmethod
-    def get_bio_mention_labels(slot_list, bio_list):
-        """
-        Generate slot label per BIO mention 
-        Args:
-            slot_list: list of int representing slot class of each word token
-            eg 1.
-            send me a  wake up alert at seven am tomorrow morning
-            54   54 54 0    0  54    54 46    46 12       48
-
-            eg 2.
-            yes Could I also get one two litre of Sprite cola?
-            0   0     0 0    0   6   3   3     0  2      2
-            
-            bio_list: list of int representing BIO slot class of each word token
-            eg 1.
-            send me a  wake up alert at seven am tomorrow morning
-            0    0  0  1    2  0     0  1     2  1        1
-            eg 2.
-            yes Could I also get one two litre of Sprite cola?
-            0   0     0 0    0   1   1   2     0  1      2
-
-        Returns:
-            bio_train_slots: list of int representing slot class of each BIO mention
-            eg 1.
-            wake+up seven+am tomorrow morning (padding ... )
-            0       46       12       48      (-1, ..., -1
-
-
-            eg 2.
-            one   two+litre  Sprite+cola (padding ...)
-            6     3          2           (-1, ..., -1)
-        """
-
-        bio_train_slots=[]
-        for idx in range(len(slot_list)):
-            if bio_list[idx]==1:
-                bio_train_slots.append(slot_list[idx])
-        add_zero=len(slot_list)-len(bio_train_slots)
-        
-        bio_train_slots = bio_train_slots+[-1]*(add_zero)
-        
-        return bio_train_slots
 
     @staticmethod
     def truncate_and_pad(
