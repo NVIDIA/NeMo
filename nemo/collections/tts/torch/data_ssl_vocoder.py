@@ -414,7 +414,8 @@ class SSLVocoderDataset(Dataset):
     def update_speaker_stats(self, speaker, pitch_contour, speaker_embedding):
         pitch_contour_nonzero = pitch_contour[pitch_contour != 0]
         if len(pitch_contour_nonzero) == 0:
-            pitch_contour_nonzero = torch.tensor([0])
+            dummy_pitch_contour = np.random.normal(loc=self.pitch_mean, scale=self.pitch_std, size=(100))
+            pitch_contour_nonzero = torch.tensor(dummy_pitch_contour)
         if speaker not in self.speaker_stats:
             self.speaker_stats[speaker] = {
                 'sum_x': torch.sum(pitch_contour_nonzero).item(),
@@ -442,6 +443,11 @@ class SSLVocoderDataset(Dataset):
             - self.speaker_stats[speaker]['pitch_mean'] ** 2
         ) ** 0.5
 
+    def _is_valid_pitch_contour(self, pitch_contour):
+        if pitch_contour.dtype != torch.float32:
+            return False
+        return True
+
     def __getitem__(self, index):
         sample = self.data[index]
         rel_audio_path = Path(sample["audio_filepath"]).relative_to(self.base_data_dir).with_suffix("")
@@ -452,7 +458,7 @@ class SSLVocoderDataset(Dataset):
         pitch_contour = None
         if self.pitch_conditioning:
             pitch_contour = self.get_pitch_contour(audio_ssl, rel_audio_path_as_text_id)
-
+            # print(rel_audio_path_as_text_id, pitch_contour)
         content_embedding, speaker_embedding, encoded_len = self.get_ssl_features(
             audio_ssl, audio_ssl_length, rel_audio_path_as_text_id
         )
@@ -480,6 +486,11 @@ class SSLVocoderDataset(Dataset):
             pitch_contour = pitch_contour - mean
             pitch_contour[pitch_contour == -mean] = 0.0
             pitch_contour = pitch_contour / std
+
+            if not self._is_valid_pitch_contour(pitch_contour):
+                print("invalid pitch contour for", sample["audio_filepath"])
+                print("Setting pitch contour to 0")
+                pitch_contour = torch.zeros(encoded_len.item())
 
         return self._segment_item(
             {
