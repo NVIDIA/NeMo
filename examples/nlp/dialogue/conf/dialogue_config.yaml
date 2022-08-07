@@ -60,7 +60,11 @@ model:
     num_output_layers: 2
     fc_dropout: 0.1
   
-  # Dialogue GPT Classification Megatron Prompt Learning model args
+  # Intent BIO type Classification model args
+  bio_slot_loss_weight: 0.2
+  slot_loss_mention_only_weight: 0.1
+
+  # Dialogue GPT Classification Magetron Prompt Learning model args
   prompt_learning: false # please change to true to activate prompt learning
   language_model_path: ${model.language_model.lm_checkpoint}
   new_tasks: ['intent_and_slot']
@@ -99,7 +103,7 @@ model:
     ## All tasks/models
     data_dir: ??? # location to load data from 
     dialogues_example_dir: ??? # store prediction files
-    task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa]
+    task: sgd # [sgd, assistant, zero_shot, ms_marco, sgd_generation, design, mellon_qa, bio_type]
     debug_mode: false # small number of examples for debugging
     max_seq_length: 128 # the maximum number of tokens per sample
     
