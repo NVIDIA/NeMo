@@ -340,9 +340,18 @@ if __name__ == "__main__":
     tokenizer = get_tokenizer(args)
     ds = MMapRetrievalIndexedDataset(args.input_file)
 
+    if args.devices is None or not torch.cuda.is_available():
+        device_list = None
+    else:
+        device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+
     index = faiss.read_index(args.faiss_index)
     if has_gpu:
-        index = faiss.index_cpu_to_all_gpus(index)
+        co = faiss.GpuMultipleClonerOptions()
+        co.useFloat16 = True
+        co.usePrecomputed = False
+        co.shard = True
+        index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
 
     index.nprobe = args.nprobe
 
@@ -359,10 +368,6 @@ if __name__ == "__main__":
     )
     process.start()
 
-    if args.devices is None or not torch.cuda.is_available():
-        device_list = None
-    else:
-        device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
 
     pool = model.start_multi_process_pool(device_list)
 
