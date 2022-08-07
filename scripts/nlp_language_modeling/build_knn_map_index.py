@@ -368,7 +368,6 @@ if __name__ == "__main__":
     )
     process.start()
 
-
     pool = model.start_multi_process_pool(device_list)
 
     emb_process = multiprocessing.Process(target=calculate_embedding, args=(pool, args.batch_size))
