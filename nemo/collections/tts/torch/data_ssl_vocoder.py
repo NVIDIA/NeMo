@@ -471,7 +471,7 @@ class SSLVocoderDataset(Dataset):
             self.update_speaker_stats(sample["speaker"], pitch_contour, speaker_embedding)
             speaker_embedding = self.speaker_stats[sample["speaker"]]["mean_speaker_embedding"]
 
-        if self.normalize_pitch:
+        if pitch_contour is not None and self.normalize_pitch:
             if self.use_speakerwise_stats:
                 mean = self.speaker_stats[sample["speaker"]]["pitch_mean"]
                 std = self.speaker_stats[sample["speaker"]]["pitch_std"]
