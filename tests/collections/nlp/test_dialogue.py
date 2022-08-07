@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_classification_data
 )
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_s2s_generation_dataset import DialogueS2SGenerationDataset
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_sgd_bert_dataset import DialogueSGDBERTDataset
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import DialogueBERTDataset
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_intent_bio_type_classification_dataset import DialogueIntentBIOTypeClassificationDataset
 from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics, DialogueGenerationMetrics
 from nemo.collections.nlp.models.dialogue.dialogue_nearest_neighbour_model import DialogueNearestNeighbourModel
 from nemo.collections.nlp.models.dialogue.intent_bio_type_classification_model import IntentBIOTypeClassificationModel
@@ -320,14 +320,14 @@ def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
     slot_label_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48, -1, -1]
     label_id_for_empty_slot = 54
     expected_output = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1, 0, 0]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 0, with PAD
     slot_label_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2, -1, -1]
     label_id_for_empty_slot = 0
     expected_output = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2, 0, 0]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 54,without PAD
@@ -338,7 +338,7 @@ def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
     slot_label_list = [0, 1, 2, 54, 46, 46, 54, 12, 15]
     label_id_for_empty_slot = 54
     expected_output = [1, 1, 1, 0, 1, 2, 0, 1, 1]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 54, with PAD
@@ -349,7 +349,7 @@ def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
     slot_label_list = [54, 0, 0, 46, 46, 46, 54, 54, -1, -1]
     label_id_for_empty_slot = 54
     expected_output = [0, 1, 2, 1, 2, 2, 0, 0, 0, 0]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 0, without PAD
@@ -358,7 +358,7 @@ def test_dialogue_bert_dataset_get_bio_slot_label_from_sequence():
     slot_label_list = [6, 0, 0, 0, 9, 10, 10, 10, 10]
     label_id_for_empty_slot = 0
     expected_output = [1, 0, 0, 0, 1, 1, 2, 2, 2]
-    actual_output = DialogueBERTDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_slot_label_from_sequence(slot_label_list, label_id_for_empty_slot)
     assert expected_output == actual_output
 
     
@@ -369,14 +369,14 @@ def test_dialogue_bert_dataset_get_bio_mention_labels():
     slot_list = [54, 54, 54, 0, 0, 54, 54, 46, 46, 12, 48]
     bio_list = [0, 0, 0, 1, 2, 0, 0, 1, 2, 1, 1]
     expected_output = [0, 46, 12, 48, -1, -1, -1, -1, -1, -1, -1]
-    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 0, with PAD
     slot_list = [0, 0, 0, 0, 0, 6, 3, 3, 0, 2, 2, -1, -1]
     bio_list = [0, 0, 0, 0, 0, 1, 1, 2, 0, 1, 2, 0, 0]
     expected_output = [6, 3, 2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
-    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 54,without PAD
@@ -387,7 +387,7 @@ def test_dialogue_bert_dataset_get_bio_mention_labels():
     slot_list = [0, 1, 2, 54, 46, 46, 54, 12, 15]
     bio_list = [1, 1, 1, 0, 1, 2, 0, 1, 1]
     expected_output = [0, 1, 2, 46, 12, 15, -1, -1, -1]
-    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 54, with PAD
@@ -398,7 +398,7 @@ def test_dialogue_bert_dataset_get_bio_mention_labels():
     slot_list = [54, 0, 0, 46, 46, 46, 54, 54, -1, -1]
     bio_list = [0, 1, 2, 1, 2, 2, 0, 0, 0, 0]
     expected_output = [0, 46, -1, -1, -1, -1, -1, -1, -1, -1]
-    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
 
     # Test label_id_for_empty_slot to be 0, without PAD
@@ -407,6 +407,6 @@ def test_dialogue_bert_dataset_get_bio_mention_labels():
     slot_list = [6, 0, 0, 0, 9, 10, 10, 10, 10]
     bio_list = [1, 0, 0, 0, 1, 1, 2, 2, 2]
     expected_output = [6, 9, 10, -1, -1, -1, -1, -1, -1]
-    actual_output = DialogueBERTDataset.get_bio_mention_labels(slot_list, bio_list)
+    actual_output = DialogueIntentBIOTypeClassificationDataset.get_bio_mention_labels(slot_list, bio_list)
     assert expected_output == actual_output
     
