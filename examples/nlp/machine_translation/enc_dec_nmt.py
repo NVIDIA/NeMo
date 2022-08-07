@@ -110,7 +110,7 @@ def main(cfg: MTEncDecConfig) -> None:
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('plugins', None)
+    trainer_cfg.pop('strategy', None)
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # tokenizers will be trained and and tarred training data will be created if needed

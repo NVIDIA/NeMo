@@ -78,7 +78,7 @@ def main(cfg: MTFineTuneConfig) -> None:
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('plugins', None)
+    trainer_cfg.pop('strategy', None)
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
