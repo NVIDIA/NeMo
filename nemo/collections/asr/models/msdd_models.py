@@ -18,7 +18,6 @@ import json
 import math
 import os
 import pickle as pkl
-import shutil
 import subprocess
 import time
 from collections import OrderedDict
@@ -785,9 +784,9 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 - Each data sample is indexed by using the following naming convention:  `<uniq_id>_<start time in ms>_<end time in ms>`
                     Example: `fe_03_00106_mixed_626310_642300`
         """
-        _speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
-        if not os.path.exists(_speaker_dir):
-            os.makedirs(_speaker_dir)
+        self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
+        if not os.path.exists(self._speaker_dir):
+            os.makedirs(self._speaker_dir)
         if not os.path.exists(f'{_out_dir}/speaker_outputs/embeddings'):
             os.makedirs(f'{_out_dir}/speaker_outputs/embeddings')
 
@@ -797,20 +796,24 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection part
-        _speaker_manifest_path = os.path.join(_speaker_dir, f'oracle_vad_manifest_rank{self.trainer.global_rank}.json')
-        _speaker_manifest_path = write_rttm2manifest(
-            split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
-        )
+        _speaker_manifest_path = os.path.join(self._speaker_dir, f'oracle_vad_manifest.json')
+        logging.info(f"Extracting oracle VAD timestamps and saving at {self._speaker_dir}")
+        if not os.path.exists(_speaker_manifest_path):
+             write_rttm2manifest(
+                split_audio_rttm_map, _speaker_manifest_path, include_uniq_id=True
+            )
 
         multiscale_and_timestamps = {}
 
         # Segmentation
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-
-            # Segmentation for the current scale (scale_idx)
-            subsegments_manifest_path = self.run_segmentation(
-                window, shift, _speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
-            )
+            # subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}_rank{self.trainer.global_rank}.json')
+            subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}.json')
+            if not os.path.exists(subsegments_manifest_path):
+                # Segmentation for the current scale (scale_idx)
+                self.run_segmentation(
+                    window, shift, self._speaker_dir, _speaker_manifest_path, scale_tag=f'_scale{scale_idx}'
+                )
             multiscale_timestamps = self._extract_timestamps(subsegments_manifest_path)
             multiscale_and_timestamps[scale_idx] = multiscale_timestamps
 
@@ -876,6 +879,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         return timestamps_dict
 
     def __setup_dataloader_from_config(self, config: Optional[Dict], multiscale_timestamp_dict):
+
         featurizer = WaveformFeaturizer(
             sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=None
         )
@@ -967,12 +971,16 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             subsegments_manifest_path (str):
                 Path to the output subsegment _manifest file.
         """
+        if not os.path.exists(_speaker_dir):
+            os.makedirs(_speaker_dir)
         subsegments_manifest_path = os.path.join(
-            _speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json'
+            _speaker_dir, f'subsegments{scale_tag}.json'
+            # _speaker_dir, f'subsegments{scale_tag}_rank{self.trainer.global_rank}.json'
         )
         logging.info(
-            f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
+            f"Subsegmentation for timestamp extraction:{scale_tag.replace('_',' ')}, {subsegments_manifest_path}"
         )
+        print(f"Writing subsegments to path: {_speaker_dir} ")
         subsegments_manifest_path = segments_manifest_to_subsegments_manifest(
             segments_manifest_file=_speaker_manifest_path,
             subsegments_manifest_file=subsegments_manifest_path,
