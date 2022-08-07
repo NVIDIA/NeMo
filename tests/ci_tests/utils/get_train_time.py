@@ -23,7 +23,7 @@ if __name__ == '__main__':
     previous_results['best'] = previous_results[min(previous_results, key=previous_results.get)] # Will update the best value in the results
     release_version = "22.06"
     current_timestamp = time.time()
-    previous_results[release_version + "-" current_timestamp] = train_time_avg # Will put in the latest result
+    previous_results[release_version + "-" + current_timestamp] = train_time_avg # Will put in the latest result
     with open(train_time_file, 'w') as f:
          f.write(json.dumps(previous_results))
 

@@ -3,6 +3,6 @@
             "ppl": 909896,
             "ppl_stderr": 67006,
             "acc": 0.0,
-            "acc_stderr": 0.0,
-        },
+            "acc_stderr": 0.0
+        }
     }
