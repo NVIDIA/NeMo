@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
+import shutil
 from omegaconf import DictConfig, OmegaConf, open_dict
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning import Trainer
@@ -756,7 +757,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         self.emb_seq_test = cluster_embeddings.emb_seq_test
 
     def prepare_train_split(self):
-        device = torch.cuda.current_device()
         self.train_multiscale_timestamp_dict = self.prepare_split_data(
             self.cfg_msdd_model.train_ds.manifest_filepath, self.cfg_msdd_model.train_ds.emb_dir,
         )
@@ -785,7 +785,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                     Example: `fe_03_00106_mixed_626310_642300`
         """
         self._speaker_dir = os.path.join(_out_dir, 'speaker_outputs')
-        if not os.path.exists(self._speaker_dir):
+        # Only if this is for the first run of modelPT instance, remove temp folders.
+        if self.trainer.global_rank == 0:
+            if os.path.exists(self._speaker_dir):
+                shutil.rmtree(self._speaker_dir)
             os.makedirs(self._speaker_dir)
         if not os.path.exists(f'{_out_dir}/speaker_outputs/embeddings'):
             os.makedirs(f'{_out_dir}/speaker_outputs/embeddings')
@@ -807,7 +810,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
 
         # Segmentation
         for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            # subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}_rank{self.trainer.global_rank}.json')
             subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments_scale{scale_idx}.json')
             if not os.path.exists(subsegments_manifest_path):
                 # Segmentation for the current scale (scale_idx)
@@ -832,7 +834,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
             time_stamps (dict):
                 Dictionary containing lists of timestamps.
         """
-        logging.info("Extracting timestamps for multiscale segmentation.")
+        logging.info(f"Extracting timestamps from {manifest_file} for multiscale subsegmentation.")
         time_stamps = {}
         with open(manifest_file, 'r', encoding='utf-8') as manifest:
             for i, line in enumerate(manifest.readlines()):
@@ -845,6 +847,7 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 start = dic['offset']
                 end = start + dic['duration']
                 stamp = '{:.3f} {:.3f} '.format(start, end)
+                # stamp = [round(start, 3), round(end, 3)]
                 time_stamps[uniq_name].append(stamp)
         return time_stamps
 
@@ -864,14 +867,11 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 A dictionary containing embeddings and timestamps of each scale, indexed by unique ID.
         """
         timestamps_dict = {
-            uniq_id: {'multiscale_weights': [], 'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()
+            uniq_id: {'scale_dict': {}} for uniq_id in multiscale_and_timestamps[0].keys()
         }
         for scale_idx in sorted(multiscale_args_dict['scale_dict'].keys()):
             time_stamps = multiscale_and_timestamps[scale_idx]
             for uniq_id in time_stamps.keys():
-                timestamps_dict[uniq_id]['multiscale_weights'] = (
-                    torch.tensor(multiscale_args_dict['multiscale_weights']).unsqueeze(0).half()
-                )
                 timestamps_dict[uniq_id]['scale_dict'][scale_idx] = {
                     'time_stamps': time_stamps[uniq_id],
                 }
@@ -1141,7 +1141,10 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
         for batch_idx in range(batch_size):
             oracle_clus_idx = clus_label_index[batch_idx]
             max_seq_len = sum(ms_seg_counts[batch_idx])
-            clus_label_index_batch = torch.split(oracle_clus_idx[:max_seq_len], ms_seg_counts[batch_idx].tolist())
+            try:
+                clus_label_index_batch = torch.split(oracle_clus_idx[:max_seq_len], ms_seg_counts[batch_idx].tolist())
+            except:
+                import ipdb; ipdb.set_trace()
             session_avg_emb_set_list = []
             for scale_index in range(scale_n):
                 spk_set_list = []

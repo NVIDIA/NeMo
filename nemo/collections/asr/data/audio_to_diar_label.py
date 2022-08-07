@@ -246,8 +246,8 @@ class _AudioMSDDTrainDataset(Dataset):
         uniq_scale_mapping = get_scale_mapping_list(self.multiscale_timestamp_dict[uniq_id])
         for scale_index in range(self.scale_n):
             new_clus_label = []
-            max_index = max(uniq_scale_mapping[scale_index])
-            for seg_idx in range(max_index + 1):
+            scale_seq_len = len(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_index]["time_stamps"])
+            for seg_idx in range(scale_seq_len):
                 if seg_idx in uniq_scale_mapping[scale_index]:
                     seg_clus_label = mode(base_scale_clus_label[uniq_scale_mapping[scale_index] == seg_idx])
                 else:
@@ -282,6 +282,7 @@ class _AudioMSDDTrainDataset(Dataset):
         for line in subseg_time_stamp_list:
             line_split = line.split()
             seg_stt, seg_end = float(line_split[0]), float(line_split[1])
+            # seg_stt, seg_end = line
             seg_stt_fr, seg_end_fr = int(seg_stt * self.frame_per_sec), int(seg_end * self.frame_per_sec)
             soft_label_vec_sess = torch.sum(fr_level_target[seg_stt_fr:seg_end_fr, :], axis=0) / (
                 seg_end_fr - seg_stt_fr
@@ -380,6 +381,7 @@ class _AudioMSDDTrainDataset(Dataset):
             for k, line in enumerate(self.multiscale_timestamp_dict[uniq_id]["scale_dict"][scale_idx]["time_stamps"]):
                 line_split = line.split()
                 seg_stt, seg_end = float(line_split[0]), float(line_split[1])
+                # seg_stt, seg_end = line
                 stt, end = (
                     int((seg_stt - sample.offset) * self.frame_per_sec),
                     int((seg_end - sample.offset) * self.frame_per_sec),
@@ -407,6 +409,14 @@ class _AudioMSDDTrainDataset(Dataset):
             torch.manual_seed(index)
             flip = torch.cat([torch.randperm(self.max_spks), torch.tensor(-1).unsqueeze(0)])
             clus_label_index, targets = flip[clus_label_index], targets[:, flip[: self.max_spks]]
+        if clus_label_index.shape[0] != sum(ms_seg_counts).item():
+            print("wrong ms_seg_counts or clus_label_index list")
+            import ipdb; ipdb.set_trace()
+        if not ms_seg_timestamps.shape[1] == ms_seg_counts[-1] == scale_mapping.shape[1] == targets.shape[0]:
+            print("target length or base scale count is not consistant")
+            print(ms_seg_timestamps.shape[1], ms_seg_counts[-1], scale_mapping.shape[1], targets.shape[0])
+            import ipdb; ipdb.set_trace()
+
         return features, feature_length, ms_seg_timestamps, ms_seg_counts, clus_label_index, scale_mapping, targets
 
 
@@ -635,7 +645,8 @@ def _msdd_train_collate_fn(self, batch):
 
     max_raw_feat_len = max([x.shape[0] for x in features])
     max_target_len = max([x.shape[0] for x in targets])
-    max_total_seg_len = max([x.shape[0] for x in clus_label_index])
+    # max_total_seg_len = max([x.shape[0] for x in clus_label_index])
+    max_total_seg_len = max(torch.sum(torch.stack(ms_seg_counts), dim=1)).item()
 
     for feat, feat_len, ms_seg_ts, ms_seg_ct, scale_clus, scl_map, tgt in batch:
         seq_len = tgt.shape[0]
@@ -643,7 +654,8 @@ def _msdd_train_collate_fn(self, batch):
         pad_tgt = (0, 0, 0, max_target_len - seq_len)
         pad_sm = (0, max_target_len - seq_len)
         pad_ts = (0, 0, 0, max_target_len - seq_len)
-        pad_sc = (0, max_total_seg_len - scale_clus.shape[0])
+        # pad_sc = (0, max_total_seg_len - scale_clus.shape[0])
+        pad_sc = (0, max_total_seg_len - torch.sum(ms_seg_ct).item())
         padded_feat = torch.nn.functional.pad(feat, pad_feat)
         padded_tgt = torch.nn.functional.pad(tgt, pad_tgt)
         padded_sm = torch.nn.functional.pad(scl_map, pad_sm)
