@@ -20,14 +20,18 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 
 random.seed(42)
 
-"""
-This script creates a manifest file containing word alignments.
-
-The alignments are obtained from: https://github.com/CorentinJ/librispeech-alignments
-"""
-
-# get librispeech examples without alignments for the desired dataset
 def get_unaligned_examples(unaligned_path, dataset):
+    """
+    Get librispeech examples without alignments for the desired dataset in
+    order to filter them out (as they cannot be used for data simulation))
+    
+    Args:
+        unaligned_path (str): Path to the file containing unaligned examples
+        dataset (str): LibriSpeech data split being used
+
+    Returns:
+        skip_files (list): Unaligned file names to skip
+    """
     with open(unaligned_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
         i = 0
@@ -44,14 +48,18 @@ def get_unaligned_examples(unaligned_path, dataset):
 
 
 def main():
+    """
+    Create a combined manifest file including word alignments and speaker IDs
+    """
     input_manifest_filepath = args.input_manifest_filepath
     base_alignment_path = args.base_alignment_path
-    output_path = args.output_path
+    output_manifest_filepath = args.output_manifest_filepath
     dataset = args.dataset
 
     manifest = read_manifest(input_manifest_filepath)
     target_manifest = []
     unaligned_path = os.path.join(base_alignment_path, "unaligned.txt")
+    dataset = dataset.replace("_", "-")
     unaligned = get_unaligned_examples(unaligned_path, dataset)
 
     # separate indices to manage source/destination manifest to handle missing alignments
@@ -105,17 +113,33 @@ def main():
             target_i += 1
 
         alignment_file.close()
-    write_manifest(output_path, target_manifest)
+    logging.info(f"Writing output manifest file to {output_manifest_filepath}")
+    write_manifest(output_manifest_filepath, target_manifest)
 
 
 if __name__ == "__main__":
+    """
+    This script creates a manifest file to be used for generating synthetic
+    multispeaker audio sessions. The script takes in the default manifest file
+    for a LibriSpeech dataset and corresponding word alignments and produces
+    a combined manifest file that contains word alignments and speaker IDs
+    per example.
+
+    The alignments are obtained from: https://github.com/CorentinJ/librispeech-alignments
+    
+    Args:
+        input_manifest_filepath (str): Path to input LibriSpeech manifest file
+        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset (specifically to the LibriSpeech-Alignments directory containing both the LibriSpeech folder as well as the unaligned.txt file)
+        dataset (str): Which dataset split to create a combined manifest file for
+        output_manifest_filepath (str): Path to output manifest file 
+    """
     parser = argparse.ArgumentParser(description="LibriSpeech Alignment Manifest Creator")
     parser.add_argument("--input_manifest_filepath", help="path to input manifest file", type=str, required=True)
     parser.add_argument("--base_alignment_path", help="path to librispeech alignment dataset", type=str, required=True)
     parser.add_argument(
         "--dataset", help="which test/dev/training set to create a manifest for", type=str, required=True
     )
-    parser.add_argument("--output_path", help="path to output manifest file", type=str, required=True)
+    parser.add_argument("--output_manifest_filepath", help="path to output manifest file", type=str, required=True)
     args = parser.parse_args()
 
     main()
