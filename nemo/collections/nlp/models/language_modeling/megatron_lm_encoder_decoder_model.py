@@ -968,6 +968,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         enc_output=None,
         enc_output_attn_mask=None,
         ignore_ids=[],
+        use_memory=False,
     ):
         # Check whether the DDP is initialized. This is needed when running inference outside of training loop.
         if parallel_state.is_unitialized():
@@ -1029,8 +1030,16 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             decoder_seq_length = predicted_tokens_dec.size(1)
             dec_mask = predicted_tokens_dec != tokenizer.pad_id
 
-            batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
-            arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+            # add the memory for inference
+            if not use_memory:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
+                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
+            elif i == 0:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], torch.tensor([[True] for i in range(enc_output.shape[0])]), torch.tensor([[512] for i in range(enc_output.shape[0])])]
+                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len']
+            else:
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], torch.tensor([[False] for i in range(enc_output.shape[0])]), torch.tensor([[512] for i in range(enc_output.shape[0])])]
+                arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
             if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
