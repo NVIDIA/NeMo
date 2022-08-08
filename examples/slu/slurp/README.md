@@ -1,4 +1,4 @@
-# End-to-end Spoken Language Intent Classification and Slot Filling on SLURP Dataset
+# End-to-End Spoken Language Intent Classification and Slot Filling on SLURP Dataset
 
 ## Introduction
 This example shows how to train an end-to-end model for spoken language understanding on the SLURP dataset [2]. The model is an encoder-decoder framework, where the encoder is a Conformer-large [3] model initialized from [here](https://ngc.nvidia.com/models/nvidia:nemo:stt_en_conformer_ctc_large), while the decoder is a Transformer decoder [4] randomly initialized. We first finetune the encoder with speech recognition on SLURP, then use it for the end-to-end spoken language intent classification and slot filling task.
@@ -9,20 +9,20 @@ We present the main results of our models, as well as that of some baselines, in
 |                                                  |                |                          | **Intent (Scenario_Action)** |               | **Entity** |        |              | **SLURP Metrics** |                     |
 |--------------------------------------------------|----------------|--------------------------|------------------------------|---------------|------------|--------|--------------|-------------------|---------------------|
 |                     **Model**                    | **Params (M)** |      **Pretrained**      |         **Accuracy**         | **Precision** | **Recall** | **F1** | **Precsion** |     **Recall**    |        **F1**       |
-| NeMo-Conformer-Large-Transformer (ASR finetuned) | 127            | NeMo ASR, finetuned on SLURP ASR         |                        91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
-| NeMo-Conformer-Large-Transformer                 | 127            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
-| NeMo-Conformer-Large-Transformer                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
-| NeMo-Conformer-XLarge-Transformer                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
+| NeMo-Conformer-Transformer-Large (ASR finetuned) | 127            | NeMo ASR, finetuned on SLURP ASR  |               91.23 |         78.29 |      74.65 |  76.43 |        83.93 |             80.31 |               82.08 |
+| NeMo-Conformer-Transformer-Large                 | 127            | NeMo SSL-LL60kh          |                        89.04 |         73.19 |       71.8 |  72.49 |         77.9 |             76.65 |               77.22 |
+| NeMo-Conformer-Transformer-Large                 | 127            | None                     |                        72.56 |         43.19 |       43.5 |  43.34 |        53.59 |             53.92 |               53.76 |
+| NeMo-Conformer-Transformer-XLarge                | 617            | NeMo SSL-LL60kh          |                        91.04 |         76.67 |      74.36 |  75.49 |        82.44 |             80.14 |               81.28 |
 | SpeechBrain-HuBert-Large-AttnLSTM [6]            | ~96            | HuBERT-LL60kh            |          89.37 [paper 89.38] |         73.89 |      70.76 |  72.29 |        80.54 |             77.44 | 78.96 [paper 78.43] |
 | SpeechBrain-HuBert-base-AttnLSTM  [6]            | ~317           | HuBERT-LS960h            |                         87.7 |         70.47 |      67.58 |     69 |        77.65 |             74.78 | 76.19 [paper 75.06] |
-| ICASSP'22 [5]                                    | ~200           | wav2vec2-LS960h finetuned on SLURP ASR, RoBERTa |                        86.92 |           N/A |        N/A |    N/A |          N/A |               N/A |               74.66 |
+| ICASSP'22 [5]                                    | ~200           | wav2vec2-LS960h finetuned on SLURP ASR, RoBERTa | 86.92 |           N/A |        N/A |    N/A |          N/A |               N/A |               74.66 |
 | SLURP paper (NLU on gold text) [2]               |                |                          |                        84.84 |           N/A |        N/A |  78.19 |          N/A |               N/A |                 N/A |
 | SLURP paper (ASR+NLU) [2]                        |                |                          |                        76.68 |           N/A |        N/A |  62.69 |          N/A |               N/A |               69.53 |
 
 Note: LL60kh refers to the Libri-Light dataset [7], while LS960h refers to the Librispeech dataset [8].  
 
 ## Usage
-Please install NeMo [1] before proceeding.
+Please install [NeMo](https://github.com/NVIDIA/NeMo) [1] before proceeding. 
 
 ### Install Dependencies
 Under the current directory, run
@@ -35,7 +35,6 @@ pip install -r requirements.txt
 ```bash
 ./scripts/download_data.sh
 ```
-
 
 2. Prepare the manifests by running: 
 ```bash
@@ -56,7 +55,7 @@ pip install -r requirements.txt
 
 
 ### Training
-Run `./scripts/train_slurp.sh` with the default config that uses SSL-pretrained encoder on Librilight-60k (LL60kh). The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
+Run with the default config that uses SSL-pretrained encoder on Librilight-60k (LL60kh). The default batch size is set to 16 for a GPU with 32GB memory, please adjust it to your own case. Training for 100 epochs takes around 18 hours on a single RTX A6000 GPU with 49GB memory.
 
 ```bash
 DATA_DIR="./slurp_data"
@@ -77,7 +76,7 @@ CUDA_VISIBLE_DEVICES=0 python run_slurp_train.py \
 
 
 ### Evaluation
-After trainng, we can evaluate the model by running `./scripts/eval_slurp.sh`, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
+After trainng, we can evaluate the model by running the following script, which will first perform checkpoint averaging and then run beam search with the averaged checkpoint on the test set.
 ```bash
 DATA_DIR="./slurp_data"
 EXP_NAME="ssl_en_conformer_large_transformer_CosineAnneal_adamwlr3e-4x2e-4_wd0_dec3_d2048h8"

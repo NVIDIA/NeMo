@@ -20,7 +20,11 @@ from typing import List, Optional
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.common.parts import BeamSearchSequenceGenerator, GreedySequenceGenerator, TopKSequenceGenerator
+from nemo.collections.common.parts.transformer import (
+    BeamSearchSequenceGenerator,
+    GreedySequenceGenerator,
+    TopKSequenceGenerator,
+)
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes.module import NeuralModule
 
