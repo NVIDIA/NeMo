@@ -1,4 +1,4 @@
-name: final_test_${model.new_tasks[0]}_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}_lr${model.prefix_tuning.prefix_learning_rate}
+name: {model.new_tasks[0]}_max_epochs${trainer.max_epochs}_prefix_len${model.prefix_tuning.prefix_len}_lr${model.prefix_tuning.prefix_learning_rate}
 
 trainer:
   devices: 1
@@ -49,7 +49,7 @@ model:
   micro_batch_size: 4
 
   restore_path: null # Path to an existing p-tuned/prompt tuned .nemo model you wish to add new tasks to or run inference with
-  language_model_path: /home/adithyare/pretrained_models/megatron_gpt_125m/megatron_gpt.nemo # Path to the GPT language model .nemo file, always required
+  language_model_path: ??? # Path to the GPT language model .nemo file, always required
   existing_tasks: [] # List of tasks the model has already been p-tuned/prompt-tuned for, needed when a restore path is given
   new_tasks: ["rte"] # List of new tasknames to be prompt-tuned
 
@@ -116,8 +116,8 @@ model:
     num_layers: 2
 
   data:
-    train_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/rte/rte_train.jsonl"] # expects a list of paths to training data files
-    validation_ds: ["/home/adithyare/datasets/tasks/prompt-learning-data/rte/rte_val.jsonl"] # expects a paths to validation data files
+    train_ds: ??? # expects a list of paths to training data files
+    validation_ds: ???  # expects a paths to validation data files
     add_eos: True
     shuffle: True
     num_workers: 8

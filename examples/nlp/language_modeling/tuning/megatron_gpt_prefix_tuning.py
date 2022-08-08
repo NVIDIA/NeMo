@@ -75,8 +75,7 @@ def main(cfg) -> None:
     else:
         model = PrefixTuningModel(cfg.model, trainer=trainer)
 
-    for param in model.prefix_generator.parameters():
-        param.requires_grad = True
+    
         
     trainer.fit(model)
 

@@ -59,9 +59,8 @@ class Prefix(NeuralModule, Exportable):
         self.num_attention_heads_per_partition = (
             num_heads // world_size
         )  # TODO (@adithyare): megatron-LM code used mpu.divide for this, not sure why...
-        prefix_idx = torch.arange(0, self.prefix_len).unsqueeze(0).float()
-        prefix_idx.requires_grad = False
-        self.prefix_idx = nn.ParameterList([prefix_idx])
+        prefix_idx = torch.arange(0, self.prefix_len).int()
+        self.prefix_idx = nn.Parameter(prefix_idx, requires_grad=False)
         self.prefix_embeddings = nn.Embedding(prefix_len, hidden_size)
         self.prefix_projection = nn.Linear(hidden_size, prefix_projection_size)
         self.prefix_nonlinearity = nn.Tanh()
@@ -77,7 +76,7 @@ class Prefix(NeuralModule, Exportable):
         Args:
             bsz: an integer representing the batch size
         """
-        prefix_reps = self.prefix_idx[0].expand(bsz, -1).long()  # (bsz, seqlen, hidden_size)
+        prefix_reps = self.prefix_idx.unsqueeze(0).expand(bsz, -1)  # (bsz, seqlen)
         prefix_reps = self.prefix_embeddings(prefix_reps)  # (bsz, seqlen, hidden_size)
         prefix_reps = self.prefix_projection(prefix_reps)  # (bsz, seqlen, prefix_projection_size)
         prefix_reps = self.prefix_nonlinearity(prefix_reps)
@@ -89,6 +88,11 @@ class Prefix(NeuralModule, Exportable):
         )
         prefix_reps = prefix_reps.permute([2, 1, 3, 0, 4, 5])
         return prefix_reps
+    
+    def load_state_dict(self, state_dict, strict: bool = True):
+        if "prefix_idx" not in state_dict: # (@adithyare) for backward compatibility
+           state_dict["prefix_idx"] =  torch.arange(0, self.prefix_len).int()
+        super().load_state_dict(state_dict, strict)
 
 
 class PrefixTuningModel(MegatronGPTPromptLearningModel):

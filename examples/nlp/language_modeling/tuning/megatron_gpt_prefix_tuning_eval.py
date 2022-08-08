@@ -12,20 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
 
 import torch
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import open_dict
 from pytorch_lightning.trainer.trainer import Trainer
-from torch.utils.data import DataLoader, Dataset
-
+from apex.transformer import parallel_state
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_prefix_tuning_model import PrefixTuningModel
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
 from nemo.core.config import hydra_runner
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import RequestDataSet
 
 
 """
@@ -223,7 +219,7 @@ def main(cfg) -> None:
         model.frozen_model.model.language_model.encoder.activations_checkpoint_method = None
     except AttributeError:
         pass
-
+    
     length_params: LengthParam = {
         "max_length": cfg.inference.tokens_to_generate,
         "min_length": cfg.inference.min_tokens_to_generate,
@@ -240,23 +236,43 @@ def main(cfg) -> None:
         "compute_logprob": cfg.inference.compute_logprob,
     }
 
-    # First method of running text generation, call model.generate method
-    # Input into generate method should be either list of string prompts or list of dicts
-    datapaths_dict = [{"data_path": path} for path in cfg.data_paths]
+    max_input_length = model.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+    # check whether the DDP is initialized
+    if parallel_state.is_unitialized():
 
-    # Use for inference on a few examples
-    response = model.generate(inputs=datapaths_dict, length_params=length_params, sampling_params=sampling_params)
+            def dummy():
+                return
 
+            if trainer.strategy.launcher is not None:
+                trainer.strategy.launcher.launch(dummy, trainer=trainer)
+            trainer.strategy.setup_environment()
+    
+    _, dataloader = model.build_virtual_prompt_dataset(
+        dataset_paths=cfg.data_paths,
+        batch_size=16,
+        max_seq_length=max_input_length,
+        min_seq_length=model.cfg.data.get('min_seq_length', 1),
+        add_bos=sampling_params["add_BOS"],
+        add_eos=False,
+        for_train=False,
+        tokens_to_generate=length_params["max_length"],
+        drop_last=False,
+        shuffle=False,
+    )
+
+    config = OmegaConf.to_container(cfg.inference)
+    model.set_inference_config(config)
+    response = trainer.predict(model, dataloader)
+    print("***************************")
     if cfg.output_file is not None:
         with open(cfg.output_file, "w", encoding="utf-8") as f:
-            for sentence in response["sentences"]:
-                s = ' '.join(sentence.split('\n'))
-                f.write(s + "\n")
+            for batch in response:
+                for sentence in batch['sentences']:
+                    s = ' '.join(sentence.split('\n'))
+                    f.write(s + "\n")
         print("predictions saved to {}".format(cfg.output_file))
-    else:
-        print("***************************")
-        print(response)
-        print("***************************") 
+    print("***************************")
+  
 
 if __name__ == '__main__':
     main()  # noqa pylint: disable=no-value-for-parameter
