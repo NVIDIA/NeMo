@@ -145,6 +145,8 @@ class DiscriminatorLoss(Loss):
             # gen_loss += g_loss
             if i == 0:
                 loss += torch.max(r_loss, g_loss) * 0.5
+            else:
+                loss += torch.max(r_loss, g_loss)
             # loss += r_loss + g_loss
             r_losses.append(r_loss.item())
             g_losses.append(g_loss.item())
