@@ -315,18 +315,16 @@ class IntentSlotClassificationModel(NLPModel):
         tokens_stack = []
         tokens = self.tokenizer.tokenizer.convert_ids_to_tokens(token_ids)
 
-        for i in range(len(token_ids)):
-            if token_masks[i].item():
-                tokens_stack.append([tokens[i]])
-            else:
-                if len(tokens_stack):
-                    clean_token = (
-                        tokens[i]
-                        .replace("##", '')
-                        .replace(self.tokenizer.tokenizer.sep_token, '')
-                        .replace(self.tokenizer.tokenizer.pad_token, '')
-                    )
-                    tokens_stack[-1].append(clean_token)
+        for token_idx, token in enumerate(tokens):
+            if token_masks[token_idx].item():
+                tokens_stack.append([token])
+            elif tokens_stack:
+                clean_token = (
+                    token.replace("##", '')
+                    .replace(self.tokenizer.tokenizer.sep_token, '')
+                    .replace(self.tokenizer.tokenizer.pad_token, '')
+                )
+                tokens_stack[-1].append(clean_token)
         token_list = [''.join(token) for token in tokens_stack]
         return token_list
 
