@@ -100,7 +100,7 @@ build-BigNLP:
     - if [[ "$GIT_BRANCHES" =~ .*"$CI_PIPELINE_ID".* ]]; then git pull origin $CI_PIPELINE_ID; fi
     - GIT_RESULTS_DIR_PATH=`pwd`
     - popd
-    - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH
+    - python3 tests/ci_tests/utils/get_train_time.py $RESULTS_DIR $GIT_RESULTS_DIR_PATH $BIGNLP_BASE_IMAGE
     - cd CITest
     - git add -A
     - git commit -m "Adding results file"
