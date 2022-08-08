@@ -56,7 +56,9 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     if words != 0:
         wer = 1.0 * scores / words
     else:
-        wer = float('inf')
+        
+        # wer = float('inf') #todo
+        wer = 0
     return wer
 
 

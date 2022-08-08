@@ -161,7 +161,12 @@ def _vad_frame_seq_collate_fn(self, batch):
             batch size equals to 1.
     """
     slice_length = int(self.featurizer.sample_rate * self.window_length_in_sec)
-    _, audio_lengths, _, tokens_lengths = zip(*batch)
+    audio, audio_lengths, tokens, tokens_lengths = zip(*batch)
+
+    # if slice_length > max(audio_lengths):
+    #     return torch.tensor(audio), torch.tensor(audio_lengths), torch.tensor(tokens), torch.tensor(tokens_lengths)
+
+
     slice_length = min(slice_length, max(audio_lengths))
     shift = int(self.featurizer.sample_rate * self.shift_length_in_sec)
     has_audio = audio_lengths[0] is not None
@@ -180,11 +185,15 @@ def _vad_frame_seq_collate_fn(self, batch):
 
         if has_audio:
             slices = torch.div(sig_len - slice_length, shift, rounding_mode='trunc')
-            for slice_id in range(slices):
-                start_idx = slice_id * shift
-                end_idx = start_idx + slice_length
-                signal = sig[start_idx:end_idx]
-                audio_signal.append(signal)
+            if slices == torch.tensor(0):
+                audio_signal.append(sig)
+                slices = torch.tensor(1)
+            else:
+                for slice_id in range(slices):
+                    start_idx = slice_id * shift
+                    end_idx = start_idx + slice_length
+                    signal = sig[start_idx:end_idx]
+                    audio_signal.append(signal)
 
             num_slices.append(slices)
             tokens.extend([tokens_i] * slices)

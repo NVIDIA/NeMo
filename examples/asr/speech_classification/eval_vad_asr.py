@@ -32,28 +32,28 @@ def main():
     db_list = ['clean'] 
     modes = ['offline'] #streaming
     langs = [
-        # 'driveix', 
+        'riva_silence',
+        'driveix', 
         'chris', 
-        # 'hub5',
-        # 'GTC2019-keynote-parts', 
-        # 'tmobile',
-        # 'Ring_central_with_duration',
-        # 'logmein',
-        # 'StreamingInTheCloud',
-        # 'tedlium2_test',
-        # 'wsj-eval-92',
-        # 'librivox-test-other',
-        # 'yt_med_eval'
+        'hub5',
+        'GTC2019-keynote-parts', 
+        'tmobile',
+        'Ring_central_with_duration',
+        'logmein',
+        'StreamingInTheCloud',
+        'tedlium2_test',
+        'wsj-eval-92',
+        'librivox-test-other',
+        'yt_med_eval'
     ]
 
-
-    vad_exps = ["neural_vad"] 
-    models = ['riva_citrinet'] 
+    vad_exps = ["novad", "neural_vad"] 
+    models = ['riva_citrinet_new'] 
 
     shift_length_in_sec = 0.08
     clean_text = True
 
-
+    num_workers = 1
     # ref="energy_vad"
     overlap=0.875
     smoothing=False
@@ -64,7 +64,7 @@ def main():
     single= False # True
     exp = "_single" if single else ""
     exp = "_min10"
-    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test.csv"
+    res_file = f"res_asr_{exp}_offlines_s8_tunedO_test_new.csv"
 
     si_ratio = False  #True
 
@@ -75,7 +75,7 @@ def main():
             for j in range(0, 11, 2):
                 fixed_silence_set.add((i,j))
 
-    final_output_folder = f"asr_{exp}_s8_tuned_test"
+    final_output_folder = f"asr_{exp}_s8_tuned_test_new"
 
     # final_output_folder = "final_tuned"
     save_neural_vad = True
@@ -179,14 +179,21 @@ def main():
 
                                     if vad_exp=="neural_vad":
                                         params = {
-                                            "onset": 0.4,
+                                            "onset": 0.5,
                                             "offset": 0.3,
                                             "min_duration_on": 0.5,
                                             "min_duration_off": 0.5,
                                             "pad_onset": 0.2,
                                             "pad_offset": 0.2,
-                                            "frame_length_in_sec": 0.08
                                         }
+                                        # params = {
+                                        #     "onset": 0.7,
+                                        #     "offset": 0.4,
+                                        #     "min_duration_on": 1,
+                                        #     "min_duration_off": 0.5,
+                                        #     "pad_onset": 0.2,
+                                        #     "pad_offset": 0.2,
+                                        # }
                                         # params = {
                                         #     "onset": 0.5,
                                         #     "offset": 0.5,
@@ -214,6 +221,7 @@ def main():
                                         else:
                                             frame_out_dir = os.path.join(mode_lang_folder, "neural_vad")
                                         os.system(f'python vad_infer.py --config-path="../conf/vad" --config-name="vad_inference_postprocessing.yaml" \
+                                            num_workers={num_workers} \
                                             dataset={input_manifest} \
                                             vad.model_path={vad_model} \
                                             frame_out_dir={frame_out_dir} \
