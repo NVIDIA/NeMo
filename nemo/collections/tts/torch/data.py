@@ -23,7 +23,6 @@ from typing import Callable, Dict, List, Optional, Union
 import librosa
 import numpy as np
 import torch
-from nemo_text_processing.text_normalization.normalize import Normalizer
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
@@ -52,6 +51,15 @@ from nemo.collections.tts.torch.tts_data_types import (
 from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer
 from nemo.core.classes import Dataset
 from nemo.utils import logging
+
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    Normalizer = None
+    PYNINI_AVAILABLE = False
+
 
 EPSILON = 1e-9
 WINDOW_FN_SUPPORTED = {
@@ -207,13 +215,15 @@ class TTSDataset(Dataset):
                         "is_phoneme": item["is_phoneme"] if "is_phoneme" in item else None,
                     }
 
-                    if "normalized_text" not in item:
+                    if ("text_normalized" not in item) or ("normalized_text" not in item):
                         text = item["text"]
                         if self.text_normalizer is not None:
                             text = self.text_normalizer_call(text, **self.text_normalizer_call_kwargs)
                         file_info["normalized_text"] = text
-                    else:
+                    elif "normalized_text" in item:
                         file_info["normalized_text"] = item["normalized_text"]
+                    else:
+                        file_info["normalized_text"] = item["text_normalized"]
 
                     if self.cache_text:
                         file_info["text_tokens"] = self.text_tokenizer(file_info["normalized_text"])
@@ -347,6 +357,8 @@ class TTSDataset(Dataset):
 
         if self.log_mel_folder is None:
             self.log_mel_folder = Path(self.sup_data_path) / LogMel.name
+        elif isinstance(self.log_mel_folder, str):
+            self.log_mel_folder = Path(self.log_mel_folder)
 
         self.log_mel_folder.mkdir(exist_ok=True, parents=True)
 
@@ -371,6 +383,8 @@ class TTSDataset(Dataset):
 
         if self.align_prior_matrix_folder is None:
             self.align_prior_matrix_folder = Path(self.sup_data_path) / AlignPriorMatrix.name
+        elif isinstance(self.align_prior_matrix_folder, str):
+            self.align_prior_matrix_folder = Path(self.align_prior_matrix_folder)
 
         self.align_prior_matrix_folder.mkdir(exist_ok=True, parents=True)
 
@@ -391,6 +405,8 @@ class TTSDataset(Dataset):
 
         if self.pitch_folder is None:
             self.pitch_folder = Path(self.sup_data_path) / Pitch.name
+        elif isinstance(self.pitch_folder, str):
+            self.pitch_folder = Path(self.pitch_folder)
 
         self.pitch_folder.mkdir(exist_ok=True, parents=True)
 
@@ -422,6 +438,8 @@ class TTSDataset(Dataset):
 
         if self.energy_folder is None:
             self.energy_folder = Path(self.sup_data_path) / Energy.name
+        elif isinstance(self.energy_folder, str):
+            self.energy_folder = Path(self.energy_folder)
 
         self.energy_folder.mkdir(exist_ok=True, parents=True)
 
@@ -627,7 +645,7 @@ class TTSDataset(Dataset):
         max_energies_len = max(energies_lengths).item() if Energy in self.sup_data_types_set else None
 
         if LogMel in self.sup_data_types_set:
-            log_mel_pad = torch.finfo(batch[0][2].dtype).tiny
+            log_mel_pad = torch.finfo(batch[0][4].dtype).tiny
 
         align_prior_matrices = (
             torch.zeros(
