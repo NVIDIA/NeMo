@@ -20,6 +20,7 @@ from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write
 
 random.seed(42)
 
+
 def get_unaligned_examples(unaligned_path, dataset):
     """
     Get librispeech examples without alignments for the desired dataset in
