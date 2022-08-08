@@ -88,15 +88,16 @@ class _GreedyRNNTInfer(Typing):
             U is the number of target tokens for the current timestep Ti.
     """
 
-    @property
-    def input_types(self):
-        """Returns definitions of module input ports.
-        """
-        return {
-            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
-        }
+#    @property
+#    def input_types(self):
+#        """Returns definitions of module input ports.
+#        """
+#        return {
+#            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+#            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+#            "duration": NeuralType(int),
+#            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
+#        }
 
     @property
     def output_types(self):
@@ -242,6 +243,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
         self,
         encoder_output: torch.Tensor,
         encoded_lengths: torch.Tensor,
+        duration: int,
         partial_hypotheses: Optional[List[rnnt_utils.Hypothesis]] = None,
     ):
         """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
@@ -274,7 +276,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                     logitlen = encoded_lengths[batch_idx]
 
                     partial_hypothesis = partial_hypotheses[batch_idx] if partial_hypotheses is not None else None
-                    hypothesis = self._greedy_decode(inseq, logitlen, partial_hypotheses=partial_hypothesis)
+                    hypothesis = self._greedy_decode(inseq, logitlen, duration, partial_hypotheses=partial_hypothesis)
                     hypotheses.append(hypothesis)
 
             # Pack results into Hypotheses
@@ -287,7 +289,7 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
     @torch.no_grad()
     def _greedy_decode(
-        self, x: torch.Tensor, out_len: torch.Tensor, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
+        self, x: torch.Tensor, out_len: torch.Tensor, duration: int, partial_hypotheses: Optional[rnnt_utils.Hypothesis] = None
     ):
         # x: [T, 1, D]
         # out_len: [seq_len]
@@ -308,8 +310,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
 
         # For timestep t in X_t
         blank_optimization = True
-        self._big_blank_duration = 1
-        big_blank_duration = self._big_blank_duration
+        big_blank_duration = 1
+        d1 = duration // 10
+        d2 = duration % 10
 
         for time_idx in range(out_len):
             if blank_optimization and big_blank_duration > 1:
@@ -346,9 +349,9 @@ class GreedyRNNTInfer(_GreedyRNNTInfer):
                 v, k = logp.max(0)
                 k = k.item()  # K is the label at timestep t_s in inner loop, s >= 0.
                 if k == logp.shape[0] - 2:
-                    big_blank_duration = 2 # self._big_blank_duration
+                    big_blank_duration = d1
                 elif k == logp.shape[0] - 1:
-                    big_blank_duration = 2 # self._big_blank_duration
+                    big_blank_duration = d2
 
                 if self.preserve_alignments:
                     # insert logits into last timestep
