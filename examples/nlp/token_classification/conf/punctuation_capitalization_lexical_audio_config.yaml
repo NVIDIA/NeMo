@@ -110,7 +110,7 @@ model:
     use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: [ ../fisher,../libri ]
+    ds_item: [ ../libri,../fisher ]
 
     shuffle: false
     num_samples: -1
@@ -138,7 +138,7 @@ model:
     use_tarred_dataset: false
     # expected format: `[PATH_TO_DEV1,PATH_TO_DEV2]` OR `PATH_TO_DEV` (Note no space between the paths and square
     # brackets)
-    ds_item: [ ../fisher,../libri ]
+    ds_item: [ ../libri,../fisher ]
 
     shuffle: false
     #    num_samples: -1

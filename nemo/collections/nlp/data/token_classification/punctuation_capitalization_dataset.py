@@ -1186,14 +1186,13 @@ class BertPunctuationCapitalizationDataset(Dataset):
             (
                 self.input_ids,
                 self.subtokens_mask,
-                self.punct_labels,
-                self.capit_labels,
                 self.waveforms,
                 self.waveforms_length,
+                self.punct_labels,
+                self.capit_labels,
             ) = features
         else:
             self.input_ids, self.subtokens_mask, self.punct_labels, self.capit_labels = features
-            self.waveforms = None
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
         self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
