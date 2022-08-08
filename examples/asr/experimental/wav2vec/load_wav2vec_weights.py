@@ -70,10 +70,6 @@ model_url = {
 # Dictionaries for renaming modules
 preprocessor_key_terms = {
     'feature_extractor.': '',
-    '.2.1.bias': '.1.1.bias',
-    '.2.1.weight': '.1.1.weight',
-    '.0.2.bias': '.0.1.bias',
-    '.0.2.weight': '.0.1.weight',
 }
 encoder_key_terms = {
     'encoder.': '',
@@ -108,6 +104,9 @@ parser.add_argument(
     default=['all'],
     choices=['feature_extractor', 'encoder', 'quantizer', 'all'],
     help='desired modules to transfer fairseq weights from into their NeMo equivalents',
+)
+parser.add_argument(
+    '--strict', default=False, action='store_true', help='flag to load fairseq weights under strict, 1-1, matching'
 )
 
 args = parser.parse_args()
@@ -171,17 +170,17 @@ def main():
         preprocessor_dict, leftovers = load_weights(
             leftovers, nemo_model.preprocessor.state_dict(), key_terms=preprocessor_key_terms
         )
-        nemo_model.preprocessor.load_state_dict(preprocessor_dict, strict=True)
+        nemo_model.preprocessor.load_state_dict(preprocessor_dict, strict=args.strict)
 
     if encoder:
         logging.info(f"Copying {args.fairseq_model} weights to NeMo encoder module")
         encoder_dict, leftovers = load_weights(leftovers, nemo_model.encoder.state_dict(), key_terms=encoder_key_terms)
-        nemo_model.encoder.load_state_dict(encoder_dict, strict=True)
+        nemo_model.encoder.load_state_dict(encoder_dict, strict=args.strict)
 
     if quantizer:
         logging.info(f"Copying {args.fairseq_model} weights to NeMo loss module")
         loss_dict, leftovers = load_weights(leftovers, nemo_model.loss.state_dict())
-        nemo_model.loss.load_state_dict(loss_dict, strict=True)
+        nemo_model.loss.load_state_dict(loss_dict, strict=args.strict)
 
     path = os.path.join(args.nemo_path, f"wav2vec_{args.fairseq_model}.nemo")
     logging.info(f"Saving NeMo model to {path}")
@@ -193,7 +192,6 @@ def load_weights(source, sink, key_terms={}, key_words={}):
 
     dict_weights = {}
     leftovers = {}  # For keeping remaining weights and reducing repetition
-
     for key in source.keys():
         new_key = None
         if key in sink:  # Exists in sink dictionary, we store

@@ -3,7 +3,7 @@
 # Default learning parameters in this config are set for effective batch size of 1k on 32 GPUs.
 # To train it with smaller batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
 
-name: &name Wav2Vec_CTC
+name: &name Wav2Vec_CTC_BPE
 
 model:
   sample_rate: &sample_rate 16000
@@ -47,9 +47,9 @@ model:
   preprocessor:
     _target_: nemo.collections.asr.modules.wav2vec_modules.ConvFeatureEncoder
     extractor_mode: layer_norm # Mode for feature extractor. [group_norm, layer_norm]
-    conv_bias: False # Include bias in convolution feature extractor model
+    conv_bias: false # Include bias in convolution feature extractor model
     feature_grad_mult: 1.0 # Multiply extracted feature gradients
-    normalize_audio: true
+    normalize_audio: false
     conv_layers:
       - emb_dim: 512
         kernel_size: 10
