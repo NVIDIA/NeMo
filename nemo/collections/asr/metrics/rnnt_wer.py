@@ -265,7 +265,7 @@ class AbstractRNNTDecoding(ABC):
         # Compute hypotheses
         with torch.no_grad():
             hypotheses_list = self.decoding(
-                encoder_output=encoder_output, encoded_lengths=encoded_lengths, partial_hypotheses=partial_hypotheses
+                encoder_output=encoder_output, encoded_lengths=encoded_lengths, duration=self.cfg.duration, partial_hypotheses=partial_hypotheses
             )  # type: [List[Hypothesis]]
 
             # extract the hypotheses
@@ -602,6 +602,7 @@ class RNNTWER(Metric):
 @dataclass
 class RNNTDecodingConfig:
     strategy: str = "greedy_batch"
+    duration: int = 1
     compute_hypothesis_token_set: bool = False
 
     # preserve decoding alignments
