@@ -198,6 +198,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             precision=self.cfg.get('precision', 16),
             embedding_init_method_std=embedding_init_method_std,
             embedding_dropout=embedding_dropout,
+            label_smoothing=self.cfg.get('label_smoothing', 0.0),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
             share_token_embeddings=self.cfg.get('share_token_embeddings', True),
@@ -479,7 +480,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """
         Returns a dict {kwarg name: arg index} to be used when mapping
         kwargs into a list of args.
-        
+
         Computed on first call, and then cached.
         """
         # build mapping of kwargs to arg index at first run
@@ -491,7 +492,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
     def _build_forward_args_from_kwargs(self, args_name, args, **kwargs):
         """
         A helper method that converts arguments into positional arguments (by name)
-        
+
         args - a list of arguments to pass to self.enc_dec_model (tensors from batch)
         args_name - a list of argument name (to be matched against allowed kwargs)
         kwargs - a dict {arg name: arg value} (used for non-tensor values)
@@ -898,7 +899,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
     def encode(self, tokens_enc, enc_mask, encoder_input=None, reconfigure_microbatch=True):
         """
-        tokens_enc - encoder input tokens 
+        tokens_enc - encoder input tokens
         enc_mask - corresponding mask
         encoder_input - encoder input (bypass tokens), if given tokens_enc can be None.
         """
@@ -1048,13 +1049,14 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             device = tokens_enc.device
             encoder_seq_length = tokens_enc.size(1)
         else:
-            global_batch_per_gpu = enc_output.size(1)
+            global_batch_per_gpu = enc_output.size(0)
             device = enc_output.device
-            encoder_seq_length = enc_output.size(0)
+            encoder_seq_length = enc_output.size(1)
 
         num_micro_batches_before_decode = get_num_microbatches()
         # Reconfigure microbatch calculator here to set num microbatches to 1 while decoding since its not clear how to decode with "grad acc".
         # reconfigure back to how things were before decode
+        # TODO: Check if the user is trying to do gradient acc and maybe throw error
         _reconfigure_microbatch_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
@@ -1219,7 +1221,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         """ PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
             When using pipeline parallelism, we need the global batch to remain on the CPU,
             since the memory overhead will be too high when using a large number of microbatches.
-            Microbatches are transferred from CPU to GPU inside the pipeline. 
+            Microbatches are transferred from CPU to GPU inside the pipeline.
         """
         return batch
 
