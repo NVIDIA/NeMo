@@ -47,6 +47,7 @@ from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.utils.nmesc_clustering import get_argmin_mat, getCosAffinityMatrix
+# from nemo.collections.asr.parts.utils.speaker_utils_lab import (
 from nemo.collections.asr.parts.utils.speaker_utils import (
     audio_rttm_map,
     embedding_normalize,
@@ -847,7 +848,6 @@ class EncDecDiarLabelModel(ModelPT, ExportableEncDecModel, ClusterEmbedding):
                 start = dic['offset']
                 end = start + dic['duration']
                 stamp = '{:.3f} {:.3f} '.format(start, end)
-                # stamp = [round(start, 3), round(end, 3)]
                 time_stamps[uniq_name].append(stamp)
         return time_stamps
 

@@ -387,7 +387,10 @@ def get_argmin_mat(uniq_scale_dict: dict):
     segment_anchor_dict = {}
     for scale_idx in scale_list:
         time_stamp_list = uniq_scale_dict[scale_idx]['time_stamps']
-        time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
+        if type(time_stamp_list[0]) == str:
+            time_stamps_float = torch.tensor([[float(x.split()[0]), float(x.split()[1])] for x in time_stamp_list])
+        elif type(time_stamp_list[0]) == list:
+            time_stamps_float = torch.tensor([[x[0], x[1]] for x in time_stamp_list])
         segment_anchor_dict[scale_idx] = torch.mean(time_stamps_float, dim=1)
 
     base_scale_idx = max(scale_list)

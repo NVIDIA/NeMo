@@ -439,13 +439,16 @@ class ClusteringDiarizer(Model, DiarizationMixin):
         # TODO Resegmentation -> Coming Soon
 
         # Scoring
-        score = score_labels(
-            self.AUDIO_RTTM_MAP,
-            all_reference,
-            all_hypothesis,
-            collar=self._diarizer_params.collar,
-            ignore_overlap=self._diarizer_params.ignore_overlap,
-        )
+        for k, (collar, ignore_overlap) in enumerate([(0.25, True), (0.25, False), (0.0, False)]):
+            self._diarizer_params.collar = collar
+            self._diarizer_params.ignore_overlap  = ignore_overlap
+            score = score_labels(
+                self.AUDIO_RTTM_MAP,
+                all_reference,
+                all_hypothesis,
+                collar=self._diarizer_params.collar,
+                ignore_overlap=self._diarizer_params.ignore_overlap,
+            )
 
         logging.info("Outputs are saved in {} directory".format(os.path.abspath(self._diarizer_params.out_dir)))
         return score

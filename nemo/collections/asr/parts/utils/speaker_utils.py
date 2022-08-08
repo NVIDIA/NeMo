@@ -82,8 +82,7 @@ def audio_rttm_map(manifest, attach_dur=False):
     with open(manifest, 'r') as inp_file:
         lines = inp_file.readlines()
         logging.info("Number of files to diarize: {}".format(len(lines)))
-        # for line in lines:
-        for line in tqdm(lines):
+        for line in lines:
             line = line.strip()
             dic = json.loads(line)
 
@@ -845,89 +844,10 @@ def getSubRangeList(target_range, source_range_list) -> List:
                 out_range.append(ovl_range)
         return out_range
 
-def _write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
-    """
-    Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value.
-
-    Args:
-        AUDIO_RTTM_MAP (dict):
-            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
-            these are used to extract oracle vad timestamps.
-        manifest (str):
-            The path to the output manifest file.
-
-    Returns:
-        manifest (str):
-            The path to the output manifest file.
-    """
-    with open(manifest_file, 'w') as outfile:
-        for uniq_id in tqdm(AUDIO_RTTM_MAP):
-            rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
-            rttm_lines = read_rttm_lines(rttm_file_path)
-            offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
-            vad_start_end_list_raw = []
-            for line in rttm_lines:
-                start, dur = get_vad_out_from_rttm_line(line)
-                vad_start_end_list_raw.append([start, start + dur])
-            vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
-            if len(vad_start_end_list) == 0:
-                logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
-            elif duration <= 0:
-                logging.warning(f"File ID: {uniq_id}: The audio file has negative or zero duration.")
-            else:
-                overlap_range_list = getSubRangeList(
-                    source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
-                )
-                write_overlap_segments(outfile, AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id, deci)
-    return manifest_file
-
-def __write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5) -> str:
-    """
-    Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value.
-
-    Args:
-        AUDIO_RTTM_MAP (dict):
-            Dictionary containing keys to uniqnames, that contains audio filepath and rttm_filepath as its contents,
-            these are used to extract oracle vad timestamps.
-        manifest (str):
-            The path to the output manifest file.
-
-    Returns:
-        manifest (str):
-            The path to the output manifest file.
-    """
-    total_json_lines = []
-    for uniq_id in tqdm(AUDIO_RTTM_MAP):
-        rttm_file_path = AUDIO_RTTM_MAP[uniq_id]['rttm_filepath']
-        rttm_lines = read_rttm_lines(rttm_file_path)
-        offset, duration = get_offset_and_duration(AUDIO_RTTM_MAP, uniq_id, deci)
-        vad_start_end_list_raw = []
-        for line in rttm_lines:
-            start, dur = get_vad_out_from_rttm_line(line)
-            vad_start_end_list_raw.append([start, start + dur])
-        vad_start_end_list = combine_float_overlaps(vad_start_end_list_raw, deci)
-        if len(vad_start_end_list) == 0:
-            logging.warning(f"File ID: {uniq_id}: The VAD label is not containing any speech segments.")
-        elif duration <= 0:
-            logging.warning(f"File ID: {uniq_id}: The audio file has negative or zero duration.")
-        else:
-            overlap_range_list = getSubRangeList(
-                source_range_list=vad_start_end_list, target_range=[offset, offset + duration]
-            )
-            meta_list = make_overlap_segments(AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id=False, deci=5)
-            total_json_lines.extend(meta_list)
-    write_json_lines_format(manifest_file, total_json_lines) 
-    return manifest_file
-
 def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id: bool = False, deci: int = 5, num_workers: int = 1) -> str:
     """
-    Write manifest file based on rttm files (or vad table out files). This manifest file would be used by
-    speaker diarizer to compute embeddings and cluster them. This function takes care of overlapping VAD timestamps
-    and trimmed with the given offset and duration value.
+    Write manifest files based on the given rttm files (or vad table out files). Thses manifest files will be used by speaker diarizer to compute embeddings
+    and cluster them. This function takes care of overlapping VAD timestamps and trimmed with the given offset and duration value.
 
     Args:
         AUDIO_RTTM_MAP (dict):
@@ -949,7 +869,7 @@ def write_rttm2manifest(AUDIO_RTTM_MAP: str, manifest_file: str, include_uniq_id
         for x in pool_total_json_lines:
             total_json_lines.extend(x)
     else:
-        for uniq_id in tqdm(AUDIO_RTTM_MAP):
+        for uniq_id in AUDIO_RTTM_MAP:
             meta_list = create_VAD_meta_dict(uniq_id, AUDIO_RTTM_MAP)
             total_json_lines.extend(meta_list)
     write_json_lines_format(manifest_file, total_json_lines) 
@@ -988,59 +908,6 @@ def create_VAD_meta_dict(uniq_id, AUDIO_RTTM_MAP, deci=3):
         )
         meta_list = make_overlap_segments(AUDIO_RTTM_MAP, uniq_id, overlap_range_list, include_uniq_id=False)
     return meta_list
-
-def _segments_manifest_to_subsegments_manifest(
-    segments_manifest_file: str,
-    subsegments_manifest_file: str = None,
-    window: float = 1.5,
-    shift: float = 0.75,
-    min_subsegment_duration: float = 0.05,
-    include_uniq_id: bool = False,
-):
-    """
-    Generate subsegments manifest from segments manifest file
-    Args:
-        segments_manifest file (str): path to segments manifest file, typically from VAD output
-        subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
-        window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift
-        min_subsegments_duration (float): exclude subsegments smaller than this duration value
-
-    Returns:
-        returns path to subsegment manifest file
-    """
-    if subsegments_manifest_file is None:
-        pwd = os.getcwd()
-        subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
-
-    with open(segments_manifest_file, 'r') as segments_manifest, open(
-        subsegments_manifest_file, 'w'
-    ) as subsegments_manifest:
-        segments = segments_manifest.readlines()
-        for segment in tqdm(segments):
-            segment = segment.strip()
-            dic = json.loads(segment)
-            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
-            if include_uniq_id and 'uniq_id' in dic:
-                uniq_id = dic['uniq_id']
-            else:
-                uniq_id = None
-            for subsegment in subsegments:
-                start, dur = subsegment
-                if dur > min_subsegment_duration:
-                    meta = {
-                        "audio_filepath": audio,
-                        "offset": start,
-                        "duration": dur,
-                        "label": label,
-                        "uniq_id": uniq_id,
-                    }
-
-                    json.dump(meta, subsegments_manifest)
-                    subsegments_manifest.write("\n")
-
-    return subsegments_manifest_file
 
 def segments_manifest_to_subsegments_manifest(
     segments_manifest_file: str,
@@ -1110,61 +977,6 @@ def write_json_lines_format(out_filepath: str, total_json_lines: List[str]):
         for meta in total_json_lines:
             string_dump += json.dumps(meta) + '\n'
         subsegments_manifest.write(string_dump)
-
-
-def __segments_manifest_to_subsegments_manifest(
-    segments_manifest_file: str,
-    subsegments_manifest_file: str = None,
-    window: float = 1.5,
-    shift: float = 0.75,
-    min_subsegment_duration: float = 0.05,
-    include_uniq_id: bool = False,
-):
-    """
-    Generate subsegments manifest from segments manifest file
-    Args:
-        segments_manifest file (str): path to segments manifest file, typically from VAD output
-        subsegments_manifest_file (str): path to output subsegments manifest file (default (None) : writes to current working directory)
-        window (float): window length for segments to subsegments length
-        shift (float): hop length for subsegments shift
-        min_subsegments_duration (float): exclude subsegments smaller than this duration value
-
-    Returns:
-        returns path to subsegment manifest file
-    """
-    if subsegments_manifest_file is None:
-        pwd = os.getcwd()
-        subsegments_manifest_file = os.path.join(pwd, 'subsegments.json')
-
-    with open(segments_manifest_file, 'r') as segments_manifest, open(
-        subsegments_manifest_file, 'w'
-    ) as subsegments_manifest:
-        segments = segments_manifest.readlines()
-        for segment in segments:
-            segment = segment.strip()
-            dic = json.loads(segment)
-            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments(offset=offset, window=window, shift=shift, duration=duration)
-            if include_uniq_id and 'uniq_id' in dic:
-                uniq_id = dic['uniq_id']
-            else:
-                uniq_id = None
-            for subsegment in subsegments:
-                start, dur = subsegment
-                if dur > min_subsegment_duration:
-                    meta = {
-                        "audio_filepath": audio,
-                        "offset": start,
-                        "duration": dur,
-                        "label": label,
-                        "uniq_id": uniq_id,
-                    }
-
-                    json.dump(meta, subsegments_manifest)
-                    subsegments_manifest.write("\n")
-
-    return subsegments_manifest_file
-
 
 def get_subsegments(offset: float, window: float, shift: float, duration: float):
     """
