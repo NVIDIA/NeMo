@@ -1375,7 +1375,7 @@ class ParallelTransformerLayer_(MegatronModule):
                 attention_bias = attention_bias.expand_as(residual)
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
-            print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
+            # print(f"Layer: {self.layer_number} Attention checksum {layernorm_input.sum()}")
 
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
@@ -1433,7 +1433,7 @@ class ParallelTransformerLayer_(MegatronModule):
             )
 
             layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
-            print(f"Layer: {self.layer_number} Cross-Attention checksum {layernorm_input.sum()}")
+            # print(f"Layer: {self.layer_number} Cross-Attention checksum {layernorm_input.sum()}")
             normalization_output = self.post_inter_attention_layernorm(layernorm_input)
             # Post-LN normalization after residual
             if self.transformer_block_type == 'post_ln':
@@ -1448,7 +1448,7 @@ class ParallelTransformerLayer_(MegatronModule):
         )
 
         output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
-        print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
+        # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
         if self.transformer_block_type == 'post_ln':
             output = self.post_attention_layernorm(output)

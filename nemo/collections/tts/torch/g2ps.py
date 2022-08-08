@@ -139,7 +139,7 @@ class EnglishG2p(BaseG2p):
                 f"English g2p_dict will be used from nltk.corpus.cmudict.dict(), because phoneme_dict_path=None. "
                 "Note that nltk.corpus.cmudict.dict() has old version (0.6) of CMUDict. "
                 "You can use the latest official version of CMUDict (0.7b) with additional changes from NVIDIA directly from NeMo "
-                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.08."
+                "using the path scripts/tts_dataset_files/cmudict-0.7b_nv22.07."
             )
 
             return nltk.corpus.cmudict.dict()
@@ -262,7 +262,7 @@ class IPAG2P(BaseG2p):
         
         Args:
             phoneme_dict (str, Path, Dict): Path to file in CMUdict format or dictionary of CMUdict-like entries.
-                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.08.txt.)
+                Must be given for IPA G2P. (Consider using scripts/tts_dataset_files/ipa_cmudict-0.7b_nv22.06.txt.)
             word_tokenize_func: Function for tokenizing text to words.
                 It has to return List[Tuple[Union[str, List[str]], bool]] where every tuple denotes word
                 representation and flag whether to leave unchanged or not.

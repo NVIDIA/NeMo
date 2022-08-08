@@ -71,7 +71,6 @@ class Adafactor(Optimizer):
         scale_parameter=True,
         relative_step=True,
         warmup_init=False,
-        min_step=1e-2,
     ):
         if lr is not None and relative_step:
             raise ValueError("Cannot combine manual lr and relative_step options")
@@ -89,7 +88,6 @@ class Adafactor(Optimizer):
             scale_parameter=scale_parameter,
             relative_step=relative_step,
             warmup_init=warmup_init,
-            min_step=min_step,
         )
         super(Adafactor, self).__init__(params, defaults)
 
