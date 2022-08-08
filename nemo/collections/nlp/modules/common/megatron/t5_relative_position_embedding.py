@@ -59,7 +59,6 @@ class T5RelativePositionEmbedding(torch.nn.Module):
         ).to(torch.cuda.current_device())
         self._relative_position_embedding_key = 'relative_position_embedding'
         init_method(self.relative_position_embedding.weight)
-        self._all_reduce_position_embedding()
 
     def _all_reduce_position_embedding(self):
         if parallel_state.get_pipeline_model_parallel_world_size() == 1:

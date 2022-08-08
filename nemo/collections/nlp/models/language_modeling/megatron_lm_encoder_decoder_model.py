@@ -859,9 +859,19 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            assert self.cfg.share_token_embeddings, "share_word_embedding must be True when using pipeline model parallel > 1"
+            assert self.cfg.share_decoder_tokens_head_embeddings, "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
-            if self.cfg.get('position_embedding_type') != 'relative':
+            if self.cfg.encoder.get('position_embedding_type') != 'relative' and self.cfg.decoder.get('position_embedding_type') != 'relative':
                 self.enc_dec_model.sync_initial_position_embeddings()
+            else:
+                if self.cfg.encoder.get('position_embedding_type') == 'relative':
+                    assert hasattr(self.enc_dec_model,'encoder_relative_position_embedding')
+                    self.enc_dec_model.encoder_relative_position_embedding._all_reduce_position_embedding()
+                if self.cfg.decoder.get('position_embedding_type') == 'relative':
+                    assert hasattr(self.enc_dec_model,'decoder_relative_position_embedding')
+                    self.enc_dec_model.decoder_relative_position_embedding._all_reduce_position_embedding()
+
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
