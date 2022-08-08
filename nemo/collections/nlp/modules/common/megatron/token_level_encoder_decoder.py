@@ -295,7 +295,9 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule):
 
         if add_decoder and post_process:
             if share_decoder_tokens_head_embeddings:
-                self.tokens_head = MegatronTokenLevelHead(self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias)
+                self.tokens_head = MegatronTokenLevelHead(
+                    self.word_embeddings_weight().size(0), parallel_output, bias=tokens_head_bias
+                )
             else:
                 self.tokens_head = tensor_parallel.ColumnParallelLinear(
                     input_size=decoder_cfg.hidden_size,

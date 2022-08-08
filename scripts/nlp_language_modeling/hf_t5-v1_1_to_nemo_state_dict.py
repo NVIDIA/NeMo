@@ -21,11 +21,12 @@ python hf_t5_to_nemo_coverter.py \
     --hf_model_name google/ul2 \
     --nemo_state_dict /path/to/nemo_state_dict.pt
 """
-from argparse import ArgumentParser
 import collections
-import tempfile
-import torch
 import os
+import tempfile
+from argparse import ArgumentParser
+
+import torch
 from transformers import T5ForConditionalGeneration
 
 
@@ -48,7 +49,6 @@ def convert_weights(hf_model, nemo_model):
             raise ValueError(f"Unknown model type for {k}")
 
         return model_type, int(k.split('.')[2]), int(k.split('.')[4])
-
 
     for k, v in hf_weights.items():
         #################################################
@@ -78,11 +78,15 @@ def convert_weights(hf_model, nemo_model):
 
         elif k == 'encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight':
             nemo_weights['enc_dec_model.encoder_relative_position_embedding.relative_position_embedding.weight'] = v
-            print(f'Mapped {k} to enc_dec_model.encoder_relative_position_embedding.relative_position_embedding.weight')
+            print(
+                f'Mapped {k} to enc_dec_model.encoder_relative_position_embedding.relative_position_embedding.weight'
+            )
 
         elif k == 'decoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight':
             nemo_weights['enc_dec_model.decoder_relative_position_embedding.relative_position_embedding.weight'] = v
-            print(f'Mapped {k} to enc_dec_model.decoder_relative_position_embedding.relative_position_embedding.weight')
+            print(
+                f'Mapped {k} to enc_dec_model.decoder_relative_position_embedding.relative_position_embedding.weight'
+            )
 
         # Block in HF corresponds to layer in NeMo.
         # Layer in HF does not correspond to anything in NeMo. Layer 0 is self attn, layer 1 is cross-attn.
@@ -246,6 +250,7 @@ def convert_weights(hf_model, nemo_model):
     print("Saved weights to {}".format(nemo_model))
 
     # TODO: (sandeepsub) - Maybe automatically populate the equivalent nemo-megatron yaml config and bundle weights, config and tokenizer into a `.nemo` file.
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()

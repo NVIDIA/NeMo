@@ -76,7 +76,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
-        normalize_attention_scores=True
+        normalize_attention_scores=True,
     ):
         super(MegatronRetrievalTransformerEncoderModule, self).__init__()
 
@@ -346,7 +346,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         sequence_parallel=False,
         gradient_accumulation_fusion=False,
-        normalize_attention_scores=True
+        normalize_attention_scores=True,
     ):
         super(MegatronRetrievalTransformerDecoderModule, self).__init__()
 

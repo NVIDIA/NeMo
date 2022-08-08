@@ -79,7 +79,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         hidden_steps=32,
         num_self_attention_per_cross_attention=1,
-        normalize_attention_scores=True
+        normalize_attention_scores=True,
     ):
         super(MegatronPerceiverEncoderModule, self).__init__()
 

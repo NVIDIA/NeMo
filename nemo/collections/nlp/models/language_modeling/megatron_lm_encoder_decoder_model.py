@@ -174,7 +174,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             # NOTE: For old models there are two scenarios:
             # 1. If we share decoder embeddings with the output layer, we would always set tokens_head_bias=True
             # 2. If we do not share decoder embeddings with the output layer, we would always set tokens_head_bias=False
-            self.cfg.tokens_head_bias = True if self.cfg.share_decoder_tokens_head_embeddings else False # For models before separate encoder/decoder configs, tokens_head_bias was always True.
+            self.cfg.tokens_head_bias = (
+                True if self.cfg.share_decoder_tokens_head_embeddings else False
+            )  # For models before separate encoder/decoder configs, tokens_head_bias was always True.
 
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and self.cfg.encoder.arch == 'perceiver':
             raise ValueError(f"Perceivers with pipeline parallel > 1 is not supported yet.")
