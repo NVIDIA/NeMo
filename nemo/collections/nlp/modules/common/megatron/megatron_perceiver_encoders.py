@@ -79,6 +79,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         parent_model_type=ModelType.encoder_or_decoder,
         hidden_steps=32,
         num_self_attention_per_cross_attention=1,
+        normalize_attention_scores=True
     ):
         super(MegatronPerceiverEncoderModule, self).__init__()
 
@@ -120,6 +121,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.parent_model_type = parent_model_type
         self.transformer_block_type = transformer_block_type
         self.ffn_dropout = ffn_dropout
+        self.normalize_attention_scores = normalize_attention_scores
 
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.hidden_steps >= 1
@@ -173,6 +175,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             model_type=self.parent_model_type,
             transformer_block_type=self.transformer_block_type,
             headscale=self.headscale,
+            normalize_attention_scores=self.normalize_attention_scores,
         )
 
     def _build_self_attn_layer(self):
@@ -210,6 +213,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             model_type=self.parent_model_type,
             transformer_block_type=self.transformer_block_type,
             headscale=self.headscale,
+            normalize_attention_scores=self.normalize_attention_scores,
         )
 
     def set_input_tensor(self, input_tensor):
