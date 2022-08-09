@@ -354,7 +354,6 @@ class ClusterEmbedding:
 
         self.run_clus_from_loaded_emb = False
         self.use_speaker_model_from_MSDD = False
-        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.get('max_num_speakers', 8)
         self.scale_window_length_list = list(self.cfg_base.diarizer.speaker_embeddings.parameters.window_length_in_sec)
         self.scale_n = len(self.scale_window_length_list)
         self.base_scale_index = len(self.scale_window_length_list) - 1
@@ -363,6 +362,7 @@ class ClusterEmbedding:
         """
         Launch clustering diarizer to prepare embedding vectors and clustering results.
         """
+        self.max_num_speakers = self.cfg_base.diarizer.clustering.parameters.get('max_num_speakers', 8)
         self.emb_sess_test_dict, self.emb_seq_test, self.clus_test_label_dict, _ = self.run_clustering_diarizer(
             self._cfg_msdd.test_ds.manifest_filepath, self._cfg_msdd.test_ds.emb_dir
         )
