@@ -68,7 +68,7 @@ Key Features
     * `Information retrieval <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/information_retrieval.html>`_
     * `Entity Linking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/entity_linking.html>`_
     * `Dialogue State Tracking <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/sgd_qa.html>`_   
-    * `Prompt Tuning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/prompt_learning.html>`_
+    * `Prompt Learning <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/nlp/prompt_learning.html>`_
     * `NGC collection of pre-trained NLP models. <https://ngc.nvidia.com/catalog/collections/nvidia:nemo_nlp>`_
 * `Speech synthesis (TTS) <https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/tts/intro.html#>`_
     * Spectrogram generation: Tacotron2, GlowTTS, TalkNet, FastPitch, FastSpeech2, Mixer-TTS, Mixer-TTS-X
@@ -202,8 +202,14 @@ Megatron GPT training requires NVIDIA Apex to be installed.
 
     git clone https://github.com/NVIDIA/apex
     cd apex
-    git checkout 5d8c8a8eedaf567d56f0762a45431baf9c0e800e
+    git checkout 3c19f1061879394f28272a99a7ea26d58f72dace
     pip install -v --disable-pip-version-check --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" --global-option="--fast_layer_norm" ./
+
+.. note::
+
+  You may need to modify [setup.py](https://github.com/NVIDIA/apex/blob/3c19f1061879394f28272a99a7ea26d58f72dace/setup.py) if 
+  your version of CUDA does not match the version used to compile Pytorch binaries, comment lines 33-41 in the above link
+  before installing.
 
 Docker containers:
 ~~~~~~~~~~~~~~~~~~
