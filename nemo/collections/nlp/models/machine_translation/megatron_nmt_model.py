@@ -73,21 +73,24 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel):
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         if self.multilingual:
-            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
-                raise ValueError(
-                    "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
-                )
-            elif isinstance(self.src_language, ListConfig):
-                pass
-            elif isinstance(self.tgt_language, ListConfig):
-                for lng in self.tgt_language:
-                    self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
-            else:
-                raise ValueError(
-                    "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
-                )
+            self._setup_multilingual_special_tokens()
 
         super().__init__(cfg, trainer=trainer)
+
+    def _setup_multilingual_special_tokens(self):
+        if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+            raise ValueError(
+                "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
+            )
+        elif isinstance(self.src_language, ListConfig):
+            pass
+        elif isinstance(self.tgt_language, ListConfig):
+            for lng in self.tgt_language:
+                self.special_tokens["<" + lng + ">"] = "<" + lng + ">"
+        else:
+            raise ValueError(
+                "Expect either cfg.src_language or cfg.tgt_language to be a list when multilingual=True."
+            )
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
