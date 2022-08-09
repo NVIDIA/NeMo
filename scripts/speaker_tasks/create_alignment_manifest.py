@@ -64,7 +64,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
         arr (list): List of ctm entries
     """
     arr = []
-    for i in range(0, len(wordlist)):
+    for i in range(len(wordlist)):
         word = wordlist[i]
         if word != "":
             # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
@@ -160,7 +160,7 @@ def main():
         end_times = []
         i = 0
         prev_end = 0
-        for i in range(0, len(lines)):
+        for i in range(len(lines)):
             ctm = lines[i].split(' ')
             speaker_id = ctm[1]
             start = float(ctm[2])
