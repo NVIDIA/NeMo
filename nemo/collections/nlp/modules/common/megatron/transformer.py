@@ -729,6 +729,7 @@ class ParallelAttention(MegatronModule):
                 inference_max_sequence_len, hidden_states.size(1), hidden_states.dtype
             )
             self.inference_current_sequence_len = 0
+            self.query_index = 0
 
         # Some consistency check.
         if inference_max_sequence_len:
@@ -740,6 +741,7 @@ class ParallelAttention(MegatronModule):
         if not inference_max_sequence_len:
             self.inference_key_memory = None
             self.inference_value_memory = None
+            # self.inference_query_memory = None
 
         # =====================
         # Query, Key, and Value
@@ -797,13 +799,16 @@ class ParallelAttention(MegatronModule):
             self.inference_current_sequence_len += key_layer.size(0)
             end = self.inference_current_sequence_len
             # Copy key and values.
+            #print('MEM SIZES:', self.inference_key_memory[start:end, ...].shape, key_layer[-1].shape)
             self.inference_key_memory[start:end, ...] = key_layer
             self.inference_value_memory[start:end, ...] = value_layer
+            # self.inference_query_memory[query_start:query_end, ...] = query_layer
             key_layer = self.inference_key_memory[:end, ...]
             value_layer = self.inference_value_memory[:end, ...]
+            # query_layer = self.inference_query_memory[:query_end, ...]
             # Adjust attention mask
-            if not (end == start + 1 and attention_mask.shape[1] == 1):
-                attention_mask = attention_mask[..., start:end, :end]
+            # if not (end == start + 1 and attention_mask.shape[1] == 1):
+            #     attention_mask = attention_mask[..., start:end, :end]
             # adjust the key rotary positional embedding
             if rotary_pos_emb is not None:
                 q_pos_emb, k_pos_emb = rotary_pos_emb
@@ -818,6 +823,9 @@ class ParallelAttention(MegatronModule):
             past_key, past_value = layer_past
             key_layer = torch.cat((past_key.type_as(key_layer), key_layer), dim=0)
             value_layer = torch.cat((past_value.type_as(value_layer), value_layer), dim=0)
+
+        print(key_layer.shape, value_layer.shape, query_layer.shape)
+        print('=======')
 
         if get_key_value:
             present = (key_layer, value_layer)
@@ -1894,10 +1902,10 @@ class ParallelTransformer(MegatronModule):
         output = hidden_states
         # Final layer norm.
         ##RM
-        # if self.post_process:
+        if self.post_process:
             # only apply the final_layernorm for pre-ln
-        #    if self.transformer_block_type != 'post_ln':
-        #        output = self.final_layernorm(hidden_states)
+            if self.transformer_block_type != 'post_ln':
+                output = self.final_layernorm(hidden_states)
 
         if get_key_value:
             output = [output, presents]

@@ -1025,6 +1025,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         if enc_output_attn_mask is None:
             enc_output_attn_mask = enc_mask
 
+        if use_memory:
+            inference_key_first = torch.tensor([[True] for _ in range(enc_output.shape[0])])
+            inference_key_then = torch.tensor([[False] for _ in range(enc_output.shape[0])])
+            inference_mem_size = torch.tensor([[512] for _ in range(enc_output.shape[0])])
+
         for i in range(num_tokens_to_generate):
             # No microbatches in decoding. Just the global batch.
             decoder_seq_length = predicted_tokens_dec.size(1)
@@ -1035,10 +1040,10 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec, dec_mask]
                 arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask']
             elif i == 0:
-                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], torch.tensor([[True] for i in range(enc_output.shape[0])]), torch.tensor([[512] for i in range(enc_output.shape[0])])]
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], inference_key_first, inference_mem_size]
                 arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len']
             else:
-                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], torch.tensor([[False] for i in range(enc_output.shape[0])]), torch.tensor([[512] for i in range(enc_output.shape[0])])]
+                batch_for_pipeline = [enc_output, enc_output_attn_mask, predicted_tokens_dec[..., i:i+1], dec_mask[..., i:i+1], inference_key_then, inference_mem_size]
                 arg_names = ['enc_output', 'enc_output_attn_mask', 'dec_input_ids', 'dec_attn_mask', 'set_inference_key_value_memory', 'inference_max_sequence_len']
 
             forward_step_func = self._get_forward_output_only_func(arg_names=arg_names, output_name="logits")
