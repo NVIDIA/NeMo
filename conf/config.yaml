@@ -1,9 +1,9 @@
 defaults:
   - _self_
   - cluster: bcm  # Leave it as bcm even if using bcp. It will be ignored for bcp.
-  - data_preparation: download_gpt3_pile
+  - data_preparation: gpt3/download_gpt3_pile
   - training: gpt3/5b
-  - conversion: convert_gpt3
+  - conversion: gpt3/convert_gpt3
   - fine_tuning: null
   - prompt_learning: null
   - evaluation: gpt3/evaluate_all
