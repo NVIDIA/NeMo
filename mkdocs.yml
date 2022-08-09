@@ -9,7 +9,9 @@ repo_name: NVIDIA/NeMo
 repo_url: https://github.com/NVIDIA/NeMo
 
 # Copyright
-# copyright: Copyright &copy; 2019 - 2022 NVIDIA
+copyright: >
+  Copyright &copy; 2019 - 2022 NVIDIA
+#  <a href="#__consent">Change cookie settings</a>
 
 # Configuration
 theme:
@@ -79,9 +81,25 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/NVIDIA/NeMo
+  # consent:
+  #   title: Cookie consent
+  #   actions:
+  #     - accept
+  #     - manage
+  #   description: >- 
+  #     We use cookies to recognize your repeated visits and preferences, as well
+  #     as to measure the effectiveness of our documentation and whether users
+  #     find what they're searching for. With your consent, you're helping us to
+  #     make our documentation better.
+
 
 extra_css:
   - assets/stylesheets/extra.css
+
+extra_javascript:
+  - docs/assets/javascript/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 
 # Extensions
@@ -111,19 +129,22 @@ markdown_extensions:
       repo: NeMo
   - pymdownx.mark
   - pymdownx.smartsymbols
-  # - pymdownx.superfences:
-  #     custom_fences:
-  #       - name: mermaid
-  #         class: mermaid
-  #         format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.superfences
+      # custom_fences:
+      #   - name: mermaid
+      #     class: mermaid
+      #     format: "!!python/name:pymdownx.superfences.fence_code_format"
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
 
 # Page tree
 nav:
   - Home: index.md
-  # - 2022:
-  #   - blogs/2022/template.md
+  - 2022:
+    - blogs/2022/2022-08-introduction.md

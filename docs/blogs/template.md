@@ -4,6 +4,8 @@ author: [First Name, Second Name]
 author_gh_user: [Github User 1, Github User 2]
 read_time: Time to read
 publish_date: Date of publishing
+
+# DO NOT CHANGE BELOW
 template: blog.html
 ---
 
