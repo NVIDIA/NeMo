@@ -873,11 +873,11 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 self.enc_dec_model.sync_initial_position_embeddings()
             else:
                 if self.cfg.encoder.get('position_embedding_type') == 'relative':
-                    assert hasattr(self.enc_dec_model, 'encoder_relative_position_embedding')
-                    self.enc_dec_model.encoder_relative_position_embedding._all_reduce_position_embedding()
+                    if hasattr(self.enc_dec_model, 'encoder_relative_position_embedding'):
+                        self.enc_dec_model.encoder_relative_position_embedding._all_reduce_position_embedding()
                 if self.cfg.decoder.get('position_embedding_type') == 'relative':
-                    assert hasattr(self.enc_dec_model, 'decoder_relative_position_embedding')
-                    self.enc_dec_model.decoder_relative_position_embedding._all_reduce_position_embedding()
+                    if hasattr(self.enc_dec_model, 'decoder_relative_position_embedding'):
+                        self.enc_dec_model.decoder_relative_position_embedding._all_reduce_position_embedding()
 
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds'):
