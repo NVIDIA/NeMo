@@ -34,7 +34,6 @@ def numa_mapping(local_rank, devices, numa_cfg):
     else:
         print("No NUMA mapping was enabled, performance might be affected.")
 
-    return cuda_visible_devices
 
 @hydra.main(config_path="conf", config_name="numa_mapping")
 def main(cfg):

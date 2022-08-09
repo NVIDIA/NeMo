@@ -220,7 +220,7 @@ class BigNLPStage:
     def _cuda_visible_devices(self) -> str:
         ntasks_per_node = self.stage_cfg.run.get("ntasks_per_node")
         if ntasks_per_node is None:
-            ntasks_per_node = self.stage_cfg.trainer.get("devices", 0)
+            ntasks_per_node = self.stage_cfg.trainer.get("devices", 1)
         return "CUDA_VISIBLE_DEVICES=0,4,2,6,1,5,3,7" \
             if ntasks_per_node == 8 else ""
 
@@ -284,6 +284,12 @@ class NeMoStage(BigNLPStage):
         if self.cluster == "bcp":
             hydra_override += ["+cluster_type=BCP"]
         return hydra_override
+
+    def get_env_vars(self) -> Dict:
+        env_vars = super().get_env_vars()
+        if self.cluster != "bcm":
+            env_vars["SLURM_TASKS_PER_NODE"] = self.stage_cfg.trainer.get("devices", 1)
+        return env_vars
 
 
 class Training(NeMoStage):
