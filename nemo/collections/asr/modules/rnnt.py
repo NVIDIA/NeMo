@@ -59,8 +59,7 @@ class StatelessNet(torch.nn.Module):
         self.dropout = torch.nn.Dropout(dropout)
         self.norm = torch.nn.Identity()
         if normalization_mode == 'layer':
-            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=True)
-#            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
+            self.norm = torch.nn.LayerNorm(emb_dim, elementwise_affine=False)
 
         assert(blank_as_pad)  # So far it only supports when it is set True
         embeds = []
@@ -400,7 +399,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
        Args:
            batch_states (list): batch of decoder states
-              ([B x (B, H)])
+              ([(B, H)])
 
            decoder_states (list of list): list of decoder states
                [B x ([(1, C)]]
@@ -418,13 +417,13 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Args:
             batch_states (list): batch of decoder states
-                [(B, U)]
+                [(B, C)]
 
             idx (int): index to extract state from batch of states
 
         Returns:
             (tuple): decoder states for given id
-                [(U)]
+                [(C)]
         """
         if batch_states is not None:
             states = batch_states[0][idx]
@@ -467,10 +466,10 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Args:
             old_states: packed decoder states
-                single element list of (B x U)
+                single element list of (B x C)
 
             new_states: packed decoder states
-                single element list of (B x U)
+                single element list of (B x C)
 
             ids (list): List of indices to copy states at.
 
@@ -478,7 +477,7 @@ class RNNTStatelessDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         Returns:
             batch of decoder states with partial copy at ids (or a specific value).
-                (B x U)
+                (B x C)
         """
 
         if value is None:
