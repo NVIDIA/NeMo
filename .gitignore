@@ -11,4 +11,4 @@
 *data_cache*
 bignlp/eval_scripts/eval_harness/data*
 *results*
-!test_data_prep_pipeline.py!
+!test_data_prep_pipeline.py
