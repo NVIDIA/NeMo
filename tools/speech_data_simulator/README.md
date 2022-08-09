@@ -37,10 +37,10 @@ Required Datasets
 * LibriSpeech (or another single-speaker dataset)
 * LibriSpeech word alignments from [here](https://github.com/CorentinJ/librispeech-alignments) (or alignments corresponding to another single-speaker dataset)
 
-Example alignment format from the LibriSpeech dataset (to be passed as input to the 'scripts/speaker_tasks/create_librispeech_alignment_manifest.py' script):
+Example alignment format from the LibriSpeech dataset (to be passed as input to the `scripts/speaker_tasks/create_librispeech_alignment_manifest.py` script):
 
 * Alignment files are stored at <Speaker ID>/<Chapter ID>/<Speaker ID>-<Chapter ID>.txt, and each line in the alignment file corresponds to a separate sentence
-* Example of a line in 'dev-clean/1272/128104/1272-128104.txt': '1272-128104-0000 ",MISTER,QUILTER,IS,THE,APOSTLE,OF,THE,MIDDLE,CLASSES,,AND,WE,ARE,GLAD,TO,WELCOME,HIS,GOSPEL," "0.500,0.800,1.270,1.400,1.520,2.150,2.270,2.350,2.620,3.270,3.300,3.450,3.600,3.670,4.070,4.200,4.600,4.840,5.510,5.855"'
+* Example of a line in `dev-clean/1272/128104/1272-128104.txt': '1272-128104-0000 ",MISTER,QUILTER,IS,THE,APOSTLE,OF,THE,MIDDLE,CLASSES,,AND,WE,ARE,GLAD,TO,WELCOME,HIS,GOSPEL," "0.500,0.800,1.270,1.400,1.520,2.150,2.270,2.350,2.620,3.270,3.300,3.450,3.600,3.670,4.070,4.200,4.600,4.840,5.510,5.855"`
 
 Optional Datasets
 ------------
@@ -61,7 +61,11 @@ pip install pyroomacoustics
 Parameters
 ------------
 
-* Data simulator parameters are contained in 'conf/data_simulator.yaml'
+* Data simulator parameters are contained in `conf/data_simulator.yaml`
+
+Example Session
+------------
+![Example multispeaker audio session (using LibriSpeech audio samples and word alignments). RTTM and CTM output labels are highlighted](pictures/audio_session.png)
 
 Running the data simulator for the LibriSpeech dataset
 ------------
