@@ -15,6 +15,7 @@
 """Transformer based language model."""
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
+from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -23,7 +24,6 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_attention_mask_3d,
 )
 from nemo.core.classes.exportable import Exportable
-from nemo.collections.nlp.modules.common.megatron.megatron_decoder_module import MegatronDecoderModule
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType

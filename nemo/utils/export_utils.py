@@ -74,6 +74,7 @@ class CastToFloat(nn.Module):
             ret = self.mod.forward(x)
         return ret
 
+
 class LinearWithBiasSkip(nn.Module):
     def __init__(self, weight, bias, skip_bias_add):
         super(LinearWithBiasSkip, self).__init__()
