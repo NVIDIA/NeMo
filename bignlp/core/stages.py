@@ -423,7 +423,7 @@ class Conversion(BigNLPStage):
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return (
-            f"python3 -u {self._bignlp_path / 'bignlp/collections/get_latest_checkpoint.py'} "
+            f"python3 -u {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
             f"{' '.join(checkpoint_override)}"
         )
 
