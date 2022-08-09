@@ -423,7 +423,7 @@ class Conversion(BigNLPStage):
     def _make_checkpoint_search_command(self, **kwargs):
         checkpoint_override = [f"{k}={v}" for k, v in kwargs.items()]
         return (
-            f"python3 -u {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
+            f"python3 {self._bignlp_path / 'bignlp/collections/checkpoint_search.py'} "
             f"{' '.join(checkpoint_override)}"
         )
 
@@ -503,7 +503,7 @@ class EvalHarnessEvaluation(BigNLPStage):
             tasks=tasks,
             cache_dir=cache_dir,
         )
-        download_command = [f"python3 -u {code_path}", *args]
+        download_command = [f"python3 {code_path}", *args]
         download_command_string = " \\\n  ".join(download_command)
         return download_command_string
 
