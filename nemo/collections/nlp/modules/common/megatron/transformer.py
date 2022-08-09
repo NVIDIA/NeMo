@@ -35,6 +35,7 @@ from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.rotary_pos_embedding import apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, attention_mask_func, erf_gelu
 from nemo.utils import logging
+from nemo.core import adapter_mixins
 
 try:
     from apex.transformer import parallel_state, tensor_parallel
@@ -1025,7 +1026,7 @@ def get_dropout_add(training):
     return _dropout_add
 
 
-class ParallelTransformerLayer_(MegatronModule):
+class ParallelTransformerLayer_(MegatronModule, adapter_mixins.AdapterModuleMixin):
     """A single transformer layer.
 
     Transformer layer takes input with size [s, b, h] and returns an
@@ -1435,6 +1436,8 @@ class ParallelTransformerLayer_(MegatronModule):
         if get_key_value:
             output = [output, presents]
 
+        if self.is_adapter_available():
+          output = self.forward_enabled_adapters(output)
         return output
 
 
