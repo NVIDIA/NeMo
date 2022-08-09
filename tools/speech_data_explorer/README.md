@@ -12,6 +12,11 @@ Features:
 Please make sure that requirements are installed. Then run:
 ```
 python data_explorer.py path_to_manifest.json
+
+or to try new features:
+
+python data_explorer.py FTAll_books_train.json -c1 Conf_test.json -c2 Context_test.json
+
 ```
 
 JSON manifest file should contain the following fields:

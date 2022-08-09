@@ -24,8 +24,6 @@ import operator
 import os
 import pickle
 from collections import defaultdict
-from os.path import expanduser
-from pathlib import Path
 
 import dash
 import dash_bootstrap_components as dbc
@@ -42,6 +40,17 @@ from dash.exceptions import PreventUpdate
 from plotly import express as px
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import plotly.express as px
+#import nemo
+#import nemo.collections.asr as nemo_asr
+import time
+
+
+import os
+from IPython.display import Image
 
 # number of items in a table per page
 DATA_PAGE_SIZE = 10
@@ -94,7 +103,11 @@ def parse_args():
         help='estimate frequency bandwidth and signal level of audio recordings',
     )
     parser.add_argument('--debug', '-d', action='store_true', help='enable debug mode')
+    #new
+    parser.add_argument('--compare_1st', '-c1', help='path to JSON manifest files (after transcription)')
+    parser.add_argument('--compare_2nd', '-c2', help='path to JSON manifest files (after transcription)')
     args = parser.parse_args()
+    
     print(args)
     return args
 
@@ -117,7 +130,7 @@ def eval_bandwidth(signal, sr, threshold=-50):
 
 
 # load data from JSON manifest file
-def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None):
+def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=None, cmp_mode=False, model_num=None):
 
     if vocab is not None:
         # load external vocab
@@ -145,8 +158,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                     item['OOV'] = item['word'] not in vocabulary_ext
             if estimate_audio:
                 for item in data:
-                    filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
-                    signal, sr = librosa.load(path=filepath, sr=None)
+                    signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
                     bw = eval_bandwidth(signal, sr)
                     item['freq_bandwidth'] = int(bw)
                     item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
@@ -175,6 +187,11 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
 
     sm = difflib.SequenceMatcher()
     metrics_available = False
+    #new
+    #with open(
+    
+    
+    
     with open(data_filename, 'r', encoding='utf8') as f:
         for line in tqdm.tqdm(f):
             item = json.loads(line)
@@ -231,8 +248,7 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
                 data[-1]['D-I'] = measures['deletions'] - measures['insertions']
 
             if estimate_audio:
-                filepath = absolute_audio_filepath(item['audio_filepath'], data_filename)
-                signal, sr = librosa.load(path=filepath, sr=None)
+                signal, sr = librosa.load(path=item['audio_filepath'], sr=None)
                 bw = eval_bandwidth(signal, sr)
                 item['freq_bandwidth'] = int(bw)
                 item['level_db'] = 20 * np.log10(np.max(np.abs(signal)))
@@ -245,19 +261,35 @@ def load_data(data_filename, disable_caching=False, estimate_audio=False, vocab=
         for item in vocabulary_data:
             item['OOV'] = item['word'] not in vocabulary_ext
 
-    if metrics_available:
-        wer = wer_dist / wer_count * 100.0
-        cer = cer_dist / cer_count * 100.0
-        wmr = wmr_count / wer_count * 100.0
-
-        acc_sum = 0
-        for item in vocabulary_data:
-            w = item['word']
-            word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
-            acc_sum += word_accuracy
-            item['accuracy'] = round(word_accuracy, 1)
-        mwa = acc_sum / len(vocabulary_data)
-
+    if cmp_mode == False:
+        if metrics_available:
+            wer = wer_dist / wer_count * 100.0
+            cer = cer_dist / cer_count * 100.0
+            wmr = wmr_count / wer_count * 100.0
+    
+            acc_sum = 0
+            for item in vocabulary_data: #adding accuracy
+                w = item['word']
+                word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
+                acc_sum += word_accuracy
+                item['accuracy'] = round(word_accuracy, 1)
+            mwa = acc_sum / len(vocabulary_data)
+    if cmp_mode == True:
+        if metrics_available:
+            wer = wer_dist / wer_count * 100.0
+            cer = cer_dist / cer_count * 100.0
+            wmr = wmr_count / wer_count * 100.0
+    
+            acc_sum = 0
+            for item in vocabulary_data: #adding accuracy
+                w = item['word']
+                word_accuracy = match_vocab[w] / vocabulary[w] * 100.0
+                #print(word_accuracy)
+                acc_sum += word_accuracy
+                item['accuracy' + '_' + str(model_num)] = round(word_accuracy, 1)
+                #item['accuracy' + '_' + str(model_num+1 % 3)] = round(word_accuracy, 1)
+            mwa = acc_sum / len(vocabulary_data)        
+        
     num_hours /= 3600.0
 
     if not disable_caching:
@@ -316,33 +348,59 @@ def plot_word_accuracy(vocabulary_data):
     return fig
 
 
-def absolute_audio_filepath(audio_filepath, manifest_path):
-    """Return absolute path to an audio file.
-
-    Check if a file existst at audio_filepath.
-    If not, assume that the path is relative to the directory where manifest is stored.
-    """
-    audio_filepath = Path(audio_filepath)
-
-    if not audio_filepath.is_file() and not audio_filepath.is_absolute():
-        # assume audio_filepath is relative to the directory where the manifest is stored
-        manifest_dir = Path(args.manifest).parent
-        audio_filepath = manifest_dir / audio_filepath
-        if audio_filepath.is_file():
-            filename = str(audio_filepath)
-        else:
-            filename = expanduser(audio_filepath)
-    else:
-        filename = expanduser(audio_filepath)
-
-    return filename
-
-
 args = parse_args()
 print('Loading data...')
+
+if args.compare_1st != None and args.compare_2nd != None:
+    print("Comparing following files:")
+    print("N_1: ", args.compare_1st)
+    print("N_2: ", args.compare_2nd)
+    n1 = args.compare_1st
+    n2 = args.compare_2nd
+    #print(n1)
+    #print('n2 split', n2.split('.')[0])
+    
+    model_name_1 = n1.split('.')[0]
+    model_name_2 = n2.split('.')[0]
+    
+    
+    for_col_names = pd.DataFrame()
+    for_col_names.insert(0, 'word', ['a'])
+    for_col_names.insert(1, 'count', [0])
+    for_col_names.insert(2, 'accuracy_model_' + model_name_1 , [0])
+    for_col_names.insert(3, 'accuracy_model_' + model_name_2 , [0])
+    for_col_names.insert(4, 'accuracy_diff ' + '(' + model_name_1 + ' - ' + model_name_2 + ')', [0])
+    for_col_names.insert(5, 'count^(-1)', [0])
+    print(for_col_names)
+    
+    
+    
+    
+    
+    
+    cmp_mode = True
+    model_num_1 = 1
+    model_num_2 = 2
+    #data for visualisation
+    data_1, wer_1, cer_1, wmr_1, mwa_1, num_hours_1, vocabulary_1, alphabet_1, metrics_available_1 = load_data(args.compare_1st,disable_caching=True, cmp_mode=True, model_num=1)
+    data_2, wer_2, cer_2, wmr_2, mwa_2, num_hours_2, vocabulary_2, alphabet_2, metrics_available_2 = load_data(args.compare_2nd,disable_caching=True, cmp_mode=True, model_num=2)    
+    
+    
+    #probably there is smth better than this
+    for i in range(len(vocabulary_1)):
+        vocabulary_1[i].update(vocabulary_2[i]) 
+
+    
+    #to_do - rewrite tool section with single vocabulary
 data, wer, cer, wmr, mwa, num_hours, vocabulary, alphabet, metrics_available = load_data(
     args.manifest, args.disable_caching_metrics, args.estimate_audio_metrics, args.vocab
 )
+
+
+
+
+
+
 print('Starting server...')
 app = dash.Dash(
     __name__,
@@ -382,6 +440,9 @@ for k in data[0]:
 
 if metrics_available:
     figure_word_acc = plot_word_accuracy(vocabulary)
+    
+
+    
 
 stats_layout = [
     dbc.Row(dbc.Col(html.H5(children='Global Statistics'), class_name='text-secondary'), class_name='mt-3'),
@@ -502,10 +563,16 @@ if metrics_available:
     ]
 
 wordstable_columns = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
+#new
+wordstable_columns_tool = [{'name': 'Word', 'id': 'word'}, {'name': 'Count', 'id': 'count'}]
+wordstable_columns_tool.append({'name': 'Accuracy_1, %', 'id': 'accuracy_1'})
+wordstable_columns_tool.append({'name': 'Accuracy_2, %', 'id': 'accuracy_2'})
 if 'OOV' in vocabulary[0]:
     wordstable_columns.append({'name': 'OOV', 'id': 'OOV'})
 if metrics_available:
     wordstable_columns.append({'name': 'Accuracy, %', 'id': 'accuracy'})
+#if metrics_available_1 and metrics_available_2:
+    #wordstable_columns_tool.append
 
 stats_layout += [
     dbc.Row(dbc.Col(html.H5('Vocabulary'), class_name='text-secondary'), class_name='mt-3'),
@@ -534,7 +601,7 @@ stats_layout += [
     dbc.Row(dbc.Col([html.Button('Download Vocabulary', id='btn_csv'), dcc.Download(id='download-vocab-csv'),]),),
 ]
 
-
+#VOCAB
 @app.callback(
     Output('download-vocab-csv', 'data'),
     [Input('btn_csv', 'n_clicks'), State('wordstable', 'sort_by'), State('wordstable', 'filter_query')],
@@ -589,8 +656,257 @@ def update_wordstable(page_current, sort_by, filter_query):
         vocabulary_view[page_current * DATA_PAGE_SIZE : (page_current + 1) * DATA_PAGE_SIZE],
         math.ceil(len(vocabulary_view) / DATA_PAGE_SIZE),
     ]
+##new section
 
 
+
+
+##example
+
+
+
+
+#def get_vocabulary_tmp():
+    #import pandas as pd
+    #vocabulary_view_1 = vocabulary_1
+    #vocabulary_view_2 = vocabulary_2
+    
+    #with open('sde_vocab_1_tmp.csv', encoding='utf-8', mode='w', newline='') as fo_1:
+        #writer = csv.writer(fo_1)
+        #writer.writerow(vocabulary_view_1[0].keys())
+        #for item in vocabulary_view_1:
+            #writer.writerow([str(item[k]) for k in item])
+            
+    #with open('sde_vocab_2_tmp.csv', encoding='utf-8', mode='w', newline='') as fo_2:
+        #writer = csv.writer(fo_2)
+        #writer.writerow(vocabulary_view_2[0].keys())
+        #for item in vocabulary_view_2:
+            #writer.writerow([str(item[k]) for k in item])
+    #m1 = pd.read_csv("sde_vocab_1_tmp.csv")
+    #m2 = pd.read_csv("sde_vocab_2_tmp.csv")
+    #name1 = "Contexnet"
+    #name2 = "Conformer"
+    #res = Data_preparation_unrelated_models(m1, m2, name1, name2)
+    #res.to_csv("col_names.tmp")
+       
+
+
+def Data_preparation_unrelated_models(mod1, mod2, name1 = model_name_1, name2 = model_name_2):    
+    res = pd.DataFrame()
+    tmp = mod1['word']
+    res.insert(0, 'word', tmp)
+    res.insert(1, 'count', [float(i) for i in mod1['count']])
+    res.insert(2, 'accuracy_model_' + name1 , mod1['accuracy_1'])
+    res.insert(3, 'accuracy_model_' + name2 , mod2['accuracy_2'])
+    res.insert(4, 'accuracy_diff ' + '(' + name1 + ' - ' + name2 + ')', mod1['accuracy_1'] - mod2['accuracy_2'])
+    res.insert(2, 'count^(-1)', 1/mod1['count'])
+    
+    return res
+
+
+
+
+
+#Output('datatable-advanced-filtering', 'filter_query'),
+#Output('filter-query-output', 'children'),
+#Output('datatable-query-structure', 'children'),
+#Input('datatable-advanced-filtering', 'derived_filter_query_structure')
+
+
+
+#@app.callback(
+    #Output('voc_graph', 'figure'),
+    #[Input('wordstable_with_acc', 'sort_by'), Input('datatable-advanced-filtering', 'filter_query'),
+     #Input('wordstable_with_acc', 'filter_query_1'), Input('xaxis-column', 'value'),
+     #Input('yaxis-column', 'value'), Input('filter-query-output', 'value')],
+    #[Input("datatable-advanced-filtering", "data")],
+    #prevent_initial_call=False,)
+
+
+
+
+
+
+@app.callback(
+    Output('voc_graph', 'figure'),
+    [Input('datatable-advanced-filtering', 'filter_query'),
+     Input('xaxis-column', 'value'), Input('yaxis-column', 'value'), Input('color-column', 'value'), Input('size-column', 'value'),
+     Input("datatable-advanced-filtering", "derived_virtual_data"),],
+    prevent_initial_call=False,)
+def Draw_vocab(filter_query, Ox, Oy, color, size, data, value=None): #Need to sent data after filtering here and convert it to pd format
+    import pandas as pd
+
+    df = pd.DataFrame.from_records(data)
+    with open('out.txt', 'w') as f:
+        f.writelines(df.columns[::])   
+    #update_wordstable_with_acc(1, sort_by, filter_query)
+    #m1 = pd.read_csv("sde_vocab_1.csv")
+    #m2 = pd.read_csv("sde_vocab_2.csv")    
+    #m1, m2 = get_vocabulary()
+    name1 = "Contexnet"
+    name2 = "Conformer"
+    #res = Data_preparation_unrelated_models(m1, m2, name1, name2)
+    res = Prepare_data(df)
+    
+    Ox_ax = 'accuracy' + '(' + name1 + ' - ' + name2 + ')'
+    #fig = px.scatter(df, x = 'word', y = 'accuracy_1')
+    fig = px.scatter(res, x = Ox, y= Oy, color=color, size=size, hover_data={'word':True, Ox:True, Oy:True, 'count':True}, width=1300, height=1000)
+    if (Ox == 'accuracy_model_' + model_name_1 and Oy == 'accuracy_model_' + model_name_2 ) or (Oy == 'accuracy_model_' + model_name_1 and Ox == 'accuracy_model_' + model_name_2 ):
+        fig.add_shape(type="line",
+        x0=0, y0=0, x1=100, y1=100,
+        line=dict(
+            color="MediumPurple",
+            width=1,
+            dash="dot",))
+
+    return fig
+
+
+def Prepare_data(df, name1 = model_name_1, name2 = model_name_2):
+    res = pd.DataFrame()
+    tmp = df['word']
+    res.insert(0, 'word', tmp)
+    res.insert(1, 'count', [float(i) for i in df['count']])
+    res.insert(2, 'accuracy_model_' + name1 , df['accuracy_1'])
+    res.insert(3, 'accuracy_model_' + name2 , df['accuracy_2'])
+    res.insert(4, 'accuracy_diff ' + '(' + name1 + ' - ' + name2 + ')', df['accuracy_1'] - df['accuracy_2'])
+    res.insert(2, 'count^(-1)', 1/df['count'])
+    #res.to_csv('fd.output')
+    return res
+
+
+
+
+
+#@app.callback(
+    #Input("datatable-advanced-filtering", "derived_virtual_data"),
+    #Input('model_name_1-input', 'value'),
+    #Input('model_name_2-input', 'value'),
+#)
+#def Get_col_names(data, name1, name2):
+    #df = pd.DataFrame.from_records(data)
+    #tmp = Prepare_data(df, name1, name2)
+    #col = tmp.columns[::]
+    #col.to_csv('col_names.tmp')
+
+
+
+            
+comparation_layout = [
+    #dbc.Row(dbc.Col(html.H5('More information can be found in documentation'), class_name='text-secondary'), class_name='mt-9'),
+    
+    
+    html.Hr(),
+    
+ 
+    #Get_col_names(data, name1, name2),
+
+    html.Div([
+        dcc.Dropdown(
+            for_col_names.columns[::], #add columns
+            'count',
+            id='xaxis-column'
+        ),
+        dcc.Dropdown(
+            for_col_names.columns[::], #add columns
+            'word',
+            id='yaxis-column'
+        ),  
+        dcc.Dropdown(
+            for_col_names.select_dtypes(include='number').columns[::], #add columns
+            placeholder='Select what will encode color of points',
+            id='color-column'
+        ),  
+        dcc.Dropdown(
+            for_col_names.select_dtypes(include='number').columns[::], #add columns
+            placeholder='Select what will encode size of points',
+            id='size-column'
+        ),         
+        dcc.Input(id='filter-query-input', placeholder='Enter filter query'),
+        
+        ], style={'width': '50%', 'display': 'inline-block', 'float':'middle'}),
+    
+    html.Hr(),
+    html.Div(id='filter-query-output'), #Nice
+    
+    dash_table.DataTable(
+        id='datatable-advanced-filtering',
+        columns=wordstable_columns_tool,
+        data=vocabulary_1,
+        editable=False,
+        page_action='native',
+        page_size=5,
+        filter_action="native"
+    ),    
+    html.Hr(),
+    html.Div(id='datatable-query-structure', style={'whitespace': 'pre'}),
+    html.Hr(),
+    dbc.Row(dbc.Col(dcc.Graph(id='voc_graph'),),),
+    html.Hr(),
+    html.Hr(),
+    ]
+
+
+@app.callback(
+    Output('filter-query-input', 'style'),
+    Output('filter-query-output', 'style'),
+    Input('filter-query-read-write', 'value')
+)
+def query_input_output(val):
+    input_style = {'width': '100%'}
+    output_style = {}
+    input_style.update(display='inline-block')
+    output_style.update(display='none')
+    return input_style, output_style
+
+
+
+
+@app.callback(
+    Output('datatable-advanced-filtering', 'filter_query'),
+    Input('filter-query-input', 'value')
+)
+def write_query(query):
+    if query is None:
+        return ''
+    return query
+
+
+@app.callback(
+    Output('filter-query-output', 'children'),
+    Input('datatable-advanced-filtering', 'filter_query')
+)
+def read_query(query):
+    if query is None:
+        return "No filter query"
+    return dcc.Markdown('`filter_query = "{}"`'.format(query))
+
+
+
+
+@app.callback(
+    Output('datatable-query-structure', 'children'),
+    Input('datatable-advanced-filtering', 'derived_filter_query_structure')
+)
+def display_query(query):
+    if query is None:
+        return ''
+    return html.Details([
+        html.Summary('Derived filter query structure'),
+        html.Div(dcc.Markdown('''```json
+{}
+```'''.format(json.dumps(query, indent=4))))
+    ])
+
+
+
+
+
+
+
+
+
+###########################################################################################################################################END
 samples_layout = [
     dbc.Row(dbc.Col(html.H5('Data'), class_name='text-secondary'), class_name='mt-3'),
     dbc.Row(
@@ -678,7 +994,7 @@ def update_datatable(page_current, sort_by, filter_query):
 
         if op in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             data_view = [x for x in data_view if getattr(operator, op)(x[col_name], filter_value)]
-        elif op == 'contains':
+        elif op == 'condtains':
             data_view = [x for x in data_view if filter_value in str(x[col_name])]
 
     if len(sort_by):
@@ -700,6 +1016,7 @@ app.layout = html.Div(
             children=[
                 dbc.NavItem(dbc.NavLink('Statistics', id='stats_link', href='/', active=True)),
                 dbc.NavItem(dbc.NavLink('Samples', id='samples_link', href='/samples')),
+                dbc.NavItem(dbc.NavLink('Comparative tool', id='comp_tool', href='/comparation'))
             ],
             brand='Speech Data Explorer',
             sticky='top',
@@ -712,14 +1029,16 @@ app.layout = html.Div(
 
 
 @app.callback(
-    [Output('page-content', 'children'), Output('stats_link', 'active'), Output('samples_link', 'active')],
+    [Output('page-content', 'children'), Output('stats_link', 'active'), Output('samples_link', 'active'), Output('comp_tool', 'active')],
     [Input('url', 'pathname')],
 )
 def nav_click(url):
     if url == '/samples':
-        return [samples_layout, False, True]
+        return [samples_layout, False, True, False]
+    elif url == '/comparation':
+        return [comparation_layout, False, False, False]
     else:
-        return [stats_layout, True, False]
+        return [stats_layout, True, False, False]
 
 
 @app.callback(
@@ -762,7 +1081,7 @@ def plot_signal(idx, data):
         raise PreventUpdate
     figs = make_subplots(rows=2, cols=1, subplot_titles=('Waveform', 'Spectrogram'))
     try:
-        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.manifest)
+        filename = data[idx[0]]['audio_filepath']
         audio, fs = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             audio = audio[
@@ -803,8 +1122,8 @@ def plot_signal(idx, data):
         figs.update_yaxes(title_text='Amplitude', row=1, col=1)
         figs.update_xaxes(title_text='Time, s', row=2, col=1)
         figs.update_yaxes(title_text='Frequency, kHz', row=2, col=1)
-    except Exception as ex:
-        app.logger.error(f'ERROR in plot signal: {ex}')
+    except Exception:
+        pass
 
     return figs
 
@@ -814,7 +1133,7 @@ def update_player(idx, data):
     if len(idx) == 0:
         raise PreventUpdate
     try:
-        filename = absolute_audio_filepath(data[idx[0]]['audio_filepath'], args.manifest)
+        filename = data[idx[0]]['audio_filepath']
         signal, sr = librosa.load(path=filename, sr=None)
         if 'offset' in data[idx[0]]:
             signal = signal[
