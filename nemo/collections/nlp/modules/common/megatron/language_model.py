@@ -80,6 +80,9 @@ def get_language_model(
     fp8_hybrid=False,
     fp8_margin=0,
     fp8_interval=1,
+    fp8_amax_history_len=1,
+    fp8_amax_compute_algo='most_recent',
+    fp8_wgrad=True,
 ):
     """Build language model and return along with the key to save."""
 
@@ -137,6 +140,9 @@ def get_language_model(
         fp8_hybrid=fp8_hybrid,
         fp8_margin=fp8_margin,
         fp8_interval=fp8_interval,
+        fp8_amax_history_len=fp8_amax_history_len,
+        fp8_amax_compute_algo=fp8_amax_compute_algo,
+        fp8_wgrad=fp8_wgrad,
     )
     # key used for checkpoints.
     language_model_key = 'language_model'
@@ -170,7 +176,7 @@ class Pooler(MegatronModule):
         if self.sequence_parallel:
             hidden_states = tensor_parallel.gather_from_sequence_parallel_region()
 
-        pooled = hidden_states[:, sequence_index, :]
+        pooled = hidden_states[sequence_index, :, :]
         pooled = self.dense(pooled)
         pooled = torch.tanh(pooled)
         return pooled
@@ -204,6 +210,7 @@ class Embedding(MegatronModule):
         fp32_residual_connection=False,
         sequence_parallel=False,
         position_embedding_type='learned_absolute',
+        transpose_batch_sequence=True,
     ):
         super(Embedding, self).__init__()
 
@@ -211,6 +218,7 @@ class Embedding(MegatronModule):
         self.init_method = init_method
         self.num_tokentypes = num_tokentypes
         self.position_embedding_type = position_embedding_type
+        self.transpose_batch_sequence = transpose_batch_sequence
 
         # Word embeddings (parallel).
         self.word_embeddings = tensor_parallel.VocabParallelEmbedding(
@@ -283,7 +291,8 @@ class Embedding(MegatronModule):
             assert self.tokentype_embeddings is None
 
         # Data format change to avoid explicit tranposes : [b s h] --> [s b h].
-        embeddings = embeddings.transpose(0, 1).contiguous()
+        if self.transpose_batch_sequence:
+            embeddings = embeddings.transpose(0, 1).contiguous()
 
         # If the input flag for fp32 residual connection is set, convert for float.
         if self.fp32_residual_connection:
@@ -415,6 +424,9 @@ class TransformerLanguageModel(MegatronModule):
         fp8_hybrid=False,
         fp8_margin=0,
         fp8_interval=1,
+        fp8_amax_history_len=1,
+        fp8_amax_compute_algo='most_recent',
+        fp8_wgrad=True,
     ):
         super(TransformerLanguageModel, self).__init__()
 
@@ -491,6 +503,9 @@ class TransformerLanguageModel(MegatronModule):
             fp8_hybrid=fp8_hybrid,
             fp8_margin=fp8_margin,
             fp8_interval=fp8_interval,
+            fp8_amax_history_len=fp8_amax_history_len,
+            fp8_amax_compute_algo=fp8_amax_compute_algo,
+            fp8_wgrad=fp8_wgrad,
         )
         self._encoder_key = 'encoder'
 

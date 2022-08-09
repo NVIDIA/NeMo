@@ -472,7 +472,7 @@ class TestRetrievalModuleInference:
             .half()
         )
         out = decoder(hidden_emb, hidden_mask, retrieved_attn_mask=context_mask, retrieved_emb=retrieved_emb)
-        assert out.shape == torch.Size([batch, input_length, dim])
+        assert out.shape == torch.Size([input_length, batch, dim])
 
         out_1 = decoder(
             hidden_emb[:, :62],
@@ -482,7 +482,7 @@ class TestRetrievalModuleInference:
             set_inference_key_value_memory=True,
             inference_max_sequence_len=input_length,
         )
-        assert (out[:, :62] - out_1[:, :62]).abs().max().item() < 1e-2
+        assert (out[:62] - out_1[:62]).abs().max().item() < 1e-2
         out_1 = decoder(
             hidden_emb[:, 62:63],
             hidden_mask[:, :63],
@@ -491,7 +491,7 @@ class TestRetrievalModuleInference:
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
         )
-        assert (out[:, 62] - out_1[:, 0]).abs().max().item() < 1e-2
+        assert (out[62] - out_1[0]).abs().max().item() < 1e-2
         out_2 = decoder(
             hidden_emb[:, 63:64],
             hidden_mask[:, :64],
@@ -500,7 +500,7 @@ class TestRetrievalModuleInference:
             set_inference_key_value_memory=False,
             inference_max_sequence_len=input_length,
         )
-        assert (out[:, 63] - out_2[:, 0]).abs().max().item() < 1e-2
+        assert (out[63] - out_2[0]).abs().max().item() < 1e-2
         for i in range(64, 127):
             out_2 = decoder(
                 hidden_emb[:, i : i + 1],
@@ -510,7 +510,7 @@ class TestRetrievalModuleInference:
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
             )
-            assert (out[:, i] - out_2[:, 0]).abs().max().item() < 1e-2
+            assert (out[i] - out_2[0]).abs().max().item() < 1e-2
         for i in range(127, 191):
             out_3 = decoder(
                 hidden_emb[:, i : i + 1],
@@ -520,7 +520,7 @@ class TestRetrievalModuleInference:
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
             )
-            assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
+            assert (out[i] - out_3[0]).abs().max().item() < 1e-2
 
         out_1 = decoder(
             hidden_emb[:, :130],
@@ -530,7 +530,7 @@ class TestRetrievalModuleInference:
             set_inference_key_value_memory=True,
             inference_max_sequence_len=input_length,
         )
-        assert (out[:, :130] - out_1[:, :130]).abs().max().item() < 1e-2
+        assert (out[:130] - out_1[:130]).abs().max().item() < 1e-2
         for i in range(130, 191):
             out_3 = decoder(
                 hidden_emb[:, i : i + 1],
@@ -540,7 +540,7 @@ class TestRetrievalModuleInference:
                 set_inference_key_value_memory=False,
                 inference_max_sequence_len=input_length,
             )
-            assert (out[:, i] - out_3[:, 0]).abs().max().item() < 1e-2
+            assert (out[i] - out_3[0]).abs().max().item() < 1e-2
 
     @pytest.mark.pleasefixme
     @pytest.mark.unit

@@ -15,7 +15,6 @@
 import math
 
 import torch
-from apex.transformer.enums import LayerType
 
 
 class T5RelativePositionEmbedding(torch.nn.Module):

@@ -18,15 +18,14 @@ import math
 from typing import Dict, List, Union
 
 import torch
-import torch.nn.functional as F
 
 try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.transformer import parallel_state, tensor_parallel
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.pipeline_parallel.schedules.common import listify_model
     from apex.transformer.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
+    from apex.contrib.layer_norm.layer_norm import FastLayerNorm
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):

@@ -311,7 +311,6 @@ class CoreAttention(MegatronModule):
         kv_channels=None,
         masked_softmax_fusion=True,
         attention_dropout=0.1,
-        headscale=False,
         sequence_parallel=False,
     ):
 
@@ -347,12 +346,6 @@ class CoreAttention(MegatronModule):
             self.num_attention_heads_per_partition * parallel_state.get_tensor_model_parallel_rank()
         )
 
-        self.headscale = headscale
-        if headscale:
-            self.head_scale_tensor = torch.nn.Parameter(
-                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
-            )
-
         coeff = None
         self.norm_factor = math.sqrt(self.hidden_size_per_attention_head)
         if self.apply_query_key_layer_scaling:
@@ -384,6 +377,7 @@ class CoreAttention(MegatronModule):
         get_key_value=False,
         rotary_pos_emb=None,
         relative_position_bias=None,
+        headscale_tensor=None,
     ):
 
         # ===================================
@@ -491,8 +485,8 @@ class CoreAttention(MegatronModule):
         # change view [b, np, sq, hn]
         context_layer = context_layer.view(*output_size)
 
-        if self.headscale:
-            context_layer = context_layer * self.head_scale_tensor
+        if headscale_tensor is not None:
+            context_layer = context_layer * headscale_tensor
 
         # [b, np, sq, hn] --> [sq, b, np, hn]
         context_layer = context_layer.permute(2, 0, 1, 3).contiguous()
@@ -609,7 +603,6 @@ class ParallelAttention(MegatronModule):
             kv_channels=kv_channels,
             masked_softmax_fusion=masked_softmax_fusion,
             attention_dropout=attention_dropout,
-            headscale=headscale,
             sequence_parallel=sequence_parallel,
         )
         self.checkpoint_core_attention = activations_checkpoint_granularity == 'selective'
@@ -627,6 +620,12 @@ class ParallelAttention(MegatronModule):
             gradient_accumulation_fusion=gradient_accumulation_fusion,
         )
 
+        self.headscale = headscale
+        if headscale:
+            self.head_scale_tensor = torch.nn.Parameter(
+                torch.ones(1, self.num_attention_heads_per_partition, 1, 1), requires_grad=True
+            )
+
         # Inference key-value memory
         self.inference_key_memory = None
         self.inference_value_memory = None
@@ -636,7 +635,14 @@ class ParallelAttention(MegatronModule):
         self.layer_type = layer_type
 
     def _checkpointed_attention_forward(
-        self, query_layer, key_layer, value_layer, attention_mask, rotary_pos_emb=None, relative_position_bias=None
+        self,
+        query_layer,
+        key_layer,
+        value_layer,
+        attention_mask,
+        rotary_pos_emb=None,
+        relative_position_bias=None,
+        headscale_tensor=None,
     ):
         """Forward method with activation checkpointing."""
 
@@ -654,6 +660,7 @@ class ParallelAttention(MegatronModule):
                 attention_mask,
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
+                headscale_tensor=headscale_tensor,
             )
             return output_
 
@@ -666,6 +673,7 @@ class ParallelAttention(MegatronModule):
             attention_mask,
             rotary_pos_emb,
             relative_position_bias,
+            headscale_tensor,
         )
 
         return hidden_states
@@ -840,6 +848,7 @@ class ParallelAttention(MegatronModule):
                 attention_mask,
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
+                headscale_tensor=self.head_scale_tensor if self.headscale else None,
             )
         else:
             context_layer = self.core_attention(
@@ -851,6 +860,7 @@ class ParallelAttention(MegatronModule):
                 get_key_value=get_key_value,
                 rotary_pos_emb=rotary_pos_emb,
                 relative_position_bias=relative_position_bias,
+                headscale_tensor=self.head_scale_tensor if self.headscale else None,
             )
 
         # =================
@@ -1140,6 +1150,14 @@ class ParallelTransformerLayer_(MegatronModule):
                 sequence_parallel=sequence_parallel,
                 gradient_accumulation_fusion=gradient_accumulation_fusion,
             )
+
+            if transformer_block_type == 'normformer':
+                if normalization == 'layernorm':
+                    self.post_attention_normformer_norm = get_layer_norm(
+                        hidden_size, layernorm_epsilon, persist_layer_norm
+                    )
+                else:
+                    self.post_attention_normformer_norm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
             if self.layer_type != LayerType.decoder_pre_mlp or self.transformer_block_type != 'post_ln':
                 #  the post_attention_layernorm is used for layermorm after mlp
@@ -1581,7 +1599,6 @@ class AutocastTransformerLayer(TransformerLayer):
         params_dtype: torch.dtype = torch.float32,
         get_rng_state_tracker: Optional[Callable] = None,
         checkpoint_core_attention: bool = False,
-        num_grad_accumulation_steps: Optional[int] = None,
         fuse_wgrad_accumulation: bool = False,
         bias_dropout_fusion: bool = False,
         masked_softmax_fusion: bool = True,
@@ -1614,7 +1631,6 @@ class AutocastTransformerLayer(TransformerLayer):
             params_dtype=params_dtype,
             get_rng_state_tracker=get_rng_state_tracker,
             checkpoint_core_attention=checkpoint_core_attention,
-            num_grad_accumulation_steps=num_grad_accumulation_steps,
             fuse_wgrad_accumulation=fuse_wgrad_accumulation,
             bias_dropout_fusion=bias_dropout_fusion,
             masked_softmax_fusion=masked_softmax_fusion,
@@ -1646,6 +1662,7 @@ class AutocastTransformerLayer(TransformerLayer):
         encoder_output: Optional[torch.Tensor] = None,
         enc_dec_attn_mask: Optional[torch.Tensor] = None,
         inference_params: Optional[Any] = None,
+        is_first_microbatch: Optional[bool] = None,
     ) -> torch.Tensor:
         if self.dtype == torch.float32:
             return super().forward(
@@ -1654,6 +1671,7 @@ class AutocastTransformerLayer(TransformerLayer):
                 encoder_output=encoder_output,
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
+                is_first_microbatch=is_first_microbatch,
             )
         with torch.autocast(device_type="cuda", dtype=self.dtype):
             return super().forward(
@@ -1662,6 +1680,7 @@ class AutocastTransformerLayer(TransformerLayer):
                 encoder_output=encoder_output,
                 enc_dec_attn_mask=enc_dec_attn_mask,
                 inference_params=inference_params,
+                is_first_microbatch=is_first_microbatch,
             )
 
 
@@ -1714,6 +1733,9 @@ class ParallelTransformer(MegatronModule):
         fp8_hybrid=False,
         fp8_margin=0,
         fp8_interval=1,
+        fp8_amax_history_len=1,
+        fp8_amax_compute_algo='most_recent',
+        fp8_wgrad=True,
     ):
         super(ParallelTransformer, self).__init__()
 
@@ -1731,6 +1753,7 @@ class ParallelTransformer(MegatronModule):
         self.model_type = model_type
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
+        self.layer_type = layer_type
 
         self.activations_checkpoint_method = activations_checkpoint_method
         self.activations_checkpoint_num_layers = activations_checkpoint_num_layers
@@ -1769,6 +1792,9 @@ class ParallelTransformer(MegatronModule):
         self.fp8_hybrid = fp8_hybrid
         self.fp8_margin = fp8_margin
         self.fp8_interval = fp8_interval
+        self.fp8_amax_history_len = fp8_amax_history_len
+        self.fp8_amax_compute_algo = fp8_amax_compute_algo
+        self.fp8_wgrad = fp8_wgrad
 
         self.fp8_recipe = None
 
@@ -1781,9 +1807,14 @@ class ParallelTransformer(MegatronModule):
                 margin=self.fp8_margin,
                 interval=self.fp8_interval,
                 fp8_format=fp8_format,
-                amax_history_len=1,
-                amax_compute_algo="most_recent",
+                amax_history_len=self.fp8_amax_history_len,
+                amax_compute_algo=self.fp8_amax_compute_algo,
+                wgrad_in_fp8=self.fp8_wgrad,
+
             )
+        
+        self.is_first_microbatch = True
+        self.microbatch_count = 0 # transformer engine forward needs to know if it is working on the first microbatch
 
         if self.model_type == ModelType.encoder_or_decoder:
             assert (
@@ -1921,12 +1952,17 @@ class ParallelTransformer(MegatronModule):
                 assert parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 num_ranks_in_encoder = parallel_state.get_pipeline_model_parallel_split_rank()
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder
-                assert (
-                    num_layers % num_ranks_in_encoder == 0
-                ), 'num_layers must be divisible by number of ranks given to encoder'
-                assert (
-                    num_layers % num_ranks_in_decoder == 0
-                ), 'num_layers must be divisible by number of ranks given to decoder'
+                if self.layer_type == LayerType.encoder:
+                    assert (
+                        num_layers % num_ranks_in_encoder == 0
+                    ), 'num_layers must be divisible by number of ranks given to encoder'
+                elif self.layer_type == LayerType.decoder:
+                    assert (
+                        num_layers % num_ranks_in_decoder == 0
+                    ), 'num_layers must be divisible by number of ranks given to decoder'
+                else:
+                    raise ValueError(f"Unknown layer type {self.layer_type}")
+
                 if parallel_state.is_pipeline_stage_before_split():
                     num_layers = num_layers // num_ranks_in_encoder
                 else:
@@ -1953,6 +1989,7 @@ class ParallelTransformer(MegatronModule):
 
         def custom(start, end):
             if getattr(self, 'transformer_engine', False):
+
                 def custom_forward(*inputs):
                     hidden_states = inputs[0]
                     attention_mask = inputs[1]
@@ -1963,15 +2000,12 @@ class ParallelTransformer(MegatronModule):
                     cross_attention_relative_position_bias = inputs[6]
                     for index in range(start, end):
                         layer = self._get_layer(index)
-                        hidden_states = layer(
-                            hidden_states,
-                            attention_mask,
-                            encoder_output,
-                            enc_dec_attn_mask,
-                            )
+                        hidden_states = layer(hidden_states, attention_mask, encoder_output, enc_dec_attn_mask, None, self.is_first_microbatch)
 
                     return hidden_states
+
             else:
+
                 def custom_forward(*inputs):
                     x_ = inputs[0]
                     attention_mask = inputs[1]
@@ -2094,6 +2128,15 @@ class ParallelTransformer(MegatronModule):
             # this is retrieval decoder, need special transpose
             encoder_output = rearrange(retrieved_emb, 'b k r n d -> k r n b d').contiguous()
 
+        """
+        is_first_microbatch is an optimization parameter for transformer engine.
+        It indicates if the current step in the forward pass is the first in a gradient accumulation cycle.
+        If set, FP8 weights are cached and some minor optimizations are applied to fuse_wgrad_accumulation
+        """
+        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+
+        num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
+
         if self.sequence_parallel:
             rng_context = tensor_parallel.random.get_cuda_rng_tracker().fork()
         else:
@@ -2130,6 +2173,7 @@ class ParallelTransformer(MegatronModule):
                         # }
                         inference_params = None
 
+
                         # fp8_autocast will not do anything if fp8 isn't used
                         with fp8_autocast(
                             enabled=self.fp8,
@@ -2142,6 +2186,7 @@ class ParallelTransformer(MegatronModule):
                                 encoder_output=encoder_output,
                                 enc_dec_attn_mask=enc_dec_attn_mask,
                                 inference_params=inference_params,
+                                is_first_microbatch=self.is_first_microbatch,
                             )
 
                     else:
@@ -2158,14 +2203,25 @@ class ParallelTransformer(MegatronModule):
                             self_attention_relative_position_bias=self_attention_relative_position_bias,
                             cross_attention_relative_position_bias=cross_attention_relative_position_bias,
                         )
+                    
+        # Skip counter update for eval and activation checkpointing
+        if torch.is_grad_enabled() and self.training:
+            self.microbatch_count += 1
+            if self.microbatch_count % num_micro_batches == 0:
+                self.microbatch_count = 0
+                self.is_first_microbatch = True
+            else:
+                self.is_first_microbatch = False
+
+
+        output = hidden_states
 
         # Final layer norm.
         if self.post_process:
             # only apply the final_layernorm for pre-ln
             if self.transformer_block_type != 'post_ln':
                 output = self.final_layernorm(hidden_states)
-        else:
-            output = hidden_states
+
         if get_key_value:
             output = [output, presents]
 
