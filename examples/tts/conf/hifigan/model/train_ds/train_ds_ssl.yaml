@@ -21,6 +21,6 @@ dataloader_params:
   drop_last: false
   shuffle: true
   batch_size: 32
-  num_workers: 4
+  num_workers: 8
   pin_memory: true
   

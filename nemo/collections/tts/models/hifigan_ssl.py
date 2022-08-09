@@ -215,6 +215,24 @@ class HifiGanModel(Vocoder, Exportable):
 
         return encoded
 
+    def synthesize_wav(self, content_embedding, speaker_embedding, pitch_contour=None, compute_pitch=False):
+        """
+        content_embedding : (B, C, T)
+        speaker_embedding : (B, C)
+        pitch_contour : (B, T) or None
+        compute_pitch: if true, predict pitch contour from content and speaker embedding.
+        """
+        if compute_pitch:
+            speaker_embedding_repeated = speaker_embedding[:, :, None].repeat(1, 1, content_embedding.shape[2])
+            pitch_predictor_input = torch.cat([content_embedding, speaker_embedding_repeated], dim=1)
+            pitch_predictor_input = pitch_predictor_input.permute(0, 2, 1)
+            mask = torch.ones(pitch_predictor_input.shape[0], pitch_predictor_input.shape[1], 1).to(self.device)
+            pitch_contour = self.pitch_predictor(pitch_predictor_input, mask)
+
+        encoded = self.compute_generator_input(content_embedding, speaker_embedding, pitch_contour)
+
+        return self.generator(x=encoded)
+
     def training_step(self, batch, batch_idx):
         if self.ssl_model_type == "conformer":
             audio, audio_len, encoded, encoded_len, pitch_contour = batch
