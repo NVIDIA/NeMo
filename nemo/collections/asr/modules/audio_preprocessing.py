@@ -270,6 +270,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor):
         )
 
     def get_features(self, input_signal, length):
+        print(input_signal.shape, length)
+        # torch.Size([5, 1018696]) tensor([1018696,  961120, 1015420,  988700,  989080], device='cuda:0')
         return self.featurizer(input_signal, length)
 
     @property

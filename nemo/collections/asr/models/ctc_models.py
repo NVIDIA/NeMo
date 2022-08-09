@@ -31,7 +31,7 @@ from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecMode
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType, MaskType
 from nemo.utils import logging
 
 __all__ = ['EncDecCTCModel']
@@ -371,7 +371,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             augmentor = None
 
         # Automatically inject args from model config to dataloader config
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')MaskType
         audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
 
         shuffle = config['shuffle']
@@ -529,7 +529,7 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "segment": NeuralType(('B', 'T'), LengthsType(), optional=True)
+            "segment": NeuralType(('B', 'D', 'T'), MaskType(), optional=True)
         }
 
     @property
@@ -578,10 +578,14 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
                 input_signal=input_signal, length=input_signal_length,
             )
 
+        # unnormalize above
+        # mask here
         if segment is not None:
             print(segment)
-            print(processed_signal.shape)
+            print(processed_signal.shape) #torch.Size([5, 80, 6367])
 
+        
+        contruct_vad_mask(segment, processed_signal)
 
         if self.spec_augmentation is not None and self.training:
             processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
@@ -591,6 +595,10 @@ class EncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin):
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
 
         return log_probs, encoded_len, greedy_predictions
+    
+    def contruct_vad_mask(self, processed_signal):
+        max_dur = processed_signal.shape[-1] 
+
 
     # PTL-specific methods
     def training_step(self, batch, batch_nb):

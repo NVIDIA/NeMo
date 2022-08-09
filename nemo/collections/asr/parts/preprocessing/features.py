@@ -436,7 +436,9 @@ class FilterbankFeatures(nn.Module):
 
         # normalize if required
         if self.normalize:
+            print("===", x.shape)
             x = normalize_batch(x, seq_len, normalize_type=self.normalize)
+            print("===", x.shape)
 
         # mask to zero any values beyond seq_len in batch, pad to multiple of `pad_to` (for efficiency)
         max_len = x.size(-1)

@@ -72,7 +72,13 @@ def transcribe_partial_audio(
                 'right': right,
             }
             temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
-            segment = torch.tensor([[0,1]])
+            segment = [
+                torch.tensor([[0,1],[2,3]]),
+                torch.tensor([[0,2],[5,7]]),
+                torch.tensor([[0,1],]),
+                torch.tensor([[2,3]]),
+                torch.tensor([[0,1],[2,3]]),
+            ]
             for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                 logits, logits_len, greedy_predictions = asr_model.forward(
                     input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device), 
